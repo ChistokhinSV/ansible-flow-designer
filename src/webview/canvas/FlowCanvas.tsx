@@ -1,5 +1,6 @@
 // Design-mode canvas. Nodes come from the snapshot; drags stay local until drop, then become one
 // moveNodes command. Node objects are reused while their content is unchanged (07 §6).
+// A click on a port opens its menu; dragging from it (beyond a few pixels) draws a wire.
 import {
   applyNodeChanges,
   Background,
@@ -16,14 +17,17 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
 import { command, loadState, saveState } from '../bus';
+import { completePick, dropPattern } from '../portActions';
 import { useUi } from '../store';
 import { levelView, type NodeView } from '../viewModel';
 import { FlowNodeView, type FlowRFNode, TYPE_LABEL } from './FlowNodeView';
 
 const nodeTypes = { flow: FlowNodeView };
 export const DRAG_MIME = 'application/x-afd-node-type';
+export const PATTERN_MIME = 'application/x-afd-pattern';
 
 interface SavedState {
   viewport?: Viewport;
@@ -52,6 +56,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const setOptimistic = useUi((s) => s.setOptimistic);
   const openQuickAdd = useUi((s) => s.openQuickAdd);
   const setError = useUi((s) => s.setError);
+  const picking = useUi((s) => s.pick !== null);
+  const setPick = useUi((s) => s.setPick);
+  const openPortMenu = useUi((s) => s.openPortMenu);
+  const [connecting, setConnecting] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
 
   const view = useMemo(
@@ -99,14 +107,30 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [view.edges, selection.edge],
   );
 
-  const onNodesChange = useCallback((changes: NodeChange<FlowRFNode>[]) => {
-    setNodes((ns) =>
-      applyNodeChanges(
-        changes.filter((c) => c.type !== 'remove'),
-        ns,
-      ),
-    );
-  }, []);
+  // Selection follows the user's select changes only. React Flow reports onSelectionChange one
+  // commit late, so syncing from it fights a selection set from code (a node just created) and
+  // loops; the select changes below are emitted for user actions only, never for prop updates.
+  const onNodesChange = useCallback(
+    (changes: NodeChange<FlowRFNode>[]) => {
+      const picked = changes.filter((c) => c.type === 'select');
+      if (picked.length > 0) {
+        const on = picked.findLast((c) => c.selected);
+        const current = useUi.getState().selection;
+        if (on) {
+          if (current.node !== on.id) select({ node: on.id });
+        } else if (current.node && picked.some((c) => c.id === current.node)) {
+          select({});
+        }
+      }
+      setNodes((ns) =>
+        applyNodeChanges(
+          changes.filter((c) => c.type !== 'remove'),
+          ns,
+        ),
+      );
+    },
+    [select],
+  );
 
   const latest = useRef(nodes);
   latest.current = nodes;
@@ -145,6 +169,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
 
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+      setConnecting(false);
       if (
         state.isValid ||
         !state.fromNode ||
@@ -184,12 +209,23 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
 
   const onDrop = useCallback(
     (e: DragEvent) => {
+      const pattern = e.dataTransfer.getData(PATTERN_MIME) as PatternId;
+      if ((PATTERN_IDS as readonly string[]).includes(pattern)) {
+        e.preventDefault();
+        // D-16: dropped onto a port, or onto a node (its first open port the pattern fits).
+        const hit = document.elementFromPoint(e.clientX, e.clientY);
+        const port = hit?.closest<HTMLElement>('[data-port]')?.dataset.port;
+        const node = hit?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+        if (node) void dropPattern(pattern, node, port);
+        else setError('Drop a failure pattern onto an open fail port');
+        return;
+      }
       const type = e.dataTransfer.getData(DRAG_MIME) as NodeType;
       if (!type) return;
       e.preventDefault();
       openQuickAdd({ type, position: screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
     },
-    [openQuickAdd, screenToFlowPosition],
+    [openQuickAdd, screenToFlowPosition, setError],
   );
 
   const saved = useMemo(() => loadState<SavedState>(), []);
@@ -201,20 +237,35 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={(changes: EdgeChange[]) => {
-        const picked = changes.find((c) => c.type === 'select' && c.selected);
-        if (picked && 'id' in picked) select({ edge: picked.id });
+        const picked = changes.filter((c) => c.type === 'select');
+        const on = picked.findLast((c) => c.selected);
+        const current = useUi.getState().selection;
+        if (on) {
+          if (current.edge !== on.id) select({ edge: on.id });
+        } else if (current.edge && picked.some((c) => c.id === current.edge)) {
+          select({});
+        }
       }}
       onNodeDragStop={onNodeDragStop}
       onConnect={onConnect}
+      onConnectStart={() => setConnecting(true)}
       onConnectEnd={onConnectEnd}
-      onDelete={onDelete}
-      onSelectionChange={({ nodes: ns, edges: es }) => {
-        const node = ns[0]?.id;
-        const edge = node ? undefined : es[0]?.id;
-        if (node !== selection.node || edge !== selection.edge) select({ node, edge });
+      connectOnClick={false}
+      connectionDragThreshold={4}
+      onNodeClick={(_e, n) => {
+        if (picking) void completePick(n.id);
       }}
+      onPaneClick={() => {
+        if (picking) setPick(null);
+      }}
+      onMoveStart={() => openPortMenu(null)}
+      className={[connecting ? 'afd-connecting' : '', picking ? 'afd-picking' : '']
+        .filter(Boolean)
+        .join(' ')}
+      onDelete={onDelete}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(DRAG_MIME)) e.preventDefault();
+        if (e.dataTransfer.types.includes(DRAG_MIME) || e.dataTransfer.types.includes(PATTERN_MIME))
+          e.preventDefault();
       }}
       onDrop={onDrop}
       onMoveEnd={(_e, viewport) => saveState<SavedState>({ ...loadState<SavedState>(), viewport })}

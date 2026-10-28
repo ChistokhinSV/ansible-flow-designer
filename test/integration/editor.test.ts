@@ -1,8 +1,8 @@
-// M1 acceptance checks inside a real VS Code (handoff 06), against a throwaway Git workspace.
+// M1 and M2 acceptance checks inside a real VS Code (handoff 06), against a throwaway Git workspace.
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
-import { portsFor } from '../../src/core/flow/ports';
+import { legalPorts, portsFor } from '../../src/core/flow/ports';
 import type { FlowDocument } from '../../src/core/flow/types';
 import {
   changedLines,
@@ -66,17 +66,32 @@ describe('M1 acceptance: examples', () => {
       assert.equal(documentOf(uri).getText(), doc.getText());
     });
 
-    it(`${name}: every node shows exactly its catalog ports (check 3)`, async () => {
+    it(`${name}: every node has exactly its catalog ports; at rest only wired and fail ports show (M1 check 3, D-14)`, async () => {
       const api = await testApi();
       const doc = await openDesigner(uri);
       const dom = await api.inspect(uri);
-      for (const node of docOf(doc.getText()).nodes) {
-        const shown = dom.nodes.find((n) => n.id === node.id)?.ports;
+      const flow = docOf(doc.getText());
+      const wired = new Set(
+        flow.edges.flatMap((e) => [`${e.from.node}|${e.from.port}`, `${e.to.node}|${e.to.port}`]),
+      );
+      for (const node of flow.nodes) {
+        const shown = dom.nodes.find((n) => n.id === node.id);
+        const enabled = portsFor(node);
         assert.deepEqual(
-          shown,
-          portsFor(node).map((p) => p.name),
+          [...(shown?.ports ?? [])].sort(),
+          enabled.map((p) => p.name).sort(),
           node.key,
         );
+        assert.deepEqual(
+          shown?.legal,
+          legalPorts(node).map((p) => p.name),
+          node.key,
+        );
+        // Unwired enabled fail outputs are open (amber) or open on purpose (gray): both show.
+        const rest = enabled
+          .filter((p) => wired.has(`${node.id}|${p.name}`) || (p.fail && p.direction === 'out'))
+          .map((p) => p.name);
+        assert.deepEqual([...(shown?.rest ?? [])].sort(), rest.sort(), `${node.key} at rest`);
       }
     });
 
@@ -203,5 +218,90 @@ describe('M1 acceptance: editing', () => {
     assert.equal(dom.nodes.length, 8, 'last good model stays on the canvas');
     await undoUntil(doc, original);
     assert.equal(doc.getText(), original);
+  });
+});
+
+describe('M2 acceptance: port menus, patterns, open on purpose', () => {
+  afterEach(closeAll);
+
+  async function undoOnce(doc: vscode.TextDocument, original: string) {
+    await vscode.commands.executeCommand('undo');
+    assert.equal(doc.getText(), original, 'one undo restores the bytes');
+  }
+
+  it('a failure pattern is one edit: IDs kept, banner drops, one undo restores (checks 2, 4)', async () => {
+    const api = await testApi();
+    const doc = await openDesigner(EDGE);
+    const original = doc.getText();
+    await runAndRender(EDGE, {
+      kind: 'applyPattern',
+      pattern: 'notify-stop',
+      from: { node: nodeId(original, 'precheck'), port: 'failed_hosts' },
+      position: { x: 480, y: 160 },
+    });
+    const after = doc.getText();
+    for (const id of ids(original)) assert.ok(after.includes(id), id);
+    const dom = await api.inspect(EDGE);
+    assert.equal(dom.banner, 2);
+    assert.equal(api.diagnostics(EDGE).filter((d) => d.code === 'open-fail-port').length, 2);
+    await undoOnce(doc, original);
+  });
+
+  it('rollback on unreachable is refused (check 3)', async () => {
+    const api = await testApi();
+    const doc = await openDesigner(EDGE);
+    const outcome = await api.run(EDGE, {
+      kind: 'applyPattern',
+      pattern: 'rollback',
+      from: { node: nodeId(doc.getText(), 'precheck'), port: 'unreachable' },
+    });
+    assert.equal(outcome.ok, false);
+    assert.equal(doc.isDirty, false);
+  });
+
+  it('open on purpose needs a reason and records the Git user (check 4)', async () => {
+    const api = await testApi();
+    const doc = await openDesigner(EDGE);
+    const original = doc.getText();
+    const ref = { node: nodeId(original, 'precheck'), port: 'failed_hosts' };
+    const refused = await api.run(EDGE, { kind: 'setDecision', ...ref, reason: ' ' });
+    assert.equal(refused.ok, false);
+    await runAndRender(EDGE, { kind: 'setDecision', ...ref, reason: 'Read-only checks' });
+    const recorded = docOf(doc.getText()).decisions?.at(-1);
+    assert.deepEqual(recorded, {
+      ...ref,
+      kind: 'open_on_purpose',
+      reason: 'Read-only checks',
+      by: 'AFD Test',
+    });
+    assert.equal((await api.inspect(EDGE)).banner, 2);
+    await undoOnce(doc, original);
+  });
+
+  it('insert on a wire and rewire keep edge IDs; each is one undo step', async () => {
+    const doc = await openDesigner(EDGE);
+    const original = doc.getText();
+    const edge = docOf(original).edges.find((e) => e.from.node === nodeId(original, 'precheck'));
+    assert.ok(edge);
+    await runAndRender(EDGE, {
+      kind: 'addNode',
+      type: 'task',
+      title: 'Snapshot',
+      insertOn: edge.id,
+    });
+    const inserted = docOf(doc.getText()).edges.find((e) => e.id === edge.id);
+    assert.deepEqual(inserted?.from, edge.from);
+    assert.equal(inserted?.to.node, nodeId(doc.getText(), 'snapshot'));
+    await undoOnce(doc, original);
+    await runAndRender(EDGE, {
+      kind: 'rewire',
+      edge: edge.id,
+      to: { node: nodeId(original, 'done'), port: 'in' },
+    });
+    assert.equal(
+      docOf(doc.getText()).edges.find((e) => e.id === edge.id)?.to.node,
+      nodeId(original, 'done'),
+    );
+    await undoOnce(doc, original);
   });
 });

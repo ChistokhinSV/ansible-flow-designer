@@ -1,18 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import type { FlowCommand } from '../../../src/core/flow/commands';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
-import { defaultPortNames } from '../../../src/core/flow/ports';
+import { defaultPortNames, legalPorts } from '../../../src/core/flow/ports';
 import { type FlowDocument, NODE_TYPES } from '../../../src/core/flow/types';
 import type { Snapshot } from '../../../src/core/protocol';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { Banner } from '../../../src/webview/panels/Banner';
+import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
+import { PortMenu } from '../../../src/webview/panels/PortMenu';
 import { useUi } from '../../../src/webview/store';
 import { levelView } from '../../../src/webview/viewModel';
+import { posted } from './setup';
 
 const example = (name: string) =>
   parse(readFileSync(join(__dirname, '../../../examples', name), 'utf8')) as FlowDocument;
@@ -44,7 +48,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('canvas renders the port catalog (check 3)', () => {
-  it('shows exactly the default ports for a node of each type', () => {
+  it('a node of each type has exactly its default ports enabled; all legal ports are rendered', () => {
     const ids = NODE_TYPES.map((_, i) => `01JC0000000000000000000${String(i).padStart(3, '0')}`);
     const doc: FlowDocument = {
       schema_version: 1,
@@ -71,10 +75,22 @@ describe('canvas renders the port catalog (check 3)', () => {
     NODE_TYPES.forEach((type, i) => {
       const el = document.querySelector(`[data-node-id="${ids[i]}"]`);
       expect(el, type).not.toBeNull();
-      const ports = [...(el?.querySelectorAll<HTMLElement>('[data-port]') ?? [])].map(
-        (p) => p.dataset.port,
+      const handles = [...(el?.querySelectorAll<HTMLElement>('[data-port]') ?? [])];
+      const enabled = handles.filter((p) => p.dataset.portState !== 'available');
+      expect(enabled.map((p) => p.dataset.port).sort(), type).toEqual(
+        defaultPortNames({ type }).sort(),
       );
-      expect(ports, type).toEqual(defaultPortNames({ type }));
+      expect(
+        handles.map((p) => p.dataset.port),
+        type,
+      ).toEqual(legalPorts({ type }).map((p) => p.name));
+      // D-14 at rest: with no wires, only open fail ports show.
+      const rest = handles.filter((p) => p.dataset.rest === 'true').map((p) => p.dataset.port);
+      expect(rest, type).toEqual(
+        legalPorts({ type })
+          .filter((p) => p.enabled && p.fail && p.direction === 'out')
+          .map((p) => p.name),
+      );
     });
   });
 
@@ -114,12 +130,40 @@ describe('view model', () => {
     });
   });
 
-  it('spreads several ports on one side evenly', () => {
+  it('places ports by slot over every legal port, so they never shift (mockup 07)', () => {
     const doc = example('os-upgrade.flow.yaml');
     const view = levelView(snapshotOf(doc));
     const upgrade = view.nodes.find((n) => n.node.key === 'upgrade-os');
-    const right = upgrade?.ports.filter((p) => p.side === 'right').map((p) => p.offset);
-    expect(right).toEqual([1 / 3, 2 / 3]);
+    const right = upgrade?.ports.filter((p) => p.side === 'right');
+    expect(right?.map((p) => [p.name, p.offset])).toEqual([
+      ['failed_hosts', 0.2],
+      ['unreachable', 0.4],
+      ['timeout', 0.6],
+      ['cancelled', 0.8],
+    ]);
+    const bottom = upgrade?.ports.filter((p) => p.side === 'bottom').map((p) => p.name);
+    expect(bottom).toEqual(['always', 'ok_hosts', 'unchanged']);
+    expect(upgrade?.ports.find((p) => p.name === 'timeout')?.state).toBe('available');
+  });
+
+  it('at rest shows connected, open-fail and open-on-purpose ports only (D-14)', () => {
+    const view = levelView(snapshotOf(example('edge-baseline.flow.yaml')));
+    const rest = (key: string) =>
+      view.nodes
+        .find((n) => n.node.key === key)
+        ?.ports.filter((p) => p.rest)
+        .map((p) => `${p.name}:${p.state}`);
+    expect(rest('precheck')).toEqual([
+      'in:connected',
+      'ok_hosts:connected',
+      'failed_hosts:open-fail',
+    ]);
+    expect(rest('backup-config')).toEqual([
+      'in:connected',
+      'ok_hosts:connected',
+      'failed_hosts:open-purpose',
+    ]);
+    expect(rest('done')).toEqual(['in:connected']);
   });
 
   it('prefers optimistic, then stored, then auto positions', () => {
@@ -151,5 +195,89 @@ describe('open-port banner (check 4)', () => {
     show(snapshotOf(example(name)));
     expect(screen.getByRole('status').dataset.bannerCount).toBe(String(count));
     expect(screen.getByRole('status').textContent).toContain(`${count} open fail ports`);
+  });
+});
+
+describe('port menu and open on purpose (M2)', () => {
+  const EDGE = example('edge-baseline.flow.yaml');
+  const PRECHECK = '01JBQKFBF5KZNWJ47TAN9ZT24M';
+
+  function mount() {
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1200, height: 800 }}>
+          <FlowCanvas cull={false} />
+        </div>
+        <PortMenu />
+        <DecisionDialog />
+      </ReactFlowProvider>,
+    );
+    show(snapshotOf(EDGE));
+  }
+  const commands = () =>
+    posted.flatMap((m) =>
+      (m as { type: string }).type === 'command' ? [(m as { command: FlowCommand }).command] : [],
+    );
+
+  beforeEach(() => {
+    posted.length = 0;
+    useUi.setState({ portMenu: null, decide: null, pick: null });
+  });
+
+  it('clicking an open fail port opens its suggestions; a pattern becomes one command', () => {
+    mount();
+    const port = document.querySelector<HTMLElement>(
+      `[data-node-id="${PRECHECK}"] [data-port="failed_hosts"]`,
+    );
+    act(() => port?.click());
+    const menu = screen.getByRole('menu');
+    expect(menu.dataset.portMenu).toBe(`${PRECHECK}|failed_hosts`);
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toContain(
+      'Notify on-call and stop',
+    );
+    act(() => screen.getByRole('menuitem', { name: 'Notify on-call and stop' }).click());
+    expect(commands()).toEqual([
+      expect.objectContaining({
+        kind: 'applyPattern',
+        pattern: 'notify-stop',
+        from: { node: PRECHECK, port: 'failed_hosts' },
+        position: expect.objectContaining({ x: expect.any(Number) }),
+      }),
+    ]);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('"Leave open on purpose" needs a reason, then sends setDecision without an author', () => {
+    mount();
+    act(() =>
+      useUi.getState().openPortMenu({ ref: { node: PRECHECK, port: 'failed_hosts' }, x: 0, y: 0 }),
+    );
+    act(() => screen.getByRole('menuitem', { name: 'Leave open on purpose…' }).click());
+    const dialog = screen.getByRole('dialog');
+    const submit = within(dialog).getByRole('button', { name: 'Leave open' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('Reason (required)'), {
+      target: { value: 'Read-only checks' },
+    });
+    act(() => submit.click());
+    expect(commands()).toEqual([
+      { kind: 'setDecision', node: PRECHECK, port: 'failed_hosts', reason: 'Read-only checks' },
+    ]);
+  });
+
+  it('a connected port offers insert, rewire and disconnect', () => {
+    mount();
+    act(() =>
+      useUi.getState().openPortMenu({
+        ref: { node: '01JBDJ8FSSZ5AWSH8VHTPRE95B', port: 'failed_hosts' },
+        x: 0,
+        y: 0,
+      }),
+    );
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual([
+      'Insert node on this wire',
+      'Rewire to another node…',
+      'Disconnect',
+    ]);
   });
 });

@@ -2,9 +2,9 @@
 
 A VS Code extension for designing Ansible automation top-down. You sketch a flow as a graph of typed nodes and ports, run it as a walking skeleton, and then bind each node to a module, role or playbook. The flow document (`*.flow.yaml`) stays the source of truth: Ansible code is generated from it, and drift is detected in both directions.
 
-**Status: M1 done.** The designer opens flow documents, validates them and edits them on a canvas. Code generation and skeleton runs arrive in M3, binding in M5, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2), knowledge base AFD-A-1.
+**Status: M2 done.** The designer opens flow documents, validates them and edits them on a canvas, with port menus, failure patterns and open-on-purpose decisions. Code generation and skeleton runs arrive in M3, binding in M5, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3), knowledge base AFD-A-1.
 
-## What M1 does
+## What the designer does
 
 - `*.flow.yaml` opens in the **Ansible Flow Designer** custom editor; _Open as Text_ (editor title bar) shows the YAML. Both views edit the same document, so save, dirty state, undo/redo, Git diff and hot exit are VS Code's own.
 - **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel, join, start, end) and lifecycle status (draft, specified, implemented, tested); ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths; far zoom shows titles only.
@@ -13,6 +13,10 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
 - **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner.
 - **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy up_.
 - **`flow.version`** is bumped once per commit on save when the semantic content changed (compared with Git HEAD), never for layout-only changes.
+- **Ports appear when needed (M2):** at rest a node shows only wired ports, open fail ports (amber) and ports left open on purpose (gray). Hovering or selecting a node shows every port its type supports, with names; dragging a wire shows every input.
+- **Port menus (M2):** click any port. An open port offers suggestions for its kind, for example `failed_hosts`: Rollback (existing), Notify on-call and stop, Exclude and report, Retry with backoff, Stop flow, Leave open on purpose. `unreachable` never offers Rollback. A wired port offers Insert node on this wire, Rewire to another node and Disconnect. The inspector lists every port with the same menu and quick fixes for open fail ports.
+- **Failure patterns (M2):** drag Rollback from backup, Notify on-call and stop, Retry with backoff or Exclude and report from the palette onto an open fail port (or a node), or click one with a node selected. The handler node, its end node (reused when the flow has one) and all wires are created in one undo step.
+- **Open on purpose (M2):** a reason is required; the decision records your Git user name in the flow's `decisions:` block and silences the warning. Wiring the port later removes the decision in the same edit.
 
 ## Install
 
@@ -23,7 +27,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.1.0.vsix
+code --install-extension out/ansible-flow-designer-0.2.0.vsix
 ```
 
 Requires VS Code 1.140 or later. M1 needs no Ansible installation; from M3 on, an Ansible environment (Docker/Podman EE image, VS Code Remote, or a local venv with ansible-core 2.19+) is used.
@@ -69,7 +73,33 @@ edges:
     to: { node: 01JC5Z8V2B3N4M5P6Q7R8S9T0X, port: in }
 ```
 
-Opened in the designer, `push-ntp` shows an amber `failed_hosts` port and the banner says _1 open fail port_ until that port is wired to a handler or marked open on purpose. More complete examples: `examples/edge-baseline.flow.yaml`, `examples/os-upgrade.flow.yaml`.
+Opened in the designer, `push-ntp` shows an amber `failed_hosts` port and the banner says _1 open fail port_. Click the port and pick _Notify on-call and stop_, and the flow gains (one undo step):
+
+```yaml
+- id: 01JC5Z9A1B2C3D4E5F6G7H8J9K
+  key: notify-on-call
+  type: task
+  title: Notify on-call
+  status: draft
+  intent: Open a ticket and notify on-call with the hosts from Push NTP servers · failed_hosts
+  handler: notify
+- id: 01JC5Z9A1B2C3D4E5F6G7H8J9M
+  key: stopped
+  type: end
+  title: Stopped
+  outcome: failed
+```
+
+plus three edges (`push-ntp.failed_hosts → notify-on-call`, and its `ok_hosts` and `failed_hosts` to `stopped`). Choosing _Leave open on purpose…_ instead adds:
+
+````yaml
+decisions:
+- node: 01JC5Z8V2B3N4M5P6Q7R8S9T0X
+  port: failed_hosts
+  kind: open_on_purpose
+  reason: Read-only change window; stopping is safe
+  by: Jane Example
+``` More complete examples: `examples/edge-baseline.flow.yaml`, `examples/os-upgrade.flow.yaml`.
 
 Port catalog per node type (ADR-0004):
 
@@ -90,7 +120,7 @@ Port catalog per node type (ADR-0004):
 | `ansible-flow-designer-handoff/` | Design bundle (product docs 01–08, mockups, original schema and examples). Reference only, never edited. |
 | `schema/flow.schema.json`        | Canonical flow document schema (v1 plus additive fields, ADR-0004).                                      |
 | `examples/`                      | Example flows, byte-identical copies of the handoff examples.                                            |
-| `src/core/`                      | Pure TypeScript: YAML edit engine, flow model, validation, commands, host⇄webview protocol.              |
+| `src/core/`                      | Pure TypeScript: YAML edit engine, flow model, validation, commands, port menus, failure patterns, host⇄webview protocol. |
 | `src/extension/`                 | Extension host: custom editor, sessions, diagnostics, version bump, auto-layout, test API.               |
 | `src/webview/`                   | React + React Flow canvas and panels; `harness/` is a dev-only page with a fake host.                    |
 | `test/`                          | Vitest unit/component tests, VS Code integration and perf tests, fixtures.                               |
@@ -102,7 +132,7 @@ Requires Node 24+, npm, Git and [just](https://github.com/casey/just).
 
 ```bash
 just install
-```
+````
 
 | Recipe                           | Does                                                                        |
 | -------------------------------- | --------------------------------------------------------------------------- |

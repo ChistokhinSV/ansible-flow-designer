@@ -109,7 +109,8 @@ async function snapshot(): Promise<Snapshot> {
   };
 }
 
-function apply(cmd: FlowCommand): { ok: boolean; error?: string; created?: string } {
+function apply(input: FlowCommand): { ok: boolean; error?: string; created?: string } {
+  const cmd = input.kind === 'setDecision' && !input.by ? { ...input, by: 'harness-user' } : input;
   try {
     const r = planCommand(text, cmd, { newId });
     if (r.edits.length > 0) {

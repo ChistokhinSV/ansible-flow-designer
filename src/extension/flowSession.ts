@@ -14,6 +14,7 @@ import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel } from './autoLayout';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
+import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 
 export interface SessionDeps {
@@ -204,7 +205,12 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */
-  async runCommand(command: FlowCommand): Promise<CommandOutcome> {
+  async runCommand(input: FlowCommand): Promise<CommandOutcome> {
+    // The webview never names the author of a decision; the host does (decision 13).
+    const command =
+      input.kind === 'setDecision' && !input.by
+        ? { ...input, by: await authorName(this.uri) }
+        : input;
     const snapshot = await this.snapshot();
     if (snapshot.stale)
       return {

@@ -1,10 +1,24 @@
-// Left panel in Design mode (04 §1): node palette and legend. Click adds a node near the middle of
-// the view; dragging onto the canvas adds it where it is dropped. Failure patterns arrive in M2.
+// Left panel in Design mode (04 §1): node palette, failure patterns (D-16) and legend. A node type
+// click adds a node near the middle of the view; dragging adds it where it is dropped. A pattern
+// is dragged onto an open fail port (or a node), or clicked to resolve the selected node.
 import { useReactFlow } from '@xyflow/react';
+import { PATTERNS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType } from '../../core/flow/types';
-import { DRAG_MIME } from '../canvas/FlowCanvas';
+import { DRAG_MIME, PATTERN_MIME } from '../canvas/FlowCanvas';
 import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { dropPattern } from '../portActions';
 import { useUi } from '../store';
+
+const PATTERN_ICON: Partial<Record<PatternId, string>> = {
+  rollback: 'discard',
+  'notify-stop': 'bell',
+  retry: 'refresh',
+  exclude: 'circle-slash',
+};
+const PALETTE_PATTERNS = Object.values(PATTERNS).filter((p) => p.palette);
+
+/** Body class while a pattern is dragged: every node shows its problem ports (styles.css). */
+const DRAGGING = 'afd-dragging-pattern';
 
 const ITEMS: { type: NodeType; icon: string; hint: string }[] = [
   { type: 'task', icon: 'symbol-event', hint: 'One step: a module, role or playbook' },
@@ -52,6 +66,38 @@ export function Palette() {
           </li>
         ))}
       </ul>
+      <h2>Failure patterns</h2>
+      <p className="afd-palette-hint muted">Drop onto an open fail port</p>
+      <ul className="afd-palette">
+        {PALETTE_PATTERNS.map((p) => (
+          <li key={p.id}>
+            <button
+              type="button"
+              draggable
+              data-pattern={p.id}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(PATTERN_MIME, p.id);
+                e.dataTransfer.effectAllowed = 'copy';
+                document.body.classList.add(DRAGGING);
+              }}
+              onDragEnd={() => document.body.classList.remove(DRAGGING)}
+              onClick={() => {
+                const node = useUi.getState().selection.node;
+                if (node) void dropPattern(p.id, node);
+                else
+                  useUi.getState().setError('Select a node first, or drag the pattern onto a port');
+              }}
+              title={`${p.hint}. Accepts: ${p.accepts.join(', ')}`}
+            >
+              <span
+                className={`codicon codicon-${PATTERN_ICON[p.id] ?? 'symbol-event'}`}
+                aria-hidden="true"
+              />
+              {p.label}
+            </button>
+          </li>
+        ))}
+      </ul>
       <h2>Legend</h2>
       <ul className="afd-legend">
         <li>
@@ -65,7 +111,8 @@ export function Palette() {
           <span className="afd-swatch port state-open-purpose tone-failed" /> Open on purpose
         </li>
         <li>
-          <span className="afd-swatch port state-open tone-ok optional" /> Optional port, enabled
+          <span className="afd-swatch port state-open tone-ok optional" /> Optional port, shown on
+          hover
         </li>
         <li>
           <span className="afd-swatch wire" /> Normal outcome

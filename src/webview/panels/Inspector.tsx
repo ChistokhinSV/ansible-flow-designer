@@ -1,24 +1,21 @@
 // Node inspector (04 §5, mockup 03): identity, lifecycle stepper with the next requirement,
-// contract, ports with their state, and the implementation summary with the skeleton stub.
+// contract, every port of the type with its state and resolution actions (the same items as the
+// canvas port menu), and the implementation summary with the skeleton stub.
 import { SLUG } from '../../core/flow/ids';
-import { buildModel } from '../../core/flow/model';
-import { optionalPortNames } from '../../core/flow/ports';
+import { buildModel, type FlowModel } from '../../core/flow/model';
+import { portMenu } from '../../core/flow/portMenu';
 import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
 import { run } from '../actions';
 import { send } from '../bus';
-import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { STATE_LABEL, TYPE_LABEL } from '../canvas/FlowNodeView';
+import { runPortItem } from '../portActions';
 import { useUi } from '../store';
+import type { PortView } from '../viewModel';
 import { levelView, nextRequirement, STATUS_ORDER, skeletonStub } from '../viewModel';
 import { ContractEditor } from './ContractEditor';
 import { CommitField, ReadOnly } from './fields';
 
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
-const STATE_TEXT = {
-  connected: 'wired',
-  'open-fail': 'open: needs a handler or a decision',
-  'open-purpose': 'open on purpose',
-  open: 'open',
-} as const;
 
 export function Inspector({ id }: { id: string }) {
   const snapshot = useUi((s) => s.snapshot);
@@ -109,36 +106,19 @@ export function Inspector({ id }: { id: string }) {
       <section className="afd-section">
         <h3>Ports</h3>
         <ul className="afd-ports">
-          {view?.ports.map((p) => {
-            const out = edges.find((e) => e?.from?.node === id && e.from.port === p.name);
-            const decision = decisions.find((d) => d?.node === id && d.port === p.name);
-            return (
-              <li key={p.name} className={`state-${p.state}`}>
-                <span
-                  className={`afd-swatch port state-${p.state} tone-${p.tone}`}
-                  aria-hidden="true"
-                />
-                <span className="mono">{p.name}</span>
-                <span className="muted">
-                  {out ? `→ ${titleOf(out.to.node)}` : STATE_TEXT[p.state]}
-                  {decision?.reason ? `: ${decision.reason}` : ''}
-                </span>
-                {p.optional && p.state !== 'connected' ? (
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() =>
-                      void run({ kind: 'setPortEnabled', node: id, port: p.name, enabled: false })
-                    }
-                  >
-                    disable
-                  </button>
-                ) : null}
-              </li>
-            );
-          })}
+          {view?.ports.map((p) => (
+            <PortRow
+              key={p.name}
+              model={model}
+              node={id}
+              port={p}
+              target={titleOf(
+                edges.find((e) => e?.from?.node === id && e.from.port === p.name)?.to.node ?? '',
+              )}
+              reason={decisions.find((d) => d?.node === id && d.port === p.name)?.reason}
+            />
+          ))}
         </ul>
-        <OptionalPorts node={node} />
       </section>
 
       {designable ? (
@@ -268,24 +248,68 @@ function TypeFields({ node, patch }: { node: FlowNode; patch(p: Record<string, u
   }
 }
 
-function OptionalPorts({ node }: { node: FlowNode }) {
-  const available = optionalPortNames(node.type).filter((p) => !node.ports?.includes(p));
-  if (available.length === 0) return null;
+/** One port: state, where it leads, a menu button, and quick resolutions for open fail ports. */
+function PortRow({
+  model,
+  node,
+  port,
+  target,
+  reason,
+}: {
+  model: FlowModel;
+  node: string;
+  port: PortView;
+  target: string;
+  reason?: string;
+}) {
+  const openPortMenu = useUi((s) => s.openPortMenu);
+  const ref = { node, port: port.name };
+  const wired = port.state === 'connected' && port.direction === 'out';
+  let text: string = STATE_LABEL[port.state];
+  if (wired) text = `→ ${target}`;
+  else if (reason) text = `${STATE_LABEL[port.state]}: ${reason}`;
+  else if (port.state === 'open-fail') text = 'open: needs a handler or a decision';
+  // Mockup 03: the first suggestions inline, plus "Leave open on purpose…".
+  const quick =
+    port.state === 'open-fail'
+      ? (portMenu(model, ref)?.items ?? []).filter(
+          (i, n) => (i.kind === 'pattern' && n < 2) || i.kind === 'decide',
+        )
+      : [];
   return (
-    <div className="afd-optional-ports">
-      <span className="muted">Enable:</span>
-      {available.map((p) => (
-        <button
-          key={p}
-          type="button"
-          className="chip-button mono"
-          onClick={() =>
-            void run({ kind: 'setPortEnabled', node: node.id, port: p, enabled: true })
-          }
-        >
-          + {p}
-        </button>
-      ))}
-    </div>
+    <li className={`state-${port.state}`} data-port-row={port.name}>
+      <span
+        className={`afd-swatch port state-${port.state} tone-${port.tone}`}
+        aria-hidden="true"
+      />
+      <span className="mono">{port.name}</span>
+      <span className="muted">{text}</span>
+      <button
+        type="button"
+        className="icon"
+        aria-label={`Options for port ${port.name}`}
+        title="Options"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          openPortMenu({ ref, x: r.left - 230, y: r.bottom + 4 });
+        }}
+      >
+        <span className="codicon codicon-ellipsis" aria-hidden="true" />
+      </button>
+      {quick.length > 0 ? (
+        <span className="afd-port-quick">
+          {quick.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className="link"
+              onClick={() => void runPortItem(item, ref)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </span>
+      ) : null}
+    </li>
   );
 }

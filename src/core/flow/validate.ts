@@ -2,7 +2,8 @@
 import type { Path } from '../yaml/parse';
 import { buildModel, type FlowModel, keyScope, ROOT } from './model';
 import { openFailPorts } from './openPorts';
-import { isPortLegal, portDirection, portsFor } from './ports';
+import { isRollback } from './patterns';
+import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
 import type { FlowDocument, FlowNode, Ulid } from './types';
 
@@ -54,6 +55,7 @@ export function validateFlow(
   checkNodes(model, add);
   checkReferences(model, add);
   checkDecisions(model, add);
+  checkUnreachableRollback(model, add);
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
@@ -372,7 +374,25 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   }
 }
 
+/** D-09: you cannot roll back a device you cannot reach. */
+function checkUnreachableRollback(model: FlowModel, add: (f: Finding) => void): void {
+  for (const { edge, path } of model.edges.values()) {
+    if (edge?.from?.port !== 'unreachable') continue;
+    const target = model.nodes.get(edge.to?.node)?.node;
+    if (!isRollback(target)) continue;
+    const source = model.nodes.get(edge.from.node)?.node;
+    add({
+      code: 'rollback-unreachable',
+      severity: 'warning',
+      message: `${label(source)} · unreachable goes to ${label(target)}: unreachable hosts cannot be rolled back; notify or retry instead`,
+      path,
+      edge: edge.id,
+    });
+  }
+}
+
 function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
+  const seen = new Set<string>();
   (model.doc.decisions ?? []).forEach((d, i) => {
     if (!d) return;
     const entry = model.nodes.get(d.node);
@@ -384,6 +404,26 @@ function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
         path: ['decisions', i],
       });
       return;
+    }
+    const id = `${d.node}|${d.port}`;
+    if (seen.has(id)) {
+      add({
+        code: 'duplicate-decision',
+        severity: 'warning',
+        message: `${label(entry.node)} · ${d.port} has more than one decision`,
+        path: ['decisions', i],
+        node: d.node,
+      });
+    }
+    seen.add(id);
+    if (!isFailPort(d.port)) {
+      add({
+        code: 'decision-not-fail',
+        severity: 'info',
+        message: `${label(entry.node)} · ${d.port} is not a fail port; open on purpose has no effect`,
+        path: ['decisions', i],
+        node: d.node,
+      });
     }
     if (!d.reason?.trim()) {
       add({

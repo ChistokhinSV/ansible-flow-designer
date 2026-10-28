@@ -5,6 +5,7 @@ import { parseFlow, rangeOf } from '../../../src/core/flow/document';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
+import { PATTERN_IDS } from '../../../src/core/flow/patterns';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import { semanticKey, versionBump } from '../../../src/core/flow/semantic';
 import type { FlowDocument } from '../../../src/core/flow/types';
@@ -345,7 +346,26 @@ describe('random command sequences keep every ID (check 1, property)', () => {
             title: `New ${i}`,
             position: { x: i, y: i },
           };
-        else if (r < 0.85 && nodes.length > 4) cmd = { kind: 'deleteNode', id: node.id };
+        else if (r < 0.78 && nodes.length > 4) cmd = { kind: 'deleteNode', id: node.id };
+        else if (r < 0.84)
+          cmd = {
+            kind: 'applyPattern',
+            pattern: pick([...PATTERN_IDS]),
+            from: {
+              node: node.id,
+              port: pick(['failed_hosts', 'unreachable', 'ok_hosts', 'true']),
+            },
+            position: { x: i * 7, y: i * 3 },
+          };
+        else if (r < 0.88)
+          cmd = { kind: 'setDecision', node: node.id, port: 'failed_hosts', reason: `r ${i}` };
+        else if (r < 0.9) cmd = { kind: 'clearDecision', node: node.id, port: 'failed_hosts' };
+        else if (r < 0.93 && doc.edges.length > 0)
+          cmd = {
+            kind: 'rewire',
+            edge: pick(doc.edges).id,
+            to: { node: pick(nodes).id, port: 'in' },
+          };
         else
           cmd = {
             kind: 'connect',
@@ -370,7 +390,9 @@ describe('random command sequences keep every ID (check 1, property)', () => {
         const nextEdges = new Map(next.edges.map((e) => [e.id, e]));
         for (const e of doc.edges) {
           if (deleted && (e.from.node === deleted || e.to.node === deleted)) continue;
-          expect(nextEdges.get(e.id), `step ${i} edge ${e.id}`).toEqual(e);
+          // Rewiring keeps the edge and its source; only the target moves.
+          const expected = cmd.kind === 'rewire' && cmd.edge === e.id ? { ...e, to: cmd.to } : e;
+          expect(nextEdges.get(e.id), `step ${i} edge ${e.id}`).toEqual(expected);
         }
         const { findings } = validateFlow(next);
         expect(

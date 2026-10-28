@@ -4,19 +4,29 @@ import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { Banner } from './panels/Banner';
+import { DecisionDialog } from './panels/DecisionDialog';
 import { FlowDescription } from './panels/FlowDescription';
 import { Inspector } from './panels/Inspector';
 import { Palette } from './panels/Palette';
+import { PickBar } from './panels/PickBar';
+import { PortMenu } from './panels/PortMenu';
 import { QuickAdd } from './panels/QuickAdd';
 import { TopBar } from './panels/TopBar';
 import { useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
 
 function domSummary(docVersion: number): DomSummary {
-  const nodes = [...document.querySelectorAll<HTMLElement>('[data-node-id]')].map((el) => ({
-    id: el.dataset.nodeId ?? '',
-    ports: [...el.querySelectorAll<HTMLElement>('[data-port]')].map((p) => p.dataset.port ?? ''),
-  }));
+  const nodes = [...document.querySelectorAll<HTMLElement>('[data-node-id]')].map((el) => {
+    const handles = [...el.querySelectorAll<HTMLElement>('[data-port]')];
+    const names = (pred: (p: HTMLElement) => boolean) =>
+      handles.filter(pred).map((p) => p.dataset.port ?? '');
+    return {
+      id: el.dataset.nodeId ?? '',
+      legal: names(() => true),
+      ports: names((p) => p.dataset.portState !== 'available'),
+      rest: names((p) => p.dataset.rest === 'true'),
+    };
+  });
   const banner = document.querySelector<HTMLElement>('[data-banner-count]');
   return {
     docVersion,
@@ -115,12 +125,15 @@ export function App() {
         <Palette />
         <main className="afd-center">
           <Banner />
+          <PickBar />
           <FlowCanvas />
         </main>
         <aside className="afd-right" aria-label={selected ? 'Node inspector' : 'Flow description'}>
           {selected ? <Inspector id={selected} /> : <FlowDescription />}
         </aside>
         <QuickAdd />
+        <DecisionDialog />
+        <PortMenu />
         {error ? (
           <div className="afd-toast" role="alert">
             <span className="codicon codicon-error" aria-hidden="true" /> {error}

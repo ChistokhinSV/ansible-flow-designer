@@ -6,7 +6,7 @@
       "type": "shell",
       "command": "just build",
       "group": { "kind": "build", "isDefault": true },
-      "problemMatcher": "$esbuild"
+      "problemMatcher": []
     },
     {
       "label": "just: test",

@@ -3,11 +3,23 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { slugify, uniqueKey } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
+import { findRollback } from '../../core/flow/patterns';
 import { optionalPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { run } from '../actions';
 import { TYPE_LABEL } from '../canvas/FlowNodeView';
 import { useUi } from '../store';
+import { levelView, unplacedPositions } from '../viewModel';
+
+/** Types that can sit on a wire: they have an input and continue on an output. */
+const INSERTABLE: readonly NodeType[] = [
+  'task',
+  'subflow',
+  'decision',
+  'approval',
+  'parallel',
+  'join',
+];
 
 export function QuickAdd() {
   const quick = useUi((s) => s.quickAdd);
@@ -25,7 +37,7 @@ export function QuickAdd() {
   useEffect(() => {
     if (!quick) return;
     setType(quick.type);
-    setTitle('');
+    setTitle(quick.title ?? '');
     setIntent('');
     setPorts([]);
     setInputs([]);
@@ -36,13 +48,18 @@ export function QuickAdd() {
   const model = useMemo(() => (snapshot?.doc ? buildModel(snapshot.doc) : undefined), [snapshot]);
   if (!quick || !model) return null;
   const level = model.levels.get(ROOT);
-  const source = quick.connectFrom ? model.nodes.get(quick.connectFrom.node)?.node : undefined;
+  const insertEdge = quick.insertOn ? model.edges.get(quick.insertOn)?.edge : undefined;
+  const sourceRef = quick.connectFrom ?? insertEdge?.from;
+  const source = sourceRef ? model.nodes.get(sourceRef.node)?.node : undefined;
+  const next = insertEdge ? model.nodes.get(insertEdge.to.node)?.node : undefined;
   const taken = new Set(level?.nodes.map((n) => n?.key));
   const key = uniqueKey(slugify(title || TYPE_LABEL[type]), taken);
-  const rollback = level?.nodes.find((n) => n?.handler === 'rollback' || n?.key === 'rollback');
+  const rollback = level ? findRollback(level) : undefined;
   const canFail = portsFor({ type }).some((p) => p.name === 'failed_hosts');
   const suggested = Object.entries(source?.outputs ?? {});
-  const allowed = NODE_TYPES.filter((t) => !quick.connectFrom || t !== 'start');
+  const allowed = NODE_TYPES.filter((t) =>
+    quick.insertOn ? INSERTABLE.includes(t) : !quick.connectFrom || t !== 'start',
+  );
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -52,6 +69,12 @@ export function QuickAdd() {
       const out = source?.outputs?.[name];
       chosen[name] = { type: out?.type ?? 'any', from: `${source?.key}.${name}` };
     }
+    const snap = useUi.getState().snapshot;
+    // Nodes still at auto-layout positions are written too, so the new node does not move them.
+    const freeze =
+      snap?.doc && quick.position
+        ? unplacedPositions(levelView(snap, useUi.getState().optimistic), snap.doc.layout)
+        : undefined;
     const ack = await run({
       kind: 'addNode',
       type,
@@ -61,6 +84,8 @@ export function QuickAdd() {
       inputs: chosen,
       position: quick.position,
       connectFrom: quick.connectFrom,
+      insertOn: quick.insertOn,
+      freeze,
       wireFailedTo: canFail && wireRollback && rollback ? rollback.id : undefined,
     });
     if (ack.ok) {
@@ -81,7 +106,13 @@ export function QuickAdd() {
       >
         <h2 id="afd-qa-title">Add node</h2>
         <p className="muted">
-          {source && quick.connectFrom ? (
+          {source && insertEdge ? (
+            <>
+              Between <strong>{source.title}</strong> ·{' '}
+              <span className="mono">{insertEdge.from.port}</span> and{' '}
+              <strong>{next?.title}</strong>
+            </>
+          ) : source && quick.connectFrom ? (
             <>
               After <strong>{source.title}</strong>, from port{' '}
               <span className="mono">{quick.connectFrom.port}</span>

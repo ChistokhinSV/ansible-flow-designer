@@ -40,7 +40,8 @@ export type WebviewMessage =
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {
   docVersion: number;
-  nodes: { id: string; ports: string[] }[];
+  /** Per node: every port of its type, the enabled ones, and those shown at rest (D-14). */
+  nodes: { id: string; legal: string[]; ports: string[]; rest: string[] }[];
   edges: number;
   banner: number | null;
 }

@@ -1,9 +1,13 @@
-// Committed content of a file at HEAD, through the built-in Git extension's API (works under Remote).
+// Committed content of a file at HEAD and the Git user name, through the built-in Git extension's
+// API (works under Remote).
+import { userInfo } from 'node:os';
 import * as vscode from 'vscode';
 
 // The subset of vscode.git's API (extensions/git/src/api/git.d.ts) used here.
 interface GitRepository {
   show(ref: string, path: string): Promise<string>;
+  getConfig(key: string): Promise<string>;
+  getGlobalConfig(key: string): Promise<string>;
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
@@ -34,6 +38,27 @@ export async function headText(uri: vscode.Uri): Promise<string | undefined> {
   if (!repo) return undefined;
   try {
     return await repo.show('HEAD', uri.fsPath);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Who records a decision (decision 13): Git user.name for the file's repository, else the OS user. */
+export async function authorName(uri: vscode.Uri): Promise<string | undefined> {
+  const repo = (await gitApi())?.getRepository(uri);
+  for (const read of [
+    () => repo?.getConfig('user.name'),
+    () => repo?.getGlobalConfig('user.name'),
+  ]) {
+    try {
+      const name = (await read())?.trim();
+      if (name) return name;
+    } catch {
+      // Not set at this level; try the next one.
+    }
+  }
+  try {
+    return userInfo().username || undefined;
   } catch {
     return undefined;
   }

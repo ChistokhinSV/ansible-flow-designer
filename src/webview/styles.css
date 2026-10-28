@@ -437,10 +437,38 @@ textarea {
   margin-left: auto;
 }
 
+.afd-ports li {
+  flex-wrap: wrap;
+}
+
 .afd-ports li .muted {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-ports li.state-available {
+  opacity: 0.7;
+}
+
+.afd-port-quick {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding-left: 16px;
+}
+
+.afd-port-quick button.link {
+  padding: 0;
+  font-size: 11.5px;
+}
+
+.afd-palette-hint {
+  margin: -4px 0 6px;
+  font-size: 11px;
 }
 
 .afd-inline-add,
@@ -476,6 +504,11 @@ textarea {
 .afd-banner.error {
   background: var(--vscode-inputValidation-errorBackground, rgba(194, 65, 12, 0.12));
   border-left: 3px solid var(--afd-failed);
+}
+
+.afd-banner.info {
+  background: var(--vscode-inputValidation-infoBackground, rgba(29, 78, 216, 0.1));
+  border-left: 3px solid var(--afd-focus);
 }
 
 .afd-banner button.icon {
@@ -833,4 +866,157 @@ textarea {
 
 .react-flow__controls-button svg {
   fill: currentColor;
+}
+
+/* ---------- progressive port disclosure (D-14) ---------- */
+
+/* Margin around the node and its labels that keeps it "hovered" while the pointer travels to a
+   port; only live once the node is hovered, so it never steals clicks from neighbours. */
+.afd-hover-zone {
+  position: absolute;
+  inset: -24px -96px -26px -56px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.afd-node:hover > .afd-hover-zone,
+.afd-node.active > .afd-hover-zone {
+  pointer-events: auto;
+}
+
+.react-flow__handle.afd-port.reveal {
+  visibility: hidden;
+}
+
+.afd-node:hover .afd-port.reveal,
+.afd-node.selected .afd-port.reveal,
+.afd-node.active .afd-port.reveal,
+.afd-connecting .afd-port.reveal.side-top,
+.afd-connecting .afd-port.reveal.side-left,
+body.afd-dragging-pattern .afd-port.reveal.side-right {
+  visibility: visible;
+}
+
+.afd-port.state-available {
+  opacity: 0.85;
+}
+
+/* Bigger hit area than the 10px square. */
+.react-flow__handle.afd-port::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.afd-port-label {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--afd-bg);
+  color: var(--afd-muted);
+  font-family: var(--afd-mono);
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.afd-node:hover .afd-port-label,
+.afd-node.selected .afd-port-label,
+.afd-node.active .afd-port-label {
+  visibility: visible;
+}
+
+.afd-port.side-right .afd-port-label {
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.afd-port.side-left .afd-port-label {
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.afd-port.side-bottom .afd-port-label {
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.afd-port.side-top .afd-port-label {
+  left: 12px;
+  bottom: 4px;
+}
+
+.afd-port.state-open-fail .afd-port-label {
+  color: var(--afd-fg);
+}
+
+body.afd-dragging-pattern .afd-port.state-open-fail {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--afd-unreachable) 45%, transparent);
+}
+
+.afd-picking .react-flow__node {
+  cursor: crosshair;
+}
+
+/* ---------- port menu (04 §3) ---------- */
+
+.afd-port-menu {
+  position: fixed;
+  z-index: 40;
+  width: 236px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--vscode-menu-background, var(--afd-panel));
+  color: var(--vscode-menu-foreground, var(--afd-fg));
+  border: 1px solid var(--vscode-menu-border, var(--afd-border));
+  border-radius: 6px;
+  box-shadow: 0 6px 20px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
+  font-size: 12.5px;
+}
+
+.afd-port-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 2px 4px 6px;
+  color: var(--afd-muted);
+  font-size: 12px;
+}
+
+.afd-port-menu-head strong {
+  color: var(--afd-fg);
+}
+
+.afd-port-menu-note {
+  margin: 0 6px 4px;
+  color: var(--afd-muted);
+  font-size: 11.5px;
+}
+
+.afd-port-menu button[role="menuitem"] {
+  text-align: left;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+
+.afd-port-menu button[role="menuitem"]:hover:not(:disabled),
+.afd-port-menu button[role="menuitem"]:focus-visible {
+  background: var(
+    --vscode-menu-selectionBackground,
+    var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.18))
+  );
+  color: var(--vscode-menu-selectionForeground, inherit);
+  outline: none;
 }

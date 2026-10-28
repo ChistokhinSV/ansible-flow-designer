@@ -7,7 +7,8 @@ import type { YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
-import { isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
+import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
+import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
 import type {
   ContractField,
   FlowDocument,
@@ -40,7 +41,22 @@ export type FlowCommand =
       connectFrom?: PortRef;
       /** Wire the new node's failed_hosts to this node's `in` (e.g. an existing Rollback). */
       wireFailedTo?: Ulid;
+      /** Put the new node on this edge: the edge now ends at the node, which continues to the old target. */
+      insertOn?: Ulid;
+      /** Positions of nodes still shown at auto-layout positions, written in the same edit. */
+      freeze?: Record<Ulid, Position>;
     }
+  | {
+      kind: 'applyPattern';
+      pattern: PatternId;
+      from: PortRef;
+      /** Where the handler node (or, without one, the new end node) goes. */
+      position?: Position;
+      freeze?: Record<Ulid, Position>;
+    }
+  | { kind: 'setDecision'; node: Ulid; port: string; reason: string; by?: string }
+  | { kind: 'clearDecision'; node: Ulid; port: string }
+  | { kind: 'rewire'; edge: Ulid; to: PortRef }
   | { kind: 'updateNode'; id: Ulid; patch: NodePatch }
   | { kind: 'deleteNode'; id: Ulid }
   | { kind: 'moveNodes'; positions: Record<Ulid, Position> }
@@ -182,15 +198,23 @@ function contract(field: ContractField): YamlValue {
   return out;
 }
 
-function ensurePortEnabled(tx: YamlTransaction, id: Ulid, port: string): void {
-  const st = state(tx);
+type Op = (f: YamlFile) => OpResult;
+
+// Builders below return ops computed against one state, so a command can batch them into a single
+// re-parse (YamlTransaction.applyAll). Parsing dominates command latency.
+
+function enablePortOps(st: State, id: Ulid, port: string): Op[] {
   const { node, path } = nodeAt(st, id);
-  if (portsFor(node).some((p) => p.name === port)) return;
+  if (portsFor(node).some((p) => p.name === port)) return [];
   if (!optionalPortNames(node.type).includes(port)) {
     throw new CommandError('bad-port', `${node.type} nodes have no port "${port}"`);
   }
-  if (node.ports) tx.apply((f) => insertItem(f, [...path, 'ports'], 'end', port));
-  else setField(tx, path, 'ports', [port], NODE_ORDER);
+  if (node.ports) return [(f) => insertItem(f, [...path, 'ports'], 'end', port)];
+  return [(f) => setIn(f, [...path, 'ports'], [port], { before: after(NODE_ORDER, 'ports') })];
+}
+
+function ensurePortEnabled(tx: YamlTransaction, id: Ulid, port: string): void {
+  tx.applyAll(enablePortOps(state(tx), id, port));
 }
 
 function reachable(level: Level, from: Ulid, to: Ulid): boolean {
@@ -206,17 +230,11 @@ function reachable(level: Level, from: Ulid, to: Ulid): boolean {
   return false;
 }
 
-function addEdge(tx: YamlTransaction, ctx: CommandContext, from: PortRef, to: PortRef): Ulid {
-  const st = state(tx);
+/** The output exists on the node and is not wired yet (03: one edge per output). */
+function checkOutput(st: State, from: PortRef): Level {
   const a = nodeAt(st, from.node);
-  const b = nodeAt(st, to.node);
-  if (a.level !== b.level)
-    throw new CommandError('cross-level', 'Both ends must be in the same level');
   if (!isPortLegal(a.node, from.port) || portDirection(from.port) !== 'out') {
     throw new CommandError('bad-port', `"${from.port}" is not an output of ${a.node.type}`);
-  }
-  if (!isPortLegal(b.node, to.port) || portDirection(to.port) !== 'in') {
-    throw new CommandError('bad-port', `"${to.port}" is not an input of ${b.node.type}`);
   }
   const level = levelOf(st, a.level);
   if (level.edges.some((e) => e?.from?.node === from.node && e.from.port === from.port)) {
@@ -225,34 +243,61 @@ function addEdge(tx: YamlTransaction, ctx: CommandContext, from: PortRef, to: Po
       `${from.port} is already wired; use a parallel node to fan out`,
     );
   }
-  if (from.node === to.node || reachable(level, to.node, from.node)) {
-    throw new CommandError('cycle', 'This edge would create a cycle');
-  }
-  ensurePortEnabled(tx, from.node, from.port);
-  ensurePortEnabled(tx, to.node, to.port);
-  const id = ctx.newId();
-  const edge = {
-    id,
+  return level;
+}
+
+function edgeItem(ctx: CommandContext, from: PortRef, to: PortRef): Record<string, YamlValue> {
+  return {
+    id: ctx.newId(),
     from: { node: from.node, port: from.port },
     to: { node: to.node, port: to.port },
   };
-  tx.apply((f) => insertItem(f, level.edgesPath, 'end', edge));
-  return id;
 }
 
-function setPositions(tx: YamlTransaction, positions: Record<Ulid, Position>): void {
+function addEdge(tx: YamlTransaction, ctx: CommandContext, from: PortRef, to: PortRef): Ulid {
+  const st = state(tx);
+  const level = checkOutput(st, from);
+  const b = nodeAt(st, to.node);
+  if (b.level !== level.id)
+    throw new CommandError('cross-level', 'Both ends must be in the same level');
+  if (!isPortLegal(b.node, to.port) || portDirection(to.port) !== 'in') {
+    throw new CommandError('bad-port', `"${to.port}" is not an input of ${b.node.type}`);
+  }
+  if (from.node === to.node || reachable(level, to.node, from.node)) {
+    throw new CommandError('cycle', 'This edge would create a cycle');
+  }
+  const edge = edgeItem(ctx, from, to);
+  tx.applyAll([
+    ...enablePortOps(st, from.node, from.port),
+    ...enablePortOps(st, to.node, to.port),
+    (f) => insertItem(f, level.edgesPath, 'end', edge),
+    // A wired port is no longer open: its open-on-purpose decision goes in the same edit.
+    ...decisionRemovalOps(st, from.node, from.port),
+  ]);
+  return edge.id as Ulid;
+}
+
+function decisionRemovalOps(st: State, node: Ulid, port: string): Op[] {
+  const decisions = st.doc.decisions ?? [];
+  const idx = decisions
+    .map((d, i) => (d?.node === node && d.port === port ? i : -1))
+    .filter((i) => i >= 0);
+  if (idx.length === 0) return [];
+  if (idx.length === decisions.length) return [(f) => deleteKey(f, [], 'decisions')];
+  return idx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i));
+}
+
+function positionOps(st: State, positions: Record<Ulid, Position>): Op[] {
   const rounded = Object.entries(positions).map(
     ([id, p]) => [id, { x: Math.round(p.x), y: Math.round(p.y) }] as const,
   );
-  if (rounded.length === 0) return;
-  const st = state(tx);
+  if (rounded.length === 0) return [];
   if (st.doc.layout === undefined || st.doc.layout === null) {
     const block: Record<string, YamlValue> = {};
     for (const [id, p] of rounded) block[id] = { x: p.x, y: p.y };
-    tx.apply((f) => setIn(f, ['layout'], block, { before: after(ROOT_ORDER, 'layout') }));
-    return;
+    return [(f) => setIn(f, ['layout'], block, { before: after(ROOT_ORDER, 'layout') })];
   }
-  const ops: ((f: YamlFile) => OpResult)[] = [];
+  const ops: Op[] = [];
   for (const [id, p] of rounded) {
     const old = st.doc.layout[id];
     if (!old) {
@@ -262,43 +307,251 @@ function setPositions(tx: YamlTransaction, positions: Record<Ulid, Position>): v
     if (old.x !== p.x) ops.push((f) => setIn(f, ['layout', id, 'x'], p.x));
     if (old.y !== p.y) ops.push((f) => setIn(f, ['layout', id, 'y'], p.y));
   }
-  tx.applyAll(ops);
+  return ops;
 }
+
+function setPositions(tx: YamlTransaction, positions: Record<Ulid, Position>): void {
+  tx.applyAll(positionOps(state(tx), positions));
+}
+
+interface NodeSpec {
+  parent?: Ulid;
+  type: NodeType;
+  title: string;
+  key?: string;
+  intent?: string;
+  ports?: string[];
+  handler?: HandlerKind;
+  outcome?: 'success' | 'failed';
+  inputs?: Record<string, ContractField>;
+  settings?: NodeSettings;
+}
+
+/** A new node's YAML; `taken` holds the level's keys and receives the new one. */
+function nodeItem(
+  ctx: CommandContext,
+  spec: NodeSpec,
+  taken: Set<string>,
+): { id: Ulid; item: Record<string, YamlValue> } {
+  const key = spec.key ?? uniqueKey(slugify(spec.title), taken);
+  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
+  if (taken.has(key))
+    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
+  taken.add(key);
+  const id = ctx.newId();
+  const node: Record<string, YamlValue> = { id, key, type: spec.type, title: spec.title };
+  if (spec.type !== 'start' && spec.type !== 'end') node.status = 'draft';
+  if (spec.intent) node.intent = spec.intent;
+  if (spec.type === 'end') node.outcome = spec.outcome ?? 'success';
+  if (spec.handler) node.handler = spec.handler;
+  const optional = optionalPortNames(spec.type);
+  const ports = (spec.ports ?? []).filter((p) => optional.includes(p));
+  if (ports.length > 0) node.ports = ports;
+  if (spec.inputs && Object.keys(spec.inputs).length > 0) {
+    node.inputs = Object.fromEntries(Object.entries(spec.inputs).map(([k, v]) => [k, contract(v)]));
+  }
+  if (spec.settings && Object.keys(spec.settings).length > 0)
+    node.settings = spec.settings as Record<string, YamlValue>;
+  return { id, item: node };
+}
+
+function levelKeys(level: Level): Set<string> {
+  return new Set(level.nodes.flatMap((n) => (n?.key ? [n.key] : [])));
+}
+
+function targetLevel(st: State, parent: Ulid | undefined): Level {
+  if (parent && !st.model.nodes.get(parent)?.node.subflow?.nodes) {
+    throw new CommandError('no-inner-graph', 'The subflow has no inner graph yet');
+  }
+  return levelOf(st, parent ?? ROOT);
+}
+
+/** Output a node continues on when it is inserted on a wire. */
+const CONTINUES_ON: Partial<Record<NodeType, string>> = {
+  task: 'ok_hosts',
+  subflow: 'ok_hosts',
+  join: 'ok_hosts',
+  decision: 'true',
+  approval: 'approved',
+  parallel: 'branch_1',
+};
 
 function addNode(
   tx: YamlTransaction,
   ctx: CommandContext,
   cmd: Extract<FlowCommand, { kind: 'addNode' }>,
 ): Ulid {
+  if (cmd.insertOn && cmd.connectFrom)
+    throw new CommandError('bad-command', 'Use either insertOn or connectFrom');
+  if (cmd.insertOn && !CONTINUES_ON[cmd.type]) {
+    throw new CommandError('bad-type', `A ${cmd.type} node cannot be inserted on a wire`);
+  }
   const st = state(tx);
-  const level = levelOf(st, cmd.parent ?? ROOT);
-  if (cmd.parent && !st.model.nodes.get(cmd.parent)?.node.subflow?.nodes) {
-    throw new CommandError('no-inner-graph', 'The subflow has no inner graph yet');
-  }
-  const taken = new Set(level.nodes.map((n) => n?.key));
-  const key = cmd.key ?? uniqueKey(slugify(cmd.title), taken);
-  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
-  if (taken.has(key))
-    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
-
-  const id = ctx.newId();
-  const node: Record<string, YamlValue> = { id, key, type: cmd.type, title: cmd.title };
-  if (cmd.type !== 'start' && cmd.type !== 'end') node.status = 'draft';
-  if (cmd.intent) node.intent = cmd.intent;
-  if (cmd.type === 'end') node.outcome = cmd.outcome ?? 'success';
-  if (cmd.handler) node.handler = cmd.handler;
-  const optional = optionalPortNames(cmd.type);
-  const ports = (cmd.ports ?? []).filter((p) => optional.includes(p));
-  if (ports.length > 0) node.ports = ports;
-  if (cmd.inputs && Object.keys(cmd.inputs).length > 0) {
-    node.inputs = Object.fromEntries(Object.entries(cmd.inputs).map(([k, v]) => [k, contract(v)]));
-  }
-  tx.apply((f) => insertItem(f, level.nodesPath, 'end', node));
-  if (cmd.position) setPositions(tx, { [id]: cmd.position });
+  const level = targetLevel(st, cmd.parent);
+  const { id, item } = nodeItem(ctx, cmd, levelKeys(level));
+  tx.apply((f) => insertItem(f, level.nodesPath, 'end', item));
+  setPositions(tx, { ...cmd.freeze, ...(cmd.position ? { [id]: cmd.position } : {}) });
   if (cmd.connectFrom) addEdge(tx, ctx, cmd.connectFrom, { node: id, port: 'in' });
+  if (cmd.insertOn) insertOnEdge(tx, ctx, cmd.insertOn, id, CONTINUES_ON[cmd.type] as string);
   if (cmd.wireFailedTo)
     addEdge(tx, ctx, { node: id, port: 'failed_hosts' }, { node: cmd.wireFailedTo, port: 'in' });
   return id;
+}
+
+/** The edge keeps its ID and source and now ends at `node`; `node` continues to the old target. */
+function insertOnEdge(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  edgeId: Ulid,
+  node: Ulid,
+  out: string,
+): void {
+  const st = state(tx);
+  const entry = st.model.edges.get(edgeId);
+  if (!entry) throw new CommandError('not-found', `No edge ${edgeId}`);
+  if (nodeAt(st, node).level !== entry.level)
+    throw new CommandError('cross-level', 'The node and the wire must be in the same level');
+  const target = { ...entry.edge.to };
+  retarget(tx, entry.path, entry.edge.to, { node, port: 'in' });
+  addEdge(tx, ctx, { node, port: out }, target);
+}
+
+function retarget(tx: YamlTransaction, edgePath: Path, from: PortRef, to: PortRef): void {
+  const ops: ((f: YamlFile) => OpResult)[] = [];
+  if (from.node !== to.node) ops.push((f) => setIn(f, [...edgePath, 'to', 'node'], to.node));
+  if (from.port !== to.port) ops.push((f) => setIn(f, [...edgePath, 'to', 'port'], to.port));
+  tx.applyAll(ops);
+}
+
+function rewire(tx: YamlTransaction, edgeId: Ulid, to: PortRef): void {
+  const st = state(tx);
+  const entry = st.model.edges.get(edgeId);
+  if (!entry) throw new CommandError('not-found', `No edge ${edgeId}`);
+  const { edge } = entry;
+  const target = nodeAt(st, to.node);
+  if (target.level !== entry.level)
+    throw new CommandError('cross-level', 'Both ends must be in the same level');
+  if (!isPortLegal(target.node, to.port) || portDirection(to.port) !== 'in') {
+    throw new CommandError('bad-port', `"${to.port}" is not an input of ${target.node.type}`);
+  }
+  if (edge.to.node === to.node && edge.to.port === to.port) return;
+  const level = levelOf(st, entry.level);
+  const without = { ...level, edges: level.edges.filter((e) => e?.id !== edgeId) };
+  if (to.node === edge.from.node || reachable(without, to.node, edge.from.node)) {
+    throw new CommandError('cycle', 'This edge would create a cycle');
+  }
+  retarget(tx, entry.path, edge.to, to);
+  ensurePortEnabled(tx, to.node, to.port);
+}
+
+function applyPattern(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'applyPattern' }>,
+): Ulid | undefined {
+  const st = state(tx);
+  const source = nodeAt(st, cmd.from.node);
+  if (!patternFits(cmd.pattern, source.node, cmd.from.port)) {
+    throw new CommandError(
+      'pattern-port',
+      `"${cmd.pattern}" does not fit ${source.node.type} port ${cmd.from.port}`,
+    );
+  }
+  const level = checkOutput(st, cmd.from);
+  const recipe = recipeFor(cmd.pattern, source.node, cmd.from.port, level);
+  if (recipe.reuse) {
+    setPositions(tx, cmd.freeze ?? {});
+    addEdge(tx, ctx, cmd.from, { node: recipe.reuse.id, port: 'in' });
+    return undefined;
+  }
+  // Every new node and edge is computed against this one state and written in one batch.
+  const taken = levelKeys(level);
+  const nodes: Record<string, YamlValue>[] = [];
+  const edges: Record<string, YamlValue>[] = [];
+  const positions: Record<Ulid, Position> = { ...cmd.freeze };
+  let handler: Ulid | undefined;
+  if (recipe.node) {
+    const created = nodeItem(ctx, recipe.node, taken);
+    nodes.push(created.item);
+    handler = created.id;
+    if (cmd.position) positions[handler] = cmd.position;
+  }
+  let end = recipe.end ? findEnd(level, recipe.end)?.id : undefined;
+  if (recipe.end && !end) {
+    const { title, outcome } = recipe.end;
+    const created = nodeItem(ctx, { type: 'end', title, outcome }, taken);
+    nodes.push(created.item);
+    end = created.id;
+    if (cmd.position) {
+      positions[end] = handler
+        ? { x: cmd.position.x, y: cmd.position.y + END_BELOW }
+        : cmd.position;
+    }
+  }
+  const first = handler ?? end;
+  if (!first) throw new CommandError('bad-pattern', `Pattern "${cmd.pattern}" creates nothing`);
+  edges.push(edgeItem(ctx, cmd.from, { node: first, port: 'in' }));
+  if (handler && end && recipe.end) {
+    for (const port of recipe.end.from)
+      edges.push(edgeItem(ctx, { node: handler, port }, { node: end, port: 'in' }));
+  }
+  if (handler && recipe.rejoin) {
+    const port = recipe.rejoin.sourcePort;
+    const to = level.edges.find((e) => e?.from?.node === cmd.from.node && e.from.port === port)?.to;
+    if (to) edges.push(edgeItem(ctx, { node: handler, port: recipe.rejoin.port }, to));
+  }
+  // Order matters where inserts share an offset: a port added to the last node precedes the new
+  // nodes, and new edges precede a layout block created right after the edges.
+  tx.applyAll([
+    ...enablePortOps(st, cmd.from.node, cmd.from.port),
+    ...nodes.map((item) => (f: YamlFile) => insertItem(f, level.nodesPath, 'end', item)),
+    ...edges.map((item) => (f: YamlFile) => insertItem(f, level.edgesPath, 'end', item)),
+    ...positionOps(st, positions),
+    ...decisionRemovalOps(st, cmd.from.node, cmd.from.port),
+  ]);
+  return first;
+}
+
+/** Vertical gap between a pattern's handler and the end node created for it. */
+const END_BELOW = 150;
+
+function setDecision(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'setDecision' }>,
+): void {
+  const st = state(tx);
+  const { node, level } = nodeAt(st, cmd.node);
+  if (!isFailPort(cmd.port) || !portsFor(node).some((p) => p.name === cmd.port)) {
+    throw new CommandError('bad-port', `${cmd.port} is not a fail port of ${node.type}`);
+  }
+  if (
+    levelOf(st, level).edges.some((e) => e?.from?.node === cmd.node && e.from.port === cmd.port)
+  ) {
+    throw new CommandError('port-connected', `${cmd.port} is wired, so it is not open`);
+  }
+  const reason = cmd.reason.trim();
+  if (!reason) throw new CommandError('no-reason', 'Say why the port stays open');
+  const decisions = st.doc.decisions ?? [];
+  const index = decisions.findIndex((d) => d?.node === cmd.node && d.port === cmd.port);
+  if (index >= 0) {
+    const base: Path = ['decisions', index];
+    const old = decisions[index];
+    const ops: ((f: YamlFile) => OpResult)[] = [];
+    if (old?.reason !== reason)
+      ops.push((f) => setIn(f, [...base, 'reason'], reason, { before: ['by'] }));
+    if (cmd.by && old?.by !== cmd.by) ops.push((f) => setIn(f, [...base, 'by'], cmd.by as string));
+    tx.applyAll(ops);
+    return;
+  }
+  const item: Record<string, YamlValue> = {
+    node: cmd.node,
+    port: cmd.port,
+    kind: 'open_on_purpose',
+    reason,
+  };
+  if (cmd.by) item.by = cmd.by;
+  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
+  else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
 }
 
 function renameKey(tx: YamlTransaction, id: Ulid, newKey: string): void {
@@ -521,6 +774,19 @@ export function planCommand(
       break;
     case 'connect':
       created = addEdge(tx, ctx, cmd.from, cmd.to);
+      break;
+    case 'applyPattern':
+      created = applyPattern(tx, ctx, cmd);
+      break;
+    case 'setDecision':
+      setDecision(tx, cmd);
+      break;
+    case 'clearDecision':
+      nodeAt(state(tx), cmd.node);
+      tx.applyAll(decisionRemovalOps(state(tx), cmd.node, cmd.port));
+      break;
+    case 'rewire':
+      rewire(tx, cmd.edge, cmd.to);
       break;
     case 'disconnect':
       removeEdgeById(tx, cmd.edge);
