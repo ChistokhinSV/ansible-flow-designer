@@ -138,6 +138,10 @@
           "from": {
             "type": "string",
             "description": "node_key.output_name, flow.input_name, or impl return path"
+          },
+          "targets": {
+            "type": "boolean",
+            "description": "Flow inputs only: this host_list input seeds the start node's host set (ADR-0004)"
           }
         },
         "required": [
@@ -146,21 +150,29 @@
       }
     },
     "port": {
-      "enum": [
-        "in",
-        "ok_hosts",
-        "failed_hosts",
-        "unreachable",
-        "unchanged",
-        "always",
-        "cancelled",
-        "timeout",
-        "undo",
-        "true",
-        "false",
-        "approved",
-        "rejected",
-        "join"
+      "anyOf": [
+        {
+          "enum": [
+            "in",
+            "ok_hosts",
+            "failed_hosts",
+            "unreachable",
+            "unchanged",
+            "always",
+            "cancelled",
+            "timeout",
+            "undo",
+            "true",
+            "false",
+            "approved",
+            "rejected",
+            "join"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^branch_[0-9]+$"
+        }
       ],
       "description": "Parallel branch ports use the pattern branch_<n>"
     },
@@ -176,7 +188,7 @@
         },
         "port": {
           "type": "string",
-          "pattern": "^([a-z_]+|branch_[0-9]+)$"
+          "pattern": "^[a-z][a-z0-9_]*$"
         }
       },
       "additionalProperties": false
@@ -320,6 +332,27 @@
             "failed"
           ],
           "description": "End nodes"
+        },
+        "join_mode": {
+          "enum": [
+            "all",
+            "any"
+          ],
+          "description": "Join nodes: per host, all = every branch delivered the host (default), any = at least one"
+        },
+        "branches": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Parallel nodes: number of branch ports branch_1..branch_n (default 2)"
+        },
+        "handler": {
+          "enum": [
+            "rollback",
+            "notify",
+            "retry",
+            "exclude"
+          ],
+          "description": "Marks a failure handler node (D-11, D-16)"
         },
         "settings": {
           "type": "object",

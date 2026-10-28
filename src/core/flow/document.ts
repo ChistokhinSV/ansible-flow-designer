@@ -1,0 +1,46 @@
+// Flow text → parsed YAML + plain data, and YAML paths → source ranges for diagnostics.
+import { isMap, isSeq, type Node } from 'yaml';
+import { locate, type Path, parseYaml, type YamlError, type YamlFile } from '../yaml/parse';
+import type { FlowDocument } from './types';
+
+export interface ParsedFlow {
+  file: YamlFile;
+  /** Plain data; undefined when the YAML has errors or is not a mapping. */
+  doc?: FlowDocument;
+  errors: YamlError[];
+}
+
+export function parseFlow(text: string): ParsedFlow {
+  return flowFromFile(parseYaml(text));
+}
+
+/** Same as parseFlow for text that is already parsed (e.g. the result of a command). */
+export function flowFromFile(file: YamlFile): ParsedFlow {
+  if (file.errors.length > 0) return { file, errors: file.errors };
+  const data = file.doc.toJS({ maxAliasCount: 100 });
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    return { file, errors: [{ message: 'A flow document must be a YAML mapping', offset: 0 }] };
+  }
+  return { file, doc: data as FlowDocument, errors: [] };
+}
+
+/**
+ * Source range for a finding: the deepest existing node on the path. Collections are narrowed to
+ * their first line, so a diagnostic on a node does not underline the whole node.
+ */
+export function rangeOf(file: YamlFile, path: Path): [number, number] {
+  for (let n = path.length; n >= 0; n--) {
+    const loc = locate(file, path.slice(0, n));
+    const node = (loc?.node ?? (n > 0 ? loc?.pair?.key : null)) as Node | null | undefined;
+    const keyNode = loc?.pair?.key as Node | undefined;
+    const target = node?.range ? node : keyNode;
+    if (!target?.range) continue;
+    const [start, end] = target.range;
+    if (isMap(target) || isSeq(target)) {
+      const nl = file.text.indexOf('\n', start);
+      return [start, nl === -1 || nl > end ? end : nl];
+    }
+    return [start, end];
+  }
+  return [0, 0];
+}

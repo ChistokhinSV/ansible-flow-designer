@@ -1,0 +1,25 @@
+# CRLF file, 4-space indent, indented sequences
+schema_version: 1
+flow:
+    id: 01JC5Z8V2B3N4M5P6Q7R8S9T0V   # flow id
+    key: crlf-demo
+    name: "CRLF demo"
+    version: 2
+nodes:
+    # first node
+    -   id: 01JC5Z8V2B3N4M5P6Q7R8S9T0W
+        key: start
+        type: start
+        title: Start
+    -   id: 01JC5Z8V2B3N4M5P6Q7R8S9T0X
+        key: work
+        type: task
+        title: Work
+        ports:
+            - unreachable
+            - undo
+        intent: >-
+            Folded intent
+            over two lines
+edges: []
+# trailing comment

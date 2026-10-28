@@ -14,3 +14,11 @@ class DOMMatrixReadOnlyStub {
   }
 }
 globalThis.DOMMatrixReadOnly ??= DOMMatrixReadOnlyStub as unknown as typeof DOMMatrixReadOnly;
+
+// The webview's host bridge; tests read what was posted.
+export const posted: unknown[] = [];
+(globalThis as unknown as { acquireVsCodeApi: () => unknown }).acquireVsCodeApi = () => ({
+  postMessage: (m: unknown) => posted.push(m),
+  getState: () => undefined,
+  setState: () => {},
+});

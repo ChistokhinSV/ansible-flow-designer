@@ -24,7 +24,9 @@
     "workspace"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:**/*.flow.yaml"
+  ],
   "contributes": {
     "customEditors": [
       {

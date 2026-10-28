@@ -39,7 +39,7 @@ test *args:
 # Integration tests inside VS Code (version: stable | insiders | 1.140.0)
 test-int $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
-    npx --no-install vscode-test
+    npx --no-install vscode-test --label integration
 
 # Performance suite on the production bundle (timings reported by the webview)
 perf $AFD_VSCODE_VERSION="stable": build-prod
@@ -50,8 +50,8 @@ perf $AFD_VSCODE_VERSION="stable": build-prod
 harness:
     npx --no-install vite --config vite.config.mts --mode harness
 
-# Package the VSIX into out/
-package: build-prod
+# Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
+package:
     npx --no-install vsce package --no-dependencies --out out/
 
 # Remove build outputs
