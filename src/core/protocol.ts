@@ -3,6 +3,7 @@ import type { FlowCommand } from './flow/commands';
 import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
+import type { RunSummary } from './run/events';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -17,10 +18,26 @@ export interface Snapshot {
   openPorts: OpenPort[];
   /** In-memory positions for nodes the layout block does not place (never written, ADR-0002). */
   autoPositions: Record<Ulid, Position>;
+  /** Generated play per node (ADR-0009); absent while the flow has errors. */
+  plays?: Record<Ulid, string>;
+}
+
+/** A skeleton or real run of the flow and what it did per node (M3; full Run mode is M7). */
+export interface RunView {
+  id: string;
+  mode: 'check' | 'real';
+  state: 'running' | 'done' | 'error';
+  startedAt: string;
+  finishedAt?: string;
+  rc?: number;
+  error?: string;
+  environment?: string;
+  summary?: RunSummary;
 }
 
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
+  | { type: 'run'; run: RunView | null }
   | { type: 'ack'; reqId: number; ok: boolean; error?: string; created?: Ulid }
   | { type: 'reveal'; node: Ulid }
   | { type: 'config'; testMode: boolean }
@@ -33,6 +50,9 @@ export type WebviewMessage =
   | { type: 'openText'; path?: Path }
   | { type: 'validate' }
   | { type: 'tidyUp' }
+  | { type: 'run'; mode: 'check' | 'real' }
+  | { type: 'generate' }
+  | { type: 'showRunOutput' }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
   | { type: 'perf'; event: 'firstRender' | 'render' | 'roundTrip'; ms: number; docVersion: number }
   | { type: 'cspViolation'; detail: string };

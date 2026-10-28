@@ -5,7 +5,7 @@ Status: Accepted · 2026-10-28 · AFD-1
 ## Decision
 
 - **Option A** (handoff 05): one generated playbook per flow level; each node is a play; host sets are routed with `block`/`rescue` + `ansible.builtin.group_by`; downstream plays target the group of the port they are wired to. Code generation sits behind an `Engine` interface so an Option B runner can be added after v1.
-- **Rescue rule:** block/rescue is generated only when a fail port is wired. An open fail port lets the host fail visibly (the job ends failed); an open-on-purpose port stops the host, with a comment in the generated code. The reference skeleton's `precheck` play is corrected accordingly.
+- **Rescue rule:** ~~block/rescue is generated only when a fail port is wired~~. Superseded by ADR-0009 after the M3 spike: every task node rescues, open and open-on-purpose ports route to a group, and a final outcome play fails those hosts (the job still ends failed, other branches keep running).
 - **Join:** per host. `join_mode: all` (default) = intersection of the branch groups, `any` = union. Branches run one after another; no real concurrency in v1.
 - **Approvals:** AWX approval nodes between playbook segments (an AWX workflow). The validator warns when `rejected` and `timeout` go to different targets, since AWX cannot tell them apart. Skeleton and local runs auto-approve with a TODO debug message.
 - **Hard ports:** `cancelled` exists in the model and Run mode only (the validator warns it cannot be routed); `timeout` maps to the task `timeout:` keyword; `unchanged` uses `register.changed` for module nodes, and for role nodes only if the M3 spike proves a mechanism.

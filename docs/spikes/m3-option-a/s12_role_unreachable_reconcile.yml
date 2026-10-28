@@ -1,0 +1,44 @@
+# Candidate for role nodes: no ignore_unreachable; Ansible drops unreachable hosts and an
+# end-of-play task routes them (ansible_play_hosts_all minus ansible_play_hosts), then
+# clear_host_errors lets them take part in the handler play.
+# Q: does it route and reach the handler? What if every host of a role node is unreachable?
+- name: role node, one host unreachable
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - block:
+        - ansible.builtin.include_role:
+            name: connect
+        - ansible.builtin.group_by: {key: r_role_ok}
+      rescue:
+        - ansible.builtin.group_by: {key: r_role_failed}
+    - name: route unreachable
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: r_role_unreachable
+      loop: "{{ ansible_play_hosts_all | difference(ansible_play_hosts) }}"
+      run_once: true
+- name: handler on the unreachable port, before clear_host_errors
+  hosts: r_role_unreachable
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_handled_without_clear}
+- name: role node again, routed then cleared
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: connect
+    - name: route unreachable
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: r_role2_unreachable
+      loop: "{{ ansible_play_hosts_all | difference(ansible_play_hosts) }}"
+      run_once: true
+    - ansible.builtin.meta: clear_host_errors
+- name: handler on the unreachable port, after clear_host_errors
+  hosts: r_role2_unreachable
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_handled_after_clear}
+- import_playbook: report.yml

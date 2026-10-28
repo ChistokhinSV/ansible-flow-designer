@@ -1,6 +1,7 @@
 **
 !dist/extension.js
 !dist/webview/**
+!dist/probe/**
 !schema/flow.schema.json
 !package.json
 !README.md

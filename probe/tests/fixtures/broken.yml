@@ -1,0 +1,5 @@
+# Broken on purpose: a task with two actions (syntax check must report line 4).
+- hosts: all
+  tasks:
+    - ansible.builtin.debug: {msg: one}
+      ansible.builtin.ping:

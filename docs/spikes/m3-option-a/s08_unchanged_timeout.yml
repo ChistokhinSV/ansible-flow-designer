@@ -1,0 +1,37 @@
+# Q: unchanged for modules (register) and roles (include result); task timeout seen in rescue
+- name: module node with unchanged
+  hosts: sw-edge-01,sw-edge-02
+  gather_facts: false
+  tasks:
+    - block:
+        - ansible.builtin.command: "echo hi"
+          register: node_result
+          changed_when: inventory_hostname == 'sw-edge-01'
+        - ansible.builtin.group_by:
+            key: "{{ 'r_mod_ok' if node_result.changed else 'r_mod_unchanged' }}"
+      rescue:
+        - ansible.builtin.group_by: {key: r_mod_failed}
+- name: role node, registered include
+  hosts: sw-edge-01
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: connect
+      register: role_result
+    - name: SHOW include_role register
+      ansible.builtin.debug:
+        msg: "{{ role_result }}"
+- name: timeout
+  hosts: sw-edge-01
+  gather_facts: false
+  tasks:
+    - block:
+        - ansible.builtin.command: sleep 5
+          timeout: 1
+      rescue:
+        - name: SHOW failed result in rescue
+          ansible.builtin.debug:
+            msg: "{{ ansible_failed_result | dict2items | rejectattr('key', 'in', ['invocation', 'exception', 'stdout_lines', 'stderr_lines']) | items2dict }}"
+        - ansible.builtin.group_by:
+            key: "{{ 'r_timeout' if (ansible_failed_result.timedout | default(false)) else 'r_failed_other' }}"
+- import_playbook: report.yml

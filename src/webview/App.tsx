@@ -57,6 +57,8 @@ function useHost() {
       if (m.type === 'snapshot') {
         received.current = { version: m.snapshot.docVersion, at: performance.now() };
         ui.setSnapshot(m.snapshot);
+      } else if (m.type === 'run') {
+        ui.setRun(m.run);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'reveal') {

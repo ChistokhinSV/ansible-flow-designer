@@ -1,0 +1,5 @@
+- name: connect (opens the connection)
+  ansible.builtin.ping:
+- name: last role task
+  ansible.builtin.group_by:
+    key: r_role_last_task

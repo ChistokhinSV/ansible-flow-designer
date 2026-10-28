@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -47,6 +47,34 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.generate",
+        "title": "Generate Playbook",
+        "category": "Ansible Flow",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "afd.runSkeleton",
+        "title": "Run as Skeleton (Check Mode)",
+        "category": "Ansible Flow",
+        "icon": "$(play)"
+      },
+      {
+        "command": "afd.runReal",
+        "title": "Run for Real…",
+        "category": "Ansible Flow",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "afd.syntaxCheck",
+        "title": "Check Generated Code (Syntax)",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.showAudit",
+        "title": "Show Run Audit Log",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.tidyUp",
         "title": "Tidy Up Layout",
         "category": "Ansible Flow"
@@ -66,6 +94,11 @@
     "menus": {
       "editor/title": [
         {
+          "command": "afd.runSkeleton",
+          "when": "activeCustomEditorId == afd.flowEditor",
+          "group": "navigation@1"
+        },
+        {
           "command": "afd.openAsText",
           "when": "activeCustomEditorId == afd.flowEditor",
           "group": "navigation"
@@ -83,9 +116,117 @@
         {
           "command": "afd.openAsText",
           "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.generate",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.runSkeleton",
+          "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.runReal",
+          "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.syntaxCheck",
+          "when": "activeCustomEditorId == afd.flowEditor"
         }
       ]
-    }
+    },
+    "configuration": {
+      "title": "Ansible Flow Designer",
+      "properties": {
+        "afd.codegen.onSave": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Write generated code to `generated/` next to the flow whenever a flow without errors is saved. Files edited by hand are never overwritten without asking."
+        },
+        "afd.environment.kind": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "container",
+            "local"
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "markdownDescription": "Where Ansible runs. `auto`: a container when an image is set (here or in the Red Hat Ansible extension's execution environment settings), else a local interpreter (VS Code Remote, venv). Native Windows needs a container."
+        },
+        "afd.environment.image": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Execution environment image for the probe and runs, e.g. `registry.example.net/ee/netops:2.19`. Empty: use `ansible.executionEnvironment.image` when the Red Hat Ansible extension enables execution environments."
+        },
+        "afd.environment.containerEngine": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "docker",
+            "podman"
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "description": "Container engine for the image (auto: the Red Hat Ansible setting, else docker)."
+        },
+        "afd.environment.containerOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "Extra `docker run` / `podman run` arguments, one per item (e.g. `-v`, `~/.ssh:/home/ansible/.ssh:ro` for keys)."
+        },
+        "afd.environment.python": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Python with ansible-core 2.19+ for local mode. Empty: `ansible.python.interpreterPath`, else `python3`."
+        },
+        "afd.run.inventory": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Inventory for runs, relative to the repository root. Empty: the default from `ansible.cfg`."
+        },
+        "afd.run.askVaultPassword": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "markdownDescription": "Ask for the vault password before a run (`auto`: when the inventory or repository vars contain vault data). The password is used for that run only and never stored."
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "afd-run",
+        "required": [
+          "flow"
+        ],
+        "properties": {
+          "flow": {
+            "type": "string",
+            "description": "Flow key"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "check",
+              "real"
+            ]
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "node scripts/build.mjs --production",

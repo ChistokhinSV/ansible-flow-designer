@@ -1,0 +1,36 @@
+# Candidate: never fail inside a node play; route open ports to a group and fail those hosts in a
+# final outcome play. Q: do all branches run, and does the job still end failed?
+- name: node a
+  hosts: sw-edge-01,sw-edge-02,sw-edge-04
+  gather_facts: false
+  vars: {sim_failed: [sw-edge-04]}
+  tasks:
+    - block:
+        - ansible.builtin.debug: {msg: work}
+          failed_when: inventory_hostname in sim_failed
+        - ansible.builtin.group_by: {key: r_a_ok}
+      rescue:
+        - ansible.builtin.group_by: {key: r_a_failed}
+- name: node b (failed_hosts open)
+  hosts: r_a_ok
+  gather_facts: false
+  tasks:
+    - block:
+        - ansible.builtin.debug: {msg: work}
+          failed_when: true
+        - ansible.builtin.group_by: {key: r_b_ok}
+      rescue:
+        - ansible.builtin.group_by: {key: r_b_open_failed}
+- name: node c (handler for a.failed_hosts)
+  hosts: r_a_failed
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_c_ran}
+- import_playbook: report.yml
+- name: flow outcome
+  hosts: r_b_open_failed
+  gather_facts: false
+  tasks:
+    - name: "[b] failed_hosts is open"
+      ansible.builtin.fail:
+        msg: "Failed at [b]: failed_hosts is not wired"

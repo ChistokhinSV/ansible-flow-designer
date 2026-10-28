@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
-import type { Snapshot } from '../core/protocol';
+import type { RunView, Snapshot } from '../core/protocol';
 
 export interface QuickAddState {
   type: NodeType;
@@ -45,6 +45,8 @@ interface UiState {
   /** Positions dragged locally and not yet confirmed by a snapshot. */
   optimistic: Record<Ulid, Position>;
   error: string | null;
+  /** Last skeleton or real run of this flow, from the host. */
+  run: RunView | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -55,6 +57,7 @@ interface UiState {
   dismissBanner(count: number | null): void;
   setOptimistic(p: Record<Ulid, Position>): void;
   setError(e: string | null): void;
+  setRun(r: RunView | null): void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -68,6 +71,7 @@ export const useUi = create<UiState>((set, get) => ({
   bannerDismissedAt: null,
   optimistic: {},
   error: null,
+  run: null,
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -100,4 +104,5 @@ export const useUi = create<UiState>((set, get) => ({
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
   setError: (error) => set({ error }),
+  setRun: (run) => set({ run }),
 }));

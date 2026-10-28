@@ -1,0 +1,15 @@
+# Q: is block-level ignore_unreachable inherited by include_role tasks, and can the role's
+# unreachable outcome be seen afterwards?
+- name: node
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - block:
+        - name: role
+          ansible.builtin.include_role:
+            name: connect
+        - ansible.builtin.group_by: {key: r_ok}
+      rescue:
+        - ansible.builtin.group_by: {key: r_failed}
+      ignore_unreachable: true
+- import_playbook: report.yml

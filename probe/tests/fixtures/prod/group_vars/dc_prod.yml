@@ -1,0 +1,4 @@
+# Fictional vaulted value: the ciphertext is a placeholder, never decrypted by the probe.
+ntp_key: !vault |
+  $ANSIBLE_VAULT;1.1;AES256
+  00000000000000000000000000000000

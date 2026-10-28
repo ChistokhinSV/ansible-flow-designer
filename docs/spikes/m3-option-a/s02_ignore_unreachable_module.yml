@@ -1,0 +1,28 @@
+# Q: with ignore_unreachable on the block, can a registered module result route the host?
+- name: node
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - block:
+        - name: connect
+          ansible.builtin.ping:
+          register: node_result
+        - ansible.builtin.group_by:
+            key: "{{ 'r_unreachable' if (node_result.unreachable | default(false)) else 'r_ok' }}"
+      rescue:
+        - ansible.builtin.group_by: {key: r_failed}
+      ignore_unreachable: true
+- name: notify handler on the unreachable port
+  hosts: r_unreachable
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_notified}
+- name: later play on all hosts
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - name: SHOW current
+      ansible.builtin.debug:
+        msg: "{{ {'current': ansible_current_hosts, 'failed': ansible_failed_hosts} }}"
+      run_once: true
+- import_playbook: report.yml

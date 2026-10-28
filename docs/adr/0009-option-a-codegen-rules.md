@@ -1,0 +1,70 @@
+# ADR-0009 · Option A code generation rules
+
+Status: Accepted · 2026-10-28 · AFD-4 (M3). Amends ADR-0003 (rescue rule).
+
+## Context
+
+The M3 spike (`docs/spikes/m3-option-a.md`, ansible-core 2.19/2.20/2.21) found two Ansible behaviours that break the rule "block/rescue only when a fail port is wired":
+
+- When every host of one play fails or is unreachable, `ansible-playbook` stops the whole playbook. Plays for other branches never run, so a Rollback or Notify wired elsewhere is skipped (s04, s05, s13).
+- `rescue` does not catch unreachable hosts, and a host Ansible dropped as unreachable can never be targeted by a later play (s01, s12).
+
+## Decision
+
+**Plays and order.**
+- One playbook per flow level.
+- Every node except start and end becomes one play, in topological order. Ties keep document order.
+- Play name `[<key>] <title>`, tag `node_<ULID>` (plus `settings.tags`), var `flow_node_id`, `gather_facts: false`.
+- The first node's `hosts:` is the start's targets: the flow's `host_list` input marked `targets: true`, else the first `host_list` input, rendered as `"{{ <input> | join(',') }}"`. Codegen refuses a flow without one.
+- A node with several incoming edges targets the union of their groups. A join targets the union and routes hosts present in every branch group (`join_mode: all`) or in any of them (`any`).
+
+**Routing groups.**
+- `flow_<path>_<port>`, where the path is the node key, prefixed by the enclosing subflow keys and `__` inside subflows; hyphens become underscores.
+- Every port a node produces is routed with `ansible.builtin.group_by`, also ports that lead to end nodes, so run events always show where a host went.
+
+**No host fails inside a node play.**
+- Every task-like node runs its body in `block`/`rescue`.
+- An open fail port, and an open-on-purpose one, routes into its own group like a wired port.
+- A final **outcome play** fails, with `ansible.builtin.fail` and a message naming the node and port, every host that:
+  - took an open port (the message carries the open-on-purpose reason when there is one);
+  - reached an end node with `outcome: failed` (its title appears in the message);
+  - hit a decision whose condition could not be evaluated.
+- The job still ends failed, every branch runs, and nothing is swallowed.
+
+**Bodies.**
+- An unbound node, or one whose node type has no binding, runs `ansible.builtin.debug` with `TODO: <intent or title>`.
+- Module bindings become the module task, with `register` (the binding's own name, else `<key>_result`) and `ignore_unreachable: true`.
+- Role bindings become `ansible.builtin.include_role` with `apply: {tags: [node_<ULID>]}`. Include options in `params` (`tasks_from`, `vars_from`, `defaults_from`, `handlers_from`, `public`, `allow_duplicates`, `rolespec_validate`) stay options; all other params become role vars.
+- Playbook bindings need a top-level `import_playbook`, which cannot route host sets. They run the TODO stub with a warning until M5.
+
+**Ports by binding.**
+- `unreachable`: module bindings route it per host (their task ignores unreachable and the registered result decides). If the port is not enabled, these hosts are failed in the outcome play like an open port. Role bindings cannot route it: hosts lost inside a role drop out (Ansible's default, rc 4). The validator warns when a role node enables `unreachable`, and suggests a module node or subflow for the connecting step.
+- `unchanged`: module bindings, from the registered `changed`. Role nodes: validator warning.
+- `timeout`: `settings.timeout` becomes the task `timeout:` keyword (for roles through `apply`, so it is per task). The rescue routes `ansible_failed_result.timedout` to `timeout`, the rest to `failed_hosts`.
+- `always`: the block's `always:` section.
+- `cancelled`: model only (ADR-0003).
+
+**Other node types and settings.**
+- `max_fail_percentage` (D-08) becomes a threshold task after the block. When the node's fail groups exceed the share of the play's hosts, it fails every host of the play, which stops the whole flow (s09). The play keyword is not used: it never sees rescued hosts.
+- `serial` and `become` become play keywords.
+- `retries` applies to module bindings (`until: <register> is succeeded`).
+- A decision routes with its `condition`; without one it is a TODO that sends every host to `true`.
+- An approval auto-approves in local and skeleton runs (TODO message). AWX approval segments come with M7: `add_host` from an artifact var rebuilds the groups in the next segment (s10).
+- A parallel node puts each host into every `branch_n` group.
+- A subflow with an inner graph becomes its own playbook, imported with `import_playbook` at the subflow's place. The inner entry node targets the subflow's input groups. Inner ports listed in `boundary.outputs`, and inner open fail ports that bubble (ADR-0004), route straight into the parent's port groups.
+
+**Files.**
+- `generated/<flow-key>.yml` next to the flow file, and `generated/<flow-key>.<subflow-key>.yml` per subflow level.
+- The flow's line endings are used.
+- The header names the source flow and version and carries a checksum of the body.
+- Code is written on every save of a flow without errors, and only when the content changed. A generated file whose body no longer matches its checksum was edited by hand: it is not overwritten, and the "Generate Playbook" command asks first.
+- Stale level files of the same flow are removed only if they still carry the generated header.
+- `examples/generated/` holds the golden files (the handoff's `edge-baseline.skeleton.yml` is superseded).
+
+**Simulation.** A codegen option, used by the engine tests, adds `afd_simulate` hooks to TODO nodes, draft decisions and approvals. A run can then send chosen hosts down failure paths without devices. Generated files on disk never contain it.
+
+## Consequences
+
+- Generated code is longer than the handoff skeleton: every task node has a rescue, and there is one outcome play.
+- Happy-path runs warn for routing groups nobody entered ("Could not match supplied host pattern"). Our local runs set `ANSIBLE_HOST_PATTERN_MISMATCH=ignore`.
+- Role nodes cannot route `unreachable` or `unchanged` per host. If every host of a role node is unreachable, the run stops.

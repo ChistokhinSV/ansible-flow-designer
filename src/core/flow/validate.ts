@@ -56,6 +56,7 @@ export function validateFlow(
   checkReferences(model, add);
   checkDecisions(model, add);
   checkUnreachableRollback(model, add);
+  checkTargets(model, add);
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
@@ -264,7 +265,56 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
       }
     }
     if (node.type === 'approval') checkApprovalSplit(model, node, level, path, add);
+    checkEnginePorts(node, path, hasInner, add);
   }
+}
+
+/** Ports the Option A engine cannot drive for this node (ADR-0009, M3 spike). */
+function checkEnginePorts(
+  node: FlowNode,
+  path: Path,
+  hasInner: boolean,
+  add: (f: Finding) => void,
+): void {
+  if (node.type !== 'task' && node.type !== 'subflow') return;
+  const enabled = new Set(portsFor(node).map((p) => p.name));
+  if (node.impl?.kind === 'role' && !hasInner) {
+    for (const port of ['unreachable', 'unchanged']) {
+      if (!enabled.has(port)) continue;
+      add({
+        code: 'port-role-unroutable',
+        severity: 'warning',
+        message:
+          port === 'unreachable'
+            ? `${label(node)} runs a role: hosts that become unreachable inside it drop out of the run and cannot take "unreachable". Put the connecting step in its own module node or a subflow`
+            : `${label(node)} runs a role: Ansible gives no per-host "changed" for a role, so "unchanged" never fires`,
+        path: [...path, 'ports'],
+        node: node.id,
+        port,
+      });
+    }
+  }
+  if (enabled.has('timeout') && !hasInner && !node.settings?.timeout) {
+    add({
+      code: 'timeout-without-setting',
+      severity: 'warning',
+      message: `${label(node)} enables "timeout" but sets no settings.timeout, so it never fires`,
+      path: [...path, 'ports'],
+      node: node.id,
+      port: 'timeout',
+    });
+  }
+}
+
+function checkTargets(model: FlowModel, add: (f: Finding) => void): void {
+  const inputs = Object.values(model.doc.flow?.inputs ?? {});
+  if (inputs.some((f) => f?.type === 'host_list')) return;
+  add({
+    code: 'no-targets',
+    severity: 'warning',
+    message: 'The flow has no host_list input, so start has no hosts and no code can be generated',
+    path: ['flow', 'inputs'],
+  });
 }
 
 function checkApprovalSplit(

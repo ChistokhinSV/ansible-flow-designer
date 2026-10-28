@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { ReactFlowProvider } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { codePreview } from '../../../src/core/engine/preview';
 import type { FlowCommand } from '../../../src/core/flow/commands';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
@@ -13,7 +14,9 @@ import type { Snapshot } from '../../../src/core/protocol';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { Banner } from '../../../src/webview/panels/Banner';
 import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
+import { Inspector } from '../../../src/webview/panels/Inspector';
 import { PortMenu } from '../../../src/webview/panels/PortMenu';
+import { TopBar } from '../../../src/webview/panels/TopBar';
 import { useUi } from '../../../src/webview/store';
 import { levelView } from '../../../src/webview/viewModel';
 import { posted } from './setup';
@@ -279,5 +282,74 @@ describe('port menu and open on purpose (M2)', () => {
       'Rewire to another node…',
       'Disconnect',
     ]);
+  });
+});
+
+describe('generated code and runs (M3)', () => {
+  it('the inspector shows the node play and what the last run sent through each port', () => {
+    const doc = example('edge-baseline.flow.yaml');
+    const node = doc.nodes.find((n) => n.key === 'precheck');
+    const preview = codePreview(doc, 'edge-baseline.flow.yaml');
+    show({ ...snapshotOf(doc), plays: preview.plays });
+    act(() =>
+      useUi.getState().setRun({
+        id: 'r1',
+        mode: 'check',
+        state: 'done',
+        startedAt: '2026-10-29T08:00:00Z',
+        rc: 2,
+        summary: {
+          nodes: { [node?.id ?? '']: { ok_hosts: ['sw-edge-01'], failed_hosts: ['sw-edge-04'] } },
+          outcome: { 'sw-edge-04': 'Stopped at [precheck] Pre-checks: failed_hosts is not wired' },
+          failures: [],
+          unreachable: [],
+          hosts: ['sw-edge-01', 'sw-edge-04'],
+          stoppedEarly: false,
+        },
+      }),
+    );
+    const { container } = render(<Inspector id={node?.id ?? ''} />);
+    const play = container.querySelector(`[data-generated-play="${node?.id}"]`)?.textContent ?? '';
+    expect(play.startsWith('- name: "[precheck] Pre-checks"')).toBe(true);
+    expect(play).toContain('key: flow_precheck_failed_hosts');
+    const last = container.querySelector(`[data-last-run="${node?.id}"]`);
+    expect(last?.textContent).toContain('ok_hosts');
+    expect(last?.textContent).toContain('sw-edge-04');
+  });
+
+  it('the top bar runs as skeleton and reports the outcome', () => {
+    show(snapshotOf(example('edge-baseline.flow.yaml')));
+    act(() => useUi.getState().setRun(null));
+    render(<TopBar />);
+    posted.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: /Run as skeleton/ }));
+    expect(posted).toContainEqual({ type: 'run', mode: 'check' });
+    act(() =>
+      useUi.getState().setRun({
+        id: 'r2',
+        mode: 'check',
+        state: 'running',
+        startedAt: '2026-10-29T08:00:00Z',
+      }),
+    );
+    expect(screen.getByRole('button', { name: /Running/ })).toHaveProperty('disabled', true);
+    act(() =>
+      useUi.getState().setRun({
+        id: 'r2',
+        mode: 'check',
+        state: 'done',
+        startedAt: '2026-10-29T08:00:00Z',
+        rc: 0,
+        summary: {
+          nodes: {},
+          outcome: {},
+          failures: [],
+          unreachable: [],
+          hosts: ['a', 'b'],
+          stoppedEarly: false,
+        },
+      }),
+    );
+    expect(screen.getByText(/2 hosts · 0 failed · exit 0/)).toBeTruthy();
   });
 });

@@ -1,0 +1,23 @@
+[project]
+name = "afd-probe"
+version = "0.3.0"
+description = "Ansible Flow Designer probe: answers Ansible questions inside the target environment (stdlib only)."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["docker: runs the probe inside the Ansible images (needs Docker)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]

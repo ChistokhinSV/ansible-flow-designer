@@ -3,6 +3,8 @@
 // default themes. `just harness`, then http://localhost:5178/harness/index.html?flow=os-upgrade
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
+import { optionA } from '../../core/engine/optionA';
+import { codePreview } from '../../core/engine/preview';
 import { type FlowCommand, planCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
 import { createIdFactory } from '../../core/flow/ids';
@@ -99,13 +101,17 @@ async function snapshot(): Promise<Snapshot> {
   }
   const { model, findings } = validateFlow(parsed.doc);
   const root = model.levels.get(ROOT);
+  const preview = findings.some((f) => f.severity === 'error')
+    ? undefined
+    : codePreview(parsed.doc, 'harness.flow.yaml');
   return {
     docVersion: version,
     doc: parsed.doc,
     stale: false,
-    findings,
+    findings: [...findings, ...(preview?.findings ?? [])],
     openPorts: openFailPorts(model),
     autoPositions: root ? await autoPositions(root, parsed.doc.layout) : {},
+    plays: preview?.plays,
   };
 }
 
@@ -141,6 +147,32 @@ async function onMessage(m: WebviewMessage) {
       const root = doc ? buildModel(doc).levels.get(ROOT) : undefined;
       if (root) apply({ kind: 'tidyUp', positions: await layoutLevel(root) });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      break;
+    }
+    case 'run': {
+      // No Ansible in a browser: fake a happy-path run so the run UI can be looked at.
+      const doc = parseFlow(text).doc;
+      if (!doc) break;
+      const startedAt = new Date().toISOString();
+      const base = { id: 'harness', mode: m.mode, startedAt, environment: 'harness (fake)' };
+      toWebview({ type: 'run', run: { ...base, state: 'running' } });
+      const { routes } = optionA.generate(doc, { source: 'harness.flow.yaml' });
+      const hosts = ['sw-edge-01', 'sw-edge-02'];
+      const nodes: Record<string, Record<string, string[]>> = {};
+      for (const r of Object.values(routes))
+        if (/^(ok_hosts|true|approved|branch_\d+)$/.test(r.port))
+          nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
+      setTimeout(() => {
+        const summary = {
+          nodes,
+          outcome: {},
+          failures: [],
+          unreachable: [],
+          hosts,
+          stoppedEarly: false,
+        };
+        toWebview({ type: 'run', run: { ...base, state: 'done', rc: 0, summary } });
+      }, 800);
       break;
     }
     case 'perf':

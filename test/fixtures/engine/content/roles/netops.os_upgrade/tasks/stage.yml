@@ -1,0 +1,5 @@
+# Stub role for engine tests: no device work. Hosts listed under afd_stub_fail[flow_node_id] fail.
+- name: stub task (engine tests)
+  ansible.builtin.debug:
+    msg: "stub for {{ flow_node_id }}"
+  failed_when: inventory_hostname in ((afd_stub_fail | default({}))[flow_node_id] | default([]))

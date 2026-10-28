@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.0 — M3 (AFD-4)
+
+- Spike of Option A semantics on ansible-core 2.19, 2.20 and 2.21 (`docs/spikes/m3-option-a.md`). Findings:
+  - when every host of one play fails or is unreachable, the whole playbook stops;
+  - `rescue` does not catch unreachable hosts;
+  - role outcomes are invisible to the play;
+  - the `max_fail_percentage` keyword never sees rescued hosts.
+- Code generation behind an `Engine` interface (ADR-0009):
+  - one playbook per flow level (`generated/<flow-key>.yml`, plus `<flow-key>.<subflow-key>.yml` per subflow level, run through `import_playbook`);
+  - plays in graph order, `[key]` names, `node_<ULID>` tags and `flow_node_id`; routing with `group_by`;
+  - every task node rescues, and an outcome play fails hosts on open ports and failed ends;
+  - module bindings route `unreachable`, `unchanged` and `timeout`;
+  - decisions, approvals (auto-approved locally), parallel and join (all/any), subflow bubbling, and a `max_fail_percentage` threshold task.
+- Codegen on save (`afd.codegen.onSave`):
+  - writes only changed files and never overwrites hand edits (checksum in the header);
+  - removes stale level files;
+  - _Generate Playbook_ command.
+  - The golden files are `examples/generated/`; the handoff skeleton is superseded.
+- Probe `afd_probe` (Python stdlib, JSON-lines session) with `inventory` and `syntax_check`, plus the `afd_events` callback. Both ship in the VSIX under `dist/probe`.
+- Environments: Docker or Podman EE image, or a local interpreter. Our settings win, then the redhat.ansible settings. Native Windows needs a container.
+- Run as skeleton (check mode) and _Run for real…_:
+  - flow inputs remembered per flow;
+  - the real-run confirmation names the inventory, host count, unknown names and production-looking groups;
+  - the vault password is asked per run and passed through an environment variable only;
+  - each launch is written to a local audit log;
+  - the results are mapped back to the nodes (top bar status, last run in the inspector).
+- _Check Generated Code (Syntax)_ runs `--syntax-check` in the environment. Errors go to the Problems panel on the generated files.
+- New validator warnings: `port-role-unroutable`, `timeout-without-setting`, `no-targets`.
+- The inspector shows each node's generated play.
+- `docker/afd-ee.Dockerfile`, `just ee-build`, `just test-engine` (simulated outcomes in Docker), `just probe-test`, `just codegen`.
+
 ## 0.2.0 — M2 (AFD-3)
 
 - Progressive port disclosure (D-14): at rest only wired, open-fail and open-on-purpose ports; hover (with a margin zone), selection or an open menu reveals every port of the type with labels; dragging a wire reveals inputs. Ports keep fixed slots.

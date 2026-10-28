@@ -1,0 +1,10 @@
+- name: inner node
+  hosts: r_a_ok
+  gather_facts: false
+  tasks:
+    - block:
+        - ansible.builtin.debug: {msg: inner}
+          failed_when: inventory_hostname == 'sw-edge-02'
+        - ansible.builtin.group_by: {key: r_sub_ok_hosts}
+      rescue:
+        - ansible.builtin.group_by: {key: r_sub_failed_hosts}

@@ -46,6 +46,23 @@ perf $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label perf
 
+# Engine contract tests: generated code runs in each Ansible image (Docker); images comma-separated
+test-engine $AFD_ENGINE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
+    {{ if os_family() == "windows" { "$env:AFD_ENGINE='1';" } else { "export AFD_ENGINE=1;" } }} npx --no-install vitest run --project engine
+
+# Probe contract tests (pytest, Docker) in the Ansible images; images comma-separated
+probe-test $AFD_PROBE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
+    cd probe && uv run pytest -q
+
+# Build the minimal execution environment image afd-ee:<core> (e.g. just ee-build 2.20)
+ee-build core="2.19":
+    docker build -f docker/afd-ee.Dockerfile --build-arg ANSIBLE_CORE={{ core }} -t afd-ee:{{ core }} docker
+
+# Generate Option A code for flows into generated/ next to each (--check, --simulate, --out DIR)
+codegen *args:
+    npx --no-install esbuild src/cli/codegen.ts --bundle --platform=node --format=cjs --outfile=out/cli/codegen.cjs --log-level=warning
+    node out/cli/codegen.cjs {{ args }}
+
 # Vite dev server for the webview harness (fake host, theme switcher) on http://localhost:5178
 harness:
     npx --no-install vite --config vite.config.mts --mode harness

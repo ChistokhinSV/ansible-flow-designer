@@ -15,7 +15,7 @@ export type YamlValue = Plain | YamlValue[] | { [key: string]: YamlValue };
 
 const INDICATORS = /^[-?:,[\]{}#&*!|>'"%@`\s]/;
 
-function isPlainSafe(s: string): boolean {
+export function isPlainSafe(s: string): boolean {
   if (s === '' || s !== s.trim() || /[\n\r\t]/.test(s) || INDICATORS.test(s)) return false;
   if (s.includes(': ') || s.includes(' #') || s.endsWith(':')) return false;
   // Must read back as the same string under both YAML 1.2 (core) and 1.1 (yes/no/on/off, octals,

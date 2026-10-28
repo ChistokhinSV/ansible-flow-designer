@@ -11,6 +11,19 @@ export default defineConfig({
           include: ['test/unit/core/**/*.test.ts'],
         },
       },
+      // Docker-based engine contract tests run only through `just test-engine` (AFD_ENGINE=1).
+      ...(process.env.AFD_ENGINE
+        ? [
+            {
+              test: {
+                name: 'engine',
+                environment: 'node',
+                include: ['test/engine/**/*.test.ts'],
+                testTimeout: 30_000,
+              },
+            },
+          ]
+        : []),
       {
         plugins: [react()],
         test: {

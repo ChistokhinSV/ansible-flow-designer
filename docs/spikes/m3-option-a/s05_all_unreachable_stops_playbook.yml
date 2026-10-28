@@ -1,0 +1,12 @@
+# Q: same as s04 when every host of a play is unreachable (no ignore_unreachable)
+- name: node b (only the unreachable host)
+  hosts: sw-edge-03
+  gather_facts: false
+  tasks:
+    - ansible.builtin.ping:
+- name: node c (other hosts)
+  hosts: sw-edge-01
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_c_ran}
+- import_playbook: report.yml

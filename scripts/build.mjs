@@ -1,6 +1,6 @@
 // Builds the extension host bundle (esbuild) and the webview bundle (Vite).
 // Flags: --production (minify, no sourcemaps), --watch, --tests (integration test bundles only).
-import { readdirSync } from 'node:fs';
+import { cpSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as esbuild from 'esbuild';
 import { build as viteBuild } from 'vite';
@@ -40,6 +40,17 @@ const testOptions = {
   logLevel: 'info',
 };
 
+/** The probe ships inside the VSIX as plain Python sources (ADR-0005): dist/probe/{afd_probe,callback_plugins}. */
+function copyProbe() {
+  rmSync('dist/probe', { recursive: true, force: true });
+  for (const dir of ['afd_probe', 'callback_plugins']) {
+    cpSync(join('probe', dir), join('dist/probe', dir), {
+      recursive: true,
+      filter: (src) => !src.includes('__pycache__') && !src.endsWith('.pyc'),
+    });
+  }
+}
+
 async function buildWebview() {
   await viteBuild({
     configFile: 'vite.config.mts',
@@ -52,10 +63,12 @@ async function buildWebview() {
 if (testsOnly) {
   await esbuild.build(testOptions);
 } else if (watch) {
+  copyProbe();
   const ctx = await esbuild.context(hostOptions);
   await ctx.watch();
   await buildWebview();
 } else {
+  copyProbe();
   await esbuild.build(hostOptions);
   await buildWebview();
 }

@@ -1,6 +1,7 @@
 // One session per open flow document: parse/validate cache, diagnostics, attached editor panels,
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
 import * as vscode from 'vscode';
+import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { flowFromFile, type ParsedFlow, rangeOf } from '../core/flow/document';
 import type { IdFactory } from '../core/flow/ids';
@@ -9,7 +10,7 @@ import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
-import type { DomSummary, HostMessage, Snapshot, WebviewMessage } from '../core/protocol';
+import type { DomSummary, HostMessage, RunView, Snapshot, WebviewMessage } from '../core/protocol';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel } from './autoLayout';
@@ -50,6 +51,8 @@ export class FlowSession implements vscode.Disposable {
   private readonly renderWaiters: { version: number; resolve: () => void }[] = [];
   readonly perf: PerfEvent[] = [];
   readonly cspViolations: string[] = [];
+  /** Last skeleton or real run of this flow (shown in the top bar and inspector). */
+  lastRun: RunView | null = null;
 
   constructor(
     readonly document: vscode.TextDocument,
@@ -96,8 +99,13 @@ export class FlowSession implements vscode.Disposable {
         err ? [parseErrorDiagnostic(this.document, err.message, err.offset)] : [],
       );
     } else {
-      const { model, findings } = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
+      const validated = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
+      const { model } = validated;
       const root = model.levels.get(ROOT);
+      const preview = validated.findings.some((f) => f.severity === 'error')
+        ? undefined
+        : codePreview(parsed.doc, this.uri.path.split('/').pop() ?? 'flow.yaml');
+      const findings = [...validated.findings, ...(preview?.findings ?? [])];
       snapshot = {
         docVersion: version,
         doc: parsed.doc,
@@ -105,6 +113,7 @@ export class FlowSession implements vscode.Disposable {
         findings,
         openPorts: openFailPorts(model),
         autoPositions: root ? await this.cachedAutoPositions(root, parsed.doc.layout) : {},
+        plays: preview?.plays,
       };
       this.lastGood = snapshot;
       this.deps.diagnostics.set(this.uri, toDiagnostics(this.document, file, findings));
@@ -165,6 +174,7 @@ export class FlowSession implements vscode.Disposable {
       case 'ready':
         this.post(panel, { type: 'config', testMode: this.deps.testMode });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
+        this.post(panel, { type: 'run', run: this.lastRun });
         break;
       case 'command': {
         const outcome = await this.runCommand(m.command);
@@ -177,6 +187,18 @@ export class FlowSession implements vscode.Disposable {
       case 'validate':
         await this.refresh();
         await vscode.commands.executeCommand('workbench.actions.view.problems');
+        break;
+      case 'run':
+        await vscode.commands.executeCommand(
+          m.mode === 'check' ? 'afd.runSkeleton' : 'afd.runReal',
+          this.uri,
+        );
+        break;
+      case 'generate':
+        await vscode.commands.executeCommand('afd.generate', this.uri);
+        break;
+      case 'showRunOutput':
+        await vscode.commands.executeCommand('workbench.action.terminal.focus');
         break;
       case 'tidyUp': {
         const outcome = await this.tidyUp();
@@ -202,6 +224,11 @@ export class FlowSession implements vscode.Disposable {
         this.cspViolations.push(m.detail);
         break;
     }
+  }
+
+  setRun(run: RunView): void {
+    this.lastRun = run;
+    this.broadcast({ type: 'run', run });
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */

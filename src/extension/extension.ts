@@ -5,10 +5,15 @@ import { createIdFactory, slugify } from '../core/flow/ids';
 import { createSchemaValidator } from '../core/flow/schema';
 import { versionBump } from '../core/flow/semantic';
 import { newFlowText } from '../core/flow/template';
-import type { DomSummary } from '../core/protocol';
+import type { DomSummary, RunView } from '../core/protocol';
 import { setIn } from '../core/yaml/ops';
+import { type CodegenOutcome, generateFlow } from './codegen';
+import { ProbeManager } from './env/environment';
 import { type CommandOutcome, FlowSession, type PerfEvent, type SessionDeps } from './flowSession';
 import { headText } from './gitHead';
+import { auditUri } from './run/audit';
+import { type RunDeps, type RunOptions, runFlow } from './run/runner';
+import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
@@ -22,11 +27,17 @@ export interface AfdTestApi {
   perf(uri: vscode.Uri): PerfEvent[];
   cspViolations(uri: vscode.Uri): string[];
   diagnostics(uri: vscode.Uri): readonly vscode.Diagnostic[];
+  /** The code generation started by the last save of this flow. */
+  savedCode(uri: vscode.Uri): Promise<CodegenOutcome> | undefined;
+  runFlow(uri: vscode.Uri, options: RunOptions): Promise<RunView>;
+  syntaxCheck(uri: vscode.Uri): Promise<SyntaxOutcome>;
+  auditLog(): Promise<Record<string, unknown>[]>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const diagnostics = vscode.languages.createDiagnosticCollection('ansible-flow');
+  const codeDiagnostics = vscode.languages.createDiagnosticCollection('ansible-flow-code');
   const deps: SessionDeps = {
     extensionUri: context.extensionUri,
     diagnostics,
@@ -36,6 +47,31 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   };
   const sessions = new Map<string, FlowSession>();
   const lastSaved = new Map<string, string>();
+  const savedCode = new Map<string, Promise<CodegenOutcome>>();
+  const probeDir = vscode.Uri.joinPath(context.extensionUri, 'dist', 'probe').fsPath;
+  const probes = new ProbeManager(probeDir);
+  const runDeps = (uri: vscode.Uri): RunDeps => ({
+    schema: deps.schema,
+    probes,
+    probeDir,
+    storage: context.globalStorageUri,
+    state: context.workspaceState,
+    testMode,
+    report: (run) => sessions.get(uri.toString())?.setRun(run),
+  });
+  const flowDoc = async (uri?: vscode.Uri) => {
+    const target = uri ?? activeSession(sessions)?.uri;
+    return target ? vscode.workspace.openTextDocument(target) : undefined;
+  };
+  const run = async (mode: RunOptions['mode'], uri?: vscode.Uri, options?: Partial<RunOptions>) => {
+    const doc = await flowDoc(uri);
+    if (!doc) return undefined;
+    const result = await runFlow(doc, runDeps(doc.uri), { ...options, mode });
+    if (result.state === 'error' && result.error !== 'Cancelled' && !options?.inputs)
+      void vscode.window.showErrorMessage(result.error ?? 'The run failed');
+    else if (result.state === 'done') void announceRun(result);
+    return result;
+  };
 
   const sessionFor = (document: vscode.TextDocument): FlowSession => {
     const key = document.uri.toString();
@@ -56,6 +92,29 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
 
   context.subscriptions.push(
     diagnostics,
+    codeDiagnostics,
+    probes,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('afd.environment') || e.affectsConfiguration('ansible'))
+        probes.dispose();
+    }),
+    vscode.commands.registerCommand('afd.runSkeleton', (uri?: vscode.Uri) => run('check', uri)),
+    vscode.commands.registerCommand('afd.runReal', (uri?: vscode.Uri) => run('real', uri)),
+    vscode.commands.registerCommand('afd.syntaxCheck', async (uri?: vscode.Uri) => {
+      const doc = await flowDoc(uri);
+      if (!doc) return;
+      const outcome = await syntaxCheck(doc, deps.schema, probes, codeDiagnostics);
+      if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
+      else void vscode.window.showErrorMessage(outcome.message);
+    }),
+    vscode.commands.registerCommand('afd.showAudit', async () => {
+      const uri = auditUri(context.globalStorageUri);
+      try {
+        await vscode.window.showTextDocument(uri, { preview: false });
+      } catch {
+        void vscode.window.showInformationMessage('No run has been launched yet.');
+      }
+    }),
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       supportsMultipleEditorsPerDocument: true,
     }),
@@ -76,7 +135,17 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         e.waitUntil(versionBumpEdits(e.document, lastSaved.get(e.document.uri.toString())));
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (isFlow(doc)) lastSaved.set(doc.uri.toString(), doc.getText());
+      if (!isFlow(doc)) return;
+      lastSaved.set(doc.uri.toString(), doc.getText());
+      if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true))
+        savedCode.set(doc.uri.toString(), writeCode(doc, deps, false));
+    }),
+    vscode.commands.registerCommand('afd.generate', async (uri?: vscode.Uri) => {
+      const target = uri ?? activeSession(sessions)?.uri;
+      const doc = target && (await vscode.workspace.openTextDocument(target));
+      if (!doc) return;
+      if (doc.isDirty) await doc.save();
+      await writeCode(doc, deps, true);
     }),
     vscode.commands.registerCommand('afd.newFlow', () => newFlow(deps)),
     vscode.commands.registerCommand('afd.tidyUp', async () => {
@@ -109,7 +178,45 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     perf: (uri) => get(uri).perf,
     cspViolations: (uri) => get(uri).cspViolations,
     diagnostics: (uri) => diagnostics.get(uri) ?? [],
+    savedCode: (uri) => savedCode.get(uri.toString()),
+    runFlow: async (uri, options) => {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      return runFlow(doc, runDeps(uri), options);
+    },
+    auditLog: async () => {
+      try {
+        const bytes = await vscode.workspace.fs.readFile(auditUri(context.globalStorageUri));
+        return new TextDecoder()
+          .decode(bytes)
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => JSON.parse(l) as Record<string, unknown>);
+      } catch {
+        return [];
+      }
+    },
+    syntaxCheck: async (uri) =>
+      syntaxCheck(
+        await vscode.workspace.openTextDocument(uri),
+        deps.schema,
+        probes,
+        codeDiagnostics,
+      ),
   };
+}
+
+async function announceRun(run: RunView): Promise<void> {
+  const s = run.summary;
+  const failed = s ? Object.keys(s.outcome).length + s.failures.length : 0;
+  const what = run.mode === 'check' ? 'Skeleton run (check mode)' : 'Run';
+  const text = s?.stoppedEarly
+    ? `${what} stopped early (exit ${run.rc}): see the terminal`
+    : `${what} finished (exit ${run.rc}): ${s?.hosts.length ?? 0} host(s), ${failed} failed`;
+  const show = 'Show Terminal';
+  const pick = await (failed > 0 || run.rc !== 0
+    ? vscode.window.showWarningMessage(text, show)
+    : vscode.window.showInformationMessage(text, show));
+  if (pick === show) await vscode.commands.executeCommand('workbench.action.terminal.focus');
 }
 
 export function deactivate(): void {}
@@ -122,6 +229,52 @@ function activeSession(sessions: Map<string, FlowSession>): FlowSession | undefi
       ? input.uri
       : undefined;
   return uri ? sessions.get(uri.toString()) : undefined;
+}
+
+/**
+ * Writes generated/ for a flow (ADR-0009). On save this is quiet unless something needs the user;
+ * from the command, files edited by hand can be overwritten after a confirmation.
+ */
+async function writeCode(
+  doc: vscode.TextDocument,
+  deps: SessionDeps,
+  explicit: boolean,
+): Promise<CodegenOutcome> {
+  let outcome = await generateFlow(doc, deps.schema);
+  if (!outcome.ok) {
+    if (explicit) void vscode.window.showErrorMessage(outcome.error ?? 'Code generation failed');
+    else vscode.window.setStatusBarMessage(`$(warning) ${outcome.error}`, 6000);
+    return outcome;
+  }
+  if (outcome.kept.length > 0) {
+    const names = outcome.kept.map((u) => vscode.workspace.asRelativePath(u)).join(', ');
+    const overwrite = 'Overwrite';
+    const asked = vscode.window.showWarningMessage(
+      `Generated code was edited by hand and was not updated: ${names}`,
+      { modal: explicit },
+      overwrite,
+    );
+    // On save the answer may come much later (or never); the save path must not wait for it.
+    if (!explicit) {
+      void asked.then((pick) =>
+        pick === overwrite ? generateFlow(doc, deps.schema, { force: true }) : undefined,
+      );
+      return outcome;
+    }
+    if ((await asked) === overwrite) {
+      const forced = await generateFlow(doc, deps.schema, { force: true });
+      outcome = { ...forced, written: [...outcome.written, ...forced.written] };
+    }
+  }
+  const n = outcome.written.length;
+  if (n > 0 || explicit) {
+    const where = outcome.dir ? vscode.workspace.asRelativePath(outcome.dir) : 'generated';
+    vscode.window.setStatusBarMessage(
+      n > 0 ? `$(check) Generated ${n} file(s) in ${where}` : `$(check) ${where} is up to date`,
+      4000,
+    );
+  }
+  return outcome;
 }
 
 /** ADR-0006: on save, bump flow.version once relative to Git HEAD (or the last saved text). */

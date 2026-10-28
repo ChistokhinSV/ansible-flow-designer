@@ -1,0 +1,103 @@
+{"event": "start", "playbook": "routing-ports.yml"}
+{"event": "play", "name": "[probe] Probe", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "unreachable", "host": "h07", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002", "msg": "Task failed: Failed to connect to the host via ssh: ssh: connect to host 127.0.0.1 port 1: Connection refused"}
+{"event": "result", "status": "ok", "host": "h06", "task": "[probe] Probe", "action": "ansible.builtin.ping", "node": "01JCR1N0000000000000000002"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h06", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unchanged"}
+{"event": "result", "status": "ok", "host": "h07", "task": "[probe] route ok_hosts, unreachable, unchanged", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000002", "group": "flow_probe_unreachable"}
+{"event": "play", "name": "[work] Work", "node": "01JCR1N0000000000000000003"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003"}
+{"event": "result", "status": "failed", "host": "h05", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003", "msg": "TODO: Do the work", "ignored": false}
+{"event": "result", "status": "failed", "host": "h06", "task": "[work] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000003", "msg": "TODO: Do the work", "ignored": false}
+{"event": "result", "status": "ok", "host": "h01", "task": "[work] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[work] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[work] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[work] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[work] route failed_hosts, timeout", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_failed_hosts"}
+{"event": "result", "status": "ok", "host": "h06", "task": "[work] route failed_hosts, timeout", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_timeout"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "result", "status": "ok", "host": "h06", "task": "[work] route always", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000003", "group": "flow_work_always"}
+{"event": "play", "name": "[decide] Decide", "node": "01JCR1N0000000000000000004"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[decide] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000004"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[decide] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000004"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[decide] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000004"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[decide] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000004"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[decide] route true, false", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000004", "group": "flow_decide_true"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[decide] route true, false", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000004", "group": "flow_decide_false"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[decide] route true, false", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000004", "group": "flow_decide_true"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[decide] route true, false", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000004", "group": "flow_decide_false"}
+{"event": "play", "name": "[fan] Fan out", "node": "01JCR1N0000000000000000005"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[fan] route branch_1", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000005", "group": "flow_fan_branch_1"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[fan] route branch_1", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000005", "group": "flow_fan_branch_1"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[fan] route branch_2", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000005", "group": "flow_fan_branch_2"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[fan] route branch_2", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000005", "group": "flow_fan_branch_2"}
+{"event": "play", "name": "[br1] Branch one", "node": "01JCR1N0000000000000000006"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[br1] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000006"}
+{"event": "result", "status": "failed", "host": "h03", "task": "[br1] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000006", "msg": "TODO: Branch one", "ignored": false}
+{"event": "result", "status": "ok", "host": "h01", "task": "[br1] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000006", "group": "flow_br1_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[br1] route failed_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000006", "group": "flow_br1_failed_hosts"}
+{"event": "play", "name": "[br2] Branch two", "node": "01JCR1N0000000000000000007"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[br2] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000007"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[br2] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000007"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[br2] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000007", "group": "flow_br2_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[br2] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000007", "group": "flow_br2_ok_hosts"}
+{"event": "play", "name": "[join] Join", "node": "01JCR1N0000000000000000008"}
+{"event": "result", "status": "ok", "host": "h01", "task": "[join] route ok_hosts, failed_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000008", "group": "flow_join_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[join] route ok_hosts, failed_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000008", "group": "flow_join_failed_hosts"}
+{"event": "play", "name": "[approve] Approve", "node": "01JCR1N0000000000000000009"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[approve] TODO approval", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000009"}
+{"event": "result", "status": "ok", "host": "h02", "task": "[approve] route approved, rejected, timeout", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000009", "group": "flow_approve_approved"}
+{"event": "result", "status": "ok", "host": "h04", "task": "[approve] route approved, rejected, timeout", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000009", "group": "flow_approve_rejected"}
+{"event": "play", "name": "[notify] Notify", "node": "01JCR1N0000000000000000010"}
+{"event": "result", "status": "ok", "host": "h07", "task": "[notify] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000010"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[notify] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000010"}
+{"event": "result", "status": "ok", "host": "h07", "task": "[notify] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000010", "group": "flow_notify_ok_hosts"}
+{"event": "result", "status": "ok", "host": "h03", "task": "[notify] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000010", "group": "flow_notify_ok_hosts"}
+{"event": "play", "name": "[rollback] Rollback", "node": "01JCR1N0000000000000000011"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[rollback] TODO", "action": "ansible.builtin.debug", "node": "01JCR1N0000000000000000011"}
+{"event": "result", "status": "ok", "host": "h05", "task": "[rollback] route ok_hosts", "action": "ansible.builtin.group_by", "node": "01JCR1N0000000000000000011", "group": "flow_rollback_ok_hosts"}
+{"event": "play", "name": "[routing-ports] Outcome", "node": null}
+{"event": "result", "status": "skipped", "host": "h06", "task": "[probe] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h03", "task": "[probe] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h04", "task": "[probe] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h07", "task": "[probe] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[probe] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "failed", "host": "h06", "task": "[work] timeout is open", "action": "ansible.builtin.fail", "node": null, "msg": "Stopped at [work] Work: timeout is not wired", "ignored": false}
+{"event": "result", "status": "skipped", "host": "h03", "task": "[work] timeout is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h04", "task": "[work] timeout is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h07", "task": "[work] timeout is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[work] timeout is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h03", "task": "[br2] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h04", "task": "[br2] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h07", "task": "[br2] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[br2] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h03", "task": "[notify] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h04", "task": "[notify] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h07", "task": "[notify] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[notify] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h03", "task": "[rollback] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h04", "task": "[rollback] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h07", "task": "[rollback] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[rollback] failed_hosts is open", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "failed", "host": "h03", "task": "[stopped] Stopped", "action": "ansible.builtin.fail", "node": null, "msg": "Ended at [stopped] Stopped (outcome: failed)", "ignored": false}
+{"event": "result", "status": "failed", "host": "h04", "task": "[stopped] Stopped", "action": "ansible.builtin.fail", "node": null, "msg": "Ended at [stopped] Stopped (outcome: failed)", "ignored": false}
+{"event": "result", "status": "skipped", "host": "h05", "task": "[stopped] Stopped", "action": "ansible.builtin.fail", "node": null}
+{"event": "result", "status": "failed", "host": "h07", "task": "[stopped] Stopped", "action": "ansible.builtin.fail", "node": null, "msg": "Ended at [stopped] Stopped (outcome: failed)", "ignored": false}
+{"event": "result", "status": "failed", "host": "h05", "task": "[failed] Failed", "action": "ansible.builtin.fail", "node": null, "msg": "Ended at [failed] Failed (outcome: failed)", "ignored": false}
+{"event": "stats", "hosts": {"h01": {"ok": 14, "failures": 0, "unreachable": 0, "changed": 9, "skipped": 0, "rescued": 0, "ignored": 0}, "h02": {"ok": 9, "failures": 0, "unreachable": 0, "changed": 5, "skipped": 0, "rescued": 0, "ignored": 0}, "h03": {"ok": 15, "failures": 1, "unreachable": 0, "changed": 10, "skipped": 5, "rescued": 1, "ignored": 0}, "h04": {"ok": 8, "failures": 1, "unreachable": 0, "changed": 5, "skipped": 5, "rescued": 0, "ignored": 0}, "h05": {"ok": 6, "failures": 1, "unreachable": 0, "changed": 4, "skipped": 6, "rescued": 1, "ignored": 0}, "h06": {"ok": 4, "failures": 1, "unreachable": 0, "changed": 3, "skipped": 1, "rescued": 1, "ignored": 0}, "h07": {"ok": 4, "failures": 1, "unreachable": 0, "changed": 2, "skipped": 5, "rescued": 0, "ignored": 1}}}

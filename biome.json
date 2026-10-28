@@ -12,6 +12,8 @@
       "!examples",
       "!schema",
       "!test/fixtures",
+      "!docs/spikes",
+      "!probe",
       "!dist",
       "!out",
       "!.vscode-test"

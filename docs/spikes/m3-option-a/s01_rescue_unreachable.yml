@@ -1,0 +1,17 @@
+# Q: does rescue catch an unreachable host, and does it take part in later plays?
+- name: node
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - block:
+        - name: connect
+          ansible.builtin.ping:
+        - ansible.builtin.group_by: {key: r_ok}
+      rescue:
+        - ansible.builtin.group_by: {key: r_rescued}
+- name: later play on all hosts
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_later}
+- import_playbook: report.yml

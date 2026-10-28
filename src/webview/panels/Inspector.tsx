@@ -1,6 +1,7 @@
 // Node inspector (04 §5, mockup 03): identity, lifecycle stepper with the next requirement,
 // contract, every port of the type with its state and resolution actions (the same items as the
-// canvas port menu), and the implementation summary with the skeleton stub.
+// canvas port menu), the implementation with the play it generates (ADR-0009), and what the last
+// skeleton run sent through each port.
 import { SLUG } from '../../core/flow/ids';
 import { buildModel, type FlowModel } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
@@ -30,6 +31,7 @@ export function Inspector({ id }: { id: string }) {
   const edges = model.levels.get(entry.level)?.edges ?? [];
   const decisions = snapshot.doc.decisions ?? [];
   const designable = node.type !== 'start' && node.type !== 'end';
+  const play = snapshot.plays?.[id];
 
   return (
     <div className="afd-panel-body" data-inspector={id}>
@@ -133,17 +135,54 @@ export function Inspector({ id }: { id: string }) {
               ) : null}
             </p>
           ) : (
-            <>
-              <p className="muted">Not bound. As a walking skeleton this node runs:</p>
-              <pre className="afd-code">{skeletonStub(node)}</pre>
-            </>
+            <p className="muted">Not bound: as a walking skeleton this node runs a TODO message.</p>
           )}
+          <details className="afd-generated" open={!node.impl}>
+            <summary>Generated play</summary>
+            <pre className="afd-code" data-generated-play={id}>
+              {play ??
+                (node.type === 'task' || node.type === 'subflow'
+                  ? skeletonStub(node)
+                  : 'Fix the errors in this flow to see the generated code')}
+            </pre>
+          </details>
           <button type="button" disabled title="Binding arrives in M5">
             Bind module, role or playbook
           </button>
         </section>
       ) : null}
+      <LastRun id={id} />
     </div>
+  );
+}
+
+/** Hosts the last run sent through each port of this node (M3; Run mode in M7). */
+function LastRun({ id }: { id: string }) {
+  const run = useUi((s) => s.run);
+  const ports = run?.summary?.nodes[id];
+  const failures = run?.summary?.failures.filter((f) => f.node === id) ?? [];
+  if (run?.state !== 'done' || (!ports && failures.length === 0)) return null;
+  return (
+    <section className="afd-section" data-last-run={id}>
+      <h3>Last {run.mode === 'check' ? 'skeleton run' : 'run'}</h3>
+      <ul className="afd-run-ports">
+        {Object.entries(ports ?? {}).map(([port, hosts]) => (
+          <li key={port} title={hosts.join(', ')}>
+            <span className="mono">{port}</span> <span className="afd-chip">{hosts.length}</span>{' '}
+            <span className="muted">
+              {hosts.slice(0, 4).join(', ')}
+              {hosts.length > 4 ? ', …' : ''}
+            </span>
+          </li>
+        ))}
+        {failures.map((f) => (
+          <li key={`${f.host}|${f.task}`} className="afd-run-failure">
+            <span className="codicon codicon-error" aria-hidden="true" /> {f.host}:{' '}
+            {f.msg ?? f.task}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -1,0 +1,19 @@
+# Q: a role node whose every host is unreachable, while another branch still has work
+- name: node a splits hosts
+  hosts: sw-edge-01,sw-edge-03
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by:
+        key: "{{ 'r_a_failed' if inventory_hostname == 'sw-edge-01' else 'r_a_ok' }}"
+- name: role node on a.ok_hosts (only the unreachable host)
+  hosts: r_a_ok
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_role:
+        name: connect
+- name: handler on a.failed_hosts
+  hosts: r_a_failed
+  gather_facts: false
+  tasks:
+    - ansible.builtin.group_by: {key: r_handler_ran}
+- import_playbook: report.yml
