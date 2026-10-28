@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full port anatomy and per-host split</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+</style>
+<style></style>
+</head>
+<body>
+<!-- Mockup: Full port anatomy and per-host split. Static HTML exported from the design canvas. Visual reference only, not production code. -->
+<div style="position: relative; width: 1260px; height: 640px; background: #ffffff; font-family: Inter, system-ui, sans-serif; color: #1f2328">
+<div style="position: absolute; left: 640px; top: 40px; width: 1px; height: 520px; background: #e3e5e8"></div>
+<svg width="8" height="109" viewBox="0 0 8 109" preserveAspectRatio="none" style="position: absolute; left: 816px; top: 205px; width: 8px; height: 109px; overflow: visible; fill: none; stroke: #2f855a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#2f855a" stroke="none" style="stroke: none; fill: #2f855a; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 105" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="8" height="77" viewBox="0 0 8 77" preserveAspectRatio="none" style="position: absolute; left: 816px; top: 397px; width: 8px; height: 77px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 73" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="109" height="8" viewBox="0 0 109 8" preserveAspectRatio="none" style="position: absolute; left: 945px; top: 112px; width: 109px; height: 8px; overflow: visible; fill: none; stroke: #c2410c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c2410c" stroke="none" style="stroke: none; fill: #c2410c; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 105 4" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="109" height="8" viewBox="0 0 109 8" preserveAspectRatio="none" style="position: absolute; left: 945px; top: 184px; width: 109px; height: 8px; overflow: visible; fill: none; stroke: #b45309; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#b45309" stroke="none" style="stroke: none; fill: #b45309; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 105 4" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="8" height="55" viewBox="0 0 8 55" preserveAspectRatio="none" style="position: absolute; left: 896px; top: 205px; width: 8px; height: 55px; overflow: visible; fill: none; stroke: #b4b8be; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 5"><path d="M 4 0 L 4 55"></path></svg>
+<svg width="80" height="8" viewBox="0 0 80 8" preserveAspectRatio="none" style="position: absolute; left: 900px; top: 256px; width: 80px; height: 8px; overflow: visible; fill: none; stroke: #b4b8be; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 5"><path d="M 0 4 L 80 4"></path></svg>
+<svg width="8" height="244" viewBox="0 0 8 244" preserveAspectRatio="none" style="position: absolute; left: 976px; top: 260px; width: 8px; height: 244px; overflow: visible; fill: none; stroke: #b4b8be; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 5"><path d="M 4 0 L 4 244"></path></svg>
+<svg width="74" height="8" viewBox="0 0 74 8" preserveAspectRatio="none" style="position: absolute; left: 906px; top: 500px; width: 74px; height: 8px; overflow: visible; fill: none; stroke: #b4b8be; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 5"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#b4b8be" stroke="none" style="stroke: none; fill: #b4b8be; fill: context-stroke"></path></marker></defs><path d="M 74 4 L 4 4" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<div style="position: absolute; left: 180px; top: 200px; width: 280px; height: 120px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 2px solid #1d4ed8; color: #064735; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 15px">Push baseline</b><br>role: push_ntp_aaa<br><span style="color: #1d4ed8">selected · all ports shown</span></span></div>
+<div style="position: absolute; left: 700px; top: 88px; width: 240px; height: 112px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 1.5px solid #3fb38c; color: #064735; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Push baseline</b><br>49 hosts in<br>ran 1m 52s</span></div>
+<div style="position: absolute; left: 700px; top: 320px; width: 240px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 1.5px solid #3fb38c; color: #064735; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Validate</b><br>46 hosts</span></div>
+<div style="position: absolute; left: 1060px; top: 94px; width: 150px; height: 44px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #ffffff; border: 1.5px dashed #8a8f98; color: #1f2328; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b>Rollback</b> · 2 hosts</span></div>
+<div style="position: absolute; left: 1060px; top: 166px; width: 150px; height: 44px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #ffffff; border: 1.5px dashed #8a8f98; color: #1f2328; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b>Notify on-call</b></span></div>
+<div style="position: absolute; left: 740px; top: 480px; width: 160px; height: 48px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #f1f2f4; border: 1px solid #d0d4d9; color: #1f2328; border-radius: 24px; font-size: 13px; line-height: 18px"><span><b>Done</b> · 46 hosts</span></div>
+<div style="position: absolute; left: 315px; top: 195px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 175px; top: 231px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; background: #ffffff; border: 2px solid #6d5bd0"></div>
+<div style="position: absolute; left: 175px; top: 263px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; background: #ffffff; border: 2px solid #6d5bd0"></div>
+<div style="position: absolute; left: 175px; top: 297px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #0f766e"></div>
+<div style="position: absolute; left: 455px; top: 217px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; background: #6d5bd0; border: 2px solid #6d5bd0"></div>
+<div style="position: absolute; left: 455px; top: 247px; width: 10px; height: 10px; box-sizing: border-box; background: #c2410c"></div>
+<div style="position: absolute; left: 455px; top: 273px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #d97706"></div>
+<div style="position: absolute; left: 455px; top: 299px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #8a8f98"></div>
+<div style="position: absolute; left: 210px; top: 315px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 280px; top: 315px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #2f855a"></div>
+<div style="position: absolute; left: 350px; top: 315px; width: 10px; height: 10px; box-sizing: border-box; background: #59636e"></div>
+<div style="position: absolute; left: 420px; top: 315px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #8a8f98"></div>
+<div style="position: absolute; left: 815px; top: 83px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 815px; top: 195px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 895px; top: 195px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #2f855a"></div>
+<div style="position: absolute; left: 935px; top: 111px; width: 10px; height: 10px; box-sizing: border-box; background: #c2410c"></div>
+<div style="position: absolute; left: 935px; top: 183px; width: 10px; height: 10px; box-sizing: border-box; background: #d97706"></div>
+<div style="position: absolute; left: 815px; top: 315px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 815px; top: 387px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 1055px; top: 111px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 1055px; top: 183px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 815px; top: 475px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 895px; top: 499px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 332px; top: 176px; width: 24px; text-align: left; font-size: 12px; line-height: 16px; color: #3d444d">in</div>
+<div style="position: absolute; left: 68px; top: 228px; width: 100px; text-align: right; font-size: 12px; line-height: 16px; color: #4c3fa8">devices</div>
+<div style="position: absolute; left: 68px; top: 260px; width: 100px; text-align: right; font-size: 12px; line-height: 16px; color: #4c3fa8">backup_ref</div>
+<div style="position: absolute; left: 68px; top: 294px; width: 100px; text-align: right; font-size: 12px; line-height: 16px; color: #0f766e">undo</div>
+<div style="position: absolute; left: 472px; top: 214px; width: 110px; text-align: left; font-size: 12px; line-height: 16px; color: #4c3fa8">change_report</div>
+<div style="position: absolute; left: 472px; top: 244px; width: 96px; text-align: left; font-size: 12px; line-height: 16px; color: #9a3412">failed_hosts</div>
+<div style="position: absolute; left: 472px; top: 270px; width: 96px; text-align: left; font-size: 12px; line-height: 16px; color: #92400e">unreachable</div>
+<div style="position: absolute; left: 472px; top: 296px; width: 96px; text-align: left; font-size: 12px; line-height: 16px; color: #59636e">timeout</div>
+<div style="position: absolute; left: 182px; top: 336px; width: 66px; text-align: center; font-size: 12px; line-height: 16px; color: #2f6b47">ok_hosts</div>
+<div style="position: absolute; left: 252px; top: 336px; width: 66px; text-align: center; font-size: 12px; line-height: 16px; color: #2f6b47">unchanged</div>
+<div style="position: absolute; left: 322px; top: 336px; width: 66px; text-align: center; font-size: 12px; line-height: 16px; color: #3d444d">always</div>
+<div style="position: absolute; left: 392px; top: 336px; width: 66px; text-align: center; font-size: 12px; line-height: 16px; color: #59636e">cancelled</div>
+<div style="position: absolute; left: 700px; top: 252px; width: 108px; text-align: right; font-size: 12px; line-height: 16px; color: #2f6b47">ok_hosts · 46</div>
+<div style="position: absolute; left: 946px; top: 88px; width: 108px; text-align: center; font-size: 12px; line-height: 16px; color: #9a3412">failed_hosts · 2</div>
+<div style="position: absolute; left: 946px; top: 160px; width: 108px; text-align: center; font-size: 12px; line-height: 16px; color: #92400e">unreachable · 1</div>
+<div style="position: absolute; left: 992px; top: 372px; width: 100px; text-align: left; font-size: 12px; line-height: 16px; color: #59636e">unchanged · 0</div>
+<div style="position: absolute; left: 64px; top: 48px; width: 560px; text-align: left; font-size: 18px; line-height: 16px; color: #1f2328">Node anatomy</div>
+<div style="position: absolute; left: 64px; top: 76px; width: 560px; text-align: left; font-size: 13px; line-height: 16px; color: #59636e">Ports on a selected node. Unselected nodes show only in, ok_hosts and failed_hosts.</div>
+<div style="position: absolute; left: 700px; top: 48px; width: 500px; text-align: left; font-size: 18px; line-height: 16px; color: #1f2328">Run view: per-host split</div>
+<div style="position: absolute; left: 64px; top: 412px; width: 560px; text-align: left; font-size: 13px; line-height: 16px; color: #3d444d"><span style="display: inline-block; width: 10px; height: 10px; background: #2f855a; vertical-align: -1px"></span>&nbsp; Square = control port, filled = shown by default</div>
+<div style="position: absolute; left: 64px; top: 438px; width: 560px; text-align: left; font-size: 13px; line-height: 16px; color: #3d444d"><span style="display: inline-block; width: 10px; height: 10px; box-sizing: border-box; border: 2px solid #8a8f98; vertical-align: -1px"></span>&nbsp; Outline = optional, revealed on hover or select</div>
+<div style="position: absolute; left: 64px; top: 464px; width: 560px; text-align: left; font-size: 13px; line-height: 16px; color: #3d444d"><span style="display: inline-block; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 2px solid #6d5bd0; vertical-align: -1px"></span>&nbsp; Circle = data port (contract inputs and outputs)</div>
+<div style="position: absolute; left: 64px; top: 490px; width: 560px; text-align: left; font-size: 13px; line-height: 16px; color: #3d444d">Left: data in and undo · Top: in · Bottom: normal outcomes · Right: problems and data out</div>
+</div>
+
+</body>
+</html>

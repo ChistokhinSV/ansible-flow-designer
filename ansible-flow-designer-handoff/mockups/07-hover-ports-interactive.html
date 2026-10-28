@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive: hover reveals ports, click opens port menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+</style>
+<style>.node .reveal{display:none}.node:hover .reveal,.node.active .reveal{display:block}.node:hover,.node.active{--bc:#1d4ed8 !important}#menu button:hover{background:#f1f2f4 !important}</style>
+</head>
+<body>
+<!-- Mockup: Interactive: hover reveals ports, click opens port menu. Static HTML exported from the design canvas. Visual reference only, not production code. -->
+<div style="position: relative; width: 1320px; height: 680px; background: #ffffff; font-family: Inter, system-ui, sans-serif; color: #1f2328">
+<svg width="8" height="45" viewBox="0 0 8 45" preserveAspectRatio="none" style="position: absolute; left: 296px; top: 89px; width: 8px; height: 45px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 41" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="8" height="65" viewBox="0 0 8 65" preserveAspectRatio="none" style="position: absolute; left: 296px; top: 209px; width: 8px; height: 65px; overflow: visible; fill: none; stroke: #2f855a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#2f855a" stroke="none" style="stroke: none; fill: #2f855a; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 61" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="8" height="65" viewBox="0 0 8 65" preserveAspectRatio="none" style="position: absolute; left: 296px; top: 349px; width: 8px; height: 65px; overflow: visible; fill: none; stroke: #2f855a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#2f855a" stroke="none" style="stroke: none; fill: #2f855a; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 61" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="8" height="85" viewBox="0 0 8 85" preserveAspectRatio="none" style="position: absolute; left: 296px; top: 489px; width: 8px; height: 85px; overflow: visible; fill: none; stroke: #2f855a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#2f855a" stroke="none" style="stroke: none; fill: #2f855a; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 81" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="189" height="8" viewBox="0 0 189 8" preserveAspectRatio="none" style="position: absolute; left: 405px; top: 432px; width: 189px; height: 8px; overflow: visible; fill: none; stroke: #c2410c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; stroke-dasharray: 6 6"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c2410c" stroke="none" style="stroke: none; fill: #c2410c; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 185 4" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<div style="position: absolute; left: 312px; top: 234px; width: 80px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">ok_hosts</div>
+<div style="position: absolute; left: 312px; top: 374px; width: 80px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">approved</div>
+<div style="position: absolute; left: 312px; top: 524px; width: 80px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">ok_hosts</div>
+<div style="position: absolute; left: 470px; top: 412px; width: 96px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #9a3412; pointer-events: none">failed_hosts</div>
+<div style="position: absolute; left: 180px; top: 40px; width: 240px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #f1f2f4; border: 1px solid #d0d4d9; border-radius: 22px; font-size: 13px"><span><b>Start</b> · site, devices</span></div>
+<div style="position: absolute; left: 295px; top: 79px; width: 10px; height: 10px; background: #2f855a"></div>
+<div style="position: absolute; left: 220px; top: 580px; width: 160px; height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #f1f2f4; border: 1px solid #d0d4d9; border-radius: 22px; font-size: 13px"><span><b>Done</b></span></div>
+<div style="position: absolute; left: 295px; top: 575px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div class="node" data-node="pre" style="--bc: #8a8f98; position: absolute; left: 140px; top: 112px; width: 380px; height: 124px"><div style="position: absolute; left: 60px; top: 28px; width: 200px; height: 64px; box-sizing: border-box; padding: 6px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #ffffff; border: 2px solid var(--bc); border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Pre-checks</b><br>Task</span></div>
+<button type="button" aria-label="Pre-checks: in port" data-port="pre_in" style="position: absolute; left: 154px; top: 22px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #59636e; border: none"></button>
+<button type="button" aria-label="Pre-checks: ok_hosts port" data-port="pre_ok_hosts" style="position: absolute; left: 154px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #2f855a; border: none"></button>
+<button type="button" aria-label="Pre-checks: failed_hosts port" data-port="pre_failed_hosts" style="position: absolute; left: 254px; top: 38px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div class="reveal"><div style="position: absolute; left: 170px; top: 6px; width: 30px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">in</div>
+<button type="button" aria-label="Pre-checks: unchanged port" data-port="pre_unchanged" style="position: absolute; left: 224px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #2f855a"></button>
+<div style="position: absolute; left: 194px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">unchanged</div>
+<button type="button" aria-label="Pre-checks: always port" data-port="pre_always" style="position: absolute; left: 84px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #59636e"></button>
+<div style="position: absolute; left: 54px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">always</div>
+<div style="position: absolute; left: 272px; top: 36px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #9a3412; pointer-events: none">failed_hosts</div>
+<button type="button" aria-label="Pre-checks: unreachable port" data-port="pre_unreachable" style="position: absolute; left: 254px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div style="position: absolute; left: 272px; top: 52px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #92400e; pointer-events: none">unreachable</div>
+<button type="button" aria-label="Pre-checks: timeout port" data-port="pre_timeout" style="position: absolute; left: 254px; top: 70px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #6b7280"></button>
+<div style="position: absolute; left: 272px; top: 68px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #4b5563; pointer-events: none">timeout</div>
+<button type="button" aria-label="Pre-checks: undo port" data-port="pre_undo" style="position: absolute; left: 54px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #0f766e"></button>
+<div style="position: absolute; left: -52px; top: 52px; width: 100px; text-align: right; font-size: 12px; font-weight: 400; line-height: 16px; color: #0f766e; pointer-events: none">undo</div></div></div>
+<div class="node" data-node="appr" style="--bc: #8b7fd9; position: absolute; left: 140px; top: 252px; width: 380px; height: 124px"><div style="position: absolute; left: 60px; top: 28px; width: 200px; height: 64px; box-sizing: border-box; padding: 6px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #f5f3ff; border: 2px solid var(--bc); border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Change approval</b><br>Approval gate</span></div>
+<button type="button" aria-label="Change approval: in port" data-port="appr_in" style="position: absolute; left: 154px; top: 22px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #59636e; border: none"></button>
+<button type="button" aria-label="Change approval: approved port" data-port="appr_approved" style="position: absolute; left: 154px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #2f855a; border: none"></button>
+<button type="button" aria-label="Change approval: rejected port" data-port="appr_rejected" style="position: absolute; left: 254px; top: 38px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div class="reveal"><div style="position: absolute; left: 170px; top: 6px; width: 30px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">in</div>
+<div style="position: absolute; left: 272px; top: 36px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #5b4bb5; pointer-events: none">rejected</div>
+<button type="button" aria-label="Change approval: timeout port" data-port="appr_timeout" style="position: absolute; left: 254px; top: 70px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #6b7280"></button>
+<div style="position: absolute; left: 272px; top: 68px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #4b5563; pointer-events: none">timeout</div></div></div>
+<div class="node" data-node="upg" style="--bc: #8a8f98; position: absolute; left: 140px; top: 392px; width: 380px; height: 124px"><div style="position: absolute; left: 60px; top: 28px; width: 200px; height: 64px; box-sizing: border-box; padding: 6px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #ffffff; border: 2px solid var(--bc); border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Upgrade OS</b><br>Subflow</span></div>
+<button type="button" aria-label="Upgrade OS: in port" data-port="upg_in" style="position: absolute; left: 154px; top: 22px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #59636e; border: none"></button>
+<button type="button" aria-label="Upgrade OS: ok_hosts port" data-port="upg_ok_hosts" style="position: absolute; left: 154px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #2f855a; border: none"></button>
+<button type="button" aria-label="Upgrade OS: failed_hosts port" data-port="upg_failed_hosts" style="position: absolute; left: 254px; top: 38px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #c2410c; border: none"></button>
+<div class="reveal"><div style="position: absolute; left: 170px; top: 6px; width: 30px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">in</div>
+<button type="button" aria-label="Upgrade OS: unchanged port" data-port="upg_unchanged" style="position: absolute; left: 224px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #2f855a"></button>
+<div style="position: absolute; left: 194px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">unchanged</div>
+<button type="button" aria-label="Upgrade OS: always port" data-port="upg_always" style="position: absolute; left: 84px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #59636e"></button>
+<div style="position: absolute; left: 54px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">always</div>
+<button type="button" aria-label="Upgrade OS: unreachable port" data-port="upg_unreachable" style="position: absolute; left: 254px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div style="position: absolute; left: 272px; top: 52px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #92400e; pointer-events: none">unreachable</div>
+<button type="button" aria-label="Upgrade OS: timeout port" data-port="upg_timeout" style="position: absolute; left: 254px; top: 70px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #6b7280"></button>
+<div style="position: absolute; left: 272px; top: 68px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #4b5563; pointer-events: none">timeout</div>
+<button type="button" aria-label="Upgrade OS: undo port" data-port="upg_undo" style="position: absolute; left: 54px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #0f766e"></button>
+<div style="position: absolute; left: -52px; top: 52px; width: 100px; text-align: right; font-size: 12px; font-weight: 400; line-height: 16px; color: #0f766e; pointer-events: none">undo</div></div></div>
+<div class="node" data-node="rb" style="--bc: #c98a2b; position: absolute; left: 560px; top: 376px; width: 340px; height: 124px"><div style="position: absolute; left: 40px; top: 28px; width: 200px; height: 64px; box-sizing: border-box; padding: 6px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #fffaf0; border: 2px solid var(--bc); border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Rollback</b><br>Task · failure handler</span></div>
+<button type="button" aria-label="Rollback: in port" data-port="rb_in" style="position: absolute; left: 34px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #59636e; border: none"></button>
+<button type="button" aria-label="Rollback: failed_hosts port" data-port="rb_failed_hosts" style="position: absolute; left: 234px; top: 38px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div class="reveal"><button type="button" aria-label="Rollback: ok port" data-port="rb_ok" style="position: absolute; left: 134px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #2f855a"></button>
+<div style="position: absolute; left: 104px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #2f6b47; pointer-events: none">ok</div>
+<button type="button" aria-label="Rollback: always port" data-port="rb_always" style="position: absolute; left: 74px; top: 86px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #59636e"></button>
+<div style="position: absolute; left: 44px; top: 102px; width: 72px; text-align: center; font-size: 12px; font-weight: 400; line-height: 16px; color: #3d444d; pointer-events: none">always</div>
+<div style="position: absolute; left: 252px; top: 36px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #9a3412; pointer-events: none">failed_hosts</div>
+<button type="button" aria-label="Rollback: unreachable port" data-port="rb_unreachable" style="position: absolute; left: 234px; top: 54px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #d97706"></button>
+<div style="position: absolute; left: 252px; top: 52px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #92400e; pointer-events: none">unreachable</div>
+<button type="button" aria-label="Rollback: timeout port" data-port="rb_timeout" style="position: absolute; left: 234px; top: 70px; width: 12px; height: 12px; box-sizing: border-box; padding: 0; margin: 0; cursor: pointer; background: #ffffff; border: 2px solid #6b7280"></button>
+<div style="position: absolute; left: 252px; top: 68px; width: 110px; text-align: left; font-size: 12px; font-weight: 400; line-height: 16px; color: #4b5563; pointer-events: none">timeout</div></div></div>
+<div id="menu" style="display: none; position: absolute; width: 220px; box-sizing: border-box; padding: 8px; background: #ffffff; border: 1px solid #d0d4d9; border-radius: 10px; box-shadow: 0 8px 24px rgba(16,24,40,0.12); flex-direction: column; gap: 2px; z-index: 5"></div>
+<div style="position: absolute; left: 940px; top: 40px; width: 320px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 20px; font-weight: 600">Hover to discover ports</span>
+<span style="font-size: 13px; line-height: 20px; color: #3d444d">Point at any node to reveal every port its type offers, with names. Click a port to see what you can connect there. Connected ports offer edit actions instead.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: #3d444d">
+<span style="font-size: 12px; font-weight: 600; color: #59636e">Port states</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; background: #2f855a"></span>Filled: connected, always shown</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; box-sizing: border-box; border: 2px solid #d97706; background: #ffffff"></span>Amber outline: open fail port, always shown</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; box-sizing: border-box; border: 2px solid #2f855a; background: #ffffff"></span>Colored outline: optional, shown on hover</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 10px; background: #f6f7f9">
+<span style="font-size: 12px; font-weight: 600; color: #59636e">Last action</span>
+<span style="font-size: 13px; line-height: 19px; color: #1f2328"><span id="last">Nothing yet. Hover over Pre-checks to start.</span></span>
+</div>
+</div>
+</div>
+<script>
+const P = {"pre_in": {"node": "pre", "name": "in", "x": 300, "y": 140, "side": "top", "conn": true, "title": "Pre-checks"}, "pre_ok_hosts": {"node": "pre", "name": "ok_hosts", "x": 300, "y": 204, "side": "bottom", "conn": true, "title": "Pre-checks"}, "pre_unchanged": {"node": "pre", "name": "unchanged", "x": 370, "y": 204, "side": "bottom", "conn": false, "title": "Pre-checks"}, "pre_always": {"node": "pre", "name": "always", "x": 230, "y": 204, "side": "bottom", "conn": false, "title": "Pre-checks"}, "pre_failed_hosts": {"node": "pre", "name": "failed_hosts", "x": 400, "y": 156, "side": "right", "conn": false, "title": "Pre-checks"}, "pre_unreachable": {"node": "pre", "name": "unreachable", "x": 400, "y": 172, "side": "right", "conn": false, "title": "Pre-checks"}, "pre_timeout": {"node": "pre", "name": "timeout", "x": 400, "y": 188, "side": "right", "conn": false, "title": "Pre-checks"}, "pre_undo": {"node": "pre", "name": "undo", "x": 200, "y": 172, "side": "left", "conn": false, "title": "Pre-checks"}, "appr_in": {"node": "appr", "name": "in", "x": 300, "y": 280, "side": "top", "conn": true, "title": "Change approval"}, "appr_approved": {"node": "appr", "name": "approved", "x": 300, "y": 344, "side": "bottom", "conn": true, "title": "Change approval"}, "appr_rejected": {"node": "appr", "name": "rejected", "x": 400, "y": 296, "side": "right", "conn": false, "title": "Change approval"}, "appr_timeout": {"node": "appr", "name": "timeout", "x": 400, "y": 328, "side": "right", "conn": false, "title": "Change approval"}, "upg_in": {"node": "upg", "name": "in", "x": 300, "y": 420, "side": "top", "conn": true, "title": "Upgrade OS"}, "upg_ok_hosts": {"node": "upg", "name": "ok_hosts", "x": 300, "y": 484, "side": "bottom", "conn": true, "title": "Upgrade OS"}, "upg_unchanged": {"node": "upg", "name": "unchanged", "x": 370, "y": 484, "side": "bottom", "conn": false, "title": "Upgrade OS"}, "upg_always": {"node": "upg", "name": "always", "x": 230, "y": 484, "side": "bottom", "conn": false, "title": "Upgrade OS"}, "upg_failed_hosts": {"node": "upg", "name": "failed_hosts", "x": 400, "y": 436, "side": "right", "conn": true, "title": "Upgrade OS"}, "upg_unreachable": {"node": "upg", "name": "unreachable", "x": 400, "y": 452, "side": "right", "conn": false, "title": "Upgrade OS"}, "upg_timeout": {"node": "upg", "name": "timeout", "x": 400, "y": 468, "side": "right", "conn": false, "title": "Upgrade OS"}, "upg_undo": {"node": "upg", "name": "undo", "x": 200, "y": 452, "side": "left", "conn": false, "title": "Upgrade OS"}, "rb_in": {"node": "rb", "name": "in", "x": 600, "y": 436, "side": "left", "conn": true, "title": "Rollback"}, "rb_ok": {"node": "rb", "name": "ok", "x": 700, "y": 468, "side": "bottom", "conn": false, "title": "Rollback"}, "rb_always": {"node": "rb", "name": "always", "x": 640, "y": 468, "side": "bottom", "conn": false, "title": "Rollback"}, "rb_failed_hosts": {"node": "rb", "name": "failed_hosts", "x": 800, "y": 420, "side": "right", "conn": false, "title": "Rollback"}, "rb_unreachable": {"node": "rb", "name": "unreachable", "x": 800, "y": 436, "side": "right", "conn": false, "title": "Rollback"}, "rb_timeout": {"node": "rb", "name": "timeout", "x": 800, "y": 452, "side": "right", "conn": false, "title": "Rollback"}};
+const S = {
+connected: ['Insert node on this wire', 'Rewire to another node', 'Disconnect'],
+failed_hosts: ['Rollback (existing)', 'Notify on-call', 'Exclude and report', 'Retry with backoff', 'Leave open on purpose'],
+unreachable: ['Notify on-call', 'Retry later', 'Exclude and report'],
+timeout: ['Notify on-call', 'Retry', 'Stop flow'],
+unchanged: ['Skip to Done', 'Skip to another node'],
+always: ['Cleanup task', 'Send run report'],
+undo: ['Bind undo task', 'Mark undo as no-op'],
+rejected: ['Notify requester and stop', 'Escalate approval'],
+ok: ['Add next node', 'Connect to Done'],
+ok_hosts: ['Add next node', 'Connect to Done'],
+approved: ['Add next node'],
+in: ['Connect from another node']
+};
+const menu = document.getElementById('menu');
+const last = document.getElementById('last');
+const host = menu.parentElement;
+function closeMenu() { menu.style.display = 'none'; document.querySelectorAll('.node.active').forEach(n => n.classList.remove('active')); }
+document.querySelectorAll('[data-port]').forEach(btn => btn.addEventListener('click', e => {
+  e.stopPropagation();
+  const p = P[btn.dataset.port];
+  closeMenu();
+  document.querySelector('.node[data-node="' + p.node + '"]').classList.add('active');
+  const list = p.conn && p.name !== 'in' ? S.connected : (S[p.name] || []);
+  menu.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px 8px"><span style="font-size:12px;color:#59636e"><b style="color:#1f2328">' + p.title + '</b> · ' + p.name + '</span><button type="button" aria-label="Close menu" style="width:24px;height:24px;padding:0;border:none;background:transparent;color:#59636e;font-size:16px;cursor:pointer">×</button></div>';
+  menu.querySelector('button').addEventListener('click', closeMenu);
+  list.forEach(label => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label;
+    b.style.cssText = 'text-align:left;height:32px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:#1f2328;font:inherit;font-size:13px;cursor:pointer';
+    b.addEventListener('click', () => { last.textContent = label + ' · ' + p.title + ' → ' + p.name + (p.conn ? '' : ' (new draft node, port wired)'); closeMenu(); });
+    menu.appendChild(b);
+  });
+  menu.style.left = (p.side === 'left' ? p.x - 232 : p.x + 14) + 'px';
+  menu.style.top = (p.side === 'bottom' ? p.y + 12 : p.y - 12) + 'px';
+  menu.style.display = 'flex';
+}));
+document.addEventListener('click', e => { if (!menu.contains(e.target)) closeMenu(); });
+</script>
+</body>
+</html>

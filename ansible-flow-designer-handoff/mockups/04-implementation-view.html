@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Same flow in Implementation mode with design-vs-code drift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+</style>
+<style></style>
+</head>
+<body>
+<!-- Mockup: Same flow in Implementation mode with design-vs-code drift. Static HTML exported from the design canvas. Visual reference only, not production code. -->
+<div style="width: 1260px; height: 900px; box-sizing: border-box; padding: 24px; background: #ffffff; font-family: Inter, system-ui, sans-serif; color: #1f2328; font-size: 14px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="font-weight: 600; font-size: 15px">Edge baseline</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #59636e">edge-baseline · v3</span></div>
+<div style="display: flex; padding: 3px; border-radius: 9px; background: #f1f2f4; gap: 2px">
+<button type="button" aria-pressed="false" style="height: 30px; padding: 0 14px; border-radius: 7px; border: none; font: inherit; font-size: 13px; background: transparent; color: #3d444d">Design</button>
+<button type="button" aria-pressed="true" style="height: 30px; padding: 0 14px; border-radius: 7px; border: none; font: inherit; font-size: 13px; background: #ffffff; color: #1f2328; font-weight: 500">Implementation</button>
+<button type="button" aria-pressed="false" style="height: 30px; padding: 0 14px; border-radius: 7px; border: none; font: inherit; font-size: 13px; background: transparent; color: #3d444d">Run</button>
+</div>
+<button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Re-sync from git</button>
+</div>
+<div style="display: flex; gap: 20px; align-items: flex-start">
+<div style="border-radius: 10px; border: 1px solid #e3e5e8; background: #ffffff">
+<div style="position: relative; width: 904px; height: 752px">
+<svg width="8" height="37" viewBox="0 0 8 37" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 117px; width: 8px; height: 37px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-1" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 33" marker-end="url(#dc-arrow-head-filled-1)"></path></svg>
+<svg width="8" height="37" viewBox="0 0 8 37" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 237px; width: 8px; height: 37px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-2" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 33" marker-end="url(#dc-arrow-head-filled-2)"></path></svg>
+<svg width="8" height="37" viewBox="0 0 8 37" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 357px; width: 8px; height: 37px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-3" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 33" marker-end="url(#dc-arrow-head-filled-3)"></path></svg>
+<svg width="8" height="37" viewBox="0 0 8 37" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 477px; width: 8px; height: 37px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-4" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 33" marker-end="url(#dc-arrow-head-filled-4)"></path></svg>
+<svg width="8" height="37" viewBox="0 0 8 37" preserveAspectRatio="none" style="position: absolute; left: 236px; top: 597px; width: 8px; height: 37px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-5" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 4 0 L 4 33" marker-end="url(#dc-arrow-head-filled-5)"></path></svg>
+<svg width="85" height="8" viewBox="0 0 85 8" preserveAspectRatio="none" style="position: absolute; left: 365px; top: 432px; width: 85px; height: 8px; overflow: visible; fill: none; stroke: #c2410c; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6"><defs><marker id="dc-arrow-head-filled-6" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#c2410c" stroke="none" style="stroke: none; fill: #c2410c; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 81 4" marker-end="url(#dc-arrow-head-filled-6)"></path></svg>
+<svg width="53" height="8" viewBox="0 0 53 8" preserveAspectRatio="none" style="position: absolute; left: 661px; top: 432px; width: 53px; height: 8px; overflow: visible; fill: none; stroke: #8a8f98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><defs><marker id="dc-arrow-head-filled-7" orient="auto" markerWidth="5" markerHeight="5" refX="2" refY="2" overflow="visible"><path d="M0 0 L4 2 L0 4 Z" fill="#8a8f98" stroke="none" style="stroke: none; fill: #8a8f98; fill: context-stroke"></path></marker></defs><path d="M 0 4 L 49 4" marker-end="url(#dc-arrow-head-filled-7)"></path></svg>
+<div style="position: absolute; left: 140px; top: 64px; width: 200px; height: 48px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #f1f2f4; border: 1px solid #d0d4d9; border-radius: 24px; font-size: 13px"><span><b>Start</b> · site, devices</span></div>
+<div style="position: absolute; left: 120px; top: 160px; width: 240px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 1.5px solid #3fb38c; border-radius: 10px; font-size: 13px; line-height: 18px; color: #064735"><span><b style="font-size: 14px">Pre-checks</b><br>playbook: precheck.yml<br>4 tasks · last run ok</span></div>
+<div style="position: absolute; left: 120px; top: 280px; width: 240px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 1.5px solid #3fb38c; border-radius: 10px; font-size: 13px; line-height: 18px; color: #064735"><span><b style="font-size: 14px">Backup config</b><br>role: netops.backup<br>3 tasks · last run ok</span></div>
+<div style="position: absolute; left: 120px; top: 400px; width: 240px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 1.5px solid #3fb38c; border-radius: 10px; font-size: 13px; line-height: 18px; color: #064735"><span><b style="font-size: 14px">Push baseline</b><br>role: push_ntp_aaa<br>12 tasks · open subflow</span></div>
+<div style="position: absolute; left: 120px; top: 520px; width: 240px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #e1f5ee; border: 2px solid #d97706; border-radius: 10px; font-size: 13px; line-height: 18px; color: #064735"><span><b style="font-size: 14px">Validate</b><br>role: netops.validate<br><span style="color: #92400e">drift: outputs differ</span></span></div>
+<div style="position: absolute; left: 160px; top: 640px; width: 160px; height: 48px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #f1f2f4; border: 1px solid #d0d4d9; border-radius: 24px; font-size: 13px"><span><b>Done</b></span></div>
+<div style="position: absolute; left: 456px; top: 400px; width: 200px; height: 72px; box-sizing: border-box; padding: 8px 12px; display: flex; align-items: center; justify-content: center; text-align: center; background: #ffffff; border: 1.5px dashed #8a8f98; border-radius: 10px; font-size: 13px; line-height: 18px"><span><b style="font-size: 14px">Rollback</b><br>not bound<br>runs as TODO stub</span></div>
+<div style="position: absolute; left: 720px; top: 412px; width: 120px; height: 48px; box-sizing: border-box; padding: 8px; display: flex; align-items: center; justify-content: center; text-align: center; background: #fdecec; border: 1px solid #e8a5a5; border-radius: 24px; font-size: 13px; color: #7a1d1d"><span><b>Failed</b></span></div>
+<div style="position: absolute; left: 235px; top: 107px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 235px; top: 155px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 235px; top: 227px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 355px; top: 191px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #d97706"></div>
+<div style="position: absolute; left: 235px; top: 275px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 235px; top: 347px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 355px; top: 311px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #8a8f98"></div>
+<div style="position: absolute; left: 235px; top: 395px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 235px; top: 467px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 355px; top: 431px; width: 10px; height: 10px; box-sizing: border-box; background: #c2410c"></div>
+<div style="position: absolute; left: 235px; top: 515px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 235px; top: 587px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 355px; top: 551px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 2px solid #d97706"></div>
+<div style="position: absolute; left: 235px; top: 635px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 451px; top: 431px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 651px; top: 431px; width: 10px; height: 10px; box-sizing: border-box; background: #2f855a"></div>
+<div style="position: absolute; left: 715px; top: 431px; width: 10px; height: 10px; box-sizing: border-box; background: #ffffff; border: 1.5px solid #59636e"></div>
+<div style="position: absolute; left: 252px; top: 127px; width: 24px; font-size: 12px; line-height: 16px; color: #2f6b47">ok</div>
+<div style="position: absolute; left: 372px; top: 188px; width: 72px; font-size: 12px; line-height: 16px; color: #92400e">fail · open</div>
+<div style="position: absolute; left: 372px; top: 308px; width: 136px; font-size: 12px; line-height: 16px; color: #59636e">fail · stops flow (ok)</div>
+<div style="position: absolute; left: 383px; top: 408px; width: 40px; text-align: center; font-size: 12px; line-height: 16px; color: #9a3412">fail</div>
+<div style="position: absolute; left: 372px; top: 548px; width: 72px; font-size: 12px; line-height: 16px; color: #92400e">fail · open</div>
+</div>
+</div>
+<div style="width: 268px; flex: 0 0 268px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 16px; font-weight: 600">Design vs code</span>
+<span style="font-size: 12px; color: #59636e; font-family: 'JetBrains Mono', monospace">git main @ 4f2c1a9 · 5 min ago</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: center">
+<div style="padding: 8px; border-radius: 8px; background: #f6f7f9"><div style="font-size: 18px; font-weight: 600">5 / 6</div><div style="font-size: 12px; color: #59636e">nodes matched by ID</div></div>
+<div style="padding: 8px; border-radius: 8px; background: #fff7e6"><div style="font-size: 18px; font-weight: 600; color: #6b4105">3</div><div style="font-size: 12px; color: #6b4105">drift items</div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #e3e5e8; border-radius: 10px">
+<span style="font-weight: 500">Validate · outputs differ</span>
+<span style="font-size: 13px; line-height: 19px; color: #3d444d">Design expects <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">validation_result</code>, code registers <code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">diff_report</code>.</span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Update design</button><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px; border-color: transparent; background: transparent; color: #1d4ed8">Open code</button></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #e3e5e8; border-radius: 10px">
+<span style="font-weight: 500">Push baseline · task not in design</span>
+<span style="font-size: 13px; line-height: 19px; color: #3d444d"><code style="font-family: 'JetBrains Mono', monospace; font-size: 12px">wait_for_convergence</code> exists in the role but not in the subflow.</span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Add to subflow</button><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px; border-color: transparent; background: transparent; color: #1d4ed8">Ignore</button></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #e3e5e8; border-radius: 10px">
+<span style="font-weight: 500">Rollback · no code yet</span>
+<span style="font-size: 13px; line-height: 19px; color: #3d444d">Designed and wired to a fail port, but nothing is bound.</span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap"><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Generate stub</button><button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px; border-color: transparent; background: transparent; color: #1d4ed8">Bind role</button></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #e3e5e8; font-size: 13px; color: #3d444d">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Last run · AWX job [JOB ID]</span>
+<span>ok 4 · failed 0 · not run 2</span>
+</div>
+</div>
+</div>
+</div>
+
+</body>
+</html>

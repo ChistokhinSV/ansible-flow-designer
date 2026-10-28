@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Node inspector with an open failure port (early naming)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+</style>
+<style></style>
+</head>
+<body>
+<!-- Mockup: Node inspector with an open failure port (early naming). Static HTML exported from the design canvas. Visual reference only, not production code. -->
+<div style="width: 440px; height: 940px; box-sizing: border-box; padding: 24px; background: #ffffff; border-left: 1px solid #e3e5e8; font-family: Inter, system-ui, sans-serif; color: #1f2328; font-size: 14px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<p style="margin: 0; font-size: 17px; font-weight: 600">Validate</p>
+<p style="margin: 0; font-size: 13px; color: #59636e">Task · draft</p>
+</div>
+<button type="button" aria-label="Close inspector" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #e3e5e8; background: #ffffff; color: #59636e; font: inherit; font-size: 16px">×</button>
+</div>
+
+<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 6px 12px; font-size: 13px">
+<span style="color: #59636e">ID</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; overflow-wrap: anywhere">01JB8Z4BW7YE3K9MRT1QDN6H2A</span>
+<span style="color: #59636e">Key</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">validate</span>
+<span style="color: #59636e">Intent</span><span>Compare running config with the desired state after the push.</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Lifecycle</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; font-size: 12px; text-align: center">
+<span style="padding: 6px 0; border-radius: 6px; background: #1f2328; color: #ffffff; font-weight: 500">Draft</span>
+<span style="padding: 6px 0; border-radius: 6px; background: #f1f2f4; color: #59636e">Specified</span>
+<span style="padding: 6px 0; border-radius: 6px; background: #f1f2f4; color: #59636e">Implemented</span>
+<span style="padding: 6px 0; border-radius: 6px; background: #f1f2f4; color: #59636e">Tested</span>
+</div>
+<span style="font-size: 12px; color: #59636e">To reach Specified: define outputs</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Contract</span>
+<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 6px 12px; font-size: 13px; padding: 12px; border: 1px solid #e3e5e8; border-radius: 10px">
+<span style="color: #59636e">Inputs</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px">devices, change_report</span>
+<span style="color: #59636e">Outputs</span><span style="color: #9a3412">Not defined yet</span>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Output ports</span>
+<div style="display: flex; flex-direction: column; border: 1px solid #e3e5e8; border-radius: 10px">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #e3e5e8">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #14532d">success</span>
+<span style="font-size: 13px; color: #59636e">→ Done</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #fffaf0; border-bottom: 1px solid #f0cf96">
+<div style="display: flex; justify-content: space-between; align-items: center">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9a3412">failure</span>
+<span style="font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #fdebc8; color: #6b4105">open</span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 19px; color: #6b4105">If validation fails, the flow ends with an error. Devices keep the new config and nothing is rolled back.</p>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<button type="button" style="height: 36px; text-align: left; padding: 0 12px; border-radius: 8px; border: 1px solid #c98a2b; background: #ffffff; color: #6b4105; font: inherit; font-size: 13px; font-weight: 500">Connect to Rollback (existing)</button>
+<button type="button" style="height: 36px; text-align: left; padding: 0 12px; border-radius: 8px; border: 1px solid #e8d2a8; background: #ffffff; color: #6b4105; font: inherit; font-size: 13px">Add notify-and-stop stub</button>
+<button type="button" style="height: 36px; text-align: left; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #6b4105; font: inherit; font-size: 13px">Leave open on purpose…</button>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #59636e">always</span>
+<button type="button" style="border: none; background: transparent; color: #1d4ed8; font: inherit; font-size: 13px; padding: 4px">Enable</button>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Implementation</span>
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px dashed #b8bcc2; border-radius: 10px">
+<span style="font-size: 13px; color: #3d444d">Not bound. In a skeleton run this node prints a TODO message and continues on success.</span>
+<pre style="margin: 0; padding: 10px; border-radius: 8px; background: #f6f7f9; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 18px; color: #1f2328; white-space: pre-wrap">- name: "[validate] TODO"
+  ansible.builtin.debug:
+    msg: "Compare running config with desired state"
+  tags: [node_01JB8Z4BW7YE]</pre>
+<button type="button" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Bind role or playbook</button>
+</div>
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "just: build",
+      "type": "shell",
+      "command": "just build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$esbuild"
+    },
+    {
+      "label": "just: test",
+      "type": "shell",
+      "command": "just test",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

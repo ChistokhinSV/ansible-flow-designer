@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick-add panel opened from a port (early naming: success/failure)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1d4ed8}a:hover{color:#1e3a8a}
+</style>
+<style></style>
+</head>
+<body>
+<!-- Mockup: Quick-add panel opened from a port (early naming: success/failure). Static HTML exported from the design canvas. Visual reference only, not production code. -->
+<div style="width: 560px; height: 760px; box-sizing: border-box; padding: 24px; background: #f4f5f7; font-family: Inter, system-ui, sans-serif; color: #1f2328; font-size: 14px">
+<div style="box-sizing: border-box; height: 712px; padding: 24px; background: #ffffff; border: 1px solid #e3e5e8; border-radius: 14px; display: flex; flex-direction: column; gap: 18px">
+
+<div style="display: flex; flex-direction: column; gap: 4px">
+<p style="margin: 0; font-size: 17px; font-weight: 600">Add node</p>
+<p style="margin: 0; font-size: 13px; color: #59636e">After <b style="color: #1f2328">Backup config</b>, from port <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 1px 6px; border-radius: 4px; background: #eef6f1; color: #14532d">success</span></p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Type</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+<button type="button" aria-pressed="true" style="height: 36px; border-radius: 8px; border: 1.5px solid #1d4ed8; background: #eef3ff; color: #1d4ed8; font: inherit; font-size: 13px; font-weight: 500">Task</button>
+<button type="button" aria-pressed="false" style="height: 36px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Subflow</button>
+<button type="button" aria-pressed="false" style="height: 36px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Decision</button>
+<button type="button" aria-pressed="false" style="height: 36px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Approval</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ntitle" style="font-size: 12px; font-weight: 500; color: #3d444d">Title</label>
+<input id="ntitle" value="Drain traffic" style="height: 36px; padding: 0 10px; border: 1px solid #d0d4d9; border-radius: 8px; font: inherit; color: #1f2328">
+<span style="font-size: 12px; color: #59636e; font-family: 'JetBrains Mono', monospace">key: drain-traffic · id: 01JB8Z6F3TQ8…  (generated)</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="nintent" style="font-size: 12px; font-weight: 500; color: #3d444d">Intent</label>
+<textarea id="nintent" rows="2" style="padding: 8px 10px; border: 1px solid #d0d4d9; border-radius: 8px; font: inherit; color: #1f2328; resize: none">Shift traffic away from the device before pushing changes.</textarea>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Inputs, suggested from upstream outputs</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid #1d4ed8; background: #eef3ff; color: #1d4ed8; font-family: 'JetBrains Mono', monospace; font-size: 12px">devices ✓</button>
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid #d0d4d9; background: #ffffff; color: #3d444d; font-family: 'JetBrains Mono', monospace; font-size: 12px">backup_ref</button>
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid #d0d4d9; background: #ffffff; color: #3d444d; font-family: 'JetBrains Mono', monospace; font-size: 12px">site</button>
+<button type="button" style="height: 30px; padding: 0 10px; border-radius: 999px; border: 1px dashed #d0d4d9; background: #ffffff; color: #59636e; font: inherit; font-size: 12px">+ new</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; color: #3d444d">Output ports (preset for Task)</span>
+<div style="display: flex; flex-direction: column; border: 1px solid #e3e5e8; border-radius: 10px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e3e5e8">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #14532d">success</span>
+<span style="font-size: 13px; color: #59636e">→ Push baseline (re-wired)</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e3e5e8; background: #fffaf0">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #9a3412">failure</span>
+<span style="font-size: 13px; color: #6b4105">not connected</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<input id="nrollback" type="checkbox" checked style="width: 16px; height: 16px; margin: 0">
+<label for="nrollback" style="font-size: 13px; color: #6b4105">Also connect failure to existing <b>Rollback</b></label>
+</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #59636e">always</span>
+<span style="font-size: 13px; color: #59636e">off · use for cleanup or notify</span>
+</div>
+</div>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto">
+<span style="font-size: 12px; color: #59636e">Created as draft · runs as TODO stub</span>
+<div style="display: flex; gap: 8px">
+<button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #d0d4d9; background: #ffffff; color: #1f2328; font: inherit; font-size: 13px">Cancel</button>
+<button type="button" style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #ffffff; font: inherit; font-size: 13px; font-weight: 500">Create node</button>
+</div>
+</div>
+
+</div>
+</div>
+
+</body>
+</html>

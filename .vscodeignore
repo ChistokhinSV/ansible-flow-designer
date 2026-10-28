@@ -1,0 +1,9 @@
+**
+!dist/extension.js
+!dist/webview/**
+!schema/flow.schema.json
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+dist/**/*.map
