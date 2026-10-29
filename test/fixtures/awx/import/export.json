@@ -1,0 +1,1493 @@
+{
+  "job_templates": [
+    {
+      "name": "AFD fixture · backup",
+      "description": "Save the running configuration",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · backup",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · install image",
+      "description": "",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": true,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · install image",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · notify on-call",
+      "description": "",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · notify on-call",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · precheck",
+      "description": "Check reachability and free flash before the upgrade",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [
+          {
+            "organization": null,
+            "name": "Demo Credential",
+            "credential_type": {
+              "name": "Machine",
+              "kind": "ssh",
+              "type": "credential_type"
+            },
+            "type": "credential"
+          }
+        ],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · precheck",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · reload",
+      "description": "",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 900,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · reload",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · rollback",
+      "description": "",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · rollback",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · verify",
+      "description": "Compare the OS version and neighbours with the change ticket",
+      "job_type": "run",
+      "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": true,
+      "ask_limit_on_launch": true,
+      "ask_tags_on_launch": true,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "project"
+      },
+      "execution_environment": {
+        "name": "AFD EE (ansible-core 2.19)",
+        "type": "execution_environment"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · verify",
+        "type": "job_template"
+      }
+    },
+    {
+      "name": "Demo Job Template",
+      "description": "",
+      "job_type": "run",
+      "playbook": "hello_world.yml",
+      "scm_branch": "",
+      "forks": 0,
+      "limit": "",
+      "verbosity": 0,
+      "extra_vars": "",
+      "job_tags": "",
+      "force_handlers": false,
+      "skip_tags": "",
+      "start_at_task": "",
+      "timeout": 0,
+      "use_fact_cache": false,
+      "execution_environment": null,
+      "host_config_key": "",
+      "ask_scm_branch_on_launch": false,
+      "ask_diff_mode_on_launch": false,
+      "ask_variables_on_launch": false,
+      "ask_limit_on_launch": false,
+      "ask_tags_on_launch": false,
+      "ask_skip_tags_on_launch": false,
+      "ask_job_type_on_launch": false,
+      "ask_verbosity_on_launch": false,
+      "ask_inventory_on_launch": false,
+      "ask_credential_on_launch": false,
+      "ask_execution_environment_on_launch": false,
+      "ask_labels_on_launch": false,
+      "ask_forks_on_launch": false,
+      "ask_job_slice_count_on_launch": false,
+      "ask_timeout_on_launch": false,
+      "ask_instance_groups_on_launch": false,
+      "survey_enabled": false,
+      "become_enabled": false,
+      "diff_mode": false,
+      "allow_simultaneous": false,
+      "job_slice_count": 1,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "prevent_instance_group_fallback": false,
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "Demo Inventory",
+        "type": "inventory"
+      },
+      "project": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "Demo Project",
+        "type": "project"
+      },
+      "related": {
+        "labels": [],
+        "credentials": [
+          {
+            "organization": null,
+            "name": "Demo Credential",
+            "credential_type": {
+              "name": "Machine",
+              "kind": "ssh",
+              "type": "credential_type"
+            },
+            "type": "credential"
+          }
+        ],
+        "schedules": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "Demo Job Template",
+        "type": "job_template"
+      }
+    }
+  ],
+  "workflow_job_templates": [
+    {
+      "name": "AFD fixture · edge upgrade",
+      "description": "Upgrade the edge switches in one maintenance window",
+      "extra_vars": "site: edge-lab",
+      "survey_enabled": true,
+      "allow_simultaneous": false,
+      "ask_variables_on_launch": false,
+      "limit": "edge",
+      "scm_branch": null,
+      "ask_inventory_on_launch": false,
+      "ask_scm_branch_on_launch": false,
+      "ask_limit_on_launch": false,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "ask_labels_on_launch": false,
+      "ask_skip_tags_on_launch": false,
+      "ask_tags_on_launch": false,
+      "skip_tags": null,
+      "job_tags": null,
+      "organization": {
+        "name": "Default",
+        "type": "organization"
+      },
+      "inventory": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD lab",
+        "type": "inventory"
+      },
+      "related": {
+        "schedules": [],
+        "workflow_nodes": [
+          {
+            "extra_data": {
+              "min_flash_mb": 512
+            },
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": "precheck",
+            "skip_tags": null,
+            "limit": "edge",
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "precheck",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · precheck",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "approve",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "precheck",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "approve",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "upgrade",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "always_nodes": [],
+              "create_approval_template": {
+                "timeout": 1800,
+                "name": "Approve the upgrade window",
+                "description": "Network on-call approves"
+              }
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "approve",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "upgrade",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · upgrade steps",
+              "type": "workflow_job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "verify",
+                  "type": "workflow_job_template_node"
+                },
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "report",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "rollback",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "upgrade",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "verify",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · verify",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "verify",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "report",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "Demo Job Template",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "report",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "rollback",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · rollback",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [],
+              "failure_nodes": [],
+              "always_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · edge upgrade",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281",
+                  "type": "workflow_job_template_node"
+                }
+              ]
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "rollback",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · edge upgrade",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · notify on-call",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · edge upgrade",
+                "type": "workflow_job_template"
+              },
+              "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281",
+              "type": "workflow_job_template_node"
+            }
+          }
+        ],
+        "labels": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "notification_templates_approvals": [],
+        "survey_spec": {
+          "name": "",
+          "spec": [
+            {
+              "type": "text",
+              "default": "CHG0001234",
+              "required": true,
+              "variable": "change_ticket",
+              "question_name": "Change ticket"
+            },
+            {
+              "max": 3600,
+              "min": 0,
+              "type": "integer",
+              "default": 300,
+              "required": false,
+              "variable": "reboot_wait",
+              "question_name": "Reboot wait (s)"
+            },
+            {
+              "type": "multiplechoice",
+              "choices": [
+                "17.9.4",
+                "17.12.2"
+              ],
+              "default": "17.9.4",
+              "required": true,
+              "variable": "image",
+              "question_name": "Image"
+            },
+            {
+              "type": "password",
+              "default": "$encrypted$",
+              "required": false,
+              "variable": "lab_enable_password",
+              "question_name": "Enable password"
+            }
+          ],
+          "description": ""
+        }
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · edge upgrade",
+        "type": "workflow_job_template"
+      }
+    },
+    {
+      "name": "AFD fixture · upgrade steps",
+      "description": "Backup, install and reload",
+      "extra_vars": "",
+      "survey_enabled": false,
+      "allow_simultaneous": false,
+      "ask_variables_on_launch": false,
+      "inventory": null,
+      "limit": null,
+      "scm_branch": null,
+      "ask_inventory_on_launch": false,
+      "ask_scm_branch_on_launch": false,
+      "ask_limit_on_launch": false,
+      "webhook_service": "",
+      "webhook_credential": null,
+      "ask_labels_on_launch": false,
+      "ask_skip_tags_on_launch": false,
+      "ask_tags_on_launch": false,
+      "skip_tags": null,
+      "job_tags": null,
+      "organization": {
+        "name": "Default",
+        "type": "organization"
+      },
+      "related": {
+        "schedules": [],
+        "workflow_nodes": [
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "sync",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · upgrade steps",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD lab",
+              "type": "project"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · upgrade steps",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "install",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · upgrade steps",
+                "type": "workflow_job_template"
+              },
+              "identifier": "sync",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "backup",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · upgrade steps",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · backup",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · upgrade steps",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "install",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · upgrade steps",
+                "type": "workflow_job_template"
+              },
+              "identifier": "backup",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": true,
+            "identifier": "install",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · upgrade steps",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · install image",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [
+                {
+                  "workflow_job_template": {
+                    "organization": {
+                      "name": "Default",
+                      "type": "organization"
+                    },
+                    "name": "AFD fixture · upgrade steps",
+                    "type": "workflow_job_template"
+                  },
+                  "identifier": "reload",
+                  "type": "workflow_job_template_node"
+                }
+              ],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · upgrade steps",
+                "type": "workflow_job_template"
+              },
+              "identifier": "install",
+              "type": "workflow_job_template_node"
+            }
+          },
+          {
+            "extra_data": {},
+            "inventory": null,
+            "scm_branch": null,
+            "job_type": null,
+            "job_tags": null,
+            "skip_tags": null,
+            "limit": null,
+            "diff_mode": null,
+            "verbosity": null,
+            "execution_environment": null,
+            "forks": null,
+            "job_slice_count": null,
+            "timeout": null,
+            "all_parents_must_converge": false,
+            "identifier": "reload",
+            "workflow_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · upgrade steps",
+              "type": "workflow_job_template"
+            },
+            "unified_job_template": {
+              "organization": {
+                "name": "Default",
+                "type": "organization"
+              },
+              "name": "AFD fixture · reload",
+              "type": "job_template"
+            },
+            "related": {
+              "credentials": [],
+              "success_nodes": [],
+              "failure_nodes": [],
+              "always_nodes": []
+            },
+            "natural_key": {
+              "workflow_job_template": {
+                "organization": {
+                  "name": "Default",
+                  "type": "organization"
+                },
+                "name": "AFD fixture · upgrade steps",
+                "type": "workflow_job_template"
+              },
+              "identifier": "reload",
+              "type": "workflow_job_template_node"
+            }
+          }
+        ],
+        "labels": [],
+        "notification_templates_started": [],
+        "notification_templates_success": [],
+        "notification_templates_error": [],
+        "notification_templates_approvals": [],
+        "survey_spec": {}
+      },
+      "natural_key": {
+        "organization": {
+          "name": "Default",
+          "type": "organization"
+        },
+        "name": "AFD fixture · upgrade steps",
+        "type": "workflow_job_template"
+      }
+    }
+  ]
+}

@@ -1,0 +1,586 @@
+{
+  "/api/v2/workflow_job_templates/21/": {
+    "id": 21,
+    "type": "workflow_job_template",
+    "summary_fields": {},
+    "name": "AFD fixture · edge upgrade",
+    "description": "Upgrade the edge switches in one maintenance window",
+    "extra_vars": "site: edge-lab",
+    "survey_enabled": true,
+    "limit": "edge",
+    "job_tags": null
+  },
+  "/api/v2/workflow_job_templates/21/survey_spec/": {
+    "name": "",
+    "spec": [
+      {
+        "type": "text",
+        "default": "CHG0001234",
+        "required": true,
+        "variable": "change_ticket",
+        "question_name": "Change ticket"
+      },
+      {
+        "max": 3600,
+        "min": 0,
+        "type": "integer",
+        "default": 300,
+        "required": false,
+        "variable": "reboot_wait",
+        "question_name": "Reboot wait (s)"
+      },
+      {
+        "type": "multiplechoice",
+        "choices": [
+          "17.9.4",
+          "17.12.2"
+        ],
+        "default": "17.9.4",
+        "required": true,
+        "variable": "image",
+        "question_name": "Image"
+      },
+      {
+        "type": "password",
+        "default": "$encrypted$",
+        "required": false,
+        "variable": "lab_enable_password",
+        "question_name": "Enable password"
+      }
+    ],
+    "description": ""
+  },
+  "/api/v2/workflow_job_templates/21/workflow_nodes/": [
+    {
+      "id": 5,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 13,
+          "name": "AFD fixture · precheck",
+          "description": "Check reachability and free flash before the upgrade",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {
+        "min_flash_mb": 512
+      },
+      "job_tags": "precheck",
+      "limit": "edge",
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 13,
+      "success_nodes": [
+        6
+      ],
+      "failure_nodes": [
+        11
+      ],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "precheck"
+    },
+    {
+      "id": 6,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 22,
+          "name": "Approve the upgrade window",
+          "description": "Network on-call approves",
+          "unified_job_type": "workflow_approval",
+          "timeout": 1800
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 22,
+      "success_nodes": [
+        7
+      ],
+      "failure_nodes": [
+        11
+      ],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "approve"
+    },
+    {
+      "id": 7,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 20,
+          "name": "AFD fixture · upgrade steps",
+          "description": "Backup, install and reload",
+          "unified_job_type": "workflow_job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 20,
+      "success_nodes": [
+        8,
+        9
+      ],
+      "failure_nodes": [
+        10
+      ],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "upgrade"
+    },
+    {
+      "id": 8,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 17,
+          "name": "AFD fixture · verify",
+          "description": "Compare the OS version and neighbours with the change ticket",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 17,
+      "success_nodes": [],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "verify"
+    },
+    {
+      "id": 9,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 7,
+          "name": "Demo Job Template",
+          "description": "",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 7,
+      "success_nodes": [],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "report"
+    },
+    {
+      "id": 10,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 18,
+          "name": "AFD fixture · rollback",
+          "description": "",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 18,
+      "success_nodes": [],
+      "failure_nodes": [],
+      "always_nodes": [
+        11
+      ],
+      "all_parents_must_converge": false,
+      "identifier": "rollback"
+    },
+    {
+      "id": 11,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 19,
+          "name": "AFD fixture · notify on-call",
+          "description": "",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 19,
+      "success_nodes": [],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "bb1e06d3-93fa-4b23-8bfd-92dd99aa7281"
+    }
+  ],
+  "/api/v2/job_templates/13/": {
+    "id": 13,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": [
+        {
+          "id": 1,
+          "name": "Demo Credential",
+          "description": "",
+          "kind": "ssh"
+        }
+      ]
+    },
+    "name": "AFD fixture · precheck",
+    "description": "Check reachability and free flash before the upgrade",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/workflow_job_templates/20/": {
+    "id": 20,
+    "type": "workflow_job_template",
+    "summary_fields": {},
+    "name": "AFD fixture · upgrade steps",
+    "description": "Backup, install and reload",
+    "extra_vars": "",
+    "survey_enabled": false,
+    "limit": null,
+    "job_tags": null
+  },
+  "/api/v2/workflow_job_templates/20/workflow_nodes/": [
+    {
+      "id": 1,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 11,
+          "name": "AFD lab",
+          "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)",
+          "unified_job_type": "project_update"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 11,
+      "success_nodes": [
+        3
+      ],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "sync"
+    },
+    {
+      "id": 2,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 14,
+          "name": "AFD fixture · backup",
+          "description": "Save the running configuration",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 14,
+      "success_nodes": [
+        3
+      ],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "backup"
+    },
+    {
+      "id": 3,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 15,
+          "name": "AFD fixture · install image",
+          "description": "",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 15,
+      "success_nodes": [
+        4
+      ],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": true,
+      "identifier": "install"
+    },
+    {
+      "id": 4,
+      "type": "workflow_job_template_node",
+      "summary_fields": {
+        "unified_job_template": {
+          "id": 16,
+          "name": "AFD fixture · reload",
+          "description": "",
+          "unified_job_type": "job"
+        }
+      },
+      "extra_data": {},
+      "job_tags": null,
+      "limit": null,
+      "execution_environment": null,
+      "timeout": null,
+      "unified_job_template": 16,
+      "success_nodes": [],
+      "failure_nodes": [],
+      "always_nodes": [],
+      "all_parents_must_converge": false,
+      "identifier": "reload"
+    }
+  ],
+  "/api/v2/job_templates/14/": {
+    "id": 14,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · backup",
+    "description": "Save the running configuration",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/job_templates/15/": {
+    "id": 15,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · install image",
+    "description": "",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": true
+  },
+  "/api/v2/job_templates/16/": {
+    "id": 16,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · reload",
+    "description": "",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 900,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/job_templates/17/": {
+    "id": 17,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · verify",
+    "description": "Compare the OS version and neighbours with the change ticket",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/job_templates/7/": {
+    "id": 7,
+    "type": "job_template",
+    "summary_fields": {
+      "project": {
+        "id": 6,
+        "name": "Demo Project",
+        "description": ""
+      },
+      "credentials": [
+        {
+          "id": 1,
+          "name": "Demo Credential",
+          "description": "",
+          "kind": "ssh"
+        }
+      ]
+    },
+    "name": "Demo Job Template",
+    "description": "",
+    "project": 6,
+    "playbook": "hello_world.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": null,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/job_templates/18/": {
+    "id": 18,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · rollback",
+    "description": "",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  },
+  "/api/v2/job_templates/19/": {
+    "id": 19,
+    "type": "job_template",
+    "summary_fields": {
+      "execution_environment": {
+        "id": 4,
+        "name": "AFD EE (ansible-core 2.19)",
+        "description": "afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)"
+      },
+      "project": {
+        "id": 11,
+        "name": "AFD lab",
+        "description": "Lab Git server on ops1 (lab/ops1-git-daemon.sh)"
+      },
+      "credentials": []
+    },
+    "name": "AFD fixture · notify on-call",
+    "description": "",
+    "project": 11,
+    "playbook": "flows/awx-e2e/generated/awx-e2e.yml",
+    "limit": "",
+    "extra_vars": "",
+    "job_tags": "",
+    "timeout": 0,
+    "execution_environment": 4,
+    "ask_credential_on_launch": false,
+    "survey_enabled": false,
+    "become_enabled": false
+  }
+}

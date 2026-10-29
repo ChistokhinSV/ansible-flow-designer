@@ -56,6 +56,28 @@
             }
           }
         },
+        "imported_from": {
+          "type": "object",
+          "description": "Where an imported flow came from, for reference only (M9): a one-time copy",
+          "required": [
+            "kind",
+            "template"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "awx_workflow"
+              ]
+            },
+            "template": {
+              "type": "string"
+            },
+            "id": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
         "maintenance_window": {
           "type": "string",
           "pattern": "^([0-9]+[smhd])+$",

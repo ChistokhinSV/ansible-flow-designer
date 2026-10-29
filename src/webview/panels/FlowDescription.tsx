@@ -51,6 +51,12 @@ export function FlowDescription() {
             : 'not set'
         }
       />
+      {flow.imported_from && (
+        <ReadOnly
+          label="Imported from"
+          value={`AWX workflow "${flow.imported_from.template}"${flow.imported_from.id !== undefined ? ` (id ${flow.imported_from.id})` : ''}`}
+        />
+      )}
       <CommitField
         label="Maintenance window"
         value={flow.maintenance_window ?? ''}

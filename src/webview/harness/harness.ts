@@ -3,6 +3,7 @@
 // default themes. `just harness`, then http://localhost:5178/harness/index.html?flow=os-upgrade
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
+import awxImport from '../../../test/fixtures/awx/import/edge-upgrade.flow.yaml?raw';
 import awxJob from '../../../test/fixtures/awx/job-events.json';
 import awxE2e from '../../../test/fixtures/awx/repo/flows/awx-e2e/awx-e2e.flow.yaml?raw';
 import builtin from '../../../test/fixtures/catalog/files/ansible.builtin@2.19.4.json';
@@ -39,6 +40,7 @@ const FLOWS: Record<string, string> = {
   'edge-drift': edgeDrift,
   'awx-e2e': awxE2e,
   'lens-e2e': lensE2e,
+  'awx-import': awxImport,
 };
 /** Lens facts (M8) as the host would gather them for the lens-e2e fixture. */
 let lensTargets = 'edge_switches';

@@ -9,6 +9,7 @@ import { createSchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
+import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
 import {
   type AwxDeps,
   type AwxPicks,
@@ -71,6 +72,8 @@ export interface AfdTestApi {
   setLens(uri: vscode.Uri, lens: LensId | null): void;
   lensFacts(uri: vscode.Uri): LensFacts;
   setTargets(uri: vscode.Uri, targets: string): Promise<void>;
+  /** M9: Import AWX Workflow with every pick given (writes the flow, does not open it). */
+  importAwx(request: ImportRequest): Promise<ImportOutcome>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -273,6 +276,16 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       await writeCode(doc, deps, true);
     }),
     vscode.commands.registerCommand('afd.newFlow', () => newFlow(deps)),
+    vscode.commands.registerCommand('afd.importAwxWorkflow', async () => {
+      const outcome = await importAwxWorkflow(context.secrets, deps.newId);
+      if (outcome.error) {
+        if (outcome.error !== 'Cancelled') void vscode.window.showErrorMessage(outcome.error);
+        return;
+      }
+      if (outcome.uri)
+        await vscode.commands.executeCommand('vscode.openWith', outcome.uri, VIEW_TYPE);
+      void announceImport(outcome);
+    }),
     vscode.commands.registerCommand('afd.tidyUp', async () => {
       const session = activeSession(sessions);
       const outcome = await session?.tidyUp();
@@ -352,11 +365,24 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         inputs,
         yes: true,
       }),
+    importAwx: (request) => importAwxWorkflow(context.secrets, deps.newId, request),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? catalog.status(folder) : undefined;
     },
   };
+}
+
+async function announceImport(outcome: ImportOutcome): Promise<void> {
+  const c = outcome.counts;
+  const text = `Imported ${vscode.workspace.asRelativePath(outcome.uri as vscode.Uri)}: ${c?.steps ?? 0} step(s), ${c?.implemented ?? 0} implemented, ${c?.drafts ?? 0} draft.`;
+  const show = outcome.notes.length ? 'Show notes' : undefined;
+  const pick = await vscode.window.showInformationMessage(text, ...(show ? [show] : []));
+  if (pick === show)
+    await vscode.window.showQuickPick(outcome.notes, {
+      title: 'What the import could not map one to one',
+      canPickMany: false,
+    });
 }
 
 async function announceRun(run: RunView): Promise<void> {

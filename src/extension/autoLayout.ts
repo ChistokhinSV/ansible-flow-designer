@@ -1,8 +1,8 @@
 // Top-down layered layout with ELK, run in the host (5–15 nodes per level: milliseconds, no worker).
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { nodeSize } from '../core/flow/geometry';
-import type { Level } from '../core/flow/model';
-import type { Layout, Position, Ulid } from '../core/flow/types';
+import { buildModel, type Level } from '../core/flow/model';
+import type { FlowDocument, Layout, Position, Ulid } from '../core/flow/types';
 
 const elk = new ELK();
 
@@ -31,6 +31,14 @@ export async function layoutLevel(level: Level): Promise<Record<Ulid, Position>>
   for (const c of graph.children ?? [])
     out[c.id] = { x: Math.round(c.x ?? 0), y: Math.round(c.y ?? 0) };
   return out;
+}
+
+/** ELK positions for every level of a new document, in the one flat layout map (ADR-0002). */
+export async function layoutAll(doc: FlowDocument): Promise<void> {
+  const layout: Layout = {};
+  for (const level of buildModel(doc).levels.values())
+    Object.assign(layout, await layoutLevel(level));
+  doc.layout = layout;
 }
 
 /**

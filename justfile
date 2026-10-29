@@ -61,6 +61,11 @@ test-lens $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label m8
 
+# AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
+test-import $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label m9
+
 # Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
 test-docker-lab *suites:
     node lab/docker-suites.mjs {{ suites }}

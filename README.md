@@ -74,6 +74,12 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
   - _Mark expected_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
 - **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show the status dot and two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open subflow, Properties and Peek code.
+- **AWX workflow import (M9, ADR-0015):** _Import AWX Workflow…_ turns a workflow job template, read from AWX or from an `awx export` file, into a new flow laid out top-down at every level. It is a one-time copy: AWX is only read, and the flow description shows where it came from.
+  - Job template nodes become tasks bound to the template's playbook: implemented when the playbook is in this repository, otherwise draft. Node limit, tags, extra data, the machine credential, EE, become and timeout carry over.
+  - Nested workflows become subflows; approvals stay approvals, with their timeout; project and inventory syncs become draft tasks.
+  - `success` goes to `ok_hosts`, `failure` to `failed_hosts`, and `always` to both, because AWX counts it as a failure handler. Several children get a parallel node, several roots start in parallel, and convergence "all" gets a join.
+  - A failure with no AWX path stays open, so the banner shows what AWX would fail on.
+  - Survey questions and extra vars become flow inputs. Passwords, `$encrypted$` values and secret-looking names are imported by name only.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -85,7 +91,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.8.0.vsix
+code --install-extension out/ansible-flow-designer-0.9.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -122,6 +128,7 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 ## Usage
 
 - **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node.
+- **Import from AWX:** Command Palette → _Ansible Flow: Import AWX Workflow…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick the workflow and the flow key; the new flow opens, and _Show notes_ lists what did not map one to one.
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
 - **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.
 - **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
@@ -253,10 +260,10 @@ Port catalog per node type (ADR-0004):
 | `src/core/engine/`               | Option A code generation (ADR-0009), generated-file checksums, the inspector's play preview.                                           |
 | `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                |
 | `src/core/drift/`                | Code sync and drift: scan types, `computeDrift` (D-29 kinds and actions), role stubs and argument specs (M6).                          |
-| `src/core/awx/`                  | AWX API types and AWX job events → `afd_events` lines (M7).                                                                            |
+| `src/core/awx/`                  | AWX API types, AWX job events → `afd_events` lines (M7); workflow import sources and the mapping to a flow (M9).                       |
 | `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                          |
 | `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                               |
-| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7).                                                         |
+| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import AWX Workflow (M9).                               |
 | `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
 | `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
 | `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                 |
@@ -292,8 +299,10 @@ just install
 | `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                |
 | `just awx-ee-build [core]`       | Build `afd-awx-ee:<core>` (adds ansible-runner) for AWX                              |
 | `just awx-lab [--sync]`          | Create the lab AWX objects (EE, project, inventory); `--sync` updates the project    |
+| `just awx-lab --fixtures`        | Also the M9 import fixture workflows; `--record-import f` records their API answers  |
 | `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
 | `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
+| `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
 | `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |

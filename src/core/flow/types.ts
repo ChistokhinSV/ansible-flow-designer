@@ -133,6 +133,8 @@ export interface FlowHeader {
   goal?: string;
   owner?: string;
   runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string };
+  /** Where an imported flow came from (M9): a one-time copy, kept for reference only. */
+  imported_from?: { kind: 'awx_workflow'; template: string; id?: number };
   /** Longest time the flow may take (`4h`, `2h30m`), checked by the Timing lens (M8). */
   maintenance_window?: string;
   inputs?: Contract;

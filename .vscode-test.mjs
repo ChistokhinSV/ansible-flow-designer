@@ -95,6 +95,7 @@ export default defineConfig([
       'out/test/integration/catalog.test.js',
       'out/test/integration/drift.test.js',
       'out/test/integration/lens.test.js',
+      'out/test/integration/awxImport.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -104,6 +105,8 @@ export default defineConfig([
   // M7: the lab AWX (skipped without AFD_AWX_URL and AFD_AWX_TOKEN).
   { ...common, label: 'm7', files: 'out/test/integration/awx.test.js' },
   { ...common, label: 'm8', files: 'out/test/integration/lens.test.js' },
+  // M9: import from the export fixture; the skeleton run needs AFD_TEST_IMAGE, the API import the lab AWX.
+  { ...common, label: 'm9', files: 'out/test/integration/awxImport.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

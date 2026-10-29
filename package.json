@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -44,6 +44,11 @@
       {
         "command": "afd.newFlow",
         "title": "New Flow…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.importAwxWorkflow",
+        "title": "Import AWX Workflow…",
         "category": "Ansible Flow"
       },
       {

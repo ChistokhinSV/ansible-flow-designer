@@ -4,13 +4,14 @@ Run mode is tested against a real AWX in the GNS3 lab (ADR-0013). Everything her
 
 ## Pieces
 
-| What                                                                 | Where                                                                                          |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| AWX 24.6.1 on k3s (awx-operator 2.19.1), NodePort 30080              | `ops1` in the GNS3 project `snow_AWX` (management network `10.10.10.0/24`, ops1 `10.10.10.10`) |
-| Git server for the AWX project (`git daemon`, port 9418, `/srv/git`) | `ops1`, set up by `lab/ops1-git-daemon.sh`                                                     |
-| `afd-awx-ee:2.19` (ansible-core 2.19 + ansible-runner)               | built with `just awx-ee-build`, imported into k3s                                              |
-| EE, project `AFD lab` and inventory `AFD lab`                        | `just awx-lab [--sync]`                                                                        |
-| Docker suites                                                        | `just test-docker-lab` (throwaway container on the GNS3 VM)                                    |
+| What                                                                  | Where                                                                                          |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| AWX 24.6.1 on k3s (awx-operator 2.19.1), NodePort 30080               | `ops1` in the GNS3 project `snow_AWX` (management network `10.10.10.0/24`, ops1 `10.10.10.10`) |
+| Git server for the AWX project (`git daemon`, port 9418, `/srv/git`)  | `ops1`, set up by `lab/ops1-git-daemon.sh`                                                     |
+| `afd-awx-ee:2.19` (ansible-core 2.19 + ansible-runner)                | built with `just awx-ee-build`, imported into k3s                                              |
+| EE, project `AFD lab` and inventory `AFD lab`                         | `just awx-lab [--sync]`                                                                        |
+| Import fixtures (M9): `AFD fixture ·` job templates and two workflows | `just awx-lab --fixtures`; `--record-import test/fixtures/awx/import/api.json` re-records      |
+| Docker suites                                                         | `just test-docker-lab` (throwaway container on the GNS3 VM)                                    |
 
 The inventory `AFD lab` holds fictional hosts: `h01`–`h06` and `sw-edge-01`–`04` use the local connection; `h07` points at `127.0.0.1:1` and is always unreachable.
 

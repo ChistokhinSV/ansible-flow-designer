@@ -1,0 +1,375 @@
+schema_version: 1
+flow:
+  id: 01JDAWX0000000000000000038
+  key: edge-upgrade
+  name: AFD fixture · edge upgrade
+  version: 1
+  goal: Upgrade the edge switches in one maintenance window
+  imported_from:
+    kind: awx_workflow
+    template: AFD fixture · edge upgrade
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+      default:
+      - edge
+    change_ticket:
+      type: string
+      required: true
+      default: CHG0001234
+    reboot_wait:
+      type: integer
+      default: 300
+    image:
+      type: string
+      required: true
+      default: 17.9.4
+    lab_enable_password:
+      type: string
+    site:
+      type: string
+      default: edge-lab
+nodes:
+- id: 01JDAWX0000000000000000001
+  key: start
+  type: start
+  title: Start
+- id: 01JDAWX0000000000000000002
+  key: precheck
+  type: task
+  title: AFD fixture · precheck
+  intent: Check reachability and free flash before the upgrade
+  status: implemented
+  impl:
+    kind: playbook
+    ref: flows/awx-e2e/generated/awx-e2e.yml
+    params:
+      min_flash_mb: 512
+  settings:
+    credential: Demo Credential
+    execution_environment: AFD EE (ansible-core 2.19)
+    inventory_target: edge
+    tags:
+    - precheck
+- id: 01JDAWX0000000000000000003
+  key: approve
+  type: approval
+  title: Approve the upgrade window
+  intent: Network on-call approves
+  ports:
+  - timeout
+  settings:
+    timeout: 30m
+- id: 01JDAWX0000000000000000004
+  key: upgrade
+  type: subflow
+  title: AFD fixture · upgrade steps
+  intent: Backup, install and reload
+  subflow:
+    nodes:
+    - id: 01JDAWX0000000000000000005
+      key: sync
+      type: task
+      title: AFD lab
+      intent: 'AWX project sync: AFD lab'
+      status: draft
+    - id: 01JDAWX0000000000000000006
+      key: backup
+      type: task
+      title: AFD fixture · backup
+      intent: Save the running configuration
+      status: implemented
+      impl:
+        kind: playbook
+        ref: flows/awx-e2e/generated/awx-e2e.yml
+      settings:
+        execution_environment: AFD EE (ansible-core 2.19)
+    - id: 01JDAWX0000000000000000007
+      key: install
+      type: task
+      title: AFD fixture · install image
+      status: implemented
+      impl:
+        kind: playbook
+        ref: flows/awx-e2e/generated/awx-e2e.yml
+      settings:
+        become: true
+        execution_environment: AFD EE (ansible-core 2.19)
+    - id: 01JDAWX0000000000000000008
+      key: reload
+      type: task
+      title: AFD fixture · reload
+      status: implemented
+      impl:
+        kind: playbook
+        ref: flows/awx-e2e/generated/awx-e2e.yml
+      settings:
+        timeout: 15m
+        execution_environment: AFD EE (ansible-core 2.19)
+    - id: 01JDAWX0000000000000000009
+      key: start-in-parallel
+      type: parallel
+      title: Start in parallel
+      branches: 2
+    - id: 01JDAWX0000000000000000012
+      key: join-install
+      type: join
+      title: Join for AFD fixture · install image
+      join_mode: all
+    edges:
+    - id: 01JDAWX0000000000000000010
+      from:
+        node: 01JDAWX0000000000000000009
+        port: branch_1
+      to:
+        node: 01JDAWX0000000000000000005
+        port: in
+    - id: 01JDAWX0000000000000000011
+      from:
+        node: 01JDAWX0000000000000000009
+        port: branch_2
+      to:
+        node: 01JDAWX0000000000000000006
+        port: in
+    - id: 01JDAWX0000000000000000013
+      from:
+        node: 01JDAWX0000000000000000005
+        port: ok_hosts
+      to:
+        node: 01JDAWX0000000000000000012
+        port: in
+    - id: 01JDAWX0000000000000000014
+      from:
+        node: 01JDAWX0000000000000000006
+        port: ok_hosts
+      to:
+        node: 01JDAWX0000000000000000012
+        port: in
+    - id: 01JDAWX0000000000000000015
+      from:
+        node: 01JDAWX0000000000000000012
+        port: ok_hosts
+      to:
+        node: 01JDAWX0000000000000000007
+        port: in
+    - id: 01JDAWX0000000000000000016
+      from:
+        node: 01JDAWX0000000000000000007
+        port: ok_hosts
+      to:
+        node: 01JDAWX0000000000000000008
+        port: in
+    boundary:
+      in: 01JDAWX0000000000000000009
+      outputs:
+        ok_hosts:
+        - node: 01JDAWX0000000000000000008
+          port: ok_hosts
+- id: 01JDAWX0000000000000000017
+  key: verify
+  type: task
+  title: AFD fixture · verify
+  intent: Compare the OS version and neighbours with the change ticket
+  status: implemented
+  impl:
+    kind: playbook
+    ref: flows/awx-e2e/generated/awx-e2e.yml
+  settings:
+    execution_environment: AFD EE (ansible-core 2.19)
+- id: 01JDAWX0000000000000000018
+  key: report
+  type: task
+  title: Demo Job Template
+  status: draft
+  impl:
+    kind: playbook
+    ref: hello_world.yml
+  settings:
+    credential: Demo Credential
+- id: 01JDAWX0000000000000000019
+  key: rollback
+  type: task
+  title: AFD fixture · rollback
+  status: implemented
+  impl:
+    kind: playbook
+    ref: flows/awx-e2e/generated/awx-e2e.yml
+  settings:
+    execution_environment: AFD EE (ansible-core 2.19)
+- id: 01JDAWX0000000000000000020
+  key: afd-fixture-notify-on-call
+  type: task
+  title: AFD fixture · notify on-call
+  status: implemented
+  impl:
+    kind: playbook
+    ref: flows/awx-e2e/generated/awx-e2e.yml
+  settings:
+    execution_environment: AFD EE (ansible-core 2.19)
+- id: 01JDAWX0000000000000000021
+  key: after-upgrade
+  type: parallel
+  title: After AFD fixture · upgrade steps
+  branches: 2
+- id: 01JDAWX0000000000000000034
+  key: done
+  type: end
+  title: Done
+  outcome: success
+edges:
+- id: 01JDAWX0000000000000000022
+  from:
+    node: 01JDAWX0000000000000000004
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000021
+    port: in
+- id: 01JDAWX0000000000000000023
+  from:
+    node: 01JDAWX0000000000000000001
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000002
+    port: in
+- id: 01JDAWX0000000000000000024
+  from:
+    node: 01JDAWX0000000000000000002
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000003
+    port: in
+- id: 01JDAWX0000000000000000025
+  from:
+    node: 01JDAWX0000000000000000003
+    port: approved
+  to:
+    node: 01JDAWX0000000000000000004
+    port: in
+- id: 01JDAWX0000000000000000026
+  from:
+    node: 01JDAWX0000000000000000021
+    port: branch_1
+  to:
+    node: 01JDAWX0000000000000000017
+    port: in
+- id: 01JDAWX0000000000000000027
+  from:
+    node: 01JDAWX0000000000000000021
+    port: branch_2
+  to:
+    node: 01JDAWX0000000000000000018
+    port: in
+- id: 01JDAWX0000000000000000028
+  from:
+    node: 01JDAWX0000000000000000004
+    port: failed_hosts
+  to:
+    node: 01JDAWX0000000000000000019
+    port: in
+- id: 01JDAWX0000000000000000029
+  from:
+    node: 01JDAWX0000000000000000002
+    port: failed_hosts
+  to:
+    node: 01JDAWX0000000000000000020
+    port: in
+- id: 01JDAWX0000000000000000030
+  from:
+    node: 01JDAWX0000000000000000003
+    port: rejected
+  to:
+    node: 01JDAWX0000000000000000020
+    port: in
+- id: 01JDAWX0000000000000000031
+  from:
+    node: 01JDAWX0000000000000000003
+    port: timeout
+  to:
+    node: 01JDAWX0000000000000000020
+    port: in
+- id: 01JDAWX0000000000000000032
+  from:
+    node: 01JDAWX0000000000000000019
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000020
+    port: in
+- id: 01JDAWX0000000000000000033
+  from:
+    node: 01JDAWX0000000000000000019
+    port: failed_hosts
+  to:
+    node: 01JDAWX0000000000000000020
+    port: in
+- id: 01JDAWX0000000000000000035
+  from:
+    node: 01JDAWX0000000000000000017
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000034
+    port: in
+- id: 01JDAWX0000000000000000036
+  from:
+    node: 01JDAWX0000000000000000018
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000034
+    port: in
+- id: 01JDAWX0000000000000000037
+  from:
+    node: 01JDAWX0000000000000000020
+    port: ok_hosts
+  to:
+    node: 01JDAWX0000000000000000034
+    port: in
+layout:
+  01JDAWX0000000000000000001:
+    x: 404
+    y: 12
+  01JDAWX0000000000000000002:
+    x: 368
+    y: 108
+  01JDAWX0000000000000000003:
+    x: 403
+    y: 240
+  01JDAWX0000000000000000004:
+    x: 455
+    y: 372
+  01JDAWX0000000000000000017:
+    x: 524
+    y: 636
+  01JDAWX0000000000000000018:
+    x: 268
+    y: 636
+  01JDAWX0000000000000000019:
+    x: 233
+    y: 504
+  01JDAWX0000000000000000020:
+    x: 12
+    y: 636
+  01JDAWX0000000000000000021:
+    x: 489
+    y: 504
+  01JDAWX0000000000000000034:
+    x: 304
+    y: 768
+  01JDAWX0000000000000000005:
+    x: 268
+    y: 144
+  01JDAWX0000000000000000006:
+    x: 12
+    y: 144
+  01JDAWX0000000000000000007:
+    x: 47
+    y: 408
+  01JDAWX0000000000000000008:
+    x: 47
+    y: 540
+  01JDAWX0000000000000000009:
+    x: 47
+    y: 12
+  01JDAWX0000000000000000012:
+    x: 47
+    y: 276

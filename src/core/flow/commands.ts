@@ -190,6 +190,7 @@ const FLOW_ORDER = [
   'goal',
   'owner',
   'runtime',
+  'imported_from',
   'maintenance_window',
   'inputs',
 ];
