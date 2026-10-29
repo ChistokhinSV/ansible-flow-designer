@@ -12,7 +12,7 @@ Decisions by the user at the start of M8:
 3. Maintenance window: the additive flow field `flow.maintenance_window`.
 4. "Mark expected": a `finding_accepted` decision with a required reason and the Git author.
 5. Outdated collections: offline, against `collections/requirements.yml`; no Galaxy calls.
-6. Codegen ignores `inventory_target` today. M8 shows it as declared, with a finding; applying it in codegen is AFD-14.
+6. Codegen ignored `inventory_target` in M8. The lens showed it as declared, with a finding; AFD-14 applies it in codegen and removed that finding.
 
 Docker Desktop stays off while GNS3 runs, so Docker-backed suites run on the GNS3 VM (ADR-0013).
 
@@ -35,7 +35,7 @@ Docker Desktop stays off while GNS3 runs, so Docker-backed suites run on the GNS
   - chips show the target and its host count. The count is the last run's hosts at the node when there is a run, otherwise the flow targets; declared groups outside the targets show as `+ core_spines · 2`;
   - wires show last-run host counts;
   - the browser lists the groups used (with node counts) and the hosts excluded in the last run;
-  - findings: a handler or fail-path node whose declared target reaches beyond the flow targets (fix: _Limit to arriving hosts_); a declared group not covered by the targets or a flow input default (fix: _Add to flow inputs_); a declared pattern matching no host; production groups in scope; `inventory_target` declared but not applied (AFD-14).
+  - findings: a handler or fail-path node whose declared target reaches beyond the flow targets (fix: _Limit to arriving hosts_); a declared group not covered by the targets or a flow input default (fix: _Add to flow inputs_); a declared pattern matching no host; production groups in scope. (M8 also had "`inventory_target` declared but not applied"; removed when AFD-14 applied it in codegen.)
 - **Data**:
   - chips show `in:` and `out:` names;
   - derived data wires run from producer to consumer. `flow.*` references start at Start. A reference into a subflow is drawn to the subflow node on the producer's level;
@@ -73,5 +73,5 @@ Docker Desktop stays off while GNS3 runs, so Docker-backed suites run on the GNS
 
 - Inventory facts are as good as the local inventory. A flow launched in AWX may target another inventory; the panel says so.
 - The history holds only runs started from VS Code; jobs started elsewhere in AWX do not count.
-- `inventory_target` stays informational until AFD-14 changes codegen.
+- `inventory_target` was informational until AFD-14; codegen now runs the node's work on it (ADR-0009).
 - The slowest-path estimate assumes every host may take any port and that branches run one after another (decision 16). It errs on the long side.

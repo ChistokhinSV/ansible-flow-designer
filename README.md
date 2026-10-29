@@ -67,7 +67,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
 - **Lenses (M8, ADR-0014):** the top bar's lens toggle (None, Inventory, Data, Code, Access, Timing) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
-  - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups. `settings.inventory_target` is shown as declared; the generated code does not apply it yet (AFD-14).
+  - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
   - **Code** shows each binding with its collection version and the execution environment. Findings: not in the environment, removed or deprecated, versions that do not meet `collections/requirements.yml`.
   - **Access** shows credentials, the inventory's connection user, become and vaulted variables (by name and file:line, never the value). Findings: a credential unlike the one its neighbours share, become alone, node credentials outside AWX.
@@ -80,6 +80,10 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - `success` goes to `ok_hosts`, `failure` to `failed_hosts`, and `always` to both, because AWX counts it as a failure handler. Several children get a parallel node, several roots start in parallel, and convergence "all" gets a join.
   - A failure with no AWX path stays open, so the banner shows what AWX would fail on.
   - Survey questions and extra vars become flow inputs. Passwords, `$encrypted$` values and secret-looking names are imported by name only.
+- **Run on another target (`inventory_target`, AFD-14):** a task (or a subflow, whose inner steps inherit it) with `settings.inventory_target` runs its work once on that pattern instead of on the hosts that arrive. For example, drain traffic on `edge_switches,core_spines`, or update the load balancers in `{{ lb_group }}`.
+  - The arriving hosts leave together: `ok_hosts` when the target finished, `failed_hosts` when a target host failed. `max_fail_percentage` tolerates that share of the target. A pattern that matches no host also fails them.
+  - The work gets `afd_arriving` (the arriving hosts) and reads upstream outputs from the first of them; its outputs come back from the first target host that finished.
+  - Real-run and AWX confirmations name every target and its host count.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -91,7 +95,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.9.0.vsix
+code --install-extension out/ansible-flow-designer-0.10.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:

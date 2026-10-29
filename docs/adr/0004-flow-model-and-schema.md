@@ -25,7 +25,7 @@ Fail-type ports (counted by the open-port banner): `failed_hosts`, `unreachable`
 
 ## Semantics
 
-- **Host sets:** the hosts arriving on a node's `in` are its targets. A flow-level `host_list` input seeds start (the first one, or the one marked `targets: true`). Node-level `host_list` inputs are informational (validator: info). `settings.inventory_target` stays the explicit override checked by the Inventory lens.
+- **Host sets:** the hosts arriving on a node's `in` are its targets. A flow-level `host_list` input seeds start (the first one, or the one marked `targets: true`). Node-level `host_list` inputs are informational (validator: info). `settings.inventory_target` is the explicit override: since AFD-14 the node's work runs on it instead of the arriving hosts, which leave together (ADR-0009). The Inventory lens checks it.
 - **Subflows:** `type: subflow` means the node has an inner graph; `impl: role` optionally names the role that implements it. An inner open fail port bubbles to the parent's port of the same name when that port is enabled and counts once there; only ports that cannot bubble count as inner. A subflow's status is the lowest status of its inner nodes.
 - **Status:** stored in the file; actions advance it (contract saved → specified, binding saved → implemented, passing run → tested proposal); the inspector stepper allows manual setting; the validator warns when status overclaims and never rewrites it. The one automatic change is the `tested` drop-back below (decided 2026-10-29, AFD-12; it takes precedence over decision 24).
 - **`tested`:** a passing non-check run of the current `flow.version`. A change to the node's design drops it back to implemented, so `tested` always means "this design ran":

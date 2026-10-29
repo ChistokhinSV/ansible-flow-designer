@@ -1,0 +1,136 @@
+# Engine test flow for AFD-14 (fictional sample ULIDs): nodes that run on their inventory_target
+# instead of the arriving hosts. `drain` targets a flow input (max_fail_percentage 50), `announce`
+# is a module on `lb` whose output and inputs cross between target and arriving hosts, and the
+# `maint` subflow's target is inherited by its inner task while its decision runs on the arrivals.
+schema_version: 1
+flow:
+  id: 01JCR9F0000000000000000000
+  key: inventory-target
+  name: Engine test · inventory_target
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    lb_group:
+      type: string
+      default: lb
+nodes:
+  - id: 01JCR9N0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCR9N0000000000000000002
+    key: precheck
+    type: task
+    title: Precheck
+    status: specified
+    outputs:
+      note:
+        type: string
+        default: checked
+  - id: 01JCR9N0000000000000000003
+    key: drain
+    type: task
+    title: Drain the pool
+    status: draft
+    intent: Take the arriving switches out of the load balancer pool
+    settings:
+      inventory_target: "{{ lb_group }}"
+      max_fail_percentage: 50
+  - id: 01JCR9N0000000000000000004
+    key: announce
+    type: task
+    title: Announce on the load balancers
+    status: implemented
+    inputs:
+      word:
+        type: string
+        from: precheck.note
+    outputs:
+      line:
+        type: string
+        from: impl.register.stdout
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: "echo announced-{{ inventory_hostname }}-for-{{ afd_arriving | join('+') }}-{{ word }}"
+      register: announce_out
+    settings:
+      inventory_target: lb
+  - id: 01JCR9N0000000000000000005
+    key: maint
+    type: subflow
+    title: Maintenance on the load balancers
+    settings:
+      inventory_target: lb
+    subflow:
+      nodes:
+        - id: 01JCR9N000000000000000000A
+          key: quiesce
+          type: task
+          title: Quiesce the pool
+          status: draft
+        - id: 01JCR9N000000000000000000B
+          key: still-ok
+          type: decision
+          title: Still healthy?
+          condition: inventory_hostname is match('h0')
+      edges:
+        - { id: 01JCR9E000000000000000000A, from: { node: 01JCR9N000000000000000000A, port: ok_hosts }, to: { node: 01JCR9N000000000000000000B, port: in } }
+      boundary:
+        in: 01JCR9N000000000000000000A
+        outputs:
+          ok_hosts:
+            - { node: 01JCR9N000000000000000000B, port: 'true' }
+          failed_hosts:
+            - { node: 01JCR9N000000000000000000B, port: 'false' }
+  - id: 01JCR9N0000000000000000006
+    key: consume
+    type: task
+    title: Check what came back
+    status: implemented
+    inputs:
+      line:
+        type: string
+        from: announce.line
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - line is match('announced-lb-0[12]-for-')
+          - "'h01' in line"
+          - line is search('-checked$')
+  - id: 01JCR9N0000000000000000007
+    key: notify
+    type: task
+    title: Notify on-call
+    handler: notify
+    status: draft
+  - id: 01JCR9N0000000000000000008
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCR9N0000000000000000009
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCR9E0000000000000000001, from: { node: 01JCR9N0000000000000000001, port: ok_hosts }, to: { node: 01JCR9N0000000000000000002, port: in } }
+  - { id: 01JCR9E0000000000000000002, from: { node: 01JCR9N0000000000000000002, port: ok_hosts }, to: { node: 01JCR9N0000000000000000003, port: in } }
+  - { id: 01JCR9E0000000000000000003, from: { node: 01JCR9N0000000000000000003, port: ok_hosts }, to: { node: 01JCR9N0000000000000000004, port: in } }
+  - { id: 01JCR9E0000000000000000004, from: { node: 01JCR9N0000000000000000004, port: ok_hosts }, to: { node: 01JCR9N0000000000000000005, port: in } }
+  - { id: 01JCR9E0000000000000000005, from: { node: 01JCR9N0000000000000000005, port: ok_hosts }, to: { node: 01JCR9N0000000000000000006, port: in } }
+  - { id: 01JCR9E0000000000000000006, from: { node: 01JCR9N0000000000000000006, port: ok_hosts }, to: { node: 01JCR9N0000000000000000008, port: in } }
+  - { id: 01JCR9E0000000000000000007, from: { node: 01JCR9N0000000000000000002, port: failed_hosts }, to: { node: 01JCR9N0000000000000000009, port: in } }
+  - { id: 01JCR9E0000000000000000008, from: { node: 01JCR9N0000000000000000003, port: failed_hosts }, to: { node: 01JCR9N0000000000000000007, port: in } }
+  - { id: 01JCR9E0000000000000000009, from: { node: 01JCR9N0000000000000000004, port: failed_hosts }, to: { node: 01JCR9N0000000000000000007, port: in } }
+  - { id: 01JCR9E000000000000000000B, from: { node: 01JCR9N0000000000000000005, port: failed_hosts }, to: { node: 01JCR9N0000000000000000007, port: in } }
+  - { id: 01JCR9E000000000000000000C, from: { node: 01JCR9N0000000000000000006, port: failed_hosts }, to: { node: 01JCR9N0000000000000000009, port: in } }
+  - { id: 01JCR9E000000000000000000D, from: { node: 01JCR9N0000000000000000007, port: ok_hosts }, to: { node: 01JCR9N0000000000000000009, port: in } }

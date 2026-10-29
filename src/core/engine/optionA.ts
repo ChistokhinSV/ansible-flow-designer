@@ -5,7 +5,8 @@ import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
-import { bindingTask, inputVars, registerName, stubFacts } from './binding';
+import { bindingTask, inputVars, outputVar, registerName, stubFacts } from './binding';
+import { effectiveTargets } from './targets';
 import type {
   Engine,
   GeneratedFile,
@@ -50,12 +51,15 @@ class Generator {
   private readonly files: { ctx: LevelCtx; chunks: Chunk[] }[] = [];
   private order = 0;
   private todo = false;
+  /** Work nodes that run on an inventory_target (AFD-14). */
+  private readonly overrides: Map<Ulid, string>;
 
   constructor(
     private readonly doc: FlowDocument,
     private readonly opts: GenerateOptions,
   ) {
     this.model = buildModel(doc);
+    this.overrides = effectiveTargets(this.model);
   }
 
   run(): GenerateResult {
@@ -184,6 +188,21 @@ class Generator {
         if (!this.subflowLevel(ctx, node, hosts, file.chunks)) return false;
         continue;
       }
+      // Its own target or an enclosing subflow's; decisions, approvals, parallels and joins
+      // always run on the arriving hosts.
+      const over = this.overrides.get(node.id);
+      if (over) {
+        // A blank line between the node's plays; a comment stays with the play it describes.
+        const plays = this.overridePlays(ctx, node, hosts, over);
+        file.chunks.push({
+          node: node.id,
+          lines: plays.flatMap((p, i) => [
+            ...(i > 0 && !(plays[i - 1] as { $comment?: string }).$comment ? [''] : []),
+            ...writeBlock([p], 0),
+          ]),
+        });
+        continue;
+      }
       if (node.impl?.kind === 'playbook' && node.impl.ref) {
         file.chunks.push({ node: node.id, lines: this.playbookNode(ctx, node, hosts) });
         continue;
@@ -226,6 +245,219 @@ class Generator {
       name: `[${node.key}] ${oneLine(node.title)}`,
       msg: `Ended at [${node.key}] ${oneLine(node.title)} (outcome: failed)`,
     });
+  }
+
+  // ---- inventory_target (AFD-14) -------------------------------------------------------------
+
+  /**
+   * A node that runs on its inventory_target (AFD-14): the arriving hosts are marked, the binding
+   * runs once on the target, and the arriving hosts leave together. They take ok_hosts when every
+   * target host finished (or the failed share stays within max_fail_percentage), else failed_hosts
+   * (timeout when a target host timed out and the port is enabled). A target that matches no host
+   * fails them too: the work never ran.
+   */
+  private overridePlays(ctx: LevelCtx, node: FlowNode, hosts: string[], target: string): Out[] {
+    const tag = `node_${node.id}`;
+    const title = `[${node.key}] ${oneLine(node.title)}`;
+    const settings = node.settings ?? {};
+    const own = (part: string) => this.group(ctx.path, node.key, part);
+    const arrived = own('arriving');
+    const done = own('target_done');
+    const timedOut = own('target_timeout');
+    const failedOnTarget = own('target_failed');
+    const enabled = new Set(portsFor(node).map((p) => p.name));
+    const path = this.model.nodes.get(node.id)?.path ?? [];
+    const impl = node.impl?.ref ? node.impl : undefined;
+    const kind = impl?.kind ?? 'todo';
+    const sim = this.opts.simulate && kind === 'todo';
+    for (const p of portsFor(node)) if (p.direction === 'out') this.target(ctx, node, p.name);
+    const never = ['unreachable', 'unchanged'].filter((p) => enabled.has(p));
+    if (kind === 'playbook' && enabled.has('timeout')) never.push('timeout');
+    if (never.length > 0)
+      this.finding(
+        'codegen-target-ports',
+        'warning',
+        `"${node.title}" runs on its inventory_target (${target}): arriving hosts never take ${never.join(', ')}`,
+        path,
+        node.id,
+      );
+    const timeoutPort = enabled.has('timeout') && kind !== 'playbook';
+    const arriving = `{{ groups['${arrived}'] | default([]) }}`;
+    const guard: OutMap = {
+      name: `[${node.key}] no host arrived`,
+      'ansible.builtin.meta': 'end_play',
+      when: 'afd_arriving | length == 0',
+    };
+    const plays: Out[] = [
+      {
+        name: `${title}: arriving hosts`,
+        hosts: hosts.join(':'),
+        gather_facts: false,
+        tags: flow([tag]),
+        vars: { flow_node_id: node.id },
+        tasks: [{ name: `[${node.key}] arriving`, 'ansible.builtin.group_by': { key: arrived } }],
+      },
+    ];
+    const inputs = inputVars(this.model, ctx.level.id, node, 'hostvars[afd_arriving | first]');
+
+    if (kind === 'playbook') {
+      const root = (this.opts.root ?? '../../..').replace(/\/+$/, '');
+      const ref = (impl?.ref ?? '').replace(/^\.?\//, '');
+      plays.push(
+        comment(
+          `${title}: playbook ${ref} on ${target}; its plays should target "{{ afd_hosts }}"`,
+        ),
+        {
+          import_playbook: `${root}/${ref}`,
+          vars: {
+            afd_target_pattern: target,
+            afd_arriving: arriving,
+            afd_hosts: `{{ (afd_arriving | length > 0) | ternary(afd_target_pattern, 'afd_no_hosts') }}`,
+            ...((impl?.params ?? {}) as OutMap),
+            ...inputs,
+          },
+          tags: flow([tag]),
+        },
+        {
+          // Hosts that failed inside the playbook left the run; the rest finished.
+          name: `${title}: target done`,
+          hosts: target,
+          gather_facts: false,
+          tags: flow([tag]),
+          vars: { flow_node_id: node.id, afd_arriving: arriving },
+          tasks: [
+            guard,
+            { name: `[${node.key}] target done`, 'ansible.builtin.group_by': { key: done } },
+          ],
+        },
+      );
+    } else {
+      const vars: OutMap = { flow_node_id: node.id, afd_arriving: arriving, ...inputs };
+      if (this.opts.simulate) {
+        const key = [...ctx.path, node.key].join('/');
+        vars.afd_sim = `{{ (afd_simulate | default({}))['${key}'] | default({}) }}`;
+      }
+      const timeout = durationSeconds(settings.timeout);
+      const reg = registerName(node, impl);
+      const extra: Out[] = [];
+      let body: OutMap;
+      if (impl && kind !== 'todo') body = bindingTask(node, impl, timeout);
+      else {
+        const facts = stubFacts(node);
+        if (facts) extra.push(facts);
+        this.todo = true;
+        const failing = ['failed', ...(enabled.has('timeout') ? ['timeout'] : [])];
+        body = {
+          name: `[${node.key}] TODO`,
+          'ansible.builtin.debug': { msg: `TODO: ${oneLine(node.intent || node.title)}` },
+          failed_when: sim
+            ? `inventory_hostname in ${failing.map((p) => `afd_sim.${p} | default([])`).join(' + ')}`
+            : undefined,
+        };
+      }
+      const finished: OutMap = {
+        name: `[${node.key}] target done`,
+        'ansible.builtin.group_by': {
+          key:
+            kind === 'module'
+              ? `{{ '${failedOnTarget}' if (${reg}.unreachable | default(false)) else '${done}' }}`
+              : done,
+        },
+      };
+      const timedTest = sim
+        ? simIn('timeout')
+        : '(ansible_failed_result.timedout | default(false))';
+      plays.push({
+        name: title,
+        hosts: target,
+        gather_facts: false,
+        serial: settings.serial,
+        become: settings.become ? true : undefined,
+        tags: flow([tag, ...(settings.tags ?? [])]),
+        vars,
+        tasks: [
+          guard,
+          {
+            block: [body, ...extra, finished],
+            rescue: [
+              {
+                name: `[${node.key}] target failed`,
+                'ansible.builtin.group_by': {
+                  key: timeoutPort
+                    ? `{{ '${timedOut}' if ${timedTest} else '${failedOnTarget}' }}`
+                    : failedOnTarget,
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    // Route the arriving hosts on the target's result; outputs come from the first finished host.
+    const limit = settings.max_fail_percentage;
+    const failed =
+      typeof limit === 'number'
+        ? `afd_target | length == 0 or (afd_target_failed | length) * 100 > ${limit} * (afd_target | length)`
+        : 'afd_target | length == 0 or afd_target_failed | length > 0';
+    const failedGroup = this.target(ctx, node, 'failed_hosts');
+    const failGroup = timeoutPort
+      ? `('${this.target(ctx, node, 'timeout')}' if (groups['${timedOut}'] | default([]) | length > 0) else '${failedGroup}')`
+      : `'${failedGroup}'`;
+    const outputs = [
+      ...new Set(
+        Object.keys(node.outputs ?? {})
+          .map((o) => outputVar(node, o).split(/[.[]/)[0] as string)
+          .filter(Boolean),
+      ),
+    ];
+    const failPorts = ['failed_hosts', ...(timeoutPort ? ['timeout'] : [])];
+    const tasks: Out[] = [
+      {
+        name: `[${node.key}] target matched no host`,
+        'ansible.builtin.debug': {
+          msg: 'inventory_target {{ afd_target_pattern }} matched no host: every arriving host takes failed_hosts',
+        },
+        when: 'afd_target | length == 0',
+        run_once: true,
+      },
+      {
+        name: `[${node.key}] target hosts that did not finish`,
+        'ansible.builtin.debug': { msg: "{{ afd_target_failed | join(', ') }}" },
+        when: 'afd_target_failed | length > 0',
+        run_once: true,
+      },
+    ];
+    if (outputs.length > 0)
+      tasks.push({
+        name: `[${node.key}] outputs from the target`,
+        'ansible.builtin.set_fact': Object.fromEntries(
+          outputs.map((o) => [o, `{{ hostvars[afd_target_done | first].${o} }}`]),
+        ),
+        when: 'afd_target_done | length > 0',
+      });
+    tasks.push(...failPorts.flatMap((p) => this.portComment(ctx, node, p)), {
+      name: `[${node.key}] route ${['ok_hosts', ...failPorts].join(', ')}`,
+      'ansible.builtin.group_by': {
+        key: `{{ ${failGroup} if (${failed}) else '${this.target(ctx, node, 'ok_hosts')}' }}`,
+      },
+    });
+    if (enabled.has('always')) tasks.push(route(node, 'always', this.target(ctx, node, 'always')));
+    plays.push({
+      name: `${title}: route`,
+      hosts: arrived,
+      gather_facts: false,
+      tags: flow([tag]),
+      vars: {
+        flow_node_id: node.id,
+        afd_target_pattern: target,
+        afd_target: "{{ query('ansible.builtin.inventory_hostnames', afd_target_pattern) }}",
+        afd_target_done: `{{ groups['${done}'] | default([]) }}`,
+        afd_target_failed: '{{ afd_target | difference(afd_target_done) }}',
+      },
+      tasks,
+    });
+    return plays;
   }
 
   // ---- plays -----------------------------------------------------------------------------------

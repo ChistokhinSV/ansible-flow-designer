@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 — AFD-14
+
+- Codegen applies `settings.inventory_target` (ADR-0009 amended, ADR-0004).
+  - A task, or a subflow without inner steps, runs its binding once on the target instead of the arriving hosts. Inner steps of a subflow with a target inherit it.
+  - Three plays: arriving hosts, the work on the target (ends at once when no host arrived), and route.
+  - The arriving hosts leave together. They take `ok_hosts` when the target finished. They take `failed_hosts` (or `timeout`) when a target host failed beyond `max_fail_percentage` (any failure when it is not set), or when the pattern matched no host.
+  - The work gets `afd_arriving` and upstream outputs from the first arriving host. Outputs come back from the first finished target host.
+  - Playbook bindings run on the target through `afd_hosts`.
+- Validator: `inventory-target-ignored` on decisions, approvals, parallels and joins. Codegen: `codegen-target-ports` for ports arriving hosts can never take.
+- Real-run and AWX confirmations name every target and its host count; override hosts count toward the production check. The audit log records the declared patterns and counts.
+- Inventory lens: the M8 finding "inventory_target is declared but not applied" is removed.
+- AWX events map a node's extra plays (`: arriving hosts`, `: route`, `: target done`) back to it.
+- `examples/generated/os-upgrade-edge.yml`: Drain traffic now runs on `edge_switches,core_spines`. The engine fixture inventory gains `lb`, `edge_switches` and `core_spines`.
+- Engine contract tests: `test/fixtures/engine/inventory-target.flow.yaml`, 5 scenarios × 2.19–2.21.
+
 ## 0.9.0 — M9 (AFD-15)
 
 - _Import AWX Workflow…_ (ADR-0015, D-31): a workflow job template from the AWX API or an `awx export` file becomes a new flow at `flows/<key>/<key>.flow.yaml`, laid out top-down with ELK at every level, and opens in the designer. A one-time copy: AWX is only read.

@@ -27,6 +27,17 @@ export function playNodes(doc: FlowDocument): Map<string, Ulid> {
   return out;
 }
 
+/**
+ * The node of a play name: `[key] Title`, or one of the extra plays of a node, such as the
+ * arriving-hosts and route plays of a node with an inventory_target (AFD-14).
+ */
+export function playNode(plays: Map<string, Ulid>, name: string): Ulid | null {
+  const exact = plays.get(name);
+  if (exact) return exact;
+  const m = /^(.*): (arriving hosts|route|target done)$/.exec(name);
+  return (m && plays.get(m[1] as string)) || null;
+}
+
 /** The events as afd_events JSON lines, in counter order. */
 export function awxEventsToLines(events: AwxJobEvent[], plays: Map<string, Ulid>): string {
   const lines: string[] = [];
@@ -36,7 +47,7 @@ export function awxEventsToLines(events: AwxJobEvent[], plays: Map<string, Ulid>
     const data = e.event_data ?? {};
     if (e.event === 'playbook_on_play_start') {
       const name = data.play ?? e.play ?? '';
-      node = plays.get(name) ?? null;
+      node = playNode(plays, name);
       lines.push(JSON.stringify({ event: 'play', name, node, ts }));
       continue;
     }

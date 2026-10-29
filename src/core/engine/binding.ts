@@ -90,9 +90,10 @@ export function outputVar(node: FlowNode, output: string): string {
  * Play vars for a node's inputs (05 §4): `from: <key>.<output>[.path]` reads the upstream node's
  * output variable (hostvars persist across plays and imported levels in one run), `from:
  * flow.<input>` reads the extra var. Same-name references need no var (and `x: "{{ x }}"` would
- * recurse).
+ * recurse). `via` reads upstream outputs from another host's hostvars: a node that runs on its
+ * inventory_target reads them from the first arriving host (AFD-14).
  */
-export function inputVars(model: FlowModel, level: string, node: FlowNode): OutMap {
+export function inputVars(model: FlowModel, level: string, node: FlowNode, via?: string): OutMap {
   const vars: OutMap = {};
   const scope = keyScope(model, level);
   for (const [name, field] of Object.entries(node.inputs ?? {})) {
@@ -103,7 +104,10 @@ export function inputVars(model: FlowModel, level: string, node: FlowNode): OutM
     if (head === 'flow' && output) expr = [output, ...path].join('.');
     else if (head && output) {
       const upstream = model.nodes.get(scope.get(head) ?? '')?.node;
-      if (upstream) expr = [outputVar(upstream, output), ...path].join('.');
+      if (upstream) {
+        expr = [outputVar(upstream, output), ...path].join('.');
+        if (via) expr = `${via}.${expr}`;
+      }
     }
     if (expr && expr !== name) vars[name] = `{{ ${expr} }}`;
   }

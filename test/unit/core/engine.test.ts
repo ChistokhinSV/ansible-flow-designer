@@ -49,7 +49,18 @@ describe('plays', () => {
         const mine = plays.filter((p) =>
           (p.tags as string[] | undefined)?.includes(`node_${node.id}`),
         );
-        expect(mine, node.key).toHaveLength(1);
+        // A node with an inventory_target (AFD-14) has three: arriving hosts, the work, route.
+        const override = !!node.settings?.inventory_target && !node.subflow?.nodes?.length;
+        expect(mine, node.key).toHaveLength(override ? 3 : 1);
+        if (override)
+          expect(mine.map((p) => p.name)).toEqual([
+            `[${node.key}] ${node.title}: arriving hosts`,
+            `[${node.key}] ${node.title}`,
+            `[${node.key}] ${node.title}: route`,
+          ]);
+        for (const p of mine)
+          if (!p.import_playbook)
+            expect((p.vars as Record<string, string>).flow_node_id).toBe(node.id);
         const play = mine[0] as Record<string, unknown>;
         if (node.subflow?.nodes?.length) {
           expect(play.import_playbook).toBe(`${doc.flow.key}.${node.key}.yml`);

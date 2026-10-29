@@ -1,7 +1,7 @@
 // Inventory lens (04 §7, mockup 09): what each node targets in the inventory and how many hosts
-// that is. Generated plays run on the hosts that arrive (ADR-0004); a node's declared
-// `settings.inventory_target` and the `hosts:` of an imported playbook are shown as declared
-// targets, since the code does not narrow or widen to them (AFD-14).
+// that is. Generated plays run on the hosts that arrive (ADR-0004), except where a node declares
+// `settings.inventory_target`: its work then runs on that target instead (AFD-14). The `hosts:` of
+// an imported playbook are shown as declared too.
 import { buildModel, type FlowModel } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
@@ -280,20 +280,6 @@ export function inventoryLens(
         fixes: [],
       });
   }
-  const overrides = declaredNodes
-    .filter((x) => x.d.source === 'inventory_target')
-    .map((x) => x.node.id);
-  if (overrides.length > 0)
-    findings.push({
-      id: 'inventory:not-applied',
-      lens: 'inventory',
-      severity: 'info',
-      title: `inventory_target is declared on ${plural(overrides.length, 'node')} but not applied`,
-      detail: `${joinTitles(overrides.map((id) => title(model, id)))}: the generated plays run on the hosts that arrive; the declared target is shown here for review (AFD-14).`,
-      nodes: overrides,
-      fixes: [],
-    });
-
   // Side panel.
   const groups: LensItem[] = [...usage.entries()]
     .map(([group, u]) => {

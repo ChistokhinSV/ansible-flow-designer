@@ -134,12 +134,11 @@ describe('Inventory lens', () => {
     expect(Object.values(v.chips).every((c) => c.length <= 2)).toBe(true);
   });
 
-  it('findings: Rollback on all, core_spines not an input, production, override not applied', () => {
+  it('findings: Rollback on all, core_spines not an input, production', () => {
     expect(ids('inventory')).toEqual([
       `inventory:broad-target:${id('rollback')}`,
       'inventory:group-not-input:core_spines',
       'inventory:prod',
-      'inventory:not-applied',
     ]);
     const broad = view('inventory').findings[0];
     expect(broad?.title).toBe('Rollback targets all (9)');
@@ -163,7 +162,7 @@ describe('Inventory lens', () => {
     expect(v.notes.join(' ')).toContain('not been read');
     expect(v.notes.join(' ')).toContain('Enter the flow targets (devices)');
     expect(v.chips[id('start')]?.[0]).toMatchObject({ text: 'devices: not set', tone: 'muted' });
-    expect(v.findings.map((f) => f.id)).toEqual(['inventory:not-applied']);
+    expect(v.findings.map((f) => f.id)).toEqual([]);
   });
 
   it('with a run: wires and nodes count the hosts that took them, excluded hosts listed', () => {

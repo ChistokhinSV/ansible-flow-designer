@@ -53,8 +53,18 @@ const OS = 'examples/os-upgrade.flow.yaml';
 const PORTS = 'test/fixtures/engine/routing-ports.flow.yaml';
 const LEVELS = 'test/fixtures/engine/routing-levels.flow.yaml';
 const DATA = 'test/fixtures/engine/data-passing.flow.yaml';
+const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const LAB = ['h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07'];
 const EDGE_HOSTS = ['sw-edge-01', 'sw-edge-02', 'sw-edge-03', 'sw-edge-04'];
+
+const targetHappy = [
+  'precheck.ok_hosts',
+  'drain.ok_hosts',
+  'announce.ok_hosts',
+  'quiesce.ok_hosts',
+  'maint.ok_hosts',
+  'consume.ok_hosts',
+];
 
 const portsHappy = [
   'probe.unchanged',
@@ -263,11 +273,120 @@ const SCENARIOS: Scenario[] = [
       ]),
     ),
   },
-  ...[EDGE, OS, PORTS, LEVELS, DATA].map((flow) => ({
+  // AFD-14: nodes that run on their inventory_target; the arriving hosts leave together.
+  {
+    name: 'inventory_target: the work runs on the target, arrivals pass with its outputs',
+    flow: TARGET,
+    vars: { devices: ['h01', 'h02'], lb_group: 'lb' },
+    rc: 0,
+    expect: Object.fromEntries(['h01', 'h02'].map((h) => [h, { ports: targetHappy }])),
+    also: (run) => {
+      // Hosts with results in the node's plays; `work` leaves out the arrivals' bookkeeping.
+      const ran = (key: string, work = true) =>
+        new Set(
+          run.events
+            .filter(
+              (e) =>
+                e.event === 'result' &&
+                e.node === nodeId(TARGET, key) &&
+                !(
+                  work &&
+                  /route|arriving|matched no host|did not finish|outputs from/.test(String(e.task))
+                ),
+            )
+            .map((e) => String(e.host)),
+        );
+      expect([...ran('drain')].sort()).toEqual(['lb-01', 'lb-02']);
+      expect([...ran('announce')].sort()).toEqual(['lb-01', 'lb-02']);
+      // Inherited inside the subflow: the task on lb, the decision on the arrivals.
+      expect([...ran('quiesce')].sort()).toEqual(['lb-01', 'lb-02']);
+      expect([...ran('still-ok', false)].sort()).toEqual(['h01', 'h02']);
+    },
+  },
+  {
+    name: 'inventory_target: one of two target hosts failing is within max_fail_percentage 50',
+    flow: TARGET,
+    vars: {
+      devices: ['h01', 'h02'],
+      lb_group: 'lb',
+      afd_simulate: { drain: { failed: ['lb-02'] } },
+    },
+    rc: 0,
+    expect: Object.fromEntries(['h01', 'h02'].map((h) => [h, { ports: targetHappy }])),
+  },
+  {
+    name: 'inventory_target: the whole target failing fails every arrival; nobody reaches announce',
+    flow: TARGET,
+    vars: {
+      devices: ['h01', 'h02'],
+      lb_group: 'lb',
+      afd_simulate: { drain: { failed: ['lb-01', 'lb-02'] } },
+    },
+    rc: 2,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        {
+          ports: ['precheck.ok_hosts', 'drain.failed_hosts', 'notify.ok_hosts'],
+          outcome: '[failed] Failed',
+        },
+      ]),
+    ),
+    also: (run) =>
+      expect(
+        run.events.some(
+          (e) =>
+            e.event === 'result' &&
+            e.node === nodeId(TARGET, 'announce') &&
+            String(e.host).startsWith('lb-'),
+        ),
+      ).toBe(false),
+  },
+  {
+    name: 'inventory_target: a pattern that matches no host fails every arrival',
+    flow: TARGET,
+    vars: { devices: ['h01', 'h02'], lb_group: 'no_such_group' },
+    rc: 2,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        {
+          ports: ['precheck.ok_hosts', 'drain.failed_hosts', 'notify.ok_hosts'],
+          outcome: '[failed] Failed',
+        },
+      ]),
+    ),
+  },
+  {
+    name: 'inventory_target inherited: a failure on the subflow target bubbles for every arrival',
+    flow: TARGET,
+    vars: {
+      devices: ['h01', 'h02'],
+      lb_group: 'lb',
+      afd_simulate: { 'maint/quiesce': { failed: ['lb-01'] } },
+    },
+    rc: 2,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        {
+          ports: [
+            'precheck.ok_hosts',
+            'drain.ok_hosts',
+            'announce.ok_hosts',
+            'maint.failed_hosts',
+            'notify.ok_hosts',
+          ],
+          outcome: '[failed] Failed',
+        },
+      ]),
+    ),
+  },
+  ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
     syntaxOnly: true,
-    vars: { devices: LAB, greeting: 'hello' },
+    vars: { devices: LAB, greeting: 'hello', lb_group: 'lb' },
     rc: 0,
     root: '../../content',
   })),

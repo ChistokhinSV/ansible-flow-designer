@@ -5,8 +5,10 @@
 import * as vscode from 'vscode';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
 import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../core/awx/types';
+import { resolvePattern, targetUses } from '../../core/engine/targets';
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
+import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
@@ -262,11 +264,17 @@ export async function launchInAwx(
 
   const flowDir = relativeTo(folder.uri, vscode.Uri.joinPath(document.uri, '..'));
   const git = await gitState(folder.uri, (p) => p.startsWith(`${flowDir}/`));
+  // Nodes with an inventory_target run there, in AWX's inventory (AFD-14).
+  const uses = targetUses(buildModel(doc));
   if (!(deps.testMode && options.yes)) {
     const detail = [
       'AWX runs the flow for real (not check mode) with its own inventory and credentials.',
       `Template: ${name} (${awx.base})`,
       `Targets: ${targets.length} (${targets.slice(0, 8).join(', ')}${targets.length > 8 ? ', …' : ''})`,
+      ...uses.map(
+        (u) =>
+          `Also on inventory_target ${resolvePattern(u.target, inputs) ?? u.target} (${u.nodes.map((k) => `[${k}]`).join(', ')}), in AWX's inventory`,
+      ),
       git?.dirty.length
         ? `Uncommitted changes: ${git.dirty.slice(0, 4).join(', ')}. AWX runs the last pushed commit.`
         : `Commit: ${git?.commit ?? 'unknown'}. Push it so AWX runs the same code.`,
@@ -299,6 +307,7 @@ export async function launchInAwx(
     source: 'awx',
     awx: { url: awx.base, template: name, job: job.id },
     hosts: targets.length,
+    targets: uses,
   };
   await appendAudit(deps.storage, { event: 'launch', ...audit });
 

@@ -53,6 +53,24 @@ The M3 spike (`docs/spikes/m3-option-a.md`, ansible-core 2.19/2.20/2.21) found t
 - A parallel node puts each host into every `branch_n` group.
 - A subflow with an inner graph becomes its own playbook, imported with `import_playbook` at the subflow's place. The inner entry node targets the subflow's input groups. Inner ports listed in `boundary.outputs`, and inner open fail ports that bubble (ADR-0004), route straight into the parent's port groups.
 
+**`inventory_target` (AFD-14, amended 2026-10-29).** A work node (a task, or a subflow without inner steps) with `settings.inventory_target` runs its binding once on that target instead of on the hosts that arrive. Inner steps of a subflow with a target inherit it, unless they have their own. Decisions, approvals, parallels and joins always run on the arriving hosts; the validator warns about a target on them (`inventory-target-ignored`).
+
+The node compiles to three plays, all tagged `node_<ULID>` and carrying `flow_node_id`:
+1. `[key] Title: arriving hosts` puts the arriving hosts into `flow_<key>_arriving`.
+2. `[key] Title` runs on the target pattern; Jinja such as `{{ lb_group }}` is filled in from the extra vars.
+   - It ends at once (`meta: end_play`) when no host arrived.
+   - `afd_arriving` lists the arriving hosts.
+   - Inputs that come from upstream outputs are read from the first arriving host (`hostvars[afd_arriving | first]`); `flow.*` inputs stay extra vars.
+   - The binding runs in a block. Hosts that finish join `flow_<key>_target_done`. Unreachable module results and rescued hosts join `_target_failed`, or `_target_timeout` when the timeout port is enabled and the task timed out.
+   - A playbook binding gets `afd_hosts` set to the target (or `afd_no_hosts` when nobody arrived), and a `: target done` play on the target collects the hosts still in the run.
+3. `[key] Title: route` runs on the arriving hosts:
+   - outputs are copied from the first finished target host (`set_fact` of each output's root variable);
+   - they leave together through `ok_hosts`, or through `failed_hosts` (`timeout`) when the target matched no host, or when its unfinished share exceeds `max_fail_percentage` (with none set, when any target host did not finish);
+   - `always` takes every arriving host when it is enabled;
+   - debug messages name a target that matched nothing and the target hosts that did not finish.
+
+Arriving hosts never take `unreachable` or `unchanged` on such a node, and never take `timeout` with a playbook binding; codegen warns (`codegen-target-ports`). AWX play names map back to the node through the `: arriving hosts`, `: route` and `: target done` suffixes. Real-run and AWX confirmations name every target and its host count, which also feeds the production check. The audit log records the declared patterns and counts, never input values.
+
 **Files.**
 - `generated/<flow-key>.yml` next to the flow file, and `generated/<flow-key>.<subflow-key>.yml` per subflow level.
 - The flow's line endings are used.

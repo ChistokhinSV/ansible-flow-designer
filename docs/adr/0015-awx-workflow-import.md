@@ -94,4 +94,5 @@ Nothing is decrypted, and no value reaches the file, logs or messages.
 - An imported flow is a design to refine. AWX's per-job edges become per-host ports, and every node gets an `ok_hosts`/`failed_hosts` split it did not have before.
 - AWX runs parallel children at the same time; the flow runs branches one after another (decision 16).
 - A playbook binding routes only `ok_hosts` (ADR-0011). Hosts that fail inside an imported job template's playbook stop there until the node is rebound to a module or role.
+- Since AFD-14, a node limit imported as `inventory_target` is applied: the node's playbook runs on that pattern, and the arriving hosts leave together (ADR-0009).
 - Re-import does not merge. Keeping a flow in step with a changing AWX workflow needs a new import and a diff.

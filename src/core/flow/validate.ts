@@ -232,6 +232,19 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         node: node.id,
       });
     }
+    if (
+      node.settings?.inventory_target?.trim() &&
+      node.type !== 'task' &&
+      node.type !== 'subflow'
+    ) {
+      add({
+        code: 'inventory-target-ignored',
+        severity: 'warning',
+        message: `${label(node)} (${node.type}) runs on the hosts that arrive: inventory_target applies to tasks and subflows only`,
+        path: [...path, 'settings', 'inventory_target'],
+        node: node.id,
+      });
+    }
     const hasInner = (node.subflow?.nodes?.length ?? 0) > 0;
     if ((node.status === 'implemented' || node.status === 'tested') && !node.impl && !hasInner) {
       add({

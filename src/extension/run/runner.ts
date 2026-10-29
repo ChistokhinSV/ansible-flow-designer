@@ -3,7 +3,9 @@
 // ansible-playbook in a terminal task, audit the launch, and map the events back to nodes.
 import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
+import { resolvePattern, targetUses } from '../../core/engine/targets';
 import { parseFlow } from '../../core/flow/document';
+import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
@@ -44,6 +46,52 @@ interface InventoryFacts {
 }
 
 export const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
+
+/** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */
+export interface TargetUse {
+  /** The pattern with flow inputs filled in; undefined when it needs Jinja beyond that. */
+  pattern?: string;
+  declared: string;
+  nodes: string[];
+  count?: number;
+  prod: string[];
+}
+
+async function targetFacts(
+  doc: FlowDocument,
+  inputs: Record<string, unknown>,
+  count: (pattern: string) => Promise<InventoryFacts>,
+): Promise<TargetUse[]> {
+  return Promise.all(
+    targetUses(buildModel(doc)).map(async (u): Promise<TargetUse> => {
+      const pattern = resolvePattern(u.target, inputs);
+      const use: TargetUse = { pattern, declared: u.target, nodes: u.nodes, prod: [] };
+      if (!pattern) return use;
+      try {
+        const f = await count(pattern);
+        use.count = f.count;
+        use.prod = [...f.prod_groups, ...f.prod_hosts];
+      } catch {
+        // Counted at run time only; the confirmation says so.
+      }
+      return use;
+    }),
+  );
+}
+
+/** Confirmation lines for the targets: pattern, host count and the nodes that run there. */
+export function targetLines(uses: TargetUse[]): string[] {
+  return uses.map((u) => {
+    const where = u.nodes.map((k) => `[${k}]`).join(', ');
+    const hosts =
+      u.count === undefined
+        ? 'resolved at run time'
+        : u.count === 0
+          ? 'matches no host, so those nodes fail every arriving host'
+          : `${u.count} host(s)`;
+    return `Also on inventory_target ${u.pattern ?? u.declared}: ${hosts} (${where})`;
+  });
+}
 
 export function parseInput(type: string | undefined, text: string): unknown {
   const t = text.trim();
@@ -180,6 +228,13 @@ export async function runFlow(
   }
   if (facts.count === 0)
     return fail(`None of the targets (${targets.join(', ')}) is in the inventory`);
+  const uses = await targetFacts(doc, inputs, (pattern) =>
+    probe.client.call<InventoryFacts>('inventory', { inventory, targets: [pattern] }, 120_000),
+  );
+  const prod = [
+    ...new Set([...facts.prod_groups, ...facts.prod_hosts, ...uses.flatMap((u) => u.prod)]),
+  ];
+  const extra = uses.reduce((n, u) => n + (u.count ?? 0), 0);
 
   if (options.mode === 'real' && !(deps.testMode && options.yes)) {
     const shown = facts.hosts.slice(0, 8).join(', ') + (facts.count > 8 ? ', …' : '');
@@ -188,14 +243,15 @@ export async function runFlow(
       `Inventory: ${facts.sources.join(', ')}`,
       `Hosts: ${facts.count} (${shown})`,
       facts.unknown.length ? `Not in the inventory: ${facts.unknown.join(', ')}` : '',
-      facts.prod_groups.length || facts.prod_hosts.length
-        ? `Production-looking: ${[...facts.prod_groups, ...facts.prod_hosts.slice(0, 5)].join(', ')}`
+      ...targetLines(uses),
+      prod.length
+        ? `Production-looking: ${prod.slice(0, 8).join(', ')}`
         : 'No production-looking groups or hosts',
       `Environment: ${probe.label}`,
     ].filter(Boolean);
     const go = 'Run for real';
     const pick = await vscode.window.showWarningMessage(
-      `Run "${doc.flow.name}" for real on ${facts.count} host(s)?`,
+      `Run "${doc.flow.name}" for real on ${facts.count} host(s)${extra ? ` and ${extra} inventory_target host(s)` : ''}?`,
       { modal: true, detail: detail.join('\n') },
       go,
     );
@@ -251,7 +307,9 @@ export async function runFlow(
     environment: probe.label,
     inventory: facts.sources,
     hosts: facts.count,
-    prod: [...facts.prod_groups, ...facts.prod_hosts],
+    // The declared pattern: a resolved one can hold input values, which the audit never records.
+    targets: uses.map((u) => ({ target: u.declared, nodes: u.nodes, hosts: u.count })),
+    prod,
     vault: vaultPassword !== undefined,
   };
   await appendAudit(deps.storage, { event: 'launch', ...audit });
