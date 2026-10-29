@@ -46,6 +46,11 @@ perf $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label perf
 
+# The Red Hat YAML extension validates flows with our schema, not SchemaStore's (AFD-5; installs it)
+test-yaml $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label yaml
+
 # Engine contract tests: generated code runs in each Ansible image (Docker); images comma-separated
 test-engine $AFD_ENGINE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
     {{ if os_family() == "windows" { "$env:AFD_ENGINE='1';" } else { "export AFD_ENGINE=1;" } }} npx --no-install vitest run --project engine

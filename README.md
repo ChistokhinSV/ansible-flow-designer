@@ -10,7 +10,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
 - **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel, join, start, end) and lifecycle status (draft, specified, implemented, tested); ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths; far zoom shows titles only.
 - **Editing:** drag to move, drag from a port to another node to wire it, release on empty canvas to add a node there (Quick add), Delete/Backspace to remove, palette click or drag to add. The inspector edits title, key, intent, status, contract (inputs and outputs), optional ports and type-specific fields. The flow panel edits name, key, goal, owner and flow inputs and shows readiness counters.
 - **Every canvas action is one minimal text edit** made by the extension host with a byte-preserving YAML engine: comments, quoting and formatting outside the edited lines never change, and one Ctrl+Z undoes one action.
-- **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner.
+- **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner. The schema is also registered with the Red Hat YAML extension for `*.flow.yaml` (`contributes.yamlValidation`), so _Open as Text_ gets completion and validation from it, and SchemaStore's unrelated Estuary Flow schema, which claims the same file pattern, no longer applies.
 - **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy up_.
 - **`flow.version`** is bumped once per commit on save when the semantic content changed (compared with Git HEAD), never for layout-only changes.
 - **Ports appear when needed (M2):** at rest a node shows only wired ports, open fail ports (amber) and ports left open on purpose (gray). Hovering or selecting a node shows every port its type supports, with names; dragging a wire shows every input.
@@ -216,21 +216,22 @@ Requires Node 24+, npm, Git and [just](https://github.com/casey/just).
 just install
 ```
 
-| Recipe                           | Does                                                                        |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `just build` / `just build-prod` | Build extension host (esbuild) and webview (Vite); production is minified   |
-| `just watch`                     | Rebuild on change                                                           |
-| `just check`                     | Type-check (TypeScript 7) and lint/format check (Biome)                     |
-| `just fmt`                       | Apply Biome formatting and safe fixes                                       |
-| `just test [args]`               | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer |
-| `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)   |
-| `just perf [version]`            | Performance suite on the production bundle                                  |
-| `just test-engine [images]`      | Generated code runs with simulated outcomes in each Ansible image (Docker)  |
-| `just probe-test [images]`       | Probe contract tests (pytest via uv) in each image                          |
-| `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                       |
-| `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line       |
-| `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade |
-| `just package`                   | Build the VSIX into `out/`                                                  |
+| Recipe                           | Does                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| `just build` / `just build-prod` | Build extension host (esbuild) and webview (Vite); production is minified            |
+| `just watch`                     | Rebuild on change                                                                    |
+| `just check`                     | Type-check (TypeScript 7) and lint/format check (Biome)                              |
+| `just fmt`                       | Apply Biome formatting and safe fixes                                                |
+| `just test [args]`               | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer          |
+| `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)            |
+| `just perf [version]`            | Performance suite on the production bundle                                           |
+| `just test-yaml [version]`       | With the Red Hat YAML extension installed: flows are validated by our schema (AFD-5) |
+| `just test-engine [images]`      | Generated code runs with simulated outcomes in each Ansible image (Docker)           |
+| `just probe-test [images]`       | Probe contract tests (pytest via uv) in each image                                   |
+| `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                |
+| `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
+| `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |
+| `just package`                   | Build the VSIX into `out/`                                                           |
 
 `AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the M3 integration tests that start real skeleton runs (skipped without it). The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
 

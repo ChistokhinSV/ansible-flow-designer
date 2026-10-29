@@ -60,4 +60,12 @@ export default defineConfig([
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
+  // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
+  {
+    ...common,
+    label: 'yaml',
+    files: 'out/test/integration/yaml.test.js',
+    launchArgs: ['--disable-workspace-trust'],
+    installExtensions: ['redhat.vscode-yaml@2.0.0'],
+  },
 ]);
