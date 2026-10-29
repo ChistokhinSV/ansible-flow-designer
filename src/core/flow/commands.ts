@@ -105,7 +105,9 @@ export type FlowCommand =
     }
   /** M6 (D-29): keep a drift item as it is, with a reason; the host adds `by`. */
   | { kind: 'ignoreDrift'; node: Ulid; item: string; reason: string; by?: string }
-  | { kind: 'clearDriftIgnore'; node: Ulid; item: string };
+  | { kind: 'clearDriftIgnore'; node: Ulid; item: string }
+  /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
+  | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> };
 
 export interface NodePatch {
   title?: string;
@@ -126,6 +128,8 @@ export interface FlowPatch {
   key?: string;
   goal?: string | null;
   owner?: string | null;
+  /** The AWX job template the flow launches (M7 "Set up AWX template"); null removes runtime. */
+  runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string } | null;
 }
 
 export interface CommandContext {
@@ -1000,6 +1004,11 @@ function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
   for (const k of ['name', 'key', 'goal', 'owner'] as const) {
     setField(tx, ['flow'], k, patch[k] as YamlValue | undefined, FLOW_ORDER);
   }
+  if (patch.runtime !== undefined) {
+    const value =
+      patch.runtime && Object.keys(patch.runtime).length > 0 ? (patch.runtime as YamlValue) : null;
+    setField(tx, ['flow'], 'runtime', value, FLOW_ORDER);
+  }
 }
 
 function setBoundaryIn(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBoundaryIn' }>) {
@@ -1115,6 +1124,10 @@ export function planCommand(
       break;
     case 'setBinding':
       setBinding(tx, cmd);
+      break;
+    case 'setStatuses':
+      for (const [id, status] of Object.entries(cmd.statuses))
+        setField(tx, nodeAt(state(tx), id).path, 'status', status, NODE_ORDER);
       break;
     case 'ignoreDrift':
       ignoreDrift(tx, cmd);

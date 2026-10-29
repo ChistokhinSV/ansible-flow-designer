@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.7.0 — M7 (AFD-10)
+
+- Run mode with AWX (ADR-0013):
+  - Settings `afd.awx.url` and `afd.awx.verifyTls`.
+  - Commands: _Set AWX Token_ (checked against `/api/v2/me/`, kept in SecretStorage only), _Clear AWX Token_, _Set Up AWX Template_, _Launch in AWX_.
+- _Set Up AWX Template_:
+  - picks the project, inventory, execution environment and credentials;
+  - checks that the project has the generated playbook (updates the project once if not);
+  - creates or updates `AFD · <flow key>` (variables and limit asked on launch, credentials synced);
+  - writes `flow.runtime` (`kind: awx_job`, `template`) in one edit.
+- _Launch in AWX_:
+  - asks for the inputs and shows a confirmation with the targets and the commit or uncommitted files;
+  - launches with the inputs as extra vars;
+  - polls the job and its events every 2 s and maps them to nodes and ports through the generated routes;
+  - records the launch and the finish in the audit log;
+  - warns when AWX ran another commit than HEAD.
+- AWX job events (`playbook_on_play_start`, `runner_on_*` with `add_group`) are converted to the `afd_events` stream, so local and AWX runs share one summary. Plays map to nodes by `[key] Title`. The summary gained per-node timings and per-host problems (first failure or unreachable, rescued or not).
+- Run mode (04 §10):
+  - the mode toggle enables Run. Nodes show hosts, failed hosts and time with a run state; wires show host counts, dimmed when no host took them;
+  - selecting a wire lists its hosts; selecting a node lists each host's port and failure;
+  - the run panel shows the job, status, commit, flow version, revision warning, failed hosts and _Open in AWX_;
+  - read-only: no wiring, port menus or deletes;
+  - _Launch in AWX_ is also in Implementation mode.
+- `tested` proposals (decision 15): after a passing real run of the current `flow.version`, _Mark N nodes tested_ sets the implemented nodes it ran to tested. This uses the new command `setStatuses` (one edit).
+- Lab (GNS3 `snow_AWX`):
+  - AWX 24.6.1 on ops1;
+  - `afd-awx-ee:2.19` (`docker/afd-awx-ee.Dockerfile`);
+  - a `git daemon` server (`lab/ops1-git-daemon.sh`);
+  - `just awx-lab` for the EE, project and inventory;
+  - `just test-awx` (lab suite in VS Code);
+  - `just test-docker-lab` (engine, probe and Docker integration suites in a throwaway container on the GNS3 VM);
+  - `lab/README.md`.
+
 ## 0.6.0 — M6 (AFD-9)
 
 - Implementation mode (mockup 04, ADR-0012): the mode toggle now switches between Design and Implementation.

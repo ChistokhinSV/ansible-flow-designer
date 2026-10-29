@@ -52,6 +52,8 @@ export interface GitState {
   branch?: string;
   /** Short commit hash. */
   commit?: string;
+  /** Full commit hash (compared with the revision AWX ran, M7). */
+  sha?: string;
   /** ISO time of the commit. */
   when?: string;
   /** Repository-relative paths with uncommitted changes that matter to this flow. */

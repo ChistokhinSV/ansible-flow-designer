@@ -56,6 +56,16 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - **Design without code:** an unbound node (_Generate stub_ writes `roles/<node_key>/` with a TODO task, output facts and `meta/argument_specs.yml` from the inputs, and binds the node in one edit; or _Bind role_); missing roles and playbooks; nodes without a play.
     - Roles without argument specs and dynamic includes (not expanded) are notes. *Write argument_specs* creates the specs from the node contract.
     - **Ignore…** asks for a reason and records a `drift_ignored` decision in the flow with your Git user; ignored items stay listed with _Stop ignoring_.
+- **Run mode with AWX (M7, ADR-0013):** _Set Up AWX Template_ picks the AWX project, inventory, execution environment and credentials. It creates or updates the job template `AFD · <flow key>` for the generated playbook and writes its name to `flow.runtime`.
+  - _Launch in AWX_ (Implementation and Run modes, or the Command Palette) asks for the flow inputs and shows a confirmation with the targets and the commit, then launches the template with the inputs as extra vars. It follows the job's events until the job ends.
+  - AWX runs the commit its project checks out. When that is not your HEAD (unpushed or uncommitted changes) you get a warning.
+  - The token is checked against AWX before it is stored, in VS Code's secret storage only.
+  - **Run mode** shows the last run (AWX or local) on the same canvas, read-only:
+    - nodes show "3 hosts · 1 failed · 2.1 s", colored ok, warn (some hosts took a fail port), failed (a failure was not routed) or dimmed when not reached;
+    - wires show how many hosts took them;
+    - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
+    - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
+  - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -67,7 +77,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.4.0.vsix
+code --install-extension out/ansible-flow-designer-0.7.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -89,6 +99,8 @@ Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs a
 | `afd.environment.python`           | (empty) | Interpreter for local mode; empty uses `ansible.python.interpreterPath`, else `python3`                                                                  |
 | `afd.run.inventory`                | (empty) | Inventory relative to the repository root; empty uses the `ansible.cfg` default                                                                          |
 | `afd.run.askVaultPassword`         | `auto`  | `auto` asks when the inventory or repository vars contain vault data                                                                                     |
+| `afd.awx.url`                      | (empty) | AWX address for _Launch in AWX_, e.g. `https://awx.example.net`; the token is kept in VS Code's secret storage (_Set AWX Token_), never in settings      |
+| `afd.awx.verifyTls`                | `true`  | Verify AWX's TLS certificate; turn off only for a lab AWX with a self-signed certificate                                                                 |
 
 Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 
@@ -105,6 +117,7 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
 - **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.
 - **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
+- **Run in AWX:** set `afd.awx.url`, run _Ansible Flow: Set AWX Token_ and _Set Up AWX Template_ once per flow, commit and push, then _Launch in AWX_. Switch the top bar to _Run_ to see the results; select nodes and wires for hosts.
 - **Run:** _Run as skeleton_ in the top bar (or the play button in the editor title bar) runs the flow in check mode. The button next to it runs it for real after a confirmation. Other commands: _Generate Playbook_, _Check Generated Code (Syntax)_, _Show Run Audit Log_.
 
 A minimal flow document (all values fictional):
@@ -231,12 +244,15 @@ Port catalog per node type (ADR-0004):
 | `src/core/engine/`               | Option A code generation (ADR-0009), generated-file checksums, the inspector's play preview.                                           |
 | `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                |
 | `src/core/drift/`                | Code sync and drift: scan types, `computeDrift` (D-29 kinds and actions), role stubs and argument specs (M6).                          |
+| `src/core/awx/`                  | AWX API types and AWX job events → `afd_events` lines (M7).                                                                            |
+| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7).                                                         |
+| `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
 | `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
 | `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                 |
 | `src/extension/catalog/`         | SQLite FTS5 catalog index, its build worker, the catalog service, catalog-backed binding checks (M5).                                  |
 | `src/extension/`                 | Extension host: custom editor, sessions, diagnostics, version bump, auto-layout, codegen on save, probe client, runs, audit, test API. |
 | `probe/`                         | Python probe (`afd_probe`, stdlib only) and the `afd_events` callback; pytest contract tests (uv).                                     |
-| `docker/afd-ee.Dockerfile`       | Minimal execution environment image for tests and runs.                                                                                |
+| `docker/afd-ee.Dockerfile`       | Minimal execution environment image for tests and runs; `afd-awx-ee.Dockerfile` adds ansible-runner for AWX (M7).                      |
 | `src/webview/`                   | React + React Flow canvas and panels; `harness/` is a dev-only page with a fake host.                                                  |
 | `test/`                          | Vitest unit/component tests, VS Code integration and perf tests, fixtures.                                                             |
 | `docs/adr/`, `docs/spikes/`      | Architecture decisions; the M3 Option A spike (playbooks and results).                                                                 |
@@ -263,6 +279,10 @@ just install
 | `just probe-test [images]`       | Probe contract tests (pytest via uv) in each image                                   |
 | `just test-catalog dir`          | Search quality and latency gates on a full catalog dump (`<cache>/<core-minor>`)     |
 | `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                |
+| `just awx-ee-build [core]`       | Build `afd-awx-ee:<core>` (adds ansible-runner) for AWX                              |
+| `just awx-lab [--sync]`          | Create the lab AWX objects (EE, project, inventory); `--sync` updates the project    |
+| `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
+| `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
 | `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |
 | `just package`                   | Build the VSIX into `out/`                                                           |

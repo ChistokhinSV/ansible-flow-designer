@@ -35,6 +35,23 @@ export interface RunView {
   error?: string;
   environment?: string;
   summary?: RunSummary;
+  /** Where it ran: a local terminal task (M3) or an AWX job (M7). */
+  source?: 'local' | 'awx';
+  /** flow.version the run executed (decision 15: `tested` is per version). */
+  flowVersion?: number;
+  awx?: AwxRunInfo;
+}
+
+export interface AwxRunInfo {
+  jobId: number;
+  /** The job's output page in AWX. */
+  url: string;
+  template: string;
+  status: string;
+  /** Commit the project update checked out. */
+  revision?: string;
+  /** AWX ran another commit than the local HEAD (unpushed or uncommitted changes). */
+  revisionMismatch?: boolean;
 }
 
 /** The environment's catalog as the properties view shows it (M5). */
@@ -98,6 +115,8 @@ export type HostMessage =
   | { type: 'reveal'; node: Ulid }
   /** Opens a level on the canvas: `root` or a subflow node id (M4; tests and commands). */
   | { type: 'openLevel'; level: string }
+  /** Switches the canvas mode (tests and commands, M7). */
+  | { type: 'setMode'; mode: 'design' | 'implementation' | 'run' }
   | { type: 'config'; testMode: boolean }
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number }
@@ -129,6 +148,8 @@ export type WebviewMessage =
   | { type: 'catalog'; reqId: number; request: CatalogRequest }
   /** Re-sync from git (M6). */
   | { type: 'sync' }
+  /** Launch the flow's AWX job template (M7). */
+  | { type: 'launchAwx' }
   /** Opens a repository file at a line (drift "Open code"). */
   | { type: 'openCode'; path: string; line?: number }
   /** Drift actions the host carries out (stubs, specs, re-sync), answered by `ack`. */
@@ -145,4 +166,6 @@ export interface DomSummary {
   banner: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
   frame: { ports: string[]; wires: number } | null;
+  /** Run mode (M7): each node's run state and each wire's label as drawn. */
+  run?: { nodes: Record<string, string>; wires: Record<string, string> };
 }

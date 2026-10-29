@@ -22,6 +22,16 @@ export interface RunSummary {
   hosts: string[];
   /** The outcome play never ran: the run stopped early (max_fail_percentage, an include error). */
   stoppedEarly: boolean;
+  /** Per node: first and last event time (epoch seconds) of its plays (Run mode, M7). */
+  timings?: Record<Ulid, { start: number; end: number }>;
+  /** Per node, per host: the first failed or unreachable result, rescued or not (Run mode, M7). */
+  problems?: Record<Ulid, Record<string, RunProblem>>;
+}
+
+export interface RunProblem {
+  task: string;
+  status: 'failed' | 'unreachable';
+  msg?: string;
 }
 
 interface Event {
@@ -36,6 +46,7 @@ interface Event {
   msg?: string;
   ignored?: boolean;
   hosts?: Record<string, unknown>;
+  ts?: number;
 }
 
 export function summarizeRun(text: string, routes: Record<string, Route>): RunSummary {
@@ -52,6 +63,15 @@ export function summarizeRun(text: string, routes: Record<string, Route>): RunSu
     const list = ports[route.port] ?? [];
     if (!list.includes(host)) list.push(host);
     ports[route.port] = list;
+  };
+  const timings: Record<Ulid, { start: number; end: number }> = {};
+  const problems: Record<Ulid, Record<string, RunProblem>> = {};
+  let playNode: string | null = null;
+  const clock = (ts: number | undefined) => {
+    if (!playNode || typeof ts !== 'number') return;
+    const t = timings[playNode];
+    if (!t) timings[playNode] = { start: ts, end: ts };
+    else t.end = Math.max(t.end, ts);
   };
   let outcomePlay = false;
   let sawOutcome = false;
@@ -76,11 +96,14 @@ export function summarizeRun(text: string, routes: Record<string, Route>): RunSu
     }
     if (e.event === 'play') {
       settle();
+      playNode = e.node ?? null;
+      clock(e.ts);
       outcomePlay = (e.name ?? '').endsWith('] Outcome');
       sawOutcome ||= outcomePlay;
       continue;
     }
     if (e.event !== 'result' || !e.host) continue;
+    clock(e.ts);
     if (e.host !== 'localhost') hosts.add(e.host);
     if (e.status === 'ok' && e.group) {
       add(e.group, e.host);
@@ -92,6 +115,16 @@ export function summarizeRun(text: string, routes: Record<string, Route>): RunSu
       for (const g of groups) add(g, e.added.host);
     }
     if (e.status === 'unreachable') lost.add(e.host);
+    const at = e.node ?? playNode;
+    if (
+      at &&
+      !outcomePlay &&
+      (e.status === 'unreachable' || (e.status === 'failed' && !e.ignored))
+    ) {
+      const byHost = problems[at] ?? {};
+      problems[at] = byHost;
+      byHost[e.host] ??= { task: e.task ?? '', status: e.status, msg: e.msg };
+    }
     if (e.status === 'failed' && !e.ignored) {
       if (outcomePlay) outcome[e.host] = e.msg ?? e.task ?? 'failed';
       else
@@ -107,5 +140,7 @@ export function summarizeRun(text: string, routes: Record<string, Route>): RunSu
     unreachable: [...unreachable].sort(),
     hosts: [...hosts].sort(),
     stoppedEarly: !sawOutcome && failures.length > 0,
+    timings,
+    problems,
   };
 }

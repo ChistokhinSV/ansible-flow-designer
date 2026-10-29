@@ -1,0 +1,941 @@
+{
+ "note": "Real AWX 24.6.1 job (lab, afd-awx-ee:2.19) of test/fixtures/awx/repo awx-e2e on h01,h02,h07; trimmed to the fields Run mode reads.",
+ "job": {
+  "id": 31,
+  "name": "AFD \u00b7 awx-e2e",
+  "status": "failed",
+  "failed": true,
+  "started": "2026-10-29T12:00:37.893659Z",
+  "finished": "2026-10-29T12:00:54.000403Z",
+  "elapsed": 16.107,
+  "scm_revision": "53e044829409021abe545668c395f3805e6d5434",
+  "job_template": 12,
+  "inventory": 3,
+  "job_explanation": ""
+ },
+ "events": [
+  {
+   "id": 1283,
+   "counter": 1,
+   "event": "playbook_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "",
+   "task": "",
+   "created": "2026-10-29T12:00:46.377834Z",
+   "event_data": {}
+  },
+  {
+   "id": 1282,
+   "counter": 2,
+   "event": "playbook_on_play_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[probe] Probe reachability",
+   "task": "",
+   "created": "2026-10-29T12:00:46.407719Z",
+   "event_data": {
+    "play": "[probe] Probe reachability"
+   }
+  },
+  {
+   "id": 1286,
+   "counter": 3,
+   "event": "playbook_on_task_start",
+   "failed": true,
+   "changed": false,
+   "host_name": "",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:46.508461Z",
+   "event_data": {
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping"
+   }
+  },
+  {
+   "id": 1285,
+   "counter": 4,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h01",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:46.512092Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping"
+   }
+  },
+  {
+   "id": 1284,
+   "counter": 5,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:46.603138Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping"
+   }
+  },
+  {
+   "id": 1287,
+   "counter": 6,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:46.761322Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping"
+   }
+  },
+  {
+   "id": 1288,
+   "counter": 7,
+   "event": "runner_on_unreachable",
+   "failed": true,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:46.950520Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping",
+    "res": {
+     "msg": "Task failed: Failed to connect to the host via ssh: ssh: connect to host 127.0.0.1 port 1: Connection refused",
+     "changed": false,
+     "unreachable": true
+    }
+   }
+  },
+  {
+   "id": 1289,
+   "counter": 8,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:49.395051Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping",
+    "res": {
+     "changed": false
+    }
+   }
+  },
+  {
+   "id": 1295,
+   "counter": 9,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": false,
+   "host_name": "h01",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] Probe reachability",
+   "created": "2026-10-29T12:00:49.404455Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[probe] Probe reachability",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.ping",
+    "res": {
+     "changed": false
+    }
+   }
+  },
+  {
+   "id": 1293,
+   "counter": 10,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": true,
+   "host_name": "",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.409266Z",
+   "event_data": {
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1299,
+   "counter": 11,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h01",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.412572Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1290,
+   "counter": 12,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.431364Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1297,
+   "counter": 13,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.458255Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1294,
+   "counter": 14,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h01",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.483782Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_probe_ok_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1300,
+   "counter": 15,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h02",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.492306Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_probe_ok_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1291,
+   "counter": 16,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h07",
+   "play": "[probe] Probe reachability",
+   "task": "[probe] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:49.517774Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[probe] route ok_hosts, unreachable",
+    "play": "[probe] Probe reachability",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_probe_unreachable",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1298,
+   "counter": 17,
+   "event": "playbook_on_play_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[work] Do the work",
+   "task": "",
+   "created": "2026-10-29T12:00:49.533978Z",
+   "event_data": {
+    "play": "[work] Do the work"
+   }
+  },
+  {
+   "id": 1296,
+   "counter": 18,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[work] Do the work",
+   "task": "[work] Do the work",
+   "created": "2026-10-29T12:00:49.555713Z",
+   "event_data": {
+    "task": "[work] Do the work",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.command"
+   }
+  },
+  {
+   "id": 1292,
+   "counter": 19,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h01",
+   "play": "[work] Do the work",
+   "task": "[work] Do the work",
+   "created": "2026-10-29T12:00:49.560204Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[work] Do the work",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.command"
+   }
+  },
+  {
+   "id": 1301,
+   "counter": 20,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[work] Do the work",
+   "task": "[work] Do the work",
+   "created": "2026-10-29T12:00:49.626940Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] Do the work",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.command"
+   }
+  },
+  {
+   "id": 1320,
+   "counter": 21,
+   "event": "runner_on_failed",
+   "failed": true,
+   "changed": true,
+   "host_name": "h02",
+   "play": "[work] Do the work",
+   "task": "[work] Do the work",
+   "created": "2026-10-29T12:00:51.962013Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] Do the work",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.command",
+    "ignore_errors": null,
+    "res": {
+     "msg": "non-zero return code",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1311,
+   "counter": 22,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h01",
+   "play": "[work] Do the work",
+   "task": "[work] Do the work",
+   "created": "2026-10-29T12:00:51.997410Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[work] Do the work",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.command",
+    "res": {
+     "msg": "",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1302,
+   "counter": 23,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[work] Do the work",
+   "task": "[work] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:52.002536Z",
+   "event_data": {
+    "task": "[work] route ok_hosts, unreachable",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1327,
+   "counter": 24,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h01",
+   "play": "[work] Do the work",
+   "task": "[work] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:52.007086Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[work] route ok_hosts, unreachable",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1321,
+   "counter": 25,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h01",
+   "play": "[work] Do the work",
+   "task": "[work] route ok_hosts, unreachable",
+   "created": "2026-10-29T12:00:52.069796Z",
+   "event_data": {
+    "host": "h01",
+    "task": "[work] route ok_hosts, unreachable",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_work_ok_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1328,
+   "counter": 26,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[work] Do the work",
+   "task": "[work] route failed_hosts",
+   "created": "2026-10-29T12:00:52.077451Z",
+   "event_data": {
+    "task": "[work] route failed_hosts",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1312,
+   "counter": 27,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[work] Do the work",
+   "task": "[work] route failed_hosts",
+   "created": "2026-10-29T12:00:52.080923Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] route failed_hosts",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1303,
+   "counter": 28,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h02",
+   "play": "[work] Do the work",
+   "task": "[work] route failed_hosts",
+   "created": "2026-10-29T12:00:52.170495Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] route failed_hosts",
+    "play": "[work] Do the work",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_work_failed_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1322,
+   "counter": 29,
+   "event": "playbook_on_play_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[exclude] Exclude and report",
+   "task": "",
+   "created": "2026-10-29T12:00:52.188646Z",
+   "event_data": {
+    "play": "[exclude] Exclude and report"
+   }
+  },
+  {
+   "id": 1329,
+   "counter": 30,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] TODO",
+   "created": "2026-10-29T12:00:52.232301Z",
+   "event_data": {
+    "task": "[exclude] TODO",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.debug"
+   }
+  },
+  {
+   "id": 1313,
+   "counter": 31,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] TODO",
+   "created": "2026-10-29T12:00:52.236595Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[exclude] TODO",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.debug"
+   }
+  },
+  {
+   "id": 1304,
+   "counter": 32,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] TODO",
+   "created": "2026-10-29T12:00:52.356731Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[exclude] TODO",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.debug",
+    "res": {
+     "msg": "TODO: Record the unreachable hosts",
+     "changed": false
+    }
+   }
+  },
+  {
+   "id": 1323,
+   "counter": 33,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] route ok_hosts",
+   "created": "2026-10-29T12:00:52.364060Z",
+   "event_data": {
+    "task": "[exclude] route ok_hosts",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1330,
+   "counter": 34,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h07",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] route ok_hosts",
+   "created": "2026-10-29T12:00:52.370100Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[exclude] route ok_hosts",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1314,
+   "counter": 35,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h07",
+   "play": "[exclude] Exclude and report",
+   "task": "[exclude] route ok_hosts",
+   "created": "2026-10-29T12:00:52.417898Z",
+   "event_data": {
+    "host": "h07",
+    "task": "[exclude] route ok_hosts",
+    "play": "[exclude] Exclude and report",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_exclude_ok_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1305,
+   "counter": 36,
+   "event": "playbook_on_play_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "",
+   "created": "2026-10-29T12:00:52.426123Z",
+   "event_data": {
+    "play": "[notify] Notify on-call"
+   }
+  },
+  {
+   "id": 1324,
+   "counter": 37,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] TODO",
+   "created": "2026-10-29T12:00:52.435212Z",
+   "event_data": {
+    "task": "[notify] TODO",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.debug"
+   }
+  },
+  {
+   "id": 1331,
+   "counter": 38,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] TODO",
+   "created": "2026-10-29T12:00:52.438545Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[notify] TODO",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.debug"
+   }
+  },
+  {
+   "id": 1315,
+   "counter": 39,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] TODO",
+   "created": "2026-10-29T12:00:52.477342Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[notify] TODO",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.debug",
+    "res": {
+     "msg": "TODO: Open a ticket for the failed hosts",
+     "changed": false
+    }
+   }
+  },
+  {
+   "id": 1306,
+   "counter": 40,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.484650Z",
+   "event_data": {
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1325,
+   "counter": 41,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.488765Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1332,
+   "counter": 42,
+   "event": "runner_on_ok",
+   "failed": false,
+   "changed": true,
+   "host_name": "h02",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.524063Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by",
+    "res": {
+     "add_group": "flow_notify_ok_hosts",
+     "changed": true
+    }
+   }
+  },
+  {
+   "id": 1316,
+   "counter": 43,
+   "event": "warning",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.531414Z",
+   "event_data": {
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1307,
+   "counter": 44,
+   "event": "warning",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.535027Z",
+   "event_data": {
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1326,
+   "counter": 45,
+   "event": "warning",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[notify] Notify on-call",
+   "task": "[notify] route ok_hosts",
+   "created": "2026-10-29T12:00:52.536973Z",
+   "event_data": {
+    "task": "[notify] route ok_hosts",
+    "play": "[notify] Notify on-call",
+    "task_action": "ansible.builtin.group_by"
+   }
+  },
+  {
+   "id": 1333,
+   "counter": 46,
+   "event": "playbook_on_play_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[awx-e2e] Outcome",
+   "task": "",
+   "created": "2026-10-29T12:00:52.540887Z",
+   "event_data": {
+    "play": "[awx-e2e] Outcome"
+   }
+  },
+  {
+   "id": 1317,
+   "counter": 47,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[awx-e2e] Outcome",
+   "task": "[work] unreachable",
+   "created": "2026-10-29T12:00:52.552914Z",
+   "event_data": {
+    "task": "[work] unreachable",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail"
+   }
+  },
+  {
+   "id": 1308,
+   "counter": 48,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[awx-e2e] Outcome",
+   "task": "[work] unreachable",
+   "created": "2026-10-29T12:00:52.554897Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] unreachable",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail"
+   }
+  },
+  {
+   "id": 1318,
+   "counter": 49,
+   "event": "runner_on_skipped",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[awx-e2e] Outcome",
+   "task": "[work] unreachable",
+   "created": "2026-10-29T12:00:52.587062Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[work] unreachable",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail"
+   }
+  },
+  {
+   "id": 1334,
+   "counter": 50,
+   "event": "playbook_on_task_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "",
+   "play": "[awx-e2e] Outcome",
+   "task": "[failed] Failed",
+   "created": "2026-10-29T12:00:52.592607Z",
+   "event_data": {
+    "task": "[failed] Failed",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail"
+   }
+  },
+  {
+   "id": 1309,
+   "counter": 51,
+   "event": "runner_on_start",
+   "failed": false,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[awx-e2e] Outcome",
+   "task": "[failed] Failed",
+   "created": "2026-10-29T12:00:52.595770Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[failed] Failed",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail"
+   }
+  },
+  {
+   "id": 1319,
+   "counter": 52,
+   "event": "runner_on_failed",
+   "failed": true,
+   "changed": false,
+   "host_name": "h02",
+   "play": "[awx-e2e] Outcome",
+   "task": "[failed] Failed",
+   "created": "2026-10-29T12:00:52.690743Z",
+   "event_data": {
+    "host": "h02",
+    "task": "[failed] Failed",
+    "play": "[awx-e2e] Outcome",
+    "task_action": "ansible.builtin.fail",
+    "ignore_errors": null,
+    "res": {
+     "msg": "Ended at [failed] Failed (outcome: failed)",
+     "changed": false
+    }
+   }
+  },
+  {
+   "id": 1310,
+   "counter": 53,
+   "event": "playbook_on_stats",
+   "failed": true,
+   "changed": true,
+   "host_name": "",
+   "play": "",
+   "task": "",
+   "created": "2026-10-29T12:00:52.699635Z",
+   "event_data": {}
+  }
+ ]
+}

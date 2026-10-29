@@ -97,7 +97,7 @@ export async function gitState(
         .filter(relevant),
     ),
   ].sort();
-  return { branch: head?.name, commit: head?.commit?.slice(0, 7), when, dirty };
+  return { branch: head?.name, commit: head?.commit?.slice(0, 7), sha: head?.commit, when, dirty };
 }
 
 /** Who records a decision (decision 13): Git user.name for the file's repository, else the OS user. */

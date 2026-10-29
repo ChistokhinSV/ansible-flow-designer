@@ -22,6 +22,8 @@ import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
+import type { RunSummary } from '../../core/run/events';
+import { wireHosts } from '../../core/run/view';
 import { command, loadState, saveState } from '../bus';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
@@ -57,6 +59,8 @@ function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
 }
 
 /** `cull` skips off-screen nodes (07 §6); tests turn it off since jsdom has no layout. */
+const hostCount = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
+
 export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
   const optimistic = useUi((s) => s.optimistic);
@@ -72,6 +76,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const setLevel = useUi((s) => s.setLevel);
   const [connecting, setConnecting] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
+  // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
+  const runMode = useUi((s) => s.mode === 'run');
+  const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
 
   const view = useMemo(
     () => (snapshot ? levelView(snapshot, optimistic, level) : { nodes: [], edges: [] }),
@@ -126,6 +133,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   useEffect(() => setNodes(derived), [derived]);
   const exits = useMemo(() => new Map((boundary?.edges ?? []).map((e) => [e.id, e])), [boundary]);
 
+  // A start node has no play: its wire carries every host of the run.
+  const hostsOn = useMemo(() => {
+    const starts = new Set(view.nodes.filter((v) => v.node.type === 'start').map((v) => v.node.id));
+    return (s: RunSummary, e: { source: string; sourcePort: string }) =>
+      starts.has(e.source) ? s.hosts : wireHosts(s, e.source, e.sourcePort);
+  }, [view.nodes]);
   const edges = useMemo<Edge[]>(
     () =>
       view.edges.map((e) => ({
@@ -135,16 +148,18 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'smoothstep',
-        label: e.sourcePort,
-        className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
+        label: ran ? hostCount(hostsOn(ran, e).length) : e.sourcePort,
+        className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
+          ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
+        }`,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
         },
         selected: selection.edge === e.id,
-        deletable: true,
+        deletable: !runMode,
       })),
-    [view.edges, selection.edge],
+    [view.edges, selection.edge, ran, runMode, hostsOn],
   );
   const allEdges = useMemo<Edge[]>(
     () => [
@@ -395,7 +410,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
       }}
       isValidConnection={(c) => c.source !== c.target}
-      deleteKeyCode={['Delete', 'Backspace']}
+      nodesConnectable={!runMode}
+      deleteKeyCode={runMode ? null : ['Delete', 'Backspace']}
       onlyRenderVisibleElements={cull}
       defaultViewport={savedViewport}
       fitView={!savedViewport}

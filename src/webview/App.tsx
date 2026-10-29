@@ -14,6 +14,7 @@ import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
+import { NodeRunPanel, RunPanel, WireRunPanel } from './panels/RunPanel';
 import { TopBar } from './panels/TopBar';
 import { Properties } from './properties/Properties';
 import { useUi } from './store';
@@ -47,6 +48,23 @@ function domSummary(docVersion: number): DomSummary {
           wires: document.querySelectorAll('.afd-boundary-edge').length,
         }
       : null,
+    run:
+      useUi.getState().mode === 'run'
+        ? {
+            nodes: Object.fromEntries(
+              [...document.querySelectorAll<HTMLElement>('[data-node-id]')].map((el) => [
+                el.dataset.nodeId ?? '',
+                el.dataset.runState ?? '',
+              ]),
+            ),
+            wires: Object.fromEntries(
+              [...document.querySelectorAll<SVGElement>('.react-flow__edge[data-id]')].map((el) => [
+                el.dataset.id ?? '',
+                el.querySelector('.react-flow__edge-text')?.textContent ?? '',
+              ]),
+            ),
+          }
+        : undefined,
   };
 }
 
@@ -77,6 +95,8 @@ function useHost() {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'reveal') {
         ui.reveal(m.node);
+      } else if (m.type === 'setMode') {
+        ui.setMode(m.mode);
       } else if (m.type === 'openLevel') {
         ui.setLevel(m.level);
       } else if (m.type === 'catalogStatus') {
@@ -163,9 +183,11 @@ export function App() {
           aria-label={
             mode === 'implementation'
               ? 'Design vs code'
-              : selected
-                ? 'Node inspector'
-                : 'Flow description'
+              : mode === 'run'
+                ? 'Run results'
+                : selected
+                  ? 'Node inspector'
+                  : 'Flow description'
           }
         >
           {mode === 'implementation' ? (
@@ -173,6 +195,14 @@ export function App() {
               <NodeCodePanel id={selected} />
             ) : (
               <DriftPanel />
+            )
+          ) : mode === 'run' ? (
+            selected ? (
+              <NodeRunPanel id={selected} />
+            ) : wire && !/^(entry|exit):/.test(wire) ? (
+              <WireRunPanel edge={wire} />
+            ) : (
+              <RunPanel />
             )
           ) : selected ? (
             <Inspector id={selected} />

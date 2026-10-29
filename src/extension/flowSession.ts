@@ -255,11 +255,16 @@ export class FlowSession implements vscode.Disposable {
           this.uri,
         );
         break;
+      case 'launchAwx':
+        await vscode.commands.executeCommand('afd.awx.launch', this.uri);
+        break;
       case 'generate':
         await vscode.commands.executeCommand('afd.generate', this.uri);
         break;
       case 'showRunOutput':
-        await vscode.commands.executeCommand('workbench.action.terminal.focus');
+        if (this.lastRun?.awx)
+          await vscode.env.openExternal(vscode.Uri.parse(this.lastRun.awx.url));
+        else await vscode.commands.executeCommand('workbench.action.terminal.focus');
         break;
       case 'peekCode':
         await this.peekCode(m.node);
@@ -521,6 +526,10 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Opens a level (`root` or a subflow node id) in every panel of this flow. */
+  setMode(mode: 'design' | 'implementation' | 'run'): void {
+    this.broadcast({ type: 'setMode', mode });
+  }
+
   openLevel(level: string): void {
     this.broadcast({ type: 'openLevel', level });
   }

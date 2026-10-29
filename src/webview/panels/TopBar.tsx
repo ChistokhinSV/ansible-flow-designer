@@ -1,19 +1,19 @@
-// Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Design and
-// Implementation (M6) exist; Run mode and the lenses are shown disabled with their milestone.
+// Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Design,
+// Implementation (M6) and Run (M7) exist; the lenses are shown disabled with their milestone.
 // Run as skeleton (M3) runs the generated code in check mode; Re-sync from git (M6) compiles the
-// code for Implementation mode.
+// code for Implementation mode; Launch in AWX (M7) runs the flow's job template.
 
 import { ROOT } from '../../core/flow/model';
 import type { RunView } from '../../core/protocol';
 import { send } from '../bus';
-import { useUi } from '../store';
+import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
 
 const MODES = [
   { id: 'design', label: 'Design' },
   { id: 'implementation', label: 'Implementation' },
-  { id: 'run', label: 'Run', soon: 'M7' },
-];
+  { id: 'run', label: 'Run' },
+] as { id: Mode; label: string; soon?: string }[];
 const LENSES = ['None', 'Inventory', 'Data', 'Code', 'Access', 'Timing'];
 
 export function TopBar() {
@@ -27,8 +27,7 @@ export function TopBar() {
   const running = run?.state === 'running';
   const mode = useUi((s) => s.mode);
   const sync = useUi((s) => s.sync);
-  const choose = (id: string) => {
-    if (id !== 'design' && id !== 'implementation') return;
+  const choose = (id: Mode) => {
     useUi.getState().setMode(id);
     // The first visit compiles the code; later ones show the last scan (Re-sync refreshes it).
     if (id === 'implementation' && sync.state === 'idle') send({ type: 'sync' });
@@ -134,6 +133,18 @@ export function TopBar() {
         ) : null}
         <RunStatus run={run} />
         {mode === 'design' ? <DesignActions running={running} /> : null}
+        {mode === 'run' ? (
+          <button
+            type="button"
+            className="secondary"
+            disabled={running}
+            onClick={() => send({ type: 'run', mode: 'check' })}
+            title="Generate the playbook and run it in check mode in the local Ansible environment"
+          >
+            <span className="codicon codicon-play" aria-hidden="true" /> Run as skeleton
+          </button>
+        ) : null}
+        {mode !== 'design' ? <LaunchAwx running={running} /> : null}
       </div>
     </header>
   );
@@ -172,8 +183,39 @@ function DesignActions({ running }: { running: boolean }) {
   );
 }
 
-/** Outcome of the last run: exit code, hosts, failures; a click shows the terminal. */
+/** Implementation and Run modes (04 §1): run the flow's AWX job template. */
+function LaunchAwx({ running }: { running: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={running}
+      onClick={() => send({ type: 'launchAwx' })}
+      title="Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events"
+    >
+      <span
+        className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-rocket'}`}
+        aria-hidden="true"
+      />{' '}
+      {running ? 'Running…' : 'Launch in AWX'}
+    </button>
+  );
+}
+
+/** Outcome of the last run: exit code, hosts, failures; a click shows the terminal or the AWX job. */
 function RunStatus({ run }: { run: RunView | null }) {
+  if (run?.state === 'running' && run.awx)
+    return (
+      <button
+        type="button"
+        className="afd-run-status"
+        data-run-state="running"
+        onClick={() => send({ type: 'showRunOutput' })}
+        title={`AWX job ${run.awx.jobId} (${run.awx.status}). Open it in AWX.`}
+      >
+        <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" /> AWX
+        job #{run.awx.jobId}
+      </button>
+    );
   if (!run || run.state === 'running') return null;
   if (run.state === 'error')
     return (
@@ -184,16 +226,17 @@ function RunStatus({ run }: { run: RunView | null }) {
   const s = run.summary;
   const failed = s ? Object.keys(s.outcome).length + s.failures.length : 0;
   const ok = run.rc === 0 && failed === 0;
+  const where = run.awx ? `AWX #${run.awx.jobId} · ` : '';
   const label = s?.stoppedEarly
-    ? `Stopped early · exit ${run.rc}`
-    : `${s?.hosts.length ?? 0} hosts · ${failed} failed · exit ${run.rc}`;
+    ? `${where}Stopped early · exit ${run.rc}`
+    : `${where}${s?.hosts.length ?? 0} hosts · ${failed} failed · exit ${run.rc}`;
   return (
     <button
       type="button"
       className={`afd-run-status ${ok ? 'ok' : 'warn'}`}
       data-run-state={run.state}
       onClick={() => send({ type: 'showRunOutput' })}
-      title={`${run.mode === 'check' ? 'Skeleton run (check mode)' : 'Real run'} at ${run.finishedAt ?? run.startedAt} in ${run.environment ?? 'the environment'}. Show the terminal.`}
+      title={`${run.mode === 'check' ? 'Skeleton run (check mode)' : 'Real run'} at ${run.finishedAt ?? run.startedAt} in ${run.environment ?? 'the environment'}. ${run.awx ? 'Open the job in AWX.' : 'Show the terminal.'}`}
     >
       <span className={`codicon ${ok ? 'codicon-pass' : 'codicon-warning'}`} aria-hidden="true" />{' '}
       {label}

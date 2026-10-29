@@ -51,6 +51,15 @@ test-yaml $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label yaml
 
+# Run mode against the lab AWX (M7): AFD_AWX_* from the environment or .env, the tunnel to AWX open
+test-awx $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label m7
+
+# Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
+test-docker-lab *suites:
+    node lab/docker-suites.mjs {{ suites }}
+
 # Engine contract tests: generated code runs in each Ansible image (Docker); images comma-separated
 test-engine $AFD_ENGINE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
     {{ if os_family() == "windows" { "$env:AFD_ENGINE='1';" } else { "export AFD_ENGINE=1;" } }} npx --no-install vitest run --project engine
@@ -66,6 +75,10 @@ probe-test $AFD_PROBE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2
 # Build the minimal execution environment image afd-ee:<core> (e.g. just ee-build 2.20)
 ee-build core="2.19":
     docker build -f docker/afd-ee.Dockerfile --build-arg ANSIBLE_CORE={{ core }} -t afd-ee:{{ core }} docker
+
+# AWX execution environment afd-awx-ee:<core> (afd-ee + ansible-runner) for Run mode in the lab (M7)
+awx-ee-build core="2.19": (ee-build core)
+    docker build -f docker/afd-awx-ee.Dockerfile --build-arg CORE={{ core }} -t afd-awx-ee:{{ core }} docker
 
 # Generate Option A code for flows into generated/ next to each (--check, --simulate, --out DIR)
 codegen *args:
@@ -88,3 +101,8 @@ clean:
 [unix]
 clean:
     rm -rf dist out
+
+# AWX objects for the GNS3 lab (M7): EE, project, inventory; --sync also updates the project
+awx-lab *args:
+    npx --no-install esbuild src/cli/awx-lab.ts --bundle --platform=node --format=cjs --outfile=out/cli/awx-lab.cjs --log-level=warning
+    node out/cli/awx-lab.cjs {{ args }}

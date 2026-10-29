@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -93,6 +93,27 @@
       {
         "command": "afd.catalog.rebuild",
         "title": "Rebuild Module Catalog",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.awx.launch",
+        "title": "Launch in AWX",
+        "category": "Ansible Flow",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "afd.awx.setupTemplate",
+        "title": "Set Up AWX Template",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.awx.setToken",
+        "title": "Set AWX Token",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.awx.clearToken",
+        "title": "Clear AWX Token",
         "category": "Ansible Flow"
       }
     ],
@@ -208,6 +229,18 @@
           "default": "auto",
           "scope": "resource",
           "markdownDescription": "Ask for the vault password before a run (`auto`: when the inventory or repository vars contain vault data). The password is used for that run only and never stored."
+        },
+        "afd.awx.url": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "AWX address for _Launch in AWX_, e.g. `https://awx.example.net`. The token is kept in VS Code's secret storage (_Set AWX Token_), never in settings."
+        },
+        "afd.awx.verifyTls": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate."
         }
       }
     },

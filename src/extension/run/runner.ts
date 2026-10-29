@@ -75,7 +75,7 @@ function showInput(value: unknown): string {
 }
 
 /** Flow inputs: given values, else remembered ones (per flow, this workspace), else prompted. */
-async function collectInputs(
+export async function collectInputs(
   doc: FlowDocument,
   given: Record<string, unknown> | undefined,
   state: vscode.Memento,
@@ -113,14 +113,14 @@ async function collectInputs(
   return values;
 }
 
-function targetsOf(doc: FlowDocument, inputs: Record<string, unknown>): string[] {
+export function targetsOf(doc: FlowDocument, inputs: Record<string, unknown>): string[] {
   const lists = Object.entries(doc.flow.inputs ?? {}).filter(([, f]) => f?.type === 'host_list');
   const name = (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
   const value = name ? inputs[name] : undefined;
   return Array.isArray(value) ? value.map(String) : [];
 }
 
-function stamp(d = new Date()): string {
+export function stamp(d = new Date()): string {
   return d
     .toISOString()
     .replaceAll(/[-:]/g, '')
@@ -260,6 +260,8 @@ export async function runFlow(
     state: 'running',
     startedAt,
     environment: probe.label,
+    source: 'local',
+    flowVersion: doc.flow.version,
   };
   deps.report(running);
 

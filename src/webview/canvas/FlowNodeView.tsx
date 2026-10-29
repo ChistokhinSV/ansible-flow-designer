@@ -14,6 +14,7 @@ import {
 import { type MouseEvent, memo } from 'react';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, NodeType } from '../../core/flow/types';
+import { formatSeconds } from '../../core/run/view';
 import { useUi } from '../store';
 import type { NodeView, PortState, PortView } from '../viewModel';
 
@@ -61,9 +62,11 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
   const along = `${Math.round(port.offset * 100)}%`;
   const style = port.side === 'top' || port.side === 'bottom' ? { left: along } : { top: along };
   const isOutput = port.direction === 'out';
+  // Run mode shows results; wiring and port menus belong to Design.
+  const locked = useUi((s) => s.mode === 'run');
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     // While picking a target, the click belongs to the node (FlowCanvas onNodeClick).
-    if (useUi.getState().pick) return;
+    if (useUi.getState().pick || locked) return;
     const at = menuAnchor(e.currentTarget, port.side);
     openPortMenu({ ref: { node: nodeId, port: port.name }, ...at });
   };
@@ -72,6 +75,7 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
       id={port.name}
       type={isOutput ? 'source' : 'target'}
       position={SIDE[port.side]}
+      isConnectable={!locked}
       // One edge per output port (03): a wired output cannot start another wire.
       isConnectableStart={isOutput && port.state !== 'connected'}
       isConnectableEnd={!isOutput}
@@ -141,12 +145,45 @@ function CodeLines({ node }: { node: FlowNode }) {
   );
 }
 
+/** Run mode (04 §10): how many hosts the node handled, how many failed, how long it took. */
+function RunLine({ node }: { node: FlowNode }) {
+  const r = useUi((s) => s.runNodes?.[node.id]);
+  const running = useUi((s) => s.run?.state === 'running');
+  if (!r) return <div className="afd-node-run tone-neutral">{running ? 'waiting' : 'no run'}</div>;
+  if (r.state === 'idle')
+    return (
+      <div className="afd-node-run tone-neutral" data-run-state="idle">
+        {running ? 'waiting' : 'not reached'}
+      </div>
+    );
+  const parts = [`${r.hosts} host${r.hosts === 1 ? '' : 's'}`];
+  if (r.failed > 0) parts.push(`${r.failed} failed`);
+  if (r.seconds !== undefined) parts.push(formatSeconds(r.seconds));
+  const tone = r.state === 'ok' ? 'ok' : 'warn';
+  return (
+    <div className={`afd-node-run tone-${tone}`} data-run-state={r.state}>
+      {parts.join(' · ')}
+    </div>
+  );
+}
+
 const NodeBody = memo(function NodeBody({ node }: { node: FlowNode }) {
   const implementation = useUi((s) => s.mode === 'implementation');
+  const runMode = useUi((s) => s.mode === 'run');
   if (node.type === 'start' || node.type === 'end') {
     return <span className="afd-node-title">{node.title}</span>;
   }
   const status = node.status ?? 'draft';
+  if (runMode)
+    return (
+      <>
+        <div className="afd-node-head">
+          <span className={`afd-dot status-${status}`} aria-hidden="true" />
+          <span className="afd-node-title">{node.title}</span>
+        </div>
+        <RunLine node={node} />
+      </>
+    );
   if (implementation)
     return (
       <>
@@ -181,7 +218,11 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const { node, ports } = data.view;
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
+  const runMode = useUi((s) => s.mode === 'run');
+  const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
   const classes = [
+    runMode ? 'run-mode' : '',
+    runState ? `run-${runState}` : '',
     'afd-node',
     `type-${node.type}`,
     `status-${node.status ?? 'draft'}`,
@@ -193,7 +234,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     .filter(Boolean)
     .join(' ');
   return (
-    <div className={classes} data-node-id={node.id}>
+    <div className={classes} data-node-id={node.id} data-run-state={runState}>
       {/* Hover margin around the node and its port labels (D-14 detail). */}
       <div className="afd-hover-zone" aria-hidden="true" />
       {ports.map((p) => (

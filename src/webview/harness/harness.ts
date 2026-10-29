@@ -3,12 +3,16 @@
 // default themes. `just harness`, then http://localhost:5178/harness/index.html?flow=os-upgrade
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
+import awxJob from '../../../test/fixtures/awx/job-events.json';
+import awxE2e from '../../../test/fixtures/awx/repo/flows/awx-e2e/awx-e2e.flow.yaml?raw';
 import builtin from '../../../test/fixtures/catalog/files/ansible.builtin@2.19.4.json';
 import utils from '../../../test/fixtures/catalog/files/ansible.utils@5.1.2.json';
 import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
 import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
 import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
 import driftScan from '../../../test/fixtures/drift/scan.json';
+import { awxEventsToLines, playNodes } from '../../core/awx/events';
+import type { AwxJobEvent } from '../../core/awx/types';
 import { badgesOf, metaOf } from '../../core/catalog/rank';
 import type { CatalogPlugin, CollectionFile } from '../../core/catalog/types';
 import type { CodeScan } from '../../core/drift/types';
@@ -21,12 +25,14 @@ import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
 import { validateFlow } from '../../core/flow/validate';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
+import { summarizeRun } from '../../core/run/events';
 import { autoPositions, layoutLevel } from '../../extension/autoLayout';
 
 const FLOWS: Record<string, string> = {
   'edge-baseline': edgeBaseline,
   'os-upgrade': osUpgrade,
   'edge-drift': edgeDrift,
+  'awx-e2e': awxE2e,
 };
 const params = new URLSearchParams(location.search);
 let text = FLOWS[params.get('flow') ?? 'edge-baseline'] ?? edgeBaseline;
@@ -298,6 +304,42 @@ async function onMessage(m: WebviewMessage) {
         };
         toWebview({ type: 'run', run: { ...base, state: 'done', rc: 0, summary } });
       }, 800);
+      break;
+    }
+    case 'launchAwx': {
+      // Replays the lab's real AWX job of awx-e2e (test/fixtures/awx) for Run mode checks.
+      const doc = parseFlow(text).doc;
+      if (!doc) break;
+      const { routes } = optionA.generate(doc, { source: 'harness.flow.yaml' });
+      const summary = summarizeRun(
+        awxEventsToLines(awxJob.events as AwxJobEvent[], playNodes(doc)),
+        routes,
+      );
+      const awx = {
+        jobId: awxJob.job.id,
+        url: `https://awx.example.net/#/jobs/playbook/${awxJob.job.id}/output`,
+        template: `AFD · ${doc.flow.key}`,
+        status: 'running',
+        revision: awxJob.job.scm_revision,
+        revisionMismatch: true,
+      };
+      const base = {
+        id: 'harness-awx',
+        mode: 'real' as const,
+        startedAt: awxJob.job.started,
+        source: 'awx' as const,
+        flowVersion: doc.flow.version,
+        environment: `AWX: ${awx.template}`,
+      };
+      toWebview({ type: 'run', run: { ...base, state: 'running', awx } });
+      setTimeout(() => {
+        const done = { ...awx, status: awxJob.job.status };
+        const finishedAt = awxJob.job.finished ?? undefined;
+        toWebview({
+          type: 'run',
+          run: { ...base, state: 'done', rc: 2, finishedAt, awx: done, summary },
+        });
+      }, 1200);
       break;
     }
     case 'perf':

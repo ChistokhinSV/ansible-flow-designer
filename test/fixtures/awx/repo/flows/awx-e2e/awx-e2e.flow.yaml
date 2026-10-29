@@ -1,0 +1,82 @@
+# AWX end-to-end flow (fictional sample ULIDs, M7): h01 passes, h02 fails "work" and is notified,
+# h07 is unreachable and excluded. Hosts come from the lab's "AFD lab" inventory.
+schema_version: 1
+flow:
+  id: 01JCR7F0000000000000000000
+  key: awx-e2e
+  name: AWX end-to-end
+  version: 1
+  owner: netops
+  runtime:
+    kind: awx_job
+    template: AFD · awx-e2e
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01JCR7N0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCR7N0000000000000000002
+    key: probe
+    type: task
+    title: Probe reachability
+    status: implemented
+    ports:
+      - unreachable
+    impl:
+      kind: module
+      ref: ansible.builtin.ping
+  - id: 01JCR7N0000000000000000003
+    key: work
+    type: task
+    title: Do the work
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: test {{ inventory_hostname }} != h02
+  - id: 01JCR7N0000000000000000004
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCR7N0000000000000000005
+    key: exclude
+    type: task
+    title: Exclude and report
+    status: specified
+    intent: Record the unreachable hosts
+    handler: exclude
+  - id: 01JCR7N0000000000000000006
+    key: excluded
+    type: end
+    title: Excluded
+    outcome: success
+  - id: 01JCR7N0000000000000000007
+    key: notify
+    type: task
+    title: Notify on-call
+    status: specified
+    intent: Open a ticket for the failed hosts
+    handler: notify
+  - id: 01JCR7N0000000000000000008
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCR7E0000000000000000001, from: { node: 01JCR7N0000000000000000001, port: ok_hosts }, to: { node: 01JCR7N0000000000000000002, port: in } }
+  - { id: 01JCR7E0000000000000000002, from: { node: 01JCR7N0000000000000000002, port: ok_hosts }, to: { node: 01JCR7N0000000000000000003, port: in } }
+  - { id: 01JCR7E0000000000000000003, from: { node: 01JCR7N0000000000000000003, port: ok_hosts }, to: { node: 01JCR7N0000000000000000004, port: in } }
+  - { id: 01JCR7E0000000000000000004, from: { node: 01JCR7N0000000000000000002, port: unreachable }, to: { node: 01JCR7N0000000000000000005, port: in } }
+  - { id: 01JCR7E0000000000000000005, from: { node: 01JCR7N0000000000000000005, port: ok_hosts }, to: { node: 01JCR7N0000000000000000006, port: in } }
+  - { id: 01JCR7E0000000000000000006, from: { node: 01JCR7N0000000000000000002, port: failed_hosts }, to: { node: 01JCR7N0000000000000000008, port: in } }
+  - { id: 01JCR7E0000000000000000007, from: { node: 01JCR7N0000000000000000003, port: failed_hosts }, to: { node: 01JCR7N0000000000000000007, port: in } }
+  - { id: 01JCR7E0000000000000000008, from: { node: 01JCR7N0000000000000000007, port: ok_hosts }, to: { node: 01JCR7N0000000000000000008, port: in } }
+  - { id: 01JCR7E0000000000000000009, from: { node: 01JCR7N0000000000000000007, port: failed_hosts }, to: { node: 01JCR7N0000000000000000008, port: in } }
+  - { id: 01JCR7E0000000000000000010, from: { node: 01JCR7N0000000000000000005, port: failed_hosts }, to: { node: 01JCR7N0000000000000000006, port: in } }

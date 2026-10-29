@@ -9,6 +9,14 @@ import { versionBump } from '../core/flow/semantic';
 import { newFlowText } from '../core/flow/template';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import { setIn } from '../core/yaml/ops';
+import {
+  type AwxDeps,
+  type AwxPicks,
+  clearToken,
+  launchInAwx,
+  setToken,
+  setupTemplate,
+} from './awx/awxRun';
 import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { ProbeManager } from './env/environment';
@@ -27,6 +35,7 @@ export interface AfdTestApi {
   run(uri: vscode.Uri, command: FlowCommand): Promise<CommandOutcome>;
   inspect(uri: vscode.Uri): Promise<DomSummary>;
   openLevel(uri: vscode.Uri, level: string): void;
+  setMode(uri: vscode.Uri, mode: 'design' | 'implementation' | 'run'): void;
   rendered(uri: vscode.Uri, version: number): Promise<void>;
   perf(uri: vscode.Uri): PerfEvent[];
   cspViolations(uri: vscode.Uri): string[];
@@ -45,6 +54,13 @@ export interface AfdTestApi {
   sync(uri: vscode.Uri): Promise<CodeScan | undefined>;
   useScan(uri: vscode.Uri, scan: CodeScan): void;
   driftAction(uri: vscode.Uri, action: DriftAction): Promise<CommandOutcome>;
+  /** M7: an AWX token for the configured URL, the template setup with fixed picks, a launch. */
+  awxToken(uri: vscode.Uri, token: string): Promise<string | undefined>;
+  awxSetup(
+    uri: vscode.Uri,
+    picks: AwxPicks,
+  ): Promise<{ ok: boolean; error?: string; template?: string }>;
+  awxLaunch(uri: vscode.Uri, inputs: Record<string, unknown>): Promise<RunView>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -79,6 +95,18 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     state: context.workspaceState,
     testMode,
     report: (run) => sessions.get(uri.toString())?.setRun(run),
+  });
+  const awxDeps = (uri: vscode.Uri): AwxDeps => ({
+    secrets: context.secrets,
+    storage: context.globalStorageUri,
+    state: context.workspaceState,
+    schema: deps.schema,
+    testMode,
+    report: (run) => sessions.get(uri.toString())?.setRun(run),
+    runCommand: async (command) => {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      return sessionFor(doc).runCommand(command);
+    },
   });
   const flowDoc = async (uri?: vscode.Uri) => {
     const target = uri ?? activeSession(sessions)?.uri;
@@ -140,6 +168,48 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }),
     vscode.commands.registerCommand('afd.runSkeleton', (uri?: vscode.Uri) => run('check', uri)),
     vscode.commands.registerCommand('afd.runReal', (uri?: vscode.Uri) => run('real', uri)),
+    vscode.commands.registerCommand('afd.awx.launch', async (uri?: vscode.Uri) => {
+      const doc = await flowDoc(uri);
+      if (!doc) return undefined;
+      const result = await launchInAwx(doc, awxDeps(doc.uri));
+      if (result.state === 'error' && result.error !== 'Cancelled') {
+        const setup = /Set Up AWX Template/.test(result.error ?? '')
+          ? 'Set Up AWX Template'
+          : undefined;
+        const token = /Set AWX Token/.test(result.error ?? '') ? 'Set AWX Token' : undefined;
+        const choice = await vscode.window.showErrorMessage(
+          result.error ?? 'The AWX run failed',
+          ...[setup, token].filter((x): x is string => !!x),
+        );
+        if (choice === setup)
+          await vscode.commands.executeCommand('afd.awx.setupTemplate', doc.uri);
+        if (choice === token) await vscode.commands.executeCommand('afd.awx.setToken', doc.uri);
+      } else if (result.state === 'done') void announceRun(result);
+      return result;
+    }),
+    vscode.commands.registerCommand('afd.awx.setupTemplate', async (uri?: vscode.Uri) => {
+      const doc = await flowDoc(uri);
+      if (!doc) return;
+      const r = await setupTemplate(doc, awxDeps(doc.uri));
+      if (r.ok)
+        void vscode.window.showInformationMessage(
+          `AWX job template "${r.template}" is ready; the flow now launches it.`,
+        );
+      else if (r.error !== 'Cancelled')
+        void vscode.window.showErrorMessage(r.error ?? 'Setting up the AWX template failed');
+    }),
+    vscode.commands.registerCommand('afd.awx.setToken', async (uri?: vscode.Uri) => {
+      const scope =
+        uri ?? activeSession(sessions)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (!scope) return;
+      const error = await setToken(scope, context.secrets);
+      if (error && error !== 'Cancelled') void vscode.window.showErrorMessage(error);
+    }),
+    vscode.commands.registerCommand('afd.awx.clearToken', async (uri?: vscode.Uri) => {
+      const scope =
+        uri ?? activeSession(sessions)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
+      if (scope) await clearToken(scope, context.secrets);
+    }),
     vscode.commands.registerCommand('afd.syntaxCheck', async (uri?: vscode.Uri) => {
       const doc = await flowDoc(uri);
       if (!doc) return;
@@ -219,6 +289,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     run: (uri, command) => get(uri).runCommand(command),
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
+    setMode: (uri, mode) => get(uri).setMode(mode),
     rendered: (uri, version) => get(uri).rendered(version),
     perf: (uri) => get(uri).perf,
     cspViolations: (uri) => get(uri).cspViolations,
@@ -259,6 +330,14 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     },
     useScan: (uri, scan) => get(uri).useScan(scan),
     driftAction: (uri, action) => get(uri).driftAction(action),
+    awxToken: (uri, token) => setToken(uri, context.secrets, token),
+    awxSetup: async (uri, picks) =>
+      setupTemplate(await vscode.workspace.openTextDocument(uri), awxDeps(uri), picks),
+    awxLaunch: async (uri, inputs) =>
+      launchInAwx(await vscode.workspace.openTextDocument(uri), awxDeps(uri), {
+        inputs,
+        yes: true,
+      }),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? catalog.status(folder) : undefined;
@@ -269,15 +348,21 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
 async function announceRun(run: RunView): Promise<void> {
   const s = run.summary;
   const failed = s ? Object.keys(s.outcome).length + s.failures.length : 0;
-  const what = run.mode === 'check' ? 'Skeleton run (check mode)' : 'Run';
+  const what = run.awx
+    ? `AWX job #${run.awx.jobId} (${run.awx.status})`
+    : run.mode === 'check'
+      ? 'Skeleton run (check mode)'
+      : 'Run';
   const text = s?.stoppedEarly
-    ? `${what} stopped early (exit ${run.rc}): see the terminal`
+    ? `${what} stopped early (exit ${run.rc}): see the ${run.awx ? 'job output' : 'terminal'}`
     : `${what} finished (exit ${run.rc}): ${s?.hosts.length ?? 0} host(s), ${failed} failed`;
-  const show = 'Show Terminal';
+  const show = run.awx ? 'Open in AWX' : 'Show Terminal';
   const pick = await (failed > 0 || run.rc !== 0
     ? vscode.window.showWarningMessage(text, show)
     : vscode.window.showInformationMessage(text, show));
-  if (pick === show) await vscode.commands.executeCommand('workbench.action.terminal.focus');
+  if (pick !== show) return;
+  if (run.awx) await vscode.env.openExternal(vscode.Uri.parse(run.awx.url));
+  else await vscode.commands.executeCommand('workbench.action.terminal.focus');
 }
 
 export function deactivate(): void {}

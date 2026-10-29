@@ -5,6 +5,7 @@ import type { CodeScan, DriftReport } from '../core/drift/types';
 import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
+import { type NodeRun, runStates } from '../core/run/view';
 
 export interface QuickAddState {
   type: NodeType;
@@ -46,8 +47,11 @@ let onCard = false;
 /** Tabs of the node properties page (mockup 11). */
 export type PropTab = 'general' | 'implementation' | 'io' | 'ports' | 'execution';
 
-/** Design edits the graph; Implementation shows it against the code (M6, mockup 04). */
-export type Mode = 'design' | 'implementation';
+/**
+ * Design edits the graph; Implementation shows it against the code (M6, mockup 04); Run shows what
+ * the last run did per node, wire and host (M7, 04 §10).
+ */
+export type Mode = 'design' | 'implementation' | 'run';
 
 export interface SyncState {
   state: 'idle' | 'syncing' | 'done' | 'error';
@@ -86,6 +90,8 @@ interface UiState {
   error: string | null;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
+  /** Run mode read-out per node for the current document and run (computed, never stored). */
+  runNodes: Record<Ulid, NodeRun> | null;
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
   level: string;
   preview: PreviewState | null;
@@ -126,6 +132,10 @@ interface UiState {
   setIgnore(target: IgnoreTarget | null): void;
 }
 
+function runOf(snapshot: Snapshot | null, run: RunView | null): Record<Ulid, NodeRun> | null {
+  return snapshot?.doc && run?.summary ? runStates(snapshot.doc, run.summary) : null;
+}
+
 function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftReport | null {
   return snapshot?.doc && scan ? computeDrift(snapshot.doc, scan) : null;
 }
@@ -142,6 +152,7 @@ export const useUi = create<UiState>((set, get) => ({
   optimistic: {},
   error: null,
   run: null,
+  runNodes: null,
   level: ROOT,
   preview: null,
   properties: null,
@@ -181,6 +192,7 @@ export const useUi = create<UiState>((set, get) => ({
       ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
       ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
       drift: driftOf(snapshot, get().sync.scan),
+      runNodes: runOf(snapshot, get().run),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
@@ -192,7 +204,7 @@ export const useUi = create<UiState>((set, get) => ({
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
   setError: (error) => set({ error }),
-  setRun: (run) => set({ run }),
+  setRun: (run) => set({ run, runNodes: runOf(get().snapshot, run) }),
   setLevel(level) {
     if (level === get().level) return;
     clearTimeout(openTimer);
