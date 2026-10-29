@@ -1,0 +1,48 @@
+{
+ "format": 1,
+ "collection": "ansible.utils",
+ "version": "5.1.2",
+ "core": "2.19.4",
+ "plugins": [
+  {
+   "type": "module",
+   "fqcn": "ansible.utils.cli_parse",
+   "collection": "ansible.utils",
+   "name": "cli_parse",
+   "short_description": "Parse command output into structured data",
+   "description": "Runs a show command or takes text and parses it with a parser engine.",
+   "options": {
+    "command": {
+     "type": "str",
+     "description": "The command to run"
+    },
+    "text": {
+     "type": "str",
+     "description": "Text to parse instead"
+    },
+    "parser": {
+     "type": "dict",
+     "description": "Parser engine and options",
+     "required": true
+    }
+   },
+   "returns": {
+    "parsed": {
+     "type": "dict",
+     "description": "The structured data"
+    }
+   },
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  }
+ ],
+ "routing": {},
+ "errors": []
+}

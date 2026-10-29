@@ -1,5 +1,6 @@
 **
 !dist/extension.js
+!dist/catalogWorker.js
 !dist/webview/**
 !dist/probe/**
 !schema/flow.schema.json

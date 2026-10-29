@@ -135,15 +135,70 @@ describe('refusals and findings', () => {
     expect(result.findings[0]?.code).toBe('codegen-cycle');
   });
 
-  it('playbook bindings run as TODO with a warning', () => {
+  it('playbook bindings import the playbook for the arriving hosts, then route ok_hosts', () => {
     const doc = docOf(readExample('edge-baseline.flow.yaml'));
     const node = doc.nodes.find((n) => n.key === 'validate');
     if (node) node.impl = { kind: 'playbook', ref: 'playbooks/validate.yml' };
-    const result = optionA.generate(doc, { source: 'x' });
+    const result = optionA.generate(doc, { source: 'x', root: '../..' });
     expect(result.ok).toBe(true);
-    expect(result.findings.map((f) => f.code)).toEqual(['codegen-playbook-binding']);
-    expect(result.files[0]?.text).toContain(
-      'msg: "TODO: Compare running config with desired state"',
+    const plays = parse(result.files[0]?.text ?? '') as Record<string, unknown>[];
+    const at = plays.findIndex((p) => p.import_playbook === '../../playbooks/validate.yml');
+    expect(at).toBeGreaterThan(0);
+    expect((plays[at]?.vars as Record<string, string> | undefined)?.afd_hosts).toBe(
+      plays[at + 1]?.hosts,
+    );
+    expect(JSON.stringify(plays[at + 1]?.tasks)).toContain('flow_validate_ok_hosts');
+  });
+});
+
+describe('data passing (M5)', () => {
+  const flowWith = (setup: (doc: FlowDocument) => void) => {
+    const doc = docOf(readExample('edge-baseline.flow.yaml'));
+    setup(doc);
+    return parse(optionA.generate(doc, { source: 'x' }).files[0]?.text ?? '') as {
+      name: string;
+      vars?: Record<string, unknown>;
+      tasks?: { block?: Record<string, unknown>[] }[];
+    }[];
+  };
+  const play = (plays: ReturnType<typeof flowWith>, key: string) =>
+    plays.find((p) => p.name.startsWith(`[${key}]`));
+
+  it('passes upstream outputs in as play vars and skips same-name references', () => {
+    const plays = flowWith((doc) => {
+      const validate = doc.nodes.find((n) => n.key === 'validate');
+      if (validate)
+        validate.inputs = {
+          baseline: { type: 'string', from: 'backup-config.backup_ref' },
+          backup_ref: { type: 'string', from: 'backup-config.backup_ref' },
+        };
+    });
+    expect(play(plays, 'validate')?.vars).toMatchObject({ baseline: '{{ backup_ref }}' });
+    expect(play(plays, 'validate')?.vars).not.toHaveProperty('backup_ref');
+  });
+
+  it('reads a module output from its registered result', () => {
+    const plays = flowWith((doc) => {
+      const backup = doc.nodes.find((n) => n.key === 'backup-config');
+      const validate = doc.nodes.find((n) => n.key === 'validate');
+      if (!backup || !validate) return;
+      backup.impl = { kind: 'module', ref: 'cisco.ios.ios_config', register: 'backup_out' };
+      backup.outputs = { backup_ref: { type: 'string', from: 'impl.register.backup_path' } };
+      validate.inputs = { baseline: { type: 'string', from: 'backup-config.backup_ref' } };
+    });
+    expect(play(plays, 'validate')?.vars).toMatchObject({
+      baseline: '{{ backup_out.backup_path }}',
+    });
+  });
+
+  it('unbound nodes set placeholder facts for their outputs', () => {
+    const block =
+      play(
+        flowWith(() => {}),
+        'backup-config',
+      )?.tasks?.[0]?.block ?? [];
+    expect(block.map((t) => Object.keys(t).find((k) => k.startsWith('ansible.')))).toContain(
+      'ansible.builtin.set_fact',
     );
   });
 });

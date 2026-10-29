@@ -6,6 +6,8 @@ export const CONTAINER = {
   root: '/work',
   probe: '/afd',
   run: '/afd-run',
+  /** The catalog cache in global storage, read-write (M5). */
+  cache: '/afd-cache',
 } as const;
 
 export interface ProcessSpec {
@@ -21,6 +23,8 @@ export interface Paths {
   root: string;
   /** Folder with afd_probe/ and callback_plugins/. */
   probe: string;
+  /** Catalog cache folder; the probe writes collection dumps there (M5). */
+  cache?: string;
 }
 
 const join = (a: string, b: string) => `${a.replace(/[\\/]+$/, '')}/${b}`;
@@ -47,6 +51,7 @@ export function probeProcess(env: Environment, paths: Paths, name: string): Proc
   if (env.kind === 'container') {
     const args = containerBase(env, paths, name);
     args.splice(1, 0, '-i');
+    if (paths.cache) args.push('-v', `${paths.cache}:${CONTAINER.cache}`);
     args.push('-e', `PYTHONPATH=${CONTAINER.probe}`, '-e', 'PYTHONDONTWRITEBYTECODE=1');
     args.push(...env.options, env.image, 'python3', ...tail, CONTAINER.root);
     return { command: env.engine, args, env: {} };

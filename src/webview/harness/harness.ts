@@ -3,6 +3,12 @@
 // default themes. `just harness`, then http://localhost:5178/harness/index.html?flow=os-upgrade
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
+import builtin from '../../../test/fixtures/catalog/files/ansible.builtin@2.19.4.json';
+import utils from '../../../test/fixtures/catalog/files/ansible.utils@5.1.2.json';
+import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
+import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
+import { badgesOf, metaOf } from '../../core/catalog/rank';
+import type { CatalogPlugin, CollectionFile } from '../../core/catalog/types';
 import { optionA } from '../../core/engine/optionA';
 import { codePreview } from '../../core/engine/preview';
 import { type FlowCommand, planCommand } from '../../core/flow/commands';
@@ -11,7 +17,7 @@ import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
 import { validateFlow } from '../../core/flow/validate';
-import type { HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
+import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { autoPositions, layoutLevel } from '../../extension/autoLayout';
 
 const FLOWS: Record<string, string> = { 'edge-baseline': edgeBaseline, 'os-upgrade': osUpgrade };
@@ -134,10 +140,95 @@ function apply(input: FlowCommand): { ok: boolean; error?: string; created?: str
   }
 }
 
+// No SQLite in a browser: the harness catalog is the test fixture with word matching.
+const PLUGINS = ([builtin, ios, eos, utils] as unknown as CollectionFile[]).flatMap(
+  (f) => f.plugins,
+);
+const CTX = { collections: ['cisco.ios', 'ansible.utils'], platforms: ['cisco.ios'] };
+
+function catalogAnswer(r: CatalogRequest): unknown {
+  switch (r.op) {
+    case 'search': {
+      const words = r.query
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length > 2);
+      return PLUGINS.filter((p) => !r.types || r.types.includes(p.type))
+        .map((p) => {
+          const hay = `${p.fqcn} ${p.short_description} ${p.description}`.toLowerCase();
+          return { p, score: words.filter((w) => hay.includes(w)).length };
+        })
+        .filter((x) => x.score > 0 || words.length === 0)
+        .sort((a, b) => b.score - a.score)
+        .map(({ p, score }) => {
+          const badges = badgesOf(p, metaOf(p), CTX);
+          return {
+            fqcn: p.fqcn,
+            type: p.type,
+            collection: p.collection,
+            short_description: p.short_description,
+            score,
+            match: '',
+            badges,
+            dimmed: badges.includes('other-platform'),
+          };
+        });
+    }
+    case 'doc': {
+      const p = PLUGINS.find((x) => x.fqcn === r.fqcn) as CatalogPlugin | undefined;
+      const file = ([builtin, ios, eos, utils] as unknown as CollectionFile[]).find(
+        (f) => f.collection === p?.collection,
+      );
+      return p ? { ...p, collection_version: file?.version } : null;
+    }
+    case 'roles':
+      return [
+        {
+          name: 'ios_upgrade',
+          path: 'roles/ios_upgrade',
+          tasks: ['main', 'stage', 'reload'],
+          entry_points: {
+            main: {
+              short_description: 'Upgrade IOS images',
+              description: '',
+              options: { image: { type: 'str', description: 'Image file name', required: true } },
+            },
+          },
+        },
+        { name: 'notify', path: 'roles/notify', tasks: ['main'], entry_points: {} },
+      ];
+    case 'playbooks':
+      return [
+        {
+          path: 'playbooks/backup.yml',
+          plays: [{ name: 'Back up configs', hosts: '{{ afd_hosts }}' }],
+        },
+      ];
+    default:
+      return { state: 'ready' };
+  }
+}
+
 async function onMessage(m: WebviewMessage) {
   switch (m.type) {
+    case 'catalog':
+      setTimeout(
+        () =>
+          toWebview({
+            type: 'catalogReply',
+            reqId: m.reqId,
+            ok: true,
+            result: catalogAnswer(m.request),
+          }),
+        60,
+      );
+      break;
     case 'ready':
       toWebview({ type: 'config', testMode: true });
+      toWebview({
+        type: 'catalogStatus',
+        status: { state: 'ready', environment: 'harness fixture', platforms: CTX.platforms },
+      });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       break;
     case 'command': {

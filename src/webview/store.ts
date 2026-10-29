@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
-import type { RunView, Snapshot } from '../core/protocol';
+import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 
 export interface QuickAddState {
   type: NodeType;
@@ -40,6 +40,9 @@ let openTimer: ReturnType<typeof setTimeout> | undefined;
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
 let onCard = false;
 
+/** Tabs of the node properties page (mockup 11). */
+export type PropTab = 'general' | 'implementation' | 'io' | 'ports' | 'execution';
+
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */
 export interface PickState {
   mode: 'to' | 'from' | 'rewire';
@@ -66,6 +69,10 @@ interface UiState {
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
   level: string;
   preview: PreviewState | null;
+  /** The node properties page over the canvas (M5), with its open tab. */
+  properties: { node: Ulid; tab: PropTab } | null;
+  /** The environment's module catalog (M5). */
+  catalog: CatalogStatus;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -86,6 +93,9 @@ interface UiState {
   hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
   /** Pointer on the card keeps it open. */
   holdPreview(on: boolean): void;
+  openProperties(node: Ulid, tab?: PropTab): void;
+  closeProperties(): void;
+  setCatalog(status: CatalogStatus): void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -102,6 +112,8 @@ export const useUi = create<UiState>((set, get) => ({
   run: null,
   level: ROOT,
   preview: null,
+  properties: null,
+  catalog: { state: 'idle' },
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -131,6 +143,7 @@ export const useUi = create<UiState>((set, get) => ({
       ...(gone(get().portMenu?.ref) ? { portMenu: null } : {}),
       ...(gone(get().pick?.ref) ? { pick: null } : {}),
       ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
+      ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
@@ -185,6 +198,12 @@ export const useUi = create<UiState>((set, get) => ({
     if (on) clearTimeout(closeTimer);
     else get().hoverNode(null);
   },
+  openProperties(node, tab = 'general') {
+    clearTimeout(openTimer);
+    set({ properties: { node, tab }, preview: null, portMenu: null, quickAdd: null });
+  },
+  closeProperties: () => set({ properties: null }),
+  setCatalog: (catalog) => set({ catalog }),
   reveal(node) {
     const doc = get().snapshot?.doc;
     const entry = doc ? buildModel(doc).nodes.get(node) : undefined;

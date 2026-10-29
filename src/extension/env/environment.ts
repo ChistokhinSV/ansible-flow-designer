@@ -1,7 +1,7 @@
 // Settings → environment (ADR-0005, decision 6) and one probe session per repository and
 // environment, restarted when the settings change.
 import * as vscode from 'vscode';
-import { probeProcess } from '../../core/run/command';
+import { CONTAINER, probeProcess } from '../../core/run/command';
 import {
   type AfdEnvSettings,
   type EnvironmentResult,
@@ -36,10 +36,19 @@ export class ProbeManager implements vscode.Disposable {
   private readonly clients = new Map<string, ProbeClient>();
   private seq = 0;
 
-  constructor(private readonly probeDir: string) {}
+  constructor(
+    private readonly probeDir: string,
+    /** Catalog cache on this machine (global storage), mounted into containers (M5). */
+    private readonly cacheDir?: string,
+  ) {}
 
-  /** The probe for a repository folder in the configured environment (started lazily). */
-  forFolder(folder: vscode.Uri): { client: ProbeClient; label: string } | { error: string } {
+  /**
+   * The probe for a repository folder in the configured environment (started lazily); `cache` is
+   * the catalog cache as the probe sees it.
+   */
+  forFolder(
+    folder: vscode.Uri,
+  ): { client: ProbeClient; label: string; cache?: string } | { error: string } {
     const resolved = environmentFor(folder);
     if (!resolved.ok) return { error: resolved.error };
     const env = resolved.env;
@@ -48,13 +57,14 @@ export class ProbeManager implements vscode.Disposable {
     if (!client) {
       const spec = probeProcess(
         env,
-        { root: folder.fsPath, probe: this.probeDir },
+        { root: folder.fsPath, probe: this.probeDir, cache: this.cacheDir },
         `afd-probe-${process.pid}-${++this.seq}`,
       );
       client = new ProbeClient(spec, folder.fsPath, env.kind === 'container');
       this.clients.set(key, client);
     }
-    return { client, label: env.label };
+    const cache = this.cacheDir && (env.kind === 'container' ? CONTAINER.cache : this.cacheDir);
+    return { client, label: env.label, cache };
   }
 
   dispose(): void {

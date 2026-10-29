@@ -40,6 +40,15 @@ export function Inspector({ id }: { id: string }) {
         <button
           type="button"
           className="icon"
+          title="Properties"
+          aria-label="Open properties"
+          onClick={() => useUi.getState().openProperties(id)}
+        >
+          <span className="codicon codicon-settings-gear" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="icon"
           title="Show in text"
           aria-label="Show in text"
           onClick={() => send({ type: 'openText', path: entry.path })}
@@ -146,8 +155,13 @@ export function Inspector({ id }: { id: string }) {
                   : 'Fix the errors in this flow to see the generated code')}
             </pre>
           </details>
-          <button type="button" disabled title="Binding arrives in M5">
-            Bind module, role or playbook
+          <button
+            type="button"
+            data-bind={id}
+            onClick={() => useUi.getState().openProperties(id, 'implementation')}
+          >
+            <span className="codicon codicon-plug" aria-hidden="true" />
+            {node.impl ? 'Change binding…' : 'Bind module, role or playbook…'}
           </button>
         </section>
       ) : null}
@@ -199,11 +213,11 @@ function LastRun({ id }: { id: string }) {
   );
 }
 
-function updatePatch(id: string, p: Record<string, unknown>) {
+export function updatePatch(id: string, p: Record<string, unknown>) {
   return run({ kind: 'updateNode', id, patch: p });
 }
 
-function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus): void }) {
+export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus): void }) {
   const status = node.status ?? 'draft';
   const current = STATUS_ORDER.indexOf(status);
   const next = nextRequirement(node);
@@ -229,7 +243,13 @@ function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus): void
   );
 }
 
-function TypeFields({ node, patch }: { node: FlowNode; patch(p: Record<string, unknown>): void }) {
+export function TypeFields({
+  node,
+  patch,
+}: {
+  node: FlowNode;
+  patch(p: Record<string, unknown>): void;
+}) {
   switch (node.type) {
     case 'decision':
       return (
@@ -301,7 +321,7 @@ function TypeFields({ node, patch }: { node: FlowNode; patch(p: Record<string, u
 }
 
 /** One port: state, where it leads, a menu button, and quick resolutions for open fail ports. */
-function PortRow({
+export function PortRow({
   model,
   node,
   port,

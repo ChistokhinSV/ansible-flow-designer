@@ -31,6 +31,8 @@ interface Scenario {
   rc?: number;
   /** Extra assertion on the parsed run. */
   also?: (run: Run) => void;
+  /** Repository root as seen from generated/ (playbook bindings). */
+  root?: string;
 }
 
 interface Run {
@@ -50,6 +52,7 @@ const EDGE = 'examples/edge-baseline.flow.yaml';
 const OS = 'examples/os-upgrade.flow.yaml';
 const PORTS = 'test/fixtures/engine/routing-ports.flow.yaml';
 const LEVELS = 'test/fixtures/engine/routing-levels.flow.yaml';
+const DATA = 'test/fixtures/engine/data-passing.flow.yaml';
 const LAB = ['h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07'];
 const EDGE_HOSTS = ['sw-edge-01', 'sw-edge-02', 'sw-edge-03', 'sw-edge-04'];
 
@@ -246,18 +249,33 @@ const SCENARIOS: Scenario[] = [
       expect(run.ports.get('h02')).toEqual(new Set(['stage.failed_hosts', 'handle.ok_hosts']));
     },
   },
-  ...[EDGE, OS, PORTS, LEVELS].map((flow) => ({
+  {
+    // M5: real run (command does not run in check mode). produce → stub → playbook → assert.
+    name: 'data passing: module output, stub output, flow input and a playbook binding',
+    flow: DATA,
+    root: '../../content',
+    vars: { devices: ['h01', 'h02'], greeting: 'hello' },
+    rc: 0,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        { ports: ['produce.ok_hosts', 'stub.ok_hosts', 'report.ok_hosts', 'consume.ok_hosts'] },
+      ]),
+    ),
+  },
+  ...[EDGE, OS, PORTS, LEVELS, DATA].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
     syntaxOnly: true,
-    vars: { devices: LAB },
+    vars: { devices: LAB, greeting: 'hello' },
     rc: 0,
+    root: '../../content',
   })),
 ];
 
-function generate(flow: string, simulate: boolean): GenerateResult {
+function generate(flow: string, simulate: boolean, root?: string): GenerateResult {
   const doc = parse(readFileSync(flowPath(flow), 'utf8')) as FlowDocument;
-  const result = optionA.generate(doc, { source: basename(flow), simulate });
+  const result = optionA.generate(doc, { source: basename(flow), simulate, root });
   expect(result.ok, JSON.stringify(result.findings)).toBe(true);
   return result;
 }
@@ -266,7 +284,7 @@ function stage(dir: string): GenerateResult[] {
   cpSync(CONTENT, join(dir, 'content'), { recursive: true });
   const lines = ['#!/bin/sh', 'export ANSIBLE_ROLES_PATH=/work/content/roles'];
   const results = SCENARIOS.map((s, i) => {
-    const result = generate(s.flow, !s.syntaxOnly);
+    const result = generate(s.flow, !s.syntaxOnly, s.root);
     const sdir = join(dir, `s${i}`);
     mkdirSync(join(sdir, 'generated'), { recursive: true });
     for (const f of result.files) writeFileSync(join(sdir, 'generated', f.name), f.text);

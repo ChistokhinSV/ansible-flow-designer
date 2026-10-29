@@ -14,6 +14,7 @@ import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
 import { TopBar } from './panels/TopBar';
+import { Properties } from './properties/Properties';
 import { useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
 
@@ -77,6 +78,11 @@ function useHost() {
         ui.reveal(m.node);
       } else if (m.type === 'openLevel') {
         ui.setLevel(m.level);
+      } else if (m.type === 'catalogStatus') {
+        ui.setCatalog(m.status);
+      } else if (m.type === 'openProperties') {
+        ui.reveal(m.node);
+        ui.openProperties(m.node, m.tab);
       } else if (m.type === 'inspect') {
         send({
           type: 'inspectResult',
@@ -119,6 +125,7 @@ export function App() {
   const level = useUi((s) => s.level);
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
+  const properties = useUi((s) => s.properties);
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 6000);
@@ -160,6 +167,7 @@ export function App() {
         <DecisionDialog />
         <PortMenu />
         <PreviewCard />
+        {properties ? <Properties key={properties.node} node={properties.node} /> : null}
         {error ? (
           <div className="afd-toast" role="alert">
             <span className="codicon codicon-error" aria-hidden="true" /> {error}

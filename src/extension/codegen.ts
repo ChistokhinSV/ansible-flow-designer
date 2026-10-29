@@ -34,6 +34,15 @@ export function generatedDir(flow: vscode.Uri): vscode.Uri {
   return vscode.Uri.joinPath(flow, '..', 'generated');
 }
 
+/** The repository root as seen from generated/ (`../../..` for flows/<key>/generated). */
+export function rootFromGenerated(flow: vscode.Uri): string | undefined {
+  const folder = vscode.workspace.getWorkspaceFolder(flow);
+  if (!folder) return undefined;
+  const base = folder.uri.path.replace(/\/+$/, '');
+  const depth = generatedDir(flow).path.slice(base.length).split('/').filter(Boolean).length;
+  return depth > 0 ? Array.from({ length: depth }, () => '..').join('/') : '.';
+}
+
 export async function generateFlow(
   document: vscode.TextDocument,
   schema: SchemaValidator,
@@ -56,6 +65,7 @@ export async function generateFlow(
   const result = optionA.generate(parsed.doc, {
     source,
     eol: text.includes('\r\n') ? '\r\n' : '\n',
+    root: rootFromGenerated(document.uri),
   });
   if (!result.ok)
     return {

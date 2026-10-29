@@ -11,10 +11,20 @@ import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
-import type { DomSummary, HostMessage, RunView, Snapshot, WebviewMessage } from '../core/protocol';
+import type {
+  CatalogRequest,
+  CatalogStatus,
+  DomSummary,
+  HostMessage,
+  RunView,
+  Snapshot,
+  WebviewMessage,
+} from '../core/protocol';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel } from './autoLayout';
+import { checkBindings } from './catalog/bindingCheck';
+import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import { authorName } from './gitHead';
@@ -26,6 +36,8 @@ export interface SessionDeps {
   schema: SchemaValidator;
   newId: IdFactory;
   testMode: boolean;
+  /** Module catalog for binding (M5); absent in tests that do not need it. */
+  catalog?: CatalogService;
 }
 
 export interface PerfEvent {
@@ -107,7 +119,13 @@ export class FlowSession implements vscode.Disposable {
       const preview = validated.findings.some((f) => f.severity === 'error')
         ? undefined
         : codePreview(parsed.doc, this.uri.path.split('/').pop() ?? 'flow.yaml');
-      const findings = [...validated.findings, ...(preview?.findings ?? [])];
+      const folder = this.catalogFolder;
+      const catalog = folder && this.deps.catalog?.cached(folder);
+      const findings = [
+        ...validated.findings,
+        ...(preview?.findings ?? []),
+        ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
+      ];
       snapshot = {
         docVersion: version,
         doc: parsed.doc,
@@ -188,6 +206,14 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'config', testMode: this.deps.testMode });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
+        if (this.catalogFolder && this.deps.catalog)
+          this.post(panel, {
+            type: 'catalogStatus',
+            status: this.deps.catalog.status(this.catalogFolder),
+          });
+        break;
+      case 'catalog':
+        void this.catalogRequest(panel, m.reqId, m.request);
         break;
       case 'command': {
         const outcome = await this.runCommand(m.command);
@@ -239,6 +265,56 @@ export class FlowSession implements vscode.Disposable {
       case 'cspViolation':
         this.cspViolations.push(m.detail);
         break;
+    }
+  }
+
+  private get catalogFolder(): vscode.WorkspaceFolder | undefined {
+    return vscode.workspace.getWorkspaceFolder(this.uri);
+  }
+
+  /** Answers a catalog request of the properties page (also the test API's entry). */
+  async answerCatalog(request: CatalogRequest): Promise<unknown> {
+    const catalog = this.deps.catalog;
+    const folder = this.catalogFolder;
+    if (!catalog || !folder)
+      throw new Error('Open the flow inside a workspace folder to use the catalog');
+    switch (request.op) {
+      case 'search':
+        return catalog.search(folder, request.query, request.types);
+      case 'doc':
+        return catalog.doc(folder, request.fqcn, request.type);
+      case 'roles':
+        return catalog.roles(folder);
+      case 'playbooks':
+        return catalog.playbooks(folder);
+      case 'rebuild':
+        await catalog.ready(folder, true);
+        return catalog.status(folder);
+    }
+  }
+
+  private async catalogRequest(
+    panel: vscode.WebviewPanel,
+    reqId: number,
+    request: CatalogRequest,
+  ): Promise<void> {
+    try {
+      const result = await this.answerCatalog(request);
+      this.post(panel, { type: 'catalogReply', reqId, ok: true, result });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      this.post(panel, { type: 'catalogReply', reqId, ok: false, error });
+    }
+  }
+
+  /** Catalog state changes for this flow's folder (loading, ready, error). */
+  catalogStatus(folder: string, status: CatalogStatus): void {
+    if (this.catalogFolder?.uri.toString() !== folder) return;
+    this.broadcast({ type: 'catalogStatus', status });
+    if (status.state === 'ready') {
+      // Binding checks depend on the catalog: rebuild the snapshot for the same version.
+      this.built = undefined;
+      void this.refresh();
     }
   }
 

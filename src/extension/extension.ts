@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
+import type { CollectionFile } from '../core/catalog/types';
 import type { FlowCommand } from '../core/flow/commands';
 import { parseFlow } from '../core/flow/document';
 import { createIdFactory, slugify } from '../core/flow/ids';
 import { createSchemaValidator } from '../core/flow/schema';
 import { versionBump } from '../core/flow/semantic';
 import { newFlowText } from '../core/flow/template';
-import type { DomSummary, RunView } from '../core/protocol';
+import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import { setIn } from '../core/yaml/ops';
+import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { ProbeManager } from './env/environment';
 import { type CommandOutcome, FlowSession, type PerfEvent, type SessionDeps } from './flowSession';
@@ -33,24 +35,36 @@ export interface AfdTestApi {
   runFlow(uri: vscode.Uri, options: RunOptions): Promise<RunView>;
   syntaxCheck(uri: vscode.Uri): Promise<SyntaxOutcome>;
   auditLog(): Promise<Record<string, unknown>[]>;
+  /** Serves the folder's catalog from these collection files instead of the probe (M5). */
+  useCatalog(uri: vscode.Uri, files: CollectionFile[]): void;
+  /** A properties-page catalog request for this flow, answered as the webview gets it. */
+  catalog(uri: vscode.Uri, request: CatalogRequest): Promise<unknown>;
+  catalogStatus(uri: vscode.Uri): CatalogStatus | undefined;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const diagnostics = vscode.languages.createDiagnosticCollection('ansible-flow');
   const codeDiagnostics = vscode.languages.createDiagnosticCollection('ansible-flow-code');
+  const probeDir = vscode.Uri.joinPath(context.extensionUri, 'dist', 'probe').fsPath;
+  const probes = new ProbeManager(probeDir, ensureCacheDir(context.globalStorageUri));
+  const catalog = new CatalogService({
+    storage: context.globalStorageUri,
+    probes,
+    extensionUri: context.extensionUri,
+    state: context.workspaceState,
+  });
   const deps: SessionDeps = {
     extensionUri: context.extensionUri,
     diagnostics,
     schema: createSchemaValidator(),
     newId: createIdFactory(),
     testMode,
+    catalog,
   };
   const sessions = new Map<string, FlowSession>();
   const lastSaved = new Map<string, string>();
   const savedCode = new Map<string, Promise<CodegenOutcome>>();
-  const probeDir = vscode.Uri.joinPath(context.extensionUri, 'dist', 'probe').fsPath;
-  const probes = new ProbeManager(probeDir);
   const runDeps = (uri: vscode.Uri): RunDeps => ({
     schema: deps.schema,
     probes,
@@ -95,6 +109,25 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     diagnostics,
     codeDiagnostics,
     probes,
+    catalog,
+    catalog.onStatus(({ folder, status }) => {
+      for (const s of sessions.values()) s.catalogStatus(folder, status);
+    }),
+    vscode.commands.registerCommand('afd.catalog.rebuild', async (uri?: vscode.Uri) => {
+      const target =
+        uri ?? activeSession(sessions)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri;
+      const folder = target && vscode.workspace.getWorkspaceFolder(target);
+      if (!folder) return void vscode.window.showErrorMessage('Open a repository folder first.');
+      try {
+        await catalog.ready(folder, true);
+        const s = catalog.status(folder);
+        void vscode.window.showInformationMessage(
+          `Ansible catalog rebuilt: ${s.plugins ?? 0} plugins from ${s.collections ?? 0} collections.`,
+        );
+      } catch (err) {
+        void vscode.window.showErrorMessage(err instanceof Error ? err.message : String(err));
+      }
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('afd.environment') || e.affectsConfiguration('ansible'))
         probes.dispose();
@@ -204,6 +237,16 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         probes,
         codeDiagnostics,
       ),
+    useCatalog: (uri, files) => {
+      const folder = vscode.workspace.getWorkspaceFolder(uri);
+      if (!folder) throw new Error(`no workspace folder for ${uri.toString()}`);
+      catalog.useFiles(folder, files);
+    },
+    catalog: (uri, request) => get(uri).answerCatalog(request),
+    catalogStatus: (uri) => {
+      const folder = vscode.workspace.getWorkspaceFolder(uri);
+      return folder ? catalog.status(folder) : undefined;
+    },
   };
 }
 

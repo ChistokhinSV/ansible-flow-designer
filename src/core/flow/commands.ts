@@ -6,6 +6,7 @@ import type { Path, YamlFile } from '../yaml/parse';
 import type { YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
+import { mapStrings, renameRef } from './jinja';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
@@ -15,6 +16,7 @@ import type {
   FlowDocument,
   FlowNode,
   HandlerKind,
+  ImplBinding,
   JoinMode,
   NodeSettings,
   NodeStatus,
@@ -85,7 +87,20 @@ export type FlowCommand =
   /** D-23: an inner output leaves the subflow through the parent's `port`. */
   | { kind: 'connectBoundary'; subflow: Ulid; from: PortRef; port: string; reason?: string }
   | { kind: 'disconnectBoundary'; subflow: Ulid; from: PortRef; port: string }
-  | { kind: 'setExitReason'; subflow: Ulid; from: PortRef; port: string; reason: string | null };
+  | { kind: 'setExitReason'; subflow: Ulid; from: PortRef; port: string; reason: string | null }
+  /**
+   * M5 "Save binding" (mockup 11): the implementation and what came with it (inputs the chips
+   * created, outputs from the registered result, the status) in one edit; `impl: null` unbinds.
+   */
+  | {
+      kind: 'setBinding';
+      id: Ulid;
+      impl: ImplBinding | null;
+      /** Contract fields to set (null removes one); other fields stay. */
+      inputs?: Record<string, ContractField | null>;
+      outputs?: Record<string, ContractField | null>;
+      status?: NodeStatus;
+    };
 
 export interface NodePatch {
   title?: string;
@@ -815,6 +830,42 @@ function setPortEnabled(
   else tx.apply((f) => removeItem(f, [...path, 'ports'], index));
 }
 
+/** The binding as stored: fields in data-model order, empty params and register left out. */
+function implValue(impl: ImplBinding): YamlValue {
+  const out: Record<string, YamlValue> = { kind: impl.kind, ref: impl.ref };
+  if (impl.collection_version) out.collection_version = impl.collection_version;
+  if (impl.params && Object.keys(impl.params).length > 0) out.params = impl.params as YamlValue;
+  if (impl.register) out.register = impl.register;
+  return out;
+}
+
+function setBinding(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBinding' }>): void {
+  const { node, path } = nodeAt(state(tx), cmd.id);
+  if (node.type !== 'task' && node.type !== 'subflow')
+    throw new CommandError('bad-type', `A ${node.type} node has no implementation`);
+  if (cmd.impl) {
+    if (!cmd.impl.ref.trim())
+      throw new CommandError('bad-ref', 'Choose a module, role or playbook');
+    if (cmd.impl.register && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(cmd.impl.register))
+      throw new CommandError('bad-name', `"${cmd.impl.register}" is not a valid variable name`);
+  }
+  for (const side of ['inputs', 'outputs'] as const) {
+    for (const [name, field] of Object.entries(cmd[side] ?? {})) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
+        throw new CommandError('bad-name', `"${name}" is not a valid variable name`);
+      const current = nodeAt(state(tx), cmd.id).node[side];
+      if (field === null) {
+        if (!current || !(name in current)) continue;
+        if (Object.keys(current).length === 1) setField(tx, path, side, null, NODE_ORDER);
+        else tx.apply((f) => deleteKey(f, [...path, side], name));
+      } else if (current) tx.apply((f) => setIn(f, [...path, side, name], contract(field)));
+      else setField(tx, path, side, { [name]: contract(field) }, NODE_ORDER);
+    }
+  }
+  setField(tx, path, 'impl', cmd.impl ? implValue(cmd.impl) : null, NODE_ORDER);
+  setField(tx, path, 'status', cmd.status, NODE_ORDER);
+}
+
 function setContractField(
   tx: YamlTransaction,
   cmd: Extract<FlowCommand, { kind: 'setContractField' }>,
@@ -848,6 +899,15 @@ function setContractField(
     throw new CommandError('duplicate-name', `"${cmd.rename}" already exists`);
   }
   const value = contract(cmd.field);
+  // A renamed node input: the binding's parameters read it by name (chips are Jinja, D-26).
+  if (cmd.target !== 'flow' && cmd.side === 'inputs' && cmd.rename && cmd.rename !== cmd.name) {
+    const params = nodeAt(state(tx), cmd.target).node.impl?.params;
+    if (params) {
+      const next = mapStrings(params, (s) => renameRef(s, cmd.name, name));
+      if (JSON.stringify(next) !== JSON.stringify(params))
+        tx.apply((f) => setIn(f, [...base, 'impl', 'params'], next as YamlValue));
+    }
+  }
   const after_ = state(tx);
   const side =
     cmd.target === 'flow' ? after_.doc.flow.inputs : nodeAt(after_, cmd.target).node[cmd.side];
@@ -977,6 +1037,9 @@ export function planCommand(
       break;
     case 'setContractField':
       setContractField(tx, cmd);
+      break;
+    case 'setBinding':
+      setBinding(tx, cmd);
       break;
     case 'updateFlow':
       updateFlow(tx, cmd.patch);

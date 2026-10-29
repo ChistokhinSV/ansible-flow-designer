@@ -1,0 +1,36 @@
+# Intent queries and the plugins that must appear in the top 5 (data from the predecessor's catalog
+# bench, reused as test data per decision 7). Context: what a network-automation repository uses.
+context:
+  collections: [cisco.ios, arista.eos, ansible.netcommon, ansible.utils, community.general]
+gates:
+  p95_ms: 50
+  all_expected_in_top5: 19
+queries:
+  - { q: vlan, expect: [cisco.ios.ios_vlans, arista.eos.eos_vlans] }
+  - { q: retry until port open, expect: [until, ansible.builtin.wait_for] }
+  - { q: replace a line in a file, expect: [ansible.builtin.lineinfile, ansible.builtin.replace] }
+  - { q: save running config, expect: [cisco.ios.ios_config] }
+  - { q: ntp server, expect: [cisco.ios.ios_ntp_global] }
+  - { q: bgp neighbor, expect: [cisco.ios.ios_bgp_global] }
+  - { q: run only once, expect: [run_once] }
+  - { q: parse show command output, expect: [ansible.utils.cli_parse] }
+  - { q: ip address filter, expect: [ansible.utils.ipaddr] }
+  - { q: default value, expect: [ansible.builtin.default] }
+  - { q: restart service, expect: [ansible.builtin.service, ansible.builtin.systemd_service] }
+  - { q: install package, expect: [ansible.builtin.package] }
+  - { q: create user, expect: [ansible.builtin.user] }
+  - { q: template, expect: [ansible.builtin.template] }
+  - { q: static route, expect: [cisco.ios.ios_static_routes] }
+  - { q: ospf, expect: [cisco.ios.ios_ospfv2] }
+  - { q: lldp, expect: [cisco.ios.ios_lldp_global] }
+  - { q: acl, expect: [cisco.ios.ios_acls] }
+  - { q: throttle, expect: [throttle] }
+  - { q: json query, expect: [community.general.json_query] }
+# Short and legacy names → what Ansible runs (resolver).
+resolve:
+  - { name: ios_config, fqcn: cisco.ios.ios_config }
+  - { name: eos_vlans, fqcn: arista.eos.eos_vlans }
+  - { name: copy, fqcn: ansible.builtin.copy }
+  - { name: docker_container, fqcn: community.docker.docker_container }
+  - { name: ansible.builtin.ios_command, fqcn: cisco.ios.ios_command }
+  - { name: cisco.ios.ios_vlans, fqcn: cisco.ios.ios_vlans }

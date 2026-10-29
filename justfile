@@ -55,6 +55,10 @@ test-yaml $AFD_VSCODE_VERSION="stable": build-prod
 test-engine $AFD_ENGINE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
     {{ if os_family() == "windows" { "$env:AFD_ENGINE='1';" } else { "export AFD_ENGINE=1;" } }} npx --no-install vitest run --project engine
 
+# Catalog search gates (19/20 intents in the top 5, p95 < 50 ms) on a catalog dump folder
+test-catalog dir:
+    {{ if os_family() == "windows" { "$env:AFD_CATALOG_DIR='" + dir + "';" } else { "export AFD_CATALOG_DIR='" + dir + "';" } }} npx --no-install vitest run --project catalog
+
 # Probe contract tests (pytest, Docker) in the Ansible images; images comma-separated
 probe-test $AFD_PROBE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":
     cd probe && uv run pytest -q

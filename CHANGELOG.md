@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.5.0 — M5 (AFD-8)
+
+- Node properties page (mockup 11, ADR-0011): a full page over the canvas with General, Implementation, Inputs and outputs, Ports and Execution. It opens from the inspector's gear or _Bind module, role or playbook…_.
+  - **Find** modules in the environment's catalog (search starts from the node's intent), roles from `roles_path`, and playbooks from the repository. Results carry badges: in EE, check mode, diff, read-only, other platform, deprecated.
+  - **Understand**: docs as text, the parameter table, returns that can be toggled as node outputs, an example; role entry points with argument specs; a playbook's plays.
+  - **Configure**:
+    - a form from the argument spec;
+    - input chips: `{{ name }}` in Jinja; typing `@` offers node inputs, flow inputs and upstream outputs, and adds missing ones as node inputs;
+    - the register name, optionally exposed as a node output;
+    - a checklist and the generated task.
+  - **Save binding**: one `setBinding` command (impl, inputs, outputs, status) in one edit and one undo step.
+  - Roles without argument specs and playbooks take free-form variables.
+- Module catalog:
+  - The probe's `catalog` method dumps every collection's docs and routing into global storage, only for versions it has not dumped before. `roles` reads argument specs.
+  - The cache is mounted read-write into the container as `/afd-cache`.
+  - A worker thread builds an SQLite FTS5 index (`node:sqlite`, verified on VS Code 1.140 and 1.144, desktop and Remote server) per collection set.
+  - Search ranking: bm25 weights; common-word pruning; name, compound-name and abbreviation candidates ("ip address" finds `ipaddr`); coverage; context (collections in use, inventory platforms, other platforms dimmed); a deprecated penalty.
+  - Resolver: redirects up to 5 hops, tombstones as removed.
+  - Gates on a full ps-probe-env:2.19 dump (93 collections, 10,065 plugins): 20/20 intents, p95 29 ms (`just test-catalog <dir>`).
+  - New command: _Rebuild Module Catalog_.
+- Code generation:
+  - Inputs from upstream outputs become play variables. Module outputs read the registered result (`from: impl.register[.path]`).
+  - Unbound nodes with outputs set placeholder facts.
+  - Playbook bindings import the playbook with `afd_hosts`, then route its surviving hosts to ok_hosts.
+  - Golden files are regenerated (stub facts). A new engine scenario runs the data passing for real.
+- Validator:
+  - `binding-unknown-var`: params read a variable that is not a node input.
+  - With the catalog: `binding-not-in-ee`, `binding-removed`, `binding-redirect`, `binding-deprecated`, `binding-no-check-mode`, `binding-missing-param`, `binding-unknown-param`.
+  - `from:` may point into an output (`key.output.path`).
+- Commands: new `setBinding`. `setContractField` renames of node inputs rewrite the binding's Jinja reads in the same edit.
+
 ## 0.4.0 — M4 (AFD-6)
 
 - Subflow levels (D-23, ADR-0010):

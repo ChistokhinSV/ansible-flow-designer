@@ -11,6 +11,19 @@ export default defineConfig({
           include: ['test/unit/core/**/*.test.ts'],
         },
       },
+      // Catalog search gates on a full environment dump: `just test-catalog <dir>`.
+      ...(process.env.AFD_CATALOG_DIR
+        ? [
+            {
+              test: {
+                name: 'catalog',
+                environment: 'node',
+                include: ['test/catalog/**/*.test.ts'],
+                testTimeout: 120_000,
+              },
+            },
+          ]
+        : []),
       // Docker-based engine contract tests run only through `just test-engine` (AFD_ENGINE=1).
       ...(process.env.AFD_ENGINE
         ? [

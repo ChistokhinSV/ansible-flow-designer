@@ -127,4 +127,26 @@ def _vault_present(root: str, sources: list[Any]) -> bool:
     return False
 
 
-HANDLERS = {"ping": ping, "syntax_check": syntax_check, "inventory": inventory}
+def catalog(
+    root: str, cache: str, jobs: int = 8, only: list[str] | None = None
+) -> dict[str, Any]:
+    """Dumps the environment's plugin docs into `cache` (M5); see catalog.py."""
+    from afd_probe import catalog as cat
+
+    return cat.catalog(root, cache, jobs, only)
+
+
+def roles(root: str) -> list[dict[str, Any]]:
+    """The repository's roles with their argument specs (M5)."""
+    from afd_probe import catalog as cat
+
+    return cat.roles(root)
+
+
+HANDLERS = {
+    "ping": ping,
+    "syntax_check": syntax_check,
+    "inventory": inventory,
+    "catalog": catalog,
+    "roles": roles,
+}

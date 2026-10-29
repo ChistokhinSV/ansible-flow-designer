@@ -8,6 +8,11 @@ export interface GenerateOptions {
   eol?: '\n' | '\r\n';
   /** Adds `afd_simulate` hooks so runs can send chosen hosts down failure paths (engine tests). */
   simulate?: boolean;
+  /**
+   * The repository root relative to `generated/` (forward slashes), for playbook bindings, whose
+   * refs are repository paths. Default `../../..`: flows/<key>/generated (decision 8).
+   */
+  root?: string;
 }
 
 export interface GeneratedFile {

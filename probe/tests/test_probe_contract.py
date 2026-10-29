@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -23,6 +25,8 @@ pytestmark = pytest.mark.docker
 
 class Session:
     def __init__(self, image: str) -> None:
+        # The catalog cache is the one writable mount, as in the extension (M5).
+        self.cache = Path(tempfile.mkdtemp(prefix="afd-cache-"))
         self.proc = subprocess.Popen(
             [
                 "docker",
@@ -33,6 +37,10 @@ class Session:
                 f"{REPO}:/work:ro",
                 "-v",
                 f"{PROBE}:/afd:ro",
+                "-v",
+                f"{self.cache}:/afd-cache",
+                "-e",
+                "ANSIBLE_ROLES_PATH=/work/probe/tests/fixtures/roles",
                 "-e",
                 "PYTHONPATH=/afd",
                 "-e",
@@ -76,6 +84,7 @@ class Session:
         if self.proc.stdin:
             self.proc.stdin.close()
         self.proc.wait(timeout=30)
+        shutil.rmtree(self.cache, ignore_errors=True)
 
 
 @pytest.fixture(scope="module", params=IMAGES)
@@ -135,3 +144,31 @@ def test_syntax_check_reports_origin(probe):
     first = result["errors"][0]
     assert first["path"].endswith("probe/tests/fixtures/broken.yml")
     assert first["line"] == 4
+
+
+def test_catalog_dumps_into_the_cache_once(probe):
+    first = probe.call("catalog", cache="/afd-cache", jobs=2, only=["ansible.builtin"])["result"]
+    builtin = next(c for c in first["collections"] if c["name"] == "ansible.builtin")
+    assert builtin["version"] == probe.ready["ansible_core"]
+    assert builtin["dumped"] is True and "error" not in builtin
+    data = json.loads((probe.cache / builtin["file"]).read_text(encoding="utf-8"))
+    assert data["format"] == 1
+    ping = next(p for p in data["plugins"] if p["fqcn"] == "ansible.builtin.ping")
+    assert ping["type"] == "module" and ping["short_description"]
+    assert ping["attributes"]["check_mode"]["support"] == "full"
+    assert any(p["type"] == "keyword" and p["fqcn"] == "until" for p in data["plugins"])
+    # Short names of the old builtin modules redirect into collections (resolver, 07 2).
+    assert data["routing"]["module"]["ios_config"]["redirect"] == "cisco.ios.ios_config"
+    again = probe.call("catalog", cache="/afd-cache", jobs=2, only=["ansible.builtin"])["result"]
+    assert again["dumped"] == 0
+
+
+def test_roles_read_argument_specs(probe):
+    roles = probe.call("roles")["result"]
+    role = next(r for r in roles if r["name"] == "edge_report")
+    assert role["tasks"] == ["main", "verify"]
+    main = role["entry_points"]["main"]
+    assert main["short_description"] == "Report the edge baseline of a site"
+    assert main["options"]["site"]["required"] is True
+    assert main["options"]["site"]["type"] == "str"
+    assert "verify" in role["entry_points"]

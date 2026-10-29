@@ -1,0 +1,107 @@
+# Engine test flow for M5 data passing (fictional sample ULIDs): a module output, a TODO stub's
+# placeholder output and a flow input reach a later node's inputs; a playbook binding in between.
+schema_version: 1
+flow:
+  id: 01JCR3F0000000000000000000
+  key: data-passing
+  name: Engine test · data passing
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    greeting:
+      type: string
+      required: true
+nodes:
+  - id: 01JCR3N0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCR3N0000000000000000002
+    key: produce
+    type: task
+    title: Produce a line
+    status: implemented
+    inputs:
+      word:
+        type: string
+        from: flow.greeting
+    outputs:
+      line:
+        type: string
+        from: impl.register.stdout
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: echo {{ word }}-{{ inventory_hostname }}
+      register: produce_out
+  - id: 01JCR3N0000000000000000003
+    key: stub
+    type: task
+    title: Not built yet
+    status: specified
+    intent: Look up a marker
+    outputs:
+      marker:
+        type: string
+  - id: 01JCR3N0000000000000000004
+    key: report
+    type: task
+    title: Run the report playbook
+    status: implemented
+    inputs:
+      said:
+        type: string
+        from: produce.line
+    impl:
+      kind: playbook
+      ref: playbooks/report.yml
+      params:
+        suffix: done
+  - id: 01JCR3N0000000000000000005
+    key: consume
+    type: task
+    title: Check what arrived
+    status: implemented
+    inputs:
+      said:
+        type: string
+        from: produce.line
+      tag:
+        type: string
+        from: stub.marker
+      greeting:
+        type: string
+        from: flow.greeting
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - said == greeting ~ '-' ~ inventory_hostname
+          - tag == 'TODO'
+          - report_line == said ~ ' done'
+  - id: 01JCR3N0000000000000000006
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCR3N0000000000000000007
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCR3E0000000000000000001, from: { node: 01JCR3N0000000000000000001, port: ok_hosts }, to: { node: 01JCR3N0000000000000000002, port: in } }
+  - { id: 01JCR3E0000000000000000002, from: { node: 01JCR3N0000000000000000002, port: ok_hosts }, to: { node: 01JCR3N0000000000000000003, port: in } }
+  - { id: 01JCR3E0000000000000000003, from: { node: 01JCR3N0000000000000000003, port: ok_hosts }, to: { node: 01JCR3N0000000000000000004, port: in } }
+  - { id: 01JCR3E0000000000000000004, from: { node: 01JCR3N0000000000000000004, port: ok_hosts }, to: { node: 01JCR3N0000000000000000005, port: in } }
+  - { id: 01JCR3E0000000000000000005, from: { node: 01JCR3N0000000000000000005, port: ok_hosts }, to: { node: 01JCR3N0000000000000000006, port: in } }
+  - { id: 01JCR3E0000000000000000006, from: { node: 01JCR3N0000000000000000002, port: failed_hosts }, to: { node: 01JCR3N0000000000000000007, port: in } }
+  - { id: 01JCR3E0000000000000000007, from: { node: 01JCR3N0000000000000000003, port: failed_hosts }, to: { node: 01JCR3N0000000000000000007, port: in } }
+  - { id: 01JCR3E0000000000000000008, from: { node: 01JCR3N0000000000000000004, port: failed_hosts }, to: { node: 01JCR3N0000000000000000007, port: in } }
+  - { id: 01JCR3E0000000000000000009, from: { node: 01JCR3N0000000000000000005, port: failed_hosts }, to: { node: 01JCR3N0000000000000000007, port: in } }

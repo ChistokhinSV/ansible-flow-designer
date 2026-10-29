@@ -1,5 +1,6 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 import type { Path } from '../yaml/parse';
+import { refsIn } from './jinja';
 import { buildModel, type FlowModel, keyScope, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
@@ -340,6 +341,37 @@ function checkApprovalSplit(
   }
 }
 
+/** Variables every task can read: Ansible's magic and connection variables, loop items, omit. */
+export const MAGIC_VARS =
+  /^(ansible_[a-z0-9_]*|inventory_hostname(_short)?|inventory_dir|inventory_file|hostvars|groups|group_names|play_hosts|playbook_dir|role_path|role_name|omit|item|ansible_loop_var|lookup|query|q|now|range|dict|namespace|loop|afd_[a-z0-9_]*)$/;
+
+/**
+ * Binding parameters read node inputs (chips, D-26). A read of anything else works only by luck
+ * (a flow extra var, another node's fact), and the design does not show the data dependency.
+ */
+function checkBindingVars(
+  node: FlowNode,
+  path: Path,
+  flowInputs: Set<string>,
+  add: (f: Finding) => void,
+): void {
+  if (!node.impl?.params) return;
+  const inputs = new Set(Object.keys(node.inputs ?? {}));
+  for (const name of refsIn(node.impl.params)) {
+    if (inputs.has(name) || MAGIC_VARS.test(name)) continue;
+    const flow = flowInputs.has(name);
+    add({
+      code: 'binding-unknown-var',
+      severity: flow ? 'info' : 'warning',
+      message: flow
+        ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
+        : `${label(node)} reads "${name}", which is not an input of this node`,
+      path: [...path, 'impl', 'params'],
+      node: node.id,
+    });
+  }
+}
+
 function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   const flowInputs = new Set(Object.keys(model.doc.flow?.inputs ?? {}));
   for (const { node, path, level } of model.nodes.values()) {
@@ -355,7 +387,8 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         else {
           const ref = scope.get(head);
           const target = ref ? model.nodes.get(ref)?.node : undefined;
-          ok = !!target && (rest === '' || rest in (target.outputs ?? {}));
+          // `key.output` or a path into it (`key.output.changed`).
+          ok = !!target && (rest === '' || (rest.split('.')[0] ?? '') in (target.outputs ?? {}));
         }
         if (!ok) {
           add({
@@ -369,6 +402,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
       }
     }
   }
+  for (const { node, path } of model.nodes.values()) checkBindingVars(node, path, flowInputs, add);
   const runtime = model.doc.flow?.runtime?.kind;
   if (runtime && runtime !== 'ansible_playbook') {
     const approvals = [...model.nodes.values()].some((n) => n.node.type === 'approval');

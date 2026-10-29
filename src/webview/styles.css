@@ -1291,3 +1291,394 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
   margin-right: auto;
   font-size: 11px;
 }
+
+/* ---------- node properties page (M5, mockup 11) ---------- */
+
+.afd-properties {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--afd-bg);
+  color: var(--afd-fg);
+}
+
+.afd-props-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 6px;
+}
+
+.afd-props-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.afd-props-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.3em;
+}
+
+.afd-props-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.afd-props-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--afd-border);
+}
+
+.afd-props-tabs button {
+  background: transparent;
+  color: var(--afd-muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 6px 10px;
+}
+
+.afd-props-tabs button.active {
+  color: var(--afd-fg);
+  border-bottom-color: var(--afd-focus);
+  font-weight: 600;
+}
+
+.afd-props-tabs button:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.afd-dirty {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--afd-accent);
+  margin-left: 4px;
+}
+
+.afd-props-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.afd-props-page {
+  max-width: 720px;
+  padding: 14px 16px;
+}
+
+.afd-impl {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 420px);
+  height: 100%;
+  min-height: 0;
+}
+
+.afd-impl > section {
+  overflow: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.afd-impl-find {
+  background: var(--afd-panel);
+  border-right: 1px solid var(--afd-border);
+}
+
+.afd-impl-understand {
+  border-right: 1px solid var(--afd-border);
+}
+
+@media (max-width: 900px) {
+  .afd-impl {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .afd-impl > section {
+    border-right: 0;
+    border-bottom: 1px solid var(--afd-border);
+  }
+}
+
+.afd-kind {
+  display: flex;
+}
+
+.afd-kind button {
+  flex: 1;
+}
+
+.afd-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.afd-result {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--afd-border);
+  background: var(--afd-bg);
+  color: var(--afd-fg);
+}
+
+.afd-result:hover:not(:disabled) {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+}
+
+.afd-result.selected {
+  border: 2px solid var(--afd-focus);
+  padding: 6px 8px;
+}
+
+.afd-result.dimmed {
+  opacity: 0.6;
+}
+
+.afd-result-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.afd-result-text {
+  font-size: 12px;
+  color: var(--afd-muted);
+}
+
+.afd-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.afd-badge.tone-ok {
+  color: var(--afd-ok);
+}
+
+.afd-badge.tone-warn {
+  color: var(--afd-unreachable);
+}
+
+.afd-badge.tone-neutral {
+  color: var(--afd-muted);
+}
+
+.afd-chip.afd-ctx {
+  color: var(--afd-accent);
+  border-color: var(--afd-accent);
+}
+
+.afd-suggested {
+  font-style: italic;
+  margin: 0;
+}
+
+.afd-catalog-error {
+  border-left: 3px solid var(--afd-failed);
+  padding: 4px 8px;
+}
+
+.afd-empty {
+  margin-top: 24px;
+}
+
+.afd-doc h3 {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.afd-doc h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--afd-muted);
+}
+
+.afd-doc-text {
+  color: var(--afd-muted);
+}
+
+.afd-docs-link {
+  font-size: 12px;
+  color: var(--vscode-textLink-foreground, var(--afd-accent));
+}
+
+.afd-params {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.afd-params th,
+.afd-params td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--afd-border);
+}
+
+.afd-params th {
+  color: var(--afd-muted);
+  font-weight: 600;
+}
+
+.afd-facts {
+  display: block;
+}
+
+.chip-button.active {
+  outline: 1px solid var(--afd-approval);
+  color: var(--afd-approval);
+}
+
+.afd-plays {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.afd-configure .afd-field {
+  margin-bottom: 10px;
+}
+
+.afd-help {
+  font-size: 11px;
+  color: var(--afd-muted);
+}
+
+.afd-chipfield {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.afd-chipfield-input {
+  flex: 1;
+  min-height: 24px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.afd-chipfield-input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--afd-muted);
+}
+
+.afd-chipfield-at {
+  font-family: var(--afd-mono);
+}
+
+.afd-ref-chip {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 1px;
+  border-radius: 8px;
+  font-family: var(--afd-mono);
+  font-size: 12px;
+  color: var(--afd-approval);
+  border: 1px solid var(--afd-approval);
+  background: color-mix(in srgb, var(--afd-approval) 12%, transparent);
+  user-select: all;
+}
+
+.afd-ref-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  border: 1px solid var(--vscode-editorWidget-border, var(--afd-border));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.afd-ref-menu > div {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.afd-ref-menu > div.active,
+.afd-ref-menu > div[role="option"]:hover {
+  background: var(--vscode-list-activeSelectionBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.afd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.afd-list-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.afd-list-row > .afd-chipfield {
+  flex: 1;
+}
+
+.afd-freevar-name {
+  min-width: 110px;
+  padding-top: 3px;
+}
+
+.afd-checklist {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  font-size: 12px;
+}
+
+.afd-checklist li {
+  padding: 2px 0;
+}
+
+.afd-checklist .check-ok .codicon {
+  color: var(--afd-ok);
+}
+
+.afd-checklist .check-warn .codicon {
+  color: var(--afd-unreachable);
+}
+
+.afd-checklist .check-missing .codicon {
+  color: var(--afd-failed);
+}

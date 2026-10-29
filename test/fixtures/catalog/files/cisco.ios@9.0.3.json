@@ -1,0 +1,165 @@
+{
+ "format": 1,
+ "collection": "cisco.ios",
+ "version": "9.0.3",
+ "core": "2.19.4",
+ "plugins": [
+  {
+   "type": "module",
+   "fqcn": "cisco.ios.ios_config",
+   "collection": "cisco.ios",
+   "name": "ios_config",
+   "short_description": "Manage configuration sections on IOS devices",
+   "description": "Changes configuration lines and compares them with the running config.",
+   "options": {
+    "lines": {
+     "type": "list",
+     "description": "Ordered config lines to apply under parents",
+     "elements": "str",
+     "aliases": [
+      "commands"
+     ]
+    },
+    "parents": {
+     "type": "list",
+     "description": "Parent lines that identify the section",
+     "elements": "str"
+    },
+    "match": {
+     "type": "str",
+     "description": "How lines are compared with the running config",
+     "choices": [
+      "line",
+      "strict",
+      "exact",
+      "none"
+     ],
+     "default": "line"
+    },
+    "save_when": {
+     "type": "str",
+     "description": "When to copy running-config to startup-config",
+     "choices": [
+      "always",
+      "never",
+      "modified",
+      "changed"
+     ],
+     "default": "never"
+    },
+    "backup": {
+     "type": "bool",
+     "description": "Save the running config before changes",
+     "default": false
+    },
+    "diff_against": {
+     "type": "str",
+     "description": "Source for diff output",
+     "choices": [
+      "running",
+      "startup",
+      "intended"
+     ]
+    }
+   },
+   "returns": {
+    "commands": {
+     "type": "list",
+     "description": "Commands sent to the device"
+    },
+    "updates": {
+     "type": "list",
+     "description": "Lines that changed"
+    },
+    "backup_path": {
+     "type": "str",
+     "description": "Where the backup was saved"
+    }
+   },
+   "examples": "- name: Set the hostname\n  cisco.ios.ios_config:\n    lines: hostname {{ inventory_hostname }}\n",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    },
+    "diff_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "cisco.ios.ios_command",
+   "collection": "cisco.ios",
+   "name": "ios_command",
+   "short_description": "Run show or exec commands, no config changes",
+   "description": "Sends commands to the device and returns the output.",
+   "options": {
+    "commands": {
+     "type": "list",
+     "description": "Commands to send",
+     "elements": "str",
+     "required": true
+    },
+    "wait_for": {
+     "type": "list",
+     "description": "Conditions to wait for",
+     "elements": "str"
+    }
+   },
+   "returns": {
+    "stdout": {
+     "type": "list",
+     "description": "Output per command"
+    }
+   },
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "cisco.ios.ios_vlans",
+   "collection": "cisco.ios",
+   "name": "ios_vlans",
+   "short_description": "Resource module to configure VLANs",
+   "description": "Manages VLAN definitions.",
+   "options": {
+    "config": {
+     "type": "list",
+     "description": "VLAN definitions",
+     "elements": "dict"
+    },
+    "state": {
+     "type": "str",
+     "description": "Wanted state",
+     "choices": [
+      "merged",
+      "replaced",
+      "deleted"
+     ]
+    }
+   },
+   "returns": {},
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  }
+ ],
+ "routing": {},
+ "errors": []
+}

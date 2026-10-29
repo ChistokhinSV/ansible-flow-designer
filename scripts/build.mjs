@@ -11,8 +11,12 @@ const testsOnly = process.argv.includes('--tests');
 
 /** @type {import('esbuild').BuildOptions} */
 const hostOptions = {
-  entryPoints: ['src/extension/extension.ts'],
-  outfile: 'dist/extension.js',
+  // The catalog index is built in a worker thread (node:sqlite is synchronous, M5).
+  entryPoints: {
+    extension: 'src/extension/extension.ts',
+    catalogWorker: 'src/extension/catalog/catalogWorker.ts',
+  },
+  outdir: 'dist',
   bundle: true,
   platform: 'node',
   format: 'cjs',

@@ -2,7 +2,7 @@
 
 A VS Code extension for designing Ansible automation top-down. You sketch a flow as a graph of typed nodes and ports, run it as a walking skeleton, and then bind each node to a module, role or playbook. The flow document (`*.flow.yaml`) stays the source of truth: Ansible code is generated from it, and drift is detected in both directions.
 
-**Status: M4 done.** The designer edits flows on a canvas (port menus, failure patterns, open-on-purpose decisions, subflows with a drill-down boundary view), generates Ansible code from them on every save, and runs that code as a walking skeleton in your Ansible environment, mapping the results back to the nodes. Binding comes in M5, Implementation mode in M6, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3, M3 = AFD-4, M4 = AFD-6), knowledge base AFD-A-1.
+**Status: M5 done.** The designer edits flows on a canvas (port menus, failure patterns, open-on-purpose decisions, subflows with a drill-down boundary view). It binds nodes to modules, roles and playbooks found in your execution environment's catalog, generates Ansible code that passes data between nodes on every save, and runs it as a walking skeleton or for real, mapping the results back to the nodes. Implementation mode comes in M6, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3, M3 = AFD-4, M4 = AFD-6, M5 = AFD-8), knowledge base AFD-A-1.
 
 ## What the designer does
 
@@ -40,6 +40,13 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
 - **Preview card (M4, D-22):** pause about 400 ms on a subflow or a bound node.
   - The card shows its binding and status, the inner steps in order with their exits and last-run results, the undo binding and the settings.
   - _Peek code_ opens the generated play; _Open subflow_ drills in.
+- **Node properties and binding (M5, ADR-0011):** the gear in the inspector (or _Bind module, role or playbook…_) opens a full page over the canvas with the tabs General, Implementation, Inputs and outputs, Ports and Execution.
+  - **Find:** Module, Role or Playbook. Module search runs over the environment's catalog, starting from the node's intent. Results are ranked by the words, ansible.builtin, the collections the repository uses and the inventory's platform (`ansible_network_os`), and carry badges: in EE, check mode, diff, read-only, other platform (dimmed), deprecated. Roles come from `roles_path` with their `meta/argument_specs.yml`; playbooks from the repository.
+  - **Understand:** the module's docs as text, its parameter table, the returns (click one to make it a node output) and an example; a role's entry points and argument spec; a playbook's plays and the hosts they target.
+  - **Configure:** a form from the argument spec (choices, booleans, one line per list item, YAML for dicts), required and set parameters first. Values are Jinja: `{{ name }}` shows as a purple **input chip**, and typing `@` (or the @ button) offers node inputs, flow inputs and outputs of upstream nodes. Choosing one that is not an input yet adds it with its `from:`. Then the register name, a checklist (required parameters, where each variable comes from, check mode support, deprecation) and the generated task.
+  - **Save binding** writes the binding, the inputs and outputs it added and the status (`implemented`) as one edit, one undo step. Renaming a node input later rewrites the parameters that read it.
+- **Module catalog (M5):** the first search in a folder asks the probe to dump every collection's docs in the environment (`ansible-doc --metadata-dump`, about 30 s for a full EE, only new versions later) into VS Code's global storage. A worker builds an SQLite FTS5 index per collection set (about 3 s), so searches take milliseconds. _Rebuild Module Catalog_ re-dumps. The last index also checks bindings when the probe is not running: modules missing from the EE, removed or deprecated, redirected names, missing or unknown parameters, no check mode.
+- **Data between nodes (M5):** an input `from: <node-key>.<output>` is passed to the node's play as a variable read from the upstream output. A module output `from: impl.register[.path]` reads the registered result; `from: flow.<input>` reads the flow input. Unbound nodes with outputs set placeholder facts, so skeleton runs carry data through. A playbook binding imports the playbook with `afd_hosts` set to the arriving hosts; its plays should target `"{{ afd_hosts }}"`.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -87,6 +94,7 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 
 - **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node.
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
+- **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
 - **Run:** _Run as skeleton_ in the top bar (or the play button in the editor title bar) runs the flow in check mode. The button next to it runs it for real after a confirmation. Other commands: _Generate Playbook_, _Check Generated Code (Syntax)_, _Show Run Audit Log_.
 
 A minimal flow document (all values fictional):
@@ -212,6 +220,8 @@ Port catalog per node type (ADR-0004):
 | `src/core/`                      | Pure TypeScript: YAML edit engine, flow model, validation, commands, port menus, failure patterns, host⇄webview protocol.              |
 | `src/core/engine/`               | Option A code generation (ADR-0009), generated-file checksums, the inspector's play preview.                                           |
 | `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                |
+| `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
+| `src/extension/catalog/`         | SQLite FTS5 catalog index, its build worker, the catalog service, catalog-backed binding checks (M5).                                  |
 | `src/extension/`                 | Extension host: custom editor, sessions, diagnostics, version bump, auto-layout, codegen on save, probe client, runs, audit, test API. |
 | `probe/`                         | Python probe (`afd_probe`, stdlib only) and the `afd_events` callback; pytest contract tests (uv).                                     |
 | `docker/afd-ee.Dockerfile`       | Minimal execution environment image for tests and runs.                                                                                |
@@ -239,12 +249,13 @@ just install
 | `just test-yaml [version]`       | With the Red Hat YAML extension installed: flows are validated by our schema (AFD-5) |
 | `just test-engine [images]`      | Generated code runs with simulated outcomes in each Ansible image (Docker)           |
 | `just probe-test [images]`       | Probe contract tests (pytest via uv) in each image                                   |
+| `just test-catalog dir`          | Search quality and latency gates on a full catalog dump (`<cache>/<core-minor>`)     |
 | `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
 | `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |
 | `just package`                   | Build the VSIX into `out/`                                                           |
 
-`AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the M3 integration tests that start real skeleton runs (skipped without it). The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
+`AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration tests that need the image: real skeleton runs (M3) and the real catalog dump (M5); they are skipped without it. The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
 
 Press F5 in VS Code to start an Extension Development Host with `examples/` open. The harness runs the real webview against an in-page fake host (`?flow=edge-baseline|os-upgrade`, `&theme=light|dark|hc`) for visual checks without VS Code.
 

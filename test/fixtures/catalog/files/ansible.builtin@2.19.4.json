@@ -1,0 +1,204 @@
+{
+ "format": 1,
+ "collection": "ansible.builtin",
+ "version": "2.19.4",
+ "core": "2.19.4",
+ "plugins": [
+  {
+   "type": "module",
+   "fqcn": "ansible.builtin.debug",
+   "collection": "ansible.builtin",
+   "name": "debug",
+   "short_description": "Print a message or a variable",
+   "description": "Prints a message during the run.",
+   "options": {
+    "msg": {
+     "type": "str",
+     "description": "The message to print"
+    },
+    "var": {
+     "type": "str",
+     "description": "A variable to print"
+    }
+   },
+   "returns": {},
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "ansible.builtin.command",
+   "collection": "ansible.builtin",
+   "name": "command",
+   "short_description": "Run a command on the target",
+   "description": "Runs a command without a shell.",
+   "options": {
+    "free_form": {
+     "type": "str",
+     "description": "The command to run"
+    },
+    "cmd": {
+     "type": "str",
+     "description": "The command to run"
+    },
+    "chdir": {
+     "type": "path",
+     "description": "Change into this folder first"
+    }
+   },
+   "returns": {
+    "stdout": {
+     "type": "str",
+     "description": "Standard output"
+    },
+    "rc": {
+     "type": "int",
+     "description": "Return code"
+    }
+   },
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "partial"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "ansible.builtin.wait_for",
+   "collection": "ansible.builtin",
+   "name": "wait_for",
+   "short_description": "Wait for a condition before continuing",
+   "description": "Waits until a port is open or a file exists, or a timeout passes.",
+   "options": {
+    "host": {
+     "type": "str",
+     "description": "Host to check",
+     "default": "127.0.0.1"
+    },
+    "port": {
+     "type": "int",
+     "description": "Port to wait for"
+    },
+    "state": {
+     "type": "str",
+     "description": "started means the port is open",
+     "choices": [
+      "started",
+      "stopped",
+      "present",
+      "absent"
+     ],
+     "default": "started"
+    },
+    "timeout": {
+     "type": "int",
+     "description": "Seconds to wait",
+     "default": 300
+    }
+   },
+   "returns": {
+    "elapsed": {
+     "type": "int",
+     "description": "Seconds waited"
+    }
+   },
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "ansible.builtin.set_fact",
+   "collection": "ansible.builtin",
+   "name": "set_fact",
+   "short_description": "Set host variables",
+   "description": "Sets facts for the current host.",
+   "options": {},
+   "returns": {},
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "module",
+   "fqcn": "ansible.builtin.service",
+   "collection": "ansible.builtin",
+   "name": "service",
+   "short_description": "Manage services",
+   "description": "Starts, stops and restarts services.",
+   "options": {
+    "name": {
+     "type": "str",
+     "description": "Service name",
+     "required": true
+    },
+    "state": {
+     "type": "str",
+     "description": "Wanted state",
+     "choices": [
+      "started",
+      "stopped",
+      "restarted",
+      "reloaded"
+     ]
+    }
+   },
+   "returns": {},
+   "examples": "",
+   "attributes": {
+    "check_mode": {
+     "support": "full"
+    }
+   },
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  },
+  {
+   "type": "keyword",
+   "fqcn": "until",
+   "collection": "ansible.builtin",
+   "name": "until",
+   "short_description": "Retry a task until a condition is true",
+   "description": "Task keyword: retry until the condition holds.",
+   "options": {},
+   "returns": {},
+   "examples": "",
+   "attributes": {},
+   "notes": "",
+   "requirements": "",
+   "deprecated": null
+  }
+ ],
+ "routing": {
+  "module": {
+   "ios_config": {
+    "redirect": "cisco.ios.ios_config"
+   }
+  }
+ },
+ "errors": []
+}

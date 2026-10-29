@@ -1,0 +1,16 @@
+# Fictional role for the probe's roles method (M5).
+argument_specs:
+  main:
+    short_description: Report the edge baseline of a site
+    options:
+      site:
+        type: str
+        required: true
+        description: Site code, for example ams1
+      detail:
+        type: bool
+        default: false
+        description: Include every interface
+  verify:
+    short_description: Check the report
+    options: {}

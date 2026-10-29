@@ -60,10 +60,12 @@ export default defineConfig([
       'out/test/integration/editor.test.js',
       'out/test/integration/codegen.test.js',
       'out/test/integration/subflow.test.js',
+      'out/test/integration/catalog.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
   { ...common, label: 'm4', files: 'out/test/integration/subflow.test.js' },
+  { ...common, label: 'm5', files: 'out/test/integration/catalog.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

@@ -1,0 +1,8 @@
+# A repository playbook a flow node binds to (M5): its play targets the hosts the flow sends.
+- name: Report
+  hosts: "{{ afd_hosts }}"
+  gather_facts: false
+  tasks:
+    - name: Remember the report line
+      ansible.builtin.set_fact:
+        report_line: "{{ said }} {{ suffix }}"

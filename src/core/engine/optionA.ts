@@ -5,6 +5,7 @@ import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
+import { bindingTask, inputVars, registerName, stubFacts } from './binding';
 import type {
   Engine,
   GeneratedFile,
@@ -17,17 +18,6 @@ import { checksum, durationSeconds, groupPart } from './util';
 import { comment, flow, type Out, type OutMap, writeBlock } from './yamlWriter';
 
 export const CHECKSUM_PREFIX = '# Checksum: ';
-
-/** include_role options; every other role param becomes a role var. */
-const INCLUDE_OPTIONS = new Set([
-  'tasks_from',
-  'vars_from',
-  'defaults_from',
-  'handlers_from',
-  'public',
-  'allow_duplicates',
-  'rolespec_validate',
-]);
 
 interface LevelCtx {
   level: Level;
@@ -194,6 +184,10 @@ class Generator {
         if (!this.subflowLevel(ctx, node, hosts, file.chunks)) return false;
         continue;
       }
+      if (node.impl?.kind === 'playbook' && node.impl.ref) {
+        file.chunks.push({ node: node.id, lines: this.playbookNode(ctx, node, hosts) });
+        continue;
+      }
       const play = this.play(ctx, node, hosts, edges);
       file.chunks.push({ node: node.id, lines: writeBlock([play], 0) });
     }
@@ -236,9 +230,58 @@ class Generator {
 
   // ---- plays -----------------------------------------------------------------------------------
 
+  /**
+   * A playbook binding: `import_playbook` cannot sit inside a play, so the node is the import (its
+   * plays target `afd_hosts`, the hosts arriving here) and a play that routes the hosts still
+   * active to ok_hosts. Hosts that fail inside the playbook stop there (ADR-0011).
+   */
+  private playbookNode(ctx: LevelCtx, node: FlowNode, hosts: string[]): string[] {
+    const tag = `node_${node.id}`;
+    const root = (this.opts.root ?? '../../..').replace(/\/+$/, '');
+    const ref = (node.impl?.ref ?? '').replace(/^\.?\//, '');
+    const pattern = hosts.join(':');
+    if (
+      portsFor(node).some(
+        (p) => p.name !== 'failed_hosts' && p.direction === 'out' && p.name !== 'ok_hosts',
+      )
+    )
+      this.finding(
+        'codegen-playbook-ports',
+        'warning',
+        `"${node.title}" runs a playbook: only ok_hosts can be routed, other ports stay empty`,
+        this.model.nodes.get(node.id)?.path ?? [],
+        node.id,
+      );
+    for (const p of portsFor(node)) if (p.direction === 'out') this.target(ctx, node, p.name);
+    return [
+      `# [${node.key}] ${oneLine(node.title)}: playbook ${ref}; its plays should target "{{ afd_hosts }}"`,
+      ...writeBlock(
+        [
+          {
+            import_playbook: `${root}/${ref}`,
+            vars: {
+              afd_hosts: pattern,
+              ...((node.impl?.params ?? {}) as OutMap),
+              ...inputVars(this.model, ctx.level.id, node),
+            },
+            tags: flow([tag]),
+          },
+          {
+            name: `[${node.key}] ${oneLine(node.title)}: route`,
+            hosts: pattern,
+            gather_facts: false,
+            tags: flow([tag]),
+            tasks: [route(node, 'ok_hosts', this.target(ctx, node, 'ok_hosts'))],
+          },
+        ],
+        0,
+      ),
+    ];
+  }
+
   private play(ctx: LevelCtx, node: FlowNode, hosts: string[], edges: Edge[]): OutMap {
     const tag = `node_${node.id}`;
-    const vars: OutMap = { flow_node_id: node.id };
+    const vars: OutMap = { flow_node_id: node.id, ...inputVars(this.model, ctx.level.id, node) };
     if (this.opts.simulate) {
       const key = [...ctx.path, node.key].join('/');
       vars.afd_sim = `{{ (afd_simulate | default({}))['${key}'] | default({}) }}`;
@@ -261,7 +304,7 @@ class Generator {
         tasks = this.joinTasks(ctx, node, edges);
         break;
       default:
-        tasks = this.taskTasks(ctx, node, tag);
+        tasks = this.taskTasks(ctx, node);
     }
     return {
       name: `[${node.key}] ${oneLine(node.title)}`,
@@ -275,48 +318,22 @@ class Generator {
     };
   }
 
-  private taskTasks(ctx: LevelCtx, node: FlowNode, tag: string): Out[] {
+  private taskTasks(ctx: LevelCtx, node: FlowNode): Out[] {
     const enabled = new Set(portsFor(node).map((p) => p.name));
     const impl = node.impl?.ref ? node.impl : undefined;
     const kind = impl?.kind === 'module' || impl?.kind === 'role' ? impl.kind : 'todo';
-    if (impl?.kind === 'playbook') {
-      this.finding(
-        'codegen-playbook-binding',
-        'warning',
-        `"${node.title}" is bound to a playbook, which cannot route host sets yet: it runs as a TODO until M5`,
-        this.model.nodes.get(node.id)?.path ?? [],
-        node.id,
-      );
-    }
     const sim = this.opts.simulate && kind === 'todo';
     const timeout = durationSeconds(node.settings?.timeout);
-    const reg = impl?.register ?? `${groupPart(node.key)}_result`;
+    const reg = registerName(node, impl);
     const on = (port: string) => this.target(ctx, node, port);
 
     let body: OutMap;
-    if (kind === 'module' && impl) {
-      const retries = node.settings?.retries;
-      body = {
-        name: `[${node.key}] ${oneLine(node.title)}`,
-        [impl.ref]: (impl.params ?? {}) as Out,
-        register: reg,
-        ignore_unreachable: true,
-        timeout,
-        retries,
-        until: retries ? `${reg} is succeeded` : undefined,
-      };
-    } else if (kind === 'role' && impl) {
-      const options: OutMap = { name: impl.ref };
-      const roleVars: OutMap = {};
-      for (const [k, v] of Object.entries(impl.params ?? {}))
-        (INCLUDE_OPTIONS.has(k) ? options : roleVars)[k] = v as Out;
-      options.apply = { tags: flow([tag]), timeout };
-      body = {
-        name: `[${node.key}] Apply role`,
-        'ansible.builtin.include_role': options,
-        vars: Object.keys(roleVars).length > 0 ? roleVars : undefined,
-      };
+    const extra: Out[] = [];
+    if (kind !== 'todo' && impl) {
+      body = bindingTask(node, impl, timeout);
     } else {
+      const facts = stubFacts(node);
+      if (facts) extra.push(facts);
       this.todo = true;
       const failing = ['failed', ...(enabled.has('timeout') ? ['timeout'] : [])];
       body = {
@@ -355,7 +372,7 @@ class Generator {
       ),
       choose(node, failChoices, { group: on('failed_hosts'), port: 'failed_hosts' }),
     ];
-    const block: OutMap = { block: [body, okRoute], rescue };
+    const block: OutMap = { block: [body, ...extra, okRoute], rescue };
     if (enabled.has('always')) block.always = [route(node, 'always', on('always'))];
     const tasks: Out[] = [block];
 
