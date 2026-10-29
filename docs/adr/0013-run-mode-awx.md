@@ -59,7 +59,9 @@ The summary gained:
   - every failure was routed and no host ended at a failed end;
   - it did not stop early.
 - After a passing run of the current `flow.version`, the run panel proposes marking the implemented nodes it ran as tested.
-- The new command `setStatuses` applies the proposal in one edit; the user saves it. Status is never rewritten automatically (decision 24).
+- The new command `setStatuses` applies the proposal in one edit; the user saves it.
+- A run records each node's design fingerprint at its start. A node changed since then is not proposed.
+- A tested node whose design changes drops back to implemented (AFD-12, ADR-0004): in the same edit on the canvas, on save for hand edits.
 
 **Lab (GNS3 project snow_AWX).**
 - AWX 24.6.1 on k3s (awx-operator 2.19.1) on `ops1`. The NodePort is 30080, reached through an SSH tunnel.
@@ -83,4 +85,4 @@ The summary gained:
 - Approval nodes still run as auto-approved TODOs in one job. Workflow segments are AFD-11.
 - The AWX link opens the job output; per-host filtering is left to AWX's own search.
 - AWX runs the commit its project checks out. Unpushed changes show as a revision mismatch, never as silently different results.
-- Not done: a `tested` node does not drop back to implemented when its semantics change (decision 15 vs decision 24, open question). `cancelled` stays model-only.
+- `cancelled` stays model-only.

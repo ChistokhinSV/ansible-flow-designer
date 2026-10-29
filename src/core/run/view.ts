@@ -2,6 +2,7 @@
 // it tested (decision 15). Pure; the webview and the host share them.
 import { buildModel, type FlowModel } from '../flow/model';
 import { isFailPort } from '../flow/ports';
+import { nodeDesigns } from '../flow/semantic';
 import type { Edge, FlowDocument, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
 import type { RunProblem, RunSummary } from './events';
@@ -116,13 +117,20 @@ export function runPassed(run: RunView | null): boolean {
 
 /**
  * Decision 15: after a passing run of the current flow.version, the implemented nodes it ran
- * become tested (proposed; the user applies and saves the edit).
+ * become tested (proposed; the user applies and saves the edit). A node whose design changed after
+ * the run started is left out: that design did not run.
  */
 export function testedCandidates(doc: FlowDocument, run: RunView | null): Ulid[] {
   if (!run || !runPassed(run) || run.flowVersion !== doc.flow.version) return [];
   const s = run.summary as RunSummary;
+  const now = run.design ? nodeDesigns(doc) : undefined;
   return [...buildModel(doc).nodes.values()]
     .map((e) => e.node)
-    .filter((n) => n.status === 'implemented' && (s.nodes[n.id] || s.timings?.[n.id]))
+    .filter(
+      (n) =>
+        n.status === 'implemented' &&
+        (s.nodes[n.id] || s.timings?.[n.id]) &&
+        (!now || run.design?.[n.id] === now[n.id]),
+    )
     .map((n) => n.id);
 }

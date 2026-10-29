@@ -65,7 +65,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - wires show how many hosts took them;
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
-  - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save.
+  - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -77,7 +77,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.7.0.vsix
+code --install-extension out/ansible-flow-designer-0.7.1.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:

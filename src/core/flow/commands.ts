@@ -10,6 +10,7 @@ import { mapStrings, renameRef } from './jinja';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
+import { testedDropBack } from './semantic';
 import type {
   BoundaryExit,
   ContractField,
@@ -142,6 +143,8 @@ export interface CommandResult {
   /** Parse of `text`, so the caller need not parse the result again. */
   file: YamlFile;
   created?: Ulid;
+  /** Tested nodes the command changed, now implemented again (decision 15). */
+  dropped?: Ulid[];
 }
 
 export class CommandError extends Error {
@@ -1074,6 +1077,23 @@ function editExit(
   );
 }
 
+/** Decision 15: the given tested nodes become implemented again, since their design changed. */
+export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): void {
+  const st = state(tx);
+  tx.applyAll(
+    ids.map((id) => (f: YamlFile) => setIn(f, [...nodeAt(st, id).path, 'status'], 'implemented')),
+  );
+}
+
+/** Commands that cannot change a node's design (positions, statuses, drift decisions). */
+const NO_DESIGN = new Set<FlowCommand['kind']>([
+  'moveNodes',
+  'tidyUp',
+  'setStatuses',
+  'ignoreDrift',
+  'clearDriftIgnore',
+]);
+
 /** `parsed` may carry the caller's existing parse of `text` (saves one parse per command). */
 export function planCommand(
   text: string,
@@ -1082,6 +1102,7 @@ export function planCommand(
   parsed?: YamlFile,
 ): CommandResult {
   const tx = new YamlTransaction(text, parsed);
+  const before = NO_DESIGN.has(cmd.kind) ? undefined : (tx.current.doc.toJS() as FlowDocument);
   let created: Ulid | undefined;
   switch (cmd.kind) {
     case 'addNode':
@@ -1166,5 +1187,15 @@ export function planCommand(
       break;
     }
   }
-  return { edits: tx.edits(), text: tx.text, file: tx.current, created };
+  let dropped: Ulid[] | undefined;
+  if (before) {
+    // A status the same command sets is the user's choice and stays.
+    const keep = new Set<Ulid>();
+    if (cmd.kind === 'updateNode' && cmd.patch.status !== undefined) keep.add(cmd.id);
+    if (cmd.kind === 'setBinding' && cmd.status !== undefined) keep.add(cmd.id);
+    dropped = testedDropBack(before, tx.current.doc.toJS() as FlowDocument, keep);
+    if (dropped.length > 0) implementedAgain(tx, dropped);
+    else dropped = undefined;
+  }
+  return { edits: tx.edits(), text: tx.text, file: tx.current, created, dropped };
 }

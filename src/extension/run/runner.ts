@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { parseFlow } from '../../core/flow/document';
 import type { SchemaValidator } from '../../core/flow/schema';
+import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
 import { runProcess } from '../../core/run/command';
@@ -262,6 +263,7 @@ export async function runFlow(
     environment: probe.label,
     source: 'local',
     flowVersion: doc.flow.version,
+    design: nodeDesigns(doc),
   };
   deps.report(running);
 

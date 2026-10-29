@@ -200,6 +200,34 @@ describe('M1 acceptance: editing', () => {
     await doc.save();
   });
 
+  it('a tested node edited by hand is implemented again on save (decision 15)', async () => {
+    const doc = await openDesigner(EDGE);
+    const original = doc.getText();
+    const status = () => docOf(doc.getText()).nodes.find((n) => n.key === 'validate')?.status;
+    await runAndRender(EDGE, {
+      kind: 'setStatuses',
+      statuses: { [nodeId(original, 'validate')]: 'tested' },
+    });
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    assert.equal(status(), 'tested', 'marking tested survives the save');
+    const at = doc.getText().indexOf('title: Validate\n');
+    assert.ok(at > 0);
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      EDGE,
+      new vscode.Range(doc.positionAt(at), doc.positionAt(at + 'title: Validate'.length)),
+      'title: Validate by hand',
+    );
+    await vscode.workspace.applyEdit(edit);
+    assert.equal(status(), 'tested', 'a text edit alone does not touch the status');
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    assert.equal(status(), 'implemented', 'the save drops it back');
+    const restore = new vscode.WorkspaceEdit();
+    restore.replace(EDGE, new vscode.Range(0, 0, doc.lineCount, 0), original);
+    await vscode.workspace.applyEdit(restore);
+    await doc.save();
+  });
+
   it('YAML errors keep the last good model and refuse canvas edits', async () => {
     const api = await testApi();
     const doc = await openDesigner(EDGE);

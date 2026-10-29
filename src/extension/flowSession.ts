@@ -10,7 +10,7 @@ import type { IdFactory } from '../core/flow/ids';
 import { buildModel, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
-import type { Position, Ulid } from '../core/flow/types';
+import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
 import type {
   CatalogRequest,
@@ -32,6 +32,21 @@ import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { type SyncDeps, scanFlow } from './sync/codeSync';
 import { generateStub, openCode, writeSpecs } from './sync/driftActions';
+
+/** Decision 15: say which tested nodes are implemented again, since their design changed. */
+export function announceImplementedAgain(
+  doc: FlowDocument | undefined,
+  ids: readonly Ulid[],
+): void {
+  if (ids.length === 0) return;
+  const model = doc ? buildModel(doc) : undefined;
+  const names = ids.map((id) => `"${model?.nodes.get(id)?.node.title ?? id}"`);
+  void vscode.window.showInformationMessage(
+    ids.length === 1
+      ? `${names[0]} is implemented again: its design changed after it was tested.`
+      : `${names.join(', ')} are implemented again: their design changed after they were tested.`,
+  );
+}
 
 export interface SessionDeps {
   extensionUri: vscode.Uri;
@@ -449,6 +464,7 @@ export class FlowSession implements vscode.Disposable {
     this.pendingParse = result.file;
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) return { ok: false, error: 'VS Code rejected the edit' };
+    if (result.dropped) announceImplementedAgain(flowFromFile(result.file).doc, result.dropped);
     return { ok: true, created: result.created };
   }
 

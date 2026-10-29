@@ -8,6 +8,7 @@ import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../co
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
 import type { SchemaValidator } from '../../core/flow/schema';
+import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
@@ -302,6 +303,7 @@ export async function launchInAwx(
   await appendAudit(deps.storage, { event: 'launch', ...audit });
 
   const plays = playNodes(doc);
+  const design = nodeDesigns(doc);
   const routes = generated.result.routes;
   const info = () => ({
     jobId: job.id,
@@ -319,6 +321,7 @@ export async function launchInAwx(
     startedAt,
     source: 'awx',
     flowVersion: doc.flow.version,
+    design,
     environment: `AWX: ${name}`,
     awx: info(),
     summary: summarizeRun(awxEventsToLines(events, plays), routes),

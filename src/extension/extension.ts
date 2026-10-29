@@ -4,11 +4,10 @@ import type { CodeScan, DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import { parseFlow } from '../core/flow/document';
 import { createIdFactory, slugify } from '../core/flow/ids';
+import { planSave } from '../core/flow/save';
 import { createSchemaValidator } from '../core/flow/schema';
-import { versionBump } from '../core/flow/semantic';
 import { newFlowText } from '../core/flow/template';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
-import { setIn } from '../core/yaml/ops';
 import {
   type AwxDeps,
   type AwxPicks,
@@ -20,7 +19,13 @@ import {
 import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { ProbeManager } from './env/environment';
-import { type CommandOutcome, FlowSession, type PerfEvent, type SessionDeps } from './flowSession';
+import {
+  announceImplementedAgain,
+  type CommandOutcome,
+  FlowSession,
+  type PerfEvent,
+  type SessionDeps,
+} from './flowSession';
 import { headText } from './gitHead';
 import { auditUri } from './run/audit';
 import { type RunDeps, type RunOptions, runFlow } from './run/runner';
@@ -242,7 +247,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }),
     vscode.workspace.onWillSaveTextDocument((e) => {
       if (isFlow(e.document))
-        e.waitUntil(versionBumpEdits(e.document, lastSaved.get(e.document.uri.toString())));
+        e.waitUntil(saveEdits(e.document, lastSaved.get(e.document.uri.toString())));
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (!isFlow(doc)) return;
@@ -423,22 +428,33 @@ async function writeCode(
   return outcome;
 }
 
-/** ADR-0006: on save, bump flow.version once relative to Git HEAD (or the last saved text). */
-async function versionBumpEdits(
+async function diskText(uri: vscode.Uri): Promise<string | undefined> {
+  try {
+    return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * On save: tested nodes edited by hand since the file on disk are implemented again (decision 15),
+ * and flow.version moves once relative to Git HEAD, or the last saved text (ADR-0006).
+ */
+async function saveEdits(
   document: vscode.TextDocument,
   lastSaved: string | undefined,
 ): Promise<vscode.TextEdit[]> {
-  const current = parseFlow(document.getText());
-  if (!current.doc) return [];
-  const baseText = (await headText(document.uri)) ?? lastSaved;
-  if (baseText === undefined) return [];
-  const base = parseFlow(baseText);
-  if (!base.doc) return [];
-  const next = versionBump(current.doc, base.doc);
-  if (next === undefined) return [];
-  const result = setIn(current.file, ['flow', 'version'], next);
-  if (!result.ok) return [];
-  return result.edits.map((e) =>
+  const text = document.getText();
+  const saved = (await diskText(document.uri)) ?? lastSaved;
+  const base = (await headText(document.uri)) ?? lastSaved;
+  let plan: ReturnType<typeof planSave>;
+  try {
+    plan = planSave(text, saved, base);
+  } catch {
+    return [];
+  }
+  announceImplementedAgain(parseFlow(text).doc, plan.dropped);
+  return plan.edits.map((e) =>
     vscode.TextEdit.replace(
       new vscode.Range(document.positionAt(e.start), document.positionAt(e.end)),
       e.newText,

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1 — AFD-12
+
+- A `tested` node whose design changes is implemented again (decision 15; it takes precedence over decision 24):
+  - in the same edit for canvas commands, and on save for hand edits since the file on disk;
+  - the design is the node's entry without its status, inner nodes included and positions left out; wiring is not part of it;
+  - a message names the nodes that dropped back.
+- Runs keep each node's design fingerprint from their start; _Mark N nodes tested_ leaves out nodes changed since then.
+
 ## 0.7.0 — M7 (AFD-10)
 
 - Run mode with AWX (ADR-0013):

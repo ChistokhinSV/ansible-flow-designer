@@ -23,6 +23,7 @@ import { parseFlow } from '../../core/flow/document';
 import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
+import { nodeDesigns } from '../../core/flow/semantic';
 import { validateFlow } from '../../core/flow/validate';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
@@ -329,6 +330,7 @@ async function onMessage(m: WebviewMessage) {
         startedAt: awxJob.job.started,
         source: 'awx' as const,
         flowVersion: doc.flow.version,
+        design: nodeDesigns(doc),
         environment: `AWX: ${awx.template}`,
       };
       toWebview({ type: 'run', run: { ...base, state: 'running', awx } });

@@ -39,6 +39,8 @@ export interface RunView {
   source?: 'local' | 'awx';
   /** flow.version the run executed (decision 15: `tested` is per version). */
   flowVersion?: number;
+  /** Each node's design fingerprint when the run started (decision 15: `tested` is for what ran). */
+  design?: Record<Ulid, string>;
   awx?: AwxRunInfo;
 }
 

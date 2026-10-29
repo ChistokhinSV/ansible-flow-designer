@@ -1,6 +1,6 @@
 // Semantic projection of a flow document: everything except layout (D-30, ADR-0006). Two documents
 // with equal keys differ only in node positions, comments or formatting.
-import type { FlowDocument } from './types';
+import type { FlowDocument, FlowNode, Ulid } from './types';
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -53,4 +53,60 @@ export function versionBump(current: unknown, base: unknown): number | undefined
   if (baseVersion === undefined || currentVersion !== baseVersion) return undefined;
   if (semanticKeyWithoutVersion(current) === semanticKeyWithoutVersion(base)) return undefined;
   return baseVersion + 1;
+}
+
+/** A node's design: its entry without status, inner nodes included and positions left out. */
+function nodeDesign(node: FlowNode): unknown {
+  const { status: _status, subflow, ...rest } = node;
+  if (!subflow || typeof subflow !== 'object') return rest;
+  const { layout: _layout, nodes, ...body } = subflow;
+  return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };
+}
+
+function* allNodes(nodes: FlowNode[] | undefined): Generator<FlowNode> {
+  for (const n of nodes ?? []) {
+    yield n;
+    if (n.subflow && typeof n.subflow === 'object') yield* allNodes(n.subflow.nodes);
+  }
+}
+
+/** FNV-1a: a short fingerprint is enough to tell a node's design apart (no crypto in the webview). */
+function fnv1a(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/** Fingerprint of every node's design, kept with a run so `tested` is proposed only for what ran. */
+export function nodeDesigns(doc: FlowDocument): Record<Ulid, string> {
+  const out: Record<Ulid, string> = {};
+  for (const n of allNodes(doc.nodes)) out[n.id] = fnv1a(JSON.stringify(canonical(nodeDesign(n))));
+  return out;
+}
+
+/**
+ * Decision 15: a tested node whose design changed is implemented again, since that design was not
+ * tested. Wiring and positions are not the node's design. Nodes in `keep` had their status set by
+ * the same change and keep it.
+ */
+export function testedDropBack(
+  before: FlowDocument,
+  after: FlowDocument,
+  keep?: ReadonlySet<Ulid>,
+): Ulid[] {
+  const was = new Map([...allNodes(before.nodes)].map((n) => [n.id, n]));
+  const old = nodeDesigns(before);
+  const now = nodeDesigns(after);
+  return [...allNodes(after.nodes)]
+    .filter(
+      (n) =>
+        n.status === 'tested' &&
+        was.get(n.id)?.status === 'tested' &&
+        !keep?.has(n.id) &&
+        old[n.id] !== now[n.id],
+    )
+    .map((n) => n.id);
 }
