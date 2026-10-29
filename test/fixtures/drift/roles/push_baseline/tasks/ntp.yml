@@ -1,0 +1,3 @@
+- name: Push NTP servers
+  ansible.builtin.debug:
+    msg: ntp1.example.net, ntp2.example.net

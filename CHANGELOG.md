@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.6.0 — M6 (AFD-9)
+
+- Implementation mode (mockup 04, ADR-0012): the mode toggle now switches between Design and Implementation.
+  - Nodes keep their place. Each shows the artifact it runs and "N tasks · state": drift, TODO stub, last run, open subflow.
+  - The right panel is _Design vs code_:
+    - the sync source: branch @ commit · time, uncommitted files, environment;
+    - "N / M nodes matched by ID";
+    - drift items with design-side and code-side actions, notes, ignored items;
+    - the last run summary.
+  - A selected node lists its tasks with file:line links.
+- _Re-sync from git_ (working tree):
+  - The new probe method `compile` loads the flow's generated playbook with `Playbook.load` + `compile()` and compiles each bound role entry point through a synthetic `import_role`. It returns tasks with origin (file, line), tags, registers, facts and stats.
+  - It flags dynamic includes and ignores `validate_argument_spec`.
+  - Bound playbooks are compiled on their own.
+  - Git state comes from `vscode.git`.
+  - It re-syncs after each save while a scan is shown.
+- Drift (`core/drift`, D-29):
+  - contract mismatch: outputs, required and unknown role arguments, module result keys;
+  - code without design: role task files a subflow does not cover, plays for deleted nodes;
+  - design without code: unbound nodes, missing roles and playbooks, nodes without a play, missing generated code, bindings not scanned yet.
+  - Info items are notes.
+- Actions:
+  - Update design (output rename with downstream references, add or remove inputs, read another result key);
+  - Open code;
+  - Add to subflow (an unwired inner step bound to the role's task file);
+  - Generate stub (role scaffold and binding in one WorkspaceEdit);
+  - Write argument_specs (new file, or a byte-preserving merge into an existing one);
+  - Bind…; Ignore… with a reason / Stop ignoring; Regenerate; Re-sync.
+- Commands:
+  - new `ignoreDrift` and `clearDriftIgnore`; `addNode` takes `impl`;
+  - renaming a node output rewrites downstream `from:` references in the same edit.
+- Schema (additive, v1): a decision of kind `drift_ignored` with `item` (and no port). The validator checks its node and reason.
+
 ## 0.5.0 — M5 (AFD-8)
 
 - Node properties page (mockup 11, ADR-0011): a full page over the canvas with General, Implementation, Inputs and outputs, Ports and Execution. It opens from the inspector's gear or _Bind module, role or playbook…_.

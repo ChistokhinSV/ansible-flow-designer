@@ -1,0 +1,6 @@
+- name: Push AAA servers
+  ansible.builtin.debug:
+    msg: 192.0.2.10
+- name: Enable AAA
+  ansible.builtin.debug:
+    msg: aaa new-model

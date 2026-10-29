@@ -1,0 +1,15 @@
+argument_specs:
+  main:
+    short_description: Compare the running config with the baseline
+    options:
+      site:
+        type: str
+        required: true
+        description: Site code, for example ams1
+      backup:
+        type: str
+        description: Path of the backup to compare against
+      strict:
+        type: bool
+        default: false
+        description: Fail on any difference

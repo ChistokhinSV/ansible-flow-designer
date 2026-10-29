@@ -1,0 +1,7 @@
+# Fictional role for drift tests: no argument_specs, sets the output the node declares.
+- name: Save the running config
+  ansible.builtin.debug:
+    msg: "backup of {{ inventory_hostname }}"
+- name: Remember where it went
+  ansible.builtin.set_fact:
+    backup_ref: "backups/{{ inventory_hostname }}.cfg"

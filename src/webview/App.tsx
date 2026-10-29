@@ -6,6 +6,7 @@ import { FlowCanvas } from './canvas/FlowCanvas';
 import { Banner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
 import { DecisionDialog } from './panels/DecisionDialog';
+import { DriftPanel, IgnoreDialog, NodeCodePanel } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
 import { Inspector } from './panels/Inspector';
 import { Palette } from './panels/Palette';
@@ -80,6 +81,8 @@ function useHost() {
         ui.setLevel(m.level);
       } else if (m.type === 'catalogStatus') {
         ui.setCatalog(m.status);
+      } else if (m.type === 'sync') {
+        ui.setSync({ state: m.state, scan: m.scan, error: m.error });
       } else if (m.type === 'openProperties') {
         ui.reveal(m.node);
         ui.openProperties(m.node, m.tab);
@@ -126,6 +129,7 @@ export function App() {
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
   const properties = useUi((s) => s.properties);
+  const mode = useUi((s) => s.mode);
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 6000);
@@ -154,8 +158,23 @@ export function App() {
           <PickBar />
           <FlowCanvas />
         </main>
-        <aside className="afd-right" aria-label={selected ? 'Node inspector' : 'Flow description'}>
-          {selected ? (
+        <aside
+          className="afd-right"
+          aria-label={
+            mode === 'implementation'
+              ? 'Design vs code'
+              : selected
+                ? 'Node inspector'
+                : 'Flow description'
+          }
+        >
+          {mode === 'implementation' ? (
+            selected ? (
+              <NodeCodePanel id={selected} />
+            ) : (
+              <DriftPanel />
+            )
+          ) : selected ? (
             <Inspector id={selected} />
           ) : wire && /^(entry|exit):/.test(wire) ? (
             <BoundaryPanel edge={wire} />
@@ -165,6 +184,7 @@ export function App() {
         </aside>
         <QuickAdd />
         <DecisionDialog />
+        <IgnoreDialog />
         <PortMenu />
         <PreviewCard />
         {properties ? <Properties key={properties.node} node={properties.node} /> : null}

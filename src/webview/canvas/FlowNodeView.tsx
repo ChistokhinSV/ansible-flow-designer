@@ -100,11 +100,63 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
   );
 }
 
+/** Implementation mode (mockup 04): what the node runs and how it stands against the code. */
+function CodeLines({ node }: { node: FlowNode }) {
+  const code = useUi((s) => s.drift?.nodes[node.id]);
+  const issue = useUi((s) =>
+    s.drift?.items.find((i) => i.node === node.id && !i.ignored && i.severity === 'warning'),
+  );
+  const ran = useUi((s) => (s.run?.state === 'done' ? s.run.summary : undefined));
+  if (!code) return <div className="afd-node-sub muted">not synced</div>;
+  const inner = node.type === 'subflow' && (node.subflow?.nodes?.length ?? 0) > 0;
+  const count = `${code.tasks.length} task${code.tasks.length === 1 ? '' : 's'}`;
+  let state: string;
+  let tone = 'ok';
+  if (issue) {
+    state = `drift: ${issue.label}`;
+    tone = 'warn';
+  } else if (!node.impl?.ref && !inner && (node.type === 'task' || node.type === 'subflow')) {
+    state = 'runs as TODO stub';
+    tone = 'neutral';
+  } else if (ran?.failures.some((f) => f.node === node.id)) {
+    state = 'last run failed';
+    tone = 'warn';
+  } else if (ran?.nodes[node.id]) state = 'last run ok';
+  else if (inner) {
+    state = 'open subflow';
+    tone = 'neutral';
+  } else {
+    state = code.matched ? 'matched by ID' : 'not in generated code';
+    tone = code.matched ? 'neutral' : 'warn';
+  }
+  return (
+    <>
+      <div className="afd-node-sub mono afd-node-artifact" title={code.artifact}>
+        {code.artifact}
+      </div>
+      <div className={`afd-node-code tone-${tone}`} data-code-state={state}>
+        {code.artifact === 'not bound' ? state : `${count} · ${state}`}
+      </div>
+    </>
+  );
+}
+
 const NodeBody = memo(function NodeBody({ node }: { node: FlowNode }) {
+  const implementation = useUi((s) => s.mode === 'implementation');
   if (node.type === 'start' || node.type === 'end') {
     return <span className="afd-node-title">{node.title}</span>;
   }
   const status = node.status ?? 'draft';
+  if (implementation)
+    return (
+      <>
+        <div className="afd-node-head">
+          <span className={`afd-dot status-${status}`} aria-hidden="true" />
+          <span className="afd-node-title">{node.title}</span>
+        </div>
+        <CodeLines node={node} />
+      </>
+    );
   const sub = [TYPE_LABEL[node.type], status, node.handler].filter(Boolean).join(' · ');
   return (
     <>

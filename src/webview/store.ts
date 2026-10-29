@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import type { BindKind } from '../core/catalog/draft';
+import { computeDrift } from '../core/drift/drift';
+import type { CodeScan, DriftReport } from '../core/drift/types';
 import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
@@ -43,6 +46,23 @@ let onCard = false;
 /** Tabs of the node properties page (mockup 11). */
 export type PropTab = 'general' | 'implementation' | 'io' | 'ports' | 'execution';
 
+/** Design edits the graph; Implementation shows it against the code (M6, mockup 04). */
+export type Mode = 'design' | 'implementation';
+
+export interface SyncState {
+  state: 'idle' | 'syncing' | 'done' | 'error';
+  scan?: CodeScan;
+  error?: string;
+}
+
+/** A drift item whose Ignore reason is being entered. */
+export interface IgnoreTarget {
+  node: Ulid;
+  item: string;
+  title: string;
+  label: string;
+}
+
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */
 export interface PickState {
   mode: 'to' | 'from' | 'rewire';
@@ -69,10 +89,15 @@ interface UiState {
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
   level: string;
   preview: PreviewState | null;
-  /** The node properties page over the canvas (M5), with its open tab. */
-  properties: { node: Ulid; tab: PropTab } | null;
+  /** The node properties page over the canvas (M5), with its open tab and a kind to bind. */
+  properties: { node: Ulid; tab: PropTab; bindKind?: BindKind } | null;
   /** The environment's module catalog (M5). */
   catalog: CatalogStatus;
+  mode: Mode;
+  sync: SyncState;
+  /** Design vs code for the current document and the last scan (computed, never stored). */
+  drift: DriftReport | null;
+  ignore: IgnoreTarget | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -93,9 +118,16 @@ interface UiState {
   hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
   /** Pointer on the card keeps it open. */
   holdPreview(on: boolean): void;
-  openProperties(node: Ulid, tab?: PropTab): void;
+  openProperties(node: Ulid, tab?: PropTab, bindKind?: BindKind): void;
   closeProperties(): void;
   setCatalog(status: CatalogStatus): void;
+  setMode(mode: Mode): void;
+  setSync(sync: SyncState): void;
+  setIgnore(target: IgnoreTarget | null): void;
+}
+
+function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftReport | null {
+  return snapshot?.doc && scan ? computeDrift(snapshot.doc, scan) : null;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -114,6 +146,10 @@ export const useUi = create<UiState>((set, get) => ({
   preview: null,
   properties: null,
   catalog: { state: 'idle' },
+  mode: 'design',
+  sync: { state: 'idle' },
+  drift: null,
+  ignore: null,
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -144,6 +180,7 @@ export const useUi = create<UiState>((set, get) => ({
       ...(gone(get().pick?.ref) ? { pick: null } : {}),
       ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
       ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
+      drift: driftOf(snapshot, get().sync.scan),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
@@ -198,10 +235,17 @@ export const useUi = create<UiState>((set, get) => ({
     if (on) clearTimeout(closeTimer);
     else get().hoverNode(null);
   },
-  openProperties(node, tab = 'general') {
+  openProperties(node, tab = 'general', bindKind) {
     clearTimeout(openTimer);
-    set({ properties: { node, tab }, preview: null, portMenu: null, quickAdd: null });
+    set({ properties: { node, tab, bindKind }, preview: null, portMenu: null, quickAdd: null });
   },
+  setMode(mode) {
+    set({ mode, portMenu: null, pick: null, quickAdd: null, preview: null });
+  },
+  setSync(sync) {
+    set({ sync, drift: driftOf(get().snapshot, sync.scan) });
+  },
+  setIgnore: (ignore) => set({ ignore }),
   closeProperties: () => set({ properties: null }),
   setCatalog: (catalog) => set({ catalog }),
   reveal(node) {

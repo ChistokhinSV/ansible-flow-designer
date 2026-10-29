@@ -10,7 +10,7 @@ import { patternTarget, portMenu } from '../../../src/core/flow/portMenu';
 import { legalPorts, portsFor } from '../../../src/core/flow/ports';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import { semanticKey } from '../../../src/core/flow/semantic';
-import type { FlowDocument } from '../../../src/core/flow/types';
+import type { Decision, FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { applyEdits } from '../../../src/core/yaml';
 import { exampleFlows, readExample } from './helpers';
@@ -444,12 +444,8 @@ describe('validator (M2 additions)', () => {
 
   it('flags duplicate decisions and decisions on non-fail ports', () => {
     const doc = docOf(EDGE);
-    const d = doc.decisions?.[0];
-    doc.decisions = [
-      d as NonNullable<typeof d>,
-      { ...(d as NonNullable<typeof d>) },
-      { ...(d as NonNullable<typeof d>), port: 'ok_hosts' },
-    ];
+    const d = doc.decisions?.[0] as Extract<Decision, { kind: 'open_on_purpose' }>;
+    doc.decisions = [d, { ...d }, { ...d, port: 'ok_hosts' }];
     const codes = validateFlow(doc).findings.map((f) => f.code);
     expect(codes).toContain('duplicate-decision');
     expect(codes).toContain('decision-not-fail');

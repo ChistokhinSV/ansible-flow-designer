@@ -1,0 +1,10 @@
+# Fictional playbook a flow node binds to: its plays target the hosts the flow sends.
+- name: Pre-checks
+  hosts: "{{ afd_hosts | default('all') }}"
+  gather_facts: false
+  tasks:
+    - name: Check reachability
+      ansible.builtin.ping:
+    - name: Check free flash
+      ansible.builtin.debug:
+        msg: enough space

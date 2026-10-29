@@ -31,7 +31,11 @@ export function Properties({ node: id }: { node: string }) {
   const model = doc ? buildModel(doc) : undefined;
   const entry = model?.nodes.get(id);
   const node = entry?.node;
-  const [draft, setDraft] = useState(() => (node ? draftOf(node) : undefined));
+  const bindKind = useUi((s) => s.properties?.bindKind);
+  // Drift "Bind role" opens on the kind it names when nothing is bound yet.
+  const [draft, setDraft] = useState(() =>
+    node ? { ...draftOf(node), ...(bindKind && !node.impl ? { kind: bindKind } : {}) } : undefined,
+  );
   const [saving, setSaving] = useState(false);
   // After a save the document is the truth again: restage from the first snapshot past the save
   // (the ack can arrive before it).

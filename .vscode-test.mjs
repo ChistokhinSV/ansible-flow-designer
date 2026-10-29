@@ -19,6 +19,9 @@ for (const key of ['edge-baseline', 'os-upgrade']) {
 // M3: an Ansible repository around the flows (fictional inventory, stub roles), and the Docker
 // image for runs when AFD_TEST_IMAGE is set (run tests are skipped without it).
 cpSync('test/fixtures/engine/content', workspace, { recursive: true });
+// M6: a repository with drift (mockup 04): its flow, roles and playbook.
+for (const dir of ['flows', 'roles', 'playbooks'])
+  cpSync(join('test/fixtures/drift', dir), join(workspace, dir), { recursive: true });
 writeFileSync(
   join(workspace, 'ansible.cfg'),
   [
@@ -61,11 +64,13 @@ export default defineConfig([
       'out/test/integration/codegen.test.js',
       'out/test/integration/subflow.test.js',
       'out/test/integration/catalog.test.js',
+      'out/test/integration/drift.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
   { ...common, label: 'm4', files: 'out/test/integration/subflow.test.js' },
   { ...common, label: 'm5', files: 'out/test/integration/catalog.test.js' },
+  { ...common, label: 'm6', files: 'out/test/integration/drift.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

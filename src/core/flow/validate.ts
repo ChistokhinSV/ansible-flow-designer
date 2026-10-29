@@ -6,7 +6,7 @@ import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
-import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
+import type { Decision, FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -565,10 +565,39 @@ function checkUnreachableRollback(model: FlowModel, add: (f: Finding) => void): 
   }
 }
 
+function checkDriftIgnore(
+  model: FlowModel,
+  d: Extract<Decision, { kind: 'drift_ignored' }>,
+  i: number,
+  add: (f: Finding) => void,
+): void {
+  const entry = model.nodes.get(d.node);
+  if (!entry) {
+    add({
+      code: 'stale-decision',
+      severity: 'warning',
+      message: `Ignored drift item refers to a node that does not exist: ${d.node}`,
+      path: ['decisions', i],
+    });
+  } else if (!d.reason?.trim()) {
+    add({
+      code: 'decision-no-reason',
+      severity: 'warning',
+      message: `Ignored drift item for ${label(entry.node)} has no reason`,
+      path: ['decisions', i],
+      node: d.node,
+    });
+  }
+}
+
 function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
   const seen = new Set<string>();
   (model.doc.decisions ?? []).forEach((d, i) => {
     if (!d) return;
+    if (d.kind === 'drift_ignored') {
+      checkDriftIgnore(model, d, i, add);
+      return;
+    }
     const entry = model.nodes.get(d.node);
     if (!entry || !portsFor(entry.node).some((p) => p.name === d.port)) {
       add({

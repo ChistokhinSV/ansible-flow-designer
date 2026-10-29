@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { CollectionFile } from '../core/catalog/types';
+import type { CodeScan, DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import { parseFlow } from '../core/flow/document';
 import { createIdFactory, slugify } from '../core/flow/ids';
@@ -40,6 +41,10 @@ export interface AfdTestApi {
   /** A properties-page catalog request for this flow, answered as the webview gets it. */
   catalog(uri: vscode.Uri, request: CatalogRequest): Promise<unknown>;
   catalogStatus(uri: vscode.Uri): CatalogStatus | undefined;
+  /** M6: a real Re-sync from git (probe), the last scan, a scan from elsewhere, drift actions. */
+  sync(uri: vscode.Uri): Promise<CodeScan | undefined>;
+  useScan(uri: vscode.Uri, scan: CodeScan): void;
+  driftAction(uri: vscode.Uri, action: DriftAction): Promise<CommandOutcome>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -61,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     newId: createIdFactory(),
     testMode,
     catalog,
+    sync: { probes, catalog },
   };
   const sessions = new Map<string, FlowSession>();
   const lastSaved = new Map<string, string>();
@@ -171,8 +177,12 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (!isFlow(doc)) return;
       lastSaved.set(doc.uri.toString(), doc.getText());
-      if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true))
-        savedCode.set(doc.uri.toString(), writeCode(doc, deps, false));
+      if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true)) {
+        const code = writeCode(doc, deps, false);
+        savedCode.set(doc.uri.toString(), code);
+        // Implementation mode shows the code: once it is rewritten, sync again (M6).
+        void code.then(() => sessions.get(doc.uri.toString())?.resyncIfScanned());
+      }
     }),
     vscode.commands.registerCommand('afd.generate', async (uri?: vscode.Uri) => {
       const target = uri ?? activeSession(sessions)?.uri;
@@ -243,6 +253,12 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       catalog.useFiles(folder, files);
     },
     catalog: (uri, request) => get(uri).answerCatalog(request),
+    sync: async (uri) => {
+      await get(uri).sync();
+      return get(uri).lastScan;
+    },
+    useScan: (uri, scan) => get(uri).useScan(scan),
+    driftAction: (uri, action) => get(uri).driftAction(action),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? catalog.status(folder) : undefined;

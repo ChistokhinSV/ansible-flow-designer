@@ -7,8 +7,11 @@ import builtin from '../../../test/fixtures/catalog/files/ansible.builtin@2.19.4
 import utils from '../../../test/fixtures/catalog/files/ansible.utils@5.1.2.json';
 import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
 import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
+import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
+import driftScan from '../../../test/fixtures/drift/scan.json';
 import { badgesOf, metaOf } from '../../core/catalog/rank';
 import type { CatalogPlugin, CollectionFile } from '../../core/catalog/types';
+import type { CodeScan } from '../../core/drift/types';
 import { optionA } from '../../core/engine/optionA';
 import { codePreview } from '../../core/engine/preview';
 import { type FlowCommand, planCommand } from '../../core/flow/commands';
@@ -20,7 +23,11 @@ import { validateFlow } from '../../core/flow/validate';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { autoPositions, layoutLevel } from '../../extension/autoLayout';
 
-const FLOWS: Record<string, string> = { 'edge-baseline': edgeBaseline, 'os-upgrade': osUpgrade };
+const FLOWS: Record<string, string> = {
+  'edge-baseline': edgeBaseline,
+  'os-upgrade': osUpgrade,
+  'edge-drift': edgeDrift,
+};
 const params = new URLSearchParams(location.search);
 let text = FLOWS[params.get('flow') ?? 'edge-baseline'] ?? edgeBaseline;
 let version = 1;
@@ -209,8 +216,31 @@ function catalogAnswer(r: CatalogRequest): unknown {
   }
 }
 
+// No probe in a browser: Re-sync answers with the drift fixture's real scan (M6).
+function fakeScan(): CodeScan {
+  return {
+    at: new Date().toISOString(),
+    environment: 'harness (scan fixture)',
+    git: {
+      branch: 'main',
+      commit: '4f2c1a9',
+      when: new Date(Date.now() - 5 * 60_000).toISOString(),
+      dirty: [],
+    },
+    ...(driftScan as unknown as Omit<CodeScan, 'at' | 'environment' | 'git'>),
+  };
+}
+
 async function onMessage(m: WebviewMessage) {
   switch (m.type) {
+    case 'sync':
+      toWebview({ type: 'sync', state: 'syncing' });
+      setTimeout(() => toWebview({ type: 'sync', state: 'done', scan: fakeScan() }), 300);
+      break;
+    case 'driftAction':
+      console.info('[host] drift action', m.action);
+      toWebview({ type: 'ack', reqId: m.reqId, ok: true });
+      break;
     case 'catalog':
       setTimeout(
         () =>

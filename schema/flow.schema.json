@@ -83,7 +83,6 @@
         "type": "object",
         "required": [
           "node",
-          "port",
           "kind"
         ],
         "properties": {
@@ -94,7 +93,15 @@
             "type": "string"
           },
           "kind": {
-            "const": "open_on_purpose"
+            "enum": [
+              "open_on_purpose",
+              "drift_ignored"
+            ]
+          },
+          "item": {
+            "type": "string",
+            "minLength": 1,
+            "description": "drift_ignored: the drift item kept as it is (M6, D-29)"
           },
           "reason": {
             "type": "string"
@@ -102,6 +109,23 @@
           "by": {
             "type": "string"
           }
+        },
+        "if": {
+          "properties": {
+            "kind": {
+              "const": "drift_ignored"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "item"
+          ]
+        },
+        "else": {
+          "required": [
+            "port"
+          ]
         }
       }
     }

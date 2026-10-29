@@ -1,0 +1,3 @@
+- name: Wait until routing converges
+  ansible.builtin.debug:
+    msg: converged

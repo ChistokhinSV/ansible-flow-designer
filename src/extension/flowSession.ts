@@ -1,6 +1,7 @@
 // One session per open flow document: parse/validate cache, diagnostics, attached editor panels,
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
 import * as vscode from 'vscode';
+import type { CodeScan, DriftAction } from '../core/drift/types';
 import { optionA } from '../core/engine/optionA';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
@@ -29,6 +30,8 @@ import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
+import { type SyncDeps, scanFlow } from './sync/codeSync';
+import { generateStub, openCode, writeSpecs } from './sync/driftActions';
 
 export interface SessionDeps {
   extensionUri: vscode.Uri;
@@ -38,6 +41,8 @@ export interface SessionDeps {
   testMode: boolean;
   /** Module catalog for binding (M5); absent in tests that do not need it. */
   catalog?: CatalogService;
+  /** Code sync for Implementation mode (M6). */
+  sync?: SyncDeps;
 }
 
 export interface PerfEvent {
@@ -67,6 +72,9 @@ export class FlowSession implements vscode.Disposable {
   readonly cspViolations: string[] = [];
   /** Last skeleton or real run of this flow (shown in the top bar and inspector). */
   lastRun: RunView | null = null;
+  /** Last code sync (M6); a save re-syncs once there is one. */
+  lastScan?: CodeScan;
+  private syncing?: Promise<void>;
 
   constructor(
     readonly document: vscode.TextDocument,
@@ -211,7 +219,21 @@ export class FlowSession implements vscode.Disposable {
             type: 'catalogStatus',
             status: this.deps.catalog.status(this.catalogFolder),
           });
+        if (this.lastScan) this.post(panel, { type: 'sync', state: 'done', scan: this.lastScan });
         break;
+      case 'sync':
+        void this.sync();
+        break;
+      case 'openCode':
+        await openCode(this.uri, m.path, m.line).catch((e: Error) =>
+          vscode.window.showErrorMessage(`Cannot open ${m.path}: ${e.message}`),
+        );
+        break;
+      case 'driftAction': {
+        const outcome = await this.driftAction(m.action);
+        this.post(panel, { type: 'ack', reqId: m.reqId, ...outcome });
+        break;
+      }
       case 'catalog':
         void this.catalogRequest(panel, m.reqId, m.request);
         break;
@@ -318,16 +340,78 @@ export class FlowSession implements vscode.Disposable {
     }
   }
 
+  /** Re-sync from git: compile the code in the environment and push the scan to the panels. */
+  sync(): Promise<void> {
+    if (this.syncing) return this.syncing;
+    const run = async () => {
+      const snapshot = await this.snapshot();
+      if (!snapshot.doc || !this.deps.sync) return;
+      this.broadcast({ type: 'sync', state: 'syncing', scan: this.lastScan });
+      try {
+        this.lastScan = await scanFlow(this.uri, snapshot.doc, this.deps.sync);
+        this.broadcast({ type: 'sync', state: 'done', scan: this.lastScan });
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        this.broadcast({ type: 'sync', state: 'error', scan: this.lastScan, error });
+      }
+    };
+    this.syncing = run().finally(() => {
+      this.syncing = undefined;
+    });
+    return this.syncing;
+  }
+
+  /** After a save: the generated code changed, so a shown sync is out of date. */
+  resyncIfScanned(): void {
+    if (this.lastScan && this.hasPanels) void this.sync();
+  }
+
+  /** Test mode: a scan from elsewhere (no probe). */
+  useScan(scan: CodeScan): void {
+    this.lastScan = scan;
+    this.broadcast({ type: 'sync', state: 'done', scan });
+  }
+
+  async driftAction(action: DriftAction): Promise<CommandOutcome> {
+    const doc = (await this.snapshot()).doc;
+    if (!doc) return { ok: false, error: 'The flow does not parse' };
+    const host = { uri: this.uri, doc, runCommand: this.runCommand.bind(this) };
+    let outcome: CommandOutcome;
+    switch (action.kind) {
+      case 'generateStub':
+        outcome = await generateStub(host, action.node, action.role);
+        break;
+      case 'writeSpecs':
+        outcome = await writeSpecs(host, action.node, this.lastScan);
+        break;
+      case 'resync':
+        await this.sync();
+        return { ok: true };
+      case 'regenerate':
+        await vscode.commands.executeCommand('afd.generate', this.uri);
+        outcome = { ok: true };
+        break;
+      default:
+        return { ok: false, error: `${action.kind} is not a host action` };
+    }
+    if (outcome.ok) void this.sync();
+    return outcome;
+  }
+
   setRun(run: RunView): void {
     this.lastRun = run;
     this.broadcast({ type: 'run', run });
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */
-  async runCommand(input: FlowCommand): Promise<CommandOutcome> {
+  async runCommand(
+    input: FlowCommand,
+    /** Adds file operations to the same WorkspaceEdit (M6 stubs): one undo step with the design. */
+    extra?: (edit: vscode.WorkspaceEdit) => void,
+  ): Promise<CommandOutcome> {
     // The webview never names the author of a decision; the host does (decision 13).
     const command =
-      input.kind === 'setDecision' && !input.by
+      (input.kind === 'setDecision' || input.kind === 'ignoreDrift') && !input.by
         ? { ...input, by: await authorName(this.uri) }
         : input;
     const snapshot = await this.snapshot();
@@ -347,8 +431,9 @@ export class FlowSession implements vscode.Disposable {
         return { ok: false, error: e.message };
       throw e;
     }
-    if (result.edits.length === 0) return { ok: true, created: result.created };
+    if (result.edits.length === 0 && !extra) return { ok: true, created: result.created };
     const edit = new vscode.WorkspaceEdit();
+    extra?.(edit);
     for (const e of result.edits) {
       edit.replace(
         this.uri,

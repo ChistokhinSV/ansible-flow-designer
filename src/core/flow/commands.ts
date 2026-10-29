@@ -42,6 +42,8 @@ export type FlowCommand =
       handler?: HandlerKind;
       outcome?: 'success' | 'failed';
       inputs?: Record<string, ContractField>;
+      /** Bound from the start (M6 "Add to subflow": a role task file becomes a step). */
+      impl?: ImplBinding;
       position?: Position;
       /** Wire this output port to the new node's `in`. */
       connectFrom?: PortRef;
@@ -100,7 +102,10 @@ export type FlowCommand =
       inputs?: Record<string, ContractField | null>;
       outputs?: Record<string, ContractField | null>;
       status?: NodeStatus;
-    };
+    }
+  /** M6 (D-29): keep a drift item as it is, with a reason; the host adds `by`. */
+  | { kind: 'ignoreDrift'; node: Ulid; item: string; reason: string; by?: string }
+  | { kind: 'clearDriftIgnore'; node: Ulid; item: string };
 
 export interface NodePatch {
   title?: string;
@@ -402,6 +407,7 @@ interface NodeSpec {
   outcome?: 'success' | 'failed';
   inputs?: Record<string, ContractField>;
   settings?: NodeSettings;
+  impl?: ImplBinding;
 }
 
 /** A new node's YAML; `taken` holds the level's keys and receives the new one. */
@@ -429,6 +435,7 @@ function nodeItem(
   }
   if (spec.settings && Object.keys(spec.settings).length > 0)
     node.settings = spec.settings as Record<string, YamlValue>;
+  if (spec.impl) node.impl = implValue(spec.impl);
   return { id, item: node };
 }
 
@@ -866,6 +873,68 @@ function setBinding(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setB
   setField(tx, path, 'status', cmd.status, NODE_ORDER);
 }
 
+function ignoreDrift(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'ignoreDrift' }>,
+): void {
+  const st = state(tx);
+  nodeAt(st, cmd.node);
+  const reason = cmd.reason.trim();
+  if (!reason) throw new CommandError('no-reason', 'Say why the code and the design may differ');
+  if (!cmd.item.trim()) throw new CommandError('bad-item', 'No drift item');
+  const decisions = st.doc.decisions ?? [];
+  const index = decisions.findIndex(
+    (d) => d?.kind === 'drift_ignored' && d.node === cmd.node && d.item === cmd.item,
+  );
+  if (index >= 0) {
+    const base: Path = ['decisions', index];
+    const ops: ((f: YamlFile) => OpResult)[] = [
+      (f) => setIn(f, [...base, 'reason'], reason, { before: ['by'] }),
+    ];
+    if (cmd.by) ops.push((f) => setIn(f, [...base, 'by'], cmd.by as string));
+    tx.applyAll(ops);
+    return;
+  }
+  const item: Record<string, YamlValue> = {
+    node: cmd.node,
+    kind: 'drift_ignored',
+    item: cmd.item,
+    reason,
+  };
+  if (cmd.by) item.by = cmd.by;
+  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
+  else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
+}
+
+/**
+ * Downstream `from: <key>.<old>[.path]` references to a renamed node output, as rewrites (one
+ * edit with the rename, like a key rename).
+ */
+function outputRefRewrites(
+  st: State,
+  id: Ulid,
+  from: string,
+  to: string,
+): { path: Path; value: string }[] {
+  const { node } = nodeAt(st, id);
+  const out: { path: Path; value: string }[] = [];
+  const head = `${node.key}.${from}`;
+  for (const entry of st.model.nodes.values()) {
+    if (keyScope(st.model, entry.level).get(node.key) !== id) continue;
+    for (const side of ['inputs', 'outputs'] as const) {
+      for (const [name, field] of Object.entries(entry.node[side] ?? {})) {
+        const ref = field?.from;
+        if (ref === head || ref?.startsWith(`${head}.`))
+          out.push({
+            path: [...entry.path, side, name, 'from'],
+            value: `${node.key}.${to}${ref.slice(head.length)}`,
+          });
+      }
+    }
+  }
+  return out;
+}
+
 function setContractField(
   tx: YamlTransaction,
   cmd: Extract<FlowCommand, { kind: 'setContractField' }>,
@@ -899,6 +968,12 @@ function setContractField(
     throw new CommandError('duplicate-name', `"${cmd.rename}" already exists`);
   }
   const value = contract(cmd.field);
+  // A renamed node output: downstream inputs read it as `<key>.<name>`.
+  if (cmd.target !== 'flow' && cmd.side === 'outputs' && cmd.rename && cmd.rename !== cmd.name) {
+    const rewrites = outputRefRewrites(state(tx), cmd.target, cmd.name, name);
+    if (rewrites.length > 0)
+      tx.applyAll(rewrites.map((r) => (f: YamlFile) => setIn(f, r.path, r.value)));
+  }
   // A renamed node input: the binding's parameters read it by name (chips are Jinja, D-26).
   if (cmd.target !== 'flow' && cmd.side === 'inputs' && cmd.rename && cmd.rename !== cmd.name) {
     const params = nodeAt(state(tx), cmd.target).node.impl?.params;
@@ -1041,6 +1116,21 @@ export function planCommand(
     case 'setBinding':
       setBinding(tx, cmd);
       break;
+    case 'ignoreDrift':
+      ignoreDrift(tx, cmd);
+      break;
+    case 'clearDriftIgnore': {
+      const decisions = state(tx).doc.decisions ?? [];
+      const idx = decisions
+        .map((d, i) =>
+          d?.kind === 'drift_ignored' && d.node === cmd.node && d.item === cmd.item ? i : -1,
+        )
+        .filter((i) => i >= 0);
+      if (idx.length === decisions.length && idx.length > 0)
+        tx.apply((f) => deleteKey(f, [], 'decisions'));
+      else tx.applyAll(idx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
+      break;
+    }
     case 'updateFlow':
       updateFlow(tx, cmd.patch);
       break;

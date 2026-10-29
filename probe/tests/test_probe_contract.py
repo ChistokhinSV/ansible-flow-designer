@@ -40,7 +40,7 @@ class Session:
                 "-v",
                 f"{self.cache}:/afd-cache",
                 "-e",
-                "ANSIBLE_ROLES_PATH=/work/probe/tests/fixtures/roles",
+                "ANSIBLE_ROLES_PATH=/work/probe/tests/fixtures/roles:/work/test/fixtures/drift/roles",
                 "-e",
                 "PYTHONPATH=/afd",
                 "-e",
@@ -172,3 +172,48 @@ def test_roles_read_argument_specs(probe):
     assert main["options"]["site"]["required"] is True
     assert main["options"]["site"]["type"] == "str"
     assert "verify" in role["entry_points"]
+
+
+DRIFT = "test/fixtures/drift"
+
+
+def test_compile_matches_generated_plays_to_nodes(probe):
+    generated = f"{DRIFT}/flows/edge-drift/generated/edge-drift.yml"
+    result = probe.call("compile", playbooks=[generated, "missing.yml"])["result"]
+    book, missing = result["playbooks"]
+    assert missing["error"] == "not found"
+    tags = {t for p in book["plays"] for t in p["tags"] if t.startswith("node_")}
+    # Top level, the imported subflow level, and the bound playbook's own play.
+    for node in ("05", "11", "12", "02"):
+        assert f"node_01JCR6N00000000000000000{node}" in tags
+    validate = next(p for p in book["plays"] if p["name"].startswith("[validate]"))
+    assert validate["origin"]["path"] == generated
+    assert isinstance(validate["origin"]["line"], int)
+    precheck = next(p for p in book["plays"] if p["name"] == "Pre-checks")
+    assert precheck["origin"]["path"] == f"{DRIFT}/playbooks/precheck.yml"
+    assert [t["action"] for t in precheck["tasks"]] == [
+        "ansible.builtin.ping",
+        "ansible.builtin.debug",
+    ]
+    # Role bindings are dynamic in generated code: compile lists the include, not its tasks.
+    assert any(t["dynamic"] for t in validate["tasks"])
+
+
+def test_compile_expands_roles_and_skips_the_spec_check(probe):
+    roles = [
+        {"name": "netops_validate"},
+        {"name": "push_baseline", "tasks_from": "ntp"},
+        {"name": "push_baseline"},
+        {"name": "not_a_role"},
+    ]
+    validate, ntp, whole, nope = probe.call("compile", roles=roles)["result"]["roles"]
+    real = [t for t in validate["tasks"] if not t["auto"]]
+    assert [t["action"] for t in real] == ["ansible.builtin.command"]
+    assert real[0]["register"] == ["diff_report"]
+    assert real[0]["origin"]["path"] == f"{DRIFT}/roles/netops_validate/tasks/main.yml"
+    assert any(
+        t["action"].endswith("validate_argument_spec") for t in validate["tasks"] if t["auto"]
+    )
+    assert [t["name"] for t in ntp["tasks"]] == ["Push NTP servers"]
+    assert [t["dynamic"] for t in whole["tasks"]] == [True, True, True]
+    assert "not_a_role" in nope["error"] and nope["tasks"] == []

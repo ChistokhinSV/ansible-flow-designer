@@ -1,0 +1,7 @@
+# Fictional role for drift tests: the whole baseline, one file per step.
+- name: NTP
+  ansible.builtin.include_tasks: ntp.yml
+- name: AAA
+  ansible.builtin.include_tasks: aaa.yml
+- name: Wait for convergence
+  ansible.builtin.include_tasks: wait_for_convergence.yml

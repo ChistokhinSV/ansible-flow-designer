@@ -1,0 +1,123 @@
+# Drift test flow (fictional sample ULIDs, mockup 04): each drift kind of D-29 appears once.
+schema_version: 1
+flow:
+  id: 01JCR6F0000000000000000000
+  key: edge-drift
+  name: Edge baseline (drift)
+  version: 3
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    site:
+      type: string
+      required: true
+nodes:
+  - id: 01JCR6N0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCR6N0000000000000000002
+    key: precheck
+    type: task
+    title: Pre-checks
+    status: implemented
+    impl:
+      kind: playbook
+      ref: playbooks/precheck.yml
+  - id: 01JCR6N0000000000000000003
+    key: backup-config
+    type: task
+    title: Backup config
+    status: implemented
+    outputs:
+      backup_ref:
+        type: string
+    impl:
+      kind: role
+      ref: netops_backup
+  - id: 01JCR6N0000000000000000004
+    key: push-baseline
+    type: subflow
+    title: Push baseline
+    status: implemented
+    impl:
+      kind: role
+      ref: push_baseline
+    subflow:
+      nodes:
+        - id: 01JCR6N0000000000000000011
+          key: push-ntp
+          type: task
+          title: Push NTP
+          status: implemented
+          impl:
+            kind: role
+            ref: push_baseline
+            params:
+              tasks_from: ntp
+        - id: 01JCR6N0000000000000000012
+          key: push-aaa
+          type: task
+          title: Push AAA
+          status: implemented
+          impl:
+            kind: role
+            ref: push_baseline
+            params:
+              tasks_from: aaa
+      edges:
+        - { id: 01JCR6E0000000000000000011, from: { node: 01JCR6N0000000000000000011, port: ok_hosts }, to: { node: 01JCR6N0000000000000000012, port: in } }
+      boundary:
+        in: 01JCR6N0000000000000000011
+        outputs:
+          ok_hosts: [{ node: 01JCR6N0000000000000000012, port: ok_hosts }]
+          failed_hosts:
+            - { node: 01JCR6N0000000000000000011, port: failed_hosts }
+            - { node: 01JCR6N0000000000000000012, port: failed_hosts }
+  - id: 01JCR6N0000000000000000005
+    key: validate
+    type: task
+    title: Validate
+    status: implemented
+    inputs:
+      backup:
+        type: string
+        from: backup-config.backup_ref
+    outputs:
+      validation_result:
+        type: dict
+    impl:
+      kind: role
+      ref: netops_validate
+  - id: 01JCR6N0000000000000000006
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCR6N0000000000000000007
+    key: rollback
+    type: task
+    title: Rollback
+    status: specified
+    intent: Restore the backed-up configuration
+    handler: rollback
+  - id: 01JCR6N0000000000000000008
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCR6E0000000000000000001, from: { node: 01JCR6N0000000000000000001, port: ok_hosts }, to: { node: 01JCR6N0000000000000000002, port: in } }
+  - { id: 01JCR6E0000000000000000002, from: { node: 01JCR6N0000000000000000002, port: ok_hosts }, to: { node: 01JCR6N0000000000000000003, port: in } }
+  - { id: 01JCR6E0000000000000000003, from: { node: 01JCR6N0000000000000000003, port: ok_hosts }, to: { node: 01JCR6N0000000000000000004, port: in } }
+  - { id: 01JCR6E0000000000000000004, from: { node: 01JCR6N0000000000000000004, port: ok_hosts }, to: { node: 01JCR6N0000000000000000005, port: in } }
+  - { id: 01JCR6E0000000000000000005, from: { node: 01JCR6N0000000000000000005, port: ok_hosts }, to: { node: 01JCR6N0000000000000000006, port: in } }
+  - { id: 01JCR6E0000000000000000006, from: { node: 01JCR6N0000000000000000005, port: failed_hosts }, to: { node: 01JCR6N0000000000000000007, port: in } }
+  - { id: 01JCR6E0000000000000000007, from: { node: 01JCR6N0000000000000000007, port: ok_hosts }, to: { node: 01JCR6N0000000000000000008, port: in } }
+  - { id: 01JCR6E0000000000000000008, from: { node: 01JCR6N0000000000000000007, port: failed_hosts }, to: { node: 01JCR6N0000000000000000008, port: in } }
+  - { id: 01JCR6E0000000000000000009, from: { node: 01JCR6N0000000000000000002, port: failed_hosts }, to: { node: 01JCR6N0000000000000000008, port: in } }
+  - { id: 01JCR6E0000000000000000010, from: { node: 01JCR6N0000000000000000003, port: failed_hosts }, to: { node: 01JCR6N0000000000000000008, port: in } }
+  - { id: 01JCR6E0000000000000000012, from: { node: 01JCR6N0000000000000000004, port: failed_hosts }, to: { node: 01JCR6N0000000000000000008, port: in } }

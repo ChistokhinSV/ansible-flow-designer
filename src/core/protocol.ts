@@ -1,5 +1,6 @@
 // Messages between the extension host and the flow editor webview (one request/response scheme).
 import type { CatalogOption, CatalogPlugin, PluginType, SearchHit } from './catalog/types';
+import type { CodeScan, DriftAction } from './drift/types';
 import type { FlowCommand } from './flow/commands';
 import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
@@ -107,7 +108,9 @@ export type HostMessage =
       node: Ulid;
       tab?: 'general' | 'implementation' | 'io' | 'ports' | 'execution';
     }
-  | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string };
+  | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string }
+  /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
+  | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -123,7 +126,13 @@ export type WebviewMessage =
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
   | { type: 'perf'; event: 'firstRender' | 'render' | 'roundTrip'; ms: number; docVersion: number }
   | { type: 'cspViolation'; detail: string }
-  | { type: 'catalog'; reqId: number; request: CatalogRequest };
+  | { type: 'catalog'; reqId: number; request: CatalogRequest }
+  /** Re-sync from git (M6). */
+  | { type: 'sync' }
+  /** Opens a repository file at a line (drift "Open code"). */
+  | { type: 'openCode'; path: string; line?: number }
+  /** Drift actions the host carries out (stubs, specs, re-sync), answered by `ack`. */
+  | { type: 'driftAction'; reqId: number; action: DriftAction };
 
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {

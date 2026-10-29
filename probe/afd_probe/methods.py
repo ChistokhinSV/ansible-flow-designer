@@ -127,9 +127,7 @@ def _vault_present(root: str, sources: list[Any]) -> bool:
     return False
 
 
-def catalog(
-    root: str, cache: str, jobs: int = 8, only: list[str] | None = None
-) -> dict[str, Any]:
+def catalog(root: str, cache: str, jobs: int = 8, only: list[str] | None = None) -> dict[str, Any]:
     """Dumps the environment's plugin docs into `cache` (M5); see catalog.py."""
     from afd_probe import catalog as cat
 
@@ -143,10 +141,22 @@ def roles(root: str) -> list[dict[str, Any]]:
     return cat.roles(root)
 
 
+def compile(  # noqa: A001 - the protocol method name
+    root: str,
+    playbooks: list[str] | None = None,
+    roles: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Plays and tasks Ansible compiles from playbooks and bound roles (M6); see code.py."""
+    from afd_probe import code
+
+    return code.compile_code(root, playbooks, roles)
+
+
 HANDLERS = {
     "ping": ping,
     "syntax_check": syntax_check,
     "inventory": inventory,
     "catalog": catalog,
     "roles": roles,
+    "compile": compile,
 }

@@ -1,4 +1,5 @@
 // Message bus to the extension host: commands are requests answered by `ack`.
+import type { DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import type { HostMessage, WebviewMessage } from '../core/protocol';
 
@@ -38,6 +39,15 @@ export function send(message: WebviewMessage): void {
 export function onHostMessage(listener: (m: HostMessage) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** A drift action the host carries out (M6: stubs, specs, re-sync), answered by `ack`. */
+export function hostAction(action: DriftAction): Promise<Ack> {
+  const reqId = nextReq++;
+  return new Promise((resolve) => {
+    pending.set(reqId, resolve);
+    send({ type: 'driftAction', reqId, action });
+  });
 }
 
 export function command(cmd: FlowCommand): Promise<Ack> {

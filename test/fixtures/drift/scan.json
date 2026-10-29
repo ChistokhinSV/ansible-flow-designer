@@ -1,0 +1,755 @@
+{
+ "generated": {
+  "path": "flows/edge-drift/generated/edge-drift.yml",
+  "plays": [
+   {
+    "name": "Pre-checks",
+    "hosts": "{{ afd_hosts | default('all') }}",
+    "tags": [
+     "node_01JCR6N0000000000000000002"
+    ],
+    "origin": {
+     "path": "playbooks/precheck.yml",
+     "line": 2
+    },
+    "tasks": [
+     {
+      "name": "Check reachability",
+      "action": "ansible.builtin.ping",
+      "tags": [
+       "node_01JCR6N0000000000000000002"
+      ],
+      "origin": {
+       "path": "playbooks/precheck.yml",
+       "line": 6
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "Check free flash",
+      "action": "ansible.builtin.debug",
+      "tags": [
+       "node_01JCR6N0000000000000000002"
+      ],
+      "origin": {
+       "path": "playbooks/precheck.yml",
+       "line": 8
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[precheck] Pre-checks: route",
+    "hosts": "{{ devices | join(',') }}",
+    "tags": [
+     "node_01JCR6N0000000000000000002"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.yml",
+     "line": 11
+    },
+    "tasks": [
+     {
+      "name": "[precheck] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000002"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 16
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[backup-config] Backup config",
+    "hosts": "flow_precheck_ok_hosts",
+    "tags": [
+     "node_01JCR6N0000000000000000003"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.yml",
+     "line": 20
+    },
+    "tasks": [
+     {
+      "name": "[backup-config] Apply role",
+      "action": "ansible.builtin.include_role",
+      "tags": [
+       "node_01JCR6N0000000000000000003"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 28
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": true,
+      "auto": false
+     },
+     {
+      "name": "[backup-config] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000003"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 33
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[backup-config] route failed_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000003"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 37
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "rescue",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[push-ntp] Push NTP",
+    "hosts": "flow_backup_config_ok_hosts",
+    "tags": [
+     "node_01JCR6N0000000000000000011",
+     "node_01JCR6N0000000000000000004"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+     "line": 5
+    },
+    "tasks": [
+     {
+      "name": "[push-ntp] Apply role",
+      "action": "ansible.builtin.include_role",
+      "tags": [
+       "node_01JCR6N0000000000000000011",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 13
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": true,
+      "auto": false
+     },
+     {
+      "name": "[push-ntp] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000011",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 19
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[push-ntp] route failed_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000011",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 24
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "rescue",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[push-aaa] Push AAA",
+    "hosts": "flow_push_baseline__push_ntp_ok_hosts",
+    "tags": [
+     "node_01JCR6N0000000000000000012",
+     "node_01JCR6N0000000000000000004"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+     "line": 28
+    },
+    "tasks": [
+     {
+      "name": "[push-aaa] Apply role",
+      "action": "ansible.builtin.include_role",
+      "tags": [
+       "node_01JCR6N0000000000000000012",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 36
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": true,
+      "auto": false
+     },
+     {
+      "name": "[push-aaa] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000012",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 42
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[push-aaa] route failed_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000012",
+       "node_01JCR6N0000000000000000004"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
+       "line": 47
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "rescue",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[validate] Validate",
+    "hosts": "flow_push_baseline_ok_hosts",
+    "tags": [
+     "node_01JCR6N0000000000000000005"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.yml",
+     "line": 45
+    },
+    "tasks": [
+     {
+      "name": "[validate] Apply role",
+      "action": "ansible.builtin.include_role",
+      "tags": [
+       "node_01JCR6N0000000000000000005"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 54
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": true,
+      "auto": false
+     },
+     {
+      "name": "[validate] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000005"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 59
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[validate] route failed_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000005"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 63
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "rescue",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[rollback] Rollback",
+    "hosts": "flow_validate_failed_hosts",
+    "tags": [
+     "node_01JCR6N0000000000000000007"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.yml",
+     "line": 67
+    },
+    "tasks": [
+     {
+      "name": "[rollback] TODO",
+      "action": "ansible.builtin.debug",
+      "tags": [
+       "node_01JCR6N0000000000000000007"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 75
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[rollback] route ok_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000007"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 78
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
+      "name": "[rollback] route failed_hosts",
+      "action": "ansible.builtin.group_by",
+      "tags": [
+       "node_01JCR6N0000000000000000007"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 82
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "rescue",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   },
+   {
+    "name": "[edge-drift] Outcome",
+    "hosts": "flow_rollback_ok_hosts:flow_rollback_failed_hosts:flow_precheck_failed_hosts:flow_backup_config_failed_hosts:flow_push_baseline_failed_hosts",
+    "tags": [
+     "flow_01JCR6F0000000000000000000"
+    ],
+    "origin": {
+     "path": "flows/edge-drift/generated/edge-drift.yml",
+     "line": 87
+    },
+    "tasks": [
+     {
+      "name": "[failed] Failed",
+      "action": "ansible.builtin.fail",
+      "tags": [
+       "flow_01JCR6F0000000000000000000"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 92
+      },
+      "register": [],
+      "facts": [],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     }
+    ]
+   }
+  ]
+ },
+ "roles": [
+  {
+   "name": "netops_backup",
+   "tasks_from": null,
+   "tasks": [
+    {
+     "name": "Save the running config",
+     "action": "ansible.builtin.debug",
+     "tags": [],
+     "origin": {
+      "path": "roles/netops_backup/tasks/main.yml",
+      "line": 2
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "netops_backup",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    },
+    {
+     "name": "Remember where it went",
+     "action": "ansible.builtin.set_fact",
+     "tags": [],
+     "origin": {
+      "path": "roles/netops_backup/tasks/main.yml",
+      "line": 5
+     },
+     "register": [],
+     "facts": [
+      "backup_ref"
+     ],
+     "stats": [],
+     "role": "netops_backup",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    }
+   ]
+  },
+  {
+   "name": "netops_validate",
+   "tasks_from": null,
+   "tasks": [
+    {
+     "name": "Validating arguments against arg spec 'main' - Compare the running config with the baseline",
+     "action": "ansible.builtin.validate_argument_spec",
+     "tags": [
+      "always"
+     ],
+     "origin": null,
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "netops_validate",
+     "section": "block",
+     "dynamic": false,
+     "auto": true
+    },
+    {
+     "name": "Compare running config with the baseline",
+     "action": "ansible.builtin.command",
+     "tags": [],
+     "origin": {
+      "path": "roles/netops_validate/tasks/main.yml",
+      "line": 2
+     },
+     "register": [
+      "diff_report"
+     ],
+     "facts": [],
+     "stats": [],
+     "role": "netops_validate",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    }
+   ]
+  },
+  {
+   "name": "push_baseline",
+   "tasks_from": null,
+   "tasks": [
+    {
+     "name": "NTP",
+     "action": "ansible.builtin.include_tasks",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/main.yml",
+      "line": 2
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": true,
+     "auto": false
+    },
+    {
+     "name": "AAA",
+     "action": "ansible.builtin.include_tasks",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/main.yml",
+      "line": 4
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": true,
+     "auto": false
+    },
+    {
+     "name": "Wait for convergence",
+     "action": "ansible.builtin.include_tasks",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/main.yml",
+      "line": 6
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": true,
+     "auto": false
+    }
+   ]
+  },
+  {
+   "name": "push_baseline",
+   "tasks_from": "ntp",
+   "tasks": [
+    {
+     "name": "Push NTP servers",
+     "action": "ansible.builtin.debug",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/ntp.yml",
+      "line": 1
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    }
+   ]
+  },
+  {
+   "name": "push_baseline",
+   "tasks_from": "aaa",
+   "tasks": [
+    {
+     "name": "Push AAA servers",
+     "action": "ansible.builtin.debug",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/aaa.yml",
+      "line": 1
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    },
+    {
+     "name": "Enable AAA",
+     "action": "ansible.builtin.debug",
+     "tags": [],
+     "origin": {
+      "path": "roles/push_baseline/tasks/aaa.yml",
+      "line": 4
+     },
+     "register": [],
+     "facts": [],
+     "stats": [],
+     "role": "push_baseline",
+     "section": "block",
+     "dynamic": false,
+     "auto": false
+    }
+   ]
+  }
+ ],
+ "playbooks": [
+  {
+   "path": "playbooks/precheck.yml",
+   "plays": [
+    {
+     "name": "Pre-checks",
+     "hosts": "{{ afd_hosts | default('all') }}",
+     "tags": [],
+     "origin": {
+      "path": "playbooks/precheck.yml",
+      "line": 2
+     },
+     "tasks": [
+      {
+       "name": "Check reachability",
+       "action": "ansible.builtin.ping",
+       "tags": [],
+       "origin": {
+        "path": "playbooks/precheck.yml",
+        "line": 6
+       },
+       "register": [],
+       "facts": [],
+       "stats": [],
+       "role": null,
+       "section": "block",
+       "dynamic": false,
+       "auto": false
+      },
+      {
+       "name": "Check free flash",
+       "action": "ansible.builtin.debug",
+       "tags": [],
+       "origin": {
+        "path": "playbooks/precheck.yml",
+        "line": 8
+       },
+       "register": [],
+       "facts": [],
+       "stats": [],
+       "role": null,
+       "section": "block",
+       "dynamic": false,
+       "auto": false
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "roleInfo": [
+  {
+   "name": "netops_backup",
+   "path": "roles/netops_backup",
+   "entry_points": {},
+   "tasks": [
+    "main"
+   ]
+  },
+  {
+   "name": "netops_validate",
+   "path": "roles/netops_validate",
+   "entry_points": {
+    "main": {
+     "short_description": "Compare the running config with the baseline",
+     "description": "",
+     "options": {
+      "site": {
+       "type": "str",
+       "description": "Site code, for example ams1",
+       "required": true
+      },
+      "backup": {
+       "type": "str",
+       "description": "Path of the backup to compare against"
+      },
+      "strict": {
+       "type": "bool",
+       "description": "Fail on any difference"
+      }
+     }
+    }
+   },
+   "tasks": [
+    "main"
+   ]
+  },
+  {
+   "name": "push_baseline",
+   "path": "roles/push_baseline",
+   "entry_points": {},
+   "tasks": [
+    "aaa",
+    "main",
+    "ntp",
+    "wait_for_convergence"
+   ]
+  }
+ ]
+}

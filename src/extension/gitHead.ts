@@ -1,13 +1,27 @@
 // Committed content of a file at HEAD and the Git user name, through the built-in Git extension's
 // API (works under Remote).
 import { userInfo } from 'node:os';
+import { isAbsolute, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
+import type { GitState } from '../core/drift/types';
 
 // The subset of vscode.git's API (extensions/git/src/api/git.d.ts) used here.
+interface GitChange {
+  uri: vscode.Uri;
+}
 interface GitRepository {
+  rootUri: vscode.Uri;
+  state: {
+    HEAD?: { name?: string; commit?: string };
+    workingTreeChanges: GitChange[];
+    indexChanges: GitChange[];
+    untrackedChanges?: GitChange[];
+  };
   show(ref: string, path: string): Promise<string>;
   getConfig(key: string): Promise<string>;
   getGlobalConfig(key: string): Promise<string>;
+  getCommit(ref: string): Promise<{ hash: string; commitDate?: Date; authorDate?: Date }>;
+  status(): Promise<void>;
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
@@ -41,6 +55,49 @@ export async function headText(uri: vscode.Uri): Promise<string | undefined> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Branch, HEAD commit and its time, and the uncommitted changes among the paths that matter
+ * (M6 sync label). Paths are relative to `folder`, forward slashes.
+ */
+export async function gitState(
+  folder: vscode.Uri,
+  relevant: (path: string) => boolean,
+): Promise<GitState | undefined> {
+  const repo = (await gitApi())?.getRepository(folder);
+  if (!repo) return undefined;
+  // The Git extension refreshes on file events, later than a sync right after an edit.
+  try {
+    await repo.status();
+  } catch {
+    // Keep the state it has.
+  }
+  const head = repo.state.HEAD;
+  let when: string | undefined;
+  if (head?.commit) {
+    try {
+      const c = await repo.getCommit(head.commit);
+      when = (c.commitDate ?? c.authorDate)?.toISOString();
+    } catch {
+      // A fresh repository without commits.
+    }
+  }
+  const changes = [
+    ...repo.state.workingTreeChanges,
+    ...repo.state.indexChanges,
+    ...(repo.state.untrackedChanges ?? []),
+  ];
+  const dirty = [
+    ...new Set(
+      changes
+        .map((c) => relative(folder.fsPath, c.uri.fsPath))
+        .filter((p) => p && !p.startsWith('..') && !isAbsolute(p))
+        .map((p) => p.split(sep).join('/'))
+        .filter(relevant),
+    ),
+  ].sort();
+  return { branch: head?.name, commit: head?.commit?.slice(0, 7), when, dirty };
 }
 
 /** Who records a decision (decision 13): Git user.name for the file's repository, else the OS user. */

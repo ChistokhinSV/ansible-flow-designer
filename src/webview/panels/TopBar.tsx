@@ -1,6 +1,7 @@
-// Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Only
-// Design mode and no lens exist so far; the rest is shown disabled with the milestone that adds it.
-// Run as skeleton (M3) runs the generated code in check mode; the run status sits next to it.
+// Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Design and
+// Implementation (M6) exist; Run mode and the lenses are shown disabled with their milestone.
+// Run as skeleton (M3) runs the generated code in check mode; Re-sync from git (M6) compiles the
+// code for Implementation mode.
 
 import { ROOT } from '../../core/flow/model';
 import type { RunView } from '../../core/protocol';
@@ -10,7 +11,7 @@ import { inheritedContext, levelTrail } from '../viewModel';
 
 const MODES = [
   { id: 'design', label: 'Design' },
-  { id: 'implementation', label: 'Implementation', soon: 'M6' },
+  { id: 'implementation', label: 'Implementation' },
   { id: 'run', label: 'Run', soon: 'M7' },
 ];
 const LENSES = ['None', 'Inventory', 'Data', 'Code', 'Access', 'Timing'];
@@ -24,6 +25,14 @@ export function TopBar() {
   const chips = doc ? inheritedContext(doc, level) : [];
   const run = useUi((s) => s.run);
   const running = run?.state === 'running';
+  const mode = useUi((s) => s.mode);
+  const sync = useUi((s) => s.sync);
+  const choose = (id: string) => {
+    if (id !== 'design' && id !== 'implementation') return;
+    useUi.getState().setMode(id);
+    // The first visit compiles the code; later ones show the last scan (Re-sync refreshes it).
+    if (id === 'implementation' && sync.state === 'idle') send({ type: 'sync' });
+  };
   return (
     <header className="afd-topbar">
       <nav className="afd-breadcrumb" aria-label="Breadcrumb">
@@ -68,9 +77,10 @@ export function TopBar() {
           <button
             key={m.id}
             type="button"
-            className={m.id === 'design' ? 'active' : ''}
-            aria-pressed={m.id === 'design'}
+            className={m.id === mode ? 'active' : ''}
+            aria-pressed={m.id === mode}
             disabled={!!m.soon}
+            onClick={() => choose(m.id)}
             title={m.soon ? `${m.label} mode arrives in ${m.soon}` : undefined}
           >
             {m.label}
@@ -108,34 +118,57 @@ export function TopBar() {
         >
           <span className="codicon codicon-go-to-file" aria-hidden="true" /> Text
         </button>
+        {mode === 'implementation' ? (
+          <button
+            type="button"
+            disabled={sync.state === 'syncing'}
+            onClick={() => send({ type: 'sync' })}
+            title="Compile the generated code and the bound roles and playbooks in the environment, and compare them with the design"
+          >
+            <span
+              className={`codicon ${sync.state === 'syncing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-sync'}`}
+              aria-hidden="true"
+            />{' '}
+            {sync.state === 'syncing' ? 'Syncing…' : 'Re-sync from git'}
+          </button>
+        ) : null}
         <RunStatus run={run} />
-        <button
-          type="button"
-          className="secondary"
-          disabled={running}
-          onClick={() => send({ type: 'run', mode: 'real' })}
-          title="Run for real (not check mode), after a confirmation naming inventory and hosts"
-          aria-label="Run for real"
-        >
-          <span className="codicon codicon-debug-alt" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          disabled={running}
-          onClick={() => send({ type: 'run', mode: 'check' })}
-          title="Generate the playbook and run it in check mode in the Ansible environment"
-        >
-          <span
-            className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-play'}`}
-            aria-hidden="true"
-          />{' '}
-          {running ? 'Running…' : 'Run as skeleton'}
-        </button>
-        <button type="button" onClick={() => send({ type: 'validate' })}>
-          <span className="codicon codicon-check-all" aria-hidden="true" /> Validate design
-        </button>
+        {mode === 'design' ? <DesignActions running={running} /> : null}
       </div>
     </header>
+  );
+}
+
+/** Design mode's primary actions (04 §1): run as skeleton or for real, validate. */
+function DesignActions({ running }: { running: boolean }) {
+  return (
+    <>
+      <button
+        type="button"
+        className="secondary"
+        disabled={running}
+        onClick={() => send({ type: 'run', mode: 'real' })}
+        title="Run for real (not check mode), after a confirmation naming inventory and hosts"
+        aria-label="Run for real"
+      >
+        <span className="codicon codicon-debug-alt" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        disabled={running}
+        onClick={() => send({ type: 'run', mode: 'check' })}
+        title="Generate the playbook and run it in check mode in the Ansible environment"
+      >
+        <span
+          className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-play'}`}
+          aria-hidden="true"
+        />{' '}
+        {running ? 'Running…' : 'Run as skeleton'}
+      </button>
+      <button type="button" onClick={() => send({ type: 'validate' })}>
+        <span className="codicon codicon-check-all" aria-hidden="true" /> Validate design
+      </button>
+    </>
   );
 }
 

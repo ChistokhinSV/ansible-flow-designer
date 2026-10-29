@@ -110,13 +110,10 @@ export interface Position {
 
 export type Layout = Record<Ulid, Position>;
 
-export interface Decision {
-  node: Ulid;
-  port: string;
-  kind: 'open_on_purpose';
-  reason?: string;
-  by?: string;
-}
+export type Decision =
+  | { node: Ulid; port: string; kind: 'open_on_purpose'; reason?: string; by?: string }
+  /** A drift item kept as it is (M6, D-29: drift is never auto-resolved, so ignoring is explicit). */
+  | { node: Ulid; kind: 'drift_ignored'; item: string; port?: never; reason?: string; by?: string };
 
 export interface FlowHeader {
   id: Ulid;

@@ -1,0 +1,5 @@
+# Fictional role for drift tests: registers diff_report, while the flow expects validation_result.
+- name: Compare running config with the baseline
+  ansible.builtin.command: echo "no differences on {{ site }}"
+  register: diff_report
+  changed_when: false
