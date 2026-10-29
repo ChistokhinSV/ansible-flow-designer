@@ -113,7 +113,17 @@ export type Layout = Record<Ulid, Position>;
 export type Decision =
   | { node: Ulid; port: string; kind: 'open_on_purpose'; reason?: string; by?: string }
   /** A drift item kept as it is (M6, D-29: drift is never auto-resolved, so ignoring is explicit). */
-  | { node: Ulid; kind: 'drift_ignored'; item: string; port?: never; reason?: string; by?: string };
+  | { node: Ulid; kind: 'drift_ignored'; item: string; port?: never; reason?: string; by?: string }
+  /** A lens finding reviewed and kept as expected (M8); `finding` is its stable id. */
+  | {
+      kind: 'finding_accepted';
+      finding: string;
+      node?: Ulid;
+      port?: never;
+      item?: never;
+      reason?: string;
+      by?: string;
+    };
 
 export interface FlowHeader {
   id: Ulid;
@@ -123,6 +133,8 @@ export interface FlowHeader {
   goal?: string;
   owner?: string;
   runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string };
+  /** Longest time the flow may take (`4h`, `2h30m`), checked by the Timing lens (M8). */
+  maintenance_window?: string;
   inputs?: Contract;
 }
 

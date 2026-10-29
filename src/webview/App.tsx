@@ -9,6 +9,7 @@ import { DecisionDialog } from './panels/DecisionDialog';
 import { DriftPanel, IgnoreDialog, NodeCodePanel } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
 import { Inspector } from './panels/Inspector';
+import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
 import { Palette } from './panels/Palette';
 import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
@@ -65,6 +66,32 @@ function domSummary(docVersion: number): DomSummary {
             ),
           }
         : undefined,
+    lens: lensSummary(),
+  };
+}
+
+function lensSummary(): DomSummary['lens'] {
+  const ui = useUi.getState();
+  if (!ui.lens) return undefined;
+  const nodes = [...document.querySelectorAll<HTMLElement>('[data-node-id]')];
+  return {
+    lens: ui.lens,
+    chips: Object.fromEntries(
+      nodes.map((el) => {
+        const chips = el.dataset.lens ?? '';
+        return [el.dataset.nodeId ?? '', chips ? chips.split('|') : []];
+      }),
+    ),
+    findings: [...document.querySelectorAll<HTMLElement>('[data-finding]')].map(
+      (el) => `${el.dataset.finding}${el.dataset.accepted ? ' (accepted)' : ''}`,
+    ),
+    dataWires: document.querySelectorAll('.afd-data-edge').length,
+    highlighted: nodes
+      .filter((el) => el.classList.contains('lens-hit'))
+      .map((el) => el.dataset.nodeId ?? ''),
+    card: [...document.querySelectorAll<HTMLElement>('[data-summary-card] dt')].map(
+      (dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent ?? ''}`,
+    ),
   };
 }
 
@@ -103,6 +130,10 @@ function useHost() {
         ui.setCatalog(m.status);
       } else if (m.type === 'sync') {
         ui.setSync({ state: m.state, scan: m.scan, error: m.error });
+      } else if (m.type === 'lensFacts') {
+        ui.setLensFacts(m.facts);
+      } else if (m.type === 'setLens') {
+        ui.setLens(m.lens);
       } else if (m.type === 'openProperties') {
         ui.reveal(m.node);
         ui.openProperties(m.node, m.tab);
@@ -150,6 +181,7 @@ export function App() {
   const setError = useUi((s) => s.setError);
   const properties = useUi((s) => s.properties);
   const mode = useUi((s) => s.mode);
+  const lens = useUi((s) => s.lens);
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 6000);
@@ -172,7 +204,7 @@ export function App() {
     <ReactFlowProvider key={level}>
       <div className="afd-shell">
         <TopBar />
-        <Palette />
+        {lens ? <LensBrowser /> : <Palette />}
         <main className="afd-center">
           <Banner />
           <PickBar />
@@ -181,16 +213,20 @@ export function App() {
         <aside
           className="afd-right"
           aria-label={
-            mode === 'implementation'
-              ? 'Design vs code'
-              : mode === 'run'
-                ? 'Run results'
-                : selected
-                  ? 'Node inspector'
-                  : 'Flow description'
+            lens && !selected && !wire
+              ? 'Lens findings'
+              : mode === 'implementation'
+                ? 'Design vs code'
+                : mode === 'run'
+                  ? 'Run results'
+                  : selected
+                    ? 'Node inspector'
+                    : 'Flow description'
           }
         >
-          {mode === 'implementation' ? (
+          {lens && !selected && !wire ? (
+            <LensPanel />
+          ) : mode === 'implementation' ? (
             selected ? (
               <NodeCodePanel id={selected} />
             ) : (
@@ -215,6 +251,7 @@ export function App() {
         <QuickAdd />
         <DecisionDialog />
         <IgnoreDialog />
+        <AcceptDialog />
         <PortMenu />
         <PreviewCard />
         {properties ? <Properties key={properties.node} node={properties.node} /> : null}

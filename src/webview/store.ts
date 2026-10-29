@@ -4,6 +4,8 @@ import { computeDrift } from '../core/drift/drift';
 import type { CodeScan, DriftReport } from '../core/drift/types';
 import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
+import { lensView } from '../core/lens';
+import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import { type NodeRun, runStates } from '../core/run/view';
 
@@ -67,6 +69,13 @@ export interface IgnoreTarget {
   label: string;
 }
 
+/** A lens finding whose "Mark expected" reason is being entered (M8). */
+export interface AcceptTarget {
+  id: string;
+  node?: Ulid;
+  title: string;
+}
+
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */
 export interface PickState {
   mode: 'to' | 'from' | 'rewire';
@@ -104,6 +113,14 @@ interface UiState {
   /** Design vs code for the current document and the last scan (computed, never stored). */
   drift: DriftReport | null;
   ignore: IgnoreTarget | null;
+  /** The lens across the canvas (D-18, M8), independent of mode. */
+  lens: LensId | null;
+  lensFacts: LensFacts;
+  /** The active lens for the current document, facts and run (computed, never stored). */
+  lensView: LensView | null;
+  /** Nodes a hovered lens panel item matches; the rest dims (04 §7). */
+  highlight: Ulid[] | null;
+  accept: AcceptTarget | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -130,10 +147,24 @@ interface UiState {
   setMode(mode: Mode): void;
   setSync(sync: SyncState): void;
   setIgnore(target: IgnoreTarget | null): void;
+  setLens(lens: LensId | null): void;
+  /** Merges facts from the host (each message carries the kinds it updates). */
+  setLensFacts(facts: LensFacts): void;
+  setHighlight(nodes: Ulid[] | null): void;
+  setAccept(target: AcceptTarget | null): void;
 }
 
 function runOf(snapshot: Snapshot | null, run: RunView | null): Record<Ulid, NodeRun> | null {
   return snapshot?.doc && run?.summary ? runStates(snapshot.doc, run.summary) : null;
+}
+
+function lensOf(
+  snapshot: Snapshot | null,
+  lens: LensId | null,
+  facts: LensFacts,
+  run: RunView | null,
+): LensView | null {
+  return snapshot?.doc && lens ? lensView(lens, snapshot.doc, facts, run) : null;
 }
 
 function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftReport | null {
@@ -161,6 +192,11 @@ export const useUi = create<UiState>((set, get) => ({
   sync: { state: 'idle' },
   drift: null,
   ignore: null,
+  lens: null,
+  lensFacts: {},
+  lensView: null,
+  highlight: null,
+  accept: null,
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -193,6 +229,7 @@ export const useUi = create<UiState>((set, get) => ({
       ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
       drift: driftOf(snapshot, get().sync.scan),
       runNodes: runOf(snapshot, get().run),
+      lensView: lensOf(snapshot, get().lens, get().lensFacts, get().run),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
@@ -204,7 +241,25 @@ export const useUi = create<UiState>((set, get) => ({
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
   setError: (error) => set({ error }),
-  setRun: (run) => set({ run, runNodes: runOf(get().snapshot, run) }),
+  setRun: (run) =>
+    set({
+      run,
+      runNodes: runOf(get().snapshot, run),
+      lensView: lensOf(get().snapshot, get().lens, get().lensFacts, run),
+    }),
+  setLens(lens) {
+    set({
+      lens,
+      highlight: null,
+      lensView: lensOf(get().snapshot, lens, get().lensFacts, get().run),
+    });
+  },
+  setLensFacts(facts) {
+    const lensFacts = { ...get().lensFacts, ...facts };
+    set({ lensFacts, lensView: lensOf(get().snapshot, get().lens, lensFacts, get().run) });
+  },
+  setHighlight: (highlight) => set({ highlight }),
+  setAccept: (accept) => set({ accept }),
   setLevel(level) {
     if (level === get().level) return;
     clearTimeout(openTimer);

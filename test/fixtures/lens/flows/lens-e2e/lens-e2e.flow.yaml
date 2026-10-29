@@ -1,0 +1,147 @@
+# M8 lens fixture (fictional): every lens has something to find here.
+schema_version: 1
+flow:
+  id: 01M63HM980P02VHDN2C4KNE09X
+  key: lens-e2e
+  name: Lens review · edge maintenance
+  version: 1
+  goal: Upgrade edge switches inside a short window, with drain on the spines and a rollback.
+  owner: netops
+  maintenance_window: 30m
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    site:
+      type: string
+nodes:
+  - id: 01M63HM980P02VHDN2C4KNE09Y
+    key: start
+    type: start
+    title: Start
+  - id: 01M63HM980P02VHDN2C4KNE09Z
+    key: precheck
+    type: task
+    title: Pre-checks
+    status: implemented
+    inputs:
+      devices:
+        type: host_list
+        from: flow.devices
+    outputs:
+      report:
+        type: dict
+    settings:
+      serial: 2
+      timeout: 10m
+    impl:
+      kind: module
+      ref: ansible.builtin.ping
+  - id: 01M63HM980P02VHDN2C4KNE0A0
+    key: drain
+    type: task
+    title: Drain traffic
+    status: specified
+    intent: Move traffic off the edge switch on its spines
+    inputs:
+      devices:
+        type: host_list
+        from: flow.devices
+    settings:
+      credential: netops-rw
+      inventory_target: edge_switches,core_spines
+  - id: 01M63HM980P02VHDN2C4KNE0A1
+    key: upgrade
+    type: task
+    title: Upgrade OS
+    status: implemented
+    inputs:
+      image:
+        type: string
+        default: images/edge.bin
+      secret:
+        type: string
+        default: '{{ spine_enable_secret }}'
+    settings:
+      credential: netops-admin
+      become: true
+      timeout: 20m
+    impl:
+      kind: module
+      ref: cisco.ios.ios_config
+      params:
+        lines:
+          - boot system {{ image }}
+  - id: 01M63HM980P02VHDN2C4KNE0A2
+    key: post
+    type: task
+    title: Post-checks
+    status: specified
+    inputs:
+      ref:
+        type: string
+        from: backup.ref
+    settings:
+      credential: netops-rw
+  - id: 01M63HM980P02VHDN2C4KNE0A3
+    key: rollback
+    type: task
+    title: Rollback
+    handler: rollback
+    status: draft
+    settings:
+      inventory_target: all
+  - id: 01M63HM980P02VHDN2C4KNE0A4
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01M63HM980P02VHDN2C4KNE0A5
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - id: 01M63HM980P02VHDN2C4KNE0A6
+    from: {node: 01M63HM980P02VHDN2C4KNE09Y, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE09Z, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0A7
+    from: {node: 01M63HM980P02VHDN2C4KNE09Z, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A0, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0A8
+    from: {node: 01M63HM980P02VHDN2C4KNE0A0, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A1, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0A9
+    from: {node: 01M63HM980P02VHDN2C4KNE0A1, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A2, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AA
+    from: {node: 01M63HM980P02VHDN2C4KNE0A2, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A4, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AB
+    from: {node: 01M63HM980P02VHDN2C4KNE0A1, port: failed_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A3, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AC
+    from: {node: 01M63HM980P02VHDN2C4KNE0A3, port: ok_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A5, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AD
+    from: {node: 01M63HM980P02VHDN2C4KNE09Z, port: failed_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A5, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AE
+    from: {node: 01M63HM980P02VHDN2C4KNE0A0, port: failed_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A5, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AF
+    from: {node: 01M63HM980P02VHDN2C4KNE0A2, port: failed_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A5, port: in}
+  - id: 01M63HM980P02VHDN2C4KNE0AG
+    from: {node: 01M63HM980P02VHDN2C4KNE0A3, port: failed_hosts}
+    to: {node: 01M63HM980P02VHDN2C4KNE0A5, port: in}
+layout:
+  01M63HM980P02VHDN2C4KNE09Y: {x: 236, y: 0}
+  01M63HM980P02VHDN2C4KNE09Z: {x: 200, y: 110}
+  01M63HM980P02VHDN2C4KNE0A0: {x: 200, y: 260}
+  01M63HM980P02VHDN2C4KNE0A1: {x: 200, y: 410}
+  01M63HM980P02VHDN2C4KNE0A2: {x: 200, y: 560}
+  01M63HM980P02VHDN2C4KNE0A3: {x: 520, y: 470}
+  01M63HM980P02VHDN2C4KNE0A4: {x: 236, y: 710}
+  01M63HM980P02VHDN2C4KNE0A5: {x: 556, y: 710}

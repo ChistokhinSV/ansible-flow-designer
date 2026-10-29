@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   contrast,
   FILLS,
+  LENS_CHIPS,
   REFERENCE_BACKGROUNDS,
   type ThemeKind,
   TONES,
@@ -31,6 +32,16 @@ describe('theme tokens (08: check the 04 palette on dark and high-contrast)', ()
       const bg = fill === 'transparent' ? REFERENCE_BACKGROUNDS[kind] : fill;
       expect(contrast(FOREGROUND[kind], bg), `${kind} ${token}`).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it.each(KINDS)('%s: lens chip text (4.5:1) on its chip, data wires (3:1)', (kind) => {
+    for (const [lens, { bg, fg }] of Object.entries(LENS_CHIPS[kind])) {
+      const under = bg === 'transparent' ? REFERENCE_BACKGROUNDS[kind] : bg;
+      expect(contrast(fg, under), `${kind} ${lens}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(LENS_CHIPS[kind].data.fg, REFERENCE_BACKGROUNDS[kind])).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 
   it('contrast() matches known WCAG values', () => {

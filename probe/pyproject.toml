@@ -7,6 +7,8 @@ dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The probe is not installed: tests import it from this folder.
+pythonpath = ["."]
 markers = ["docker: runs the probe inside the Ansible images (needs Docker)"]
 
 [tool.ruff]

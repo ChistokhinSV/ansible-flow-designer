@@ -66,6 +66,14 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
+- **Lenses (M8, ADR-0014):** the top bar's lens toggle (None, Inventory, Data, Code, Access, Timing) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
+  - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups. `settings.inventory_target` is shown as declared; the generated code does not apply it yet (AFD-14).
+  - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
+  - **Code** shows each binding with its collection version and the execution environment. Findings: not in the environment, removed or deprecated, versions that do not meet `collections/requirements.yml`.
+  - **Access** shows credentials, the inventory's connection user, become and vaulted variables (by name and file:line, never the value). Findings: a credential unlike the one its neighbours share, become alone, node credentials outside AWX.
+  - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
+  - _Mark expected_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
+- **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show the status dot and two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open subflow, Properties and Peek code.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -77,7 +85,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.7.1.vsix
+code --install-extension out/ansible-flow-designer-0.8.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -117,6 +125,7 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
 - **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.
 - **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
+- **Review with a lens:** pick a lens in the top bar. For Inventory and Access, _Set targets…_ in the left panel enters the flow targets; the refresh button reads the inventory again. Hover a row to see its nodes, use a finding's fix button, or _Mark expected_.
 - **Run in AWX:** set `afd.awx.url`, run _Ansible Flow: Set AWX Token_ and _Set Up AWX Template_ once per flow, commit and push, then _Launch in AWX_. Switch the top bar to _Run_ to see the results; select nodes and wires for hosts.
 - **Run:** _Run as skeleton_ in the top bar (or the play button in the editor title bar) runs the flow in check mode. The button next to it runs it for real after a confirmation. Other commands: _Generate Playbook_, _Check Generated Code (Syntax)_, _Show Run Audit Log_.
 
@@ -245,6 +254,8 @@ Port catalog per node type (ADR-0004):
 | `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                |
 | `src/core/drift/`                | Code sync and drift: scan types, `computeDrift` (D-29 kinds and actions), role stubs and argument specs (M6).                          |
 | `src/core/awx/`                  | AWX API types and AWX job events → `afd_events` lines (M7).                                                                            |
+| `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                          |
+| `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                               |
 | `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7).                                                         |
 | `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
 | `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
@@ -282,6 +293,7 @@ just install
 | `just awx-ee-build [core]`       | Build `afd-awx-ee:<core>` (adds ansible-runner) for AWX                              |
 | `just awx-lab [--sync]`          | Create the lab AWX objects (EE, project, inventory); `--sync` updates the project    |
 | `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
+| `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
 | `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |

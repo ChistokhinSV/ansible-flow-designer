@@ -11,6 +11,8 @@ import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
 import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
 import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
 import driftScan from '../../../test/fixtures/drift/scan.json';
+import lensFixture from '../../../test/fixtures/lens/facts.json';
+import lensE2e from '../../../test/fixtures/lens/flows/lens-e2e/lens-e2e.flow.yaml?raw';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
 import type { AwxJobEvent } from '../../core/awx/types';
 import { badgesOf, metaOf } from '../../core/catalog/rank';
@@ -25,6 +27,8 @@ import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
 import { nodeDesigns } from '../../core/flow/semantic';
 import { validateFlow } from '../../core/flow/validate';
+import { type HistoryEntry, timingStats } from '../../core/lens/history';
+import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
 import { autoPositions, layoutLevel } from '../../extension/autoLayout';
@@ -34,7 +38,11 @@ const FLOWS: Record<string, string> = {
   'os-upgrade': osUpgrade,
   'edge-drift': edgeDrift,
   'awx-e2e': awxE2e,
+  'lens-e2e': lensE2e,
 };
+/** Lens facts (M8) as the host would gather them for the lens-e2e fixture. */
+let lensTargets = 'edge_switches';
+let lensOpen: LensId | null = null;
 const params = new URLSearchParams(location.search);
 let text = FLOWS[params.get('flow') ?? 'edge-baseline'] ?? edgeBaseline;
 let version = 1;
@@ -342,6 +350,37 @@ async function onMessage(m: WebviewMessage) {
           run: { ...base, state: 'done', rc: 2, finishedAt, awx: done, summary },
         });
       }, 1200);
+      break;
+    }
+    case 'lens': {
+      lensOpen = m.lens;
+      if (!m.lens) break;
+      toWebview({
+        type: 'lensFacts',
+        facts: {
+          code: lensFixture.code as unknown as CodeFacts,
+          timing: timingStats(lensFixture.history as HistoryEntry[]),
+        },
+      });
+      if (m.lens === 'inventory' || m.lens === 'access') {
+        toWebview({
+          type: 'lensFacts',
+          facts: { inventory: { state: 'loading', targets: lensTargets } },
+        });
+        setTimeout(() => {
+          const facts = { ...(lensFixture.inventory as InventoryFacts), targets: lensTargets };
+          toWebview({
+            type: 'lensFacts',
+            facts: { inventory: { state: 'ready', facts, targets: lensTargets } },
+          });
+        }, 400);
+      }
+      break;
+    }
+    case 'setTargets': {
+      const t = window.prompt('Flow targets', lensTargets);
+      if (t) lensTargets = t;
+      void onMessage({ type: 'lens', lens: lensOpen, refresh: true });
       break;
     }
     case 'perf':

@@ -12,6 +12,9 @@ import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
+import { timingStats } from '../core/lens/history';
+import { inventoryPatterns } from '../core/lens/inventory';
+import type { LensFacts, LensId } from '../core/lens/types';
 import type {
   CatalogRequest,
   CatalogStatus,
@@ -28,8 +31,11 @@ import { checkBindings } from './catalog/bindingCheck';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
+import type { ProbeManager } from './env/environment';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
+import { readCode, readInventory, rememberedTargets, rememberTargets } from './lens/lensFacts';
+import { readHistory, recordRun } from './run/history';
 import { type SyncDeps, scanFlow } from './sync/codeSync';
 import { generateStub, openCode, writeSpecs } from './sync/driftActions';
 
@@ -58,6 +64,8 @@ export interface SessionDeps {
   catalog?: CatalogService;
   /** Code sync for Implementation mode (M6). */
   sync?: SyncDeps;
+  /** Lens facts (M8): the probe for the inventory, remembered targets, the run history store. */
+  lens?: { probes: ProbeManager; state: vscode.Memento; storage: vscode.Uri };
 }
 
 export interface PerfEvent {
@@ -90,6 +98,12 @@ export class FlowSession implements vscode.Disposable {
   /** Last code sync (M6); a save re-syncs once there is one. */
   lastScan?: CodeScan;
   private syncing?: Promise<void>;
+  /** Lens facts gathered for this flow (M8) and the lens the panels show. */
+  lensFacts: LensFacts = {};
+  private lensOpen?: LensId;
+  /** Targets and patterns of the last inventory read: a new pattern reads again. */
+  private inventoryKey?: string;
+  private codeKey?: string;
 
   constructor(
     readonly document: vscode.TextDocument,
@@ -197,6 +211,87 @@ export class FlowSession implements vscode.Disposable {
     const snapshot = await this.snapshot();
     if (snapshot.docVersion !== this.document.version) return;
     this.broadcast({ type: 'snapshot', snapshot });
+    if (this.lensOpen && snapshot.doc && !snapshot.stale) void this.gatherLens(snapshot.doc, false);
+  }
+
+  /** Facts for the open lens; the inventory is read only when targets or patterns changed. */
+  private async gatherLens(doc: FlowDocument, refresh: boolean): Promise<void> {
+    const lens = this.lensOpen;
+    const deps = this.deps.lens;
+    if (!lens) return;
+    const bindings = JSON.stringify(
+      [...buildModel(doc).nodes.values()].map((e) => e.node.impl?.ref ?? ''),
+    );
+    if (lens !== 'data' && lens !== 'timing' && (refresh || this.codeKey !== bindings)) {
+      this.codeKey = bindings;
+      this.lensFacts.code = await readCode(this.uri, doc, this.deps.catalog);
+      this.broadcast({ type: 'lensFacts', facts: { code: this.lensFacts.code } });
+    }
+    if (lens === 'timing' && deps && (refresh || !this.lensFacts.timing)) {
+      this.lensFacts.timing = timingStats(await readHistory(deps.storage, doc.flow.id));
+      this.broadcast({ type: 'lensFacts', facts: { timing: this.lensFacts.timing } });
+    }
+    if ((lens === 'inventory' || lens === 'access') && deps) {
+      const targets = rememberedTargets(doc, deps.state);
+      const key = `${targets}|${inventoryPatterns(doc, targets, this.lensFacts.code).join('|')}`;
+      const current = this.lensFacts.inventory;
+      if (!refresh && this.inventoryKey === key && current?.state !== 'error') return;
+      this.inventoryKey = key;
+      this.lensFacts.inventory = { state: 'loading', targets, facts: current?.facts };
+      this.broadcast({ type: 'lensFacts', facts: { inventory: this.lensFacts.inventory } });
+      try {
+        const { facts, inventory } = await readInventory(
+          this.uri,
+          doc,
+          deps.probes,
+          targets,
+          this.lensFacts.code,
+        );
+        this.lensFacts.inventory = { state: 'ready', facts, targets, inventory };
+      } catch (e) {
+        this.inventoryKey = undefined;
+        this.lensFacts.inventory = { state: 'error', error: (e as Error).message, targets };
+      }
+      this.broadcast({ type: 'lensFacts', facts: { inventory: this.lensFacts.inventory } });
+    }
+  }
+
+  async openLens(lens: LensId | null, refresh = false): Promise<void> {
+    this.lensOpen = lens ?? undefined;
+    const doc = (await this.snapshot()).doc;
+    if (doc) await this.gatherLens(doc, refresh);
+  }
+
+  /** The Inventory lens's "Set targets": asks, remembers with the run inputs, reads again. */
+  private async askTargets(): Promise<void> {
+    const deps = this.deps.lens;
+    const doc = (await this.snapshot()).doc;
+    if (!deps || !doc) return;
+    const text = await vscode.window.showInputBox({
+      title: `${doc.flow.name}: flow targets`,
+      prompt: 'Hosts or groups the flow runs on, comma-separated (remembered for runs too)',
+      value: rememberedTargets(doc, deps.state),
+      ignoreFocusOut: true,
+      validateInput: (v) => (v.trim() ? undefined : 'Enter at least one host or group'),
+    });
+    if (text === undefined) return;
+    await rememberTargets(doc, deps.state, text);
+    await this.gatherLens(doc, true);
+  }
+
+  /** Test API: targets without the input box. */
+  async useTargets(text: string): Promise<void> {
+    const deps = this.deps.lens;
+    const doc = (await this.snapshot()).doc;
+    if (!deps || !doc) return;
+    await rememberTargets(doc, deps.state, text);
+    await this.gatherLens(doc, true);
+  }
+
+  /** Test API: the lens on every panel of this flow. */
+  setLens(lens: LensId | null): void {
+    this.broadcast({ type: 'setLens', lens });
+    void this.openLens(lens);
   }
 
   attach(panel: vscode.WebviewPanel): void {
@@ -235,6 +330,14 @@ export class FlowSession implements vscode.Disposable {
             status: this.deps.catalog.status(this.catalogFolder),
           });
         if (this.lastScan) this.post(panel, { type: 'sync', state: 'done', scan: this.lastScan });
+        if (Object.keys(this.lensFacts).length > 0)
+          this.post(panel, { type: 'lensFacts', facts: this.lensFacts });
+        break;
+      case 'lens':
+        await this.openLens(m.lens, m.refresh);
+        break;
+      case 'setTargets':
+        await this.askTargets();
         break;
       case 'sync':
         void this.sync();
@@ -421,6 +524,14 @@ export class FlowSession implements vscode.Disposable {
   setRun(run: RunView): void {
     this.lastRun = run;
     this.broadcast({ type: 'run', run });
+    const deps = this.deps.lens;
+    const id = this.built?.parsed.doc?.flow.id;
+    if (deps && id && run.state === 'done')
+      void recordRun(deps.storage, id, run).then((entries) => {
+        if (!entries) return;
+        this.lensFacts.timing = timingStats(entries);
+        this.broadcast({ type: 'lensFacts', facts: { timing: this.lensFacts.timing } });
+      });
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */
@@ -431,7 +542,10 @@ export class FlowSession implements vscode.Disposable {
   ): Promise<CommandOutcome> {
     // The webview never names the author of a decision; the host does (decision 13).
     const command =
-      (input.kind === 'setDecision' || input.kind === 'ignoreDrift') && !input.by
+      (input.kind === 'setDecision' ||
+        input.kind === 'ignoreDrift' ||
+        input.kind === 'acceptFinding') &&
+      !input.by
         ? { ...input, by: await authorName(this.uri) }
         : input;
     const snapshot = await this.snapshot();

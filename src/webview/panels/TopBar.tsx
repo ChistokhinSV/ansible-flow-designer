@@ -1,9 +1,10 @@
 // Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Design,
-// Implementation (M6) and Run (M7) exist; the lenses are shown disabled with their milestone.
+// Implementation (M6) and Run (M7) modes; the lens (M8, D-18) is picked independently of mode.
 // Run as skeleton (M3) runs the generated code in check mode; Re-sync from git (M6) compiles the
 // code for Implementation mode; Launch in AWX (M7) runs the flow's job template.
 
 import { ROOT } from '../../core/flow/model';
+import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { send } from '../bus';
 import { type Mode, useUi } from '../store';
@@ -14,7 +15,6 @@ const MODES = [
   { id: 'implementation', label: 'Implementation' },
   { id: 'run', label: 'Run' },
 ] as { id: Mode; label: string; soon?: string }[];
-const LENSES = ['None', 'Inventory', 'Data', 'Code', 'Access', 'Timing'];
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);
@@ -27,6 +27,12 @@ export function TopBar() {
   const running = run?.state === 'running';
   const mode = useUi((s) => s.mode);
   const sync = useUi((s) => s.sync);
+  const lens = useUi((s) => s.lens);
+  const setLens = useUi((s) => s.setLens);
+  const pickLens = (id: (typeof LENSES)[number]['id'] | null) => {
+    setLens(id);
+    send({ type: 'lens', lens: id });
+  };
   const choose = (id: Mode) => {
     useUi.getState().setMode(id);
     // The first visit compiles the code; later ones show the last scan (Re-sync refreshes it).
@@ -87,16 +93,26 @@ export function TopBar() {
         ))}
       </fieldset>
       <fieldset className="afd-segmented" aria-label="Lens">
+        <button
+          type="button"
+          className={lens === null ? 'active' : ''}
+          aria-pressed={lens === null}
+          onClick={() => pickLens(null)}
+          title="No lens: the mode decides what nodes show"
+        >
+          None
+        </button>
         {LENSES.map((l) => (
           <button
-            key={l}
+            key={l.id}
             type="button"
-            className={l === 'None' ? 'active' : ''}
-            aria-pressed={l === 'None'}
-            disabled={l !== 'None'}
-            title={l === 'None' ? 'No lens' : `${l} lens arrives in M8`}
+            className={l.id === lens ? 'active' : ''}
+            aria-pressed={l.id === lens}
+            data-lens={l.id}
+            onClick={() => pickLens(l.id)}
+            title={`${l.label} lens: chips, wires and findings across the flow`}
           >
-            {l}
+            {l.label}
           </button>
         ))}
       </fieldset>

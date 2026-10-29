@@ -227,6 +227,12 @@ export class CatalogIndex {
 
   private versions?: Map<string, string>;
 
+  /** Every indexed collection and its version. */
+  collections(): Record<string, string> {
+    this.collectionVersion('');
+    return Object.fromEntries(this.versions ?? []);
+  }
+
   /** The indexed version of a collection (`ansible.builtin` is ansible-core's). */
   collectionVersion(name: string): string | undefined {
     if (!this.versions) {

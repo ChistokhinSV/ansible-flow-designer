@@ -56,6 +56,11 @@
             }
           }
         },
+        "maintenance_window": {
+          "type": "string",
+          "pattern": "^([0-9]+[smhd])+$",
+          "description": "Longest time the flow may take, e.g. 4h or 2h30m (Timing lens, M8)"
+        },
         "inputs": {
           "$ref": "#/$defs/contract"
         }
@@ -82,7 +87,6 @@
       "items": {
         "type": "object",
         "required": [
-          "node",
           "kind"
         ],
         "properties": {
@@ -95,13 +99,19 @@
           "kind": {
             "enum": [
               "open_on_purpose",
-              "drift_ignored"
+              "drift_ignored",
+              "finding_accepted"
             ]
           },
           "item": {
             "type": "string",
             "minLength": 1,
             "description": "drift_ignored: the drift item kept as it is (M6, D-29)"
+          },
+          "finding": {
+            "type": "string",
+            "minLength": 1,
+            "description": "finding_accepted: the lens finding kept as expected (M8)"
           },
           "reason": {
             "type": "string"
@@ -110,23 +120,55 @@
             "type": "string"
           }
         },
-        "if": {
-          "properties": {
-            "kind": {
-              "const": "drift_ignored"
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "finding_accepted"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "finding"
+              ]
+            },
+            "else": {
+              "required": [
+                "node"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "drift_ignored"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "item"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "open_on_purpose"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "port"
+              ]
             }
           }
-        },
-        "then": {
-          "required": [
-            "item"
-          ]
-        },
-        "else": {
-          "required": [
-            "port"
-          ]
-        }
+        ]
       }
     }
   },

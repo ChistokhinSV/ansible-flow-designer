@@ -598,6 +598,24 @@ function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
       checkDriftIgnore(model, d, i, add);
       return;
     }
+    if (d.kind === 'finding_accepted') {
+      if (d.node && !model.nodes.has(d.node))
+        add({
+          code: 'stale-decision',
+          severity: 'warning',
+          message: `Accepted finding ${d.finding} refers to a node that does not exist: ${d.node}`,
+          path: ['decisions', i],
+        });
+      else if (!d.reason?.trim())
+        add({
+          code: 'decision-no-reason',
+          severity: 'warning',
+          message: `Accepted finding ${d.finding} has no reason`,
+          path: ['decisions', i],
+          node: d.node,
+        });
+      return;
+    }
     const entry = model.nodes.get(d.node);
     if (!entry || !portsFor(entry.node).some((p) => p.name === d.port)) {
       add({

@@ -1,5 +1,5 @@
-// Right panel with nothing selected (04 §1): flow identity, goal, typed inputs, owner, runtime and
-// readiness counters.
+// Right panel with nothing selected (04 §1): flow identity, goal, typed inputs, owner, runtime,
+// maintenance window (Timing lens, M8) and readiness counters.
 import { SLUG } from '../../core/flow/ids';
 import { run } from '../actions';
 import { useUi } from '../store';
@@ -49,6 +49,18 @@ export function FlowDescription() {
           flow.runtime
             ? [flow.runtime.kind, flow.runtime.template].filter(Boolean).join(' · ')
             : 'not set'
+        }
+      />
+      <CommitField
+        label="Maintenance window"
+        value={flow.maintenance_window ?? ''}
+        mono
+        placeholder="e.g. 4h or 2h30m"
+        onCommit={(v) => void update({ maintenance_window: v.trim() ? v : null })}
+        validate={(v) =>
+          !v.trim() || /^([0-9]+[smhd])+$/.test(v.trim().toLowerCase().replaceAll(/\s+/g, ''))
+            ? undefined
+            : 'A duration like 4h, 90m or 2h30m'
         }
       />
       <ContractEditor title="Inputs" target="flow" side="inputs" contract={flow.inputs} />

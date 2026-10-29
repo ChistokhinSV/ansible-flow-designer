@@ -217,3 +217,37 @@ def test_compile_expands_roles_and_skips_the_spec_check(probe):
     assert [t["name"] for t in ntp["tasks"]] == ["Push NTP servers"]
     assert [t["dynamic"] for t in whole["tasks"]] == [True, True, True]
     assert "not_a_role" in nope["error"] and nope["tasks"] == []
+
+
+def test_inventory_lens_counts_patterns_and_never_decrypts(probe):
+    """M8 Inventory and Access lenses: counts, hosts outside the targets, origins, vault names."""
+    inv = "test/fixtures/lens/inventory/hosts.yml"
+    patterns = ["edge_switches", "core_spines", "edge_switches,core_spines", "all", "ghost_group"]
+    raw = probe.call("inventory_lens", inventory=inv, targets="edge_switches", patterns=patterns)
+    r = raw["result"]
+    assert r["total"] == 9
+    assert r["patterns"]["edge_switches"] == {"count": 6, "outside": 0, "sample": []}
+    assert r["patterns"]["core_spines"]["count"] == 2
+    assert r["patterns"]["core_spines"]["outside"] == 2
+    assert r["patterns"]["edge_switches,core_spines"]["count"] == 8
+    assert (r["patterns"]["all"]["count"], r["patterns"]["all"]["outside"]) == (9, 3)
+    assert len(r["patterns"]["all"]["sample"]) == 3
+    assert r["patterns"]["ghost_group"]["count"] == 0
+    assert r["scope"]["count"] == 9
+    assert r["scope"]["groups"] == {"core_spines": 2, "dc_prod": 2, "edge_switches": 6}
+    assert r["prod_groups"] == ["dc_prod"]
+    spines = r["access"]["core_spines"]
+    assert spines["ansible_user"]["values"] == {"spine-admin": 2}
+    assert spines["ansible_user"]["origins"] == [
+        "test/fixtures/lens/inventory/group_vars/core_spines.yml:2"
+    ]
+    assert spines["ansible_become"]["values"] == {"true": 2}
+    assert r["access"]["edge_switches"]["ansible_user"]["values"] == {"netops": 6}
+    assert r["vaulted"] == {
+        "spine_enable_secret": "test/fixtures/lens/inventory/group_vars/core_spines.yml:3"
+    }
+    # The vaulted value is never read: neither the plaintext nor the ciphertext comes back.
+    text = json.dumps(raw)
+    assert "fictional" not in text
+    assert "$ANSIBLE_VAULT" not in text
+    assert r["dynamic"] == []

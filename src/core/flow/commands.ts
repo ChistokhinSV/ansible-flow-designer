@@ -107,6 +107,9 @@ export type FlowCommand =
   /** M6 (D-29): keep a drift item as it is, with a reason; the host adds `by`. */
   | { kind: 'ignoreDrift'; node: Ulid; item: string; reason: string; by?: string }
   | { kind: 'clearDriftIgnore'; node: Ulid; item: string }
+  /** M8: keep a lens finding as expected, with a reason; the host adds `by`. */
+  | { kind: 'acceptFinding'; finding: string; node?: Ulid; reason: string; by?: string }
+  | { kind: 'clearFindingAccept'; finding: string }
   /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
   | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> };
 
@@ -131,6 +134,8 @@ export interface FlowPatch {
   owner?: string | null;
   /** The AWX job template the flow launches (M7 "Set up AWX template"); null removes runtime. */
   runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string } | null;
+  /** Timing lens (M8): `4h`, `2h30m`; null removes it. */
+  maintenance_window?: string | null;
 }
 
 export interface CommandContext {
@@ -177,7 +182,17 @@ const NODE_ORDER = [
   'undo',
   'subflow',
 ];
-const FLOW_ORDER = ['id', 'key', 'name', 'version', 'goal', 'owner', 'runtime', 'inputs'];
+const FLOW_ORDER = [
+  'id',
+  'key',
+  'name',
+  'version',
+  'goal',
+  'owner',
+  'runtime',
+  'maintenance_window',
+  'inputs',
+];
 const SUBFLOW_ORDER = ['nodes', 'edges', 'layout', 'boundary'];
 const ROOT_ORDER = ['schema_version', 'flow', 'nodes', 'edges', 'layout', 'decisions'];
 
@@ -1012,6 +1027,55 @@ function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
       patch.runtime && Object.keys(patch.runtime).length > 0 ? (patch.runtime as YamlValue) : null;
     setField(tx, ['flow'], 'runtime', value, FLOW_ORDER);
   }
+  if (patch.maintenance_window !== undefined) {
+    const w = patch.maintenance_window?.trim().toLowerCase().replaceAll(/\s+/g, '') || null;
+    if (w !== null && !/^([0-9]+[smhd])+$/.test(w))
+      throw new CommandError(
+        'bad-window',
+        `"${patch.maintenance_window}" is not a duration like 4h or 2h30m`,
+      );
+    setField(tx, ['flow'], 'maintenance_window', w, FLOW_ORDER);
+  }
+}
+
+function acceptFinding(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'acceptFinding' }>,
+): void {
+  const st = state(tx);
+  if (cmd.node) nodeAt(st, cmd.node);
+  const reason = cmd.reason.trim();
+  if (!reason) throw new CommandError('no-reason', 'Say why this is expected');
+  if (!cmd.finding.trim()) throw new CommandError('bad-finding', 'No finding');
+  const decisions = st.doc.decisions ?? [];
+  const index = decisions.findIndex(
+    (d) => d?.kind === 'finding_accepted' && d.finding === cmd.finding,
+  );
+  if (index >= 0) {
+    const base: Path = ['decisions', index];
+    const ops: ((f: YamlFile) => OpResult)[] = [
+      (f) => setIn(f, [...base, 'reason'], reason, { before: ['by'] }),
+    ];
+    if (cmd.by) ops.push((f) => setIn(f, [...base, 'by'], cmd.by as string));
+    tx.applyAll(ops);
+    return;
+  }
+  const item: Record<string, YamlValue> = { kind: 'finding_accepted', finding: cmd.finding };
+  if (cmd.node) item.node = cmd.node;
+  item.reason = reason;
+  if (cmd.by) item.by = cmd.by;
+  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
+  else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
+}
+
+function clearFindingAccept(tx: YamlTransaction, finding: string): void {
+  const decisions = state(tx).doc.decisions ?? [];
+  const idx = decisions
+    .map((d, i) => (d?.kind === 'finding_accepted' && d.finding === finding ? i : -1))
+    .filter((i) => i >= 0);
+  if (idx.length === 0) return;
+  if (idx.length === decisions.length) tx.apply((f) => deleteKey(f, [], 'decisions'));
+  else tx.applyAll(removeIndexes(['decisions'], idx, decisions.length));
 }
 
 function setBoundaryIn(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBoundaryIn' }>) {
@@ -1092,6 +1156,8 @@ const NO_DESIGN = new Set<FlowCommand['kind']>([
   'setStatuses',
   'ignoreDrift',
   'clearDriftIgnore',
+  'acceptFinding',
+  'clearFindingAccept',
 ]);
 
 /** `parsed` may carry the caller's existing parse of `text` (saves one parse per command). */
@@ -1167,6 +1233,12 @@ export function planCommand(
     }
     case 'updateFlow':
       updateFlow(tx, cmd.patch);
+      break;
+    case 'acceptFinding':
+      acceptFinding(tx, cmd);
+      break;
+    case 'clearFindingAccept':
+      clearFindingAccept(tx, cmd.finding);
       break;
     case 'setBoundaryIn':
       setBoundaryIn(tx, cmd);

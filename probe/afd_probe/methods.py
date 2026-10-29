@@ -152,10 +152,22 @@ def compile(  # noqa: A001 - the protocol method name
     return code.compile_code(root, playbooks, roles)
 
 
+def inventory_lens(
+    root: str,
+    inventory: str | None = None,
+    targets: str = "",
+    patterns: list[str] | None = None,
+) -> dict[str, Any]:
+    from afd_probe.lens import inventory_lens as lens
+
+    return lens(root, inventory=inventory, targets=targets, patterns=patterns)
+
+
 HANDLERS = {
     "ping": ping,
     "syntax_check": syntax_check,
     "inventory": inventory,
+    "inventory_lens": inventory_lens,
     "catalog": catalog,
     "roles": roles,
     "compile": compile,

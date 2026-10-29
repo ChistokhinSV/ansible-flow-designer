@@ -5,6 +5,7 @@ import type { FlowCommand } from './flow/commands';
 import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
+import type { LensFacts, LensId } from './lens/types';
 import type { RunSummary } from './run/events';
 import type { Path } from './yaml/parse';
 
@@ -131,7 +132,11 @@ export type HostMessage =
     }
   | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
-  | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string };
+  | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
+  /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */
+  | { type: 'lensFacts'; facts: LensFacts }
+  /** Switches the lens (tests and commands, M8). */
+  | { type: 'setLens'; lens: LensId | null };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -155,7 +160,11 @@ export type WebviewMessage =
   /** Opens a repository file at a line (drift "Open code"). */
   | { type: 'openCode'; path: string; line?: number }
   /** Drift actions the host carries out (stubs, specs, re-sync), answered by `ack`. */
-  | { type: 'driftAction'; reqId: number; action: DriftAction };
+  | { type: 'driftAction'; reqId: number; action: DriftAction }
+  /** A lens was picked (M8): the host gathers its facts; `refresh` reads the inventory again. */
+  | { type: 'lens'; lens: LensId | null; refresh?: boolean }
+  /** Asks for the flow targets the Inventory lens counts (remembered with the run inputs). */
+  | { type: 'setTargets' };
 
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {
@@ -170,4 +179,13 @@ export interface DomSummary {
   frame: { ports: string[]; wires: number } | null;
   /** Run mode (M7): each node's run state and each wire's label as drawn. */
   run?: { nodes: Record<string, string>; wires: Record<string, string> };
+  /** Lens (M8): chips per node, finding ids, data wires, highlighted nodes, the open card's rows. */
+  lens?: {
+    lens: string;
+    chips: Record<string, string[]>;
+    findings: string[];
+    dataWires: number;
+    highlighted: string[];
+    card: string[];
+  };
 }

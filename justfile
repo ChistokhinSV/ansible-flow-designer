@@ -56,6 +56,11 @@ test-awx $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label m7
 
+# Lenses inside VS Code (M8); the inventory test runs when AFD_TEST_IMAGE is set
+test-lens $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label m8
+
 # Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
 test-docker-lab *suites:
     node lab/docker-suites.mjs {{ suites }}

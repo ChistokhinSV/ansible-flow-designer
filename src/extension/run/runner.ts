@@ -43,9 +43,9 @@ interface InventoryFacts {
   vault: boolean;
 }
 
-const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
+export const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
 
-function parseInput(type: string | undefined, text: string): unknown {
+export function parseInput(type: string | undefined, text: string): unknown {
   const t = text.trim();
   switch (type) {
     case 'host_list':

@@ -1,0 +1,156 @@
+{
+  "inventory": {
+    "sources": [
+      "test/fixtures/lens/inventory/hosts.yml"
+    ],
+    "dynamic": [],
+    "total": 9,
+    "targets": "edge_switches",
+    "patterns": {
+      "edge_switches": {
+        "count": 6,
+        "outside": 0,
+        "sample": []
+      },
+      "edge_switches,core_spines": {
+        "count": 8,
+        "outside": 2,
+        "sample": [
+          "core-sp-01",
+          "core-sp-02"
+        ]
+      },
+      "core_spines": {
+        "count": 2,
+        "outside": 2,
+        "sample": [
+          "core-sp-01",
+          "core-sp-02"
+        ]
+      },
+      "all": {
+        "count": 9,
+        "outside": 3,
+        "sample": [
+          "mgmt-01",
+          "core-sp-01",
+          "core-sp-02"
+        ]
+      }
+    },
+    "scope": {
+      "count": 9,
+      "groups": {
+        "core_spines": 2,
+        "dc_prod": 2,
+        "edge_switches": 6
+      }
+    },
+    "prod_groups": [
+      "dc_prod"
+    ],
+    "access": {
+      "edge_switches": {
+        "ansible_user": {
+          "values": {
+            "netops": 6
+          },
+          "origins": [
+            "test/fixtures/lens/inventory/group_vars/all.yml:2"
+          ]
+        }
+      },
+      "core_spines": {
+        "ansible_user": {
+          "values": {
+            "spine-admin": 2
+          },
+          "origins": [
+            "test/fixtures/lens/inventory/group_vars/core_spines.yml:2"
+          ]
+        },
+        "ansible_become": {
+          "values": {
+            "true": 2
+          },
+          "origins": []
+        }
+      },
+      "edge_switches,core_spines": {
+        "ansible_user": {
+          "values": {
+            "netops": 6,
+            "spine-admin": 2
+          },
+          "origins": [
+            "test/fixtures/lens/inventory/group_vars/all.yml:2",
+            "test/fixtures/lens/inventory/group_vars/core_spines.yml:2"
+          ]
+        }
+      }
+    },
+    "vaulted": {
+      "spine_enable_secret": "test/fixtures/lens/inventory/group_vars/core_spines.yml:3"
+    }
+  },
+  "code": {
+    "ready": true,
+    "environment": "docker: afd-ee:2.19",
+    "collections": {
+      "ansible.builtin": "2.19.4",
+      "cisco.ios": "9.0.3",
+      "ansible.utils": "5.1.2"
+    },
+    "requirements": {
+      "path": "collections/requirements.yml",
+      "pins": {
+        "cisco.ios": ">=10.0.0,<11.0.0",
+        "ansible.utils": ">=5.0.0"
+      }
+    },
+    "nodes": {
+      "01M63HM980P02VHDN2C4KNE09Z": {
+        "kind": "module",
+        "ref": "ansible.builtin.ping",
+        "fqcn": "ansible.builtin.ping",
+        "collection": "ansible.builtin",
+        "version": "2.19.4",
+        "state": "ok"
+      },
+      "01M63HM980P02VHDN2C4KNE0A1": {
+        "kind": "module",
+        "ref": "cisco.ios.ios_config",
+        "fqcn": "cisco.ios.ios_config",
+        "collection": "cisco.ios",
+        "version": "9.0.3",
+        "state": "ok"
+      }
+    }
+  },
+  "history": [
+    {
+      "id": "r1",
+      "at": "2026-10-29T08:00:00Z",
+      "source": "local",
+      "rc": 0,
+      "timings": {
+        "01M63HM980P02VHDN2C4KNE09Z": 300,
+        "01M63HM980P02VHDN2C4KNE0A0": 600,
+        "01M63HM980P02VHDN2C4KNE0A1": 900,
+        "01M63HM980P02VHDN2C4KNE0A2": 300
+      }
+    },
+    {
+      "id": "r2",
+      "at": "2026-10-29T09:00:00Z",
+      "source": "awx",
+      "rc": 0,
+      "timings": {
+        "01M63HM980P02VHDN2C4KNE09Z": 300,
+        "01M63HM980P02VHDN2C4KNE0A0": 600,
+        "01M63HM980P02VHDN2C4KNE0A1": 1100,
+        "01M63HM980P02VHDN2C4KNE0A2": 300
+      }
+    }
+  ]
+}

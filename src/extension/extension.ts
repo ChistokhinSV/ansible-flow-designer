@@ -7,6 +7,7 @@ import { createIdFactory, slugify } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import { createSchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
+import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import {
   type AwxDeps,
@@ -66,6 +67,10 @@ export interface AfdTestApi {
     picks: AwxPicks,
   ): Promise<{ ok: boolean; error?: string; template?: string }>;
   awxLaunch(uri: vscode.Uri, inputs: Record<string, unknown>): Promise<RunView>;
+  /** M8: the lens on the flow's panels, the facts its session gathered, the lens targets. */
+  setLens(uri: vscode.Uri, lens: LensId | null): void;
+  lensFacts(uri: vscode.Uri): LensFacts;
+  setTargets(uri: vscode.Uri, targets: string): Promise<void>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -88,6 +93,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     testMode,
     catalog,
     sync: { probes, catalog },
+    lens: { probes, state: context.workspaceState, storage: context.globalStorageUri },
   };
   const sessions = new Map<string, FlowSession>();
   const lastSaved = new Map<string, string>();
@@ -295,6 +301,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
     setMode: (uri, mode) => get(uri).setMode(mode),
+    setLens: (uri, lens) => get(uri).setLens(lens),
+    lensFacts: (uri) => get(uri).lensFacts,
+    setTargets: (uri, targets) => get(uri).useTargets(targets),
     rendered: (uri, version) => get(uri).rendered(version),
     perf: (uri) => get(uri).perf,
     cspViolations: (uri) => get(uri).cspViolations,

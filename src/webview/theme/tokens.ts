@@ -106,6 +106,40 @@ export const FILLS: Record<ThemeKind, Record<FillToken, string>> = {
   },
 };
 
+export type LensToken = 'inventory' | 'data' | 'code' | 'access' | 'timing';
+
+/** Lens chip colors (04 §9); high contrast drops the tint and keeps a strong text color. */
+export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: string }>> = {
+  light: {
+    inventory: { bg: '#e8f1fb', fg: '#1e4f86' },
+    data: { bg: '#f3f0ff', fg: '#4c3fa8' },
+    code: { bg: '#e9f7f1', fg: '#0f5a43' },
+    access: { bg: '#fdf2e7', fg: '#8a4b0a' },
+    timing: { bg: '#f1f2f4', fg: '#3d444d' },
+  },
+  dark: {
+    inventory: { bg: '#1b2c42', fg: '#9cc3f0' },
+    data: { bg: '#2c2645', fg: '#c3b8ff' },
+    code: { bg: '#1c3329', fg: '#8fdcb7' },
+    access: { bg: '#3a2a17', fg: '#f2c48a' },
+    timing: { bg: '#2b2e33', fg: '#c9ced6' },
+  },
+  'hc-dark': {
+    inventory: { bg: 'transparent', fg: '#9db4ff' },
+    data: { bg: 'transparent', fg: '#c4b8ff' },
+    code: { bg: 'transparent', fg: '#57e389' },
+    access: { bg: 'transparent', fg: '#ffc457' },
+    timing: { bg: 'transparent', fg: '#ffffff' },
+  },
+  'hc-light': {
+    inventory: { bg: 'transparent', fg: '#0f4a85' },
+    data: { bg: 'transparent', fg: '#4f3fb0' },
+    code: { bg: 'transparent', fg: '#1b6b44' },
+    access: { bg: 'transparent', fg: '#8a4b00' },
+    timing: { bg: 'transparent', fg: '#292929' },
+  },
+};
+
 /** Representative editor backgrounds of the default themes, for contrast checks. */
 export const REFERENCE_BACKGROUNDS: Record<ThemeKind, string> = {
   light: '#ffffff',
@@ -124,6 +158,12 @@ export function themeKindOf(body: { classList: { contains(c: string): boolean } 
 export function applyTheme(root: HTMLElement, kind: ThemeKind): void {
   for (const [k, v] of Object.entries(TONES[kind])) root.style.setProperty(`--afd-${k}`, v);
   for (const [k, v] of Object.entries(FILLS[kind])) root.style.setProperty(`--afd-${k}`, v);
+  for (const [k, v] of Object.entries(LENS_CHIPS[kind])) {
+    root.style.setProperty(`--afd-lens-${k}-bg`, v.bg);
+    root.style.setProperty(`--afd-lens-${k}-fg`, v.fg);
+  }
+  // Data lens wires take the data chip's text color.
+  root.style.setProperty('--afd-lens-data', LENS_CHIPS[kind].data.fg);
   root.dataset.theme = kind;
 }
 

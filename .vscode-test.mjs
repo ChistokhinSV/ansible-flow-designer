@@ -40,6 +40,11 @@ for (const dir of ['flows', 'roles', 'playbooks'])
   cpSync(join('test/fixtures/drift', dir), join(workspace, dir), { recursive: true });
 // M7: the flow the lab AWX runs (its generated code is committed, as AWX needs it).
 cpSync('test/fixtures/awx/repo/flows', join(workspace, 'flows'), { recursive: true });
+// M8: the lens fixture flow and the requirements pins. Its inventory (with a vaulted variable) is
+// copied by the lens test itself: in the workspace from the start, the vault check of the M3 runs
+// (which scans the repository) would make them ask for a vault password.
+cpSync('test/fixtures/lens/flows', join(workspace, 'flows'), { recursive: true });
+cpSync('test/fixtures/lens/collections', join(workspace, 'collections'), { recursive: true });
 writeFileSync(
   join(workspace, 'ansible.cfg'),
   [
@@ -89,6 +94,7 @@ export default defineConfig([
       'out/test/integration/subflow.test.js',
       'out/test/integration/catalog.test.js',
       'out/test/integration/drift.test.js',
+      'out/test/integration/lens.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -97,6 +103,7 @@ export default defineConfig([
   { ...common, label: 'm6', files: 'out/test/integration/drift.test.js' },
   // M7: the lab AWX (skipped without AFD_AWX_URL and AFD_AWX_TOKEN).
   { ...common, label: 'm7', files: 'out/test/integration/awx.test.js' },
+  { ...common, label: 'm8', files: 'out/test/integration/lens.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

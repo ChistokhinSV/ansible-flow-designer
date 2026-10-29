@@ -79,6 +79,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
   const runMode = useUi((s) => s.mode === 'run');
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
+  // Lenses (M8): Inventory labels wires with last-run host counts, Data adds derived data wires.
+  const lensWires = useUi((s) => s.lensView?.wires);
+  const dataWires = useUi((s) => s.lensView?.dataWires);
+  const dataLens = useUi((s) => s.lens === 'data');
 
   const view = useMemo(
     () => (snapshot ? levelView(snapshot, optimistic, level) : { nodes: [], edges: [] }),
@@ -148,10 +152,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'smoothstep',
-        label: ran ? hostCount(hostsOn(ran, e).length) : e.sourcePort,
+        label: ran ? hostCount(hostsOn(ran, e).length) : (lensWires?.[e.id] ?? e.sourcePort),
         className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
           ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
-        }`,
+        }${dataLens ? ' lens-control' : ''}`,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
@@ -159,11 +163,33 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selected: selection.edge === e.id,
         deletable: !runMode,
       })),
-    [view.edges, selection.edge, ran, runMode, hostsOn],
+    [view.edges, selection.edge, ran, runMode, hostsOn, lensWires, dataLens],
   );
+  const dataEdges = useMemo<Edge[]>(() => {
+    if (!dataLens || !dataWires) return [];
+    const here = new Set(view.nodes.map((v) => v.node.id));
+    return dataWires
+      .filter((w) => here.has(w.from) && here.has(w.to))
+      .map((w) => ({
+        id: w.id,
+        source: w.from,
+        sourceHandle: '__data_out',
+        target: w.to,
+        targetHandle: '__data_in',
+        type: 'default',
+        label: w.label,
+        className: 'afd-edge afd-data-edge',
+        data: { title: w.title },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--afd-lens-data)' },
+        selectable: false,
+        deletable: false,
+        focusable: false,
+      }));
+  }, [dataLens, dataWires, view.nodes]);
   const allEdges = useMemo<Edge[]>(
     () => [
       ...edges,
+      ...dataEdges,
       ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
         id: e.id,
         source: e.source,
@@ -181,7 +207,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         deletable: true,
       })),
     ],
-    [edges, boundary, selection.edge],
+    [edges, dataEdges, boundary, selection.edge],
   );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one
