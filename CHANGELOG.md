@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 — M4 (AFD-6)
+
+- Subflow levels (D-23, ADR-0010):
+  - Open a subflow by double-click, Enter, the inspector or the preview card.
+  - _Back_, a breadcrumb, inherited-context chips, and a viewport per level.
+  - Reveal (banner, diagnostics) opens the right level.
+- Boundary frame:
+  - the subflow's ports on its edges (`in` on top, outcomes below, problems right);
+  - the entry and exit wires, editable by dragging, deleting, or from the exit panel with a reason;
+  - optional parent ports enabled on demand.
+- New commands `setBoundaryIn`, `connectBoundary`, `disconnectBoundary`, `setExitReason`.
+  - `addNode` into an empty subflow creates its inner graph with the new step as the entry.
+  - `deleteNode` cleans boundary references and the decisions and positions of inner steps.
+- Schema (additive): optional `reason` on boundary exits.
+- Validator: `boundary-no-entry`, `boundary-port-unfed`, `inner-exit-unmapped`; `boundary-ref` also checks exit ports.
+- Preview card (D-22) after about 400 ms on subflows and bound nodes. It shows inner steps with exits and last-run results, the undo binding and settings. Actions: _Peek code_ (the generated play) and _Open subflow_.
+- Auto-layout and _Tidy up_ for inner levels.
+- Not in M4: extract selection into a subflow (AFD-7).
+
 ## 0.3.1 (AFD-5)
 
 - Fixed: with the Red Hat YAML extension installed, `*.flow.yaml` was validated against SchemaStore's Estuary Flow Catalog schema (Estuary uses `flow.yaml`), which produced false "Property … is not allowed" errors. The extension now contributes `schema/flow.schema.json` for `*.flow.yaml` (`contributes.yamlValidation`), which outranks SchemaStore. The text view also gets completion and validation from the real flow schema. Checked by `just test-yaml`, which installs redhat.vscode-yaml 2.0.0.

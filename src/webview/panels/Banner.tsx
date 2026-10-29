@@ -1,17 +1,20 @@
 // Open fail port banner (D-15): count of open fail-type ports not marked open on purpose. "Show"
 // selects the affected nodes one by one; dismissing hides it until the count changes.
 import { useReactFlow } from '@xyflow/react';
-import { useRef } from 'react';
 import { useUi } from '../store';
 import { bannerCount } from '../viewModel';
+
+/** Module-level so cycling continues across level switches (each level remounts the canvas). */
+let cursor = 0;
 
 export function Banner() {
   const snapshot = useUi((s) => s.snapshot);
   const dismissedAt = useUi((s) => s.bannerDismissedAt);
   const dismiss = useUi((s) => s.dismissBanner);
   const select = useUi((s) => s.select);
+  const reveal = useUi((s) => s.reveal);
+  const level = useUi((s) => s.level);
   const { getNode, setCenter } = useReactFlow();
-  const cursor = useRef(0);
   if (!snapshot) return null;
   if (snapshot.stale) {
     return (
@@ -27,9 +30,13 @@ export function Banner() {
     return <span hidden data-banner-count={count} />;
   }
   const show = () => {
-    const open = snapshot.openPorts[cursor.current % snapshot.openPorts.length];
-    cursor.current++;
+    const open = snapshot.openPorts[cursor % snapshot.openPorts.length];
+    cursor++;
     if (!open) return;
+    if (open.level !== level) {
+      reveal(open.node);
+      return;
+    }
     select({ node: open.node });
     const n = getNode(open.node);
     if (n)

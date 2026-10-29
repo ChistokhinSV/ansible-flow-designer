@@ -55,7 +55,8 @@ export function levelView(
 ): LevelView {
   const doc = snapshot.doc;
   if (!doc) return { nodes: [], edges: [] };
-  const level = buildModel(doc).levels.get(levelId);
+  const model = buildModel(doc);
+  const level = model.levels.get(levelId);
   if (!level) return { nodes: [], edges: [] };
   const edgeEnds = new Set<string>();
   for (const e of level.edges) {
@@ -63,6 +64,11 @@ export function levelView(
     edgeEnds.add(`${e.from.node}|${e.from.port}`);
     edgeEnds.add(`${e.to.node}|${e.to.port}`);
   }
+  // Inside a subflow the entry and the exits are wires too (D-23).
+  const boundary = level.parent ? model.nodes.get(level.parent)?.node.subflow?.boundary : undefined;
+  if (boundary?.in) edgeEnds.add(`${boundary.in}|in`);
+  for (const refs of Object.values(boundary?.outputs ?? {}))
+    for (const r of refs ?? []) edgeEnds.add(`${r?.node}|${r?.port}`);
   const openFail = new Set(snapshot.openPorts.map((o) => `${o.node}|${o.port}`));
   const decided = new Set((doc.decisions ?? []).map((d) => `${d?.node}|${d?.port}`));
   const layout = doc.layout ?? {};
@@ -212,4 +218,209 @@ export function nextRequirement(node: FlowNode): string | undefined {
 export function skeletonStub(node: FlowNode): string {
   const msg = `TODO: ${node.intent ?? node.title}`.replaceAll('"', '\\"');
   return `- name: "[${node.key}] TODO"\n  ansible.builtin.debug:\n    msg: "${msg}"`;
+}
+
+// ---- subflow levels (M4, D-23) -------------------------------------------------------------------
+
+export const FRAME_PREFIX = 'boundary:';
+const FRAME_PAD = { x: 64, top: 72, bottom: 72 };
+const EMPTY_FRAME = { width: 420, height: 280 };
+
+export type FramePortState = 'connected' | 'bubbled' | 'unfed' | 'available';
+
+export interface FramePortView {
+  name: string;
+  side: 'top' | 'bottom' | 'right';
+  tone: PortTone;
+  fail: boolean;
+  state: FramePortState;
+  offset: number;
+}
+
+export interface BoundaryEdgeView {
+  id: string;
+  kind: 'entry' | 'exit';
+  source: string;
+  sourcePort: string;
+  target: string;
+  targetPort: string;
+  tone: PortTone;
+  problem: boolean;
+  label: string;
+  /** Exits: the inner port and the parent port it leaves through. */
+  exit?: { from: { node: Ulid; port: string }; port: string; reason?: string };
+}
+
+export interface BoundaryView {
+  subflow: FlowNode;
+  id: string;
+  frame: { x: number; y: number; width: number; height: number };
+  ports: FramePortView[];
+  edges: BoundaryEdgeView[];
+}
+
+/**
+ * The dashed frame around a subflow's inner level: the parent's ports on its edges (`in` on top,
+ * outcomes below, problems right), the entry wire and one wire per exit (D-23, mockup 10).
+ */
+export function boundaryView(
+  snapshot: Snapshot,
+  view: LevelView,
+  levelId: string,
+): BoundaryView | undefined {
+  const doc = snapshot.doc;
+  if (!doc || levelId === ROOT) return undefined;
+  const subflow = buildModel(doc).nodes.get(levelId)?.node;
+  if (!subflow) return undefined;
+  const boundary = subflow.subflow?.boundary;
+  const id = `${FRAME_PREFIX}${subflow.id}`;
+
+  let frame = { x: 0, y: 0, ...EMPTY_FRAME };
+  if (view.nodes.length > 0) {
+    const xs = view.nodes.flatMap((n) => [n.position.x, n.position.x + n.width]);
+    const ys = view.nodes.flatMap((n) => [n.position.y, n.position.y + n.height]);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    frame = {
+      x: x0 - FRAME_PAD.x,
+      y: y0 - FRAME_PAD.top,
+      width: Math.max(EMPTY_FRAME.width, x1 - x0 + 2 * FRAME_PAD.x),
+      height: Math.max(EMPTY_FRAME.height, y1 - y0 + FRAME_PAD.top + FRAME_PAD.bottom),
+    };
+  }
+
+  const inner = view.nodes.map((n) => n.node);
+  const wired = new Set(view.edges.map((e) => `${e.source}|${e.sourcePort}`));
+  const exited = new Set(
+    Object.values(boundary?.outputs ?? {}).flatMap((refs) =>
+      (refs ?? []).map((r) => `${r?.node}|${r?.port}`),
+    ),
+  );
+  const ports: FramePortView[] = [];
+  for (const p of legalPorts(subflow)) {
+    if (p.name === 'undo' || p.name === 'cancelled') continue;
+    if (p.direction === 'in') {
+      ports.push({
+        name: p.name,
+        side: 'top',
+        tone: p.tone,
+        fail: false,
+        state: boundary?.in ? 'connected' : 'unfed',
+        offset: 0.5,
+      });
+      continue;
+    }
+    let state: FramePortState = p.enabled ? 'unfed' : 'available';
+    if ((boundary?.outputs?.[p.name] ?? []).length > 0) state = 'connected';
+    else if (
+      p.enabled &&
+      p.fail &&
+      inner.some(
+        (n) =>
+          portSpecsOf(n).has(p.name) &&
+          !wired.has(`${n.id}|${p.name}`) &&
+          !exited.has(`${n.id}|${p.name}`),
+      )
+    )
+      state = 'bubbled';
+    ports.push({
+      name: p.name,
+      side: p.side === 'right' ? 'right' : 'bottom',
+      tone: p.tone,
+      fail: p.fail,
+      state,
+      offset: 0,
+    });
+  }
+  for (const side of ['bottom', 'right'] as const) {
+    const list = ports.filter((p) => p.side === side);
+    list.forEach((p, i) => {
+      p.offset = (i + 1) / (list.length + 1);
+    });
+  }
+
+  const edges: BoundaryEdgeView[] = [];
+  const ids = new Set(inner.map((n) => n.id));
+  if (boundary?.in && ids.has(boundary.in)) {
+    edges.push({
+      id: `entry:${subflow.id}`,
+      kind: 'entry',
+      source: id,
+      sourcePort: 'in',
+      target: boundary.in,
+      targetPort: 'in',
+      tone: 'neutral',
+      problem: false,
+      label: 'in',
+    });
+  }
+  for (const [port, refs] of Object.entries(boundary?.outputs ?? {})) {
+    for (const r of refs ?? []) {
+      if (!r?.node || !ids.has(r.node)) continue;
+      const spec = portSpec(port);
+      edges.push({
+        id: `exit:${subflow.id}|${r.node}|${r.port}|${port}`,
+        kind: 'exit',
+        source: r.node,
+        sourcePort: r.port,
+        target: id,
+        targetPort: port,
+        tone: portSpec(r.port).tone,
+        problem: spec.side === 'right',
+        label: r.reason ?? port,
+        exit: { from: { node: r.node, port: r.port }, port, reason: r.reason },
+      });
+    }
+  }
+  return { subflow, id, frame, ports, edges };
+}
+
+function portSpecsOf(node: FlowNode): Set<string> {
+  return new Set(
+    legalPorts(node)
+      .filter((p) => p.enabled)
+      .map((p) => p.name),
+  );
+}
+
+/** Breadcrumb from the top level to `levelId` (D-23). */
+export function levelTrail(doc: FlowDocument, levelId: string): { id: string; title: string }[] {
+  const model = buildModel(doc);
+  const trail: { id: string; title: string }[] = [];
+  let id: string | undefined = levelId;
+  while (id && id !== ROOT) {
+    const entry = model.nodes.get(id);
+    if (!entry) break;
+    trail.unshift({ id, title: entry.node.title });
+    id = entry.level;
+  }
+  return [{ id: ROOT, title: doc.flow.name }, ...trail];
+}
+
+/** Settings a level runs under, from its subflow node and the subflows around it (D-23 chips). */
+export function inheritedContext(
+  doc: FlowDocument,
+  levelId: string,
+): { label: string; title: string }[] {
+  const model = buildModel(doc);
+  const chips: { label: string; title: string }[] = [];
+  const seen = new Set<string>();
+  let id: string | undefined = levelId;
+  while (id && id !== ROOT) {
+    const entry = model.nodes.get(id);
+    if (!entry) break;
+    const s = entry.node.settings ?? {};
+    const from = `from ${entry.node.title}`;
+    const add = (key: string, label: string) => {
+      if (seen.has(key)) return;
+      seen.add(key);
+      chips.push({ label, title: from });
+    };
+    if (s.inventory_target) add('inventory', `inherits ${s.inventory_target}`);
+    if (s.credential) add('credential', s.credential);
+    if (s.execution_environment) add('ee', `EE ${s.execution_environment}`);
+    if (s.become) add('become', 'become');
+    if (s.serial !== undefined) add('serial', `serial ${s.serial}`);
+    id = entry.level;
+  }
+  return chips;
 }

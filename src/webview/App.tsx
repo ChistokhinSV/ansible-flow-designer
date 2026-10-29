@@ -4,12 +4,14 @@ import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { Banner } from './panels/Banner';
+import { BoundaryPanel } from './panels/BoundaryPanel';
 import { DecisionDialog } from './panels/DecisionDialog';
 import { FlowDescription } from './panels/FlowDescription';
 import { Inspector } from './panels/Inspector';
 import { Palette } from './panels/Palette';
 import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
+import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
 import { TopBar } from './panels/TopBar';
 import { useUi } from './store';
@@ -28,11 +30,21 @@ function domSummary(docVersion: number): DomSummary {
     };
   });
   const banner = document.querySelector<HTMLElement>('[data-banner-count]');
+  const frame = document.querySelector<HTMLElement>('[data-frame]');
   return {
     docVersion,
+    level: useUi.getState().level,
     nodes,
     edges: document.querySelectorAll('.react-flow__edge').length,
     banner: banner ? Number(banner.dataset.bannerCount) : null,
+    frame: frame
+      ? {
+          ports: [...frame.querySelectorAll<HTMLElement>('[data-frame-port]')]
+            .filter((p) => p.dataset.portState !== 'available')
+            .map((p) => p.dataset.framePort ?? ''),
+          wires: document.querySelectorAll('.afd-boundary-edge').length,
+        }
+      : null,
   };
 }
 
@@ -62,7 +74,9 @@ function useHost() {
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'reveal') {
-        ui.select({ node: m.node });
+        ui.reveal(m.node);
+      } else if (m.type === 'openLevel') {
+        ui.setLevel(m.level);
       } else if (m.type === 'inspect') {
         send({
           type: 'inspectResult',
@@ -101,6 +115,8 @@ export function App() {
   useHost();
   const snapshot = useUi((s) => s.snapshot);
   const selected = useUi((s) => s.selection.node);
+  const wire = useUi((s) => s.selection.edge);
+  const level = useUi((s) => s.level);
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
   useEffect(() => {
@@ -121,7 +137,8 @@ export function App() {
     );
   }
   return (
-    <ReactFlowProvider>
+    // A fresh React Flow store per level: each level keeps its own viewport (D-23).
+    <ReactFlowProvider key={level}>
       <div className="afd-shell">
         <TopBar />
         <Palette />
@@ -131,11 +148,18 @@ export function App() {
           <FlowCanvas />
         </main>
         <aside className="afd-right" aria-label={selected ? 'Node inspector' : 'Flow description'}>
-          {selected ? <Inspector id={selected} /> : <FlowDescription />}
+          {selected ? (
+            <Inspector id={selected} />
+          ) : wire && /^(entry|exit):/.test(wire) ? (
+            <BoundaryPanel edge={wire} />
+          ) : (
+            <FlowDescription />
+          )}
         </aside>
         <QuickAdd />
         <DecisionDialog />
         <PortMenu />
+        <PreviewCard />
         {error ? (
           <div className="afd-toast" role="alert">
             <span className="codicon codicon-error" aria-hidden="true" /> {error}

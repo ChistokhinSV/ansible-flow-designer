@@ -11,7 +11,7 @@ import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel'
 function currentView() {
   const { snapshot, optimistic } = useUi.getState();
   if (!snapshot?.doc) return undefined;
-  const view = levelView(snapshot, optimistic);
+  const view = levelView(snapshot, optimistic, useUi.getState().level);
   return { doc: snapshot.doc, view, freeze: unplacedPositions(view, snapshot.doc.layout) };
 }
 

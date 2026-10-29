@@ -10,6 +10,7 @@ import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model'
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
 import type {
+  BoundaryExit,
   ContractField,
   FlowDocument,
   FlowNode,
@@ -20,8 +21,11 @@ import type {
   NodeType,
   PortRef,
   Position,
+  SubflowBody,
   Ulid,
 } from './types';
+
+type Boundary = NonNullable<SubflowBody['boundary']>;
 
 export type FlowCommand =
   | {
@@ -75,7 +79,13 @@ export type FlowCommand =
       /** New name for the field (rename keeps the definition). */
       rename?: string;
     }
-  | { kind: 'updateFlow'; patch: FlowPatch };
+  | { kind: 'updateFlow'; patch: FlowPatch }
+  /** D-23: the inner node that receives the hosts entering the subflow (null clears it). */
+  | { kind: 'setBoundaryIn'; subflow: Ulid; node: Ulid | null }
+  /** D-23: an inner output leaves the subflow through the parent's `port`. */
+  | { kind: 'connectBoundary'; subflow: Ulid; from: PortRef; port: string; reason?: string }
+  | { kind: 'disconnectBoundary'; subflow: Ulid; from: PortRef; port: string }
+  | { kind: 'setExitReason'; subflow: Ulid; from: PortRef; port: string; reason: string | null };
 
 export interface NodePatch {
   title?: string;
@@ -141,6 +151,7 @@ const NODE_ORDER = [
   'subflow',
 ];
 const FLOW_ORDER = ['id', 'key', 'name', 'version', 'goal', 'owner', 'runtime', 'inputs'];
+const SUBFLOW_ORDER = ['nodes', 'edges', 'layout', 'boundary'];
 const ROOT_ORDER = ['schema_version', 'flow', 'nodes', 'edges', 'layout', 'decisions'];
 
 const after = (order: readonly string[], key: string) => order.slice(order.indexOf(key) + 1);
@@ -243,7 +254,58 @@ function checkOutput(st: State, from: PortRef): Level {
       `${from.port} is already wired; use a parallel node to fan out`,
     );
   }
+  const exit = exitOf(st, level, from);
+  if (exit) {
+    throw new CommandError(
+      'port-in-use',
+      `${from.port} already leaves the subflow through ${exit}; remove that exit first`,
+    );
+  }
   return level;
+}
+
+/** The parent port an inner output leaves through (boundary.outputs), if any. */
+function exitOf(st: State, level: Level, from: PortRef): string | undefined {
+  const parent = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
+  for (const [port, refs] of Object.entries(parent?.subflow?.boundary?.outputs ?? {}))
+    if ((refs ?? []).some((r) => r?.node === from.node && r.port === from.port)) return port;
+  return undefined;
+}
+
+/** A subflow node with an inner graph, and the YAML path of its `subflow` block. */
+function subflowAt(st: State, id: Ulid): { node: FlowNode; level: Level; base: Path } {
+  const { node, path } = nodeAt(st, id);
+  if (node.type !== 'subflow') throw new CommandError('bad-type', `${node.title} is not a subflow`);
+  const level = st.model.levels.get(id);
+  if (!level) throw new CommandError('no-inner-graph', 'The subflow has no inner graph yet');
+  return { node, level, base: [...path, 'subflow'] };
+}
+
+/** Ops that make `boundary` equal `next` (whole-block rewrite; the block is small). */
+function boundaryOps(st: State, id: Ulid, next: Boundary | undefined): Op[] {
+  const { node, base } = subflowAt(st, id);
+  const current = node.subflow?.boundary;
+  const outputs = Object.fromEntries(
+    Object.entries(next?.outputs ?? {}).filter(([, refs]) => (refs ?? []).length > 0),
+  );
+  const value: Record<string, YamlValue> = {};
+  if (next?.in) value.in = next.in;
+  if (Object.keys(outputs).length > 0)
+    value.outputs = Object.fromEntries(
+      Object.entries(outputs).map(([port, refs]) => [
+        port,
+        refs.map((r) => ({
+          node: r.node,
+          port: r.port,
+          ...(r.reason ? { reason: r.reason } : {}),
+        })),
+      ]),
+    );
+  if (Object.keys(value).length === 0)
+    return current === undefined ? [] : [(f) => deleteKey(f, base, 'boundary')];
+  return [
+    (f) => setIn(f, [...base, 'boundary'], value, { before: after(SUBFLOW_ORDER, 'boundary') }),
+  ];
 }
 
 function edgeItem(ctx: CommandContext, from: PortRef, to: PortRef): Record<string, YamlValue> {
@@ -359,11 +421,39 @@ function levelKeys(level: Level): Set<string> {
   return new Set(level.nodes.flatMap((n) => (n?.key ? [n.key] : [])));
 }
 
-function targetLevel(st: State, parent: Ulid | undefined): Level {
-  if (parent && !st.model.nodes.get(parent)?.node.subflow?.nodes) {
-    throw new CommandError('no-inner-graph', 'The subflow has no inner graph yet');
+/**
+ * Inserts a new node into its level. The first step of a subflow creates the inner graph and
+ * becomes the boundary entry (D-23), in the same edit.
+ */
+function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): Ulid {
+  const st = state(tx);
+  if (!spec.parent) {
+    const level = levelOf(st, ROOT);
+    const { id, item } = nodeItem(ctx, spec, levelKeys(level));
+    tx.apply((f) => insertItem(f, level.nodesPath, 'end', item));
+    return id;
   }
-  return levelOf(st, parent ?? ROOT);
+  const parent = spec.parent;
+  const { node, path } = nodeAt(st, parent);
+  if (node.type !== 'subflow') throw new CommandError('bad-type', `${node.title} is not a subflow`);
+  const level = st.model.levels.get(parent);
+  const { id, item } = nodeItem(ctx, spec, level ? levelKeys(level) : new Set());
+  const base = [...path, 'subflow'];
+  const entry = !node.subflow?.nodes?.length && !node.subflow?.boundary?.in;
+  if (!node.subflow) {
+    const body: Record<string, YamlValue> = { nodes: [item] };
+    if (entry) body.boundary = { in: id };
+    tx.apply((f) => setIn(f, base, body, { before: after(NODE_ORDER, 'subflow') }));
+    return id;
+  }
+  const ops: Op[] = [
+    node.subflow.nodes
+      ? (f) => insertItem(f, [...base, 'nodes'], 'end', item)
+      : (f) => setIn(f, [...base, 'nodes'], [item], { before: after(SUBFLOW_ORDER, 'nodes') }),
+  ];
+  if (entry) ops.push(...boundaryOps(st, parent, { ...node.subflow.boundary, in: id }));
+  tx.applyAll(ops);
+  return id;
 }
 
 /** Output a node continues on when it is inserted on a wire. */
@@ -386,10 +476,7 @@ function addNode(
   if (cmd.insertOn && !CONTINUES_ON[cmd.type]) {
     throw new CommandError('bad-type', `A ${cmd.type} node cannot be inserted on a wire`);
   }
-  const st = state(tx);
-  const level = targetLevel(st, cmd.parent);
-  const { id, item } = nodeItem(ctx, cmd, levelKeys(level));
-  tx.apply((f) => insertItem(f, level.nodesPath, 'end', item));
+  const id = insertNode(tx, ctx, cmd);
   setPositions(tx, { ...cmd.freeze, ...(cmd.position ? { [id]: cmd.position } : {}) });
   if (cmd.connectFrom) addEdge(tx, ctx, cmd.connectFrom, { node: id, port: 'in' });
   if (cmd.insertOn) insertOnEdge(tx, ctx, cmd.insertOn, id, CONTINUES_ON[cmd.type] as string);
@@ -647,17 +734,20 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
     .filter((i) => i >= 0);
   ops.push(...removeIndexes(level.edgesPath, edgeIdx, level.edges.length));
 
+  // The node, every step of its inner levels, and its place in an enclosing boundary.
+  const gone = new Set([id, ...descendants(node)]);
   const decisions = st.doc.decisions ?? [];
-  const decisionIdx = decisions.map((d, i) => (d?.node === id ? i : -1)).filter((i) => i >= 0);
+  const decisionIdx = decisions
+    .map((d, i) => (d?.node && gone.has(d.node) ? i : -1))
+    .filter((i) => i >= 0);
   if (decisionIdx.length > 0 && decisionIdx.length === decisions.length) {
     ops.push((f) => deleteKey(f, [], 'decisions'));
   } else {
     ops.push(...decisionIdx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
   }
 
-  const inner = (node.subflow?.nodes ?? []).map((n) => n?.id);
   const layout = st.doc.layout ?? {};
-  const layoutIds = [id, ...inner].filter((x): x is Ulid => !!x && x in layout);
+  const layoutIds = [...gone].filter((x) => x in layout);
   if (layoutIds.length > 0 && layoutIds.length === Object.keys(layout).length) {
     ops.push((f) => deleteKey(f, [], 'layout'));
   } else {
@@ -665,7 +755,32 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
   }
 
   ops.push(...removeIndexes(path.slice(0, -1), [path.at(-1) as number], level.nodes.length));
+
+  const parent = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
+  const boundary = parent?.subflow?.boundary;
+  if (parent && boundary) {
+    const outputs = Object.fromEntries(
+      Object.entries(boundary.outputs ?? {}).map(([p, refs]) => [
+        p,
+        (refs ?? []).filter((r) => r?.node !== id),
+      ]),
+    );
+    const changed =
+      boundary.in === id ||
+      Object.entries(outputs).some(([p, refs]) => refs.length !== boundary.outputs?.[p]?.length);
+    if (changed)
+      ops.push(
+        ...boundaryOps(st, parent.id, {
+          in: boundary.in === id ? undefined : boundary.in,
+          outputs,
+        }),
+      );
+  }
   tx.applyAll(ops);
+}
+
+function descendants(node: FlowNode): Ulid[] {
+  return (node.subflow?.nodes ?? []).flatMap((n) => (n?.id ? [n.id, ...descendants(n)] : []));
 }
 
 function setPortEnabled(
@@ -683,9 +798,12 @@ function setPortEnabled(
   }
   const index = node.ports?.indexOf(cmd.port) ?? -1;
   if (index < 0) return;
-  const edges = levelOf(st, level).edges;
+  const lvl = levelOf(st, level);
+  const exits = node.subflow?.boundary?.outputs?.[cmd.port] ?? [];
   if (
-    edges.some(
+    exits.length > 0 ||
+    exitOf(st, lvl, { node: cmd.node, port: cmd.port }) ||
+    lvl.edges.some(
       (e) =>
         (e?.from?.node === cmd.node && e.from.port === cmd.port) ||
         (e?.to?.node === cmd.node && e.to.port === cmd.port),
@@ -749,6 +867,69 @@ function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
   }
 }
 
+function setBoundaryIn(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBoundaryIn' }>) {
+  const st = state(tx);
+  const { node, level } = subflowAt(st, cmd.subflow);
+  if (cmd.node !== null) {
+    const inner = nodeAt(st, cmd.node);
+    if (inner.level !== level.id)
+      throw new CommandError('cross-level', 'The entry must be a step inside the subflow');
+    if (!isPortLegal(inner.node, 'in'))
+      throw new CommandError('bad-port', `${inner.node.title} has no "in" port`);
+  }
+  const boundary = node.subflow?.boundary ?? {};
+  tx.applyAll(boundaryOps(st, cmd.subflow, { ...boundary, in: cmd.node ?? undefined }));
+}
+
+function connectBoundary(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'connectBoundary' }>,
+): void {
+  const st = state(tx);
+  const { node, level } = subflowAt(st, cmd.subflow);
+  if (nodeAt(st, cmd.from.node).level !== level.id)
+    throw new CommandError('cross-level', 'Only a step inside the subflow can leave through it');
+  if (!isPortLegal(node, cmd.port) || portDirection(cmd.port) !== 'out')
+    throw new CommandError('bad-port', `${node.title} has no output "${cmd.port}"`);
+  if (exitOf(st, level, cmd.from) === cmd.port) return;
+  checkOutput(st, cmd.from);
+  const boundary = node.subflow?.boundary ?? {};
+  const exit: BoundaryExit = { node: cmd.from.node, port: cmd.from.port };
+  if (cmd.reason?.trim()) exit.reason = cmd.reason.trim();
+  const outputs = {
+    ...boundary.outputs,
+    [cmd.port]: [...(boundary.outputs?.[cmd.port] ?? []), exit],
+  };
+  tx.applyAll([
+    ...enablePortOps(st, cmd.subflow, cmd.port),
+    ...enablePortOps(st, cmd.from.node, cmd.from.port),
+    ...boundaryOps(st, cmd.subflow, { ...boundary, outputs }),
+    // An inner port that leaves the subflow is wired: its open-on-purpose decision goes too.
+    ...decisionRemovalOps(st, cmd.from.node, cmd.from.port),
+  ]);
+}
+
+/** Rewrites one exit (`change` returns the new exit, or null to remove it). */
+function editExit(
+  tx: YamlTransaction,
+  subflow: Ulid,
+  from: PortRef,
+  port: string,
+  change: (exit: BoundaryExit) => BoundaryExit | null,
+): void {
+  const st = state(tx);
+  const { node } = subflowAt(st, subflow);
+  const boundary = node.subflow?.boundary ?? {};
+  const refs = boundary.outputs?.[port] ?? [];
+  const index = refs.findIndex((r) => r?.node === from.node && r.port === from.port);
+  if (index < 0) throw new CommandError('not-found', `${from.port} does not leave through ${port}`);
+  const next = change(refs[index] as BoundaryExit);
+  const list = [...refs.slice(0, index), ...(next ? [next] : []), ...refs.slice(index + 1)];
+  tx.applyAll(
+    boundaryOps(st, subflow, { ...boundary, outputs: { ...boundary.outputs, [port]: list } }),
+  );
+}
+
 /** `parsed` may carry the caller's existing parse of `text` (saves one parse per command). */
 export function planCommand(
   text: string,
@@ -800,6 +981,24 @@ export function planCommand(
     case 'updateFlow':
       updateFlow(tx, cmd.patch);
       break;
+    case 'setBoundaryIn':
+      setBoundaryIn(tx, cmd);
+      break;
+    case 'connectBoundary':
+      connectBoundary(tx, cmd);
+      break;
+    case 'disconnectBoundary':
+      editExit(tx, cmd.subflow, cmd.from, cmd.port, () => null);
+      break;
+    case 'setExitReason': {
+      const reason = cmd.reason?.trim();
+      editExit(tx, cmd.subflow, cmd.from, cmd.port, (e) => ({
+        node: e.node,
+        port: e.port,
+        ...(reason ? { reason } : {}),
+      }));
+      break;
+    }
   }
   return { edits: tx.edits(), text: tx.text, file: tx.current, created };
 }

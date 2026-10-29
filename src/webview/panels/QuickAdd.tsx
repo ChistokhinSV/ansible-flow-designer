@@ -46,8 +46,10 @@ export function QuickAdd() {
   }, [quick]);
 
   const model = useMemo(() => (snapshot?.doc ? buildModel(snapshot.doc) : undefined), [snapshot]);
+  const levelId = useUi((s) => s.level);
   if (!quick || !model) return null;
-  const level = model.levels.get(ROOT);
+  // Undefined inside a subflow that has no inner steps yet (the new node creates the level).
+  const level = model.levels.get(levelId);
   const insertEdge = quick.insertOn ? model.edges.get(quick.insertOn)?.edge : undefined;
   const sourceRef = quick.connectFrom ?? insertEdge?.from;
   const source = sourceRef ? model.nodes.get(sourceRef.node)?.node : undefined;
@@ -73,10 +75,11 @@ export function QuickAdd() {
     // Nodes still at auto-layout positions are written too, so the new node does not move them.
     const freeze =
       snap?.doc && quick.position
-        ? unplacedPositions(levelView(snap, useUi.getState().optimistic), snap.doc.layout)
+        ? unplacedPositions(levelView(snap, useUi.getState().optimistic, levelId), snap.doc.layout)
         : undefined;
     const ack = await run({
       kind: 'addNode',
+      parent: levelId === ROOT ? undefined : levelId,
       type,
       title: title.trim(),
       intent: intent.trim() || undefined,

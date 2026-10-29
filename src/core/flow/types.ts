@@ -71,8 +71,14 @@ export interface SubflowBody {
   layout?: Layout;
   boundary?: {
     in?: Ulid;
-    outputs?: Record<string, PortRef[]>;
+    outputs?: Record<string, BoundaryExit[]>;
   };
+}
+
+/** An inner port that leaves the subflow through the parent's port of the same `outputs` key. */
+export interface BoundaryExit extends PortRef {
+  /** Why hosts leave here (mockup 10 "SSH timeout"), shown on the exit wire (ADR-0010). */
+  reason?: string;
 }
 
 export interface FlowNode {

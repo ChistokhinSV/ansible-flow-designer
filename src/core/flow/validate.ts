@@ -5,7 +5,7 @@ import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
-import type { FlowDocument, FlowNode, Ulid } from './types';
+import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -385,6 +385,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   for (const level of model.levels.values()) {
     if (level.id === ROOT) continue;
     const parent = model.nodes.get(level.parent ?? '')?.node;
+    if (parent) checkBoundaryFlow(model, parent, level.nodes, level.edges, add);
     const boundary = parent?.subflow?.boundary;
     if (!parent || !boundary) continue;
     const base = model.nodes.get(parent.id)?.path ?? [];
@@ -410,7 +411,8 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         });
       }
       for (const ref of refs ?? []) {
-        if (!inner.has(ref.node)) {
+        const from = level.nodes.find((n) => n?.id === ref?.node);
+        if (!from) {
           add({
             code: 'boundary-ref',
             severity: 'warning',
@@ -418,8 +420,96 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
             path: [...base, 'subflow', 'boundary', 'outputs', port],
             node: parent.id,
           });
+        } else if (!isPortLegal(from, ref.port) || portDirection(ref.port) !== 'out') {
+          add({
+            code: 'boundary-ref',
+            severity: 'warning',
+            message: `Subflow ${label(parent)}: ${label(from)} has no output "${ref.port}" to leave through "${port}"`,
+            path: [...base, 'subflow', 'boundary', 'outputs', port],
+            node: parent.id,
+          });
+        } else if (
+          level.edges.some((e) => e?.from?.node === ref.node && e.from.port === ref.port)
+        ) {
+          add({
+            code: 'boundary-ref',
+            severity: 'warning',
+            message: `Subflow ${label(parent)}: ${label(from)} · ${ref.port} is wired inside and also leaves through "${port}"`,
+            path: [...base, 'subflow', 'boundary', 'outputs', port],
+            node: parent.id,
+          });
         }
       }
+    }
+  }
+}
+
+/**
+ * 03 "Subflow boundary": hosts must be able to enter the inner graph, every enabled output of the
+ * subflow must be fed from inside (an exit, or a fail port that bubbles up), and an inner outcome
+ * that neither continues inside nor leaves the subflow strands its hosts (D-23).
+ */
+function checkBoundaryFlow(
+  model: FlowModel,
+  parent: FlowNode,
+  nodes: FlowNode[],
+  edges: { from: PortRef; to: PortRef }[],
+  add: (f: Finding) => void,
+): void {
+  const inner = nodes.filter((n): n is FlowNode => !!n?.id);
+  if (inner.length === 0) return;
+  const base = model.nodes.get(parent.id)?.path ?? [];
+  const boundary = parent.subflow?.boundary;
+  if (!boundary?.in) {
+    add({
+      code: 'boundary-no-entry',
+      severity: 'warning',
+      message: `Subflow ${label(parent)} has no entry step: hosts reaching it never run its inner steps`,
+      path: [...base, 'subflow'],
+      node: parent.id,
+    });
+  }
+  const wired = new Set(edges.map((e) => `${e?.from?.node}|${e?.from?.port}`));
+  const exits = new Set(
+    Object.values(boundary?.outputs ?? {}).flatMap((refs) =>
+      (refs ?? []).map((r) => `${r?.node}|${r?.port}`),
+    ),
+  );
+  for (const port of portsFor(parent)) {
+    if (port.direction !== 'out' || port.name === 'cancelled') continue;
+    const fed =
+      (boundary?.outputs?.[port.name] ?? []).length > 0 ||
+      (port.fail &&
+        inner.some(
+          (n) =>
+            portsFor(n).some((p) => p.name === port.name) &&
+            !wired.has(`${n.id}|${port.name}`) &&
+            !exits.has(`${n.id}|${port.name}`),
+        ));
+    if (!fed) {
+      add({
+        code: 'boundary-port-unfed',
+        severity: 'warning',
+        message: `Subflow ${label(parent)} · ${port.name} is never taken: no inner step leaves through it`,
+        path: [...base, 'subflow'],
+        node: parent.id,
+        port: port.name,
+      });
+    }
+  }
+  for (const n of inner) {
+    for (const p of portsFor(n)) {
+      if (p.direction !== 'out' || p.fail || p.name === 'cancelled') continue;
+      const id = `${n.id}|${p.name}`;
+      if (wired.has(id) || exits.has(id)) continue;
+      add({
+        code: 'inner-exit-unmapped',
+        severity: 'warning',
+        message: `${label(n)} · ${p.name} inside ${label(parent)} leads nowhere: its hosts never reach an outer port`,
+        path: model.nodes.get(n.id)?.path ?? [],
+        node: n.id,
+        port: p.name,
+      });
     }
   }
 }

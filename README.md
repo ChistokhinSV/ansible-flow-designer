@@ -2,7 +2,7 @@
 
 A VS Code extension for designing Ansible automation top-down. You sketch a flow as a graph of typed nodes and ports, run it as a walking skeleton, and then bind each node to a module, role or playbook. The flow document (`*.flow.yaml`) stays the source of truth: Ansible code is generated from it, and drift is detected in both directions.
 
-**Status: M3 done.** The designer edits flows on a canvas (port menus, failure patterns, open-on-purpose decisions), generates Ansible code from them on every save, and runs that code as a walking skeleton in your Ansible environment, mapping the results back to the nodes. Subflow drill-down comes in M4, binding in M5, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3, M3 = AFD-4), knowledge base AFD-A-1.
+**Status: M4 done.** The designer edits flows on a canvas (port menus, failure patterns, open-on-purpose decisions, subflows with a drill-down boundary view), generates Ansible code from them on every save, and runs that code as a walking skeleton in your Ansible environment, mapping the results back to the nodes. Binding comes in M5, Implementation mode in M6, Run mode in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3, M3 = AFD-4, M4 = AFD-6), knowledge base AFD-A-1.
 
 ## What the designer does
 
@@ -29,6 +29,17 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only.
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
+- **Subflows (M4, ADR-0010):** double-click a subflow (or press Enter, or use _Open subflow_) to open its inner steps.
+  - The view shows a _Back_ button, a breadcrumb and chips for the context it inherits (inventory target, credential, EE, become, serial).
+  - A dashed **boundary frame** carries the subflow's ports: `in` on top, outcomes below, problems on the right.
+  - Drag from the frame's `in` to a step to make it the entry. Drag from an inner port to a frame port to make it an exit; an optional port is enabled on the subflow when needed.
+  - Select an exit wire to give it a reason (shown on the wire, e.g. _SSH timeout_) or remove it.
+  - The first step added to an empty subflow becomes its entry.
+  - Everything inside works as on the top level, and each edit is one undo step.
+  - The validator reports a missing entry, outer ports no inner step feeds, and inner outcomes that lead nowhere.
+- **Preview card (M4, D-22):** pause about 400 ms on a subflow or a bound node.
+  - The card shows its binding and status, the inner steps in order with their exits and last-run results, the undo binding and the settings.
+  - _Peek code_ opens the generated play; _Open subflow_ drills in.
 - **Engine limits the validator reports (M3):** `unreachable` and `unchanged` on role nodes (Ansible gives no per-host signal for a role), and a `timeout` port without `settings.timeout`.
 
 ## Install
@@ -40,7 +51,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.3.0.vsix
+code --install-extension out/ansible-flow-designer-0.4.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:

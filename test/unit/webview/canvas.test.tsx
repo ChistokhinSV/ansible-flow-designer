@@ -2,23 +2,26 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
 import { codePreview } from '../../../src/core/engine/preview';
 import type { FlowCommand } from '../../../src/core/flow/commands';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import { defaultPortNames, legalPorts } from '../../../src/core/flow/ports';
-import { type FlowDocument, NODE_TYPES } from '../../../src/core/flow/types';
+import { type FlowDocument, type FlowNode, NODE_TYPES } from '../../../src/core/flow/types';
 import type { Snapshot } from '../../../src/core/protocol';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { Banner } from '../../../src/webview/panels/Banner';
+import { BoundaryPanel } from '../../../src/webview/panels/BoundaryPanel';
 import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
 import { Inspector } from '../../../src/webview/panels/Inspector';
 import { PortMenu } from '../../../src/webview/panels/PortMenu';
+import { PreviewCard } from '../../../src/webview/panels/PreviewCard';
 import { TopBar } from '../../../src/webview/panels/TopBar';
+import { hasPreview } from '../../../src/webview/preview';
 import { useUi } from '../../../src/webview/store';
-import { levelView } from '../../../src/webview/viewModel';
+import { boundaryView, levelView } from '../../../src/webview/viewModel';
 import { posted } from './setup';
 
 const example = (name: string) =>
@@ -351,5 +354,107 @@ describe('generated code and runs (M3)', () => {
       }),
     );
     expect(screen.getByText(/2 hosts · 0 failed · exit 0/)).toBeTruthy();
+  });
+});
+
+describe('subflows (M4)', () => {
+  const OS = example('os-upgrade.flow.yaml');
+  const EDGE = example('edge-baseline.flow.yaml');
+  const idOf = (doc: FlowDocument, key: string) =>
+    [...buildModel(doc).nodes.values()].find((e) => e.node.key === key)?.node.id as string;
+  const commands = () =>
+    posted.flatMap((m) =>
+      (m as { type: string }).type === 'command' ? [(m as { command: FlowCommand }).command] : [],
+    );
+
+  beforeEach(() => {
+    posted.length = 0;
+    useUi.setState({ level: 'root', preview: null, selection: {} });
+  });
+
+  it('the boundary frame carries the parent ports, the entry and the exits (D-23)', () => {
+    const up = idOf(OS, 'upgrade-os');
+    const snap = snapshotOf(OS);
+    const b = boundaryView(snap, levelView(snap, {}, up), up);
+    expect(
+      b?.ports.filter((p) => p.state !== 'available').map((p) => `${p.name}:${p.state}`),
+    ).toEqual([
+      'in:connected',
+      'ok_hosts:connected',
+      'failed_hosts:connected',
+      'unreachable:connected',
+    ]);
+    expect(b?.edges.map((e) => `${e.kind}:${e.sourcePort}->${e.targetPort}`).sort()).toEqual([
+      'entry:in->in',
+      'exit:failed_hosts->failed_hosts',
+      'exit:ok_hosts->ok_hosts',
+      'exit:unreachable->unreachable',
+    ]);
+    // An empty subflow: a default-size frame whose ports wait for inner steps.
+    const push = idOf(EDGE, 'push-baseline');
+    const empty = boundaryView(snapshotOf(EDGE), { nodes: [], edges: [] }, push);
+    expect(empty?.frame).toMatchObject({ width: 420, height: 280 });
+    expect(
+      empty?.ports.filter((p) => p.state !== 'available').map((p) => `${p.name}:${p.state}`),
+    ).toEqual(['in:unfed', 'ok_hosts:unfed', 'failed_hosts:unfed']);
+  });
+
+  it('opening a subflow shows its steps in the frame; Back returns to the top level', () => {
+    const up = idOf(OS, 'upgrade-os');
+    show(snapshotOf(OS));
+    act(() => useUi.getState().setLevel(up));
+    render(
+      <ReactFlowProvider>
+        <TopBar />
+        <FlowCanvas cull={false} />
+      </ReactFlowProvider>,
+    );
+    expect(document.querySelectorAll('[data-node-id]')).toHaveLength(6);
+    expect(document.querySelector(`[data-frame="${up}"]`)).toBeTruthy();
+    expect(screen.getByText('Upgrade OS', { selector: '[aria-current="location"]' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+    expect(useUi.getState().level).toBe('root');
+  });
+
+  it('the preview card opens after the pause, lists steps with exits, and not for draft tasks', () => {
+    vi.useFakeTimers();
+    try {
+      const up = idOf(OS, 'upgrade-os');
+      show(snapshotOf(OS));
+      render(<PreviewCard />);
+      act(() => useUi.getState().hoverNode(up, { left: 10, right: 200, top: 40 }));
+      act(() => vi.advanceTimersByTime(300));
+      expect(document.querySelector('[data-preview]')).toBeNull();
+      act(() => vi.advanceTimersByTime(150));
+      const steps = [...document.querySelectorAll('[data-preview-step]')].map((s) => s.textContent);
+      expect(steps[0]).toContain('Stage image');
+      expect(steps.at(-1)).toContain('→ failed_hosts');
+      fireEvent.click(screen.getByRole('button', { name: 'Peek code' }));
+      expect(posted).toContainEqual({ type: 'peekCode', node: up });
+      expect(hasPreview(OS.nodes.find((n) => n.key === 'notify-on-call') as FlowNode)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a selected exit edits its reason as one command', () => {
+    const up = idOf(OS, 'upgrade-os');
+    const wait = idOf(OS, 'wait-for-ssh');
+    show(snapshotOf(OS));
+    act(() => {
+      useUi.getState().setLevel(up);
+      useUi.getState().select({ edge: `exit:${up}|${wait}|unreachable|unreachable` });
+    });
+    render(<BoundaryPanel edge={`exit:${up}|${wait}|unreachable|unreachable`} />);
+    const field = screen.getByLabelText(/Reason/);
+    fireEvent.change(field, { target: { value: 'SSH timeout' } });
+    fireEvent.blur(field);
+    expect(commands()).toContainEqual({
+      kind: 'setExitReason',
+      subflow: up,
+      from: { node: wait, port: 'unreachable' },
+      port: 'unreachable',
+      reason: 'SSH timeout',
+    });
   });
 });

@@ -100,7 +100,6 @@ async function snapshot(): Promise<Snapshot> {
     };
   }
   const { model, findings } = validateFlow(parsed.doc);
-  const root = model.levels.get(ROOT);
   const preview = findings.some((f) => f.severity === 'error')
     ? undefined
     : codePreview(parsed.doc, 'harness.flow.yaml');
@@ -110,7 +109,12 @@ async function snapshot(): Promise<Snapshot> {
     stale: false,
     findings: [...findings, ...(preview?.findings ?? [])],
     openPorts: openFailPorts(model),
-    autoPositions: root ? await autoPositions(root, parsed.doc.layout) : {},
+    autoPositions: Object.assign(
+      {},
+      ...(await Promise.all(
+        [...model.levels.values()].map((l) => autoPositions(l, parsed.doc?.layout)),
+      )),
+    ),
     plays: preview?.plays,
   };
 }
@@ -144,8 +148,8 @@ async function onMessage(m: WebviewMessage) {
     }
     case 'tidyUp': {
       const doc = parseFlow(text).doc;
-      const root = doc ? buildModel(doc).levels.get(ROOT) : undefined;
-      if (root) apply({ kind: 'tidyUp', positions: await layoutLevel(root) });
+      const level = doc ? buildModel(doc).levels.get(m.level ?? ROOT) : undefined;
+      if (level) apply({ kind: 'tidyUp', positions: await layoutLevel(level) });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       break;
     }

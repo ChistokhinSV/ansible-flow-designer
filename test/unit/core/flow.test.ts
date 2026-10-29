@@ -335,7 +335,35 @@ describe('random command sequences keep every ID (check 1, property)', () => {
         const node = pick(nodes);
         const r = rng();
         let cmd: FlowCommand;
-        if (r < 0.3)
+        // M4: inside subflows too (inner steps, entry, exits, reasons).
+        const subflows = nodes.filter((n) => n.type === 'subflow');
+        if (subflows.length > 0 && rng() < 0.2) {
+          const sub = pick(subflows);
+          const inner = sub.subflow?.nodes ?? [];
+          const step = inner.length > 0 ? pick(inner) : undefined;
+          const s = rng();
+          const exits = Object.entries(sub.subflow?.boundary?.outputs ?? {}).flatMap(
+            ([port, refs]) =>
+              (refs ?? []).map((ref) => ({ port, from: { node: ref.node, port: ref.port } })),
+          );
+          if (!step || s < 0.3)
+            cmd = { kind: 'addNode', parent: sub.id, type: 'task', title: `Inner ${i}` };
+          else if (s < 0.5)
+            cmd = {
+              kind: 'connectBoundary',
+              subflow: sub.id,
+              from: { node: step.id, port: pick(['ok_hosts', 'failed_hosts', 'unreachable']) },
+              port: pick(['ok_hosts', 'failed_hosts', 'unreachable', 'unchanged']),
+              reason: rng() < 0.5 ? `why ${i}` : undefined,
+            };
+          else if (s < 0.6) cmd = { kind: 'setBoundaryIn', subflow: sub.id, node: step.id };
+          else if (s < 0.7 && exits.length > 0)
+            cmd = { kind: 'disconnectBoundary', subflow: sub.id, ...pick(exits) };
+          else if (s < 0.8 && exits.length > 0)
+            cmd = { kind: 'setExitReason', subflow: sub.id, ...pick(exits), reason: `r ${i}` };
+          else if (s < 0.9) cmd = { kind: 'deleteNode', id: step.id };
+          else cmd = { kind: 'moveNodes', positions: { [step.id]: { x: i, y: i * 2 } } };
+        } else if (r < 0.3)
           cmd = { kind: 'moveNodes', positions: { [node.id]: { x: rng() * 900, y: rng() * 900 } } };
         else if (r < 0.5)
           cmd = { kind: 'updateNode', id: node.id, patch: { title: `T ${i}`, key: `k-${i}` } };
@@ -397,7 +425,7 @@ describe('random command sequences keep every ID (check 1, property)', () => {
         const { findings } = validateFlow(next);
         expect(
           findings.filter((f) =>
-            ['duplicate-id', 'duplicate-key', 'edge-missing-node'].includes(f.code),
+            ['duplicate-id', 'duplicate-key', 'edge-missing-node', 'boundary-ref'].includes(f.code),
           ),
         ).toEqual([]);
         current = result.text;

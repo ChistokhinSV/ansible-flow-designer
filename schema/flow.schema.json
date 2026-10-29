@@ -421,13 +421,34 @@
                   "additionalProperties": {
                     "type": "array",
                     "items": {
-                      "$ref": "#/$defs/portref"
+                      "$ref": "#/$defs/exitref"
                     }
                   }
                 }
               }
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "exitref": {
+      "type": "object",
+      "required": [
+        "node",
+        "port"
+      ],
+      "properties": {
+        "node": {
+          "$ref": "#/$defs/ulid"
+        },
+        "port": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why hosts leave the subflow here (shown on the exit wire, mockup 10)"
         }
       },
       "additionalProperties": false

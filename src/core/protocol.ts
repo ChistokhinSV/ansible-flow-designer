@@ -40,6 +40,8 @@ export type HostMessage =
   | { type: 'run'; run: RunView | null }
   | { type: 'ack'; reqId: number; ok: boolean; error?: string; created?: Ulid }
   | { type: 'reveal'; node: Ulid }
+  /** Opens a level on the canvas: `root` or a subflow node id (M4; tests and commands). */
+  | { type: 'openLevel'; level: string }
   | { type: 'config'; testMode: boolean }
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number };
@@ -49,10 +51,12 @@ export type WebviewMessage =
   | { type: 'command'; reqId: number; command: FlowCommand }
   | { type: 'openText'; path?: Path }
   | { type: 'validate' }
-  | { type: 'tidyUp' }
+  | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
   | { type: 'generate' }
   | { type: 'showRunOutput' }
+  /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
+  | { type: 'peekCode'; node: Ulid }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
   | { type: 'perf'; event: 'firstRender' | 'render' | 'roundTrip'; ms: number; docVersion: number }
   | { type: 'cspViolation'; detail: string };
@@ -60,8 +64,12 @@ export type WebviewMessage =
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {
   docVersion: number;
+  /** Level on the canvas: `root` or the open subflow's node id (M4). */
+  level: string;
   /** Per node: every port of its type, the enabled ones, and those shown at rest (D-14). */
   nodes: { id: string; legal: string[]; ports: string[]; rest: string[] }[];
   edges: number;
   banner: number | null;
+  /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
+  frame: { ports: string[]; wires: number } | null;
 }

@@ -25,7 +25,7 @@ export function Inspector({ id }: { id: string }) {
   const entry = model.nodes.get(id);
   if (!entry) return null;
   const node = entry.node;
-  const view = levelView(snapshot).nodes.find((n) => n.node.id === id);
+  const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
   const patch = (p: Parameters<typeof updatePatch>[1]) => void updatePatch(id, p);
   const titleOf = (nid: string) => model.nodes.get(nid)?.node.title ?? nid;
   const edges = model.levels.get(entry.level)?.edges ?? [];
@@ -148,6 +148,19 @@ export function Inspector({ id }: { id: string }) {
           </details>
           <button type="button" disabled title="Binding arrives in M5">
             Bind module, role or playbook
+          </button>
+        </section>
+      ) : null}
+      {node.type === 'subflow' ? (
+        <section className="afd-section">
+          <h3>Inner steps</h3>
+          <p className="muted">
+            {node.subflow?.nodes?.length
+              ? `${node.subflow.nodes.length} step(s) inside.`
+              : 'No inner steps yet: open it and add the first one.'}
+          </p>
+          <button type="button" onClick={() => useUi.getState().setLevel(id)}>
+            <span className="codicon codicon-arrow-right" aria-hidden="true" /> Open subflow
           </button>
         </section>
       ) : null}

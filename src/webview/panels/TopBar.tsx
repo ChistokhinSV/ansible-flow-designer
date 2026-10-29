@@ -2,9 +2,11 @@
 // Design mode and no lens exist so far; the rest is shown disabled with the milestone that adds it.
 // Run as skeleton (M3) runs the generated code in check mode; the run status sits next to it.
 
+import { ROOT } from '../../core/flow/model';
 import type { RunView } from '../../core/protocol';
 import { send } from '../bus';
 import { useUi } from '../store';
+import { inheritedContext, levelTrail } from '../viewModel';
 
 const MODES = [
   { id: 'design', label: 'Design' },
@@ -14,15 +16,47 @@ const MODES = [
 const LENSES = ['None', 'Inventory', 'Data', 'Code', 'Access', 'Timing'];
 
 export function TopBar() {
-  const flow = useUi((s) => s.snapshot?.doc?.flow);
+  const doc = useUi((s) => s.snapshot?.doc);
+  const flow = doc?.flow;
+  const level = useUi((s) => s.level);
+  const setLevel = useUi((s) => s.setLevel);
+  const trail = doc ? levelTrail(doc, level) : [];
+  const chips = doc ? inheritedContext(doc, level) : [];
   const run = useUi((s) => s.run);
   const running = run?.state === 'running';
   return (
     <header className="afd-topbar">
       <nav className="afd-breadcrumb" aria-label="Breadcrumb">
+        {level !== ROOT ? (
+          <button
+            type="button"
+            className="secondary afd-back"
+            onClick={() => setLevel(trail.at(-2)?.id ?? ROOT)}
+            title="Back to the enclosing level"
+          >
+            <span className="codicon codicon-arrow-left" aria-hidden="true" /> Back
+          </button>
+        ) : null}
         <span className="muted">Flows</span>
-        <span className="muted">/</span>
-        <span className="afd-flow-name">{flow?.name ?? 'Untitled flow'}</span>
+        {trail.map((t, i) => (
+          <span key={t.id} className="afd-crumb">
+            <span className="muted">/</span>
+            {i < trail.length - 1 ? (
+              <button type="button" className="link" onClick={() => setLevel(t.id)}>
+                {i === 0 ? (flow?.name ?? 'Untitled flow') : t.title}
+              </button>
+            ) : (
+              <span className="afd-flow-name" aria-current="location">
+                {i === 0 ? (flow?.name ?? 'Untitled flow') : t.title}
+              </span>
+            )}
+          </span>
+        ))}
+        {chips.map((c) => (
+          <span key={c.label} className="afd-chip afd-context" title={c.title}>
+            {c.label}
+          </span>
+        ))}
         {flow ? (
           <span className="afd-chip mono" title="Flow key and version">
             {flow.key} · v{flow.version}
@@ -61,7 +95,7 @@ export function TopBar() {
         <button
           type="button"
           className="secondary"
-          onClick={() => send({ type: 'tidyUp' })}
+          onClick={() => send({ type: 'tidyUp', level })}
           title="Auto-layout the whole level"
         >
           <span className="codicon codicon-layout" aria-hidden="true" /> Tidy up

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import type { RunView, Snapshot } from '../core/protocol';
 
@@ -24,6 +25,21 @@ export interface PortMenuState {
   y: number;
 }
 
+/** Hover preview card (D-22), anchored right of the node (or left of it near the window edge). */
+export interface PreviewState {
+  node: Ulid;
+  x: number;
+  y: number;
+  /** Left edge of the node, for opening the card on the other side. */
+  left: number;
+}
+
+/** D-22: about 400 ms of pause on a node before its card opens. */
+export const PREVIEW_DELAY = 400;
+let openTimer: ReturnType<typeof setTimeout> | undefined;
+let closeTimer: ReturnType<typeof setTimeout> | undefined;
+let onCard = false;
+
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */
 export interface PickState {
   mode: 'to' | 'from' | 'rewire';
@@ -47,6 +63,9 @@ interface UiState {
   error: string | null;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
+  /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
+  level: string;
+  preview: PreviewState | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -58,6 +77,15 @@ interface UiState {
   setOptimistic(p: Record<Ulid, Position>): void;
   setError(e: string | null): void;
   setRun(r: RunView | null): void;
+  /** Opens a level; selection, menus and picks belong to the level being left. */
+  setLevel(level: string): void;
+  /** Shows a node: opens its level and selects it. */
+  reveal(node: Ulid): void;
+  setPreview(p: PreviewState | null): void;
+  /** Pointer entered a node with a card (with its box) or left it (null). */
+  hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
+  /** Pointer on the card keeps it open. */
+  holdPreview(on: boolean): void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -72,6 +100,8 @@ export const useUi = create<UiState>((set, get) => ({
   optimistic: {},
   error: null,
   run: null,
+  level: ROOT,
+  preview: null,
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -83,16 +113,24 @@ export const useUi = create<UiState>((set, get) => ({
         return !(stored && stored.x === Math.round(p.x) && stored.y === Math.round(p.y));
       }),
     );
-    const ids = new Set(snapshot.doc?.nodes?.map((n) => n.id) ?? []);
+    const model = snapshot.doc ? buildModel(snapshot.doc) : undefined;
+    const ids = new Set(model ? model.nodes.keys() : []);
+    // The open subflow may be gone (deleted, or the text was edited): fall back to the top level.
+    // A subflow without inner steps has no level in the model yet, but it can be open.
+    const open = get().level;
+    const level =
+      model?.levels.has(open) || model?.nodes.get(open)?.node.type === 'subflow' ? open : ROOT;
     const sel = get().selection;
     const selection = sel.node && !ids.has(sel.node) ? {} : sel;
     const gone = (ref: PortRef | undefined) => ref !== undefined && !ids.has(ref.node);
     set({
       snapshot,
       optimistic,
-      selection,
+      selection: level === get().level ? selection : {},
+      level,
       ...(gone(get().portMenu?.ref) ? { portMenu: null } : {}),
       ...(gone(get().pick?.ref) ? { pick: null } : {}),
+      ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
@@ -105,4 +143,53 @@ export const useUi = create<UiState>((set, get) => ({
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
   setError: (error) => set({ error }),
   setRun: (run) => set({ run }),
+  setLevel(level) {
+    if (level === get().level) return;
+    clearTimeout(openTimer);
+    set({
+      level,
+      selection: {},
+      portMenu: null,
+      pick: null,
+      quickAdd: null,
+      decide: null,
+      preview: null,
+    });
+  },
+  setPreview(preview) {
+    clearTimeout(openTimer);
+    clearTimeout(closeTimer);
+    onCard = false;
+    set({ preview });
+  },
+  hoverNode(node, box) {
+    clearTimeout(openTimer);
+    if (!node || !box) {
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(() => {
+        if (!onCard) set({ preview: null });
+      }, 200);
+      return;
+    }
+    clearTimeout(closeTimer);
+    if (get().preview?.node === node) return;
+    openTimer = setTimeout(() => {
+      const s = get();
+      // Menus, picks and dialogs own the pointer; no card on top of them.
+      if (s.portMenu || s.pick || s.quickAdd || s.decide) return;
+      set({ preview: { node, x: box.right + 12, y: box.top, left: box.left } });
+    }, PREVIEW_DELAY);
+  },
+  holdPreview(on) {
+    onCard = on;
+    if (on) clearTimeout(closeTimer);
+    else get().hoverNode(null);
+  },
+  reveal(node) {
+    const doc = get().snapshot?.doc;
+    const entry = doc ? buildModel(doc).nodes.get(node) : undefined;
+    if (!entry) return;
+    get().setLevel(entry.level);
+    set({ selection: { node } });
+  },
 }));

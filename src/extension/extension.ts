@@ -23,6 +23,7 @@ const isFlow = (doc: vscode.TextDocument) => doc.uri.path.endsWith('.flow.yaml')
 export interface AfdTestApi {
   run(uri: vscode.Uri, command: FlowCommand): Promise<CommandOutcome>;
   inspect(uri: vscode.Uri): Promise<DomSummary>;
+  openLevel(uri: vscode.Uri, level: string): void;
   rendered(uri: vscode.Uri, version: number): Promise<void>;
   perf(uri: vscode.Uri): PerfEvent[];
   cspViolations(uri: vscode.Uri): string[];
@@ -174,6 +175,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   return {
     run: (uri, command) => get(uri).runCommand(command),
     inspect: (uri) => get(uri).inspect(),
+    openLevel: (uri, level) => get(uri).openLevel(level),
     rendered: (uri, version) => get(uri).rendered(version),
     perf: (uri) => get(uri).perf,
     cspViolations: (uri) => get(uri).cspViolations,

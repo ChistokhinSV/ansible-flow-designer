@@ -1,6 +1,8 @@
 // Design-mode canvas. Nodes come from the snapshot; drags stay local until drop, then become one
 // moveNodes command. Node objects are reused while their content is unchanged (07 §6).
 // A click on a port opens its menu; dragging from it (beyond a few pixels) draws a wire.
+// Inside a subflow (M4, D-23) the level's nodes sit in a boundary frame whose ports carry the entry
+// and exit wires; wiring to the frame edits `subflow.boundary`. Double-click or Enter opens a subflow.
 import {
   applyNodeChanges,
   Background,
@@ -17,20 +19,27 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
 import { command, loadState, saveState } from '../bus';
 import { completePick, dropPattern } from '../portActions';
+import { hasPreview } from '../preview';
 import { useUi } from '../store';
-import { levelView, type NodeView } from '../viewModel';
+import { type BoundaryEdgeView, boundaryView, levelView, type NodeView } from '../viewModel';
+import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode, TYPE_LABEL } from './FlowNodeView';
 
-const nodeTypes = { flow: FlowNodeView };
+const nodeTypes = { flow: FlowNodeView, boundary: BoundaryFrame };
+type CanvasNode = FlowRFNode | FrameRFNode;
 export const DRAG_MIME = 'application/x-afd-node-type';
 export const PATTERN_MIME = 'application/x-afd-pattern';
 
 interface SavedState {
+  /** Top-level viewport (M1–M3 state). */
   viewport?: Viewport;
+  /** Viewport per level (M4). */
+  viewports?: Record<string, Viewport>;
 }
 
 function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
@@ -59,12 +68,42 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const picking = useUi((s) => s.pick !== null);
   const setPick = useUi((s) => s.setPick);
   const openPortMenu = useUi((s) => s.openPortMenu);
+  const level = useUi((s) => s.level);
+  const setLevel = useUi((s) => s.setLevel);
   const [connecting, setConnecting] = useState(false);
   const { screenToFlowPosition } = useReactFlow();
 
   const view = useMemo(
-    () => (snapshot ? levelView(snapshot, optimistic) : { nodes: [], edges: [] }),
-    [snapshot, optimistic],
+    () => (snapshot ? levelView(snapshot, optimistic, level) : { nodes: [], edges: [] }),
+    [snapshot, optimistic, level],
+  );
+  const boundary = useMemo(
+    () => (snapshot ? boundaryView(snapshot, view, level) : undefined),
+    [snapshot, view, level],
+  );
+  const frameKey = boundary
+    ? JSON.stringify([boundary.frame, boundary.ports, view.nodes.length])
+    : '';
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the frame object changes only with frameKey
+  const frame = useMemo<FrameRFNode | undefined>(
+    () =>
+      boundary
+        ? {
+            id: boundary.id,
+            type: 'boundary',
+            position: { x: boundary.frame.x, y: boundary.frame.y },
+            width: boundary.frame.width,
+            height: boundary.frame.height,
+            data: { boundary, empty: view.nodes.length === 0 },
+            draggable: false,
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            zIndex: -1,
+            style: { pointerEvents: 'none' },
+          }
+        : undefined,
+    [frameKey],
   );
 
   // Structural sharing: keep the previous node object when its content did not change.
@@ -80,11 +119,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       return entry.node;
     });
     cache.current = next;
-    return nodes;
-  }, [view.nodes, selection.node]);
+    return frame ? [frame, ...nodes] : nodes;
+  }, [view.nodes, selection.node, frame]);
 
-  const [nodes, setNodes] = useState<FlowRFNode[]>(derived);
+  const [nodes, setNodes] = useState<CanvasNode[]>(derived);
   useEffect(() => setNodes(derived), [derived]);
+  const exits = useMemo(() => new Map((boundary?.edges ?? []).map((e) => [e.id, e])), [boundary]);
 
   const edges = useMemo<Edge[]>(
     () =>
@@ -106,12 +146,34 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       })),
     [view.edges, selection.edge],
   );
+  const allEdges = useMemo<Edge[]>(
+    () => [
+      ...edges,
+      ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourcePort,
+        target: e.target,
+        targetHandle: e.targetPort,
+        type: 'smoothstep',
+        label: e.label,
+        className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
+        },
+        selected: selection.edge === e.id,
+        deletable: true,
+      })),
+    ],
+    [edges, boundary, selection.edge],
+  );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one
   // commit late, so syncing from it fights a selection set from code (a node just created) and
   // loops; the select changes below are emitted for user actions only, never for prop updates.
   const onNodesChange = useCallback(
-    (changes: NodeChange<FlowRFNode>[]) => {
+    (changes: NodeChange<CanvasNode>[]) => {
       const picked = changes.filter((c) => c.type === 'select');
       if (picked.length > 0) {
         const on = picked.findLast((c) => c.selected);
@@ -136,7 +198,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   latest.current = nodes;
 
   const onNodeDragStop = useCallback(
-    (_e: unknown, _n: FlowRFNode, dragged: FlowRFNode[]) => {
+    (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {
       const positions: Record<string, Position> = {};
       const round = (p: Position) => ({ x: Math.round(p.x), y: Math.round(p.y) });
       for (const n of dragged) positions[n.id] = round(n.position);
@@ -144,7 +206,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       // the layout the user sees instead of letting the other nodes jump (ADR-0002).
       const stored = useUi.getState().snapshot?.doc?.layout ?? {};
       for (const n of latest.current)
-        if (!stored[n.id] && !positions[n.id]) positions[n.id] = round(n.position);
+        if (n.type === 'flow' && !stored[n.id] && !positions[n.id])
+          positions[n.id] = round(n.position);
       setOptimistic(positions);
       void command({ kind: 'moveNodes', positions }).then((ack) => {
         if (!ack.ok) setError(ack.error ?? 'Move failed');
@@ -156,6 +219,25 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const onConnect = useCallback(
     (c: Connection) => {
       if (!c.sourceHandle || !c.targetHandle) return;
+      const subflow = boundary?.subflow.id;
+      // Wires from the frame's `in` set the entry; wires into a frame port are exits (D-23).
+      if (subflow && c.source === boundary.id) {
+        void command({ kind: 'setBoundaryIn', subflow, node: c.target }).then((ack) => {
+          if (!ack.ok) setError(ack.error ?? 'Could not set the entry');
+        });
+        return;
+      }
+      if (subflow && c.target === boundary.id) {
+        void command({
+          kind: 'connectBoundary',
+          subflow,
+          from: { node: c.source, port: c.sourceHandle },
+          port: c.targetHandle,
+        }).then((ack) => {
+          if (!ack.ok) setError(ack.error ?? 'Could not add the exit');
+        });
+        return;
+      }
       void command({
         kind: 'connect',
         from: { node: c.source, port: c.sourceHandle },
@@ -164,7 +246,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         if (!ack.ok) setError(ack.error ?? 'Could not connect');
       });
     },
-    [setError],
+    [setError, boundary],
   );
 
   const onConnectEnd = useCallback(
@@ -173,6 +255,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       if (
         state.isValid ||
         !state.fromNode ||
+        state.fromNode.type !== 'flow' ||
         state.fromHandle?.type !== 'source' ||
         !state.fromHandle.id
       )
@@ -189,12 +272,19 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
 
   const onDelete = useCallback(
-    ({ nodes: gone, edges: goneEdges }: { nodes: FlowRFNode[]; edges: Edge[] }) => {
-      const ids = new Set(gone.map((n) => n.id));
+    ({ nodes: gone, edges: goneEdges }: { nodes: CanvasNode[]; edges: Edge[] }) => {
+      const ids = new Set(gone.filter((n) => n.type === 'flow').map((n) => n.id));
       const run = async () => {
         for (const e of goneEdges) {
           if (ids.has(e.source) || ids.has(e.target)) continue;
-          const ack = await command({ kind: 'disconnect', edge: e.id });
+          const b = exits.get(e.id);
+          const subflow = boundary?.subflow.id;
+          const ack =
+            b && subflow
+              ? b.exit
+                ? await command({ kind: 'disconnectBoundary', subflow, ...b.exit })
+                : await command({ kind: 'setBoundaryIn', subflow, node: null })
+              : await command({ kind: 'disconnect', edge: e.id });
           if (!ack.ok) setError(ack.error ?? 'Could not remove the edge');
         }
         for (const id of ids) {
@@ -204,7 +294,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       };
       void run();
     },
-    [setError],
+    [setError, exits, boundary],
   );
 
   const onDrop = useCallback(
@@ -229,11 +319,26 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
 
   const saved = useMemo(() => loadState<SavedState>(), []);
+  const savedViewport = saved.viewports?.[level] ?? (level === ROOT ? saved.viewport : undefined);
+
+  // Enter on a selected subflow opens it (04 §8), unless a field has the focus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return;
+      const { selection: sel, snapshot: snap } = useUi.getState();
+      const n = view.nodes.find((v) => v.node.id === sel.node)?.node;
+      if (n?.type === 'subflow' && snap) setLevel(n.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view.nodes, setLevel]);
 
   return (
-    <ReactFlow<FlowRFNode>
+    <ReactFlow<CanvasNode>
       nodes={nodes}
-      edges={edges}
+      edges={allEdges}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={(changes: EdgeChange[]) => {
@@ -248,17 +353,34 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }}
       onNodeDragStop={onNodeDragStop}
       onConnect={onConnect}
-      onConnectStart={() => setConnecting(true)}
+      onConnectStart={() => {
+        setConnecting(true);
+        useUi.getState().setPreview(null);
+      }}
       onConnectEnd={onConnectEnd}
       connectOnClick={false}
       connectionDragThreshold={4}
       onNodeClick={(_e, n) => {
-        if (picking) void completePick(n.id);
+        if (picking && n.type === 'flow') void completePick(n.id);
       }}
+      onNodeMouseEnter={(e, n) => {
+        if (n.type !== 'flow' || !hasPreview(n.data.view.node)) return;
+        const r = (e.currentTarget as Element).getBoundingClientRect();
+        useUi.getState().hoverNode(n.id, { left: r.left, right: r.right, top: r.top });
+      }}
+      onNodeMouseLeave={() => useUi.getState().hoverNode(null)}
+      onNodeDragStart={() => useUi.getState().setPreview(null)}
+      onNodeDoubleClick={(_e, n) => {
+        if (n.type === 'flow' && n.data.view.node.type === 'subflow') setLevel(n.id);
+      }}
+      zoomOnDoubleClick={false}
       onPaneClick={() => {
         if (picking) setPick(null);
       }}
-      onMoveStart={() => openPortMenu(null)}
+      onMoveStart={() => {
+        openPortMenu(null);
+        useUi.getState().setPreview(null);
+      }}
       className={[connecting ? 'afd-connecting' : '', picking ? 'afd-picking' : '']
         .filter(Boolean)
         .join(' ')}
@@ -268,12 +390,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           e.preventDefault();
       }}
       onDrop={onDrop}
-      onMoveEnd={(_e, viewport) => saveState<SavedState>({ ...loadState<SavedState>(), viewport })}
+      onMoveEnd={(_e, viewport) => {
+        const state = loadState<SavedState>();
+        saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
+      }}
       isValidConnection={(c) => c.source !== c.target}
       deleteKeyCode={['Delete', 'Backspace']}
       onlyRenderVisibleElements={cull}
-      defaultViewport={saved.viewport}
-      fitView={!saved.viewport}
+      defaultViewport={savedViewport}
+      fitView={!savedViewport}
       fitViewOptions={{ padding: 0.15, maxZoom: 1.1 }}
       minZoom={0.2}
       maxZoom={2}

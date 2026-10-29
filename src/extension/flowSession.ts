@@ -1,6 +1,7 @@
 // One session per open flow document: parse/validate cache, diagnostics, attached editor panels,
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
 import * as vscode from 'vscode';
+import { optionA } from '../core/engine/optionA';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { flowFromFile, type ParsedFlow, rangeOf } from '../core/flow/document';
@@ -14,6 +15,7 @@ import type { DomSummary, HostMessage, RunView, Snapshot, WebviewMessage } from 
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel } from './autoLayout';
+import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
@@ -101,7 +103,7 @@ export class FlowSession implements vscode.Disposable {
     } else {
       const validated = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
       const { model } = validated;
-      const root = model.levels.get(ROOT);
+
       const preview = validated.findings.some((f) => f.severity === 'error')
         ? undefined
         : codePreview(parsed.doc, this.uri.path.split('/').pop() ?? 'flow.yaml');
@@ -112,7 +114,7 @@ export class FlowSession implements vscode.Disposable {
         stale: false,
         findings,
         openPorts: openFailPorts(model),
-        autoPositions: root ? await this.cachedAutoPositions(root, parsed.doc.layout) : {},
+        autoPositions: await this.allAutoPositions(model, parsed.doc.layout),
         plays: preview?.plays,
       };
       this.lastGood = snapshot;
@@ -120,6 +122,17 @@ export class FlowSession implements vscode.Disposable {
     }
     this.built = { version, parsed, snapshot };
     return snapshot;
+  }
+
+  /** In-memory positions for unplaced nodes of every level (inner levels too, M4). */
+  private async allAutoPositions(
+    model: ReturnType<typeof buildModel>,
+    layout: Parameters<typeof autoPositions>[1],
+  ): Promise<Record<Ulid, Position>> {
+    const out: Record<Ulid, Position> = {};
+    for (const level of model.levels.values())
+      Object.assign(out, await this.cachedAutoPositions(level, layout));
+    return out;
   }
 
   private async cachedAutoPositions(
@@ -200,8 +213,11 @@ export class FlowSession implements vscode.Disposable {
       case 'showRunOutput':
         await vscode.commands.executeCommand('workbench.action.terminal.focus');
         break;
+      case 'peekCode':
+        await this.peekCode(m.node);
+        break;
       case 'tidyUp': {
-        const outcome = await this.tidyUp();
+        const outcome = await this.tidyUp(m.level);
         if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Tidy up failed');
         break;
       }
@@ -270,13 +286,50 @@ export class FlowSession implements vscode.Disposable {
     return { ok: true, created: result.created };
   }
 
-  /** ELK layout of the whole top level, written to the layout block (one undo step). */
-  async tidyUp(): Promise<CommandOutcome> {
+  /** ELK layout of one whole level (default: the top), written to the layout block (one undo step). */
+  async tidyUp(levelId: string = ROOT): Promise<CommandOutcome> {
     const snapshot = await this.snapshot();
     if (!snapshot.doc) return { ok: false, error: 'The document does not parse' };
-    const root = buildModel(snapshot.doc).levels.get(ROOT);
-    if (!root) return { ok: false, error: 'No top level' };
-    return this.runCommand({ kind: 'tidyUp', positions: await layoutLevel(root) });
+    const level = buildModel(snapshot.doc).levels.get(levelId);
+    if (!level) return { ok: false, error: 'No such level' };
+    return this.runCommand({ kind: 'tidyUp', positions: await layoutLevel(level) });
+  }
+
+  /** D-22 "Peek code": the node's play in its generated file; a subflow opens its level file. */
+  async peekCode(node: Ulid): Promise<void> {
+    const snapshot = await this.snapshot();
+    if (!snapshot.doc) return;
+    const result = optionA.generate(snapshot.doc, {
+      source: this.uri.path.split('/').pop() ?? 'flow.yaml',
+    });
+    if (!result.ok) {
+      void vscode.window.showWarningMessage('No code is generated while the flow has errors');
+      return;
+    }
+    const level = result.files.find((f) => f.level === node);
+    const play = result.plays[node];
+    const name = level?.name ?? play?.file;
+    if (!name) {
+      void vscode.window.showInformationMessage('Nothing leads to this node, so it has no play');
+      return;
+    }
+    const uri = vscode.Uri.joinPath(generatedDir(this.uri), name);
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      void vscode.window.showInformationMessage(
+        'Save the flow to generate its code (or run Generate Playbook)',
+      );
+      return;
+    }
+    const editor = await vscode.window.showTextDocument(uri, {
+      viewColumn: vscode.ViewColumn.Beside,
+      preview: true,
+    });
+    if (level || !play) return;
+    const range = new vscode.Range(play.start, 0, play.end, 0);
+    editor.selection = new vscode.Selection(range.start, range.start);
+    editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
   }
 
   async openText(path?: readonly (string | number)[]): Promise<void> {
@@ -304,6 +357,11 @@ export class FlowSession implements vscode.Disposable {
       });
       this.post(panel, { type: 'inspect', reqId });
     });
+  }
+
+  /** Opens a level (`root` or a subflow node id) in every panel of this flow. */
+  openLevel(level: string): void {
+    this.broadcast({ type: 'openLevel', level });
   }
 
   /** Test mode: resolves once a panel has rendered `version` or later. */
