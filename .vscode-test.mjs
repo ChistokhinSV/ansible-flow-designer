@@ -103,7 +103,12 @@ export default defineConfig([
   { ...common, label: 'm5', files: 'out/test/integration/catalog.test.js' },
   { ...common, label: 'm6', files: 'out/test/integration/drift.test.js' },
   // M7: the lab AWX (skipped without AFD_AWX_URL and AFD_AWX_TOKEN).
-  { ...common, label: 'm7', files: 'out/test/integration/awx.test.js' },
+  {
+    ...common,
+    label: 'm7',
+    // AFD-11: the AWX workflow with an approval runs after the M7 job tests.
+    files: ['out/test/integration/awx.test.js', 'out/test/integration/awxWorkflow.test.js'],
+  },
   { ...common, label: 'm8', files: 'out/test/integration/lens.test.js' },
   // M9: import from the export fixture; the skeleton run needs AFD_TEST_IMAGE, the API import the lab AWX.
   { ...common, label: 'm9', files: 'out/test/integration/awxImport.test.js' },

@@ -6,6 +6,7 @@ import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import { bindingTask, inputVars, outputVar, registerName, stubFacts } from './binding';
+import { planSegments, type Segment } from './segments';
 import { effectiveTargets } from './targets';
 import type {
   Engine,
@@ -14,6 +15,7 @@ import type {
   GenerateResult,
   PlayRange,
   Route,
+  SegmentFile,
 } from './types';
 import { checksum, durationSeconds, groupPart } from './util';
 import { comment, flow, type Out, type OutMap, writeBlock } from './yamlWriter';
@@ -42,6 +44,12 @@ interface OutcomeEntry {
   msg: string;
 }
 
+/** A segment build: the segment and the whole flow's outcome (failed only in leaf segments). */
+interface SegmentRun {
+  seg: Segment;
+  outcome: OutcomeEntry[];
+}
+
 class Generator {
   private readonly model: FlowModel;
   private readonly findings: Finding[] = [];
@@ -57,6 +65,7 @@ class Generator {
   constructor(
     private readonly doc: FlowDocument,
     private readonly opts: GenerateOptions,
+    private readonly segment?: SegmentRun,
   ) {
     this.model = buildModel(doc);
     this.overrides = effectiveTargets(this.model);
@@ -71,6 +80,142 @@ class Generator {
     const outcome = this.outcomePlay();
     if (outcome) this.files[0]?.chunks.push({ lines: outcome });
     return this.result(true);
+  }
+
+  /** What the outcome play of the whole flow fails (segment builds reuse it). */
+  outcomeEntries(): OutcomeEntry[] {
+    return [...this.outcome];
+  }
+
+  // ---- AWX segments (AFD-11, ADR-0016) ---------------------------------------------------------
+
+  /**
+   * One segment's root playbook: restore the carried host sets (continuations), the segment's top-
+   * level plays (subflow levels are the shared level files), then either carry the hosts waiting
+   * at the gate and those bound for the outcome to the next segment, or, in a leaf, the outcome.
+   */
+  segmentRun(): GenerateResult {
+    const { seg, outcome } = this.segment as SegmentRun;
+    const root = this.model.levels.get(ROOT);
+    const start = this.startPattern();
+    if (!root || !start) return this.result(false);
+    const ctx: LevelCtx = {
+      level: root,
+      path: [],
+      file: `${this.doc.flow.key}.seg_${seg.name}.yml`,
+      entry: start,
+    };
+    if (seg.finish) this.files.push({ ctx, chunks: [] });
+    else if (!this.level(ctx)) return this.result(false);
+    const chunks = this.files[0]?.chunks ?? [];
+    chunks.unshift(...this.prelude(ctx, seg));
+    // Segments never fail hosts themselves: the whole flow's outcome runs in the leaves.
+    this.outcome.length = 0;
+    this.outcome.push(...outcome);
+    if (seg.gate) chunks.push({ lines: writeBlock([this.carry(seg.gate)], 0) });
+    else {
+      const play = this.outcomePlay();
+      if (play) chunks.push({ lines: play });
+    }
+    return this.result(true);
+  }
+
+  private prelude(ctx: LevelCtx, seg: Segment): Chunk[] {
+    if (!seg.entry && !seg.finish) return [];
+    const tag = flow([`flow_${this.doc.flow.id}`]);
+    const out: Chunk[] = [
+      {
+        lines: writeBlock(
+          [
+            {
+              name: `[${this.doc.flow.key}] Segment ${seg.name}: restore host sets`,
+              hosts: 'localhost',
+              gather_facts: false,
+              tags: tag,
+              tasks: [
+                {
+                  name: 'restore the host sets the previous segment carried',
+                  'ansible.builtin.add_host': { name: '{{ item.1 }}', groups: '{{ item.0.key }}' },
+                  loop: "{{ (afd_hostsets | default({})) | dict2items | subelements('value') }}",
+                  loop_control: { label: '{{ item.0.key }}: {{ item.1 }}' },
+                },
+                ...(seg.finish
+                  ? [
+                      {
+                        name: 'only after an approval no host reached',
+                        'ansible.builtin.fail': {
+                          msg: 'A segment before this one did not finish: see its AWX job',
+                        },
+                        when: 'not (afd_gate_empty | default(false) | bool)',
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ],
+          0,
+        ),
+      },
+    ];
+    const gate = seg.entry ? this.model.nodes.get(seg.entry.approval)?.node : undefined;
+    if (gate && seg.entry) {
+      const port = seg.entry.outcome;
+      const waiting = this.group([], gate.key, 'waiting');
+      out.push({
+        node: gate.id,
+        lines: writeBlock(
+          [
+            {
+              // The route suffix maps AWX events back to the approval node.
+              name: `[${gate.key}] ${oneLine(gate.title)}: route`,
+              hosts: `{{ groups['${waiting}'] | default([]) | join(',') or 'afd_no_hosts' }}`,
+              gather_facts: false,
+              tags: flow([`node_${gate.id}`]),
+              vars: { flow_node_id: gate.id },
+              tasks: [route(gate, port, this.target(ctx, gate, port))],
+            },
+          ],
+          0,
+        ),
+      });
+    }
+    return out;
+  }
+
+  /** set_stats for the next segment, then stop this job when nobody waits at the gate. */
+  private carry(gateId: Ulid): OutMap {
+    const gate = this.model.nodes.get(gateId)?.node as FlowNode;
+    const waiting = this.group([], gate.key, 'waiting');
+    const groups = [...new Set([...this.outcome.flatMap((e) => e.groups), waiting])];
+    const empty = `groups['${waiting}'] | default([]) | length == 0`;
+    return {
+      name: `[${this.doc.flow.key}] Segment ${this.segment?.seg.name}: carry host sets`,
+      hosts: 'localhost',
+      gather_facts: false,
+      tags: flow([`flow_${this.doc.flow.id}`]),
+      tasks: [
+        {
+          name: 'carry the hosts waiting for approval and those bound for the outcome',
+          'ansible.builtin.set_stats': {
+            data: {
+              afd_hostsets: Object.fromEntries(
+                groups.map((g) => [g, `{{ groups['${g}'] | default([]) }}`]),
+              ),
+              afd_gate_empty: `{{ ${empty} }}`,
+            },
+            per_host: false,
+            aggregate: false,
+          },
+        },
+        {
+          name: `[${gate.key}] no host reached ${oneLine(gate.title)}`,
+          'ansible.builtin.fail': {
+            msg: `No host reached [${gate.key}] ${oneLine(gate.title)}: the approval is skipped and the flow finishes`,
+          },
+          when: empty,
+        },
+      ],
+    };
   }
 
   // ---- inputs and routing -------------------------------------------------------------------
@@ -144,6 +289,8 @@ class Generator {
       if (e.to.node !== node.id || e.to.port !== 'in') continue;
       const from = this.model.nodes.get(e.from.node)?.node;
       if (!from) continue;
+      // A continuation segment starts at its approval, not at the flow targets.
+      if (from.type === 'start' && this.segment?.seg.entry && !ctx.parent) continue;
       out.push(from.type === 'start' ? ctx.entry : this.target(ctx, from, e.from.port));
     }
     if (ctx.parent && ctx.parent.node.subflow?.boundary?.in === node.id) out.push(ctx.entry);
@@ -168,6 +315,7 @@ class Generator {
     this.files.push(file);
     for (const node of order) {
       this.order++;
+      if (this.segment && !ctx.parent && !this.segment.seg.nodes.has(node.id)) continue;
       if (node.type === 'start') continue;
       if (node.type === 'end') {
         this.endNode(ctx, node, edges);
@@ -227,6 +375,8 @@ class Generator {
     });
     // Ports of the subflow node itself: wired ones feed this level, open ones reach the outcome.
     for (const p of portsFor(node)) if (p.direction === 'out') this.target(ctx, node, p.name);
+    // A segment imports the level file the whole-flow build writes.
+    if (this.segment) return true;
     return this.level({ level, path, file, entry: hosts.join(':'), parent: { node, ctx } });
   }
 
@@ -525,7 +675,15 @@ class Generator {
         tasks = this.decisionTasks(ctx, node);
         break;
       case 'approval':
-        tasks = this.approvalTasks(ctx, node);
+        tasks =
+          this.segment?.seg.gate === node.id && !ctx.parent
+            ? [
+                {
+                  name: `[${node.key}] wait for approval in AWX`,
+                  'ansible.builtin.group_by': { key: this.group([], node.key, 'waiting') },
+                },
+              ]
+            : this.approvalTasks(ctx, node);
         break;
       case 'parallel':
         tasks = legalPorts(node)
@@ -818,7 +976,11 @@ class Generator {
       `# GENERATED by Ansible Flow Designer from ../${this.opts.source} (flow ${f.key}, version ${f.version}${level}).`,
       '# Do not edit by hand: change the flow and save it. Option A engine (ADR-0009).',
     ];
-    if (!ctx.parent && this.todo)
+    if (this.segment)
+      lines.push(
+        `# AWX workflow segment "${this.segment.seg.name}" (ADR-0016): the workflow runs it, with the host sets of the segment before it.`,
+      );
+    else if (!ctx.parent && this.todo)
       lines.push('# Unbound nodes run TODO messages: run with --check until every node is bound.');
     if (this.opts.simulate)
       lines.push('# SIMULATION build: afd_simulate sends chosen hosts down other ports.');
@@ -895,5 +1057,43 @@ function choose(
 
 export const optionA: Engine = {
   id: 'option-a',
-  generate: (doc, options) => new Generator(doc, options).run(),
+  generate: (doc, options) => {
+    const whole = new Generator(doc, options);
+    const result = whole.run();
+    if (!result.ok) return result;
+    const plan = planSegments(buildModel(doc));
+    if (!plan) return result;
+    if (plan.problems.length > 0 || plan.segments.length === 0)
+      return {
+        ...result,
+        findings: [
+          ...result.findings,
+          ...plan.problems.map((p) => ({
+            code: 'codegen-segments',
+            severity: 'warning' as const,
+            message: `${p.message}; local and skeleton runs approve automatically`,
+            path: [],
+            node: p.node,
+          })),
+        ],
+      };
+    const outcome = whole.outcomeEntries();
+    const files = [...result.files];
+    const segments: SegmentFile[] = [];
+    for (const seg of plan.segments) {
+      const r = new Generator(doc, options, { seg, outcome }).segmentRun();
+      const file = r.files[0];
+      if (!r.ok || !file) return { ...result, findings: [...result.findings, ...r.findings] };
+      files.push(file);
+      segments.push({
+        name: seg.name,
+        file: file.name,
+        gate: seg.gate,
+        entry: seg.entry,
+        parent: seg.parent,
+        finish: seg.finish,
+      });
+    }
+    return { ...result, files, segments };
+  },
 };

@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
 import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../core/awx/types';
+import { optionA } from '../../core/engine/optionA';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
@@ -19,6 +20,7 @@ import { authorName, gitState } from '../gitHead';
 import { appendAudit } from '../run/audit';
 import { collectInputs, stamp, targetsOf } from '../run/runner';
 import { relativeTo } from '../sync/codeSync';
+import { runWorkflow, setupWorkflow } from './awxWorkflow';
 import { AwxClient } from './client';
 
 const POLL_MS = 2000;
@@ -122,6 +124,22 @@ async function pick<T extends AwxNamed>(
   return choice ? choice.item : null;
 }
 
+/** Why AWX cannot run these playbooks yet (after one project update), or undefined. */
+async function missingPlaybooks(
+  awx: AwxClient,
+  project: AwxNamed,
+  playbooks: string[],
+): Promise<string | undefined> {
+  let books = await awx.get<string[]>(`/api/v2/projects/${project.id}/playbooks/`);
+  if (playbooks.every((p) => books.includes(p))) return undefined;
+  const status = await waitForProject(awx, project.id);
+  books = await awx.get<string[]>(`/api/v2/projects/${project.id}/playbooks/`);
+  const missing = playbooks.filter((p) => !books.includes(p));
+  return missing.length === 0
+    ? undefined
+    : `AWX project "${project.name}" has no ${missing.join(', ')} (update ${status}): commit and push the flow, then try again`;
+}
+
 async function waitForProject(awx: AwxClient, project: number): Promise<string> {
   const update = await awx.post<{ id: number }>(`/api/v2/projects/${project}/update/`, {});
   const t0 = Date.now();
@@ -188,20 +206,43 @@ export async function setupTemplate(
       if (!chosen) return { ok: false, error: 'Cancelled' };
       credentials = chosen.map((c) => c.item);
     }
+    // Top-level approvals: an AWX workflow of segment playbooks (AFD-11, ADR-0016).
+    const plan = optionA.generate(doc, { source: document.uri.path.split('/').pop() ?? '' });
+    const blocked = plan.findings.filter((f) => f.code === 'codegen-segments');
+    if (blocked.length > 0)
+      return {
+        ok: false,
+        error: `AWX cannot run this flow as a workflow: ${blocked.map((f) => f.message).join('; ')}`,
+      };
+    if (plan.segments) {
+      const dir = generatedDir(document.uri);
+      const playbooks = plan.segments.map((s) =>
+        relativeTo(folder.uri, vscode.Uri.joinPath(dir, s.file)),
+      );
+      const missing = await missingPlaybooks(awx, project, playbooks);
+      if (missing) return { ok: false, error: missing };
+      const name = await setupWorkflow(awx, doc, plan.segments, {
+        project,
+        inventory,
+        environment: ee ?? undefined,
+        credentials,
+        playbooks,
+      });
+      if (doc.flow.runtime?.template !== name || doc.flow.runtime?.kind !== 'awx_workflow') {
+        const r = await deps.runCommand({
+          kind: 'updateFlow',
+          patch: { runtime: { ...doc.flow.runtime, kind: 'awx_workflow', template: name } },
+        });
+        if (!r.ok) return { ok: false, error: r.error };
+      }
+      return { ok: true, template: name };
+    }
     const playbook = relativeTo(
       folder.uri,
       vscode.Uri.joinPath(generatedDir(document.uri), `${doc.flow.key}.yml`),
     );
-    let books = await awx.get<string[]>(`/api/v2/projects/${project.id}/playbooks/`);
-    if (!books.includes(playbook)) {
-      const status = await waitForProject(awx, project.id);
-      books = await awx.get<string[]>(`/api/v2/projects/${project.id}/playbooks/`);
-      if (!books.includes(playbook))
-        return {
-          ok: false,
-          error: `AWX project "${project.name}" has no ${playbook} (update ${status}): commit and push the flow, then try again`,
-        };
-    }
+    const missing = await missingPlaybooks(awx, project, [playbook]);
+    if (missing) return { ok: false, error: missing };
     const name = templateName(doc);
     await awx.upsertTemplate({
       name,
@@ -250,13 +291,25 @@ export async function launchInAwx(
   const awx = await awxClient(document.uri, deps.secrets);
   if (typeof awx === 'string') return fail(awx);
 
+  const workflow = doc.flow.runtime?.kind === 'awx_workflow';
+  const segments = generated.result.segments;
+  if (workflow && !segments)
+    return fail('The flow has no approvals to split any more: run "Set Up AWX Template" again');
+  if (!workflow && segments)
+    return fail('The flow has approvals: run "Set Up AWX Template" to create its AWX workflow');
   let template: AwxNamed | undefined;
   try {
-    template = await awx.named<AwxNamed>('job_templates', name);
+    template = await awx.named<AwxNamed>(
+      workflow ? 'workflow_job_templates' : 'job_templates',
+      name,
+    );
   } catch (e) {
     return fail((e as Error).message);
   }
-  if (!template) return fail(`AWX has no job template "${name}": run "Set Up AWX Template"`);
+  if (!template)
+    return fail(
+      `AWX has no ${workflow ? 'workflow' : 'job'} template "${name}": run "Set Up AWX Template"`,
+    );
   const inputs = await collectInputs(doc, options.inputs, deps.state);
   if (!inputs) return fail('Cancelled');
   const targets = targetsOf(doc, inputs);
@@ -275,6 +328,12 @@ export async function launchInAwx(
         (u) =>
           `Also on inventory_target ${resolvePattern(u.target, inputs) ?? u.target} (${u.nodes.map((k) => `[${k}]`).join(', ')}), in AWX's inventory`,
       ),
+      ...(segments ?? [])
+        .filter((s) => s.gate)
+        .map((s) => {
+          const gate = buildModel(doc).nodes.get(s.gate as string)?.node;
+          return `Approval in AWX: [${gate?.key}] ${gate?.title} (approve, deny or let it time out)`;
+        }),
       git?.dirty.length
         ? `Uncommitted changes: ${git.dirty.slice(0, 4).join(', ')}. AWX runs the last pushed commit.`
         : `Commit: ${git?.commit ?? 'unknown'}. Push it so AWX runs the same code.`,
@@ -286,6 +345,81 @@ export async function launchInAwx(
       go,
     );
     if (choice !== go) return fail('Cancelled');
+  }
+
+  if (workflow && segments) {
+    const audited = {
+      run: id,
+      user: await authorName(document.uri),
+      flow: {
+        id: doc.flow.id,
+        key: doc.flow.key,
+        version: doc.flow.version,
+        file: vscode.workspace.asRelativePath(document.uri),
+      },
+      mode: 'real',
+      source: 'awx',
+      awx: { url: awx.base, workflow: name },
+      hosts: targets.length,
+      targets: uses,
+    };
+    await appendAudit(deps.storage, { event: 'launch', ...audited });
+    const base = {
+      id,
+      mode: 'real' as const,
+      startedAt,
+      source: 'awx' as const,
+      flowVersion: doc.flow.version,
+      design: nodeDesigns(doc),
+      environment: `AWX workflow: ${name}`,
+    };
+    deps.report({ ...base, state: 'running' });
+    let end: Awaited<ReturnType<typeof runWorkflow>>;
+    try {
+      end = await runWorkflow(
+        {
+          awx,
+          doc,
+          segments,
+          routes: generated.result.routes,
+          sha: git?.sha,
+          update: (s) =>
+            deps.report({ ...base, state: 'running', awx: s.info, summary: s.summary }),
+        },
+        template.id,
+        inputs,
+      );
+    } catch (e) {
+      const run: RunView = { ...base, state: 'error', error: (e as Error).message };
+      deps.report(run);
+      return run;
+    }
+    const failedRun = end.workflow.status === 'error' || end.workflow.status === 'canceled';
+    const final: RunView = {
+      ...base,
+      state: failedRun ? 'error' : 'done',
+      awx: end.info,
+      summary: end.summary,
+      finishedAt: end.workflow.finished ?? new Date().toISOString(),
+      rc: end.workflow.status === 'successful' ? 0 : 2,
+      ...(failedRun
+        ? { error: end.workflow.job_explanation || `AWX workflow ${end.workflow.status}` }
+        : {}),
+    };
+    await appendAudit(deps.storage, {
+      event: 'finish',
+      run: id,
+      source: 'awx',
+      job: end.workflow.id,
+      status: end.workflow.status,
+      hosts: final.summary?.hosts.length ?? 0,
+    });
+    deps.report(final);
+    if (final.awx?.revisionMismatch)
+      void vscode.window.showWarningMessage(
+        `AWX ran commit ${final.awx.revision?.slice(0, 7)}, not your HEAD ${git?.commit}: push your changes to the AWX project's remote.`,
+      );
+    return final;
   }
 
   let job: AwxJob;
@@ -362,6 +496,13 @@ export async function launchInAwx(
       deps.report(run);
       return run;
     }
+  }
+  // AWX stores a running job's events out of counter order, so polling `counter__gt` can skip
+  // one that lands late: read them all once more now that the job ended.
+  try {
+    events.splice(0, events.length, ...(await awx.events(job.id, 0)));
+  } catch {
+    // Keep what was polled; the summary may then miss a late event.
   }
   const final = view(job.status === 'error' || job.status === 'canceled' ? 'error' : 'done');
   await appendAudit(deps.storage, {

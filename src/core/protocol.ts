@@ -55,6 +55,18 @@ export interface AwxRunInfo {
   revision?: string;
   /** AWX ran another commit than the local HEAD (unpushed or uncommitted changes). */
   revisionMismatch?: boolean;
+  /** An AWX workflow split at approvals (AFD-11): `jobId` and `url` are the workflow job's. */
+  workflow?: boolean;
+  /** Per approval node: its AWX approval and where to decide it. */
+  approvals?: Record<Ulid, AwxApproval>;
+  /** The segment jobs in the order AWX ran them. */
+  segments?: { name: string; job: number; status: string }[];
+}
+
+export interface AwxApproval {
+  status: 'waiting' | 'approved' | 'denied' | 'timed out';
+  /** The approval in the AWX UI. */
+  url: string;
 }
 
 /** The environment's catalog as the properties view shows it (M5). */
@@ -146,7 +158,8 @@ export type WebviewMessage =
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
   | { type: 'generate' }
-  | { type: 'showRunOutput' }
+  /** The run's output; with `approval`, that approval node's page in AWX (AFD-11). */
+  | { type: 'showRunOutput'; approval?: Ulid }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
   | { type: 'peekCode'; node: Ulid }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }

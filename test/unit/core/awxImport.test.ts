@@ -248,6 +248,10 @@ describe('AWX workflow → flow', () => {
     expect(out.findings.filter((f) => f.severity === 'error')).toEqual([]);
     expect(out.ok).toBe(true);
     expect(out.files.map((f) => f.name).sort()).toEqual([
+      'edge-upgrade.seg_approve-approved.yml',
+      'edge-upgrade.seg_approve-rejected.yml',
+      'edge-upgrade.seg_finish.yml',
+      'edge-upgrade.seg_start.yml',
       'edge-upgrade.upgrade.yml',
       'edge-upgrade.yml',
     ]);

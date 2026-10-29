@@ -158,6 +158,18 @@ function CodeLines({ node }: { node: FlowNode }) {
 function RunLine({ node }: { node: FlowNode }) {
   const r = useUi((s) => s.runNodes?.[node.id]);
   const running = useUi((s) => s.run?.state === 'running');
+  // An AWX approval (AFD-11): its decision, and how many hosts it decided for.
+  const approval = useUi((s) => s.run?.awx?.approvals?.[node.id]);
+  if (approval) {
+    const hosts = r && r.state !== 'idle' ? ` · ${r.hosts} host${r.hosts === 1 ? '' : 's'}` : '';
+    const tone = approval.status === 'approved' ? 'ok' : 'warn';
+    return (
+      <div className={`afd-node-run tone-${tone}`} data-approval={approval.status}>
+        {approval.status === 'waiting' ? 'waiting for approval' : approval.status}
+        {hosts}
+      </div>
+    );
+  }
   if (!r) return <div className="afd-node-run tone-neutral">{running ? 'waiting' : 'no run'}</div>;
   if (r.state === 'idle')
     return (

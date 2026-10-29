@@ -57,6 +57,12 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - Roles without argument specs and dynamic includes (not expanded) are notes. *Write argument_specs* creates the specs from the node contract.
     - **Ignore…** asks for a reason and records a `drift_ignored` decision in the flow with your Git user; ignored items stay listed with _Stop ignoring_.
 - **Run mode with AWX (M7, ADR-0013):** _Set Up AWX Template_ picks the AWX project, inventory, execution environment and credentials. It creates or updates the job template `AFD · <flow key>` for the generated playbook and writes its name to `flow.runtime`.
+  - **Approvals (AFD-11, ADR-0016):** a flow with top-level approvals runs in AWX as a workflow.
+    - _Set Up AWX Template_ creates a job template per segment playbook (`generated/<key>.seg_<segment>.yml`, written on save) and the workflow `AFD · <flow key>`: the segments, an approval node at each gate (timeout from `settings.timeout`), and a finish path for when nobody reaches a gate.
+    - Approving continues with the hosts waiting at the gate. Denying or a timeout sends them to `rejected`.
+    - Hosts are failed only in the last segment, and a node on both sides of a gate runs once per host.
+    - In Run mode the approval node shows waiting, approved, denied or timed out, with a link to decide it in AWX.
+    - Approvals inside subflows, or two waiting at once, run only locally and as skeletons (auto-approved); the validator says why.
   - _Launch in AWX_ (Implementation and Run modes, or the Command Palette) asks for the flow inputs and shows a confirmation with the targets and the commit, then launches the template with the inputs as extra vars. It follows the job's events until the job ends.
   - AWX runs the commit its project checks out. When that is not your HEAD (unpushed or uncommitted changes) you get a warning.
   - The token is checked against AWX before it is stored, in VS Code's secret storage only.
@@ -95,7 +101,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.10.0.vsix
+code --install-extension out/ansible-flow-designer-0.11.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -267,7 +273,7 @@ Port catalog per node type (ADR-0004):
 | `src/core/awx/`                  | AWX API types, AWX job events → `afd_events` lines (M7); workflow import sources and the mapping to a flow (M9).                       |
 | `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                          |
 | `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                               |
-| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import AWX Workflow (M9).                               |
+| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import AWX Workflow (M9), approval workflows (AFD-11).  |
 | `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
 | `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
 | `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                 |

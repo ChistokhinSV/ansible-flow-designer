@@ -86,7 +86,10 @@ class CallbackModule(CallbackBase):
 
     def v2_playbook_on_stats(self, stats) -> None:
         hosts = sorted(stats.processed.keys())
-        self._emit(event="stats", hosts={h: stats.summarize(h) for h in hosts})
+        # set_stats data (per_host: false): what an AWX workflow passes to the next segment.
+        custom = (getattr(stats, "custom", None) or {}).get("_run")
+        extra = {"custom": custom} if custom else {}
+        self._emit(event="stats", hosts={h: stats.summarize(h) for h in hosts}, **extra)
         if self._out is not None:
             self._out.close()
             self._out = None

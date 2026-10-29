@@ -36,9 +36,25 @@ export interface Route {
   port: string;
 }
 
+/** One playbook of an AWX workflow split at top-level approvals (AFD-11, ADR-0016). */
+export interface SegmentFile {
+  name: string;
+  /** File name inside `generated/`. */
+  file: string;
+  /** The approval that ends it: AWX asks there, then runs `<gate>-approved` or `-rejected`. */
+  gate?: Ulid;
+  entry?: { approval: Ulid; outcome: 'approved' | 'rejected' };
+  parent?: string;
+  /** Runs the outcome only, when no host reached a gate. */
+  finish?: boolean;
+}
+
 export interface GenerateResult {
   ok: boolean;
+  /** Level files first (the root playbook is files[0]), then AWX segment files. */
   files: GeneratedFile[];
+  /** Present when top-level approvals split the flow for AWX. */
+  segments?: SegmentFile[];
   findings: Finding[];
   routes: Record<string, Route>;
   plays: Record<Ulid, PlayRange>;

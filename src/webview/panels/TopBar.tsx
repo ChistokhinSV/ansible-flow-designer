@@ -226,10 +226,13 @@ function RunStatus({ run }: { run: RunView | null }) {
         className="afd-run-status"
         data-run-state="running"
         onClick={() => send({ type: 'showRunOutput' })}
-        title={`AWX job ${run.awx.jobId} (${run.awx.status}). Open it in AWX.`}
+        title={`AWX ${run.awx.workflow ? 'workflow' : 'job'} ${run.awx.jobId} (${run.awx.status}). Open it in AWX.`}
       >
-        <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" /> AWX
-        job #{run.awx.jobId}
+        <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" /> AWX{' '}
+        {run.awx.workflow ? 'workflow' : 'job'} #{run.awx.jobId}
+        {Object.values(run.awx.approvals ?? {}).some((a) => a.status === 'waiting')
+          ? ' · waiting for approval'
+          : ''}
       </button>
     );
   if (!run || run.state === 'running') return null;

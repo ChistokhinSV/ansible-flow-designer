@@ -1,4 +1,6 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
+
+import { planSegments } from '../engine/segments';
 import type { Path } from '../yaml/parse';
 import { refsIn } from './jinja';
 import { buildModel, type FlowModel, keyScope, ROOT } from './model';
@@ -417,9 +419,19 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   }
   for (const { node, path } of model.nodes.values()) checkBindingVars(node, path, flowInputs, add);
   const runtime = model.doc.flow?.runtime?.kind;
+  // AWX workflows split at top-level approvals (AFD-11, ADR-0016).
+  const plan = planSegments(model);
+  for (const p of plan?.problems ?? [])
+    add({
+      code: 'awx-segments',
+      severity: runtime === 'awx_workflow' ? 'error' : 'warning',
+      message: `${p.message}. Local and skeleton runs approve automatically`,
+      path: p.node ? (model.nodes.get(p.node)?.path ?? []) : ['nodes'],
+      node: p.node,
+    });
   if (runtime && runtime !== 'ansible_playbook') {
-    const approvals = [...model.nodes.values()].some((n) => n.node.type === 'approval');
-    const inferred = approvals ? 'awx_workflow' : 'awx_job';
+    const split = !!plan && plan.problems.length === 0 && plan.segments.length > 0;
+    const inferred = split ? 'awx_workflow' : 'awx_job';
     if (runtime !== inferred) {
       add({
         code: 'runtime-kind',

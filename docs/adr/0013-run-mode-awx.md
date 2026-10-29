@@ -7,7 +7,7 @@ Status: Accepted · 2026-10-29 · AFD-10 (M7)
 04 §10 describes Run mode only in outline: the same canvas, nodes with per-run status and timing, wires with host counts, a selected wire listing its hosts, a selected node listing per-host results with links to the AWX job. 05 maps runs back through the `[key]` play names and `node_<ULID>` tags. Decision 18 makes AWX the launcher for real runs, with its RBAC and activity stream as the audit of record. Decision 15 defines `tested`: a passing non-check run of the current `flow.version`, proposed by the extension and saved by the user. Decision 25 puts AWX into the GNS3 lab.
 
 Decisions by the user at the start of M7:
-1. Approvals: one job now; approval segments chained by an AWX workflow come later (AFD-11).
+1. Approvals: one job now; approval segments chained by an AWX workflow come later (AFD-11, done: ADR-0016).
 2. Code to AWX: a lab Git server. Tests may push fixture repositories to that lab remote only. AFD warns when AWX ran another commit than the local HEAD.
 3. Templates: AFD creates them on request. A command picks the project, inventory, EE and credentials, creates or updates the job template and writes `flow.runtime.template`.
 4. Docker suites while Docker Desktop is off: a throwaway container on the GNS3 VM.
@@ -82,7 +82,7 @@ The summary gained:
 
 ## Consequences
 
-- Approval nodes still run as auto-approved TODOs in one job. Workflow segments are AFD-11.
+- Approval nodes ran as auto-approved TODOs in one job. Since AFD-11 (ADR-0016), flows with top-level approvals run as an AWX workflow of segment jobs with real approval nodes.
 - The AWX link opens the job output; per-host filtering is left to AWX's own search.
 - AWX runs the commit its project checks out. Unpushed changes show as a revision mismatch, never as silently different results.
 - `cancelled` stays model-only.

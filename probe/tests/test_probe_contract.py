@@ -114,7 +114,8 @@ def test_inventory_resolves_targets_and_flags(probe):
     assert result["count"] == 2
     assert result["hosts"] == ["sw-edge-01", "h07"]
     assert result["unknown"] == ["sw-ghost-09"]
-    assert result["groups"] == {"edge": 1, "lab": 1}
+    # edge_switches has edge as a child (AFD-14 override targets in the engine inventory).
+    assert result["groups"] == {"edge": 1, "edge_switches": 1, "lab": 1}
     assert result["prod_groups"] == []
     assert result["vault"] is False
 

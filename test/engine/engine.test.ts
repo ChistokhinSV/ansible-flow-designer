@@ -33,6 +33,11 @@ interface Scenario {
   also?: (run: Run) => void;
   /** Repository root as seen from generated/ (playbook bindings). */
   root?: string;
+  /**
+   * AWX workflow segments to run in order (AFD-11): each one gets the set_stats data of the one
+   * before it as extra vars, as AWX passes artifacts down a workflow.
+   */
+  chain?: string[];
 }
 
 interface Run {
@@ -54,6 +59,16 @@ const PORTS = 'test/fixtures/engine/routing-ports.flow.yaml';
 const LEVELS = 'test/fixtures/engine/routing-levels.flow.yaml';
 const DATA = 'test/fixtures/engine/data-passing.flow.yaml';
 const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
+const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
+/** How often a node's TODO task ran for a host, across every segment of a chain. */
+const todoRuns = (run: Run, key: string, host: string) =>
+  run.events.filter(
+    (e) =>
+      e.event === 'result' &&
+      e.host === host &&
+      e.node === nodeId(SEG, key) &&
+      e.task === `[${key}] TODO`,
+  ).length;
 const LAB = ['h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07'];
 const EDGE_HOSTS = ['sw-edge-01', 'sw-edge-02', 'sw-edge-03', 'sw-edge-04'];
 
@@ -382,6 +397,73 @@ const SCENARIOS: Scenario[] = [
       ]),
     ),
   },
+  // AFD-11: AWX workflow segments, chained like AWX chains them.
+  {
+    name: 'segments approved: failures fail in the last segment, hosts notified before stay done',
+    flow: SEG,
+    chain: ['start', 'gate-approved'],
+    vars: {
+      devices: ['h01', 'h02', 'h03'],
+      afd_simulate: { check: { failed: ['h03'] }, change: { failed: ['h02'] } },
+    },
+    rc: 2,
+    expect: {
+      h01: { ports: ['check.ok_hosts', 'gate.approved', 'change.ok_hosts'] },
+      h02: {
+        ports: ['check.ok_hosts', 'gate.approved', 'change.failed_hosts', 'rollback.ok_hosts'],
+        outcome: '[failed] Failed',
+      },
+      h03: { ports: ['check.failed_hosts', 'notify.ok_hosts'], outcome: '[failed] Failed' },
+    },
+    also: (run) => {
+      expect(todoRuns(run, 'notify', 'h03')).toBe(1);
+      expect(todoRuns(run, 'check', 'h01')).toBe(1);
+    },
+  },
+  {
+    name: 'segments rejected: notify runs once per host, before and after the gate',
+    flow: SEG,
+    chain: ['start', 'gate-rejected'],
+    vars: { devices: ['h01', 'h02', 'h03'], afd_simulate: { check: { failed: ['h03'] } } },
+    rc: 2,
+    expect: {
+      ...Object.fromEntries(
+        ['h01', 'h02'].map((h) => [
+          h,
+          {
+            ports: ['check.ok_hosts', 'gate.rejected', 'notify.ok_hosts'],
+            outcome: '[failed] Failed',
+          },
+        ]),
+      ),
+      h03: { ports: ['check.failed_hosts', 'notify.ok_hosts'], outcome: '[failed] Failed' },
+    },
+    also: (run) => {
+      for (const h of ['h01', 'h02', 'h03']) expect(todoRuns(run, 'notify', h), h).toBe(1);
+      expect(todoRuns(run, 'change', 'h01')).toBe(0);
+    },
+  },
+  {
+    name: 'segments: nobody reaches the gate, start stops and finish fails the right hosts',
+    flow: SEG,
+    chain: ['start', 'finish'],
+    vars: { devices: ['h01', 'h02'], afd_simulate: { check: { failed: ['h01', 'h02'] } } },
+    rc: 2,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        { ports: ['check.failed_hosts', 'notify.ok_hosts'], outcome: '[failed] Failed' },
+      ]),
+    ),
+    also: (run) => {
+      const failed = (text: string) =>
+        run.events.some(
+          (e) => e.event === 'result' && e.status === 'failed' && String(e.task).includes(text),
+        );
+      expect(failed('no host reached')).toBe(true);
+      expect(failed('only after an approval')).toBe(false);
+    },
+  },
   ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
@@ -399,8 +481,20 @@ function generate(flow: string, simulate: boolean, root?: string): GenerateResul
   return result;
 }
 
+/** Merges the set_stats data of a segment's run into the next segment's extra vars (AFD-11). */
+const CARRY = `import json, sys
+events, given, out = sys.argv[1:4]
+data = json.load(open(given))
+for line in open(events):
+    e = json.loads(line)
+    if e.get("event") == "stats" and e.get("custom"):
+        data.update(e["custom"])
+json.dump(data, open(out, "w"))
+`;
+
 function stage(dir: string): GenerateResult[] {
   cpSync(CONTENT, join(dir, 'content'), { recursive: true });
+  writeFileSync(join(dir, 'carry.py'), CARRY);
   const lines = ['#!/bin/sh', 'export ANSIBLE_ROLES_PATH=/work/content/roles'];
   const results = SCENARIOS.map((s, i) => {
     const result = generate(s.flow, !s.syntaxOnly, s.root);
@@ -408,6 +502,22 @@ function stage(dir: string): GenerateResult[] {
     mkdirSync(join(sdir, 'generated'), { recursive: true });
     for (const f of result.files) writeFileSync(join(sdir, 'generated', f.name), f.text);
     writeFileSync(join(sdir, 'vars.json'), JSON.stringify(s.vars));
+    if (s.chain) {
+      writeFileSync(join(sdir, 'vars-0.json'), JSON.stringify(s.vars));
+      s.chain.forEach((name, k) => {
+        const file = result.segments?.find((g) => g.name === name)?.file;
+        if (!file) throw new Error(`${s.name}: no segment ${name}`);
+        lines.push(
+          `cd /work/s${i} && AFD_EVENTS=/work/s${i}/events-${k}.jsonl ansible-playbook -i /work/content/inventory.ini -e @vars-${k}.json generated/${file} > out-${k}.txt 2>&1; echo $? > rc`,
+        );
+        if (k < (s.chain?.length ?? 0) - 1)
+          lines.push(
+            `python3 -I /work/carry.py /work/s${i}/events-${k}.jsonl /work/s${i}/vars-${k}.json /work/s${i}/vars-${k + 1}.json`,
+          );
+      });
+      lines.push(`cd /work/s${i} && cat events-*.jsonl > events.jsonl; cat out-*.txt > out.txt`);
+      return result;
+    }
     const root = result.files[0]?.name;
     const flags = [s.check ? '--check' : '', s.syntaxOnly ? '--syntax-check' : ''].join(' ');
     lines.push(

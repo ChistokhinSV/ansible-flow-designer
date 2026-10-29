@@ -19,7 +19,8 @@ import { useUi } from '../store';
 import { ago } from './DriftPanel';
 
 function describe(run: RunView): string {
-  if (run.source === 'awx' && run.awx) return `AWX job #${run.awx.jobId} · ${run.awx.template}`;
+  if (run.source === 'awx' && run.awx)
+    return `AWX ${run.awx.workflow ? 'workflow' : 'job'} #${run.awx.jobId} · ${run.awx.template}`;
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
 }
 
@@ -144,6 +145,21 @@ export function RunPanel() {
         </p>
       ) : null}
       <OpenRun run={run} />
+      {run.awx?.segments?.length ? (
+        <section className="afd-section" data-run-segments={run.awx.segments.length}>
+          <h3>Segments</h3>
+          <ul className="afd-run-hosts">
+            {run.awx.segments.map((g) => (
+              <li key={g.job}>
+                <span className="mono">{g.name}</span>{' '}
+                <span className="muted">
+                  job #{g.job} · {g.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {s ? (
         <section className="afd-section">
           <h3>Hosts</h3>
@@ -181,6 +197,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
+  const approval = useUi((s) => s.run?.awx?.approvals?.[id]);
   const model = doc ? buildModel(doc) : undefined;
   const node = model?.nodes.get(id)?.node;
   if (!model || !node) return null;
@@ -246,6 +263,20 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
           </table>
         </>
       )}
+      {approval ? (
+        <p data-approval={approval.status}>
+          AWX approval: <strong>{approval.status}</strong>{' '}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => send({ type: 'showRunOutput', approval: id })}
+            title={approval.url}
+          >
+            <span className="codicon codicon-link-external" aria-hidden="true" /> Open approval in
+            AWX
+          </button>
+        </p>
+      ) : null}
       {run ? <OpenRun run={run} /> : null}
     </div>
   );

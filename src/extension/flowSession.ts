@@ -379,11 +379,16 @@ export class FlowSession implements vscode.Disposable {
       case 'generate':
         await vscode.commands.executeCommand('afd.generate', this.uri);
         break;
-      case 'showRunOutput':
-        if (this.lastRun?.awx)
-          await vscode.env.openExternal(vscode.Uri.parse(this.lastRun.awx.url));
-        else await vscode.commands.executeCommand('workbench.action.terminal.focus');
+      case 'showRunOutput': {
+        // Only URLs the host itself got from AWX: the run, or one of its approvals (AFD-11).
+        const url = m.approval
+          ? this.lastRun?.awx?.approvals?.[m.approval]?.url
+          : this.lastRun?.awx?.url;
+        if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
+        else if (!m.approval)
+          await vscode.commands.executeCommand('workbench.action.terminal.focus');
         break;
+      }
       case 'peekCode':
         await this.peekCode(m.node);
         break;

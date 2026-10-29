@@ -49,7 +49,7 @@ The M3 spike (`docs/spikes/m3-option-a.md`, ansible-core 2.19/2.20/2.21) found t
 - `serial` and `become` become play keywords.
 - `retries` applies to module bindings (`until: <register> is succeeded`).
 - A decision routes with its `condition`; without one it is a TODO that sends every host to `true`.
-- An approval auto-approves in local and skeleton runs (TODO message). AWX approval segments come with M7: `add_host` from an artifact var rebuilds the groups in the next segment (s10).
+- An approval auto-approves in local and skeleton runs (TODO message). For AWX, top-level approvals split the flow into segment playbooks (`<key>.seg_<segment>.yml`): `add_host` from the `afd_hostsets` artifact rebuilds the carried groups in the next segment (s10, AFD-11, ADR-0016).
 - A parallel node puts each host into every `branch_n` group.
 - A subflow with an inner graph becomes its own playbook, imported with `import_playbook` at the subflow's place. The inner entry node targets the subflow's input groups. Inner ports listed in `boundary.outputs`, and inner open fail ports that bubble (ADR-0004), route straight into the parent's port groups.
 

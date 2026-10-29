@@ -42,6 +42,23 @@ export interface AwxJob extends AwxNamed {
   job_explanation: string;
 }
 
+/** A workflow job (AFD-11): its nodes run the segment jobs and the approvals. */
+export interface AwxWorkflowJob extends AwxNamed {
+  status: AwxJobStatus;
+  failed: boolean;
+  started: string | null;
+  finished: string | null;
+  job_explanation: string;
+}
+
+export interface AwxWorkflowJobNode {
+  id: number;
+  identifier: string;
+  summary_fields: {
+    job?: { id: number; name: string; type: string; status: AwxJobStatus; failed?: boolean };
+  };
+}
+
 export interface AwxJobEvent {
   id: number;
   counter: number;

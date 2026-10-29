@@ -1,0 +1,96 @@
+# AWX workflow flow (fictional sample ULIDs, AFD-11): the awx-e2e checks with a change approval
+# between them. h07 is unreachable and excluded before the gate; approved, h01 passes and h02
+# fails "work" and is notified; denied, every host waiting at the gate ends as stopped.
+schema_version: 1
+flow:
+  id: 01JCRCF0000000000000000000
+  key: awx-gate
+  name: AWX approval gate
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01JCRCN0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCRCN0000000000000000002
+    key: probe
+    type: task
+    title: Probe reachability
+    status: implemented
+    ports:
+      - unreachable
+    impl:
+      kind: module
+      ref: ansible.builtin.ping
+  - id: 01JCRCN0000000000000000003
+    key: gate
+    type: approval
+    title: Approve the change
+    ports:
+      - timeout
+    settings:
+      timeout: 10m
+  - id: 01JCRCN0000000000000000004
+    key: work
+    type: task
+    title: Do the work
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: test {{ inventory_hostname }} != h02
+  - id: 01JCRCN0000000000000000005
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCRCN0000000000000000006
+    key: exclude
+    type: task
+    title: Exclude and report
+    status: specified
+    intent: Record the unreachable hosts
+    handler: exclude
+  - id: 01JCRCN0000000000000000007
+    key: excluded
+    type: end
+    title: Excluded
+    outcome: success
+  - id: 01JCRCN0000000000000000008
+    key: notify
+    type: task
+    title: Notify on-call
+    status: specified
+    intent: Open a ticket for the failed hosts
+    handler: notify
+  - id: 01JCRCN0000000000000000009
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+  - id: 01JCRCN000000000000000000A
+    key: stopped
+    type: end
+    title: Stopped
+    outcome: failed
+edges:
+  - { id: 01JCRCE0000000000000000001, from: { node: 01JCRCN0000000000000000001, port: ok_hosts }, to: { node: 01JCRCN0000000000000000002, port: in } }
+  - { id: 01JCRCE0000000000000000002, from: { node: 01JCRCN0000000000000000002, port: ok_hosts }, to: { node: 01JCRCN0000000000000000003, port: in } }
+  - { id: 01JCRCE0000000000000000003, from: { node: 01JCRCN0000000000000000003, port: approved }, to: { node: 01JCRCN0000000000000000004, port: in } }
+  - { id: 01JCRCE0000000000000000004, from: { node: 01JCRCN0000000000000000003, port: rejected }, to: { node: 01JCRCN000000000000000000A, port: in } }
+  - { id: 01JCRCE0000000000000000005, from: { node: 01JCRCN0000000000000000003, port: timeout }, to: { node: 01JCRCN000000000000000000A, port: in } }
+  - { id: 01JCRCE0000000000000000006, from: { node: 01JCRCN0000000000000000004, port: ok_hosts }, to: { node: 01JCRCN0000000000000000005, port: in } }
+  - { id: 01JCRCE0000000000000000007, from: { node: 01JCRCN0000000000000000002, port: unreachable }, to: { node: 01JCRCN0000000000000000006, port: in } }
+  - { id: 01JCRCE0000000000000000008, from: { node: 01JCRCN0000000000000000006, port: ok_hosts }, to: { node: 01JCRCN0000000000000000007, port: in } }
+  - { id: 01JCRCE0000000000000000009, from: { node: 01JCRCN0000000000000000006, port: failed_hosts }, to: { node: 01JCRCN0000000000000000007, port: in } }
+  - { id: 01JCRCE000000000000000000A, from: { node: 01JCRCN0000000000000000002, port: failed_hosts }, to: { node: 01JCRCN0000000000000000009, port: in } }
+  - { id: 01JCRCE000000000000000000B, from: { node: 01JCRCN0000000000000000004, port: failed_hosts }, to: { node: 01JCRCN0000000000000000008, port: in } }
+  - { id: 01JCRCE000000000000000000C, from: { node: 01JCRCN0000000000000000008, port: ok_hosts }, to: { node: 01JCRCN0000000000000000009, port: in } }
+  - { id: 01JCRCE000000000000000000D, from: { node: 01JCRCN0000000000000000008, port: failed_hosts }, to: { node: 01JCRCN0000000000000000009, port: in } }

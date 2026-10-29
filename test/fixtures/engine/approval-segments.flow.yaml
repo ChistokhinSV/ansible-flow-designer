@@ -1,0 +1,71 @@
+# Engine test flow for AFD-11 (fictional sample ULIDs): one top-level approval splits the flow into
+# AWX segments. `notify` is reachable before the gate (check failed) and after it (rejected), so
+# the segment chain must run it once per host; `failed` hosts are failed only in the last segment.
+schema_version: 1
+flow:
+  id: 01JCRBF0000000000000000000
+  key: approval-segments
+  name: Engine test · approval segments
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01JCRBN0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCRBN0000000000000000002
+    key: check
+    type: task
+    title: Check the change window
+    status: draft
+  - id: 01JCRBN0000000000000000003
+    key: gate
+    type: approval
+    title: Approve the change
+    ports:
+      - timeout
+    settings:
+      timeout: 30m
+  - id: 01JCRBN0000000000000000004
+    key: change
+    type: task
+    title: Apply the change
+    status: draft
+  - id: 01JCRBN0000000000000000005
+    key: rollback
+    type: task
+    title: Rollback
+    handler: rollback
+    status: draft
+  - id: 01JCRBN0000000000000000006
+    key: notify
+    type: task
+    title: Notify on-call
+    handler: notify
+    status: draft
+  - id: 01JCRBN0000000000000000007
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCRBN0000000000000000008
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCRBE0000000000000000001, from: { node: 01JCRBN0000000000000000001, port: ok_hosts }, to: { node: 01JCRBN0000000000000000002, port: in } }
+  - { id: 01JCRBE0000000000000000002, from: { node: 01JCRBN0000000000000000002, port: ok_hosts }, to: { node: 01JCRBN0000000000000000003, port: in } }
+  - { id: 01JCRBE0000000000000000003, from: { node: 01JCRBN0000000000000000002, port: failed_hosts }, to: { node: 01JCRBN0000000000000000006, port: in } }
+  - { id: 01JCRBE0000000000000000004, from: { node: 01JCRBN0000000000000000003, port: approved }, to: { node: 01JCRBN0000000000000000004, port: in } }
+  - { id: 01JCRBE0000000000000000005, from: { node: 01JCRBN0000000000000000003, port: rejected }, to: { node: 01JCRBN0000000000000000006, port: in } }
+  - { id: 01JCRBE0000000000000000006, from: { node: 01JCRBN0000000000000000003, port: timeout }, to: { node: 01JCRBN0000000000000000006, port: in } }
+  - { id: 01JCRBE0000000000000000007, from: { node: 01JCRBN0000000000000000004, port: ok_hosts }, to: { node: 01JCRBN0000000000000000007, port: in } }
+  - { id: 01JCRBE0000000000000000008, from: { node: 01JCRBN0000000000000000004, port: failed_hosts }, to: { node: 01JCRBN0000000000000000005, port: in } }
+  - { id: 01JCRBE0000000000000000009, from: { node: 01JCRBN0000000000000000005, port: ok_hosts }, to: { node: 01JCRBN0000000000000000008, port: in } }
+  - { id: 01JCRBE000000000000000000A, from: { node: 01JCRBN0000000000000000006, port: ok_hosts }, to: { node: 01JCRBN0000000000000000008, port: in } }
