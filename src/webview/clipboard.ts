@@ -6,6 +6,7 @@ import { copyNodes } from '../core/flow/clipboard';
 import type { Position, Ulid } from '../core/flow/types';
 import { command, send } from './bus';
 import { useUi } from './store';
+import { levelView, unplacedPositions } from './viewModel';
 
 /** The selected nodes as clipboard text; undefined when no node is selected. */
 export function selectionText(): { text: string; count: number } | undefined {
@@ -43,11 +44,17 @@ export async function pasteText(text: string): Promise<Ulid[]> {
   if (at && last && last.at.x === at.x && last.at.y === at.y) last.times += 1;
   else last = at ? { at, times: 0 } : undefined;
   const step = (last?.times ?? 0) * 32;
+  // Nodes still at auto-layout positions are written too, so the paste does not move them.
+  const freeze = unplacedPositions(
+    levelView(ui.snapshot, ui.optimistic, ui.level),
+    ui.snapshot.doc.layout,
+  );
   const ack = await command({
     kind: 'pasteNodes',
     text,
     level: ui.level,
     ...(at ? { position: { x: at.x + step, y: at.y + step } } : {}),
+    ...(Object.keys(freeze).length > 0 ? { freeze } : {}),
   });
   if (!ack.ok) {
     useUi.getState().setError(ack.error ?? 'Nothing was pasted');

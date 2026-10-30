@@ -16,3 +16,7 @@ D-30 keeps positions apart from semantics. A separate layout file would put drag
 ## Consequences
 
 One undo stack; a drag is one undo step; layout diffs stay confined to one block; opening a flow without layout never dirties it.
+
+## Amendment (AFD-17, 2026-10-30): freeze what the canvas shows
+
+Once a level has one stored position, the in-memory layout only places the remaining nodes below their predecessor, or in a column below everything. Any command that writes the first position of a level must therefore also write the positions the canvas shows for its unplaced nodes (`freeze`), in the same edit. Moves, Quick add and failure patterns already did. Paste and _Extract into subflow_ now do as well; without it, a paste stacked the whole flow in one column (product-owner report).

@@ -191,6 +191,20 @@ describe('paste', () => {
     expect(schema(first.after)).toEqual([]);
   });
 
+  it('a flow shown by auto layout keeps every node where it was (product-owner report)', () => {
+    // Without `freeze` the pasted node would be the only stored position, and the host's auto
+    // layout stacks every other node in a column below it.
+    const shown = Object.fromEntries(
+      (parse(OS) as FlowDocument).nodes.map((n, i) => [n.id, { x: (i % 3) * 260, y: i * 90 }]),
+    );
+    const { after, pasted } = paste(OS, copy(EDGE, ['validate']), {
+      position: { x: 900, y: 40 },
+      freeze: shown,
+    });
+    for (const [id, p] of Object.entries(shown)) expect(after.layout?.[id], id).toEqual(p);
+    expect(after.layout?.[pasted[0]?.id as string]).toEqual({ x: 900, y: 40 });
+  });
+
   it('a snippet written by hand: one node or a list; tested becomes implemented', () => {
     const one = paste(EDGE, 'key: check-ntp\ntype: task\ntitle: Check NTP\nstatus: tested\n');
     expect(one.pasted.map((n) => [n.key, n.status])).toEqual([['check-ntp', 'implemented']]);

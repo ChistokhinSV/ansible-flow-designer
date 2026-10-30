@@ -86,6 +86,28 @@ describe('extract into a subflow', () => {
     expect(after.layout?.[sub.id]).toEqual({ x: 10, y: 20 });
   });
 
+  it('a level shown by auto layout keeps every node where it was (freeze)', () => {
+    const text = read(OS);
+    const doc = parse(text) as FlowDocument;
+    const shown = Object.fromEntries(
+      doc.nodes.map((n, i) => [n.id, { x: (i % 3) * 260, y: i * 90 }]),
+    );
+    const r = planCommand(
+      text,
+      {
+        kind: 'extractSubflow',
+        nodes: [keyed(doc, 'backup-config').id, keyed(doc, 'drain-traffic').id],
+        title: 'Prepare',
+        position: { x: 10, y: 20 },
+        freeze: shown,
+      },
+      { newId: createIdFactory() },
+    );
+    const after = parse(r.text) as FlowDocument;
+    for (const [id, p] of Object.entries(shown)) expect(after.layout?.[id], id).toEqual(p);
+    expect(after.layout?.[r.created as string]).toEqual({ x: 10, y: 20 });
+  });
+
   it('stays valid, keeps the banner, and the code still compiles', () => {
     const { doc, after } = extract(OS, ['backup-config', 'drain-traffic'], 'Prepare');
     expect(schema(after)).toEqual([]);

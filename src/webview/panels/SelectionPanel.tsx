@@ -7,6 +7,7 @@ import type { FlowNode, Ulid } from '../../core/flow/types';
 import { command } from '../bus';
 import { copySelection } from '../clipboard';
 import { useUi } from '../store';
+import { levelView, unplacedPositions } from '../viewModel';
 
 export function SelectionPanel({ ids }: { ids: Ulid[] }) {
   const snapshot = useUi((s) => s.snapshot);
@@ -25,6 +26,11 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
   const extract = async () => {
     setBusy(true);
     setError(null);
+    // Nodes still at auto-layout positions are written too, so the rest of the level stays put.
+    const { optimistic, level } = useUi.getState();
+    const freeze = snapshot
+      ? unplacedPositions(levelView(snapshot, optimistic, level), doc.layout)
+      : {};
     const ack = await command({
       kind: 'extractSubflow',
       nodes: ids,
@@ -32,6 +38,7 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
       ...(at.length > 0
         ? { position: { x: Math.min(...at.map((p) => p.x)), y: Math.min(...at.map((p) => p.y)) } }
         : {}),
+      ...(Object.keys(freeze).length > 0 ? { freeze } : {}),
     });
     setBusy(false);
     if (!ack.ok) setError(ack.error ?? 'The nodes could not be extracted');

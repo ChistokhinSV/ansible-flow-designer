@@ -114,9 +114,23 @@ export type FlowCommand =
   /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
   | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
-  | { kind: 'pasteNodes'; text: string; level?: string; position?: Position }
+  | {
+      kind: 'pasteNodes';
+      text: string;
+      level?: string;
+      position?: Position;
+      /** Positions of nodes still shown at auto-layout positions, written in the same edit. */
+      freeze?: Record<Ulid, Position>;
+    }
   /** AFD-7: move a connected selection of one level into a new subflow node. */
-  | { kind: 'extractSubflow'; nodes: Ulid[]; title: string; key?: string; position?: Position };
+  | {
+      kind: 'extractSubflow';
+      nodes: Ulid[];
+      title: string;
+      key?: string;
+      position?: Position;
+      freeze?: Record<Ulid, Position>;
+    };
 
 export interface NodePatch {
   title?: string;
@@ -1414,7 +1428,9 @@ function extractSubflow(
   tx.apply((f) =>
     lv.nodes.length === 0 ? setIn(f, lv.nodesPath, [item]) : insertItem(f, lv.nodesPath, at, item),
   );
-  if (cmd.position) setPositions(tx, { [id]: cmd.position });
+  // Nodes shown at auto positions are written too: once the level has a stored position, the
+  // others would otherwise be stacked below it (ADR-0002).
+  setPositions(tx, { ...cmd.freeze, ...(cmd.position ? { [id]: cmd.position } : {}) });
   return { id, rewritten: [...new Set(rewrites.map((r) => r.node))] };
 }
 
@@ -1562,7 +1578,8 @@ function pasteNodes(
   }
   append(['decisions'], decisions, ROOT_ORDER);
   tx.applyAll(ops);
-  setPositions(tx, positions);
+  // Nodes shown at auto positions are written too, or the level would be stacked below the paste.
+  setPositions(tx, { ...cmd.freeze, ...positions });
   return nodes.map((n) => n.id);
 }
 

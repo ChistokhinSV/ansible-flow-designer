@@ -148,6 +148,25 @@ describe('paste', () => {
     expect(useUi.getState().error).toBe('The clipboard does not hold flow nodes');
   });
 
+  it('a flow shown by auto layout: the paste writes what the canvas shows for every node', () => {
+    const os = parse(
+      readFileSync(join(__dirname, '../../../examples/os-upgrade.flow.yaml'), 'utf8'),
+    ) as FlowDocument;
+    const auto = Object.fromEntries(os.nodes.map((n, i) => [n.id, { x: i * 10, y: i * 100 }]));
+    act(() => {
+      useUi.getState().setSnapshot({
+        docVersion: 2,
+        doc: os,
+        stale: false,
+        findings: [],
+        openPorts: [],
+        autoPositions: auto,
+      });
+    });
+    clipboard('paste', 'key: x\ntype: task\n');
+    expect(sent('command')[0]?.command).toMatchObject({ kind: 'pasteNodes', freeze: auto });
+  });
+
   it('a focused field keeps its paste; run mode is read-only', () => {
     const input = document.body.appendChild(document.createElement('input'));
     input.focus();

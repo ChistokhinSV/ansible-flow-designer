@@ -72,7 +72,8 @@ describe('Extract into subflow', () => {
     fireEvent.change(screen.getByPlaceholderText('Subflow'), { target: { value: 'Prepare' } });
     expect(screen.getByText('prepare')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Extract into subflow/ }));
-    // os-upgrade has no layout block: the panel uses the auto positions the canvas shows.
+    // os-upgrade has no layout block: the panel uses the auto positions the canvas shows, and
+    // writes them for every node of the level so the rest does not get stacked (product owner).
     const auto = useUi.getState().snapshot?.autoPositions ?? {};
     const xs = ids.map((n) => auto[n]?.x as number);
     const ys = ids.map((n) => auto[n]?.y as number);
@@ -82,6 +83,7 @@ describe('Extract into subflow', () => {
         nodes: ids,
         title: 'Prepare',
         position: { x: Math.min(...xs), y: Math.min(...ys) },
+        freeze: Object.fromEntries(doc.nodes.map((n) => [n.id, auto[n.id]])),
       },
     ]);
     await answer(true, { created: 'NEW' });

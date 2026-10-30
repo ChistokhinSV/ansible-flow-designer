@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.2 — AFD-17 follow-up
+
+- Paste and _Extract into subflow_ no longer rearrange a flow that is shown by auto layout. Before, they stored only the new node's position, and the other nodes were then stacked in one column below it, so the flow seemed to shift down (product-owner report).
+  - Like a move or Quick add, both now also write the positions the canvas shows for nodes that have none stored (`freeze`), in the same undo step.
+
 ## 0.13.1 — AFD-17 follow-up
 
 - VS Code's context menu on the canvas (Cut, Copy, Paste) now does what it says, from product-owner feedback:
