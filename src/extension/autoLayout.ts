@@ -1,10 +1,16 @@
 // Top-down layered layout with ELK, run in the host (5–15 nodes per level: milliseconds, no worker).
-import ELK from 'elkjs/lib/elk.bundled.js';
+import type ELK from 'elkjs/lib/elk.bundled.js';
 import { nodeSize } from '../core/flow/geometry';
 import { buildModel, type Level } from '../core/flow/model';
 import type { FlowDocument, Layout, Position, Ulid } from '../core/flow/types';
 
-const elk = new ELK();
+// ELK is three quarters of the host code (about 160 ms to load). It loads at the first layout, not
+// at activation; the build ships it as dist/elk.js next to the extension (scripts/build.mjs).
+let engine: Promise<InstanceType<typeof ELK>> | undefined;
+function elk(): Promise<InstanceType<typeof ELK>> {
+  engine ??= import('elkjs/lib/elk.bundled.js').then((m) => new m.default());
+  return engine;
+}
 
 const OPTIONS = {
   'elk.algorithm': 'layered',
@@ -19,7 +25,7 @@ const OPTIONS = {
 export async function layoutLevel(level: Level): Promise<Record<Ulid, Position>> {
   const nodes = level.nodes.filter((n) => n?.id);
   const ids = new Set(nodes.map((n) => n.id));
-  const graph = await elk.layout({
+  const graph = await (await elk()).layout({
     id: level.id,
     layoutOptions: OPTIONS,
     children: nodes.map((n) => ({ id: n.id, ...nodeSize(n.type) })),

@@ -25,6 +25,20 @@ export function flowFromFile(file: YamlFile): ParsedFlow {
 }
 
 /**
+ * The whole element at a path, in full lines: "Show in text" selects a node with everything in
+ * it (AFD-18 follow-up), from the line of its `- ` to its last value, without trailing comments.
+ * Falls back to the finding range when the path does not lead to a node.
+ */
+export function elementRangeOf(file: YamlFile, path: Path): [number, number] {
+  const node = locate(file, path)?.node as Node | null | undefined;
+  if (!node?.range) return rangeOf(file, path);
+  const text = file.text;
+  let end = node.range[1];
+  while (end > node.range[0] && /\s/.test(text[end - 1] ?? '')) end--;
+  return [text.lastIndexOf('\n', node.range[0] - 1) + 1, end];
+}
+
+/**
  * Source range for a finding: the deepest existing node on the path. Collections are narrowed to
  * their first line, so a diagnostic on a node does not underline the whole node.
  */

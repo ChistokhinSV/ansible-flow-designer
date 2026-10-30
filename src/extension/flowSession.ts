@@ -5,7 +5,7 @@ import type { CodeScan, DriftAction } from '../core/drift/types';
 import { optionA } from '../core/engine/optionA';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
-import { flowFromFile, type ParsedFlow, rangeOf } from '../core/flow/document';
+import { elementRangeOf, flowFromFile, type ParsedFlow } from '../core/flow/document';
 import { type IdFactory, slugify } from '../core/flow/ids';
 import { buildModel, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
@@ -663,7 +663,8 @@ export class FlowSession implements vscode.Disposable {
       preview: false,
     });
     if (!path || !this.built) return;
-    const [s, e] = rangeOf(this.built.parsed.file, path);
+    // The whole element (a node with everything in it), not only its first line.
+    const [s, e] = elementRangeOf(this.built.parsed.file, path);
     const range = new vscode.Range(this.document.positionAt(s), this.document.positionAt(e));
     editor.selection = new vscode.Selection(range.start, range.end);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);

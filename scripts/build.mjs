@@ -9,13 +9,29 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 const testsOnly = process.argv.includes('--tests');
 
+/**
+ * ELK is most of the host code: the extension loads it on first use (autoLayout.ts), from its
+ * own file dist/elk.js, so activation and the debugger's source maps skip it.
+ * @type {import('esbuild').Plugin}
+ */
+const elkApart = {
+  name: 'elk-apart',
+  setup(build) {
+    build.onResolve({ filter: /^elkjs\/lib\/elk\.bundled\.js$/ }, (args) =>
+      args.kind === 'dynamic-import' ? { path: './elk.js', external: true } : undefined,
+    );
+  },
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const hostOptions = {
   // The catalog index is built in a worker thread (node:sqlite is synchronous, M5).
   entryPoints: {
     extension: 'src/extension/extension.ts',
     catalogWorker: 'src/extension/catalog/catalogWorker.ts',
+    elk: 'elkjs/lib/elk.bundled.js',
   },
+  plugins: [elkApart],
   outdir: 'dist',
   bundle: true,
   platform: 'node',

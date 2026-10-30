@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { CommandError, type FlowCommand, planCommand } from '../../../src/core/flow/commands';
-import { parseFlow, rangeOf } from '../../../src/core/flow/document';
+import { elementRangeOf, parseFlow, rangeOf } from '../../../src/core/flow/document';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
@@ -458,6 +458,20 @@ describe('diagnostic ranges', () => {
     const [s2, e2] = rangeOf(f, ['nodes', 1, 'status']);
     expect(EDGE.slice(s2, e2)).toBe('draft');
     const [s3, e3] = rangeOf(f, ['nodes', 1, 'missing', 'deeper']);
+    expect(EDGE.slice(s3, e3)).toBe('id: 01JBQKFBF5KZNWJ47TAN9ZT24M');
+  });
+
+  it('Show in text takes the whole element, in full lines, and nothing after it', () => {
+    const f = parseYaml(EDGE);
+    const [s, e] = elementRangeOf(f, ['nodes', 1]);
+    const lines = EDGE.slice(s, e).split('\n');
+    expect(lines[0]).toBe('- id: 01JBQKFBF5KZNWJ47TAN9ZT24M');
+    expect(lines.at(-1)).toBe('  impl: null');
+    expect(lines).toHaveLength(14);
+    // A field is its whole line; a path that leads nowhere falls back to the finding range.
+    const [s2, e2] = elementRangeOf(f, ['nodes', 1, 'status']);
+    expect(EDGE.slice(s2, e2)).toBe('  status: draft');
+    const [s3, e3] = elementRangeOf(f, ['nodes', 1, 'missing']);
     expect(EDGE.slice(s3, e3)).toBe('id: 01JBQKFBF5KZNWJ47TAN9ZT24M');
   });
 });

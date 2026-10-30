@@ -24,3 +24,7 @@ Commands that target IDs are immune to version races. Undo, redo, revert and ext
 - The webview builds the copy from its snapshot: copying writes nothing to the document. Pasting is a host command (`pasteNodes`) like any other, and the host stays the only writer. It gives new IDs and level-unique keys and applies one edit.
 - Keys reach the webview as the page's `copy` and `paste` events. On the desktop, VS Code prevents Ctrl+C and Ctrl+V in the webview, runs its Copy and Paste commands, and these call `execCommand` in the focused webview. Fields and selected text keep the browser's own copy and paste. Buttons and the palette commands go through the host (`vscode.env.clipboard`), since a webview cannot read the clipboard by itself.
 - Chromium lets `execCommand` reach the page only after a real key press, which an integration test cannot make. The events are covered by webview tests, and the integration tests use the palette commands.
+
+## Amendment (AFD-18 follow-up, 2026-10-30): auto-layout loads on first use
+
+ELK (elkjs, the host-side auto-layout of this ADR) is three quarters of the host code and took about 160 ms to load at every activation. `autoLayout.ts` now imports it with a dynamic `import()` on the first layout. The build turns that import into a separate `dist/elk.js` (an esbuild plugin in `scripts/build.mjs`), which `.vscodeignore` ships. Vite (the harness) and Vitest resolve the package as before. A flow with a stored layout never loads ELK at all.

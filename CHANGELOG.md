@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.1 — AFD-18 follow-up
+
+- _Show in text_ (the context menu, the inspector) selects the whole node in the text editor, from its `- id:` line to its last line, including what is inside it. It selected only the first line before. The Problems panel still underlines one line.
+- **Faster start:** ELK, the auto-layout library, is three quarters of the extension's code. It now loads at the first auto-layout, from its own file `dist/elk.js`, instead of at activation.
+  - The extension bundle shrinks from 1.9 MB to 460 KB (production) and loads in about 100 ms.
+  - In development, `extension.js` shrinks from 4.2 MB with a 6.1 MB source map to 0.9 MB with a 1.8 MB one.
+- **F5 debugging:** the launch configuration gives the debugger only the host bundles' source maps; before, it also read the webview's 3.7 MB map. A second configuration starts with the other extensions off. This addresses "Extension host did not start in 10 seconds" on the first debug start.
+
 ## 0.14.0 — AFD-18
 
 - **Right-click menu on the canvas**, instead of VS Code's Cut/Copy/Paste (text fields keep VS Code's). Its items depend on the target:

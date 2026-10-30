@@ -6,7 +6,29 @@
       "type": "extensionHost",
       "request": "launch",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}", "${workspaceFolder}/examples"],
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      // Only the host bundles: the debugger reads every map listed here before the extension host
+      // may start, and the webview (and ELK, loaded on first layout) maps are megabytes.
+      "outFiles": [
+        "${workspaceFolder}/dist/extension.js",
+        "${workspaceFolder}/dist/catalogWorker.js"
+      ],
+      "skipFiles": ["<node_internals>/**", "**/dist/elk.js"],
+      "preLaunchTask": "just: build"
+    },
+    {
+      "name": "Run Extension (other extensions off)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--disable-extensions",
+        "${workspaceFolder}/examples"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dist/extension.js",
+        "${workspaceFolder}/dist/catalogWorker.js"
+      ],
+      "skipFiles": ["<node_internals>/**", "**/dist/elk.js"],
       "preLaunchTask": "just: build"
     }
   ]

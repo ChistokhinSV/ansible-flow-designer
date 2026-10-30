@@ -354,7 +354,7 @@ just install
 
 `AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration tests that need the image: real skeleton runs (M3), the real catalog dump (M5) and a real Re-sync (M6); they are skipped without it. The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
 
-Press F5 in VS Code to start an Extension Development Host with `examples/` open. The harness runs the real webview against an in-page fake host (`?flow=edge-baseline|os-upgrade`, `&theme=light|dark|hc`) for visual checks without VS Code.
+Press F5 in VS Code to start an Extension Development Host with `examples/` open. _Run Extension (other extensions off)_ starts faster: only this extension runs. The debugger reads the host bundles' source maps only, so the first start under the debugger stays well within VS Code's 10-second limit (AFD-18 follow-up). The harness runs the real webview against an in-page fake host (`?flow=edge-baseline|os-upgrade`, `&theme=light|dark|hc`) for visual checks without VS Code.
 
 ## License
 
