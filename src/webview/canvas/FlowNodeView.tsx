@@ -375,6 +375,8 @@ export const FlowNodeView = memo(function FlowNodeView({
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
   const runMode = useUi((s) => s.mode === 'run');
+  // A group selection (AFD-7) opens no summary cards: they would cover each other.
+  const alone = useUi((s) => !s.selection.nodes);
   const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
   const classes = [
     runMode ? 'run-mode' : '',
@@ -424,7 +426,7 @@ export const FlowNodeView = memo(function FlowNodeView({
       ) : (
         <NodeBody node={node} near={near} />
       )}
-      {selected && !far && !dragging && isWork(node) ? <SummaryCard node={node} /> : null}
+      {selected && alone && !far && !dragging && isWork(node) ? <SummaryCard node={node} /> : null}
     </div>
   );
 });

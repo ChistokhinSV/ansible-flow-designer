@@ -22,6 +22,8 @@ export interface QuickAddState {
 export interface Selection {
   node?: Ulid;
   edge?: Ulid;
+  /** Several nodes (Ctrl/Cmd+click, Shift+drag): Extract into subflow (AFD-7). */
+  nodes?: Ulid[];
 }
 
 /** Port menu (04 §3), anchored at a point in the window. */
@@ -216,7 +218,8 @@ export const useUi = create<UiState>((set, get) => ({
     const level =
       model?.levels.has(open) || model?.nodes.get(open)?.node.type === 'subflow' ? open : ROOT;
     const sel = get().selection;
-    const selection = sel.node && !ids.has(sel.node) ? {} : sel;
+    const selection =
+      (sel.node && !ids.has(sel.node)) || sel.nodes?.some((id) => !ids.has(id)) ? {} : sel;
     const gone = (ref: PortRef | undefined) => ref !== undefined && !ids.has(ref.node);
     set({
       snapshot,

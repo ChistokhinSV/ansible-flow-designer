@@ -122,7 +122,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const derived = useMemo(() => {
     const next = new Map<string, { key: string; node: FlowRFNode }>();
     const nodes = view.nodes.map((v) => {
-      const sel = selection.node === v.node.id;
+      const sel = selection.node === v.node.id || !!selection.nodes?.includes(v.node.id);
       const key = JSON.stringify([v, sel]);
       const hit = cache.current.get(v.node.id);
       const entry = hit && hit.key === key ? hit : { key, node: toRfNode(v, sel) };
@@ -131,10 +131,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     });
     cache.current = next;
     return frame ? [frame, ...nodes] : nodes;
-  }, [view.nodes, selection.node, frame]);
+  }, [view.nodes, selection.node, selection.nodes, frame]);
 
   const [nodes, setNodes] = useState<CanvasNode[]>(derived);
   useEffect(() => setNodes(derived), [derived]);
+  const latest = useRef(nodes);
+  latest.current = nodes;
   const exits = useMemo(() => new Map((boundary?.edges ?? []).map((e) => [e.id, e])), [boundary]);
 
   // A start node has no play: its wire carries every host of the run.
@@ -217,13 +219,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (changes: NodeChange<CanvasNode>[]) => {
       const picked = changes.filter((c) => c.type === 'select');
       if (picked.length > 0) {
-        const on = picked.findLast((c) => c.selected);
+        // Several nodes (Ctrl/Cmd+click, Shift+drag) select as a group (AFD-7).
+        const chosen = applyNodeChanges(picked, latest.current)
+          .filter((n) => n.type === 'flow' && n.selected)
+          .map((n) => n.id);
         const current = useUi.getState().selection;
-        if (on) {
-          if (current.node !== on.id) select({ node: on.id });
-        } else if (current.node && picked.some((c) => c.id === current.node)) {
-          select({});
-        }
+        if (chosen.length > 1) select({ nodes: chosen });
+        else if (chosen.length === 1) {
+          if (current.node !== chosen[0]) select({ node: chosen[0] });
+        } else if (current.node || current.nodes) select({});
       }
       setNodes((ns) =>
         applyNodeChanges(
@@ -234,9 +238,6 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     },
     [select],
   );
-
-  const latest = useRef(nodes);
-  latest.current = nodes;
 
   const onNodeDragStop = useCallback(
     (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {

@@ -16,6 +16,7 @@ import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
 import { NodeRunPanel, RunPanel, WireRunPanel } from './panels/RunPanel';
+import { SelectionPanel } from './panels/SelectionPanel';
 import { TopBar } from './panels/TopBar';
 import { Properties } from './properties/Properties';
 import { useUi } from './store';
@@ -176,6 +177,7 @@ export function App() {
   const snapshot = useUi((s) => s.snapshot);
   const selected = useUi((s) => s.selection.node);
   const wire = useUi((s) => s.selection.edge);
+  const many = useUi((s) => s.selection.nodes);
   const level = useUi((s) => s.level);
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
@@ -224,7 +226,7 @@ export function App() {
                     : 'Flow description'
           }
         >
-          {lens && !selected && !wire ? (
+          {lens && !selected && !wire && !many ? (
             <LensPanel />
           ) : mode === 'implementation' ? (
             selected ? (
@@ -240,6 +242,8 @@ export function App() {
             ) : (
               <RunPanel />
             )
+          ) : many?.length ? (
+            <SelectionPanel ids={many} />
           ) : selected ? (
             <Inspector id={selected} />
           ) : wire && /^(entry|exit):/.test(wire) ? (

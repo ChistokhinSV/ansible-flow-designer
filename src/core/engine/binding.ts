@@ -83,6 +83,12 @@ export function outputVar(node: FlowNode, output: string): string {
     const rest = from.slice('impl.register'.length);
     return `${registerName(node)}${rest}`;
   }
+  // A subflow output lifted from an inner step (AFD-7) is that step's variable.
+  if (node.type === 'subflow' && from) {
+    const [head, out, ...path] = from.split('.');
+    const inner = node.subflow?.nodes?.find((n) => n?.key === head);
+    if (inner && out) return [outputVar(inner, out), ...path].join('.');
+  }
   return output;
 }
 

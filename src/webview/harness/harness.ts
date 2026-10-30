@@ -433,3 +433,5 @@ setTheme(params.get('theme') ?? 'light');
 (window as unknown as { afdText: () => string }).afdText = () => text;
 
 await import('../main');
+// The webview store, so the browser pane can set what a pointer cannot (a group selection).
+(window as unknown as { afdUi: unknown }).afdUi = (await import('../store')).useUi;

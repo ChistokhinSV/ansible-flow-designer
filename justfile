@@ -61,6 +61,11 @@ test-lens $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label m8
 
+# Extract into subflow inside VS Code (AFD-7)
+test-extract $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label extract
+
 # AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests

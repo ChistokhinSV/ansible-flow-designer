@@ -10,6 +10,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { optionA } from '../../src/core/engine/optionA';
 import type { GenerateResult } from '../../src/core/engine/types';
+import { planCommand } from '../../src/core/flow/commands';
+import { createIdFactory } from '../../src/core/flow/ids';
 import { buildModel } from '../../src/core/flow/model';
 import type { FlowDocument } from '../../src/core/flow/types';
 
@@ -38,6 +40,8 @@ interface Scenario {
    * before it as extra vars, as AWX passes artifacts down a workflow.
    */
   chain?: string[];
+  /** AFD-7: the flow as this edit leaves it (an extraction into a subflow). */
+  transform?: (text: string) => string;
 }
 
 interface Run {
@@ -80,6 +84,46 @@ const targetHappy = [
   'maint.ok_hosts',
   'consume.ok_hosts',
 ];
+
+/** Extract these nodes into a subflow with the real command (AFD-7). */
+const extracted = (keys: string[], title: string) => (text: string) => {
+  const doc = parse(text) as FlowDocument;
+  const nodes = keys.map(
+    (k) => [...buildModel(doc).nodes.values()].find((n) => n.node.key === k)?.node.id as string,
+  );
+  return planCommand(text, { kind: 'extractSubflow', nodes, title }, { newId: createIdFactory() })
+    .text;
+};
+
+const OS_CHECK_VARS = {
+  devices: EDGE_HOSTS,
+  ansible_net_version: '15.2',
+  target_version: '17.3',
+  target_image: 'edge-17.3.bin',
+  afd_simulate: { 'pre-checks': { failed: ['sw-edge-04'] } },
+};
+const OS_CHECK_EXPECT = {
+  ...Object.fromEntries(
+    ['sw-edge-01', 'sw-edge-02', 'sw-edge-03'].map((h) => [
+      h,
+      {
+        ports: [
+          'pre-checks.ok_hosts',
+          'upgrade-needed.true',
+          'change-approval.approved',
+          'backup-config.ok_hosts',
+          'drain-traffic.ok_hosts',
+          'stage-image.ok_hosts',
+          'verify-checksum.ok_hosts',
+          'upgrade-os.failed_hosts',
+          'rollback.ok_hosts',
+        ],
+        outcome: '[failed] Failed',
+      },
+    ]),
+  ),
+  'sw-edge-04': { ports: ['pre-checks.failed_hosts'], outcome: '[excluded] Excluded' },
+};
 
 const portsHappy = [
   'probe.unchanged',
@@ -176,36 +220,19 @@ const SCENARIOS: Scenario[] = [
     name: 'os-upgrade skeleton (check): module failure inside a subflow bubbles to rollback',
     flow: OS,
     check: true,
-    vars: {
-      devices: EDGE_HOSTS,
-      ansible_net_version: '15.2',
-      target_version: '17.3',
-      target_image: 'edge-17.3.bin',
-      afd_simulate: { 'pre-checks': { failed: ['sw-edge-04'] } },
-    },
+    vars: OS_CHECK_VARS,
     rc: 2,
-    expect: {
-      ...Object.fromEntries(
-        ['sw-edge-01', 'sw-edge-02', 'sw-edge-03'].map((h) => [
-          h,
-          {
-            ports: [
-              'pre-checks.ok_hosts',
-              'upgrade-needed.true',
-              'change-approval.approved',
-              'backup-config.ok_hosts',
-              'drain-traffic.ok_hosts',
-              'stage-image.ok_hosts',
-              'verify-checksum.ok_hosts',
-              'upgrade-os.failed_hosts',
-              'rollback.ok_hosts',
-            ],
-            outcome: '[failed] Failed',
-          },
-        ]),
-      ),
-      'sw-edge-04': { ports: ['pre-checks.failed_hosts'], outcome: '[excluded] Excluded' },
-    },
+    expect: OS_CHECK_EXPECT,
+  },
+  // AFD-7: extracting nodes into a subflow routes every host the same way.
+  {
+    name: 'extracted inside a subflow: the same hosts take the same ports',
+    flow: OS,
+    transform: extracted(['set-boot-variable', 'reload'], 'Switch image'),
+    check: true,
+    vars: OS_CHECK_VARS,
+    rc: 2,
+    expect: OS_CHECK_EXPECT,
   },
   {
     name: 'ports, parallel, join, approval, handlers',
@@ -285,6 +312,23 @@ const SCENARIOS: Scenario[] = [
       ['h01', 'h02'].map((h) => [
         h,
         { ports: ['produce.ok_hosts', 'stub.ok_hosts', 'report.ok_hosts', 'consume.ok_hosts'] },
+      ]),
+    ),
+  },
+  {
+    name: 'extracted with lifted outputs: the data still reaches its readers',
+    flow: DATA,
+    transform: extracted(['produce', 'stub'], 'Make data'),
+    root: '../../content',
+    vars: { devices: ['h01', 'h02'], greeting: 'hello' },
+    rc: 0,
+    // stub's exit is now the subflow's; consume's assert checks every value it reads.
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        {
+          ports: ['produce.ok_hosts', 'make-data.ok_hosts', 'report.ok_hosts', 'consume.ok_hosts'],
+        },
       ]),
     ),
   },
@@ -474,9 +518,25 @@ const SCENARIOS: Scenario[] = [
   })),
 ];
 
-function generate(flow: string, simulate: boolean, root?: string): GenerateResult {
-  const doc = parse(readFileSync(flowPath(flow), 'utf8')) as FlowDocument;
-  const result = optionA.generate(doc, { source: basename(flow), simulate, root });
+/** The scenario's flow document, after its transform. */
+function scenarioDoc(s: Scenario): FlowDocument {
+  let text = transformed.get(s);
+  if (text === undefined) {
+    const original = readFileSync(flowPath(s.flow), 'utf8');
+    // Once per scenario: a transform mints new IDs, and the run is read with the same ones.
+    text = s.transform ? s.transform(original) : original;
+    transformed.set(s, text);
+  }
+  return parse(text) as FlowDocument;
+}
+const transformed = new Map<Scenario, string>();
+
+function generate(s: Scenario): GenerateResult {
+  const result = optionA.generate(scenarioDoc(s), {
+    source: basename(s.flow),
+    simulate: !s.syntaxOnly,
+    root: s.root,
+  });
   expect(result.ok, JSON.stringify(result.findings)).toBe(true);
   return result;
 }
@@ -497,7 +557,7 @@ function stage(dir: string): GenerateResult[] {
   writeFileSync(join(dir, 'carry.py'), CARRY);
   const lines = ['#!/bin/sh', 'export ANSIBLE_ROLES_PATH=/work/content/roles'];
   const results = SCENARIOS.map((s, i) => {
-    const result = generate(s.flow, !s.syntaxOnly, s.root);
+    const result = generate(s);
     const sdir = join(dir, `s${i}`);
     mkdirSync(join(sdir, 'generated'), { recursive: true });
     for (const f of result.files) writeFileSync(join(sdir, 'generated', f.name), f.text);
@@ -529,7 +589,7 @@ function stage(dir: string): GenerateResult[] {
   return results;
 }
 
-function readRun(dir: string, result: GenerateResult, flow: string): Run {
+function readRun(dir: string, result: GenerateResult, s: Scenario): Run {
   const rc = Number(readFileSync(join(dir, 'rc'), 'utf8').trim());
   let raw = '';
   try {
@@ -540,9 +600,7 @@ function readRun(dir: string, result: GenerateResult, flow: string): Run {
     .filter(Boolean)
     .map((l) => JSON.parse(l) as Record<string, unknown>);
   const keys = new Map(
-    [...buildModel(parse(readFileSync(flowPath(flow), 'utf8')) as FlowDocument).nodes.values()].map(
-      (n) => [n.node.id, n.node.key],
-    ),
+    [...buildModel(scenarioDoc(s)).nodes.values()].map((n) => [n.node.id, n.node.key]),
   );
   const ports = new Map<string, Set<string>>();
   const outcome = new Map<string, string>();
@@ -606,7 +664,7 @@ describe.each(IMAGES)('engine on %s', (image) => {
 
   SCENARIOS.forEach((s, i) => {
     it(s.name, () => {
-      const run = readRun(join(dir, `s${i}`), results[i] as GenerateResult, s.flow);
+      const run = readRun(join(dir, `s${i}`), results[i] as GenerateResult, s);
       const out = () => readFileSync(join(dir, `s${i}`, 'out.txt'), 'utf8').slice(-3000);
       if (s.rc !== undefined) expect(run.rc, out()).toBe(s.rc);
       for (const [host, want] of Object.entries(s.expect ?? {})) {

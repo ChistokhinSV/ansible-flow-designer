@@ -111,7 +111,9 @@ export type FlowCommand =
   | { kind: 'acceptFinding'; finding: string; node?: Ulid; reason: string; by?: string }
   | { kind: 'clearFindingAccept'; finding: string }
   /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
-  | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> };
+  | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> }
+  /** AFD-7: move a connected selection of one level into a new subflow node. */
+  | { kind: 'extractSubflow'; nodes: Ulid[]; title: string; key?: string; position?: Position };
 
 export interface NodePatch {
   title?: string;
@@ -1143,6 +1145,274 @@ function editExit(
 }
 
 /** Decision 15: the given tested nodes become implemented again, since their design changed. */
+// ---- extract into a subflow (AFD-7, ADR-0010) --------------------------------------------------
+
+/** The subflow port an inner output leaves through: its own name when a subflow has it. */
+function exitPort(port: string): string {
+  if (isPortLegal({ type: 'subflow' } as FlowNode, port)) return port;
+  return isFailPort(port) ? 'failed_hosts' : 'ok_hosts';
+}
+
+const groupKey = (ref: PortRef) => `${ref.node}|${ref.port}`;
+
+/**
+ * Moves a connected selection of one level into a new subflow node, in one edit. IDs never
+ * change. Wires entering the group end at the subflow's `in` (the group has one entry node, its
+ * `boundary.in`); wires leaving it start at the subflow port of the same name (boundary exits),
+ * merged when they go to the same place. Exits of an enclosing subflow now leave through the new
+ * one. Outputs read outside the group are lifted to subflow outputs, and those references are
+ * rewritten.
+ */
+function extractSubflow(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'extractSubflow' }>,
+): { id: Ulid; rewritten: Ulid[] } {
+  const st = state(tx);
+  const picked = new Set(cmd.nodes);
+  if (picked.size === 0) throw new CommandError('bad-selection', 'Select the nodes to extract');
+  const entries = [...picked].map((id) => nodeAt(st, id));
+  const levelId = entries[0]?.level as string;
+  if (entries.some((e) => e.level !== levelId))
+    throw new CommandError('bad-selection', 'The selected nodes must be on one level');
+  const bad = entries.filter((e) => e.node.type === 'start' || e.node.type === 'end');
+  if (bad.length > 0)
+    throw new CommandError(
+      'bad-selection',
+      `Start and end nodes stay on their level: ${bad.map((e) => e.node.title).join(', ')}`,
+    );
+  const level = levelOf(st, levelId);
+  const title = (id: Ulid) => st.model.nodes.get(id)?.node.title ?? id;
+
+  // Connected, as one group (undirected).
+  const inner = level.edges.filter((e) => picked.has(e.from.node) && picked.has(e.to.node));
+  const seen = new Set<Ulid>([entries[0]?.node.id as Ulid]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const e of inner)
+      if (seen.has(e.from.node) !== seen.has(e.to.node)) {
+        seen.add(e.from.node);
+        seen.add(e.to.node);
+        grew = true;
+      }
+  }
+  if (seen.size !== picked.size)
+    throw new CommandError(
+      'bad-selection',
+      `The selection is not connected: ${[...picked]
+        .filter((id) => !seen.has(id))
+        .map(title)
+        .join(', ')} ${picked.size - seen.size === 1 ? 'is' : 'are'} apart from the rest`,
+    );
+
+  // One way in.
+  const parent = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
+  const boundary = parent?.subflow?.boundary;
+  const incoming = level.edges.filter((e) => !picked.has(e.from.node) && picked.has(e.to.node));
+  const entryIds = new Set(incoming.map((e) => e.to.node));
+  if (boundary?.in && picked.has(boundary.in)) entryIds.add(boundary.in);
+  if (entryIds.size > 1)
+    throw new CommandError(
+      'bad-selection',
+      `A subflow has one way in, but hosts enter the selection at ${[...entryIds]
+        .map((id) => `"${title(id)}"`)
+        .join(' and ')}`,
+    );
+  let entry = [...entryIds][0];
+  if (!entry) {
+    const fed = new Set(inner.map((e) => e.to.node));
+    const heads = cmd.nodes.filter((id) => !fed.has(id));
+    if (heads.length !== 1)
+      throw new CommandError('bad-selection', 'Nothing leads into the selection');
+    entry = heads[0] as Ulid;
+  }
+
+  // Ways out: one parent wire per subflow port.
+  const outgoing = level.edges.filter((e) => picked.has(e.from.node) && !picked.has(e.to.node));
+  const enclosing = Object.entries(boundary?.outputs ?? {}).flatMap(([port, refs]) =>
+    (refs ?? []).filter((r) => picked.has(r.node)).map((r) => ({ ref: r, leaves: port })),
+  );
+  const dest = new Map<string, string>();
+  const claim = (port: string, where: string, what: string) => {
+    const had = dest.get(port);
+    if (had !== undefined && had !== where)
+      throw new CommandError(
+        'bad-selection',
+        `The subflow would need two ${port} wires: ${what} leaves for another place than the rest`,
+      );
+    dest.set(port, where);
+  };
+  for (const e of outgoing)
+    claim(exitPort(e.from.port), `node:${groupKey(e.to)}`, `${title(e.from.node)}.${e.from.port}`);
+  for (const x of enclosing)
+    claim(exitPort(x.ref.port), `leave:${x.leaves}`, `${title(x.ref.node)}.${x.ref.port}`);
+
+  // The new node.
+  const taken = levelKeys(level);
+  const key = cmd.key ?? uniqueKey(slugify(cmd.title, 'subflow'), taken);
+  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
+  if (taken.has(key))
+    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
+  const id = ctx.newId();
+
+  // Outputs read outside the group are lifted to the subflow (AFD-7 decision).
+  const movedIds = new Set(entries.flatMap((e) => [e.node.id, ...descendants(e.node)]));
+  const keyOf = new Map(entries.map((e) => [e.node.key, e.node]));
+  const lifted = new Map<string, { name: string; field: ContractField }>();
+  const rewrites: { path: Path; value: string; node: Ulid }[] = [];
+  for (const other of st.model.nodes.values()) {
+    if (movedIds.has(other.node.id)) continue;
+    const scope = keyScope(st.model, other.level);
+    for (const side of ['inputs', 'outputs'] as const)
+      for (const [name, field] of Object.entries(other.node[side] ?? {})) {
+        const [head, out, ...rest] = (field?.from ?? '').split('.');
+        const source = head ? keyOf.get(head) : undefined;
+        if (!source || !out || scope.get(head as string) !== source.id) continue;
+        const ref = `${head}.${out}`;
+        let lift = lifted.get(ref);
+        if (!lift) {
+          const names = new Set([...lifted.values()].map((l) => l.name));
+          const plain = out;
+          const prefixed = `${(head as string).replaceAll('-', '_')}_${out}`;
+          lift = {
+            name: names.has(plain) ? prefixed : plain,
+            field: { type: source.outputs?.[out]?.type ?? 'any', from: ref },
+          };
+          lifted.set(ref, lift);
+        }
+        rewrites.push({
+          path: [...other.path, side, name, 'from'],
+          value: [key, lift.name, ...rest].join('.'),
+          node: other.node.id,
+        });
+      }
+  }
+
+  // Inner fail ports that bubbled to the enclosing level keep bubbling through the new subflow.
+  const exits = new Set([...dest.keys()]);
+  const wiredOut = new Set(level.edges.map((e) => groupKey(e.from)));
+  for (const x of enclosing) wiredOut.add(groupKey(x.ref));
+  const decided = new Set(
+    (st.doc.decisions ?? [])
+      .filter((d) => d?.kind === 'open_on_purpose')
+      .map((d) => `${d.node}|${d.port}`),
+  );
+  for (const e of entries)
+    for (const p of portsFor(e.node))
+      if (p.direction === 'out' && isFailPort(p.name) && !wiredOut.has(`${e.node.id}|${p.name}`))
+        if (
+          !decided.has(`${e.node.id}|${p.name}`) &&
+          isPortLegal({ type: 'subflow' } as FlowNode, p.name)
+        )
+          exits.add(p.name);
+  const optional = optionalPortNames('subflow');
+  const ports = [...exits].filter((p) => optional.includes(p)).sort();
+
+  // Boundary of the new subflow: its entry, and every exit by its subflow port.
+  const outputs: Record<string, BoundaryExit[]> = {};
+  const addExit = (port: string, ref: BoundaryExit) => {
+    const list = outputs[port] ?? [];
+    outputs[port] = list;
+    if (!list.some((r) => r.node === ref.node && r.port === ref.port))
+      list.push({ node: ref.node, port: ref.port, ...(ref.reason ? { reason: ref.reason } : {}) });
+  };
+  for (const e of outgoing)
+    addExit(exitPort(e.from.port), { node: e.from.node, port: e.from.port });
+  for (const x of enclosing) addExit(exitPort(x.ref.port), x.ref);
+
+  const docNodes = level.nodes.filter((n) => n && picked.has(n.id));
+  const item: Record<string, YamlValue> = { id, key, type: 'subflow', title: cmd.title };
+  // As far along as its least advanced work step; "specified" needs a contract of its own.
+  const rank: NodeStatus[] = ['draft', 'specified', 'implemented', 'tested'];
+  const work = entries.filter((e) => e.node.type === 'task' || e.node.type === 'subflow');
+  const lowest = work.length
+    ? rank[Math.min(...work.map((e) => rank.indexOf(e.node.status ?? 'draft')))]
+    : 'draft';
+  item.status = lowest === 'specified' && lifted.size === 0 ? 'draft' : (lowest ?? 'draft');
+  if (ports.length > 0) item.ports = ports;
+  if (lifted.size > 0)
+    item.outputs = Object.fromEntries([...lifted.values()].map((l) => [l.name, contract(l.field)]));
+  const body: Record<string, YamlValue> = {
+    nodes: docNodes as unknown as YamlValue,
+  };
+  if (inner.length > 0)
+    body.edges = inner.map((e) => ({
+      id: e.id,
+      from: { node: e.from.node, port: e.from.port },
+      to: { node: e.to.node, port: e.to.port },
+    }));
+  const b: Record<string, YamlValue> = { in: entry };
+  if (Object.keys(outputs).length > 0)
+    b.outputs = Object.fromEntries(
+      Object.entries(outputs).map(([port, refs]) => [
+        port,
+        refs.map((r) => ({
+          node: r.node,
+          port: r.port,
+          ...(r.reason ? { reason: r.reason } : {}),
+        })),
+      ]),
+    );
+  body.boundary = b;
+  item.subflow = body;
+
+  // One batch on this parse: remove the group and its inner wires, retarget the wires in and out
+  // (a merged exit keeps its first wire), the enclosing boundary, the rewritten references.
+  const ops: Op[] = [];
+  const nodeIdx = level.nodes.map((n, i) => (n && picked.has(n.id) ? i : -1)).filter((i) => i >= 0);
+  ops.push(...removeIndexes(level.nodesPath, nodeIdx, level.nodes.length));
+  const keptExit = new Set<string>();
+  const dropEdge = new Set(inner.map((e) => e.id));
+  for (const e of outgoing) {
+    const port = exitPort(e.from.port);
+    if (keptExit.has(port)) dropEdge.add(e.id);
+    else keptExit.add(port);
+  }
+  const edgeIdx = level.edges
+    .map((e, i) => (e && dropEdge.has(e.id) ? i : -1))
+    .filter((i) => i >= 0);
+  ops.push(...removeIndexes(level.edgesPath, edgeIdx, level.edges.length));
+  level.edges.forEach((e, i) => {
+    if (!e || dropEdge.has(e.id)) return;
+    const path = [...level.edgesPath, i];
+    if (incoming.includes(e)) ops.push((f) => setIn(f, [...path, 'to', 'node'], id));
+    if (outgoing.includes(e)) {
+      ops.push((f) => setIn(f, [...path, 'from', 'node'], id));
+      const port = exitPort(e.from.port);
+      if (port !== e.from.port) ops.push((f) => setIn(f, [...path, 'from', 'port'], port));
+    }
+  });
+  if (parent && boundary) {
+    const next: Boundary = {
+      in: boundary.in && picked.has(boundary.in) ? id : boundary.in,
+      outputs: Object.fromEntries(
+        Object.entries(boundary.outputs ?? {}).map(([port, refs]) => {
+          const kept = (refs ?? []).filter((r) => !picked.has(r.node));
+          const moved = (refs ?? []).filter((r) => picked.has(r.node));
+          const through = [...new Set(moved.map((r) => exitPort(r.port)))].map((p) => ({
+            node: id,
+            port: p,
+          }));
+          return [port, [...kept, ...through]];
+        }),
+      ),
+    };
+    ops.push(...boundaryOps(st, parent.id, next));
+  }
+  for (const r of rewrites) ops.push((f) => setIn(f, r.path, r.value));
+  tx.applyAll(ops);
+
+  // Then the node, where the group's first node was, and its position.
+  const after1 = state(tx);
+  const lv = levelOf(after1, levelId);
+  const at = Math.min(nodeIdx[0] ?? lv.nodes.length, lv.nodes.length);
+  tx.apply((f) =>
+    lv.nodes.length === 0 ? setIn(f, lv.nodesPath, [item]) : insertItem(f, lv.nodesPath, at, item),
+  );
+  if (cmd.position) setPositions(tx, { [id]: cmd.position });
+  return { id, rewritten: [...new Set(rewrites.map((r) => r.node))] };
+}
+
 export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): void {
   const st = state(tx);
   tx.applyAll(
@@ -1171,6 +1441,8 @@ export function planCommand(
   const tx = new YamlTransaction(text, parsed);
   const before = NO_DESIGN.has(cmd.kind) ? undefined : (tx.current.doc.toJS() as FlowDocument);
   let created: Ulid | undefined;
+  /** Nodes whose design a command only re-references (their tested status stays). */
+  const rereferenced: Ulid[] = [];
   switch (cmd.kind) {
     case 'addNode':
       created = addNode(tx, ctx, cmd);
@@ -1244,6 +1516,12 @@ export function planCommand(
     case 'setBoundaryIn':
       setBoundaryIn(tx, cmd);
       break;
+    case 'extractSubflow': {
+      const r = extractSubflow(tx, ctx, cmd);
+      created = r.id;
+      rereferenced.push(...r.rewritten);
+      break;
+    }
     case 'connectBoundary':
       connectBoundary(tx, cmd);
       break;
@@ -1266,6 +1544,7 @@ export function planCommand(
     const keep = new Set<Ulid>();
     if (cmd.kind === 'updateNode' && cmd.patch.status !== undefined) keep.add(cmd.id);
     if (cmd.kind === 'setBinding' && cmd.status !== undefined) keep.add(cmd.id);
+    for (const n of rereferenced) keep.add(n);
     dropped = testedDropBack(before, tx.current.doc.toJS() as FlowDocument, keep);
     if (dropped.length > 0) implementedAgain(tx, dropped);
     else dropped = undefined;

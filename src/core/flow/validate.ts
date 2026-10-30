@@ -391,6 +391,8 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   const flowInputs = new Set(Object.keys(model.doc.flow?.inputs ?? {}));
   for (const { node, path, level } of model.nodes.values()) {
     const scope = keyScope(model, level);
+    // A subflow's outputs read its inner steps (AFD-7 lifts them there).
+    const inner = model.levels.has(node.id) ? keyScope(model, node.id) : scope;
     for (const side of ['inputs', 'outputs'] as const) {
       for (const [name, field] of Object.entries(node[side] ?? {})) {
         const from = field?.from;
@@ -400,7 +402,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         if (head === 'flow') ok = flowInputs.has(rest);
         else if (head === 'impl') ok = true;
         else {
-          const ref = scope.get(head);
+          const ref = (side === 'outputs' ? inner : scope).get(head);
           const target = ref ? model.nodes.get(ref)?.node : undefined;
           // `key.output` or a path into it (`key.output.changed`).
           ok = !!target && (rest === '' || (rest.split('.')[0] ?? '') in (target.outputs ?? {}));

@@ -72,7 +72,43 @@ D-05 lets any subflow have an inner graph. D-23 asks for a drilled-in view where
   - _Open subflow_ drills in.
 - Duration and last change are left out until Run mode (M7) and Git sync (M6).
 
-**Not in M4:** extracting selected nodes into a new subflow (follow-up AFD-7).
+**Not in M4:** extracting selected nodes into a new subflow (follow-up AFD-7, done below).
+
+## Amendment: extract into a subflow (AFD-7, 2026-10-30)
+
+Decisions by the user:
+- one way in: a selection entered at two nodes is refused;
+- outputs read outside the selection are lifted to the new subflow;
+- extraction works on any level.
+
+**Selection.** Ctrl/Cmd+click or Shift+drag selects several nodes (`selection.nodes`). The right panel then shows the selection and _Extract into subflow_ (title, key preview). A refusal is shown in the panel. Summary cards stay closed for a group.
+
+**The command `extractSubflow`** (one WorkspaceEdit). It refuses a selection that:
+- spans more than one level, or includes start or end nodes;
+- is not connected;
+- is entered at two nodes (counting the enclosing `boundary.in`);
+- needs two wires on one subflow port.
+
+What it does:
+- **Moves:** the nodes, with their IDs and in document order, and the wires between them go into `subflow.nodes` and `subflow.edges`. Positions stay in the flat layout map.
+- **Places:** the new subflow node takes the place of the first selected node, at the selection's top-left corner.
+- **Entry:** wires into the group keep their IDs and end at the subflow's `in`; `boundary.in` is the node they reached.
+- **Exits:** wires out keep their IDs and start at the subflow port of the same name. A port the subflow lacks maps by kind: fail-type ports go to `failed_hosts`, other outcomes to `ok_hosts`. Each becomes a boundary exit. Exits to the same place merge into one parent wire, and the other wires' IDs are dropped.
+- **Nested levels:** exits of an enclosing subflow now leave through the new one, and an enclosing `boundary.in` in the group becomes the new subflow.
+- **Bubbling:** open fail ports keep bubbling. The optional fail ports they use (`unreachable`, `timeout`) are enabled on the new subflow.
+- **Lifted outputs:** each output of a moved node that is read outside becomes a subflow output (`<output>`, or `<key>_<output>` on a clash) with `from: <inner key>.<output>`. Those references are rewritten in the same edit, and the nodes whose references changed keep their tested status (a mechanical rename). The validator resolves a subflow's outputs in its inner scope, and codegen resolves them through to the inner node's variable (`outputVar`), so generated code reads the same host variable.
+- **Status:** the subflow is as far along as its least advanced work step, but "specified" only with a contract of its own; otherwise draft.
+
+**Tests.**
+- **Unit:**
+  - the move with every ID kept;
+  - wires, boundary and banner;
+  - lifted outputs with identical input vars, and a merged exit;
+  - a nested extraction (exit through the new subflow, `unreachable` enabled);
+  - refusals.
+- **Webview:** group selection on the canvas, the command and its position, a refusal, the new subflow selected.
+- **Integration:** one edit, the new level on the canvas, one undo restores the bytes; a refusal leaves the file untouched.
+- **Engine (2.19–2.21):** the os-upgrade check run with `set-boot-variable` and `reload` extracted routes every host through the same ports to the same outcome. The data-passing run with `produce` and `stub` extracted delivers the same values (its `assert` checks them).
 
 ## Consequences
 

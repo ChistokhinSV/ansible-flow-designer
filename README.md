@@ -29,6 +29,10 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only.
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
+- **Extract into subflow (AFD-7):** Ctrl/Cmd+click or Shift+drag several connected nodes, then _Extract into subflow_ in the right panel. The nodes and the wires between them move into a new subflow with their IDs, in one undo step.
+  - Wires in must reach one node; wires out leave through the subflow's ports.
+  - Outputs read outside become subflow outputs, and those references are rewritten.
+  - It works inside subflows too.
 - **Subflows (M4, ADR-0010):** double-click a subflow (or press Enter, or use _Open subflow_) to open its inner steps.
   - The view shows a _Back_ button, a breadcrumb and chips for the context it inherits (inventory target, credential, EE, become, serial).
   - A dashed **boundary frame** carries the subflow's ports: `in` on top, outcomes below, problems on the right.
@@ -101,7 +105,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.11.0.vsix
+code --install-extension out/ansible-flow-designer-0.12.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -312,6 +316,7 @@ just install
 | `just awx-lab --fixtures`        | Also the M9 import fixture workflows; `--record-import f` records their API answers  |
 | `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
 | `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
+| `just test-extract [version]`    | Extract into subflow inside VS Code (AFD-7)                                          |
 | `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |

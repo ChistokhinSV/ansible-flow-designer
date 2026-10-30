@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.0 — AFD-7
+
+- _Extract into subflow_ (ADR-0010 amendment): select several connected nodes (Ctrl/Cmd+click, Shift+drag), and the right panel offers to move them into a new subflow in one edit.
+  - IDs, inner wires and positions are kept.
+  - Wires into the group end at the subflow's `in`; its `boundary.in` is the node they reached, and two ways in are refused.
+  - Wires out leave through the subflow's ports as boundary exits. Exits to the same place merge, and two different places on one port are refused.
+  - It works on any level: exits of an enclosing subflow leave through the new one, and open fail ports keep bubbling.
+  - Outputs read outside the group are lifted to subflow outputs, and the references are rewritten. Codegen and the validator resolve subflow outputs through to the inner step.
+  - The subflow's status follows its least advanced step.
+- Webview: group selection (`selection.nodes`), the selection panel; summary cards stay closed for a group.
+- Engine contract tests run flows before and after an extraction (a `transform` per scenario): same ports, same outcome, same data.
+- The webview harness exposes its store as `afdUi`, for group selections in the browser pane (dev only).
+
 ## 0.11.0 — AFD-11
 
 - AWX approval segments (ADR-0016). A flow with top-level approvals runs in AWX as a workflow of segment playbooks with real approval nodes.
