@@ -24,6 +24,19 @@ export default defineConfig({
             },
           ]
         : []),
+      // The MCP server end to end on dist/mcp.js: `just test-mcp` builds it first (AFD-19).
+      ...(process.env.AFD_MCP
+        ? [
+            {
+              test: {
+                name: 'mcp',
+                environment: 'node',
+                include: ['test/mcp/**/*.test.ts'],
+                testTimeout: 30_000,
+              },
+            },
+          ]
+        : []),
       // Docker-based engine contract tests run only through `just test-engine` (AFD_ENGINE=1).
       ...(process.env.AFD_ENGINE
         ? [

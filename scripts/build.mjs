@@ -1,6 +1,6 @@
 // Builds the extension host bundle (esbuild) and the webview bundle (Vite).
 // Flags: --production (minify, no sourcemaps), --watch, --tests (integration test bundles only).
-import { cpSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as esbuild from 'esbuild';
 import { build as viteBuild } from 'vite';
@@ -8,6 +8,9 @@ import { build as viteBuild } from 'vite';
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 const testsOnly = process.argv.includes('--tests');
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+// The MCP server for terminal agents (AFD-19) starts per agent session: keep it small.
+const MCP_BUDGET = 900 * 1024;
 
 /**
  * ELK is most of the host code: the extension loads it on first use (autoLayout.ts), from its
@@ -30,8 +33,11 @@ const hostOptions = {
     extension: 'src/extension/extension.ts',
     catalogWorker: 'src/extension/catalog/catalogWorker.ts',
     elk: 'elkjs/lib/elk.bundled.js',
+    mcp: 'src/mcp/main.ts',
   },
   plugins: [elkApart],
+  // jsonc-parser's default (UMD) build requires its parts at run time; the ESM build bundles.
+  alias: { 'jsonc-parser': './node_modules/jsonc-parser/lib/esm/main.js' },
   outdir: 'dist',
   bundle: true,
   platform: 'node',
@@ -41,7 +47,10 @@ const hostOptions = {
   sourcemap: !production,
   minify: production,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development') },
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development'),
+    __AFD_VERSION__: JSON.stringify(version),
+  },
   logLevel: 'info',
 };
 
@@ -90,5 +99,10 @@ if (testsOnly) {
 } else {
   copyProbe();
   await esbuild.build(hostOptions);
+  const mcp = statSync('dist/mcp.js').size;
+  if (production && mcp > MCP_BUDGET)
+    throw new Error(
+      `dist/mcp.js is ${Math.round(mcp / 1024)} KB, over the ${MCP_BUDGET / 1024} KB budget`,
+    );
   await buildWebview();
 }

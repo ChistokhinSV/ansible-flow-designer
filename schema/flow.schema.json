@@ -11,35 +11,41 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 1,
+      "description": "Format version of this file; always 1."
     },
     "flow": {
       "type": "object",
       "required": [
-        "id",
         "key",
         "name",
         "version"
       ],
       "properties": {
         "id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/ulid",
+          "description": "Fixed ID of the flow (ULID). Leave it out when writing by hand: Complete IDs adds it. Never change it."
         },
         "key": {
-          "$ref": "#/$defs/slug"
+          "$ref": "#/$defs/slug",
+          "description": "Short name of the flow: lowercase letters, digits and dashes. Names the generated playbook."
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "Human name of the flow."
         },
         "version": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "description": "Bumped once per commit when the design changes (not for layout moves). Tools bump it; do not edit by hand."
         },
         "goal": {
-          "type": "string"
+          "type": "string",
+          "description": "What the flow achieves, in a sentence."
         },
         "owner": {
-          "type": "string"
+          "type": "string",
+          "description": "Team or person that owns the flow."
         },
         "runtime": {
           "type": "object",
@@ -49,16 +55,19 @@
                 "awx_workflow",
                 "awx_job",
                 "ansible_playbook"
-              ]
+              ],
+              "description": "awx_job (one playbook), awx_workflow (approval segments) or ansible_playbook (local runs only)."
             },
             "template": {
-              "type": "string"
+              "type": "string",
+              "description": "Name of the AWX job or workflow template."
             }
-          }
+          },
+          "description": "How the flow runs in AWX: a job template, or a workflow when approvals split it."
         },
         "imported_from": {
           "type": "object",
-          "description": "Where an imported flow came from, for reference only (M9): a one-time copy",
+          "description": "Where an imported flow came from, for reference only: a one-time copy",
           "required": [
             "kind",
             "template"
@@ -67,13 +76,16 @@
             "kind": {
               "enum": [
                 "awx_workflow"
-              ]
+              ],
+              "description": "What the flow was imported from."
             },
             "template": {
-              "type": "string"
+              "type": "string",
+              "description": "Name of the imported AWX workflow template."
             },
             "id": {
-              "type": "integer"
+              "type": "integer",
+              "description": "ID of the imported template in AWX."
             }
           },
           "additionalProperties": false
@@ -81,28 +93,33 @@
         "maintenance_window": {
           "type": "string",
           "pattern": "^([0-9]+[smhd])+$",
-          "description": "Longest time the flow may take, e.g. 4h or 2h30m (Timing lens, M8)"
+          "description": "Longest time the flow may take, e.g. 4h or 2h30m (Timing lens)"
         },
         "inputs": {
-          "$ref": "#/$defs/contract"
+          "$ref": "#/$defs/contract",
+          "description": "Inputs a run asks for. A host_list input with targets: true seeds the hosts entering the start node."
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The flow itself: identity, version, goal and the inputs a run asks for."
     },
     "nodes": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/node"
-      }
+      },
+      "description": "Nodes of the top level, in any order. Subflow nodes hold their own inner level under subflow."
     },
     "edges": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/edge"
-      }
+      },
+      "description": "Wires of the top level: an output port of one node to an input port of another node on the same level. One wire per output port."
     },
     "layout": {
-      "$ref": "#/$defs/layout"
+      "$ref": "#/$defs/layout",
+      "description": "Canvas positions of every node at every level, by node ID (or by key while written by hand). Optional: missing positions are laid out automatically."
     },
     "decisions": {
       "type": "array",
@@ -113,33 +130,38 @@
         ],
         "properties": {
           "node": {
-            "$ref": "#/$defs/ulid"
+            "$ref": "#/$defs/nodeRef",
+            "description": "The node the decision is about (open_on_purpose, drift_ignored)."
           },
           "port": {
-            "type": "string"
+            "type": "string",
+            "description": "open_on_purpose: the fail port left open on purpose."
           },
           "kind": {
             "enum": [
               "open_on_purpose",
               "drift_ignored",
               "finding_accepted"
-            ]
+            ],
+            "description": "open_on_purpose: a fail port stays unwired on purpose (hosts stop there); drift_ignored: design and code differ on purpose; finding_accepted: a lens finding is expected."
           },
           "item": {
             "type": "string",
             "minLength": 1,
-            "description": "drift_ignored: the drift item kept as it is (M6, D-29)"
+            "description": "drift_ignored: the drift item kept as it is"
           },
           "finding": {
             "type": "string",
             "minLength": 1,
-            "description": "finding_accepted: the lens finding kept as expected (M8)"
+            "description": "finding_accepted: the lens finding kept as expected"
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "Why. Required in practice: the designer asks for it."
           },
           "by": {
-            "type": "string"
+            "type": "string",
+            "description": "Who decided (Git user name). Tools fill it in."
           }
         },
         "allOf": [
@@ -190,18 +212,33 @@
               ]
             }
           }
-        ]
-      }
+        ],
+        "description": "One decision. kind decides which fields it needs."
+      },
+      "description": "Choices people made about the design: a fail port left open on purpose, a drift item or a lens finding kept as it is."
     }
   },
   "$defs": {
     "ulid": {
       "type": "string",
-      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "A ULID: 26 characters, digits and uppercase letters (no I, L, O, U). Written by the designer and tools; never invent one by hand."
     },
     "slug": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Lowercase letters, digits and single dashes, e.g. backup-config."
+    },
+    "nodeRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ulid"
+        },
+        {
+          "$ref": "#/$defs/slug"
+        }
+      ],
+      "description": "A node: its ID, or its key while the file is written by hand. 'Complete IDs' (designer quick fix, or the flow_complete_ids tool) replaces keys with IDs."
     },
     "contract": {
       "type": "object",
@@ -217,25 +254,31 @@
               "dict",
               "host_list",
               "any"
-            ]
+            ],
+            "description": "Value type. host_list is a list of inventory hosts or groups."
           },
           "required": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Inputs: a run must provide a value."
           },
-          "default": {},
+          "default": {
+            "description": "Inputs: value used when none is given."
+          },
           "from": {
             "type": "string",
-            "description": "node_key.output_name, flow.input_name, or impl return path"
+            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result)."
           },
           "targets": {
             "type": "boolean",
-            "description": "Flow inputs only: this host_list input seeds the start node's host set (ADR-0004)"
+            "description": "Flow inputs only: this host_list input seeds the start node's host set."
           }
         },
         "required": [
           "type"
-        ]
-      }
+        ],
+        "description": "One input or output field."
+      },
+      "description": "Named inputs or outputs: name -> field."
     },
     "port": {
       "anyOf": [
@@ -262,7 +305,7 @@
           "pattern": "^branch_[0-9]+$"
         }
       ],
-      "description": "Parallel branch ports use the pattern branch_<n>"
+      "description": "A port name. Which ports a node has depends on its type: see the port catalog. Parallel branch ports are branch_1, branch_2, ..."
     },
     "portref": {
       "type": "object",
@@ -272,34 +315,40 @@
       ],
       "properties": {
         "node": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/nodeRef",
+          "description": "The node: its ID, or its key while written by hand."
         },
         "port": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Port name: an output (from) or an input (to) of that node."
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "One end of a wire: a node and one of its ports."
     },
     "edge": {
       "type": "object",
       "required": [
-        "id",
         "from",
         "to"
       ],
       "properties": {
         "id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/ulid",
+          "description": "Fixed ID of the wire (ULID). Leave it out when writing by hand: Complete IDs adds it."
         },
         "from": {
-          "$ref": "#/$defs/portref"
+          "$ref": "#/$defs/portref",
+          "description": "The output port the hosts leave from."
         },
         "to": {
-          "$ref": "#/$defs/portref"
+          "$ref": "#/$defs/portref",
+          "description": "The input port they enter (usually in)."
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "A wire from an output port to an input port on the same level. Its hosts are the hosts that took that output."
     },
     "impl": {
       "type": [
@@ -316,21 +365,27 @@
             "module",
             "role",
             "playbook"
-          ]
+          ],
+          "description": "module, role or playbook."
         },
         "ref": {
-          "type": "string"
+          "type": "string",
+          "description": "Fully qualified module or role name (e.g. ansible.builtin.ping, netops.baseline), or the playbook path in the repository."
         },
         "collection_version": {
-          "type": "string"
+          "type": "string",
+          "description": "Collection version the binding was made against."
         },
         "params": {
-          "type": "object"
+          "type": "object",
+          "description": "Module parameters or role variables. Jinja may reference inputs by name."
         },
         "register": {
-          "type": "string"
+          "type": "string",
+          "description": "Variable that keeps the task result; outputs read it with from: impl.register."
         }
-      }
+      },
+      "description": "What the node runs: an Ansible module, a role or a playbook. null or absent: the node runs as a TODO stub (walking skeleton)."
     },
     "layout": {
       "type": "object",
@@ -342,28 +397,33 @@
         ],
         "properties": {
           "x": {
-            "type": "number"
+            "type": "number",
+            "description": "Horizontal position."
           },
           "y": {
-            "type": "number"
+            "type": "number",
+            "description": "Vertical position."
           }
-        }
-      }
+        },
+        "description": "Top-left corner of the node on the canvas, in pixels."
+      },
+      "description": "Positions by node ID (or by key while written by hand)."
     },
     "node": {
       "type": "object",
       "required": [
-        "id",
         "key",
         "type",
         "title"
       ],
       "properties": {
         "id": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/ulid",
+          "description": "Fixed ID of the node (ULID). Leave it out when writing by hand: Complete IDs adds it. Never change it."
         },
         "key": {
-          "$ref": "#/$defs/slug"
+          "$ref": "#/$defs/slug",
+          "description": "Short name, unique on its level: lowercase letters, digits and dashes. Wires and from: references may use it."
         },
         "type": {
           "enum": [
@@ -375,13 +435,16 @@
             "approval",
             "parallel",
             "join"
-          ]
+          ],
+          "description": "start (one, on the top level; hosts enter), end (hosts leave; outcome success or failed), task, subflow (has an inner level), decision (true/false per host), approval (a person approves), parallel (branches), join (branches meet)."
         },
         "title": {
-          "type": "string"
+          "type": "string",
+          "description": "Human name shown on the canvas."
         },
         "intent": {
-          "type": "string"
+          "type": "string",
+          "description": "What the node should do, in a sentence. Skeleton runs print it."
         },
         "status": {
           "enum": [
@@ -389,26 +452,31 @@
             "specified",
             "implemented",
             "tested"
-          ]
+          ],
+          "description": "How far the node is built: draft (an idea), specified (has inputs or outputs), implemented (bound to code), tested (a passing run; set by runs only)."
         },
         "inputs": {
-          "$ref": "#/$defs/contract"
+          "$ref": "#/$defs/contract",
+          "description": "Values the node needs, usually from: an earlier node or a flow input."
         },
         "outputs": {
-          "$ref": "#/$defs/contract"
+          "$ref": "#/$defs/contract",
+          "description": "Values the node produces for later nodes."
         },
         "ports": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/port"
           },
-          "description": "Optional ports enabled beyond the type defaults"
+          "description": "Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task)."
         },
         "impl": {
-          "$ref": "#/$defs/impl"
+          "$ref": "#/$defs/impl",
+          "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
         },
         "undo": {
-          "$ref": "#/$defs/impl"
+          "$ref": "#/$defs/impl",
+          "description": "What reverses the node, run by Rollback for the failed hosts."
         },
         "condition": {
           "type": "string",
@@ -440,45 +508,55 @@
             "retry",
             "exclude"
           ],
-          "description": "Marks a failure handler node (D-11, D-16)"
+          "description": "Marks a failure handler node (what kind of handling it does)"
         },
         "settings": {
           "type": "object",
           "properties": {
             "max_fail_percentage": {
-              "type": "number"
+              "type": "number",
+              "description": "Fail the whole node when more than this share of hosts fail."
             },
             "serial": {
               "type": [
                 "string",
                 "integer"
-              ]
+              ],
+              "description": "Batch size or percentage for rolling execution."
             },
             "timeout": {
-              "type": "string"
+              "type": "string",
+              "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
             },
             "retries": {
-              "type": "integer"
+              "type": "integer",
+              "description": "Retries before a host fails."
             },
             "become": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Run with privilege escalation."
             },
             "credential": {
-              "type": "string"
+              "type": "string",
+              "description": "AWX credential name (AWX runs only)."
             },
             "execution_environment": {
-              "type": "string"
+              "type": "string",
+              "description": "AWX execution environment name."
             },
             "inventory_target": {
-              "type": "string"
+              "type": "string",
+              "description": "Run the node's work on this host pattern instead of the arriving hosts (they leave together afterwards)."
             },
             "tags": {
               "type": "array",
               "items": {
                 "type": "string"
-              }
+              },
+              "description": "Extra Ansible tags for the generated play."
             }
-          }
+          },
+          "description": "How the node runs (play keywords)."
         },
         "subflow": {
           "type": "object",
@@ -487,22 +565,26 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/node"
-              }
+              },
+              "description": "Nodes of the inner level."
             },
             "edges": {
               "type": "array",
               "items": {
                 "$ref": "#/$defs/edge"
-              }
+              },
+              "description": "Wires of the inner level."
             },
             "layout": {
-              "$ref": "#/$defs/layout"
+              "$ref": "#/$defs/layout",
+              "description": "Old place for inner positions: read, never written (positions live in the top-level layout)."
             },
             "boundary": {
               "type": "object",
               "properties": {
                 "in": {
-                  "$ref": "#/$defs/ulid"
+                  "$ref": "#/$defs/nodeRef",
+                  "description": "The inner node that receives the hosts entering the subflow."
                 },
                 "outputs": {
                   "type": "object",
@@ -510,15 +592,20 @@
                     "type": "array",
                     "items": {
                       "$ref": "#/$defs/exitref"
-                    }
-                  }
+                    },
+                    "description": "Inner outputs leaving through this port."
+                  },
+                  "description": "Exits: a parent port name -> the inner outputs that leave through it."
                 }
-              }
+              },
+              "description": "How hosts enter and leave the subflow."
             }
-          }
+          },
+          "description": "Subflow nodes: the inner level and how hosts enter and leave it."
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "A step of the flow. Its type decides its ports; its status says how far it is built."
     },
     "exitref": {
       "type": "object",
@@ -528,18 +615,22 @@
       ],
       "properties": {
         "node": {
-          "$ref": "#/$defs/ulid"
+          "$ref": "#/$defs/nodeRef",
+          "description": "The inner node: its ID, or its key while written by hand."
         },
         "port": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*$"
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "The inner node's output port."
         },
         "reason": {
           "type": "string",
-          "description": "Why hosts leave the subflow here (shown on the exit wire, mockup 10)"
+          "description": "Why hosts leave the subflow here (shown on the exit wire)"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "An inner output that leaves the subflow."
     }
-  }
+  },
+  "description": "An Ansible flow: a graph of typed nodes wired port to port. Hosts travel along the wires; every control port carries the hosts that took it. The designer edits this file; tools and AI assistants may write it too."
 }

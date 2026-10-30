@@ -16,10 +16,10 @@ export function selectedNodes(): Ulid[] {
   return selection.nodes ?? (selection.node ? [selection.node] : []);
 }
 
-/** Edits are possible: not in Run mode, and the text parses. */
+/** Edits are possible: not in Run mode, the text parses, and no IDs are missing (AFD-19). */
 export function canEdit(): boolean {
   const { mode, snapshot } = useUi.getState();
-  return mode !== 'run' && !!snapshot?.doc && !snapshot.stale;
+  return mode !== 'run' && !!snapshot?.doc && !snapshot.stale && !snapshot.idGaps;
 }
 
 /** The boundary wires of an open subflow (`entry:…`, `exit:…`, see viewModel) as menu targets. */

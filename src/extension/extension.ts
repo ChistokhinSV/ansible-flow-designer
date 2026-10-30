@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import type { ToolResult } from '../core/ai/handlers';
+import { runTool } from '../core/ai/handlers';
 import type { CollectionFile } from '../core/catalog/types';
 import type { CodeScan, DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
@@ -9,6 +11,10 @@ import { createSchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
+import { COMPLETE_IDS, CompleteIdsActions } from './ai/completeIdsAction';
+import { hostFlowIO, registerFlowTools } from './ai/lmTools';
+import { AiSetup, type SetupPicks } from './ai/setup';
+import type { Agent, Item as SetupItem } from './ai/writers';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
 import {
   type AwxDeps,
@@ -78,6 +84,15 @@ export interface AfdTestApi {
   initFlow(uri: vscode.Uri): Promise<CommandOutcome>;
   /** M9: Import AWX Workflow with every pick given (writes the flow, does not open it). */
   importAwx(request: ImportRequest): Promise<ImportOutcome>;
+  /** AFD-19: a Copilot flow tool, called as Copilot calls it (without the confirmation). */
+  aiTool(name: string, input: unknown): Promise<ToolResult>;
+  /** AFD-19: Set Up / Remove AI Assistants with the picks given and no questions. */
+  setupAi(picks: SetupPicks): Promise<SetupItem[] | undefined>;
+  removeAi(picks: {
+    agents: Agent[];
+    home?: string;
+    repo?: string;
+  }): Promise<SetupItem[] | undefined>;
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -150,6 +165,25 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }
     return session;
   };
+
+  // AFD-19: Copilot's flow tools see the workspace's flows; edits are one undo step each.
+  const flowIO = hostFlowIO({
+    schema: deps.schema,
+    newId: deps.newId,
+    activeFlow: () => {
+      const editor = vscode.window.activeTextEditor?.document;
+      return activeSession(sessions)?.uri ?? (editor && isFlow(editor) ? editor.uri : undefined);
+    },
+    open: (uri) =>
+      vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false }),
+  });
+  context.subscriptions.push(...registerFlowTools(flowIO));
+  const aiSetup = new AiSetup(context);
+  context.subscriptions.push(
+    vscode.commands.registerCommand('afd.setupAi', () => aiSetup.setup()),
+    vscode.commands.registerCommand('afd.removeAi', () => aiSetup.remove()),
+  );
+  void (testMode ? aiSetup.refreshContext() : aiSetup.checkStale()).catch(() => undefined);
 
   const provider: vscode.CustomTextEditorProvider = {
     async resolveCustomTextEditor(document, panel) {
@@ -296,6 +330,17 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       if (outcome && !outcome.ok)
         void vscode.window.showErrorMessage(outcome.error ?? 'Tidy up failed');
     }),
+    vscode.commands.registerCommand(COMPLETE_IDS, async (uri?: vscode.Uri) => {
+      const doc = await flowDoc(uri);
+      if (!doc) return;
+      const outcome = await sessionFor(doc).completeIds();
+      if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'IDs not completed');
+    }),
+    vscode.languages.registerCodeActionsProvider(
+      { pattern: '**/*.flow.yaml' },
+      new CompleteIdsActions(),
+      { providedCodeActionKinds: CompleteIdsActions.kinds },
+    ),
     vscode.commands.registerCommand('afd.copyNodes', () => activeSession(sessions)?.copyNodes()),
     vscode.commands.registerCommand('afd.pasteNodes', () => activeSession(sessions)?.pasteNodes()),
     vscode.commands.registerCommand('afd.validate', async () => {
@@ -317,6 +362,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   };
   return {
     run: (uri, command) => get(uri).runCommand(command),
+    aiTool: (name, input) => runTool(flowIO, name, input),
+    setupAi: (picks) => aiSetup.setup(picks, false),
+    removeAi: (picks) => aiSetup.remove(picks),
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
     reveal: (uri, node) => get(uri).reveal(node),

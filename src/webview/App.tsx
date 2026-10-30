@@ -42,12 +42,14 @@ function domSummary(docVersion: number): DomSummary {
   });
   const banner = document.querySelector<HTMLElement>('[data-banner-count]');
   const frame = document.querySelector<HTMLElement>('[data-frame]');
+  const gaps = document.querySelector<HTMLElement>('[data-id-gaps]');
   return {
     docVersion,
     level: useUi.getState().level,
     nodes,
     edges: document.querySelectorAll('.react-flow__edge').length,
     banner: banner ? Number(banner.dataset.bannerCount) : null,
+    idGaps: gaps ? Number(gaps.dataset.idGaps) : null,
     frame: frame
       ? {
           ports: [...frame.querySelectorAll<HTMLElement>('[data-frame-port]')]

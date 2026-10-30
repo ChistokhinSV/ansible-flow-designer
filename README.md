@@ -290,6 +290,56 @@ Port catalog per node type (ADR-0004):
 | parallel      | `in`, `branch_1..n`              | none                                                                 |
 | join          | `in`, `ok_hosts`                 | `failed_hosts`                                                       |
 
+## AI assistants
+
+The extension teaches AI assistants the flow format and gives them tools that edit flows by key, so they never write IDs, wire ports a node does not have, or leave failures unhandled (AFD-19, ADR-0017).
+
+**Copilot (VS Code):** nothing to set up.
+- The `ansible-flow` skill and the instructions for `*.flow.yaml` load when they are relevant.
+- Seven tools are in agent mode and can be referenced with `#`: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`, `#flowNew`, `#flowCompleteIds`.
+- An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved changes, so the version bump and `generated/` follow as on any save.
+
+**Claude Code, Codex CLI, Gemini CLI:** Command Palette → _Ansible Flow: Set Up AI Assistants…_
+1. Pick the agents. Each is marked "found on PATH" or "not found: config only".
+2. Choose where the skill goes: _This repository_ (commit the copies to share them with the team) or _Just me_.
+3. Check the preview of every file and registration, then apply. Restart running agents.
+
+| Agent                                       | Skill copy                               | Flow tools (MCP server `ansible-flow`)    |
+| ------------------------------------------- | ---------------------------------------- | ----------------------------------------- |
+| Claude Code (CLI and its VS Code extension) | `.claude/skills/` or `~/.claude/skills/` | `claude mcp add -s user` (run for you)    |
+| Codex CLI                                   | `.agents/skills/` or `~/.agents/skills/` | marked block in `~/.codex/config.toml`    |
+| Gemini CLI                                  | `.agents/skills/` or `~/.gemini/skills/` | `mcpServers` in `~/.gemini/settings.json` |
+- The server runs on `node` when Node 20+ is on PATH, else on VS Code's own runtime. No Node install is needed.
+- Config files get a one-time `.afd-backup` copy before the first change. Entries you wrote yourself are left alone.
+- After an extension update the setup offers to update itself once.
+- _Ansible Flow: Remove AI Assistant Setup…_ removes only what setup wrote.
+- Gemini enables MCP servers only in trusted folders: accept its trust prompt for the repository.
+- Without the claude CLI on PATH, setup offers the `claude mcp add …` command to copy.
+
+**What the tools do:**
+- `flow_describe` shows a flow by key: nodes, wires `precheck.ok_hosts -> check-ntp`, subflows as `fix-ntp/push-config`, open fail ports and a revision.
+- `flow_edit` takes a batch of ops in order, all or nothing, e.g.:
+
+  ```json
+  {"ops": [
+    {"op": "add_node", "type": "task", "title": "Check NTP", "on_wire": "precheck.ok_hosts"},
+    {"op": "apply_pattern", "at": "check-ntp.failed_hosts", "pattern": "notify-stop"}
+  ]}
+  ```
+
+  Errors name the op and how to fix it ("No node "chek-ntp"; did you mean check-ntp?"), and nothing is written. The answer lists the nodes created and the problems the edit added or solved.
+- A terminal agent's edit acts like a save in the designer:
+  - `flow.version` moves once per commit;
+  - tested nodes that changed drop back to implemented;
+  - `generated/` is refreshed, keeping files edited by hand.
+- Tools touch only `*.flow.yaml` inside the workspace (Copilot) or the agent's roots, else its working folder (MCP).
+
+**Hand-written YAML:**
+- An assistant without the tools, or you, can write a flow or a snippet without `id:` lines and name nodes by key in wires and references.
+- The designer shows it with a _Written by hand_ banner. The Problems panel lists each gap (`missing-id`).
+- _Complete IDs_ (the banner button, the lightbulb quick fix, or the command) adds the IDs in one edit, which one undo reverts.
+- Paste does the same for snippets.
+
 ## Repository
 
 | Path                             | What                                                                                                                                   |
@@ -306,6 +356,10 @@ Port catalog per node type (ADR-0004):
 | `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                               |
 | `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import AWX Workflow (M9), approval workflows (AFD-11).  |
 | `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
+| `src/core/ai/`                   | AI tool core: key references, the op language, flow descriptions, tool specs and handlers, the generated reference (AFD-19).           |
+| `src/mcp/`                       | The MCP server for terminal agents (`dist/mcp.js`) and its file-system IO (AFD-19).                                                    |
+| `src/extension/ai/`              | Copilot tools, Complete IDs quick fix, Set Up / Remove AI Assistants (skill copies, MCP registrations, launcher) (AFD-19).             |
+| `skills/`, `instructions/`       | The `ansible-flow` skill (`references/` generated by `just gen-ai`) and Copilot instructions for `*.flow.yaml` (AFD-19).               |
 | `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
 | `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                 |
 | `src/extension/catalog/`         | SQLite FTS5 catalog index, its build worker, the catalog service, catalog-backed binding checks (M5).                                  |
@@ -346,6 +400,9 @@ just install
 | `just test-extract [version]`    | Extract into subflow inside VS Code (AFD-7)                                          |
 | `just test-clipboard [version]`  | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards  |
 | `just test-edit [version]`       | One undo step per selection edit inside VS Code (AFD-18)                             |
+| `just test-ai [version]`         | AI assistants inside VS Code: Complete IDs, Copilot tools, setup (AFD-19)            |
+| `just test-mcp`                  | The MCP server end to end over stdio on the production bundle (AFD-19)               |
+| `just gen-ai`                    | Regenerate the skill references and the Copilot tool entries in `package.json`       |
 | `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |

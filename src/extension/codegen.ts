@@ -1,12 +1,10 @@
 // Writes generated code next to a flow (ADR-0009): generated/<flow-key>.yml plus one file per
-// subflow level, only when the content changed, never over hand edits unless forced.
+// subflow level, only when the content changed, never over hand edits unless forced. What to write
+// is decided by the core write plan, shared with the MCP server (AFD-19).
 import * as vscode from 'vscode';
-import { GENERATED_MARK, generatedState } from '../core/engine/files';
-import { optionA } from '../core/engine/optionA';
 import type { GenerateResult } from '../core/engine/types';
-import { parseFlow } from '../core/flow/document';
+import { planGenerated } from '../core/engine/writePlan';
 import type { SchemaValidator } from '../core/flow/schema';
-import { validateFlow } from '../core/flow/validate';
 
 export interface CodegenOutcome {
   ok: boolean;
@@ -48,65 +46,53 @@ export async function generateFlow(
   schema: SchemaValidator,
   options: { force?: boolean } = {},
 ): Promise<CodegenOutcome> {
-  const empty = { written: [], kept: [], removed: [] };
-  const text = document.getText();
-  const parsed = parseFlow(text);
-  if (!parsed.doc) return { ok: false, error: 'The flow does not parse', ...empty };
-  const errors = validateFlow(parsed.doc, schema(parsed.doc)).findings.filter(
-    (f) => f.severity === 'error',
-  );
-  if (errors.length > 0)
-    return {
-      ok: false,
-      error: `The flow has ${errors.length} error(s); generated code was not updated`,
-      ...empty,
-    };
-  const source = document.uri.path.split('/').pop() ?? 'flow.yaml';
-  const result = optionA.generate(parsed.doc, {
-    source,
-    eol: text.includes('\r\n') ? '\r\n' : '\n',
-    root: rootFromGenerated(document.uri),
-  });
-  if (!result.ok)
-    return {
-      ok: false,
-      error: result.findings[0]?.message ?? 'Code generation failed',
-      ...empty,
-      result,
-    };
-
   const dir = generatedDir(document.uri);
-  const outcome: CodegenOutcome = { ok: true, written: [], kept: [], removed: [], result, dir };
-  for (const file of result.files) {
-    const uri = vscode.Uri.joinPath(dir, file.name);
-    const existing = await readText(uri);
-    if (existing === file.text) continue;
-    if (existing !== undefined && !options.force) {
-      const state = generatedState(existing);
-      if (!state.ours || state.edited) {
-        outcome.kept.push(uri);
-        continue;
-      }
-    }
-    await vscode.workspace.fs.writeFile(uri, encoder.encode(file.text));
-    outcome.written.push(uri);
+  const plan = await planGenerated(
+    document.getText(),
+    schema,
+    {
+      read: (name) => readText(vscode.Uri.joinPath(dir, name)),
+      list: async () => {
+        try {
+          return (await vscode.workspace.fs.readDirectory(dir))
+            .filter(([, type]) => type === vscode.FileType.File)
+            .map(([name]) => name);
+        } catch {
+          return [];
+        }
+      },
+    },
+    {
+      source: document.uri.path.split('/').pop() ?? 'flow.yaml',
+      root: rootFromGenerated(document.uri),
+      force: options.force,
+    },
+  );
+  const at = (name: string) => vscode.Uri.joinPath(dir, name);
+  if (!plan.ok)
+    return {
+      ok: false,
+      error: plan.error,
+      written: [],
+      kept: [],
+      removed: [],
+      ...(plan.result ? { result: plan.result } : {}),
+    };
+  const outcome: CodegenOutcome = {
+    ok: true,
+    written: [],
+    kept: plan.kept.map(at),
+    removed: [],
+    result: plan.result,
+    dir,
+  };
+  for (const file of plan.write) {
+    await vscode.workspace.fs.writeFile(at(file.name), encoder.encode(file.text));
+    outcome.written.push(at(file.name));
   }
-
-  // Level files of this flow that are no longer generated (a subflow lost its inner graph).
-  const key = parsed.doc.flow.key;
-  const names = new Set(result.files.map((f) => f.name));
-  let entries: [string, vscode.FileType][] = [];
-  try {
-    entries = await vscode.workspace.fs.readDirectory(dir);
-  } catch {}
-  for (const [name, type] of entries) {
-    if (type !== vscode.FileType.File || names.has(name)) continue;
-    if (!name.startsWith(`${key}.`) || !name.endsWith('.yml')) continue;
-    const uri = vscode.Uri.joinPath(dir, name);
-    const existing = await readText(uri);
-    if (!existing?.startsWith(GENERATED_MARK) || generatedState(existing).edited) continue;
-    await vscode.workspace.fs.delete(uri);
-    outcome.removed.push(uri);
+  for (const name of plan.remove) {
+    await vscode.workspace.fs.delete(at(name));
+    outcome.removed.push(at(name));
   }
   return outcome;
 }

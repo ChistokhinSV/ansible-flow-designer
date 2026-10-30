@@ -1,0 +1,13 @@
+---
+applyTo: '**/*.flow.yaml'
+---
+
+This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes wired port to port.
+
+- Prefer the flow tools (`#flowDescribe`, `#flowEdit`, `#flowValidate`) over editing the YAML; they
+  name nodes by key and keep the file valid. The `ansible-flow` skill explains the format.
+- When editing the YAML by hand: never write `id:` values or ULIDs; name nodes by key in wires and
+  references, then run **Complete IDs** (designer banner or the quick fix).
+- One wire per output port; wires stay on one level; handle every fail port (wire it or leave it
+  open on purpose with a reason); never set `status: tested`.
+- Do not change `flow.version`, `layout` or files under `generated/`.

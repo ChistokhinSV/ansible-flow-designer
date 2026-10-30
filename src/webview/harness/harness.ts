@@ -22,6 +22,7 @@ import type { CodeScan } from '../../core/drift/types';
 import { optionA } from '../../core/engine/optionA';
 import { codePreview } from '../../core/engine/preview';
 import { type FlowCommand, planCommand } from '../../core/flow/commands';
+import { completeIds } from '../../core/flow/completeIds';
 import { parseFlow } from '../../core/flow/document';
 import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
@@ -139,19 +140,22 @@ async function snapshot(): Promise<Snapshot> {
   const preview = findings.some((f) => f.severity === 'error')
     ? undefined
     : codePreview(parsed.doc, 'harness.flow.yaml');
+  // Written by hand (AFD-19): the flow as shown has its missing IDs filled.
+  const gaps = findings.filter((f) => f.code === 'missing-id' || f.code === 'unknown-key').length;
   return {
     docVersion: version,
-    doc: parsed.doc,
+    doc: model.doc,
     stale: false,
     findings: [...findings, ...(preview?.findings ?? [])],
     openPorts: openFailPorts(model),
     autoPositions: Object.assign(
       {},
       ...(await Promise.all(
-        [...model.levels.values()].map((l) => autoPositions(l, parsed.doc?.layout)),
+        [...model.levels.values()].map((l) => autoPositions(l, model.doc.layout)),
       )),
     ),
     plays: preview?.plays,
+    ...(gaps > 0 ? { idGaps: gaps } : {}),
   };
 }
 
@@ -289,6 +293,16 @@ async function onMessage(m: WebviewMessage) {
       });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       break;
+    case 'completeIds': {
+      const done = completeIds(text, newId);
+      if (done.text !== text) {
+        undo.push(text);
+        text = done.text;
+        version++;
+      }
+      toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      break;
+    }
     case 'initFlow':
       undo.push(text);
       text = newFlowText('Empty', 'empty', createIdFactory());

@@ -137,7 +137,8 @@ export function CanvasContextMenu() {
   const entries = canvasMenu(model, menu.target, {
     mode,
     level,
-    stale: snapshot.stale,
+    stale: snapshot.stale || !!snapshot.idGaps,
+    ...(snapshot.idGaps ? { why: 'Complete IDs first (the banner above the canvas)' } : {}),
     openPorts: snapshot.openPorts,
     hasPlay: (id) => !!snapshot.plays?.[id],
   });

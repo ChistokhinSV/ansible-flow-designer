@@ -54,6 +54,8 @@ function addLevel(
   nodes.forEach((node, i) => {
     if (!node || typeof node !== 'object') return;
     const path = [...nodesPath, i];
+    // Nodes without an ID (written by hand, AFD-19) stay in the level but are not indexed.
+    if (typeof node.id !== 'string') return;
     // First occurrence wins; duplicates are reported by the validator.
     if (!model.nodes.has(node.id)) model.nodes.set(node.id, { node, level: id, path });
     if (node.subflow && typeof node.subflow === 'object') {
@@ -68,7 +70,7 @@ function addLevel(
     }
   });
   edges.forEach((edge, i) => {
-    if (!edge || typeof edge !== 'object') return;
+    if (!edge || typeof edge !== 'object' || typeof edge.id !== 'string') return;
     if (!model.edges.has(edge.id))
       model.edges.set(edge.id, { edge, level: id, path: [...edgesPath, i] });
   });

@@ -13,6 +13,8 @@
       "!schema",
       "!test/fixtures",
       "!docs/spikes",
+      "!skills",
+      "!instructions",
       "!probe",
       "!dist",
       "!out",

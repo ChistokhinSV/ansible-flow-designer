@@ -22,6 +22,10 @@ build-prod:
 watch:
     node scripts/build.mjs --watch
 
+# Regenerate what AI assistants read: the skill's references and the Copilot tools in package.json
+gen-ai:
+    node scripts/gen-ai.mjs
+
 # Type-check (TypeScript 7) and lint/format check (Biome)
 check:
     npx --no-install tsc -p tsconfig.json
@@ -76,6 +80,11 @@ test-edit $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label edit
 
+# AI assistants inside VS Code (AFD-19): Complete IDs, Copilot tools, setup, MCP on VS Code's runtime
+test-ai $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label ai
+
 # AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
@@ -84,6 +93,10 @@ test-import $AFD_VSCODE_VERSION="stable": build-prod
 # Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
 test-docker-lab *suites:
     node lab/docker-suites.mjs {{ suites }}
+
+# The MCP server for terminal agents, end to end over stdio on the production bundle (AFD-19)
+test-mcp: build-prod
+    {{ if os_family() == "windows" { "$env:AFD_MCP='1';" } else { "export AFD_MCP=1;" } }} npx --no-install vitest run --project mcp
 
 # Engine contract tests: generated code runs in each Ansible image (Docker); images comma-separated
 test-engine $AFD_ENGINE_IMAGES="ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21":

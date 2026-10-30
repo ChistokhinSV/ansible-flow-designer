@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.15.0 — AFD-19
+
+- **AI assistants edit flows by key** (ADR-0017):
+  - Copilot gets the `ansible-flow` skill, instructions for `*.flow.yaml` and seven tools (`#flowDescribe`, `#flowEdit`, …) with no setup. An edit asks first and is one undo step. It is saved when the file had no unsaved changes.
+  - Claude Code, Codex CLI and Gemini CLI get the same skill and tools through _Ansible Flow: Set Up AI Assistants…_:
+    - the agents to set up, then the skill's place (this repository or just me), and a preview of every change;
+    - the flow tools come from a bundled MCP server that runs on Node or on VS Code's own runtime;
+    - config files are backed up once; _Remove AI Assistant Setup…_ takes back only what setup wrote.
+  - The tools describe a flow by key (`precheck.ok_hosts -> check-ntp`, `fix-ntp/push-config`) and edit it with batches of ops: add, connect, rewire, patterns, ports, inputs and outputs, bindings, subflows. A batch is all or nothing.
+    - Errors name the op and the fix ("did you mean check-ntp?", the node's ports).
+    - The answer lists the problems the edit added or solved.
+    - `tested` is refused.
+  - A terminal agent's edit acts like a save: version bump once per commit, and `generated/` refreshed without overwriting hand edits.
+  - The skill's format and ops references are generated from the schema, the port catalog, the patterns and the problem codes (`just gen-ai`). Its worked examples run in the tests.
+- **Flows written by hand:** a flow or a snippet may leave out `id:` lines and name nodes by key in wires, subflow entries and exits, decisions and positions.
+  - The designer shows it with a _Written by hand_ banner and lists each gap in Problems.
+  - _Complete IDs_ (banner, lightbulb quick fix, command) adds the IDs in one edit that keeps the rest of the text byte for byte.
+  - Canvas edits, runs and code generation wait for it. Paste completes hand-written snippets with their wires.
+- **Schema:**
+  - every property has a description (YAML hovers, AI assistants);
+  - `id` is optional;
+  - references may be keys.
+- Every problem code has a one-line meaning and fix, shown by the tools.
+- Generated-code writing is shared between the extension and the MCP server.
+
 ## 0.14.1 — AFD-18 follow-up
 
 - _Show in text_ (the context menu, the inspector) selects the whole node in the text editor, from its `- id:` line to its last line, including what is inside it. It selected only the first line before. The Problems panel still underlines one line.

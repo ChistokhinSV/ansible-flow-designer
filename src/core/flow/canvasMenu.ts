@@ -73,8 +73,10 @@ export interface CanvasMenuContext {
   mode: CanvasMode;
   /** The open level: `root` or a subflow node id. */
   level: string;
-  /** The text has YAML errors: the canvas shows the last good model and refuses edits. */
+  /** The text has YAML errors (or lacks IDs): the canvas shows a model and refuses edits. */
   stale: boolean;
+  /** Why edits are refused, when not for YAML errors. */
+  why?: string;
   openPorts: readonly OpenPort[];
   hasPlay: (node: Ulid) => boolean;
 }
@@ -119,7 +121,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   const node = model.nodes.get(id)?.node;
   if (!node) return [];
   const edit = ctx.mode !== 'run';
-  const lock = ctx.stale ? { disabled: STALE } : {};
+  const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const ends = node.type === 'start' || node.type === 'end';
   const open: CanvasMenuEntry[] = [];
   if (node.type === 'subflow')
@@ -208,7 +210,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
 function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const nodes = ids.map((id) => model.nodes.get(id)?.node).filter((n) => !!n);
   const edit = ctx.mode !== 'run';
-  const lock = ctx.stale ? { disabled: STALE } : {};
+  const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const clip: CanvasMenuEntry[] = [];
   if (edit) clip.push(item('Cut', { do: 'cut', nodes: ids }, { shortcut: 'cut', ...lock }));
   clip.push(item('Copy', { do: 'copy', nodes: ids }, { icon: 'copy', shortcut: 'copy' }));
@@ -242,7 +244,7 @@ function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): Canva
 
 function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const edit = ctx.mode !== 'run';
-  const lock = ctx.stale ? { disabled: STALE } : {};
+  const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const add = edit
     ? [
         item('Paste here', { do: 'paste' }, { icon: 'clippy', shortcut: 'paste', ...lock }),

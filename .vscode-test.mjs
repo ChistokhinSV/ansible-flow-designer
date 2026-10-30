@@ -100,6 +100,7 @@ export default defineConfig([
       'out/test/integration/notAFlow.test.js',
       'out/test/integration/clipboard.test.js',
       'out/test/integration/edit.test.js',
+      'out/test/integration/ai.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -124,6 +125,8 @@ export default defineConfig([
   { ...common, label: 'clipboard', files: 'out/test/integration/clipboard.test.js' },
   // AFD-18: one undo step per selection edit.
   { ...common, label: 'edit', files: 'out/test/integration/edit.test.js' },
+  // AFD-19: AI assistants (Complete IDs, Copilot tools, setup, MCP on VS Code's runtime).
+  { ...common, label: 'ai', files: 'out/test/integration/ai.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

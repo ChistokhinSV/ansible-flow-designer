@@ -5,6 +5,7 @@ import type { CodeScan, DriftAction } from '../core/drift/types';
 import { optionA } from '../core/engine/optionA';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
+import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow } from '../core/flow/document';
 import { type IdFactory, slugify } from '../core/flow/ids';
 import { buildModel, ROOT } from '../core/flow/model';
@@ -25,6 +26,7 @@ import type {
   Snapshot,
   WebviewMessage,
 } from '../core/protocol';
+import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel } from './autoLayout';
@@ -158,6 +160,11 @@ export class FlowSession implements vscode.Disposable {
     } else {
       const validated = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
       const { model } = validated;
+      // Written by hand (AFD-19): the canvas shows the flow with the missing IDs filled.
+      const gaps = validated.findings.filter(
+        (f) => f.code === 'missing-id' || f.code === 'unknown-key',
+      ).length;
+      const shown = model.doc;
 
       const preview = validated.findings.some((f) => f.severity === 'error')
         ? undefined
@@ -171,12 +178,13 @@ export class FlowSession implements vscode.Disposable {
       ];
       snapshot = {
         docVersion: version,
-        doc: parsed.doc,
+        doc: shown,
         stale: false,
         findings,
         openPorts: openFailPorts(model),
-        autoPositions: await this.allAutoPositions(model, parsed.doc.layout),
+        autoPositions: await this.allAutoPositions(model, shown.layout),
         plays: preview?.plays,
+        ...(gaps > 0 ? { idGaps: gaps } : {}),
       };
       this.lastGood = snapshot;
       this.deps.diagnostics.set(this.uri, toDiagnostics(this.document, file, findings));
@@ -381,6 +389,11 @@ export class FlowSession implements vscode.Disposable {
           4000,
         );
         break;
+      case 'completeIds': {
+        const outcome = await this.completeIds();
+        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'IDs not completed');
+        break;
+      }
       case 'initFlow': {
         const outcome = await this.initFlow();
         if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'No flow created');
@@ -582,6 +595,11 @@ export class FlowSession implements vscode.Disposable {
         ok: false,
         error: 'The document has YAML errors; fix them in the text editor first',
       };
+    if (snapshot.idGaps)
+      return {
+        ok: false,
+        error: 'This flow was written by hand: Complete IDs first (the banner, or the quick fix)',
+      };
     const text = this.document.getText();
     const cached =
       this.built?.version === this.document.version ? this.built.parsed.file : undefined;
@@ -710,6 +728,40 @@ export class FlowSession implements vscode.Disposable {
     const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
     const text = await vscode.env.clipboard.readText();
     if (panel) this.post(panel, { type: 'clipboard', action: 'paste', text });
+  }
+
+  /**
+   * AFD-19 Complete IDs: real IDs for nodes and wires written without them, and keys in wires,
+   * the boundary, decisions and layout replaced by IDs, in one edit (one undo step).
+   */
+  async completeIds(): Promise<CommandOutcome> {
+    const text = this.document.getText();
+    let result: ReturnType<typeof completeIds>;
+    try {
+      result = completeIds(text, this.deps.newId);
+    } catch (e) {
+      if (e instanceof YamlEditError) return { ok: false, error: e.message };
+      throw e;
+    }
+    const left = result.unresolved.map((g) => g.message);
+    if (result.text === text)
+      return left.length > 0
+        ? { ok: false, error: `Nothing to complete; still to fix by hand: ${left.join('; ')}` }
+        : { ok: true };
+    const edit = new vscode.WorkspaceEdit();
+    for (const e of diffEdits(text, result.text))
+      edit.replace(
+        this.uri,
+        new vscode.Range(this.document.positionAt(e.start), this.document.positionAt(e.end)),
+        e.newText,
+      );
+    if (!(await vscode.workspace.applyEdit(edit)))
+      return { ok: false, error: 'VS Code rejected the edit' };
+    if (left.length > 0)
+      void vscode.window.showWarningMessage(
+        `IDs completed; still to fix by hand: ${left.join('; ')}`,
+      );
+    return { ok: true };
   }
 
   /**

@@ -1,5 +1,5 @@
 export { applyEdits, diffEdits, type TextEdit } from './edits';
-export { deleteKey, insertItem, type OpResult, removeItem, setIn } from './ops';
+export { deleteKey, insertItem, type OpResult, removeItem, renameKey, setIn } from './ops';
 export {
   column,
   lineStart,

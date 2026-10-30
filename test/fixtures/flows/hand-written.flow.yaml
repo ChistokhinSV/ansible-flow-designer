@@ -1,0 +1,68 @@
+# Written by hand (or by an AI): no IDs, nodes named by key (AFD-19). Complete IDs fills them in.
+schema_version: 1
+flow:
+  key: ntp-check
+  name: NTP check
+  version: 1
+  goal: Check NTP on the edge switches and roll back the change if it breaks.
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+- key: start
+  type: start
+  title: Start
+- key: check-ntp
+  type: task
+  title: Check NTP
+  status: draft
+  intent: Read the NTP peers and compare them with the standard
+- key: fix-ntp
+  type: subflow
+  title: Fix NTP
+  status: draft
+  subflow:
+    nodes:
+    - key: push
+      type: task
+      title: Push NTP servers
+    - key: verify
+      type: task
+      title: Verify sync
+    edges:
+    - from: {node: push, port: ok_hosts}
+      to: {node: verify, port: in}
+    boundary:
+      in: push
+      outputs:
+        ok_hosts:
+        - node: verify
+          port: ok_hosts
+- key: done
+  type: end
+  title: Done
+  outcome: success
+- key: failed
+  type: end
+  title: Failed
+  outcome: failed
+edges:
+- from: {node: start, port: ok_hosts}
+  to: {node: check-ntp, port: in}
+- from: {node: check-ntp, port: ok_hosts}
+  to: {node: fix-ntp, port: in}
+- from: {node: fix-ntp, port: ok_hosts}
+  to: {node: done, port: in}
+- from: {node: fix-ntp, port: failed_hosts}
+  to: {node: failed, port: in}
+layout:
+  start: {x: 100, y: 40}
+  check-ntp: {x: 60, y: 140}
+decisions:
+- node: check-ntp
+  port: failed_hosts
+  kind: open_on_purpose
+  reason: Read-only check; nothing to undo
+  by: '[USER]'

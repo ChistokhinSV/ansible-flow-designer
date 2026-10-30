@@ -2,6 +2,9 @@
 !dist/extension.js
 !dist/catalogWorker.js
 !dist/elk.js
+!dist/mcp.js
+!skills/**
+!instructions/**
 !dist/webview/**
 !dist/probe/**
 !schema/flow.schema.json

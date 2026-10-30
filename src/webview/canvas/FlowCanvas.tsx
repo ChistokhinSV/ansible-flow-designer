@@ -91,6 +91,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const { screenToFlowPosition } = useReactFlow();
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
   const runMode = useUi((s) => s.mode === 'run');
+  // Written by hand without IDs (AFD-19): shown, not edited, until Complete IDs.
+  const handWritten = useUi((s) => !!s.snapshot?.idGaps);
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
   // Lenses (M8): Inventory labels wires with last-run host counts, Data adds derived data wires.
   const lensWires = useUi((s) => s.lensView?.wires);
@@ -543,8 +545,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
       }}
       isValidConnection={(c) => c.source !== c.target}
-      nodesConnectable={!runMode}
-      nodesDraggable={!runMode}
+      nodesConnectable={!runMode && !handWritten}
+      nodesDraggable={!runMode && !handWritten}
       // Delete and Backspace are the designer's (keyboard.ts): the selection in one command.
       deleteKeyCode={null}
       onlyRenderVisibleElements={cull}

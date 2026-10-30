@@ -27,6 +27,11 @@ export interface Snapshot {
   autoPositions: Record<Ulid, Position>;
   /** Generated play per node (ADR-0009); absent while the flow has errors. */
   plays?: Record<Ulid, string>;
+  /**
+   * Written by hand (AFD-19): this many IDs are missing or nodes are named by key. `doc` then shows
+   * the flow with the gaps filled for display, and edits wait for Complete IDs.
+   */
+  idGaps?: number;
 }
 
 /** A skeleton or real run of the flow and what it did per node (M3; full Run mode is M7). */
@@ -172,6 +177,8 @@ export type WebviewMessage =
   | { type: 'openText'; path?: Path }
   /** AFD-16: fill an empty file with the New Flow template. */
   | { type: 'initFlow' }
+  /** AFD-19: real IDs for a flow written by hand, in one edit. */
+  | { type: 'completeIds' }
   | { type: 'validate' }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
@@ -210,6 +217,8 @@ export interface DomSummary {
   nodes: { id: string; legal: string[]; ports: string[]; rest: string[] }[];
   edges: number;
   banner: number | null;
+  /** AFD-19: items the written-by-hand banner says need IDs (null: no banner). */
+  idGaps: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
   frame: { ports: string[]; wires: number } | null;
   /** Run mode (M7): each node's run state and each wire's label as drawn. */

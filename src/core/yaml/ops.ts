@@ -238,6 +238,23 @@ function pairSpan(text: string, pair: Pair<Node, Node | null>): [number, number]
   return wholeLines(text, startKey, pair.value?.range?.[2] ?? key.range?.[2] ?? startKey);
 }
 
+/** Renames a map key in place: only the key's text changes; its value and comments stay. */
+export function renameKey(file: YamlFile, mapPath: Path, key: string, next: string): OpResult {
+  const loc = locate(file, mapPath);
+  const map = loc?.node;
+  if (loc?.alias) return fail('unsupported', 'edit touches YAML anchors or aliases');
+  if (!loc || !isMap(map)) return fail('not-found', `no map at ${mapPath.join('.')}`);
+  const pair = findPair(map, key);
+  const range = (pair?.key as Node | undefined)?.range;
+  if (!pair || !range) return fail('not-found', `no key ${key}`);
+  if (findPair(map, next)) return fail('invalid', `key ${next} already exists`);
+  if (loc.ancestors.some(hasAnchor) || hasAnchor(map) || hasRefs(pair.key)) {
+    return fail('unsupported', 'edit touches YAML anchors or aliases');
+  }
+  const plain = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(next);
+  return ok([{ start: range[0], end: range[1], newText: plain ? next : JSON.stringify(next) }]);
+}
+
 export function deleteKey(file: YamlFile, mapPath: Path, key: string): OpResult {
   const loc = locate(file, mapPath);
   const map = loc?.node;

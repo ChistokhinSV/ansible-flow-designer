@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -80,6 +80,11 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.completeIds",
+        "title": "Complete IDs",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.copyNodes",
         "title": "Copy Nodes",
         "category": "Ansible Flow"
@@ -129,6 +134,16 @@
       {
         "command": "afd.awx.clearToken",
         "title": "Clear AWX Token",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.setupAi",
+        "title": "Set Up AI Assistants...",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.removeAi",
+        "title": "Remove AI Assistant Setup...",
         "category": "Ansible Flow"
       }
     ],
@@ -181,6 +196,10 @@
         {
           "command": "afd.pasteNodes",
           "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.completeIds",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         }
       ]
     },
@@ -293,6 +312,1160 @@
         "fileMatch": "*.flow.yaml",
         "url": "./schema/flow.schema.json"
       }
+    ],
+    "chatSkills": [
+      {
+        "path": "./skills/ansible-flow/SKILL.md",
+        "when": "!afd.skillOnDisk"
+      }
+    ],
+    "chatInstructions": [
+      {
+        "name": "AnsibleFlow",
+        "description": "How to read and edit Ansible flows (*.flow.yaml) safely",
+        "path": "./instructions/ansible-flow.instructions.md"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "afd_flow_list",
+        "displayName": "List flows",
+        "toolReferenceName": "flowList",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "List the Ansible flow files (*.flow.yaml) in the workspace with their name, version and problem counts.",
+        "modelDescription": "List the Ansible flow files (*.flow.yaml) in the workspace with their name, version and problem counts. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "afd_flow_describe",
+        "displayName": "Describe a flow",
+        "toolReferenceName": "flowDescribe",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Describe an Ansible flow by key: nodes, wires, subflows, open fail ports, problem counts and the revision to pass to flow_edit. Read this before editing.",
+        "modelDescription": "Describe an Ansible flow by key: nodes, wires, subflows, open fail ports, problem counts and the revision to pass to flow_edit. Read this before editing. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            },
+            "level": {
+              "type": "string",
+              "description": "all (default), top, or a subflow key to describe one level."
+            }
+          }
+        }
+      },
+      {
+        "name": "afd_flow_validate",
+        "displayName": "Check a flow",
+        "toolReferenceName": "flowValidate",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "List the problems of a flow (errors, warnings, notes) by node key, each with how to fix it.",
+        "modelDescription": "List the problems of a flow (errors, warnings, notes) by node key, each with how to fix it. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            }
+          }
+        }
+      },
+      {
+        "name": "afd_flow_reference",
+        "displayName": "Flow reference",
+        "toolReferenceName": "flowReference",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops and the problem codes.",
+        "modelDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops and the problem codes. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "enum": [
+                "all",
+                "format",
+                "ports",
+                "patterns",
+                "ops",
+                "problems"
+              ],
+              "description": "Part to return (default all)."
+            }
+          }
+        }
+      },
+      {
+        "name": "afd_flow_edit",
+        "displayName": "Edit a flow",
+        "toolReferenceName": "flowEdit",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Edit an Ansible flow with ops that name nodes by key (never IDs). The ops run in order, all or nothing; nodes added earlier in the batch can be used by later ops. Returns what changed, new problems and the new revision.",
+        "modelDescription": "Edit an Ansible flow with ops that name nodes by key (never IDs). The ops run in order, all or nothing; nodes added earlier in the batch can be used by later ops. Returns what changed, new problems and the new revision. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            },
+            "ops": {
+              "type": "array",
+              "minItems": 1,
+              "description": "Ops in order; flow_reference topic ops lists them with examples.",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "description": "Add a node. after wires an output to it, on_wire puts it on an existing wire, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.",
+                    "properties": {
+                      "op": {
+                        "const": "add_node"
+                      },
+                      "type": {
+                        "enum": [
+                          "end",
+                          "task",
+                          "subflow",
+                          "decision",
+                          "approval",
+                          "parallel",
+                          "join"
+                        ],
+                        "description": "start (one, on the top level; hosts enter), end (hosts leave; outcome success or failed), task, subflow (has an inner level), decision (true/false per host), approval (a person approves), parallel (branches), join (branches meet)."
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Human name shown on the canvas."
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "Key of the new node; default: from the title. Must be new on its level."
+                      },
+                      "in": {
+                        "type": "string",
+                        "description": "Subflow whose inner level gets the node (default: top)."
+                      },
+                      "after": {
+                        "type": "string",
+                        "description": "Wire this output port to the new node."
+                      },
+                      "on_wire": {
+                        "type": "string",
+                        "description": "Put the new node on the wire leaving this output port (between both ends)."
+                      },
+                      "failed_to": {
+                        "type": "string",
+                        "description": "Wire the new node's failed_hosts to this node."
+                      },
+                      "intent": {
+                        "type": "string",
+                        "description": "What the node should do, in a sentence. Skeleton runs print it."
+                      },
+                      "ports": {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "in",
+                                "ok_hosts",
+                                "failed_hosts",
+                                "unreachable",
+                                "unchanged",
+                                "always",
+                                "cancelled",
+                                "timeout",
+                                "undo",
+                                "true",
+                                "false",
+                                "approved",
+                                "rejected",
+                                "join"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^branch_[0-9]+$"
+                            }
+                          ],
+                          "description": "A port name. Which ports a node has depends on its type: see the port catalog. Parallel branch ports are branch_1, branch_2, ..."
+                        },
+                        "description": "Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task)."
+                      },
+                      "handler": {
+                        "enum": [
+                          "rollback",
+                          "notify",
+                          "retry",
+                          "exclude"
+                        ],
+                        "description": "Marks a failure handler node (what kind of handling it does)"
+                      },
+                      "outcome": {
+                        "enum": [
+                          "success",
+                          "failed"
+                        ],
+                        "description": "End nodes: success or failed."
+                      },
+                      "condition": {
+                        "type": "string",
+                        "description": "Decision nodes: Jinja expression evaluated per host."
+                      },
+                      "branches": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "description": "Parallel nodes: number of branch ports branch_1..branch_n (default 2)"
+                      },
+                      "join_mode": {
+                        "enum": [
+                          "all",
+                          "any"
+                        ],
+                        "description": "Join nodes: per host, all = every branch delivered the host (default), any = at least one"
+                      },
+                      "inputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "enum": [
+                                "string",
+                                "integer",
+                                "boolean",
+                                "list",
+                                "dict",
+                                "host_list",
+                                "any"
+                              ],
+                              "description": "Value type. host_list is a list of inventory hosts or groups."
+                            },
+                            "required": {
+                              "type": "boolean",
+                              "description": "Inputs: a run must provide a value."
+                            },
+                            "default": {
+                              "description": "Inputs: value used when none is given."
+                            },
+                            "from": {
+                              "type": "string",
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result)."
+                            },
+                            "targets": {
+                              "type": "boolean",
+                              "description": "Flow inputs only: this host_list input seeds the start node's host set."
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "description": "One input or output field."
+                        },
+                        "description": "Values the node needs, usually from: an earlier node or a flow input."
+                      },
+                      "outputs": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "enum": [
+                                "string",
+                                "integer",
+                                "boolean",
+                                "list",
+                                "dict",
+                                "host_list",
+                                "any"
+                              ],
+                              "description": "Value type. host_list is a list of inventory hosts or groups."
+                            },
+                            "required": {
+                              "type": "boolean",
+                              "description": "Inputs: a run must provide a value."
+                            },
+                            "default": {
+                              "description": "Inputs: value used when none is given."
+                            },
+                            "from": {
+                              "type": "string",
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result)."
+                            },
+                            "targets": {
+                              "type": "boolean",
+                              "description": "Flow inputs only: this host_list input seeds the start node's host set."
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "description": "One input or output field."
+                        },
+                        "description": "Values the node produces for later nodes."
+                      },
+                      "settings": {
+                        "type": "object",
+                        "properties": {
+                          "max_fail_percentage": {
+                            "type": "number",
+                            "description": "Fail the whole node when more than this share of hosts fail."
+                          },
+                          "serial": {
+                            "type": [
+                              "string",
+                              "integer"
+                            ],
+                            "description": "Batch size or percentage for rolling execution."
+                          },
+                          "timeout": {
+                            "type": "string",
+                            "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
+                          },
+                          "retries": {
+                            "type": "integer",
+                            "description": "Retries before a host fails."
+                          },
+                          "become": {
+                            "type": "boolean",
+                            "description": "Run with privilege escalation."
+                          },
+                          "credential": {
+                            "type": "string",
+                            "description": "AWX credential name (AWX runs only)."
+                          },
+                          "execution_environment": {
+                            "type": "string",
+                            "description": "AWX execution environment name."
+                          },
+                          "inventory_target": {
+                            "type": "string",
+                            "description": "Run the node's work on this host pattern instead of the arriving hosts (they leave together afterwards)."
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Extra Ansible tags for the generated play."
+                          }
+                        },
+                        "description": "How the node runs (play keywords)."
+                      },
+                      "impl": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "required": [
+                          "kind",
+                          "ref"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "module",
+                              "role",
+                              "playbook"
+                            ],
+                            "description": "module, role or playbook."
+                          },
+                          "ref": {
+                            "type": "string",
+                            "description": "Fully qualified module or role name (e.g. ansible.builtin.ping, netops.baseline), or the playbook path in the repository."
+                          },
+                          "collection_version": {
+                            "type": "string",
+                            "description": "Collection version the binding was made against."
+                          },
+                          "params": {
+                            "type": "object",
+                            "description": "Module parameters or role variables. Jinja may reference inputs by name."
+                          },
+                          "register": {
+                            "type": "string",
+                            "description": "Variable that keeps the task result; outputs read it with from: impl.register."
+                          }
+                        },
+                        "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "type",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Change fields of a node; null removes a field. A new key renames the node: from: references follow.",
+                    "properties": {
+                      "op": {
+                        "const": "update_node"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Human name shown on the canvas."
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "Short name, unique on its level: lowercase letters, digits and dashes. Wires and from: references may use it."
+                      },
+                      "intent": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "What the node should do, in a sentence. Skeleton runs print it."
+                      },
+                      "status": {
+                        "enum": [
+                          "draft",
+                          "specified",
+                          "implemented"
+                        ],
+                        "description": "draft, specified or implemented. tested is set by runs only."
+                      },
+                      "condition": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Decision nodes: Jinja expression evaluated per host"
+                      },
+                      "outcome": {
+                        "enum": [
+                          "success",
+                          "failed",
+                          null
+                        ],
+                        "description": "End nodes"
+                      },
+                      "handler": {
+                        "enum": [
+                          "rollback",
+                          "notify",
+                          "retry",
+                          "exclude",
+                          null
+                        ],
+                        "description": "Marks a failure handler node (what kind of handling it does)"
+                      },
+                      "join_mode": {
+                        "enum": [
+                          "all",
+                          "any",
+                          null
+                        ],
+                        "description": "Join nodes: per host, all = every branch delivered the host (default), any = at least one"
+                      },
+                      "branches": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 2,
+                        "description": "Parallel nodes: number of branch ports branch_1..branch_n (default 2)"
+                      },
+                      "settings": {
+                        "type": "object",
+                        "properties": {
+                          "max_fail_percentage": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "description": "Fail the whole node when more than this share of hosts fail."
+                          },
+                          "serial": {
+                            "type": [
+                              "string",
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Batch size or percentage for rolling execution."
+                          },
+                          "timeout": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
+                          },
+                          "retries": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Retries before a host fails."
+                          },
+                          "become": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ],
+                            "description": "Run with privilege escalation."
+                          },
+                          "credential": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "AWX credential name (AWX runs only)."
+                          },
+                          "execution_environment": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "AWX execution environment name."
+                          },
+                          "inventory_target": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Run the node's work on this host pattern instead of the arriving hosts (they leave together afterwards)."
+                          },
+                          "tags": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Extra Ansible tags for the generated play."
+                          }
+                        },
+                        "description": "Settings to change; a null value removes that setting."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Delete nodes (with their wires, inner steps and positions) and wires (named by the output port they leave).",
+                    "properties": {
+                      "op": {
+                        "const": "delete"
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                        },
+                        "description": "Nodes to delete."
+                      },
+                      "wires": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                        },
+                        "description": "Wires to delete, by the output they leave."
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Wire an output port to a node. One wire per output: fan out with a parallel node.",
+                    "properties": {
+                      "op": {
+                        "const": "connect"
+                      },
+                      "from": {
+                        "type": "string",
+                        "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                      },
+                      "to": {
+                        "type": "string",
+                        "description": "The node the wire goes to (its in port), or node.port for another input port."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Remove the wire leaving an output port.",
+                    "properties": {
+                      "op": {
+                        "const": "disconnect"
+                      },
+                      "from": {
+                        "type": "string",
+                        "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "from"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Point the wire leaving an output port at another node.",
+                    "properties": {
+                      "op": {
+                        "const": "rewire"
+                      },
+                      "from": {
+                        "type": "string",
+                        "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                      },
+                      "to": {
+                        "type": "string",
+                        "description": "The node the wire goes to (its in port), or node.port for another input port."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Enable an optional port of a node (e.g. unreachable, timeout, always on a task) so it can be wired.",
+                    "properties": {
+                      "op": {
+                        "const": "enable_port"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                      },
+                      "port": {
+                        "type": "string",
+                        "description": "The optional port."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node",
+                      "port"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Disable an optional port; its wire is removed.",
+                    "properties": {
+                      "op": {
+                        "const": "disable_port"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                      },
+                      "port": {
+                        "type": "string",
+                        "description": "The optional port."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node",
+                      "port"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Leave a fail port unwired on purpose, with a reason: its hosts fail the run and the open-port warning goes away.",
+                    "properties": {
+                      "op": {
+                        "const": "leave_open"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "The fail port, e.g. check-ntp.failed_hosts."
+                      },
+                      "reason": {
+                        "type": "string",
+                        "description": "Why the port stays open (shown in reviews)."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "at",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Remove a leave_open decision.",
+                    "properties": {
+                      "op": {
+                        "const": "reopen"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Handle an output with a ready-made pattern: adds the handler node and its wires (see the pattern list).",
+                    "properties": {
+                      "op": {
+                        "const": "apply_pattern"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
+                      },
+                      "pattern": {
+                        "enum": [
+                          "rollback",
+                          "notify-stop",
+                          "exclude",
+                          "retry",
+                          "stop",
+                          "done",
+                          "escalate",
+                          "report"
+                        ],
+                        "description": "Which pattern (see the pattern list)."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "at",
+                      "pattern"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: \"flow\").",
+                    "properties": {
+                      "op": {
+                        "const": "set_io"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). \"flow\" for the flow inputs."
+                      },
+                      "side": {
+                        "enum": [
+                          "inputs",
+                          "outputs"
+                        ],
+                        "description": "inputs or outputs."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Field name (snake_case)."
+                      },
+                      "field": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "properties": {
+                          "type": {
+                            "enum": [
+                              "string",
+                              "integer",
+                              "boolean",
+                              "list",
+                              "dict",
+                              "host_list",
+                              "any"
+                            ],
+                            "description": "Value type. host_list is a list of inventory hosts or groups."
+                          },
+                          "required": {
+                            "type": "boolean",
+                            "description": "Inputs: a run must provide a value."
+                          },
+                          "default": {
+                            "description": "Inputs: value used when none is given."
+                          },
+                          "from": {
+                            "type": "string",
+                            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result)."
+                          },
+                          "targets": {
+                            "type": "boolean",
+                            "description": "Flow inputs only: this host_list input seeds the start node's host set."
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "description": "The field; null removes it."
+                      },
+                      "rename": {
+                        "type": "string",
+                        "description": "New name for the field."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node",
+                      "side",
+                      "name",
+                      "field"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Change the flow header; null removes a field.",
+                    "properties": {
+                      "op": {
+                        "const": "update_flow"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "Human name of the flow."
+                      },
+                      "key": {
+                        "type": "string",
+                        "description": "Key of the flow (names the generated playbook)."
+                      },
+                      "goal": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "What the flow achieves, in a sentence."
+                      },
+                      "owner": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Team or person responsible."
+                      },
+                      "maintenance_window": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "When the flow may run against production."
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Set (or clear with null) the inner step that receives the hosts entering a subflow.",
+                    "properties": {
+                      "op": {
+                        "const": "set_entry"
+                      },
+                      "subflow": {
+                        "type": "string",
+                        "description": "The subflow node."
+                      },
+                      "node": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Key of a step on its inner level."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "subflow",
+                      "node"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Let an inner step's output leave the subflow through one of the subflow's ports.",
+                    "properties": {
+                      "op": {
+                        "const": "add_exit"
+                      },
+                      "from": {
+                        "type": "string",
+                        "description": "Inner output, e.g. fix-ntp/push-config.ok_hosts."
+                      },
+                      "port": {
+                        "type": "string",
+                        "description": "Port of the subflow node, e.g. ok_hosts."
+                      },
+                      "reason": {
+                        "type": "string",
+                        "description": "Optional note shown with the exit."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "from",
+                      "port"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Remove a subflow exit.",
+                    "properties": {
+                      "op": {
+                        "const": "remove_exit"
+                      },
+                      "from": {
+                        "type": "string",
+                        "description": "Inner output, e.g. fix-ntp/push-config.ok_hosts."
+                      },
+                      "port": {
+                        "type": "string",
+                        "description": "Port of the subflow node."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "from",
+                      "port"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Move connected nodes of one level into a new subflow node; wires across the edge become entry and exits.",
+                    "properties": {
+                      "op": {
+                        "const": "extract_subflow"
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                        },
+                        "description": "Nodes to move."
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Human name shown on the canvas."
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "Key of the new subflow; default: from the title."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "nodes",
+                      "title"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Bind what the node runs (a module, role or playbook), or null for a TODO stub. Prefer modules the catalog knows.",
+                    "properties": {
+                      "op": {
+                        "const": "bind"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                      },
+                      "impl": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "required": [
+                          "kind",
+                          "ref"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "module",
+                              "role",
+                              "playbook"
+                            ],
+                            "description": "module, role or playbook."
+                          },
+                          "ref": {
+                            "type": "string",
+                            "description": "Fully qualified module or role name (e.g. ansible.builtin.ping, netops.baseline), or the playbook path in the repository."
+                          },
+                          "collection_version": {
+                            "type": "string",
+                            "description": "Collection version the binding was made against."
+                          },
+                          "params": {
+                            "type": "object",
+                            "description": "Module parameters or role variables. Jinja may reference inputs by name."
+                          },
+                          "register": {
+                            "type": "string",
+                            "description": "Variable that keeps the task result; outputs read it with from: impl.register."
+                          }
+                        },
+                        "description": "The binding; null removes it."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node",
+                      "impl"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Lay out a level again (positions only).",
+                    "properties": {
+                      "op": {
+                        "const": "tidy_up"
+                      },
+                      "level": {
+                        "type": "string",
+                        "description": "top (default), all, or a subflow key."
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "revision": {
+              "type": "string",
+              "description": "Revision from flow_describe; the edit is refused when the file changed since."
+            },
+            "dry_run": {
+              "type": "boolean",
+              "description": "Check the ops and show the result without writing."
+            }
+          },
+          "required": [
+            "ops"
+          ]
+        }
+      },
+      {
+        "name": "afd_flow_new",
+        "displayName": "New flow",
+        "toolReferenceName": "flowNew",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Create a new flow file: start, done and a devices host_list input. Then add nodes with flow_edit.",
+        "modelDescription": "Create a new flow file: start, done and a devices host_list input. Then add nodes with flow_edit. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "New file, relative to the workspace root, ending in .flow.yaml (e.g. flows/ntp-baseline/ntp-baseline.flow.yaml)."
+            },
+            "name": {
+              "type": "string",
+              "description": "Human name of the flow."
+            },
+            "key": {
+              "type": "string",
+              "description": "Key of the flow; default: from the name."
+            },
+            "goal": {
+              "type": "string",
+              "description": "What the flow achieves, in a sentence."
+            }
+          },
+          "required": [
+            "path",
+            "name"
+          ]
+        }
+      },
+      {
+        "name": "afd_flow_complete_ids",
+        "displayName": "Complete IDs",
+        "toolReferenceName": "flowCompleteIds",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Add the IDs a hand-written flow lacks and turn node keys in wires and references into IDs, in one edit.",
+        "modelDescription": "Add the IDs a hand-written flow lacks and turn node keys in wires and references into IDs, in one edit. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            }
+          }
+        }
+      }
     ]
   },
   "scripts": {
@@ -300,10 +1473,12 @@
     "test:int": "vscode-test"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "@vscode/codicons": "0.0.46-24",
     "@xyflow/react": "12.12.0",
     "ajv": "8.20.0",
     "elkjs": "0.12.0",
+    "jsonc-parser": "3.3.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "ulid": "3.0.2",
@@ -312,6 +1487,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
+    "@modelcontextprotocol/client": "2.4.0",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
     "@types/mocha": "10.0.10",
@@ -325,6 +1501,7 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "jsdom": "30.1.3",
+    "smol-toml": "1.9.1",
     "typescript": "7.0.2",
     "vite": "8.3.5",
     "vitest": "5.0.5"

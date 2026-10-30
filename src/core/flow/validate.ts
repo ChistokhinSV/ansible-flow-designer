@@ -2,6 +2,7 @@
 
 import { planSegments } from '../engine/segments';
 import type { Path } from '../yaml/parse';
+import { idGaps, withIds } from './completeIds';
 import { refsIn } from './jinja';
 import { buildModel, type FlowModel, keyScope, ROOT } from './model';
 import { openFailPorts } from './openPorts';
@@ -44,7 +45,11 @@ export function validateFlow(
   doc: FlowDocument,
   schemaIssues: SchemaIssue[] = [],
 ): ValidationResult {
-  const model = buildModel(doc);
+  // A file written by hand may lack IDs (AFD-19): each gap is an error, and every other check runs
+  // on the flow with the gaps filled, so the rest of the design is checked as usual.
+  const gaps = idGaps(doc);
+  const checked = gaps.length > 0 ? withIds(doc) : doc;
+  const model = buildModel(checked);
   const findings: Finding[] = schemaIssues.map((i) => ({
     code: 'schema',
     severity: 'error',
@@ -52,6 +57,13 @@ export function validateFlow(
     path: pointerToPath(i.pointer),
   }));
   const add = (f: Finding) => findings.push(f);
+  for (const gap of gaps)
+    add({
+      code: gap.unresolved ? 'unknown-key' : 'missing-id',
+      severity: 'error',
+      message: gap.unresolved ? gap.message : `${gap.message}: Complete IDs adds it`,
+      path: gap.path,
+    });
 
   checkIdentity(model, add);
   checkEdges(model, add);
@@ -74,7 +86,7 @@ export function validateFlow(
   }
 
   const ids = new Set(model.nodes.keys());
-  for (const id of Object.keys(doc.layout ?? {})) {
+  for (const id of Object.keys(checked.layout ?? {})) {
     if (!ids.has(id)) {
       add({
         code: 'layout-orphan',

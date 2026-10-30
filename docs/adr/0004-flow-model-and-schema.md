@@ -2,6 +2,8 @@
 
 Status: Accepted · 2026-10-28 · AFD-1
 
+Amended by ADR-0017 (AFD-19): `id` is optional and references may name nodes by key while a flow is written by hand; the validator reports both as errors until _Complete IDs_.
+
 ## Schema (additive, `schema_version` stays 1)
 
 `schema/flow.schema.json` at the repo root is canonical; the handoff copy is kept unchanged. Both examples stay valid.

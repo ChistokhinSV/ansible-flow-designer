@@ -3,6 +3,7 @@
 // of nodes or a single node written by hand.
 import { parse } from 'yaml';
 import { renderBlock, type YamlValue } from '../yaml/render';
+import { withIds } from './completeIds';
 import { buildModel } from './model';
 import {
   type Decision,
@@ -100,7 +101,15 @@ export function parseClip(text: string): Clip | string {
       ? (obj.layout as Layout)
       : {};
   const decisions = Array.isArray(obj.decisions) ? (obj.decisions as Decision[]) : [];
-  return { nodes: nodes as FlowNode[], edges, layout, decisions };
+  // A snippet written by hand may leave IDs out and wire nodes by key (AFD-19): fill the gaps, so
+  // its wires paste with it (paste gives every node and wire a new ID anyway).
+  const filled = withIds({ nodes, edges, layout, decisions } as unknown as FlowDocument);
+  return {
+    nodes: filled.nodes,
+    edges: filled.edges,
+    layout: filled.layout ?? {},
+    decisions: filled.decisions ?? [],
+  };
 }
 
 /** Whether text looks like nodes to paste (cheap check before asking the host). */
