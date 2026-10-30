@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
+import { copySelection, installClipboard, pasteText } from './clipboard';
 import { Banner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
 import { DecisionDialog } from './panels/DecisionDialog';
@@ -136,6 +137,9 @@ function useHost() {
         ui.setLensFacts(m.facts);
       } else if (m.type === 'setLens') {
         ui.setLens(m.lens);
+      } else if (m.type === 'clipboard') {
+        if (m.action === 'copy') copySelection();
+        else void pasteText(m.text);
       } else if (m.type === 'openProperties') {
         ui.reveal(m.node);
         ui.openProperties(m.node, m.tab);
@@ -150,9 +154,11 @@ function useHost() {
     const onCsp = (e: SecurityPolicyViolationEvent) =>
       send({ type: 'cspViolation', detail: `${e.violatedDirective} ${e.blockedURI}` });
     document.addEventListener('securitypolicyviolation', onCsp);
+    const offClipboard = installClipboard();
     send({ type: 'ready' });
     return () => {
       off();
+      offClipboard();
       document.removeEventListener('securitypolicyviolation', onCsp);
     };
   }, []);

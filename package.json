@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -77,6 +77,16 @@
       {
         "command": "afd.showAudit",
         "title": "Show Run Audit Log",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.copyNodes",
+        "title": "Copy Nodes",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.pasteNodes",
+        "title": "Paste Nodes",
         "category": "Ansible Flow"
       },
       {
@@ -162,6 +172,14 @@
         },
         {
           "command": "afd.syntaxCheck",
+          "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.copyNodes",
+          "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.pasteNodes",
           "when": "activeCustomEditorId == afd.flowEditor"
         }
       ]

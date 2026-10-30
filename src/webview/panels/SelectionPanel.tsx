@@ -1,10 +1,11 @@
-// Right panel for several selected nodes (AFD-7): what is selected, and Extract into subflow. The
-// command checks the selection (one way in, exits, connected); a refusal is shown here.
+// Right panel for several selected nodes (AFD-7): what is selected, Copy (AFD-17) and Extract into
+// subflow. The command checks the selection (one way in, exits, connected); a refusal is shown here.
 import { useState } from 'react';
 import { slugify } from '../../core/flow/ids';
 import { buildModel } from '../../core/flow/model';
 import type { FlowNode, Ulid } from '../../core/flow/types';
 import { command } from '../bus';
+import { copySelection } from '../clipboard';
 import { useUi } from '../store';
 
 export function SelectionPanel({ ids }: { ids: Ulid[] }) {
@@ -48,6 +49,15 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
           </li>
         ))}
       </ul>
+      <section className="afd-section">
+        <p className="muted">
+          Copy takes the nodes, the wires between them and their layout as text: paste them on any
+          flow canvas, or keep them in a text file as a snippet.
+        </p>
+        <button type="button" onClick={copySelection}>
+          <span className="codicon codicon-copy" aria-hidden="true" /> Copy nodes
+        </button>
+      </section>
       <section className="afd-section">
         <h3>Extract into subflow</h3>
         <p className="muted">

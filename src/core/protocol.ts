@@ -130,7 +130,15 @@ export interface CatalogResults {
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'run'; run: RunView | null }
-  | { type: 'ack'; reqId: number; ok: boolean; error?: string; created?: Ulid }
+  | {
+      type: 'ack';
+      reqId: number;
+      ok: boolean;
+      error?: string;
+      created?: Ulid;
+      /** Every node a paste created (AFD-17). */
+      pasted?: Ulid[];
+    }
   | { type: 'reveal'; node: Ulid }
   /** Opens a level on the canvas: `root` or a subflow node id (M4; tests and commands). */
   | { type: 'openLevel'; level: string }
@@ -152,7 +160,10 @@ export type HostMessage =
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */
   | { type: 'lensFacts'; facts: LensFacts }
   /** Switches the lens (tests and commands, M8). */
-  | { type: 'setLens'; lens: LensId | null };
+  | { type: 'setLens'; lens: LensId | null }
+  /** AFD-17 palette commands: copy the selected nodes, or paste text the host read. */
+  | { type: 'clipboard'; action: 'copy' }
+  | { type: 'clipboard'; action: 'paste'; text: string };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -183,7 +194,9 @@ export type WebviewMessage =
   /** A lens was picked (M8): the host gathers its facts; `refresh` reads the inventory again. */
   | { type: 'lens'; lens: LensId | null; refresh?: boolean }
   /** Asks for the flow targets the Inventory lens counts (remembered with the run inputs). */
-  | { type: 'setTargets' };
+  | { type: 'setTargets' }
+  /** AFD-17: nodes as text for the system clipboard (Copy buttons, the palette command). */
+  | { type: 'copyText'; text: string; count: number };
 
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {

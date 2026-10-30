@@ -155,7 +155,12 @@ async function snapshot(): Promise<Snapshot> {
   };
 }
 
-function apply(input: FlowCommand): { ok: boolean; error?: string; created?: string } {
+function apply(input: FlowCommand): {
+  ok: boolean;
+  error?: string;
+  created?: string;
+  pasted?: string[];
+} {
   const cmd = input.kind === 'setDecision' && !input.by ? { ...input, by: 'harness-user' } : input;
   try {
     const r = planCommand(text, cmd, { newId });
@@ -164,7 +169,7 @@ function apply(input: FlowCommand): { ok: boolean; error?: string; created?: str
       text = r.text;
       version++;
     }
-    return { ok: true, created: r.created };
+    return { ok: true, created: r.created, pasted: r.pasted };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -397,6 +402,12 @@ async function onMessage(m: WebviewMessage) {
       void onMessage({ type: 'lens', lens: lensOpen, refresh: true });
       break;
     }
+    case 'copyText':
+      // The page's own clipboard stands in for VS Code's (AFD-17); harnessClip shows what was sent.
+      (window as unknown as { harnessClip?: string }).harnessClip = m.text;
+      void navigator.clipboard?.writeText(m.text).catch(() => undefined);
+      console.info(`[clipboard] ${m.count} node(s)`);
+      break;
     case 'perf':
       console.info(`[perf] ${m.event} v${m.docVersion}: ${m.ms.toFixed(1)} ms`);
       break;

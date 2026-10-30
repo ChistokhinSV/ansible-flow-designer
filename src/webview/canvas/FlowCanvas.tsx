@@ -25,6 +25,7 @@ import type { NodeType, Position } from '../../core/flow/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { command, loadState, saveState } from '../bus';
+import { setPastePlace } from '../clipboard';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -360,6 +361,22 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [openQuickAdd, screenToFlowPosition, setError],
   );
 
+  // A paste lands where the pointer is on the canvas, else in the middle of the view (AFD-17).
+  const pointer = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    setPastePlace(() => {
+      const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+      if (!pane || pane.width === 0) return undefined;
+      const at = pointer.current ?? {
+        x: pane.left + pane.width / 2,
+        y: pane.top + pane.height / 2,
+      };
+      const p = screenToFlowPosition(at);
+      return { x: Math.round(p.x), y: Math.round(p.y) };
+    });
+    return () => setPastePlace(() => undefined);
+  }, [screenToFlowPosition]);
+
   const saved = useMemo(() => loadState<SavedState>(), []);
   const savedViewport = saved.viewports?.[level] ?? (level === ROOT ? saved.viewport : undefined);
 
@@ -432,6 +449,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           e.preventDefault();
       }}
       onDrop={onDrop}
+      onMouseMove={(e) => {
+        pointer.current = { x: e.clientX, y: e.clientY };
+      }}
+      onMouseLeave={() => {
+        pointer.current = null;
+      }}
       onMoveEnd={(_e, viewport) => {
         const state = loadState<SavedState>();
         saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });

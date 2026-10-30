@@ -42,6 +42,8 @@ export interface AfdTestApi {
   run(uri: vscode.Uri, command: FlowCommand): Promise<CommandOutcome>;
   inspect(uri: vscode.Uri): Promise<DomSummary>;
   openLevel(uri: vscode.Uri, level: string): void;
+  /** Selects a node on the canvas (opening its level), as a click would. */
+  reveal(uri: vscode.Uri, node: string): void;
   setMode(uri: vscode.Uri, mode: 'design' | 'implementation' | 'run'): void;
   rendered(uri: vscode.Uri, version: number): Promise<void>;
   perf(uri: vscode.Uri): PerfEvent[];
@@ -294,6 +296,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       if (outcome && !outcome.ok)
         void vscode.window.showErrorMessage(outcome.error ?? 'Tidy up failed');
     }),
+    vscode.commands.registerCommand('afd.copyNodes', () => activeSession(sessions)?.copyNodes()),
+    vscode.commands.registerCommand('afd.pasteNodes', () => activeSession(sessions)?.pasteNodes()),
     vscode.commands.registerCommand('afd.validate', async () => {
       await activeSession(sessions)?.refresh();
       await vscode.commands.executeCommand('workbench.actions.view.problems');
@@ -315,6 +319,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     run: (uri, command) => get(uri).runCommand(command),
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
+    reveal: (uri, node) => get(uri).reveal(node),
     setMode: (uri, mode) => get(uri).setMode(mode),
     setLens: (uri, lens) => get(uri).setLens(lens),
     lensFacts: (uri) => get(uri).lensFacts,

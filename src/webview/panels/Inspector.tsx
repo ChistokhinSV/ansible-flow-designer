@@ -9,6 +9,7 @@ import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
 import { run } from '../actions';
 import { send } from '../bus';
 import { STATE_LABEL, TYPE_LABEL } from '../canvas/FlowNodeView';
+import { copySelection } from '../clipboard';
 import { runPortItem } from '../portActions';
 import { useUi } from '../store';
 import type { PortView } from '../viewModel';
@@ -54,6 +55,15 @@ export function Inspector({ id }: { id: string }) {
           onClick={() => send({ type: 'openText', path: entry.path })}
         >
           <span className="codicon codicon-go-to-file" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="icon"
+          title="Copy (Ctrl+C): paste on a flow (Ctrl+V) or in a text file"
+          aria-label="Copy node"
+          onClick={copySelection}
+        >
+          <span className="codicon codicon-copy" aria-hidden="true" />
         </button>
         <button
           type="button"

@@ -79,6 +79,7 @@ export interface CommandOutcome {
   ok: boolean;
   error?: string;
   created?: Ulid;
+  pasted?: Ulid[];
 }
 
 export class FlowSession implements vscode.Disposable {
@@ -368,6 +369,13 @@ export class FlowSession implements vscode.Disposable {
       case 'openText':
         await this.openText(m.path);
         break;
+      case 'copyText':
+        await vscode.env.clipboard.writeText(m.text);
+        vscode.window.setStatusBarMessage(
+          `Copied ${m.count} node${m.count === 1 ? '' : 's'}: paste them on a flow or in a text file`,
+          4000,
+        );
+        break;
       case 'initFlow': {
         const outcome = await this.initFlow();
         if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'No flow created');
@@ -580,7 +588,8 @@ export class FlowSession implements vscode.Disposable {
         return { ok: false, error: e.message };
       throw e;
     }
-    if (result.edits.length === 0 && !extra) return { ok: true, created: result.created };
+    const made = { created: result.created, pasted: result.pasted };
+    if (result.edits.length === 0 && !extra) return { ok: true, ...made };
     const edit = new vscode.WorkspaceEdit();
     extra?.(edit);
     for (const e of result.edits) {
@@ -594,7 +603,7 @@ export class FlowSession implements vscode.Disposable {
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) return { ok: false, error: 'VS Code rejected the edit' };
     if (result.dropped) announceImplementedAgain(flowFromFile(result.file).doc, result.dropped);
-    return { ok: true, created: result.created };
+    return { ok: true, ...made };
   }
 
   /** ELK layout of one whole level (default: the top), written to the layout block (one undo step). */
@@ -677,6 +686,24 @@ export class FlowSession implements vscode.Disposable {
 
   openLevel(level: string): void {
     this.broadcast({ type: 'openLevel', level });
+  }
+
+  /** Selects a node in every panel, opening its level (tests). */
+  reveal(node: Ulid): void {
+    this.broadcast({ type: 'reveal', node });
+  }
+
+  /** AFD-17: the focused panel copies its selection (it knows what is selected). */
+  copyNodes(): void {
+    const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
+    if (panel) this.post(panel, { type: 'clipboard', action: 'copy' });
+  }
+
+  /** AFD-17: the focused panel pastes the clipboard text on its level, where the pointer was. */
+  async pasteNodes(): Promise<void> {
+    const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
+    const text = await vscode.env.clipboard.readText();
+    if (panel) this.post(panel, { type: 'clipboard', action: 'paste', text });
   }
 
   /**

@@ -5,6 +5,7 @@ import { deleteKey, insertItem, type OpResult, removeItem, setIn } from '../yaml
 import type { Path, YamlFile } from '../yaml/parse';
 import type { YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
+import { parseClip } from './clipboard';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
@@ -112,6 +113,8 @@ export type FlowCommand =
   | { kind: 'clearFindingAccept'; finding: string }
   /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
   | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> }
+  /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
+  | { kind: 'pasteNodes'; text: string; level?: string; position?: Position }
   /** AFD-7: move a connected selection of one level into a new subflow node. */
   | { kind: 'extractSubflow'; nodes: Ulid[]; title: string; key?: string; position?: Position };
 
@@ -150,6 +153,8 @@ export interface CommandResult {
   /** Parse of `text`, so the caller need not parse the result again. */
   file: YamlFile;
   created?: Ulid;
+  /** Every node a paste created (AFD-17). */
+  pasted?: Ulid[];
   /** Tested nodes the command changed, now implemented again (decision 15). */
   dropped?: Ulid[];
 }
@@ -1413,6 +1418,154 @@ function extractSubflow(
   return { id, rewritten: [...new Set(rewrites.map((r) => r.node))] };
 }
 
+// ---- paste nodes (AFD-17) ------------------------------------------------------------------
+
+/**
+ * Nodes from the clipboard become new nodes on a level, in one edit. Every node, inner node and
+ * wire gets a new ID; keys stay unless the level has them (then `-2`, …) and references between
+ * the pasted nodes follow; tested becomes implemented (the copy has not run here). Wires to nodes
+ * that were not copied are not created; references to them stay as written. The group keeps its
+ * relative layout around `position`; inner levels keep theirs. Start nodes are not pasted.
+ */
+function pasteNodes(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'pasteNodes' }>,
+): Ulid[] {
+  const clip = parseClip(cmd.text);
+  if (typeof clip === 'string') throw new CommandError('bad-clipboard', clip);
+  const source = clip.nodes.filter((n) => n.type !== 'start');
+  if (source.length === 0)
+    throw new CommandError('bad-clipboard', 'Nothing to paste: a flow has one start node');
+  const st = state(tx);
+  const levelId = cmd.level ?? ROOT;
+  const parent = levelId === ROOT ? undefined : nodeAt(st, levelId);
+  if (parent && parent.node.type !== 'subflow')
+    throw new CommandError('bad-type', `${parent.node.title} is not a subflow`);
+  const level = st.model.levels.get(levelId);
+  if (!parent && !level) throw new CommandError('not-found', `No level ${levelId}`);
+
+  // New IDs for every node at every depth, and for every wire.
+  const ids = new Map<string, Ulid>();
+  const mint = (old: string | undefined): Ulid => {
+    const fresh = ctx.newId();
+    if (old) ids.set(old, fresh);
+    return fresh;
+  };
+  const remapNode = (n: FlowNode): FlowNode => {
+    const copy = structuredClone(n) as FlowNode;
+    copy.id = mint(n.id);
+    if (copy.status === 'tested') copy.status = 'implemented';
+    if (copy.subflow) {
+      copy.subflow.nodes = (copy.subflow.nodes ?? []).map(remapNode);
+      const inner = copy.subflow;
+      inner.edges = (inner.edges ?? []).map((e) => ({
+        id: ctx.newId(),
+        from: { node: ids.get(e.from.node) ?? e.from.node, port: e.from.port },
+        to: { node: ids.get(e.to.node) ?? e.to.node, port: e.to.port },
+      }));
+      if (inner.boundary) {
+        const b = inner.boundary;
+        if (b.in) b.in = ids.get(b.in) ?? b.in;
+        for (const refs of Object.values(b.outputs ?? {}))
+          for (const r of refs ?? []) r.node = ids.get(r.node) ?? r.node;
+      }
+      delete inner.layout;
+    }
+    return copy;
+  };
+  const nodes = source.map(remapNode);
+
+  // Keys unique on the target level; references between the pasted nodes follow a new key.
+  const taken = level ? levelKeys(level) : new Set<string>();
+  const renamed = new Map<string, string>();
+  nodes.forEach((n, i) => {
+    const wanted = SLUG.test(n.key ?? '') ? (n.key as string) : slugify(n.title ?? n.type, n.type);
+    const key = uniqueKey(wanted, taken);
+    taken.add(key);
+    const old = source[i]?.key;
+    if (old && old !== key) renamed.set(old, key);
+    n.key = key;
+    n.title ??= key;
+  });
+  // Inner levels see the pasted keys too, unless they have a node of the same key.
+  const follow = (list: FlowNode[], shadow: ReadonlySet<string>) => {
+    for (const n of list) {
+      for (const side of ['inputs', 'outputs'] as const)
+        for (const field of Object.values(n[side] ?? {})) {
+          const [head, ...rest] = (field?.from ?? '').split('.');
+          const key = head && !shadow.has(head) ? renamed.get(head) : undefined;
+          if (field && key) field.from = [key, ...rest].join('.');
+        }
+      const inner = n.subflow?.nodes ?? [];
+      if (inner.length > 0)
+        follow(inner, new Set([...shadow, ...inner.flatMap((c) => (c?.key ? [c.key] : []))]));
+    }
+  };
+  if (renamed.size > 0) follow(nodes, new Set());
+
+  const pasted = new Set(source.map((n) => n.id));
+  const edges = clip.edges
+    .filter((e) => pasted.has(e.from.node) && pasted.has(e.to.node))
+    .map((e) => ({
+      id: ctx.newId(),
+      from: { node: ids.get(e.from.node) as Ulid, port: e.from.port },
+      to: { node: ids.get(e.to.node) as Ulid, port: e.to.port },
+    }));
+  const decisions = clip.decisions
+    .filter((d) => d?.kind === 'open_on_purpose' && ids.has(d.node ?? ''))
+    .map((d) => ({ ...d, node: ids.get(d.node ?? '') as Ulid }));
+
+  // Positions: the group keeps its shape around `position`; inner levels keep theirs.
+  const positions: Record<Ulid, Position> = {};
+  const top = source.map((n) => clip.layout[n.id]).filter((p): p is Position => !!p);
+  const anchor = top.length
+    ? { x: Math.min(...top.map((p) => p.x)), y: Math.min(...top.map((p) => p.y)) }
+    : undefined;
+  source.forEach((n, i) => {
+    const at = clip.layout[n.id];
+    const id = nodes[i]?.id as Ulid;
+    if (cmd.position && at && anchor)
+      positions[id] = { x: cmd.position.x + at.x - anchor.x, y: cmd.position.y + at.y - anchor.y };
+    else if (cmd.position) positions[id] = { x: cmd.position.x, y: cmd.position.y + i * 120 };
+    else if (at) positions[id] = { x: at.x + 40, y: at.y + 40 };
+  });
+  for (const [old, fresh] of ids)
+    if (!source.some((n) => n.id === old) && clip.layout[old])
+      positions[fresh] = clip.layout[old] as Position;
+
+  const ops: Op[] = [];
+  const append = (path: Path, values: unknown[], order: readonly string[]) => {
+    if (values.length === 0) return;
+    const items = values as YamlValue[];
+    if (tx.current.doc.getIn(path) !== undefined)
+      for (const item of items) ops.push((f) => insertItem(f, path, 'end', item));
+    else ops.push((f) => setIn(f, path, items, { before: after(order, path.at(-1) as string) }));
+  };
+  const subflow = parent?.node.subflow;
+  const entry = nodes[0]?.id as Ulid;
+  if (parent && !subflow) {
+    // A subflow without an inner graph: the pasted nodes are its first level (D-23 entry).
+    const body: Record<string, YamlValue> = { nodes: nodes as unknown as YamlValue[] };
+    if (edges.length > 0) body.edges = edges as unknown as YamlValue[];
+    body.boundary = { in: entry };
+    ops.push((f) =>
+      setIn(f, [...parent.path, 'subflow'], body, { before: after(NODE_ORDER, 'subflow') }),
+    );
+  } else {
+    const level = levelOf(st, levelId);
+    const order = parent ? SUBFLOW_ORDER : ROOT_ORDER;
+    append(level.nodesPath, nodes, order);
+    append(level.edgesPath, edges, order);
+    if (parent && !subflow?.nodes?.length && !subflow?.boundary?.in)
+      ops.push(...boundaryOps(st, parent.node.id, { ...subflow?.boundary, in: entry }));
+  }
+  append(['decisions'], decisions, ROOT_ORDER);
+  tx.applyAll(ops);
+  setPositions(tx, positions);
+  return nodes.map((n) => n.id);
+}
+
 export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): void {
   const st = state(tx);
   tx.applyAll(
@@ -1441,6 +1594,7 @@ export function planCommand(
   const tx = new YamlTransaction(text, parsed);
   const before = NO_DESIGN.has(cmd.kind) ? undefined : (tx.current.doc.toJS() as FlowDocument);
   let created: Ulid | undefined;
+  let pasted: Ulid[] | undefined;
   /** Nodes whose design a command only re-references (their tested status stays). */
   const rereferenced: Ulid[] = [];
   switch (cmd.kind) {
@@ -1516,6 +1670,10 @@ export function planCommand(
     case 'setBoundaryIn':
       setBoundaryIn(tx, cmd);
       break;
+    case 'pasteNodes':
+      pasted = pasteNodes(tx, ctx, cmd);
+      created = pasted[0];
+      break;
     case 'extractSubflow': {
       const r = extractSubflow(tx, ctx, cmd);
       created = r.id;
@@ -1549,5 +1707,5 @@ export function planCommand(
     if (dropped.length > 0) implementedAgain(tx, dropped);
     else dropped = undefined;
   }
-  return { edits: tx.edits(), text: tx.text, file: tx.current, created, dropped };
+  return { edits: tx.edits(), text: tx.text, file: tx.current, created, pasted, dropped };
 }

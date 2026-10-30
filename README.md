@@ -29,6 +29,11 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only.
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
+- **Copy and paste nodes (AFD-17):** select one or more nodes and press Ctrl+C (Cmd+C), or use _Copy_ in the inspector or the selection panel, or _Ansible Flow: Copy Nodes_. The clipboard holds plain YAML: the nodes with their inner levels, the wires between them, their layout and their open-on-purpose decisions. Press Ctrl+V on any flow canvas (or _Ansible Flow: Paste Nodes_) to paste them on the open level, at the pointer, in one undo step. Or paste the text into any text file and keep it as a snippet.
+  - Every pasted node, inner node and wire gets a new ID. A key the level already has gets `-2`, `-3`, …, and `from:` references between the pasted nodes follow it. References to nodes that were not copied stay as written.
+  - Status `tested` becomes `implemented`: the copy has not run here. Wires to nodes that were not copied are dropped. Start nodes are not pasted.
+  - Pasted into a subflow without inner steps, the first pasted node becomes its entry.
+  - A snippet written by hand pastes too: one node, a list of nodes, or a `nodes:` mapping, for example `- {type: task, title: Check NTP}`.
 - **Extract into subflow (AFD-7):** Ctrl/Cmd+click or Shift+drag several connected nodes, then _Extract into subflow_ in the right panel. The nodes and the wires between them move into a new subflow with their IDs, in one undo step.
   - Wires in must reach one node; wires out leave through the subflow's ports.
   - Outputs read outside become subflow outputs, and those references are rewritten.
@@ -317,6 +322,7 @@ just install
 | `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
 | `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
 | `just test-extract [version]`    | Extract into subflow inside VS Code (AFD-7)                                          |
+| `just test-clipboard [version]`  | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards  |
 | `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |

@@ -15,6 +15,7 @@ export interface Ack {
   ok: boolean;
   error?: string;
   created?: string;
+  pasted?: string[];
 }
 
 const api: VsCodeApi = acquireVsCodeApi();
@@ -26,7 +27,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   const m = event.data;
   if (!m || typeof m !== 'object' || !('type' in m)) return;
   if (m.type === 'ack') {
-    pending.get(m.reqId)?.({ ok: m.ok, error: m.error, created: m.created });
+    pending.get(m.reqId)?.({ ok: m.ok, error: m.error, created: m.created, pasted: m.pasted });
     pending.delete(m.reqId);
   }
   for (const l of listeners) l(m);

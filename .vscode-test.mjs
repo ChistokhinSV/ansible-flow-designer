@@ -98,6 +98,7 @@ export default defineConfig([
       'out/test/integration/awxImport.test.js',
       'out/test/integration/extract.test.js',
       'out/test/integration/notAFlow.test.js',
+      'out/test/integration/clipboard.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -118,6 +119,8 @@ export default defineConfig([
   { ...common, label: 'extract', files: 'out/test/integration/extract.test.js' },
   // AFD-16: an empty or broken *.flow.yaml.
   { ...common, label: 'not-a-flow', files: 'out/test/integration/notAFlow.test.js' },
+  // AFD-17: copy and paste of nodes through the system clipboard.
+  { ...common, label: 'clipboard', files: 'out/test/integration/clipboard.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {
