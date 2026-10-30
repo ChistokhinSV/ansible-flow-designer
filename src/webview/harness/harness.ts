@@ -27,6 +27,7 @@ import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
 import { nodeDesigns } from '../../core/flow/semantic';
+import { newFlowText } from '../../core/flow/template';
 import { validateFlow } from '../../core/flow/validate';
 import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
@@ -41,6 +42,9 @@ const FLOWS: Record<string, string> = {
   'awx-e2e': awxE2e,
   'lens-e2e': lensE2e,
   'awx-import': awxImport,
+  // AFD-16: an empty *.flow.yaml, and one that is not a flow.
+  empty: '',
+  broken: 'flow: [not closed\n',
 };
 /** Lens facts (M8) as the host would gather them for the lens-e2e fixture. */
 let lensTargets = 'edge_switches';
@@ -124,6 +128,8 @@ async function snapshot(): Promise<Snapshot> {
       doc: null,
       stale: true,
       parseError: parsed.errors[0]?.message,
+      ...(parsed.errors.length === 1 && !text.replace(/#.*$/gm, '').trim() ? { empty: true } : {}),
+      file: `${params.get('flow') ?? 'harness'}.flow.yaml`,
       findings: [],
       openPorts: [],
       autoPositions: {},
@@ -276,6 +282,12 @@ async function onMessage(m: WebviewMessage) {
         type: 'catalogStatus',
         status: { state: 'ready', environment: 'harness fixture', platforms: CTX.platforms },
       });
+      toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      break;
+    case 'initFlow':
+      undo.push(text);
+      text = newFlowText('Empty', 'empty', createIdFactory());
+      version++;
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       break;
     case 'command': {

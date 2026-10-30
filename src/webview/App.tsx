@@ -10,6 +10,7 @@ import { DriftPanel, IgnoreDialog, NodeCodePanel } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
 import { Inspector } from './panels/Inspector';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
+import { NotAFlow } from './panels/NotAFlow';
 import { Palette } from './panels/Palette';
 import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
@@ -191,16 +192,7 @@ export function App() {
   }, [error, setError]);
 
   if (!snapshot) return <div className="afd-loading">Loading flow…</div>;
-  if (!snapshot.doc) {
-    return (
-      <div className="afd-loading" role="alert">
-        This file is not a valid flow document: {snapshot.parseError}
-        <button type="button" onClick={() => send({ type: 'openText' })}>
-          Open as text
-        </button>
-      </div>
-    );
-  }
+  if (!snapshot.doc) return <NotAFlow snapshot={snapshot} />;
   return (
     // A fresh React Flow store per level: each level keeps its own viewport (D-23).
     <ReactFlowProvider key={level}>

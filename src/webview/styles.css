@@ -127,6 +127,43 @@ body,
   flex: 1;
 }
 
+/* A *.flow.yaml that is not a flow yet (AFD-16). */
+.afd-not-a-flow {
+  max-width: 560px;
+  margin: 48px auto;
+  padding: 0 24px;
+  line-height: 1.5;
+}
+
+.afd-not-a-flow h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.afd-not-a-flow code,
+.afd-not-a-flow-error {
+  font-family: var(--vscode-editor-font-family, monospace);
+  background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.12));
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.afd-not-a-flow-error {
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  color: var(--vscode-errorForeground);
+}
+
+.afd-not-a-flow-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .afd-loading {
   padding: 24px;
   display: flex;

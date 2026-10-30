@@ -105,7 +105,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.12.0.vsix
+code --install-extension out/ansible-flow-designer-0.12.1.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
@@ -141,7 +141,7 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 
 ## Usage
 
-- **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node.
+- **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node. Or create an empty `*.flow.yaml` file anywhere: it opens in the designer with _Create a flow here_, which writes the same start (named after the file) in one undo step. A `*.flow.yaml` that does not parse shows why, with _Open as text_.
 - **Import from AWX:** Command Palette → _Ansible Flow: Import AWX Workflow…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick the workflow and the flow key; the new flow opens, and _Show notes_ lists what did not map one to one.
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
 - **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.

@@ -6,10 +6,11 @@ import { optionA } from '../core/engine/optionA';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { flowFromFile, type ParsedFlow, rangeOf } from '../core/flow/document';
-import type { IdFactory } from '../core/flow/ids';
+import { type IdFactory, slugify } from '../core/flow/ids';
 import { buildModel, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
+import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
 import { timingStats } from '../core/lens/history';
@@ -136,18 +137,22 @@ export class FlowSession implements vscode.Disposable {
     let snapshot: Snapshot;
     if (!parsed.doc) {
       const err = parsed.errors[0];
+      const empty = isEmptyFile(file);
       snapshot = {
         docVersion: version,
         doc: this.lastGood?.doc ?? null,
         stale: true,
         parseError: err?.message ?? 'The document does not parse',
+        ...(empty ? { empty } : {}),
+        file: this.uri.path.split('/').pop(),
         findings: this.lastGood?.findings ?? [],
         openPorts: this.lastGood?.openPorts ?? [],
         autoPositions: this.lastGood?.autoPositions ?? {},
       };
+      // An empty file is a flow not started yet, not a problem.
       this.deps.diagnostics.set(
         this.uri,
-        err ? [parseErrorDiagnostic(this.document, err.message, err.offset)] : [],
+        err && !empty ? [parseErrorDiagnostic(this.document, err.message, err.offset)] : [],
       );
     } else {
       const validated = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
@@ -363,6 +368,11 @@ export class FlowSession implements vscode.Disposable {
       case 'openText':
         await this.openText(m.path);
         break;
+      case 'initFlow': {
+        const outcome = await this.initFlow();
+        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'No flow created');
+        break;
+      }
       case 'validate':
         await this.refresh();
         await vscode.commands.executeCommand('workbench.actions.view.problems');
@@ -669,6 +679,33 @@ export class FlowSession implements vscode.Disposable {
     this.broadcast({ type: 'openLevel', level });
   }
 
+  /**
+   * AFD-16: an empty file (whitespace or comments only) gets the New Flow template, named after
+   * the file, in one edit. Comments already there stay on top; a file with content is refused.
+   */
+  async initFlow(): Promise<CommandOutcome> {
+    const text = this.document.getText();
+    if (!isEmptyFile(parseYaml(text)))
+      return { ok: false, error: 'The file has content: open it as text to change it' };
+    const base = (this.uri.path.split('/').pop() ?? 'flow').replace(/\.flow\.ya?ml$/i, '');
+    const key = slugify(base, 'flow');
+    const words = base.replace(/[-_.]+/g, ' ').trim() || 'Flow';
+    const name = words.charAt(0).toUpperCase() + words.slice(1);
+    let body =
+      (text.trim() ? `${text.replace(/\s+$/, '')}\n` : '') +
+      newFlowText(name, key, this.deps.newId);
+    if (this.document.eol === vscode.EndOfLine.CRLF) body = body.replace(/\r?\n/g, '\r\n');
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      this.uri,
+      new vscode.Range(this.document.positionAt(0), this.document.positionAt(text.length)),
+      body,
+    );
+    return (await vscode.workspace.applyEdit(edit))
+      ? { ok: true }
+      : { ok: false, error: 'VS Code did not apply the edit' };
+  }
+
   /** Test mode: resolves once a panel has rendered `version` or later. */
   rendered(version: number): Promise<void> {
     if (
@@ -686,4 +723,9 @@ export class FlowSession implements vscode.Disposable {
     for (const p of this.panels) p.dispose();
     this.panels.clear();
   }
+}
+
+/** No YAML content yet: whitespace or comments only. */
+function isEmptyFile(file: YamlFile): boolean {
+  return file.errors.length === 0 && (file.doc.toJS() ?? null) === null;
 }

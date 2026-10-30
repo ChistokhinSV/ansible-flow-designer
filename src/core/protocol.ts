@@ -17,6 +17,10 @@ export interface Snapshot {
   /** The current text does not parse; `doc` is the last good model and commands are refused. */
   stale: boolean;
   parseError?: string;
+  /** The file has no YAML content yet (empty, or comments only): the page offers a flow (AFD-16). */
+  empty?: boolean;
+  /** The file's name, for the page shown when it is not a flow. */
+  file?: string;
   findings: Finding[];
   openPorts: OpenPort[];
   /** In-memory positions for nodes the layout block does not place (never written, ADR-0002). */
@@ -154,6 +158,8 @@ export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'command'; reqId: number; command: FlowCommand }
   | { type: 'openText'; path?: Path }
+  /** AFD-16: fill an empty file with the New Flow template. */
+  | { type: 'initFlow' }
   | { type: 'validate' }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }

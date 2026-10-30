@@ -72,6 +72,8 @@ export interface AfdTestApi {
   setLens(uri: vscode.Uri, lens: LensId | null): void;
   lensFacts(uri: vscode.Uri): LensFacts;
   setTargets(uri: vscode.Uri, targets: string): Promise<void>;
+  /** AFD-16: the empty-file page's Create a flow here. */
+  initFlow(uri: vscode.Uri): Promise<CommandOutcome>;
   /** M9: Import AWX Workflow with every pick given (writes the flow, does not open it). */
   importAwx(request: ImportRequest): Promise<ImportOutcome>;
 }
@@ -366,6 +368,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         yes: true,
       }),
     importAwx: (request) => importAwxWorkflow(context.secrets, deps.newId, request),
+    initFlow: (uri) => get(uri).initFlow(),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? catalog.status(folder) : undefined;
