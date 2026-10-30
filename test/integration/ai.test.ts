@@ -23,6 +23,11 @@ async function until(check: () => boolean | Promise<boolean>, what: string, ms =
   }
 }
 
+/** The server arguments setup registered for Gemini. */
+const server = (home: string): string[] =>
+  JSON.parse(readFileSync(join(home, '.gemini/settings.json'), 'utf8')).mcpServers['ansible-flow']
+    .args;
+
 describe('AFD-19 acceptance: AI assistants', () => {
   afterEach(closeAll);
 
@@ -120,20 +125,30 @@ describe('AFD-19 acceptance: AI assistants', () => {
     const home = mkdtempSync(join(tmpdir(), 'afd-ai-home-'));
     try {
       writeFileSync(join(home, 'placeholder'), '');
-      const items = await api.setupAi({ agents: ['codex', 'gemini'], scope: 'user', home });
+      const agents = ['codex', 'gemini', 'opencode', 'zcode'] as const;
+      const items = await api.setupAi({ agents: [...agents], scope: 'user', home });
+      // OpenCode and ZCode read the skill copy in ~/.agents/skills that Codex gets.
       assert.deepEqual(
         items?.map((i) => `${i.agent} ${i.what} ${i.action}`),
-        ['codex skill create', 'codex mcp create', 'gemini skill create', 'gemini mcp create'],
+        [
+          'codex skill create',
+          'codex mcp create',
+          'gemini skill create',
+          'gemini mcp create',
+          'opencode mcp create',
+          'zcode mcp create',
+        ],
       );
+      const zcode = JSON.parse(readFileSync(join(home, '.agents/mcp.json'), 'utf8'));
+      assert.deepEqual(zcode.mcpServers['ansible-flow'].args, server(home));
       const skill = readFileSync(join(home, '.agents/skills/ansible-flow/SKILL.md'), 'utf8');
       assert.match(skill, /^---\nname: ansible-flow\n/);
       readFileSync(join(home, '.agents/skills/ansible-flow/references/ops.md'), 'utf8');
-      const settings = JSON.parse(readFileSync(join(home, '.gemini/settings.json'), 'utf8'));
-      const server = settings.mcpServers['ansible-flow'];
-      assert.match(server.args[0], /mcp[\\/]mcp\.js$/);
-      readFileSync(server.args[0]);
-      const removed = await api.removeAi({ agents: ['codex', 'gemini'], home });
-      assert.equal(removed?.length, 4);
+      const args = server(home);
+      assert.match(args[0] ?? '', /mcp[\\/]mcp\.js$/);
+      readFileSync(args[0] ?? '');
+      const removed = await api.removeAi({ agents: [...agents], home });
+      assert.equal(removed?.length, 6);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

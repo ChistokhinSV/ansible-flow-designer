@@ -1,13 +1,16 @@
-// Set Up AI Assistants / Remove AI Assistant Setup (AFD-19). Copilot needs nothing: the skill,
-// instructions and tools are contributed by the extension. Terminal agents (Claude Code, Codex,
-// Gemini) get a copy of the skill (this repository or the user's home, asked each time) and the
-// MCP server registered for the user. Every change is previewed first and logged.
+// Set Up AI Assistants / Remove AI Assistant Setup (AFD-19, AFD-20). Copilot needs nothing: the
+// skill, instructions and tools are contributed by the extension. Other agents (Claude Code, Codex,
+// Gemini CLI, OpenCode, ZCode, Copilot CLI, Cursor) get a copy of the skill (this repository or the
+// user's home) and the MCP server registered for the user. After VS Code starts, agents found
+// without the setup are offered it once, in one click; any other agent gets a guide.
 import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
-import { installServer, launchFor, onPath } from './launcher';
+import { AGENT_INFO, agentLabel, findAgents, mcpJson, otherAgentGuide } from './agents';
+import { installServer, launchFor, onPath, programsOnPath } from './launcher';
 import {
+  AGENTS,
   type Agent,
   applySetup,
   claudeCommandLine,
@@ -20,30 +23,15 @@ import {
   type Scope,
   SKILL_NAME,
   type SkillFiles,
+  skillDirs,
   skillState,
+  writeSkill,
 } from './writers';
 
 const STATE = 'afd.ai.setup';
-const AGENTS: { id: Agent; label: string; bin: string; detail: string }[] = [
-  {
-    id: 'claude',
-    label: 'Claude Code',
-    bin: 'claude',
-    detail: 'CLI and its VS Code extension: skill in .claude/skills, tools via `claude mcp`',
-  },
-  {
-    id: 'codex',
-    label: 'Codex CLI',
-    bin: 'codex',
-    detail: 'skill in .agents/skills, tools in ~/.codex/config.toml',
-  },
-  {
-    id: 'gemini',
-    label: 'Gemini CLI',
-    bin: 'gemini',
-    detail: 'skill in .agents/.gemini skills, tools in ~/.gemini/settings.json',
-  },
-];
+/** Agents already offered the setup (asked again only for new ones). */
+const OFFERED = 'afd.ai.offered';
+const NEVER = 'afd.ai.neverOffer';
 
 interface SetupRecord {
   version: string;
@@ -63,6 +51,9 @@ export interface SetupPicks {
   repo?: string;
 }
 
+const list = (names: string[]) =>
+  names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+
 export class AiSetup {
   private readonly log: vscode.OutputChannel;
 
@@ -75,9 +66,25 @@ export class AiSetup {
     return (this.context.extension.packageJSON as { version: string }).version;
   }
 
+  private get record(): SetupRecord | undefined {
+    return this.context.globalState.get<SetupRecord>(STATE);
+  }
+
   private async env(home = homedir(), repo?: string): Promise<Env> {
     const claude = await onPath('claude');
     return { home, ...(repo ? { repo } : {}), ...(claude ? { claude: claudeRunner(claude) } : {}) };
+  }
+
+  /** The known agents installed here, with why each was found. */
+  async found(home = homedir()): Promise<Map<Agent, string>> {
+    const programs = await programsOnPath(AGENT_INFO.flatMap((a) => a.bins));
+    return findAgents({
+      home,
+      ...(process.env.LOCALAPPDATA ? { localAppData: process.env.LOCALAPPDATA } : {}),
+      platform: process.platform,
+      onPath: async (name) => programs.get(name),
+      extensions: vscode.extensions.all.map((e) => e.id.toLowerCase()),
+    });
   }
 
   /** The skill as the extension ships it: skills/ansible-flow/**. */
@@ -117,14 +124,18 @@ export class AiSetup {
         i.agent === 'claude' && i.what === 'mcp'
           ? 'claude mcp add -s user ansible-flow'
           : this.show(i.target, home);
-      return `${verb[i.action]}: ${AGENTS.find((a) => a.id === i.agent)?.label} ${what}, ${target}${i.note ? ` (${i.note})` : ''}`;
+      return `${verb[i.action]}: ${agentLabel(i.agent)} ${what}, ${target}${i.note ? ` (${i.note})` : ''}`;
     });
   }
 
-  /** Asks which agents and where, previews, writes. Picks skip the questions (tests, updates). */
-  async setup(picks?: SetupPicks, confirm = true): Promise<Item[] | undefined> {
+  /**
+   * Asks which agents and where, previews, writes. Picks skip the questions (tests, updates, the
+   * one-click offer); confirm shows the preview first, announce the result after.
+   */
+  async setup(picks?: SetupPicks, confirm = true, announce = confirm): Promise<Item[] | undefined> {
     const chosen = picks ?? (await this.ask());
     if (!chosen) return undefined;
+    if (chosen.agents.length === 0) return [];
     const env = await this.env(chosen.home, chosen.repo);
     const [launch, skill] = await Promise.all([this.launch(), this.skillFiles()]);
     const items = await planSetup(chosen.agents, chosen.scope, env, launch, skill);
@@ -144,11 +155,17 @@ export class AiSetup {
     this.log.appendLine(`[${new Date().toISOString()}] Set up (${this.version}):`);
     for (const line of lines) this.log.appendLine(`  ${line}`);
     if (!chosen.home) {
-      const record: SetupRecord = { version: this.version, ...chosen, runtime: launch.command };
+      const record: SetupRecord = {
+        version: this.version,
+        agents: chosen.agents,
+        scope: chosen.scope,
+        ...(chosen.repo ? { repo: chosen.repo } : {}),
+        runtime: launch.command,
+      };
       await this.context.globalState.update(STATE, record);
     }
     await this.refreshContext();
-    if (confirm) void this.announce(items, launch);
+    if (announce) void this.announce(items, launch);
     return items;
   }
 
@@ -156,9 +173,10 @@ export class AiSetup {
     const claudeSkipped = items.some(
       (i) => i.agent === 'claude' && i.what === 'mcp' && i.action === 'skip',
     );
+    const agents = list([...new Set(items.map((i) => agentLabel(i.agent)))]);
     const message = claudeSkipped
-      ? 'AI assistants set up. Claude Code is not on PATH: copy the command and run it once it is installed. Restart running agents to load the tools.'
-      : 'AI assistants set up. Restart running agents (claude, codex, gemini) to load the flow tools.';
+      ? `Set up ${agents}. Claude Code is not on PATH: copy the command and run it once it is installed. Restart running agents to load the flow tools.`
+      : `Set up ${agents}: they can now read and edit Ansible flows. Restart running agents to load the flow tools.`;
     const pick = await vscode.window.showInformationMessage(
       message,
       ...(claudeSkipped ? ['Copy Command'] : []),
@@ -169,23 +187,40 @@ export class AiSetup {
   }
 
   private async ask(): Promise<SetupPicks | undefined> {
-    const found = await Promise.all(AGENTS.map(async (a) => !!(await onPath(a.bin))));
+    const found = await this.found();
+    const done = new Set(this.record?.agents ?? []);
+    const other = {
+      label: 'Other agent…',
+      description: 'a guide, the skill to copy and a ready MCP config',
+      detail: 'Windsurf, Kiro, Cline, Qwen Code and any agent that reads skills and MCP servers',
+      picked: false,
+      id: undefined,
+    };
     const picked = await vscode.window.showQuickPick(
-      AGENTS.map((a, i) => ({
-        label: a.label,
-        description: found[i] ? 'found on PATH' : 'not found: config only',
-        detail: a.detail,
-        picked: found[i],
-        id: a.id,
-      })),
+      [
+        ...AGENT_INFO.map((a) => ({
+          label: a.label,
+          description: found.has(a.id)
+            ? `found (${found.get(a.id)})${done.has(a.id) ? ', set up' : ''}`
+            : 'not found: config only',
+          detail: a.detail,
+          picked: found.has(a.id),
+          id: a.id as Agent | undefined,
+        })),
+        other,
+      ],
       {
-        title: 'Set Up AI Assistants (Copilot needs nothing: its skill and tools are built in)',
-        placeHolder: 'Terminal agents to give the ansible-flow skill and flow tools',
+        title:
+          'Set Up AI Assistants (Copilot in VS Code needs nothing: its skill and tools are built in)',
+        placeHolder: 'Agents to give the ansible-flow skill and flow tools',
         canPickMany: true,
         ignoreFocusOut: true,
       },
     );
     if (!picked?.length) return undefined;
+    if (picked.some((p) => p === other)) void this.otherAgent();
+    const agents = picked.flatMap((p) => (p.id ? [p.id] : []));
+    if (agents.length === 0) return { agents: [], scope: 'user' };
     const folder = vscode.workspace.workspaceFolders?.[0];
     const scope = await vscode.window.showQuickPick(
       [
@@ -194,14 +229,15 @@ export class AiSetup {
               {
                 label: `This repository (${folder.name})`,
                 detail:
-                  'Skill copies in .claude/skills and .agents/skills: commit them to share with the team',
+                  'Skill copies in .claude/skills, .agents/skills or .github/skills: commit them to share with the team',
                 scope: 'repo' as const,
               },
             ]
           : []),
         {
           label: 'Just me (every repository)',
-          detail: 'Skill copies in ~/.claude/skills, ~/.agents/skills, ~/.gemini/skills',
+          detail:
+            'Skill copies in ~/.claude/skills, ~/.agents/skills, ~/.gemini/skills or ~/.copilot/skills',
           scope: 'user' as const,
         },
       ],
@@ -212,10 +248,45 @@ export class AiSetup {
     );
     if (!scope) return undefined;
     return {
-      agents: picked.map((p) => p.id),
+      agents,
       scope: scope.scope,
       ...(scope.scope === 'repo' && folder ? { repo: folder.uri.fsPath } : {}),
     };
+  }
+
+  /** Agents setup does not know: a guide with this machine's command, the skill and the config. */
+  async otherAgent(): Promise<void> {
+    const launch = await this.launch();
+    const doc = await vscode.workspace.openTextDocument({
+      language: 'markdown',
+      content: otherAgentGuide(launch),
+    });
+    await vscode.window.showTextDocument(doc, { preview: false });
+    const pick = await vscode.window.showInformationMessage(
+      'Another agent: copy the skill to the folder it reads skills from, and add the MCP config.',
+      'Copy Skill To Folder…',
+      'Copy MCP Config',
+    );
+    if (pick === 'Copy MCP Config') await vscode.env.clipboard.writeText(mcpJson(launch));
+    if (pick === 'Copy Skill To Folder…') {
+      const [folder] =
+        (await vscode.window.showOpenDialog({
+          canSelectFolders: true,
+          canSelectFiles: false,
+          openLabel: 'Copy the skill here',
+          title: 'The folder your agent reads skills from (e.g. .agents/skills)',
+        })) ?? [];
+      if (!folder) return;
+      const dir = join(folder.fsPath, SKILL_NAME);
+      const state = await skillState(dir);
+      if (state?.foreign) {
+        void vscode.window.showWarningMessage(`${dir} exists and is not ours; left as it is.`);
+        return;
+      }
+      await writeSkill(dir, await this.skillFiles());
+      this.log.appendLine(`[${new Date().toISOString()}] Skill copied for another agent: ${dir}`);
+      void vscode.window.showInformationMessage(`The skill is in ${dir}. Restart the agent.`);
+    }
   }
 
   async remove(picks?: {
@@ -223,12 +294,12 @@ export class AiSetup {
     home?: string;
     repo?: string;
   }): Promise<Item[] | undefined> {
-    const agents = picks?.agents ?? AGENTS.map((a) => a.id);
+    const agents = picks?.agents ?? [...AGENTS];
     const repo = picks?.repo ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const env = await this.env(picks?.home, repo);
     if (!picks) {
       const go = await vscode.window.showWarningMessage(
-        'Remove the ansible-flow skill copies and flow tools registered for Claude Code, Codex and Gemini?',
+        'Remove the ansible-flow skill copies and flow tools registered for your AI agents?',
         {
           modal: true,
           detail:
@@ -275,34 +346,60 @@ export class AiSetup {
    */
   async checkStale(): Promise<void> {
     await this.refreshContext();
-    const record = this.context.globalState.get<SetupRecord>(STATE);
+    const record = this.record;
     if (!record) return;
     await installServer(this.context);
     const moved = record.runtime !== 'node' && record.runtime !== process.execPath;
     if ((record.version === this.version && !moved) || record.dismissed === this.version) return;
-    const edited = (
-      await Promise.all(
-        AGENTS.filter((a) => record.agents.includes(a.id)).map(async () => {
-          const dirs = [
-            join(homedir(), '.claude', 'skills', SKILL_NAME),
-            ...(record.repo ? [join(record.repo, '.claude', 'skills', SKILL_NAME)] : []),
-          ];
-          return (await Promise.all(dirs.map(skillState))).some((s) => s?.edited.length);
-        }),
-      )
-    ).some(Boolean);
+    const env: Env = { home: homedir(), ...(record.repo ? { repo: record.repo } : {}) };
+    const dirs = [...new Set(record.agents.flatMap((a) => skillDirs(a, record.scope, env)))];
+    const edited = (await Promise.all(dirs.map(skillState))).some((s) => s?.edited.length);
     const pick = await vscode.window.showInformationMessage(
       `The AI assistant setup is from Ansible Flow Designer ${record.version}${moved ? ' and points to a VS Code that moved' : ''}. Update it?${edited ? ' Your edits to the skill copies will be replaced.' : ''}`,
       'Update',
       'Not now',
     );
     if (pick === 'Update')
-      await this.setup({
-        agents: record.agents,
-        scope: record.scope,
-        ...(record.repo ? { repo: record.repo } : {}),
-      });
+      await this.setup(
+        {
+          agents: record.agents,
+          scope: record.scope,
+          ...(record.repo ? { repo: record.repo } : {}),
+        },
+        false,
+        true,
+      );
     else if (pick === 'Not now')
       await this.context.globalState.update(STATE, { ...record, dismissed: this.version });
+  }
+
+  /**
+   * AFD-20: after VS Code starts, offer the setup once to agents found without it. Set Up does them
+   * all for just me in one click; an agent is asked about again only if it was not offered before.
+   */
+  async offer(): Promise<void> {
+    if (this.context.globalState.get<boolean>(NEVER)) return;
+    const record = this.record;
+    const offered = new Set(this.context.globalState.get<Agent[]>(OFFERED) ?? []);
+    const found = await this.found();
+    const pending = [...found.keys()].filter((a) => !record?.agents.includes(a) && !offered.has(a));
+    if (pending.length === 0) return;
+    await this.context.globalState.update(OFFERED, [...offered, ...pending]);
+    const names = list(pending.map(agentLabel));
+    const pick = await vscode.window.showInformationMessage(
+      `${names} ${pending.length > 1 ? 'are' : 'is'} installed but cannot read or edit Ansible flows yet. Set ${pending.length > 1 ? 'them' : 'it'} up (the ansible-flow skill and flow tools, for every repository)?`,
+      'Set Up',
+      'Choose…',
+      'Not Now',
+      'Don’t Ask Again',
+    );
+    if (pick === 'Set Up') {
+      const agents = [...new Set([...(record?.agents ?? []), ...pending])];
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Setting up ${names}…` },
+        () => this.setup({ agents, scope: 'user' }, false, true),
+      );
+    } else if (pick === 'Choose…') await this.setup();
+    else if (pick === 'Don’t Ask Again') await this.context.globalState.update(NEVER, true);
   }
 }

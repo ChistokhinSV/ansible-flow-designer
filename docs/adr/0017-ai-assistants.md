@@ -1,6 +1,6 @@
 # ADR-0017 · AI assistants: skill, flow tools, MCP server
 
-Status: Accepted · 2026-10-30 · AFD-19
+Status: Accepted · 2026-10-30 · AFD-19 · amended by AFD-20 (0.15.1), see the end
 
 ## Context
 
@@ -94,3 +94,39 @@ Facts checked on 2026-10-30:
 - A terminal agent's write can conflict with unsaved changes in VS Code. The revision check and VS Code's own conflict handling cover it, and git is the undo for terminal agents.
 - The production `extension.js` grows by about 90 KB, to 539 KB (the tool core and its specs); the MCP server is a separate file that loads only when an agent starts it.
 - Not verified here: Copilot itself (not in the test host), Codex (not installed), and a full Gemini run (installed, not signed in). Their configuration is covered by tests.
+
+## Amendment: AFD-20 (0.15.1)
+
+Context: in its first real use, Copilot's first edit failed. A new flow is `start -> done`, and `add_node` with `after: "start.ok_hosts"` was refused because the port was wired. Claude Code's VS Code extension drew PlantUML: setup had never run, and nothing told the user to run it, because the extension does not start in a folder without flows.
+
+Decisions (product owner, 2026-10-30):
+1. **`after` on a wired port** puts the node on that wire, and the answer says so. An end node still gets the error. Passing `after` and `on_wire` together is refused.
+2. **Found agents without the setup** are offered it once.
+   - The notice has _Set Up_ (all found agents, just me, one click), _Choose…_, _Not Now_ and _Don't Ask Again_.
+   - An agent is asked about again only when it is new. The offered agents are kept in `afd.ai.offered`.
+3. **Setup also covers OpenCode, ZCode, GitHub Copilot CLI and Cursor.** Any other agent gets _Other agent…_: a guide with this machine's MCP config, and the skill copied to a folder the user picks.
+4. **The check runs after VS Code starts** (`onStartupFinished`).
+5. **"Ansible flow diagram" is claimed by wording first:** the skill description, the server instructions and `flow_new`.
+
+Facts checked on 2026-10-30:
+- **ZCode** reads MCP servers from `~/.agents/mcp.json` (`mcpServers`) or `~/.zcode/config.json` (`mcp.servers`). Skills come from `~/.zcode/skills` and `~/.agents/skills`, and for a project from `.zcode/skills` and `.agents/skills`. Read from the app bundle.
+- **OpenCode** reads `~/.config/opencode/opencode.json[c]` (`mcp`: `type: local`, `command` array, `environment`, `enabled`). Skills come from its own folders and `.claude/skills` and `.agents/skills`.
+- **Copilot CLI** reads `~/.copilot/mcp-config.json` (`mcpServers`, `type: local`, `tools: ["*"]`) and `~/.copilot/skills`.
+- **Cursor** reads `~/.cursor/mcp.json` and Claude's skill folders.
+
+Design:
+- **`writers.ts`:**
+  - one writer for a key in a JSON(C) file covers Gemini, OpenCode, ZCode, Copilot CLI and Cursor;
+  - a table maps each agent and scope to its skill folder, so agents that share a folder share one copy;
+  - a config file that does not parse is skipped and left alone.
+- **`agents.ts`** (no VS Code import) tells which agents are installed: a program on PATH (each PATH folder is listed once), a VS Code extension, a config folder or an installed app. It also writes the guide for other agents.
+- **The flow schema compiles on first use.** That brings activation down from 160 ms to 7 ms against a stub. The bundle itself loads in about 100 ms, without VS Code's code cache.
+  - Where a workspace has flows, the schema is compiled right after activation, so the first flow does not open more slowly.
+  - Listing PATH for the agent check takes about 85 ms (95 folders), in the background.
+
+Verified with Claude Code 2.1.308 headless, using the user's own CLAUDE.md (which prefers PlantUML) and the drawio skill:
+- With the tools only, no skill, it built the flow with the tools, not PlantUML. Its first edit grew the chain with `after`. One op sent `"failed_to": null`, which now counts as not given.
+- With the skill and the tools, every edit applied on the first try.
+- Both flows ended with 0 problems, two levels, and every fail port handled.
+- OpenCode 1.0.10 read the written `opencode.jsonc` and started the server.
+- ZCode, Copilot CLI and Cursor are covered by tests of the written files only.

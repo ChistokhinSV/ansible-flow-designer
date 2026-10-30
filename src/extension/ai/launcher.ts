@@ -49,6 +49,33 @@ export async function onPath(name: string): Promise<string | undefined> {
   return undefined;
 }
 
+/**
+ * Several programs at once: each PATH folder is listed once instead of a stat per name and
+ * extension, so the check after startup stays cheap. Returns name -> path for those found.
+ */
+export async function programsOnPath(names: string[]): Promise<Map<string, string>> {
+  const exts =
+    process.platform === 'win32'
+      ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT').toLowerCase().split(';').filter(Boolean)
+      : [''];
+  const wanted = new Map<string, string>();
+  for (const n of names) for (const e of exts) wanted.set(`${n}${e}`.toLowerCase(), n);
+  const found = new Map<string, string>();
+  for (const dir of (process.env.PATH ?? '').split(delimiter).filter(Boolean)) {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const name = wanted.get(entry.toLowerCase());
+      if (name && !found.has(name)) found.set(name, join(dir, entry));
+    }
+  }
+  return found;
+}
+
 function nodeMajor(path: string): Promise<number> {
   return new Promise((done) =>
     execFile(path, ['--version'], { timeout: 5000, windowsHide: true }, (err, out) =>

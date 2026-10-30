@@ -183,7 +183,16 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     vscode.commands.registerCommand('afd.setupAi', () => aiSetup.setup()),
     vscode.commands.registerCommand('afd.removeAi', () => aiSetup.remove()),
   );
-  void (testMode ? aiSetup.refreshContext() : aiSetup.checkStale()).catch(() => undefined);
+  // AFD-20: the extension also starts after VS Code does (onStartupFinished), so agents found
+  // without the setup are offered it even in folders without flows.
+  void (
+    testMode ? aiSetup.refreshContext() : aiSetup.checkStale().then(() => aiSetup.offer())
+  ).catch(() => undefined);
+  // The schema compiles on first use; where flows exist, do it now, before the first one opens.
+  void vscode.workspace.findFiles('**/*.flow.yaml', '**/node_modules/**', 1).then(
+    (found) => found.length > 0 && setTimeout(() => deps.schema({}), 0),
+    () => undefined,
+  );
 
   const provider: vscode.CustomTextEditorProvider = {
     async resolveCustomTextEditor(document, panel) {

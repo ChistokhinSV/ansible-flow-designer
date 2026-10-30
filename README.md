@@ -299,21 +299,29 @@ The extension teaches AI assistants the flow format and gives them tools that ed
 - Seven tools are in agent mode and can be referenced with `#`: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`, `#flowNew`, `#flowCompleteIds`.
 - An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved changes, so the version bump and `generated/` follow as on any save.
 
-**Claude Code, Codex CLI, Gemini CLI:** Command Palette → _Ansible Flow: Set Up AI Assistants…_
-1. Pick the agents. Each is marked "found on PATH" or "not found: config only".
-2. Choose where the skill goes: _This repository_ (commit the copies to share them with the team) or _Just me_.
-3. Check the preview of every file and registration, then apply. Restart running agents.
+**Other agents** (Claude Code, Codex, Gemini CLI, OpenCode, ZCode, GitHub Copilot CLI, Cursor) need the skill copied and the tools registered once (AFD-20):
+- **Offered once:** after VS Code starts, the extension looks for these agents: a program on PATH, their config folder, an installed app or their VS Code extension. Agents found without the setup get one notice: _Set Up_ (all of them, for every repository, in one click), _Choose…_, _Not Now_ or _Don't Ask Again_. An agent is asked about again only if it is new.
+- **By hand:** Command Palette → _Ansible Flow: Set Up AI Assistants…_
+  1. Pick the agents. Each is marked as found (and why) or "not found: config only".
+  2. Choose where the skill goes: _This repository_ (commit the copies to share them with the team) or _Just me_.
+  3. Check the preview of every file and registration, then apply. Restart running agents.
+- **Any other agent:** pick _Other agent…_. A guide opens with the MCP config for this machine (JSON and command line), and buttons to copy the skill to a folder you choose and the config to the clipboard.
 
-| Agent                                       | Skill copy                               | Flow tools (MCP server `ansible-flow`)    |
-| ------------------------------------------- | ---------------------------------------- | ----------------------------------------- |
-| Claude Code (CLI and its VS Code extension) | `.claude/skills/` or `~/.claude/skills/` | `claude mcp add -s user` (run for you)    |
-| Codex CLI                                   | `.agents/skills/` or `~/.agents/skills/` | marked block in `~/.codex/config.toml`    |
-| Gemini CLI                                  | `.agents/skills/` or `~/.gemini/skills/` | `mcpServers` in `~/.gemini/settings.json` |
+| Agent                                       | Skill copy                                        | Flow tools (MCP server `ansible-flow`)         |
+| ------------------------------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| Claude Code (CLI and its VS Code extension) | `.claude/skills/` or `~/.claude/skills/`          | `claude mcp add -s user` (run for you)         |
+| Codex (CLI, app, VS Code extension)         | `.agents/skills/` or `~/.agents/skills/`          | marked block in `~/.codex/config.toml`         |
+| Gemini CLI                                  | `.agents/skills/` or `~/.gemini/skills/`          | `mcpServers` in `~/.gemini/settings.json`      |
+| OpenCode                                    | `.agents/skills/` or `~/.agents/skills/` (shared) | `mcp` in `~/.config/opencode/opencode.json(c)` |
+| ZCode                                       | `.agents/skills/` or `~/.agents/skills/` (shared) | `mcpServers` in `~/.agents/mcp.json`           |
+| GitHub Copilot CLI                          | `.github/skills/` or `~/.copilot/skills/`         | `mcpServers` in `~/.copilot/mcp-config.json`   |
+| Cursor                                      | `.claude/skills/` or `~/.claude/skills/` (shared) | `mcpServers` in `~/.cursor/mcp.json`           |
 - The server runs on `node` when Node 20+ is on PATH, else on VS Code's own runtime. No Node install is needed.
 - Config files get a one-time `.afd-backup` copy before the first change. Entries you wrote yourself are left alone.
 - After an extension update the setup offers to update itself once.
 - _Ansible Flow: Remove AI Assistant Setup…_ removes only what setup wrote.
 - Gemini enables MCP servers only in trusted folders: accept its trust prompt for the repository.
+- A config file that does not parse is left alone and reported in the preview.
 - Without the claude CLI on PATH, setup offers the `claude mcp add …` command to copy.
 
 **What the tools do:**
@@ -328,6 +336,7 @@ The extension teaches AI assistants the flow format and gives them tools that ed
   ```
 
   Errors name the op and how to fix it ("No node "chek-ntp"; did you mean check-ntp?"), and nothing is written. The answer lists the nodes created and the problems the edit added or solved.
+- `flow_new` starts a flow as `start -> done`, keyed by its file name. `add_node` with `after: "start.ok_hosts"` puts the first step between them, and each next `after` grows the chain: on a port that is already wired, the new node goes on that wire.
 - A terminal agent's edit acts like a save in the designer:
   - `flow.version` moves once per commit;
   - tested nodes that changed drop back to implemented;

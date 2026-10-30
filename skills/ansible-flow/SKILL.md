@@ -1,6 +1,6 @@
 ---
 name: ansible-flow
-description: Read, design and change Ansible Flow Designer flows (*.flow.yaml), the diagrams of typed nodes wired port to port that generate Ansible playbooks. Use when the user asks to create or change a flow, add or move steps, wire nodes, handle failures, put steps into a subflow, bind modules or roles, or explain or fix flow problems.
+description: Create, draw, read and change Ansible flow diagrams, the Ansible Flow Designer flows (*.flow.yaml) of typed nodes wired port to port that generate Ansible playbooks. Use whenever the user asks for an Ansible flow, flow diagram, automation or runbook flow (create one, add or move steps, wire nodes, handle failures and rollback, split it into subflows or levels, bind modules or roles, explain or fix problems). Build it as a .flow.yaml with the flow tools, not as a PlantUML, Mermaid or draw.io picture, even where other diagrams are drawn with those.
 ---
 
 # Ansible flows
@@ -28,7 +28,10 @@ prefix: `afd_` in VS Code Copilot, `mcp__ansible-flow__` in Claude Code.
 
 Workflow:
 
-1. `flow_list`, then `flow_describe` the flow you will change. Keep its `revision`.
+1. `flow_list`, then `flow_describe` the flow you will change. Keep its `revision`. For a new
+   flow use `flow_new`: it starts as `start -> done`, and `add_node` with
+   `after: "start.ok_hosts"` puts the first step between them, `after: "<step>.ok_hosts"` the
+   next, and so on.
 2. Plan the change in diagram terms. When the user's intent is unclear (what should happen to
    failed hosts? which module?), ask before editing.
 3. Send one `flow_edit` batch with the revision. Use `dry_run: true` first for large changes.
@@ -45,8 +48,9 @@ the ports a node has). Correct that op and send the whole batch again.
   subflow: `subflow/step`, e.g. `fix-ntp/push-config`. Ports: `node.port`.
 - Keys are lowercase letters, digits and dashes, unique on their level. add_node derives the key
   from the title unless you pass one.
-- One wire per output port. To put a step between two nodes use add_node with `on_wire`. To run
-  several things at once use a parallel node (branches) and a join node.
+- One wire per output port. To put a step between two nodes use add_node with `after` (or
+  `on_wire`) on the first one's port. To run several things at once use a parallel node
+  (branches) and a join node.
 - No cycles: flows run top-down. For retries use `apply_pattern` with `retry`.
 - Wires stay on one level. Hosts enter a subflow through its entry (`set_entry`) and leave
   through exits (`add_exit`) mapped to the subflow node's ports.
@@ -68,6 +72,7 @@ the ports a node has). Correct that op and send the whole batch again.
 ## Ops cheat sheet
 
 ```json
+{"op": "add_node", "type": "subflow", "title": "Pre-checks", "after": "start.ok_hosts"}
 {"op": "add_node", "type": "task", "title": "Check NTP", "on_wire": "precheck.ok_hosts"}
 {"op": "add_node", "type": "task", "title": "Verify sync", "after": "fix-ntp/push-config.ok_hosts"}
 {"op": "connect", "from": "check-ntp.ok_hosts", "to": "backup-config"}

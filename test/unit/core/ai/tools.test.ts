@@ -141,13 +141,81 @@ describe('AI tools', () => {
     expect(port.text).toContain(
       'precheck has no port "ok_hots" (task ports: in, ok_hosts, failed_hosts',
     );
-    const wired = await call(io, 'flow_edit', {
+    const end = await call(io, 'flow_edit', {
       path: EDGE,
-      ops: [{ op: 'add_node', type: 'task', title: 'X', after: 'precheck.ok_hosts' }],
+      ops: [{ op: 'add_node', type: 'end', title: 'Stopped', after: 'precheck.ok_hosts' }],
     });
-    expect(wired.text).toContain(
-      'precheck.ok_hosts is already wired to backup-config: use on_wire',
+    expect(end.text).toContain(
+      'precheck.ok_hosts is already wired to backup-config: rewire it to the new end node',
     );
+    expect(io.writes).toBe(0);
+  });
+
+  it('AFD-20: a chain built with after on a new flow; on_wire inside a subflow stays there', async () => {
+    const io = memoryIO();
+    const path = 'flows/fortigate-upgrade/fortigate-upgrade.flow.yaml';
+    const n = await call(io, 'flow_new', { path, name: 'FortiGate firmware upgrade' });
+    // The file name is the key; the answer says how to add the first step.
+    expect(n.text).toContain('(key fortigate-upgrade, version 1)');
+    expect(n.text).toContain('add_node with after: "start.ok_hosts" puts the first step');
+    const r = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        // null for an optional field counts as not given (models send it).
+        {
+          op: 'add_node',
+          type: 'subflow',
+          title: 'Pre-checks',
+          after: 'start.ok_hosts',
+          failed_to: null,
+        },
+        { op: 'add_node', type: 'task', title: 'Upgrade', after: 'pre-checks.ok_hosts' },
+        { op: 'add_node', type: 'task', title: 'Post-checks', after: 'upgrade.ok_hosts' },
+        { op: 'add_node', in: 'pre-checks', type: 'task', title: 'Check HA' },
+        { op: 'set_entry', subflow: 'pre-checks', node: 'check-ha' },
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'Check disk',
+          after: 'pre-checks/check-ha.ok_hosts',
+        },
+        { op: 'add_exit', from: 'pre-checks/check-disk.ok_hosts', port: 'ok_hosts' },
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'Check license',
+          on_wire: 'pre-checks/check-ha.ok_hosts',
+        },
+      ],
+    });
+    expect(r.isError, r.text).toBeUndefined();
+    expect(r.text).toContain(
+      'pre-checks went on the wire start.ok_hosts -> done (the port was wired already)',
+    );
+    expect(r.text).toContain(
+      'Created: pre-checks, pre-checks/check-ha, pre-checks/check-disk, pre-checks/check-license, upgrade, post-checks',
+    );
+    const d = await call(io, 'flow_describe', { path });
+    expect(d.text).toContain('start.ok_hosts -> pre-checks');
+    expect(d.text).toContain('pre-checks.ok_hosts -> upgrade');
+    expect(d.text).toContain('upgrade.ok_hosts -> post-checks');
+    expect(d.text).toContain('post-checks.ok_hosts -> done');
+    const inner = await call(io, 'flow_describe', { path, level: 'pre-checks' });
+    expect(inner.text).toContain('pre-checks/check-ha.ok_hosts -> pre-checks/check-license');
+    expect(inner.text).toContain('pre-checks/check-license.ok_hosts -> pre-checks/check-disk');
+    const both = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'Y',
+          after: 'upgrade.ok_hosts',
+          on_wire: 'start.ok_hosts',
+        },
+      ],
+    });
+    expect(both.text).toContain('pass after or on_wire, not both');
   });
 
   it('bad op fields, tested and stale revisions are refused before anything runs', async () => {
@@ -174,6 +242,7 @@ describe('AI tools', () => {
       ops: [{ op: 'delete', nodes: ['precheck'] }],
     });
     expect(stale.text).toMatch(/^The flow changed since revision old; nothing was written/);
+    expect(stale.text).toContain('backup-config.ok_hosts -> push-baseline');
     expect(io.writes).toBe(0);
     const dry = await call(io, 'flow_edit', {
       path: EDGE,

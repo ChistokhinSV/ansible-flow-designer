@@ -2,7 +2,7 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -25,7 +25,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:**/*.flow.yaml"
+    "workspaceContains:**/*.flow.yaml",
+    "onStartupFinished"
   ],
   "contributes": {
     "customEditors": [
@@ -443,7 +444,7 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "description": "Add a node. after wires an output to it, on_wire puts it on an existing wire, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.",
+                    "description": "Add a node. after continues from an output port: a free port is wired to the new node, a wired one gets the node on its wire (so a chain grows: a new flow is start -> done). on_wire does the same for a wired port only, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.",
                     "properties": {
                       "op": {
                         "const": "add_node"
@@ -475,7 +476,7 @@
                       },
                       "after": {
                         "type": "string",
-                        "description": "Wire this output port to the new node."
+                        "description": "Continue from this output port: wired to the new node, or the node goes on its wire when the port is wired already."
                       },
                       "on_wire": {
                         "type": "string",
@@ -1202,7 +1203,8 @@
                           "string",
                           "null"
                         ],
-                        "description": "When the flow may run against production."
+                        "pattern": "^([0-9]+[smhd])+$",
+                        "description": "Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence)."
                       }
                     },
                     "required": [
@@ -1417,8 +1419,8 @@
         "tags": [
           "ansible-flow"
         ],
-        "userDescription": "Create a new flow file: start, done and a devices host_list input. Then add nodes with flow_edit.",
-        "modelDescription": "Create a new flow file: start, done and a devices host_list input. Then add nodes with flow_edit. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "userDescription": "Create a new Ansible flow diagram: a *.flow.yaml file that Ansible Flow Designer draws and turns into playbooks. Use it whenever the user asks for an Ansible flow, flow diagram or automation flow, instead of drawing one in PlantUML, Mermaid or draw.io. The flow starts as start -> done with a devices host_list input; then add steps with flow_edit (add_node after start.ok_hosts puts the first step between them).",
+        "modelDescription": "Create a new Ansible flow diagram: a *.flow.yaml file that Ansible Flow Designer draws and turns into playbooks. Use it whenever the user asks for an Ansible flow, flow diagram or automation flow, instead of drawing one in PlantUML, Mermaid or draw.io. The flow starts as start -> done with a devices host_list input; then add steps with flow_edit (add_node after start.ok_hosts puts the first step between them). Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1432,7 +1434,7 @@
             },
             "key": {
               "type": "string",
-              "description": "Key of the flow; default: from the name."
+              "description": "Key of the flow; default: the file name (ntp-baseline), else from the name."
             },
             "goal": {
               "type": "string",

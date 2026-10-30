@@ -1,8 +1,8 @@
-// What Set Up AI Assistants writes for terminal agents (AFD-19), without VS Code so it can be
-// tested against a temporary home folder. Skill copies carry a manifest so updates, hand edits and
-// removal are told apart; MCP registrations go where each agent reads them: Claude Code through its
-// CLI, Codex as a marked block in ~/.codex/config.toml, Gemini as one key in ~/.gemini/settings.json.
-// Every config file gets a one-time *.afd-backup before its first change.
+// What Set Up AI Assistants writes for agents outside Copilot (AFD-19, AFD-20), without VS Code so
+// it can be tested against a temporary home folder. Skill copies carry a manifest so updates, hand
+// edits and removal are told apart; MCP registrations go where each agent reads them: Claude Code
+// through its CLI, Codex as a marked block in ~/.codex/config.toml, the others as one key in their
+// JSON(C) config. Every config file gets a one-time *.afd-backup before its first change.
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -12,10 +12,21 @@ import {
   type FormattingOptions,
   findNodeAtLocation,
   modify,
+  type ParseError,
+  parse as parseJsonc,
   parseTree,
 } from 'jsonc-parser';
 
-export type Agent = 'claude' | 'codex' | 'gemini';
+export const AGENTS = [
+  'claude',
+  'codex',
+  'gemini',
+  'opencode',
+  'zcode',
+  'copilot',
+  'cursor',
+] as const;
+export type Agent = (typeof AGENTS)[number];
 export type Scope = 'repo' | 'user';
 
 export const SERVER_NAME = 'ansible-flow';
@@ -86,16 +97,26 @@ async function backup(path: string): Promise<void> {
 
 // ---- skills ---------------------------------------------------------------------------------
 
-/** Folders an agent reads the skill from, per scope (Gemini also reads .agents/skills). */
+/**
+ * The folder (under the repository or home) each agent reads skills from. Agents that also read
+ * another agent's folder share its copy: OpenCode and ZCode read .agents/skills, Cursor reads
+ * Claude's, Gemini reads .agents/skills in a repository.
+ */
+const SKILL_HOME: Record<Agent, Record<Scope, string>> = {
+  claude: { repo: '.claude', user: '.claude' },
+  codex: { repo: '.agents', user: '.agents' },
+  gemini: { repo: '.agents', user: '.gemini' },
+  opencode: { repo: '.agents', user: '.agents' },
+  zcode: { repo: '.agents', user: '.agents' },
+  copilot: { repo: '.github', user: '.copilot' },
+  cursor: { repo: '.claude', user: '.claude' },
+};
+
+/** Folders an agent reads the skill from, per scope. */
 export function skillDirs(agent: Agent, scope: Scope, env: Env): string[] {
   const base = scope === 'repo' ? env.repo : env.home;
   if (!base) return [];
-  const folder = {
-    claude: ['.claude'],
-    codex: ['.agents'],
-    gemini: scope === 'repo' ? ['.agents'] : ['.gemini'],
-  }[agent];
-  return folder.map((f) => join(base, f, 'skills', SKILL_NAME));
+  return [join(base, SKILL_HOME[agent][scope], 'skills', SKILL_NAME)];
 }
 
 export interface SkillState {
@@ -259,18 +280,68 @@ export async function removeCodex(env: Env): Promise<boolean> {
   return true;
 }
 
-// ---- MCP: Gemini (~/.gemini/settings.json) ----------------------------------------------------
+// ---- MCP: one key in a JSON(C) config (Gemini, OpenCode, ZCode, Copilot CLI, Cursor) ------------
 
-export const geminiSettings = (env: Env) => join(env.home, '.gemini', 'settings.json');
-const PATH = ['mcpServers', SERVER_NAME];
+type JsonAgent = Exclude<Agent, 'claude' | 'codex'>;
 
-function geminiEntry(launch: Launch) {
-  return {
-    command: launch.command,
-    args: launch.args,
-    ...(launch.env ? { env: launch.env } : {}),
-    description: 'Ansible Flow Designer: read and edit *.flow.yaml flows by key',
-  };
+const stdio = (l: Launch) => ({
+  command: l.command,
+  args: l.args,
+  ...(l.env ? { env: l.env } : {}),
+});
+
+/** OpenCode reads opencode.jsonc or opencode.json in ~/.config/opencode; ours goes in the one there. */
+async function opencodeConfig(env: Env): Promise<string> {
+  const dir = join(env.home, '.config', 'opencode');
+  const jsonc = join(dir, 'opencode.jsonc');
+  return (await exists(jsonc)) ? jsonc : join(dir, 'opencode.json');
+}
+
+const JSON_MCP: Record<
+  JsonAgent,
+  { file: (env: Env) => Promise<string>; path: string[]; entry: (l: Launch) => unknown }
+> = {
+  gemini: {
+    file: async (env) => join(env.home, '.gemini', 'settings.json'),
+    path: ['mcpServers', SERVER_NAME],
+    entry: (l) => ({
+      ...stdio(l),
+      description: 'Ansible Flow Designer: read and edit *.flow.yaml flows by key',
+    }),
+  },
+  opencode: {
+    file: opencodeConfig,
+    path: ['mcp', SERVER_NAME],
+    entry: (l) => ({
+      type: 'local',
+      command: [l.command, ...l.args],
+      ...(l.env ? { environment: l.env } : {}),
+      enabled: true,
+    }),
+  },
+  // ZCode reads ~/.agents/mcp.json (besides ~/.zcode/config.json): a file other agents share.
+  zcode: {
+    file: async (env) => join(env.home, '.agents', 'mcp.json'),
+    path: ['mcpServers', SERVER_NAME],
+    entry: stdio,
+  },
+  copilot: {
+    file: async (env) => join(env.home, '.copilot', 'mcp-config.json'),
+    path: ['mcpServers', SERVER_NAME],
+    entry: (l) => ({ type: 'local', ...stdio(l), tools: ['*'] }),
+  },
+  cursor: {
+    file: async (env) => join(env.home, '.cursor', 'mcp.json'),
+    path: ['mcpServers', SERVER_NAME],
+    entry: stdio,
+  },
+};
+
+/** The config file an agent's registration goes in (Claude's is managed by its CLI). */
+export async function mcpTarget(agent: Agent, env: Env, launch?: Launch): Promise<string> {
+  if (agent === 'claude') return launch ? claudeCommandLine(launch) : 'claude mcp';
+  if (agent === 'codex') return codexConfig(env);
+  return JSON_MCP[agent].file(env);
 }
 
 function formatting(text: string): FormattingOptions {
@@ -282,31 +353,43 @@ function formatting(text: string): FormattingOptions {
   };
 }
 
-function current(text: string): unknown {
+function current(text: string, path: string[]): unknown {
   const tree = parseTree(text);
-  const node = tree && findNodeAtLocation(tree, PATH);
-  return node ? JSON.parse(text.slice(node.offset, node.offset + node.length)) : undefined;
+  const node = tree && findNodeAtLocation(tree, path);
+  return node ? parseJsonc(text.slice(node.offset, node.offset + node.length)) : undefined;
 }
 
-export async function planGemini(env: Env, launch: Launch): Promise<Item> {
-  const target = geminiSettings(env);
+/** A config that does not parse is left alone: an edit could make it worse. */
+function broken(text: string): boolean {
+  const errors: ParseError[] = [];
+  parseJsonc(text, errors, { allowTrailingComma: true });
+  return errors.length > 0;
+}
+
+export async function planJson(agent: JsonAgent, env: Env, launch: Launch): Promise<Item> {
+  const spec = JSON_MCP[agent];
+  const target = await spec.file(env);
   const text = (await readText(target)) ?? '';
-  const now = text.trim() ? current(text) : undefined;
-  const item = { agent: 'gemini' as const, what: 'mcp' as const, target };
+  const item = { agent, what: 'mcp' as const, target };
+  if (text.trim() && broken(text))
+    return { ...item, action: 'skip', note: 'it does not parse as JSON; left as it is' };
+  const now = text.trim() ? current(text, spec.path) : undefined;
   if (now === undefined) return { ...item, action: 'create' };
   return {
     ...item,
-    action: JSON.stringify(now) === JSON.stringify(geminiEntry(launch)) ? 'unchanged' : 'update',
+    action: JSON.stringify(now) === JSON.stringify(spec.entry(launch)) ? 'unchanged' : 'update',
   };
 }
 
-export async function writeGemini(env: Env, launch: Launch): Promise<void> {
-  const target = geminiSettings(env);
+export async function writeJson(agent: JsonAgent, env: Env, launch: Launch): Promise<void> {
+  const spec = JSON_MCP[agent];
+  const target = await spec.file(env);
   const text = (await readText(target)) ?? '';
+  if (text.trim() && broken(text)) return;
   const base = text.trim() ? text : '{}\n';
   const next = applyEdits(
     base,
-    modify(base, PATH, geminiEntry(launch), { formattingOptions: formatting(base) }),
+    modify(base, spec.path, spec.entry(launch), { formattingOptions: formatting(base) }),
   );
   if (next === text) return;
   await fs.mkdir(dirname(target), { recursive: true });
@@ -314,13 +397,14 @@ export async function writeGemini(env: Env, launch: Launch): Promise<void> {
   await fs.writeFile(target, next, 'utf8');
 }
 
-export async function removeGemini(env: Env): Promise<boolean> {
-  const target = geminiSettings(env);
+export async function removeJson(agent: JsonAgent, env: Env): Promise<boolean> {
+  const spec = JSON_MCP[agent];
+  const target = await spec.file(env);
   const text = await readText(target);
-  if (!text || current(text) === undefined) return false;
+  if (!text || broken(text) || current(text, spec.path) === undefined) return false;
   await fs.writeFile(
     target,
-    applyEdits(text, modify(text, PATH, undefined, { formattingOptions: formatting(text) })),
+    applyEdits(text, modify(text, spec.path, undefined, { formattingOptions: formatting(text) })),
     'utf8',
   );
   return true;
@@ -424,7 +508,7 @@ export async function planSetup(
         ? planClaude(env, launch)
         : agent === 'codex'
           ? planCodex(env, launch)
-          : planGemini(env, launch)),
+          : planJson(agent, env, launch)),
     );
   }
   return items;
@@ -441,7 +525,7 @@ export async function applySetup(
     if (item.what === 'skill') await writeSkill(item.target, skill);
     else if (item.agent === 'claude') await writeClaude(env, launch);
     else if (item.agent === 'codex') await writeCodex(env, launch);
-    else await writeGemini(env, launch);
+    else await writeJson(item.agent, env, launch);
   }
 }
 
@@ -462,19 +546,9 @@ export async function removeSetup(agents: Agent[], env: Env): Promise<Item[]> {
         ? await removeClaude(env)
         : agent === 'codex'
           ? await removeCodex(env)
-          : await removeGemini(env);
+          : await removeJson(agent, env);
     if (gone)
-      removed.push({
-        agent,
-        what: 'mcp',
-        target:
-          agent === 'claude'
-            ? 'claude mcp'
-            : agent === 'codex'
-              ? codexConfig(env)
-              : geminiSettings(env),
-        action: 'remove',
-      });
+      removed.push({ agent, what: 'mcp', target: await mcpTarget(agent, env), action: 'remove' });
   }
   return removed;
 }

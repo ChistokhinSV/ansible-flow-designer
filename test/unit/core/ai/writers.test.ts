@@ -4,8 +4,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse as parseJsonc } from 'jsonc-parser';
 import { parse as parseToml } from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { findAgents, mcpJson, otherAgentGuide } from '../../../../src/extension/ai/agents';
 import {
   applySetup,
   type Env,
@@ -192,6 +194,103 @@ describe('AI assistant setup', () => {
     expect(gemini).not.toContain('ansible-flow');
     expect(registered).toBeUndefined();
     expect(await removeSetup([...agents], env())).toEqual([]);
+  });
+
+  it('AFD-20: OpenCode, ZCode, Copilot CLI and Cursor get one key each; shared skill folders are written once', async () => {
+    mkdirSync(join(home, '.config/opencode'), { recursive: true });
+    // A trailing comma and a comment, as OpenCode's own JSONC allows.
+    writeFileSync(
+      join(home, '.config/opencode/opencode.jsonc'),
+      '{\n  // mine\n  "$schema": "https://opencode.ai/config.json",}',
+    );
+    mkdirSync(join(home, '.cursor'));
+    writeFileSync(join(home, '.cursor/mcp.json'), '{ "mcpServers": { oops');
+    const agents = ['opencode', 'zcode', 'copilot', 'cursor'] as const;
+    const items = await planSetup([...agents], 'user', env(), LAUNCH, SKILL);
+    expect(items.map((i) => `${i.agent} ${i.what} ${i.action}`)).toEqual([
+      'opencode skill create',
+      'opencode mcp create',
+      'zcode mcp create',
+      'copilot skill create',
+      'copilot mcp create',
+      'cursor skill create',
+      'cursor mcp skip',
+    ]);
+    expect(items.map((i) => i.target.slice(home.length).replaceAll('\\', '/'))).toEqual([
+      '/.agents/skills/ansible-flow',
+      '/.config/opencode/opencode.jsonc',
+      '/.agents/mcp.json',
+      '/.copilot/skills/ansible-flow',
+      '/.copilot/mcp-config.json',
+      '/.claude/skills/ansible-flow',
+      '/.cursor/mcp.json',
+    ]);
+    await applySetup(items, env(), LAUNCH, SKILL);
+
+    const opencode = read(home, '.config/opencode/opencode.jsonc');
+    expect(opencode).toContain('// mine');
+    expect(parseJsonc(opencode).mcp['ansible-flow']).toEqual({
+      type: 'local',
+      command: [LAUNCH.command, ...LAUNCH.args],
+      environment: LAUNCH.env,
+      enabled: true,
+    });
+    expect(JSON.parse(read(home, '.agents/mcp.json')).mcpServers['ansible-flow']).toEqual({
+      command: LAUNCH.command,
+      args: LAUNCH.args,
+      env: LAUNCH.env,
+    });
+    expect(JSON.parse(read(home, '.copilot/mcp-config.json')).mcpServers['ansible-flow']).toEqual({
+      type: 'local',
+      command: LAUNCH.command,
+      args: LAUNCH.args,
+      env: LAUNCH.env,
+      tools: ['*'],
+    });
+    expect(read(home, '.cursor/mcp.json')).toBe('{ "mcpServers": { oops');
+    expect(read(home, '.claude/skills/ansible-flow/SKILL.md')).toBe(SKILL.files['SKILL.md']);
+
+    const again = await planSetup([...agents], 'user', env(), LAUNCH, SKILL);
+    expect(again.filter((i) => i.action !== 'unchanged').map((i) => i.agent)).toEqual(['cursor']);
+
+    const removed = await removeSetup([...agents], env());
+    expect(removed.map((i) => `${i.agent} ${i.what}`)).toEqual([
+      'opencode skill',
+      'opencode mcp',
+      'zcode mcp',
+      'copilot skill',
+      'copilot mcp',
+      'cursor skill',
+    ]);
+    const left = read(home, '.config/opencode/opencode.jsonc');
+    expect(left).toContain('"$schema"');
+    expect(left).not.toContain('ansible-flow');
+  });
+
+  it('AFD-20: agents are found by program, extension, config folder or app; others get a guide', async () => {
+    mkdirSync(join(home, '.codex'));
+    mkdirSync(join(home, '.config/opencode'), { recursive: true });
+    const local = join(repo, 'AppData');
+    mkdirSync(join(local, 'Programs/ZCode'), { recursive: true });
+    writeFileSync(join(local, 'Programs/ZCode/ZCode.exe'), '');
+    const found = await findAgents({
+      home,
+      localAppData: local,
+      platform: 'win32',
+      onPath: async (name) => (name === 'gemini' ? 'C:\\tools\\gemini.cmd' : undefined),
+      extensions: ['anthropic.claude-code'],
+    });
+    expect(Object.fromEntries(found)).toEqual({
+      claude: 'VS Code extension anthropic.claude-code',
+      codex: '~/.codex',
+      gemini: 'gemini on PATH',
+      opencode: '~/.config/opencode',
+      zcode: 'ZCode app',
+    });
+    const guide = otherAgentGuide(LAUNCH);
+    expect(guide).toContain(mcpJson(LAUNCH));
+    expect(JSON.parse(mcpJson(LAUNCH)).mcpServers['ansible-flow'].env).toEqual(LAUNCH.env);
+    expect(guide).toContain('ELECTRON_RUN_AS_NODE=1 "C:\\Program Files\\VS Code\\Code.exe"');
   });
 
   it('without the claude CLI the registration is shown as a command to run', async () => {

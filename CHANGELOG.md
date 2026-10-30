@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.1 — AFD-20
+
+First real use of the AI assistants: Copilot's first edit failed, and Claude Code drew PlantUML.
+- **Building a flow step by step works on the first try.**
+  - `add_node` with `after` on a port that is already wired puts the new node on that wire, and the answer says so. A new flow is `start -> done`, so `after: "start.ok_hosts"` now adds the first step instead of failing.
+  - `on_wire` inside a subflow adds the node there.
+  - `null` for an optional op field counts as not given.
+  - `flow_new` keys the flow by its file name and says how to add the first step.
+  - The `maintenance_window` field says it takes a duration (`4h`).
+  - The error for an edit against an old revision shows the current flow again.
+- **Every installed agent gets offered the setup.**
+  - After VS Code starts (the extension now also activates on `onStartupFinished`), agents found without the setup get one notice with _Set Up_ (all of them, just me, one click), _Choose…_, _Not Now_ or _Don't Ask Again_.
+  - Setup now also covers OpenCode, ZCode, GitHub Copilot CLI and Cursor, besides Claude Code, Codex and Gemini CLI. Agents that read another agent's skill folder share its copy.
+  - _Other agent…_ opens a guide with this machine's MCP config and copies the skill to a folder you choose.
+  - A config file that does not parse is left alone.
+- **"Ansible flow diagram" means a flow.** The skill description, the MCP server instructions and `flow_new` say to build Ansible flows with the tools, not as PlantUML, Mermaid or draw.io pictures. Checked with Claude Code against a user preference for PlantUML.
+- **Startup cost.** The flow schema compiles on first use (activation 160 ms → 7 ms). Where flows exist it is compiled right after activation.
+
 ## 0.15.0 — AFD-19
 
 - **AI assistants edit flows by key** (ADR-0017):

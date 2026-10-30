@@ -14,7 +14,7 @@ import { countFindings, describeFlow, formatFindings } from './describe';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
 import { type ReferenceTopic, reference } from './reference';
 import { keyPath, RefError, resolveNode, withoutIds } from './refs';
-import { checkOps } from './specs';
+import { checkOps, dropNulls } from './specs';
 
 export interface FlowIO {
   /** Flow files the tools may see, as the paths tools take. */
@@ -213,7 +213,8 @@ export async function flowEdit(
   io: FlowIO,
   input: { path?: string; ops?: unknown; revision?: string; dry_run?: boolean },
 ): Promise<ToolResult> {
-  const problems = checkOps(input.ops);
+  const given = dropNulls(input.ops);
+  const problems = checkOps(given);
   if (problems.length > 0)
     return fail(
       `${problems.join('\n')}\nNothing was written. flow_reference topic ops lists the ops.`,
@@ -223,9 +224,9 @@ export async function flowEdit(
   const now = revisionOf(l.text);
   if (input.revision && input.revision !== now)
     return fail(
-      `The flow changed since revision ${input.revision}; nothing was written. The flow now:\n$describeFlow(l.model, l.findings, now)`,
+      `The flow changed since revision ${input.revision}; nothing was written. The flow now:\n${describeFlow(l.model, l.findings, now)}`,
     );
-  const ops = input.ops as Op[];
+  const ops = given as Op[];
   let result: Awaited<ReturnType<typeof applyOps>>;
   try {
     result = await applyOps(l.text, ops, io.ops(l.path));
@@ -289,7 +290,13 @@ export async function flowNew(
   const path = input.path?.trim() ?? '';
   if (!path.endsWith('.flow.yaml')) return fail('path must end with .flow.yaml');
   if (!input.name?.trim()) return fail('name is required');
-  const key = input.key ?? slugify(input.name, 'flow');
+  // The file is <key>.flow.yaml by convention: a file name that is a key names the flow.
+  const base =
+    path
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/\.flow\.yaml$/, '') ?? '';
+  const key = input.key ?? (SLUG.test(base) ? base : slugify(input.name, 'flow'));
   if (!SLUG.test(key)) return fail(`Key "${key}" must be lowercase letters, digits and dashes`);
   let text = newFlowText(input.name.trim(), key, io.ops(path).newId);
   if (input.goal)
@@ -307,6 +314,7 @@ export async function flowNew(
       `Created ${path}.`,
       ...created.notes,
       describeFlow(checked.model, checked.findings, revisionOf(created.text)),
+      'Next: add steps with flow_edit. add_node with after: "start.ok_hosts" puts the first step between start and done; after: "<that step>.ok_hosts" the next one, and so on.',
     ].join('\n'),
   };
 }

@@ -63,7 +63,7 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'add_node',
     summary:
-      'Add a node. after wires an output to it, on_wire puts it on an existing wire, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.',
+      'Add a node. after continues from an output port: a free port is wired to the new node, a wired one gets the node on its wire (so a chain grows: a new flow is start -> done). on_wire does the same for a wired port only, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.',
     properties: {
       type: {
         ...field('type'),
@@ -72,7 +72,11 @@ export const OP_SPECS: OpSpec[] = [
       title: field('title'),
       key: field('key', 'Key of the new node; default: from the title. Must be new on its level.'),
       in: { ...NODE, description: 'Subflow whose inner level gets the node (default: top).' },
-      after: { ...OUT, description: 'Wire this output port to the new node.' },
+      after: {
+        ...OUT,
+        description:
+          'Continue from this output port: wired to the new node, or the node goes on its wire when the port is wired already.',
+      },
       on_wire: {
         ...OUT,
         description: 'Put the new node on the wire leaving this output port (between both ends).',
@@ -247,7 +251,9 @@ export const OP_SPECS: OpSpec[] = [
       owner: { type: ['string', 'null'], description: 'Team or person responsible.' },
       maintenance_window: {
         type: ['string', 'null'],
-        description: 'When the flow may run against production.',
+        pattern: '^([0-9]+[smhd])+$',
+        description:
+          'Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence).',
       },
     },
     required: [],
@@ -435,7 +441,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'flow_new',
     title: 'New flow',
     description:
-      'Create a new flow file: start, done and a devices host_list input. Then add nodes with flow_edit.',
+      'Create a new Ansible flow diagram: a *.flow.yaml file that Ansible Flow Designer draws and turns into playbooks. Use it whenever the user asks for an Ansible flow, flow diagram or automation flow, instead of drawing one in PlantUML, Mermaid or draw.io. The flow starts as start -> done with a devices host_list input; then add steps with flow_edit (add_node after start.ok_hosts puts the first step between them).',
     readOnly: false,
     inputSchema: {
       type: 'object',
@@ -446,7 +452,11 @@ export const TOOL_SPECS: ToolSpec[] = [
             'New file, relative to the workspace root, ending in .flow.yaml (e.g. flows/ntp-baseline/ntp-baseline.flow.yaml).',
         },
         name: { type: 'string', description: 'Human name of the flow.' },
-        key: { type: 'string', description: 'Key of the flow; default: from the name.' },
+        key: {
+          type: 'string',
+          description:
+            'Key of the flow; default: the file name (ntp-baseline), else from the name.',
+        },
         goal: { type: 'string', description: 'What the flow achieves, in a sentence.' },
       },
       required: ['path', 'name'],
@@ -461,6 +471,24 @@ export const TOOL_SPECS: ToolSpec[] = [
     inputSchema: { type: 'object', properties: { path: PATH } },
   },
 ];
+
+const takesNull = (s: Json | undefined) =>
+  !!s && ([s.type].flat().includes('null') || (Array.isArray(s.enum) && s.enum.includes(null)));
+
+/**
+ * Models often send null for an optional field they leave out ("failed_to": null): such a field
+ * counts as not given, unless null means something for it (removing a field in update_node).
+ */
+export function dropNulls(ops: unknown): unknown {
+  if (!Array.isArray(ops)) return ops;
+  return ops.map((op) => {
+    const spec = OP_SPECS.find((s) => s.op === (op as { op?: unknown })?.op);
+    if (!spec || !op || typeof op !== 'object') return op;
+    return Object.fromEntries(
+      Object.entries(op).filter(([k, v]) => v !== null || takesNull(spec.properties[k] as Json)),
+    );
+  });
+}
 
 let validators: Map<string, ValidateFunction> | undefined;
 

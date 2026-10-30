@@ -8,13 +8,13 @@ Ops run in order, all or nothing: when one fails nothing is written and the erro
 
 ### add_node
 
-Add a node. after wires an output to it, on_wire puts it on an existing wire, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.
+Add a node. after continues from an output port: a free port is wired to the new node, a wired one gets the node on its wire (so a chain grows: a new flow is start -> done). on_wire does the same for a wired port only, failed_to wires its failed_hosts. The key comes from the title unless given. Use in to add it inside a subflow.
 
 - `type` (end | task | subflow | decision | approval | parallel | join, required): start (one, on the top level; hosts enter), end (hosts leave; outcome success or failed), task, subflow (has an inner level), decision (true/false per host), approval (a person approves), parallel (branches), join (branches meet).
 - `title` (string, required): Human name shown on the canvas.
 - `key` (string): Key of the new node; default: from the title. Must be new on its level.
 - `in` (string): Subflow whose inner level gets the node (default: top).
-- `after` (string): Wire this output port to the new node.
+- `after` (string): Continue from this output port: wired to the new node, or the node goes on its wire when the port is wired already.
 - `on_wire` (string): Put the new node on the wire leaving this output port (between both ends).
 - `failed_to` (string): Wire the new node's failed_hosts to this node.
 - `intent` (string): What the node should do, in a sentence. Skeleton runs print it.
@@ -172,7 +172,7 @@ Change the flow header; null removes a field.
 - `key` (string): Key of the flow (names the generated playbook).
 - `goal` (string | null): What the flow achieves, in a sentence.
 - `owner` (string | null): Team or person responsible.
-- `maintenance_window` (string | null): When the flow may run against production.
+- `maintenance_window` (string | null): Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence).
 
 ```json
 {"op":"update_flow","goal":"Every router uses the standard NTP servers"}

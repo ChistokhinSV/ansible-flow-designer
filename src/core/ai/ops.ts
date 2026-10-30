@@ -145,13 +145,13 @@ function stateOf(text: string, file?: YamlFile): State {
   return { text, file: f, model: buildModel(doc) };
 }
 
-/** The wire leaving an output port. */
-function wireFrom(st: State, ref: string): { edge: Ulid; label: string } {
+/** The wire leaving an output port, and the level it is on. */
+function wireFrom(st: State, ref: string): { edge: Ulid; label: string; level: string } {
   const { node, port } = resolvePort(st.model, ref);
   const level = st.model.levels.get(node.level);
   const edge = level?.edges.find((e) => e?.from?.node === node.id && e.from.port === port);
   if (!edge) throw new RefError(`${node.path}.${port} has no wire`);
-  return { edge: edge.id, label: `${node.path}.${port}` };
+  return { edge: edge.id, label: `${node.path}.${port}`, level: node.level };
 }
 
 function outputPort(st: State, ref: string) {
@@ -173,27 +173,44 @@ function levelKeys(st: State, level: string): Set<string> {
 }
 
 /** The FlowCommands of one op, planned against the current state. */
-async function commandsOf(st: State, op: Op, ctx: OpsContext): Promise<FlowCommand[]> {
+async function commandsOf(
+  st: State,
+  op: Op,
+  ctx: OpsContext,
+  notes: string[],
+): Promise<FlowCommand[]> {
   switch (op.op) {
     case 'add_node': {
       if (op.type === 'start')
         throw new RefError('A level has one start node already; add another type');
-      const after = op.after ? outputPort(st, op.after) : undefined;
-      if (after) {
-        const taken = st.model.levels
-          .get(after.node.level)
-          ?.edges.find((e) => e?.from?.node === after.node.id && e.from.port === after.port);
-        if (taken)
+      let after = op.after ? outputPort(st, op.after) : undefined;
+      let wire = op.on_wire ? wireFrom(st, op.on_wire) : undefined;
+      // AFD-20: agents build chains with after; on a wired port (a new flow is start -> done) the
+      // node goes on that wire instead, so the chain grows and nothing downstream is cut off.
+      const taken = after
+        ? st.model.levels
+            .get(after.node.level)
+            ?.edges.find((e) => e?.from?.node === after?.node.id && e.from.port === after.port)
+        : undefined;
+      if (after && taken) {
+        const to = keyPath(st.model, taken.to.node);
+        if (op.type === 'end' || wire)
           throw new RefError(
-            `${after.node.path}.${after.port} is already wired to ${keyPath(st.model, taken.to.node)}: use on_wire to put the new node on that wire, or a parallel node to fan out`,
+            `${after.node.path}.${after.port} is already wired to ${to}: ${op.type === 'end' ? 'rewire it to the new end node, or add the end node after another port' : 'pass after or on_wire, not both'}`,
           );
+        notes.push(
+          `${op.key ?? slugify(op.title, op.type)} went on the wire ${after.node.path}.${after.port} -> ${to} (the port was wired already)`,
+        );
+        wire = {
+          edge: taken.id,
+          label: `${after.node.path}.${after.port}`,
+          level: after.node.level,
+        };
+        after = undefined;
       }
-      const wire = op.on_wire ? wireFrom(st, op.on_wire) : undefined;
-      const parent = op.in
-        ? subflowOf(st, op.in)
-        : after && after.node.level !== ROOT
-          ? after.node.level
-          : undefined;
+      // The node goes on the level of the port or wire it attaches to, unless in names a subflow.
+      const near = after?.node.level ?? wire?.level;
+      const parent = op.in ? subflowOf(st, op.in) : near && near !== ROOT ? near : undefined;
       const level = parent ?? ROOT;
       const key = op.key ?? slugify(op.title, op.type);
       if (!SLUG.test(key))
@@ -383,7 +400,7 @@ export async function applyOps(
   const existing = new Set(st.model.nodes.keys());
   for (const [i, op] of ops.entries()) {
     try {
-      for (const cmd of await commandsOf(st, op, ctx)) {
+      for (const cmd of await commandsOf(st, op, ctx, notes)) {
         const r = planCommand(st.text, cmd, { newId: ctx.newId }, st.file);
         st = stateOf(r.text, r.file);
         for (const id of r.dropped ?? []) dropped.add(keyPath(st.model, id));
