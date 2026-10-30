@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.14.0 — AFD-18
+
+- **Right-click menu on the canvas**, instead of VS Code's Cut/Copy/Paste (text fields keep VS Code's). Its items depend on the target:
+  - a node, a group (including the Shift+drag selection box), a wire, a subflow's entry or exit wire, a port (its port menu), or the empty canvas;
+  - codicons, shortcut hints, disabled items with their reason ("Fix the YAML errors first");
+  - one submenu per open fail port with its suggestions;
+  - Implementation mode offers the edits Design does (except Rename and Extract); Run mode only reads.
+- **Keyboard shortcuts**, with a `?` sheet built from the same table as the menu hints:
+  - Delete/Backspace deletes a selection in one undo step (new command `deleteNodes`);
+  - Ctrl+X cuts; Ctrl+D duplicates next to the original (one paste, no clipboard);
+  - F2 renames in the inspector; Alt+↑ goes up a level;
+  - Shift+F10 or the Menu key opens the menu;
+  - arrow-key nudges are saved once the keys rest (they were lost before);
+  - Escape closes the innermost menu or dialog only, else clears the selection. A field keeps its own Escape, and the Properties page closes itself.
+  - Keys handled by the designer no longer reach VS Code's keybindings. Ctrl+C/X/V/Z/Y always do.
+- **Calmer top bar:**
+  - the six lens buttons are one _Lens_ dropdown with a ✕;
+  - _Run for real…_ moves under _Run as skeleton_'s chevron;
+  - _Tidy up_, _Show as text_, _Validate design_ and _Keyboard shortcuts_ are in a "…" menu.
+- **One shared menu component:** the port menu uses it too. Menus sit above the Properties page.
+- **Fixes:**
+  - dialogs and the toast no longer open behind the Properties page;
+  - a dialog's Escape no longer also closes the page behind it;
+  - Delete on a focused menu item no longer deletes the selection;
+  - the palette is locked and nodes cannot be dragged in Run mode;
+  - the summary card stays closed while a menu is open.
+
 ## 0.13.2 — AFD-17 follow-up
 
 - Paste and _Extract into subflow_ no longer rearrange a flow that is shown by auto layout. Before, they stored only the new node's position, and the other nodes were then stacked in one column below it, so the flow seemed to shift down (product-owner report).

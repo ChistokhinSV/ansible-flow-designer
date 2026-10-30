@@ -1,25 +1,26 @@
 // Copy and paste of nodes (AFD-17). The text goes through the system clipboard, so a copy pastes
 // into another flow, another spot or level of this one, or a text file kept as a snippet. Keys go
 // through the document's copy/paste events (VS Code's own Ctrl+C / Ctrl+V); buttons and the
-// palette commands go through the host, which owns the clipboard there.
+// palette commands go through the host, which owns the clipboard there. Cut (AFD-18) is a copy
+// followed by one delete.
 import { copyNodes } from '../core/flow/clipboard';
 import type { Position, Ulid } from '../core/flow/types';
 import { command, send } from './bus';
 import { useUi } from './store';
 import { levelView, unplacedPositions } from './viewModel';
 
-/** The selected nodes as clipboard text; undefined when no node is selected. */
-export function selectionText(): { text: string; count: number } | undefined {
+/** Nodes (default: the selected ones) as clipboard text; undefined when there are none. */
+export function selectionText(nodes?: Ulid[]): { text: string; count: number } | undefined {
   const { selection, snapshot } = useUi.getState();
-  const ids = selection.nodes ?? (selection.node ? [selection.node] : []);
+  const ids = nodes ?? selection.nodes ?? (selection.node ? [selection.node] : []);
   if (!snapshot?.doc || ids.length === 0) return undefined;
   const text = copyNodes(snapshot.doc, ids, snapshot.autoPositions);
   return text ? { text, count: ids.length } : undefined;
 }
 
-/** Copy through the host (buttons, palette command). */
-export function copySelection(): void {
-  const copied = selectionText();
+/** Copy through the host (buttons, menus, palette command). */
+export function copySelection(nodes?: Ulid[]): void {
+  const copied = selectionText(nodes);
   if (copied) send({ type: 'copyText', ...copied });
   else useUi.getState().setError('Select the nodes to copy first');
 }
@@ -32,15 +33,18 @@ export function setPastePlace(place: () => Position | undefined): void {
   placeOf = place;
 }
 
-/** Pastes on the open level and selects what was pasted; a repeat at one spot steps aside. */
-export async function pasteText(text: string): Promise<Ulid[]> {
+/**
+ * Pastes on the open level and selects what was pasted; a repeat at one spot steps aside. `spot`
+ * (the context menu's place on the canvas) wins over where the pointer is.
+ */
+export async function pasteText(text: string, spot?: Position): Promise<Ulid[]> {
   const ui = useUi.getState();
   if (!ui.snapshot?.doc) return [];
   if (ui.mode === 'run') {
     ui.setError('Run mode is read-only: switch to Design to paste');
     return [];
   }
-  const at = placeOf();
+  const at = spot ?? placeOf();
   if (at && last && last.at.x === at.x && last.at.y === at.y) last.times += 1;
   else last = at ? { at, times: 0 } : undefined;
   const step = (last?.times ?? 0) * 32;
@@ -80,14 +84,26 @@ function ownedByText(): boolean {
   return !element?.closest('.react-flow');
 }
 
-/** Document copy/paste listeners for the canvas; returns the cleanup. */
-export function installClipboard(): () => void {
+/** Document copy, cut and paste listeners for the canvas; returns the cleanup. */
+export function installClipboard(deleteNodes: (nodes: Ulid[]) => void): () => void {
   const onCopy = (e: ClipboardEvent) => {
     if (ownedByText() || !e.clipboardData) return;
     const copied = selectionText();
     if (!copied) return;
     e.clipboardData.setData('text/plain', copied.text);
     e.preventDefault();
+  };
+  const onCut = (e: ClipboardEvent) => {
+    if (ownedByText() || !e.clipboardData) return;
+    const { selection } = useUi.getState();
+    const nodes = selection.nodes ?? (selection.node ? [selection.node] : []);
+    const copied = selectionText(nodes);
+    if (!copied) return;
+    e.clipboardData.setData('text/plain', copied.text);
+    e.preventDefault();
+    if (useUi.getState().mode === 'run')
+      useUi.getState().setError('Run mode is read-only: copied, not cut');
+    else deleteNodes(nodes);
   };
   const onPaste = (e: ClipboardEvent) => {
     if (ownedByText()) return;
@@ -97,9 +113,11 @@ export function installClipboard(): () => void {
     void pasteText(text);
   };
   document.addEventListener('copy', onCopy);
+  document.addEventListener('cut', onCut);
   document.addEventListener('paste', onPaste);
   return () => {
     document.removeEventListener('copy', onCopy);
+    document.removeEventListener('cut', onCut);
     document.removeEventListener('paste', onPaste);
   };
 }

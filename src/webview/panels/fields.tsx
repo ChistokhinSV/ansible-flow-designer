@@ -1,6 +1,8 @@
 // Inputs that commit on Enter or blur and revert on Escape, so each edit is one command (one undo
 // step) instead of one per keystroke.
-import { type KeyboardEvent, useEffect, useId, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
+import { useFocusRequest } from '../focus';
+import type { FocusRequest } from '../store';
 
 interface CommitProps {
   label: string;
@@ -11,6 +13,8 @@ interface CommitProps {
   placeholder?: string;
   /** Returns an error message for invalid input; the value is not committed then. */
   validate?(value: string): string | undefined;
+  /** Takes the focus (text selected) when this field is requested: F2 Rename, Edit reason. */
+  focusKey?: FocusRequest['field'];
 }
 
 export function CommitField({
@@ -21,8 +25,11 @@ export function CommitField({
   mono,
   placeholder,
   validate,
+  focusKey,
 }: CommitProps) {
   const id = useId();
+  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  useFocusRequest(focusKey, ref);
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   const error = draft !== value ? validate?.(draft) : undefined;
@@ -45,6 +52,7 @@ export function CommitField({
   };
   const common = {
     id,
+    ref,
     value: draft,
     placeholder,
     className: `afd-input${mono ? ' mono' : ''}${error ? ' invalid' : ''}`,

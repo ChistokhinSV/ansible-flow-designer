@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { BindKind } from '../core/catalog/draft';
 import { computeDrift } from '../core/drift/drift';
 import type { CodeScan, DriftReport } from '../core/drift/types';
+import type { CanvasMode, CanvasTarget } from '../core/flow/canvasMenu';
 import { buildModel, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
@@ -33,6 +34,23 @@ export interface PortMenuState {
   y: number;
 }
 
+/**
+ * Canvas context menu (AFD-18): what was right-clicked, where (window) and the same spot on the
+ * canvas, so Paste and Add node land there.
+ */
+export interface ContextMenuState {
+  target: CanvasTarget;
+  x: number;
+  y: number;
+  at?: Position;
+}
+
+/** A field to focus (F2 Rename, Extract, Edit reason); the nonce repeats the request. */
+export interface FocusRequest {
+  field: 'title' | 'extractTitle' | 'exitReason';
+  nonce: number;
+}
+
 /** Hover preview card (D-22), anchored right of the node (or left of it near the window edge). */
 export interface PreviewState {
   node: Ulid;
@@ -55,7 +73,7 @@ export type PropTab = 'general' | 'implementation' | 'io' | 'ports' | 'execution
  * Design edits the graph; Implementation shows it against the code (M6, mockup 04); Run shows what
  * the last run did per node, wire and host (M7, 04 §10).
  */
-export type Mode = 'design' | 'implementation' | 'run';
+export type Mode = CanvasMode;
 
 export interface SyncState {
   state: 'idle' | 'syncing' | 'done' | 'error';
@@ -91,6 +109,10 @@ interface UiState {
   selection: Selection;
   quickAdd: QuickAddState | null;
   portMenu: PortMenuState | null;
+  contextMenu: ContextMenuState | null;
+  focusRequest: FocusRequest | null;
+  /** The keyboard shortcuts sheet (`?`). */
+  cheatSheet: boolean;
   pick: PickState | null;
   /** Port whose open-on-purpose reason is being entered. */
   decide: PortRef | null;
@@ -128,6 +150,9 @@ interface UiState {
   select(s: Selection): void;
   openQuickAdd(q: QuickAddState | null): void;
   openPortMenu(m: PortMenuState | null): void;
+  openContextMenu(m: ContextMenuState | null): void;
+  requestFocus(field: FocusRequest['field']): void;
+  showCheatSheet(on: boolean): void;
   setPick(p: PickState | null): void;
   setDecide(p: PortRef | null): void;
   dismissBanner(count: number | null): void;
@@ -179,6 +204,9 @@ export const useUi = create<UiState>((set, get) => ({
   selection: {},
   quickAdd: null,
   portMenu: null,
+  contextMenu: null,
+  focusRequest: null,
+  cheatSheet: false,
   pick: null,
   decide: null,
   bannerDismissedAt: null,
@@ -221,12 +249,18 @@ export const useUi = create<UiState>((set, get) => ({
     const selection =
       (sel.node && !ids.has(sel.node)) || sel.nodes?.some((id) => !ids.has(id)) ? {} : sel;
     const gone = (ref: PortRef | undefined) => ref !== undefined && !ids.has(ref.node);
+    const target = get().contextMenu?.target;
+    const lost =
+      (target?.kind === 'node' && !ids.has(target.id)) ||
+      (target?.kind === 'nodes' && target.ids.some((id) => !ids.has(id))) ||
+      (target?.kind === 'edge' && !model?.edges.has(target.id));
     set({
       snapshot,
       optimistic,
       selection: level === get().level ? selection : {},
       level,
       ...(gone(get().portMenu?.ref) ? { portMenu: null } : {}),
+      ...(lost ? { contextMenu: null } : {}),
       ...(gone(get().pick?.ref) ? { pick: null } : {}),
       ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
       ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
@@ -238,7 +272,13 @@ export const useUi = create<UiState>((set, get) => ({
   setTestMode: (testMode) => set({ testMode }),
   select: (selection) => set({ selection }),
   openQuickAdd: (quickAdd) => set({ quickAdd }),
-  openPortMenu: (portMenu) => set({ portMenu }),
+  openPortMenu: (portMenu) => set({ portMenu, contextMenu: null }),
+  openContextMenu: (contextMenu) => {
+    clearTimeout(openTimer);
+    set({ contextMenu, portMenu: null, preview: null });
+  },
+  requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
+  showCheatSheet: (cheatSheet) => set({ cheatSheet, contextMenu: null }),
   setPick: (pick) => set({ pick, portMenu: null }),
   setDecide: (decide) => set({ decide, portMenu: null }),
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
@@ -270,6 +310,7 @@ export const useUi = create<UiState>((set, get) => ({
       level,
       selection: {},
       portMenu: null,
+      contextMenu: null,
       pick: null,
       quickAdd: null,
       decide: null,
@@ -296,7 +337,7 @@ export const useUi = create<UiState>((set, get) => ({
     openTimer = setTimeout(() => {
       const s = get();
       // Menus, picks and dialogs own the pointer; no card on top of them.
-      if (s.portMenu || s.pick || s.quickAdd || s.decide) return;
+      if (s.portMenu || s.contextMenu || s.pick || s.quickAdd || s.decide) return;
       set({ preview: { node, x: box.right + 12, y: box.top, left: box.left } });
     }, PREVIEW_DELAY);
   },
@@ -307,10 +348,16 @@ export const useUi = create<UiState>((set, get) => ({
   },
   openProperties(node, tab = 'general', bindKind) {
     clearTimeout(openTimer);
-    set({ properties: { node, tab, bindKind }, preview: null, portMenu: null, quickAdd: null });
+    set({
+      properties: { node, tab, bindKind },
+      preview: null,
+      portMenu: null,
+      contextMenu: null,
+      quickAdd: null,
+    });
   },
   setMode(mode) {
-    set({ mode, portMenu: null, pick: null, quickAdd: null, preview: null });
+    set({ mode, portMenu: null, contextMenu: null, pick: null, quickAdd: null, preview: null });
   },
   setSync(sync) {
     set({ sync, drift: driftOf(get().snapshot, sync.scan) });

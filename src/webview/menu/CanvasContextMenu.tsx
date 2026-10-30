@@ -1,0 +1,170 @@
+// The canvas context menu (AFD-18): the entries `canvasMenu` gives for what was right-clicked,
+// drawn by the shared menu, each running an existing action (one command, so one undo step).
+import { useReactFlow } from '@xyflow/react';
+import {
+  type CanvasAction,
+  type CanvasMenuEntry,
+  type CanvasTarget,
+  canvasMenu,
+} from '../../core/flow/canvasMenu';
+import { buildModel, type FlowModel } from '../../core/flow/model';
+import { run } from '../actions';
+import { send } from '../bus';
+import { copySelection } from '../clipboard';
+import {
+  cutNodes,
+  deleteSelection,
+  duplicate,
+  editExitReason,
+  rename,
+  selectAll,
+  startExtract,
+  upLevel,
+} from '../editActions';
+import { runPortItem } from '../portActions';
+import { keysOf } from '../shortcuts';
+import { type ContextMenuState, useUi } from '../store';
+import { Menu, type UiMenuEntry } from './Menu';
+
+function titleOf(model: FlowModel, target: CanvasTarget): string {
+  switch (target.kind) {
+    case 'node':
+      return model.nodes.get(target.id)?.node.title ?? 'Node';
+    case 'nodes':
+      return `${target.ids.length} nodes`;
+    case 'edge':
+    case 'entry':
+    case 'exit':
+      return 'Wire';
+    case 'pane':
+      return 'Canvas';
+  }
+}
+
+export function runCanvasAction(
+  action: CanvasAction,
+  menu: ContextMenuState,
+  model: FlowModel,
+  fitView: () => void,
+): void {
+  const ui = useUi.getState();
+  switch (action.do) {
+    case 'openSubflow':
+      ui.setLevel(action.node);
+      return;
+    case 'properties':
+      ui.openProperties(action.node, action.tab);
+      return;
+    case 'rename':
+      rename(action.node);
+      return;
+    case 'setStatus':
+      void run({ kind: 'updateNode', id: action.node, patch: { status: action.status } });
+      return;
+    case 'port':
+      void runPortItem(action.item, action.ref);
+      return;
+    case 'addNext':
+      void runPortItem({ kind: 'quickAdd', label: 'Add next node' }, action.from);
+      return;
+    case 'cut':
+      void cutNodes(action.nodes);
+      return;
+    case 'copy':
+      copySelection(action.nodes);
+      return;
+    case 'duplicate':
+      void duplicate(action.nodes);
+      return;
+    case 'delete':
+      void deleteSelection(action.nodes, action.edges);
+      return;
+    case 'extract':
+      startExtract(action.nodes);
+      return;
+    case 'showInText': {
+      const path = model.nodes.get(action.node)?.path;
+      send({ type: 'openText', ...(path ? { path } : {}) });
+      return;
+    }
+    case 'peekCode':
+      send({ type: 'peekCode', node: action.node });
+      return;
+    case 'removeEntry':
+      void run({ kind: 'setBoundaryIn', subflow: action.subflow, node: null });
+      return;
+    case 'removeExit':
+      void run({
+        kind: 'disconnectBoundary',
+        subflow: action.subflow,
+        from: action.from,
+        port: action.port,
+      });
+      return;
+    case 'editReason':
+      editExitReason(action.edge);
+      return;
+    case 'paste':
+      send({ type: 'requestPaste', ...(menu.at ? { at: menu.at } : {}) });
+      return;
+    case 'addNode':
+      ui.openQuickAdd({ type: 'task', ...(menu.at ? { position: menu.at } : {}) });
+      return;
+    case 'selectAll':
+      selectAll();
+      return;
+    case 'tidyUp':
+      send({ type: 'tidyUp', level: ui.level });
+      return;
+    case 'fitView':
+      fitView();
+      return;
+    case 'upLevel':
+      upLevel();
+      return;
+  }
+}
+
+export function CanvasContextMenu() {
+  const menu = useUi((s) => s.contextMenu);
+  const snapshot = useUi((s) => s.snapshot);
+  const mode = useUi((s) => s.mode);
+  const level = useUi((s) => s.level);
+  const close = useUi((s) => s.openContextMenu);
+  const flow = useReactFlow();
+  if (!menu || !snapshot?.doc) return null;
+  const model = buildModel(snapshot.doc);
+  const entries = canvasMenu(model, menu.target, {
+    mode,
+    level,
+    stale: snapshot.stale,
+    openPorts: snapshot.openPorts,
+    hasPlay: (id) => !!snapshot.plays?.[id],
+  });
+  if (entries.length === 0) return null;
+  const fitView = () => void flow.fitView({ padding: 0.15, maxZoom: 1.1 });
+  const toUi = (e: CanvasMenuEntry): UiMenuEntry => {
+    if (e.type === 'separator') return e;
+    if (e.type === 'submenu') return { ...e, items: e.items.map(toUi) };
+    return {
+      type: 'item',
+      label: e.label,
+      icon: e.icon,
+      shortcut: keysOf(e.shortcut),
+      checked: e.checked,
+      disabled: e.disabled,
+      note: e.disabled,
+      onSelect: () => runCanvasAction(e.action, menu, model, fitView),
+    };
+  };
+  return (
+    <Menu
+      x={menu.x}
+      y={menu.y}
+      label={titleOf(model, menu.target)}
+      data={{ 'data-canvas-menu': menu.target.kind }}
+      items={entries.map(toUi)}
+      onClose={() => close(null)}
+    />
+  );
+}

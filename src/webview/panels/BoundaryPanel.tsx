@@ -53,6 +53,7 @@ export function BoundaryPanel({ edge }: { edge: string }) {
       </p>
       <CommitField
         label="Reason (shown on the wire)"
+        focusKey="exitReason"
         value={exit.reason ?? ''}
         placeholder="e.g. SSH timeout"
         onCommit={(v) =>

@@ -241,7 +241,12 @@ export function AcceptDialog() {
         aria-modal="true"
         aria-labelledby="afd-accept-title"
         onSubmit={submit}
-        onKeyDown={(e) => e.key === 'Escape' && close(null)}
+        onKeyDown={(e) => {
+          // Only this dialog closes: the page behind it (Properties) stays open.
+          if (e.key !== 'Escape') return;
+          e.stopPropagation();
+          close(null);
+        }}
       >
         <h2 id="afd-accept-title">Mark as expected</h2>
         <p className="muted">

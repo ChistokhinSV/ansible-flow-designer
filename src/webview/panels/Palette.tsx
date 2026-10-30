@@ -33,6 +33,8 @@ const ITEMS: { type: NodeType; icon: string; hint: string }[] = [
 
 export function Palette() {
   const openQuickAdd = useUi((s) => s.openQuickAdd);
+  // Run mode is read-only (AFD-18): the palette shows what exists but adds nothing.
+  const locked = useUi((s) => s.mode === 'run');
   const { screenToFlowPosition } = useReactFlow();
   const addCentered = (type: NodeType) => {
     const canvas = document.querySelector('.react-flow')?.getBoundingClientRect();
@@ -47,12 +49,14 @@ export function Palette() {
   return (
     <aside className="afd-left" aria-label="Palette">
       <h2>Nodes</h2>
+      {locked ? <p className="afd-palette-hint muted">Run mode is read-only</p> : null}
       <ul className="afd-palette">
         {ITEMS.map((item) => (
           <li key={item.type}>
             <button
               type="button"
-              draggable
+              draggable={!locked}
+              disabled={locked}
               onDragStart={(e) => {
                 e.dataTransfer.setData(DRAG_MIME, item.type);
                 e.dataTransfer.effectAllowed = 'copy';
@@ -73,7 +77,8 @@ export function Palette() {
           <li key={p.id}>
             <button
               type="button"
-              draggable
+              draggable={!locked}
+              disabled={locked}
               data-pattern={p.id}
               onDragStart={(e) => {
                 e.dataTransfer.setData(PATTERN_MIME, p.id);

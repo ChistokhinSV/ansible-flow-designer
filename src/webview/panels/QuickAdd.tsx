@@ -105,7 +105,12 @@ export function QuickAdd() {
         aria-modal="true"
         aria-labelledby="afd-qa-title"
         onSubmit={submit}
-        onKeyDown={(e) => e.key === 'Escape' && close(null)}
+        onKeyDown={(e) => {
+          // Only this dialog closes: the page behind it (Properties) stays open.
+          if (e.key !== 'Escape') return;
+          e.stopPropagation();
+          close(null);
+        }}
       >
         <h2 id="afd-qa-title">Add node</h2>
         <p className="muted">

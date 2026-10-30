@@ -1,8 +1,8 @@
 // AFD-17: Ctrl+C / Ctrl+V on the canvas arrive as the page's copy and paste events. Copy puts the
 // selected nodes on the clipboard as flow YAML; paste sends one command for the open level at the
 // pointer and selects what was pasted. Fields and selected text keep the browser's own behaviour.
-// VS Code's context menu copies the selection, so a right-click selects the node under it, and its
-// Paste lands where the menu was opened (product-owner feedback).
+// A right-click selects the node under it (product-owner feedback); the menu it opens (AFD-18) is
+// tested in contextMenu.test.tsx.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -75,7 +75,7 @@ beforeEach(() => {
       autoPositions: {},
     });
   });
-  uninstall = installClipboard();
+  uninstall = installClipboard(() => undefined);
   setPastePlace(() => ({ x: 400, y: 300 }));
 });
 afterEach(() => {
@@ -179,7 +179,7 @@ describe('paste', () => {
   });
 });
 
-describe('right-click (VS Code context menu)', () => {
+describe('right-click', () => {
   const canvas = () =>
     render(
       <ReactFlowProvider>
@@ -194,9 +194,12 @@ describe('right-click (VS Code context menu)', () => {
   it('selects the node under it, unless that node is in the selected group', () => {
     act(() => useUi.getState().select({ node: id('precheck') }));
     canvas();
+    let shown = true;
     act(() => {
-      fireEvent.contextMenu(nodeEl('validate'), { clientX: 10, clientY: 10 });
+      shown = fireEvent.contextMenu(nodeEl('validate'), { clientX: 10, clientY: 10 });
     });
+    // Our menu, not VS Code's: the event's default is prevented.
+    expect(shown).toBe(false);
     expect(useUi.getState().selection).toEqual({ node: id('validate') });
     expect(clipboard('copy').text).toContain('key: validate');
 
@@ -206,30 +209,5 @@ describe('right-click (VS Code context menu)', () => {
       fireEvent.contextMenu(nodeEl('push-baseline'), { clientX: 10, clientY: 10 });
     });
     expect(useUi.getState().selection).toEqual({ nodes: group });
-  });
-
-  it('Paste lands where the menu was opened, after the pointer left; a key press forgets it', () => {
-    canvas();
-    const pane = document.querySelector('.react-flow__pane') as HTMLElement;
-    const pasteAt = (x: number, y: number) => {
-      posted.length = 0;
-      fireEvent.contextMenu(pane, { clientX: x, clientY: y });
-      fireEvent.mouseLeave(document.querySelector('.react-flow') as HTMLElement);
-      clipboard('paste', 'key: x\ntype: task\n');
-      const cmd = sent('command')[0]?.command as
-        | { position?: { x: number; y: number } }
-        | undefined;
-      return cmd?.position;
-    };
-    const a = pasteAt(300, 200) as { x: number; y: number };
-    const b = pasteAt(400, 260) as { x: number; y: number };
-    // Whatever the zoom, the two spots are as far apart as the two right-clicks.
-    expect((b.x - a.x) / (b.y - a.y)).toBeCloseTo(100 / 60);
-    fireEvent.contextMenu(pane, { clientX: 500, clientY: 300 });
-    fireEvent.keyDown(document, { key: 'Escape' });
-    posted.length = 0;
-    clipboard('paste', 'key: x\ntype: task\n');
-    // No menu spot, no pointer, no click and no size in jsdom: no position is sent.
-    expect(sent('command')[0]?.command).not.toHaveProperty('position');
   });
 });

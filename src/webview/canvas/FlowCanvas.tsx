@@ -18,7 +18,17 @@ import {
   useReactFlow,
   type Viewport,
 } from '@xyflow/react';
-import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type DragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
@@ -26,6 +36,7 @@ import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
+import { boundaryWire, upLevel } from '../editActions';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -73,6 +84,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const picking = useUi((s) => s.pick !== null);
   const setPick = useUi((s) => s.setPick);
   const openPortMenu = useUi((s) => s.openPortMenu);
+  const openContextMenu = useUi((s) => s.openContextMenu);
   const level = useUi((s) => s.level);
   const setLevel = useUi((s) => s.setLevel);
   const [connecting, setConnecting] = useState(false);
@@ -138,7 +150,6 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   useEffect(() => setNodes(derived), [derived]);
   const latest = useRef(nodes);
   latest.current = nodes;
-  const exits = useMemo(() => new Map((boundary?.edges ?? []).map((e) => [e.id, e])), [boundary]);
 
   // A start node has no play: its wire carries every host of the run.
   const hostsOn = useMemo(() => {
@@ -240,11 +251,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [select],
   );
 
-  const onNodeDragStop = useCallback(
-    (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {
+  const saveMoves = useCallback(
+    (moved: CanvasNode[]) => {
+      if (moved.length === 0) return;
       const positions: Record<string, Position> = {};
       const round = (p: Position) => ({ x: Math.round(p.x), y: Math.round(p.y) });
-      for (const n of dragged) positions[n.id] = round(n.position);
+      for (const n of moved) positions[n.id] = round(n.position);
       // Nodes still shown at in-memory auto positions are written too, so the first move freezes
       // the layout the user sees instead of letting the other nodes jump (ADR-0002).
       const stored = useUi.getState().snapshot?.doc?.layout ?? {};
@@ -257,6 +269,27 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       });
     },
     [setOptimistic, setError],
+  );
+  const onNodeDragStop = useCallback(
+    (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => saveMoves(dragged),
+    [saveMoves],
+  );
+
+  // Arrow keys move the focused node (React Flow); the move is saved once the keys rest (AFD-18).
+  const nudge = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(nudge.current), []);
+  const onNudge = useCallback(
+    (e: ReactKeyboardEvent) => {
+      if (!e.key.startsWith('Arrow') || e.altKey || e.ctrlKey || e.metaKey || runMode) return;
+      if (!(e.target as Element).closest?.('.react-flow__node, .react-flow__nodesselection'))
+        return;
+      clearTimeout(nudge.current);
+      nudge.current = setTimeout(
+        () => saveMoves(latest.current.filter((n) => n.type === 'flow' && n.selected)),
+        500,
+      );
+    },
+    [saveMoves, runMode],
   );
 
   const onConnect = useCallback(
@@ -314,30 +347,26 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [openQuickAdd, screenToFlowPosition],
   );
 
-  const onDelete = useCallback(
-    ({ nodes: gone, edges: goneEdges }: { nodes: CanvasNode[]; edges: Edge[] }) => {
-      const ids = new Set(gone.filter((n) => n.type === 'flow').map((n) => n.id));
-      const run = async () => {
-        for (const e of goneEdges) {
-          if (ids.has(e.source) || ids.has(e.target)) continue;
-          const b = exits.get(e.id);
-          const subflow = boundary?.subflow.id;
-          const ack =
-            b && subflow
-              ? b.exit
-                ? await command({ kind: 'disconnectBoundary', subflow, ...b.exit })
-                : await command({ kind: 'setBoundaryIn', subflow, node: null })
-              : await command({ kind: 'disconnect', edge: e.id });
-          if (!ack.ok) setError(ack.error ?? 'Could not remove the edge');
-        }
-        for (const id of ids) {
-          const ack = await command({ kind: 'deleteNode', id });
-          if (!ack.ok) setError(ack.error ?? 'Could not delete the node');
-        }
-      };
-      void run();
+  // Right-clicks open our menu instead of VS Code's (AFD-18); on a port, the port menu.
+  const openMenu = useCallback(
+    (e: ReactMouseEvent | MouseEvent, target: CanvasTarget) => {
+      e.preventDefault();
+      // The Menu key or Shift+F10 on a focused node or wire may come without a position.
+      let { clientX: x, clientY: y } = e;
+      if (x === 0 && y === 0 && e.target instanceof Element) {
+        const r = e.target.getBoundingClientRect();
+        x = r.left + 12;
+        y = r.bottom;
+      }
+      const at = screenToFlowPosition({ x, y });
+      openContextMenu({
+        target,
+        x,
+        y,
+        at: { x: Math.round(at.x), y: Math.round(at.y) },
+      });
     },
-    [setError, exits, boundary],
+    [openContextMenu, screenToFlowPosition],
   );
 
   const onDrop = useCallback(
@@ -361,36 +390,23 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [openQuickAdd, screenToFlowPosition, setError],
   );
 
-  // Where a paste lands (AFD-17): where VS Code's context menu was opened, else the pointer on the
-  // canvas, else the last click on it (Edit menu, palette), else the middle of the view. Reaching
-  // the context menu or the Edit menu takes the pointer off the canvas, hence the remembered spots.
+  // Where Ctrl+V pastes (AFD-17): the pointer on the canvas, else the last click on it (Edit menu,
+  // palette), else the middle of the view. The context menu's Paste here carries its own spot.
   const pointer = useRef<{ x: number; y: number } | null>(null);
-  const menuAt = useRef<{ x: number; y: number } | null>(null);
   const clickedAt = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    // A key or a click starts something new: the context menu spot no longer applies.
-    const forget = () => {
-      menuAt.current = null;
-    };
-    document.addEventListener('keydown', forget, true);
-    document.addEventListener('mousedown', forget, true);
     setPastePlace(() => {
       const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
       const middle =
         pane && pane.width > 0
           ? { x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 }
           : undefined;
-      const at = menuAt.current ?? pointer.current ?? clickedAt.current ?? middle;
-      menuAt.current = null;
+      const at = pointer.current ?? clickedAt.current ?? middle;
       if (!at) return undefined;
       const p = screenToFlowPosition(at);
       return { x: Math.round(p.x), y: Math.round(p.y) };
     });
-    return () => {
-      document.removeEventListener('keydown', forget, true);
-      document.removeEventListener('mousedown', forget, true);
-      setPastePlace(() => undefined);
-    };
+    return () => setPastePlace(() => undefined);
   }, [screenToFlowPosition]);
 
   const saved = useMemo(() => loadState<SavedState>(), []);
@@ -453,25 +469,64 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         clickedAt.current = { x: e.clientX, y: e.clientY };
         if (picking) setPick(null);
       }}
-      // VS Code's context menu (Cut, Copy, Paste) acts on the selection: a right-click selects the
-      // node under it, unless that node is part of the selected group.
+      // A right-click selects the node under it, unless that node is part of the selected group;
+      // the menu acts on what is selected. On a port, the port menu opens instead.
       onNodeContextMenu={(e, n) => {
-        menuAt.current = { x: e.clientX, y: e.clientY };
-        if (n.type !== 'flow') return;
+        if (n.type !== 'flow') {
+          openMenu(e, { kind: 'pane' });
+          return;
+        }
+        const port = (e.target as Element).closest?.<HTMLElement>('[data-port]')?.dataset.port;
+        if (port && !runMode) {
+          e.preventDefault();
+          openPortMenu({ ref: { node: n.id, port }, x: e.clientX, y: e.clientY });
+          return;
+        }
         const current = useUi.getState().selection;
-        if (current.node !== n.id && !current.nodes?.includes(n.id)) select({ node: n.id });
+        if (current.nodes?.includes(n.id) && current.nodes.length > 1) {
+          openMenu(e, { kind: 'nodes', ids: current.nodes });
+          return;
+        }
+        if (current.node !== n.id) select({ node: n.id });
+        openMenu(e, { kind: 'node', id: n.id });
       }}
-      onPaneContextMenu={(e) => {
-        menuAt.current = { x: e.clientX, y: e.clientY };
+      onSelectionContextMenu={(e, picked) => {
+        const ids = picked.filter((n) => n.type === 'flow').map((n) => n.id);
+        const one = ids[0];
+        openMenu(
+          e,
+          ids.length > 1
+            ? { kind: 'nodes', ids }
+            : one
+              ? { kind: 'node', id: one }
+              : { kind: 'pane' },
+        );
       }}
+      onEdgeContextMenu={(e, edge) => {
+        if (edge.className?.includes('afd-data-edge')) {
+          openMenu(e, { kind: 'pane' });
+          return;
+        }
+        if (useUi.getState().selection.edge !== edge.id) select({ edge: edge.id });
+        openMenu(e, boundaryWire(edge.id) ?? { kind: 'edge', id: edge.id });
+      }}
+      onPaneContextMenu={(e) => openMenu(e, { kind: 'pane' })}
+      onKeyDownCapture={(e) => {
+        // Alt+Arrow belongs to the designer (Alt+Up: parent level), not to React Flow's nudge.
+        if (!e.altKey || !e.key.startsWith('Arrow')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'ArrowUp') upLevel();
+      }}
+      onKeyDown={onNudge}
       onMoveStart={() => {
         openPortMenu(null);
+        useUi.getState().openContextMenu(null);
         useUi.getState().setPreview(null);
       }}
       className={[connecting ? 'afd-connecting' : '', picking ? 'afd-picking' : '']
         .filter(Boolean)
         .join(' ')}
-      onDelete={onDelete}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_MIME) || e.dataTransfer.types.includes(PATTERN_MIME))
           e.preventDefault();
@@ -489,7 +544,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }}
       isValidConnection={(c) => c.source !== c.target}
       nodesConnectable={!runMode}
-      deleteKeyCode={runMode ? null : ['Delete', 'Backspace']}
+      nodesDraggable={!runMode}
+      // Delete and Backspace are the designer's (keyboard.ts): the selection in one command.
+      deleteKeyCode={null}
       onlyRenderVisibleElements={cull}
       defaultViewport={savedViewport}
       fitView={!savedViewport}

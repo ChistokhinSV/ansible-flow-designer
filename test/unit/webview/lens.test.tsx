@@ -83,15 +83,27 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Lenses (M8)', () => {
-  it('the toggle picks a lens and asks the host for its facts', () => {
+  it('the lens dropdown picks a lens and asks the host for its facts; ✕ clears it', () => {
     render(<TopBar />);
-    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lens: none' }));
+    expect(
+      screen
+        .getAllByRole('menuitemradio')
+        .map((b) => [b.textContent, b.getAttribute('aria-checked')]),
+    ).toEqual([
+      ['None', 'true'],
+      ['Inventory', 'false'],
+      ['Data', 'false'],
+      ['Code', 'false'],
+      ['Access', 'false'],
+      ['Timing', 'false'],
+    ]);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Inventory' }));
     expect(useUi.getState().lens).toBe('inventory');
     expect(messages('lens').at(-1)).toEqual({ type: 'lens', lens: 'inventory' });
-    expect(screen.getByRole('button', { name: 'Inventory' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'None' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Lens: Inventory' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear lens' }));
     expect(useUi.getState().lens).toBeNull();
   });
 

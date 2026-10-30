@@ -61,7 +61,7 @@ export function Inspector({ id }: { id: string }) {
           className="icon"
           title="Copy (Ctrl+C): paste on a flow (Ctrl+V) or in a text file"
           aria-label="Copy node"
-          onClick={copySelection}
+          onClick={() => copySelection()}
         >
           <span className="codicon codicon-copy" aria-hidden="true" />
         </button>
@@ -77,6 +77,7 @@ export function Inspector({ id }: { id: string }) {
       </div>
       <CommitField
         label="Title"
+        focusKey="title"
         value={node.title}
         onCommit={(v) => patch({ title: v })}
         validate={(v) => (v.trim() ? undefined : 'Required')}

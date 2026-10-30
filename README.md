@@ -8,7 +8,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
 
 - `*.flow.yaml` opens in the **Ansible Flow Designer** custom editor; _Open as Text_ (editor title bar) shows the YAML. Both views edit the same document, so save, dirty state, undo/redo, Git diff and hot exit are VS Code's own.
 - **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel, join, start, end) and lifecycle status (draft, specified, implemented, tested); ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths; far zoom shows titles only.
-- **Editing:** drag to move, drag from a port to another node to wire it, release on empty canvas to add a node there (Quick add), Delete/Backspace to remove, palette click or drag to add. The inspector edits title, key, intent, status, contract (inputs and outputs), optional ports and type-specific fields. The flow panel edits name, key, goal, owner and flow inputs and shows readiness counters.
+- **Editing:** drag to move, drag from a port to another node to wire it, release on empty canvas to add a node there (Quick add), Delete/Backspace to remove (a whole selection is one undo step), palette click or drag to add. The inspector edits title, key, intent, status, contract (inputs and outputs), optional ports and type-specific fields. The flow panel edits name, key, goal, owner and flow inputs and shows readiness counters.
 - **Every canvas action is one minimal text edit** made by the extension host with a byte-preserving YAML engine: comments, quoting and formatting outside the edited lines never change, and one Ctrl+Z undoes one action.
 - **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner. The schema is also registered with the Red Hat YAML extension for `*.flow.yaml` (`contributes.yamlValidation`), so _Open as Text_ gets completion and validation from it, and SchemaStore's unrelated Estuary Flow schema, which claims the same file pattern, no longer applies.
 - **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy up_.
@@ -29,8 +29,28 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only.
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
+- **Right-click menu (AFD-18):** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
+  - **Node:** Open subflow, Properties…, Bind implementation…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify on-call and stop, Leave open on purpose…), Add next node…, Cut, Copy, Duplicate, Show in text, Peek code, Delete.
+  - **Group** (also a right-click on the Shift+drag selection box): Cut, Copy, Duplicate, Extract into subflow…, Delete.
+  - **Wire:** Insert node on this wire, Rewire to another node…, Disconnect. Entry and exit wires of a subflow: Remove entry, Edit reason…, Remove exit.
+  - **Port:** the port menu. **Empty canvas:** Paste here, Add node here…, Select all, Tidy up, Fit view, Up to parent.
+  - Implementation mode offers the same edits as Design (except Rename and Extract, whose panels are Design's). Run mode only reads.
+  - Shift+F10 or the Menu key opens the menu for the selection.
+- **Keyboard shortcuts (AFD-18):** press `?` for the list (also in the top bar's "…" menu). Ctrl stands for ⌘ on macOS.
+
+  | Keys                     | Action                                                    |
+  | ------------------------ | --------------------------------------------------------- |
+  | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes (as YAML text)                     |
+  | Ctrl+D                   | Duplicate the selection, next to it                       |
+  | Delete / Backspace       | Delete the selection, in one undo step                    |
+  | F2                       | Rename: the cursor goes to the inspector's Title          |
+  | Enter / Alt+↑            | Open the selected subflow / back to the parent level      |
+  | Arrow keys               | Nudge the focused node; the move is saved when you stop   |
+  | Esc                      | Close the menu or dialog on top; else clear the selection |
+  | Shift+F10                | Context menu for the selection                            |
+
 - **Copy and paste nodes (AFD-17):** select one or more nodes and press Ctrl+C (Cmd+C), or use _Copy_ in the inspector or the selection panel, or _Ansible Flow: Copy Nodes_. The clipboard holds plain YAML: the nodes with their inner levels, the wires between them, their layout and their open-on-purpose decisions. Press Ctrl+V on any flow canvas (or _Ansible Flow: Paste Nodes_) to paste them on the open level, at the pointer, in one undo step. Or paste the text into any text file and keep it as a snippet.
-  - The right-click menu works too: a right-click selects the node under it (a selected group stays selected) for _Copy_, and _Paste_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
+  - In the right-click menu, _Copy_ takes the node you right-clicked (a selected group stays selected), and _Paste here_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
   - Every pasted node, inner node and wire gets a new ID. A key the level already has gets `-2`, `-3`, …, and `from:` references between the pasted nodes follow it. References to nodes that were not copied stay as written.
   - Status `tested` becomes `implemented`: the copy has not run here. Wires to nodes that were not copied are dropped. Start nodes are not pasted.
   - Pasted into a subflow without inner steps, the first pasted node becomes its entry.
@@ -82,7 +102,8 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
-- **Lenses (M8, ADR-0014):** the top bar's lens toggle (None, Inventory, Data, Code, Access, Timing) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
+- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Validate design_ and _Keyboard shortcuts_.
+- **Lenses (M8, ADR-0014):** the top bar's _Lens_ dropdown (None, Inventory, Data, Code, Access, Timing; ✕ clears it) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
   - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
   - **Code** shows each binding with its collection version and the execution environment. Findings: not in the environment, removed or deprecated, versions that do not meet `collections/requirements.yml`.
@@ -324,6 +345,7 @@ just install
 | `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
 | `just test-extract [version]`    | Extract into subflow inside VS Code (AFD-7)                                          |
 | `just test-clipboard [version]`  | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards  |
+| `just test-edit [version]`       | One undo step per selection edit inside VS Code (AFD-18)                             |
 | `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
 | `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
 | `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |

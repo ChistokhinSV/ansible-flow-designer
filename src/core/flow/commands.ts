@@ -69,6 +69,8 @@ export type FlowCommand =
   | { kind: 'rewire'; edge: Ulid; to: PortRef }
   | { kind: 'updateNode'; id: Ulid; patch: NodePatch }
   | { kind: 'deleteNode'; id: Ulid }
+  /** AFD-18: a selection (nodes and wires of one level) goes in one edit, so one undo restores it. */
+  | { kind: 'deleteNodes'; ids: Ulid[]; edges?: Ulid[] }
   | { kind: 'moveNodes'; positions: Record<Ulid, Position> }
   | { kind: 'tidyUp'; positions: Record<Ulid, Position> }
   | { kind: 'connect'; from: PortRef; to: PortRef }
@@ -1624,6 +1626,23 @@ export function planCommand(
     case 'deleteNode':
       deleteNode(tx, cmd.id);
       break;
+    case 'deleteNodes': {
+      // Wires first; each item is looked up again, so a wire of a deleted node or the child of a
+      // deleted subflow is simply gone already.
+      let removed = 0;
+      for (const edge of cmd.edges ?? [])
+        if (state(tx).model.edges.has(edge)) {
+          removeEdgeById(tx, edge);
+          removed++;
+        }
+      for (const id of cmd.ids)
+        if (state(tx).model.nodes.has(id)) {
+          deleteNode(tx, id);
+          removed++;
+        }
+      if (removed === 0) throw new CommandError('not-found', 'Nothing to delete');
+      break;
+    }
     case 'moveNodes':
     case 'tidyUp':
       setPositions(tx, cmd.positions);

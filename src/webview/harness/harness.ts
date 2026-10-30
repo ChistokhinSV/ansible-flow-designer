@@ -402,6 +402,14 @@ async function onMessage(m: WebviewMessage) {
       void onMessage({ type: 'lens', lens: lensOpen, refresh: true });
       break;
     }
+    case 'requestPaste':
+      toWebview({
+        type: 'clipboard',
+        action: 'paste',
+        text: (window as unknown as { harnessClip?: string }).harnessClip ?? '',
+        at: m.at,
+      });
+      break;
     case 'copyText':
       // The page's own clipboard stands in for VS Code's (AFD-17); harnessClip shows what was sent.
       (window as unknown as { harnessClip?: string }).harnessClip = m.text;

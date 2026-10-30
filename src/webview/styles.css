@@ -614,7 +614,7 @@ textarea {
   border: 1px solid var(--vscode-notifications-border, var(--afd-border));
   border-left: 3px solid var(--afd-failed);
   box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
-  z-index: 20;
+  z-index: 80;
 }
 
 .afd-modal-backdrop {
@@ -625,7 +625,7 @@ textarea {
   align-items: flex-start;
   justify-content: center;
   padding-top: 10vh;
-  z-index: 30;
+  z-index: 55;
 }
 
 .afd-modal {
@@ -1051,12 +1051,13 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
   cursor: crosshair;
 }
 
-/* ---------- port menu (04 §3) ---------- */
+/* ---------- menus: canvas context menu, port menu, top bar dropdowns (AFD-18) ---------- */
 
-.afd-port-menu {
+.afd-menu {
   position: fixed;
-  z-index: 40;
-  width: 236px;
+  z-index: 70;
+  min-width: 200px;
+  max-width: 320px;
   padding: 4px;
   display: flex;
   flex-direction: column;
@@ -1067,6 +1068,81 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
   border-radius: 6px;
   box-shadow: 0 6px 20px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
   font-size: 12.5px;
+}
+
+.afd-menu > button[role^="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  min-height: 26px;
+  padding: 0 8px 0 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.afd-menu > button[role^="menuitem"]:hover:not([aria-disabled="true"]),
+.afd-menu > button[role^="menuitem"]:focus-visible,
+.afd-menu > button.afd-menu-open {
+  background: var(
+    --vscode-menu-selectionBackground,
+    var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.18))
+  );
+  color: var(--vscode-menu-selectionForeground, inherit);
+  border-color: var(--vscode-menu-selectionBorder, transparent);
+  outline: none;
+}
+
+.afd-menu > button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.afd-menu-icon {
+  width: 16px;
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.afd-menu-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+}
+
+.afd-menu-why {
+  font-size: 11px;
+  color: var(--afd-muted);
+}
+
+.afd-menu-key {
+  margin-left: 16px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--vscode-menu-foreground, var(--afd-muted));
+  opacity: 0.7;
+  background: none;
+  border: 0;
+}
+
+.afd-menu-more {
+  margin-left: 12px;
+}
+
+.afd-menu-sep {
+  border: 0;
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--vscode-menu-separatorBackground, var(--afd-border));
+}
+
+.afd-port-menu {
+  width: 236px;
 }
 
 .afd-port-menu-head {
@@ -1087,26 +1163,6 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
   margin: 0 6px 4px;
   color: var(--afd-muted);
   font-size: 11.5px;
-}
-
-.afd-port-menu button[role="menuitem"] {
-  text-align: left;
-  height: 26px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-}
-
-.afd-port-menu button[role="menuitem"]:hover:not(:disabled),
-.afd-port-menu button[role="menuitem"]:focus-visible {
-  background: var(
-    --vscode-menu-selectionBackground,
-    var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.18))
-  );
-  color: var(--vscode-menu-selectionForeground, inherit);
-  outline: none;
 }
 
 /* ---------- subflow levels (M4, D-23, mockup 10) ---------- */
@@ -2270,4 +2326,84 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
 .afd-finding-accepted {
   margin: 4px 0 0;
   font-size: 12px;
+}
+
+/* ---------- top bar dropdowns, split button, shortcuts sheet (AFD-18) ---------- */
+
+.afd-lens-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.afd-lens-pick button.afd-lens-on {
+  border-color: var(--vscode-focusBorder, var(--afd-accent, #3794ff));
+}
+
+.afd-split {
+  display: inline-flex;
+}
+
+.afd-split > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.afd-split > button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 0 4px;
+  border-left: 1px solid var(--vscode-button-separator, rgba(255, 255, 255, 0.4));
+}
+
+.afd-cheatsheet {
+  width: 520px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.afd-cheatsheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.afd-cheatsheet h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.afd-cheatsheet h3 {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--afd-muted);
+}
+
+.afd-cheatsheet dl {
+  margin: 0;
+}
+
+.afd-cheatsheet dl > div {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.afd-cheatsheet dt,
+.afd-cheatsheet dd {
+  margin: 0;
+}
+
+.afd-cheatsheet kbd {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border: 1px solid var(--vscode-keybindingLabel-border, var(--afd-border));
+  border-bottom-color: var(--vscode-keybindingLabel-bottomBorder, var(--afd-border));
+  border-radius: 3px;
+  background: var(--vscode-keybindingLabel-background, transparent);
+  color: var(--vscode-keybindingLabel-foreground, inherit);
 }

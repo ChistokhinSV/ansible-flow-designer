@@ -4,8 +4,12 @@ import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
+import { deleteSelection } from './editActions';
+import { installKeyboard } from './keyboard';
+import { CanvasContextMenu } from './menu/CanvasContextMenu';
 import { Banner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
+import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
 import { DriftPanel, IgnoreDialog, NodeCodePanel } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
@@ -139,7 +143,7 @@ function useHost() {
         ui.setLens(m.lens);
       } else if (m.type === 'clipboard') {
         if (m.action === 'copy') copySelection();
-        else void pasteText(m.text);
+        else void pasteText(m.text, m.at);
       } else if (m.type === 'openProperties') {
         ui.reveal(m.node);
         ui.openProperties(m.node, m.tab);
@@ -154,11 +158,13 @@ function useHost() {
     const onCsp = (e: SecurityPolicyViolationEvent) =>
       send({ type: 'cspViolation', detail: `${e.violatedDirective} ${e.blockedURI}` });
     document.addEventListener('securitypolicyviolation', onCsp);
-    const offClipboard = installClipboard();
+    const offClipboard = installClipboard((nodes) => void deleteSelection(nodes));
+    const offKeyboard = installKeyboard();
     send({ type: 'ready' });
     return () => {
       off();
       offClipboard();
+      offKeyboard();
       document.removeEventListener('securitypolicyviolation', onCsp);
     };
   }, []);
@@ -255,6 +261,8 @@ export function App() {
         <IgnoreDialog />
         <AcceptDialog />
         <PortMenu />
+        <CanvasContextMenu />
+        <CheatSheet />
         <PreviewCard />
         {properties ? <Properties key={properties.node} node={properties.node} /> : null}
         {error ? (

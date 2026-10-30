@@ -163,7 +163,8 @@ export type HostMessage =
   | { type: 'setLens'; lens: LensId | null }
   /** AFD-17 palette commands: copy the selected nodes, or paste text the host read. */
   | { type: 'clipboard'; action: 'copy' }
-  | { type: 'clipboard'; action: 'paste'; text: string };
+  /** `at`: the spot on the canvas where the context menu's Paste here was chosen (AFD-18). */
+  | { type: 'clipboard'; action: 'paste'; text: string; at?: Position };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -196,7 +197,9 @@ export type WebviewMessage =
   /** Asks for the flow targets the Inventory lens counts (remembered with the run inputs). */
   | { type: 'setTargets' }
   /** AFD-17: nodes as text for the system clipboard (Copy buttons, the palette command). */
-  | { type: 'copyText'; text: string; count: number };
+  | { type: 'copyText'; text: string; count: number }
+  /** AFD-18: Paste here in the context menu; the host reads the clipboard and answers this panel. */
+  | { type: 'requestPaste'; at?: Position };
 
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {

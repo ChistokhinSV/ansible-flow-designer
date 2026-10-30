@@ -1,12 +1,16 @@
-// Top bar (04 §1): breadcrumb, key and version, mode and lens toggles, primary actions. Design,
+// Top bar (04 §1): breadcrumb, key and version, mode toggle, lens, primary actions. Design,
 // Implementation (M6) and Run (M7) modes; the lens (M8, D-18) is picked independently of mode.
 // Run as skeleton (M3) runs the generated code in check mode; Re-sync from git (M6) compiles the
-// code for Implementation mode; Launch in AWX (M7) runs the flow's job template.
+// code for Implementation mode; Launch in AWX (M7) runs the flow's job template. Since AFD-18 the
+// lens is one dropdown, Run for real sits under Run as skeleton, and rarer actions (Tidy up, text,
+// Validate design, the shortcuts) are in the "…" menu: fewer controls, every action still here.
 
 import { ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { send } from '../bus';
+import type { UiMenuEntry } from '../menu/Menu';
+import { MenuButton } from '../menu/MenuButton';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
 
@@ -92,47 +96,8 @@ export function TopBar() {
           </button>
         ))}
       </fieldset>
-      <fieldset className="afd-segmented" aria-label="Lens">
-        <button
-          type="button"
-          className={lens === null ? 'active' : ''}
-          aria-pressed={lens === null}
-          onClick={() => pickLens(null)}
-          title="No lens: the mode decides what nodes show"
-        >
-          None
-        </button>
-        {LENSES.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            className={l.id === lens ? 'active' : ''}
-            aria-pressed={l.id === lens}
-            data-lens={l.id}
-            onClick={() => pickLens(l.id)}
-            title={`${l.label} lens: chips, wires and findings across the flow`}
-          >
-            {l.label}
-          </button>
-        ))}
-      </fieldset>
+      <LensPick lens={lens} pick={pickLens} />
       <div className="afd-actions">
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => send({ type: 'tidyUp', level })}
-          title="Auto-layout the whole level"
-        >
-          <span className="codicon codicon-layout" aria-hidden="true" /> Tidy up
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => send({ type: 'openText' })}
-          title="Open the flow file as text"
-        >
-          <span className="codicon codicon-go-to-file" aria-hidden="true" /> Text
-        </button>
         {mode === 'implementation' ? (
           <button
             type="button"
@@ -161,25 +126,116 @@ export function TopBar() {
           </button>
         ) : null}
         {mode !== 'design' ? <LaunchAwx running={running} /> : null}
+        <MenuButton
+          label="More actions"
+          className="secondary icon"
+          title="More actions"
+          items={() => moreActions(mode, level)}
+        >
+          <span className="codicon codicon-ellipsis" aria-hidden="true" />
+        </MenuButton>
       </div>
     </header>
   );
 }
 
-/** Design mode's primary actions (04 §1): run as skeleton or for real, validate. */
+/** The lens as one dropdown (M8 lenses), with a quick way back to none. */
+function LensPick({
+  lens,
+  pick,
+}: {
+  lens: (typeof LENSES)[number]['id'] | null;
+  pick: (id: (typeof LENSES)[number]['id'] | null) => void;
+}) {
+  const current = LENSES.find((l) => l.id === lens);
+  return (
+    <div className="afd-lens-pick">
+      <MenuButton
+        label={current ? `Lens: ${current.label}` : 'Lens: none'}
+        className={`secondary${current ? ' afd-lens-on' : ''}`}
+        title="Lenses show chips, wires and findings across the flow"
+        items={() => [
+          {
+            type: 'item',
+            label: 'None',
+            checked: lens === null,
+            title: 'No lens: the mode decides what nodes show',
+            onSelect: () => pick(null),
+          },
+          { type: 'separator' },
+          ...LENSES.map(
+            (l): UiMenuEntry => ({
+              type: 'item',
+              label: l.label,
+              checked: l.id === lens,
+              title: `${l.label} lens: chips, wires and findings across the flow`,
+              onSelect: () => pick(l.id),
+            }),
+          ),
+        ]}
+      >
+        <span className="codicon codicon-eye" aria-hidden="true" />{' '}
+        {current ? `Lens: ${current.label}` : 'Lens'}{' '}
+        <span className="codicon codicon-chevron-down" aria-hidden="true" />
+      </MenuButton>
+      {current ? (
+        <button
+          type="button"
+          className="icon"
+          aria-label="Clear lens"
+          title="Clear lens"
+          onClick={() => pick(null)}
+        >
+          <span className="codicon codicon-close" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Actions used now and then: in the "…" menu instead of on the bar. */
+function moreActions(mode: Mode, level: string): UiMenuEntry[] {
+  return [
+    {
+      type: 'item',
+      label: 'Tidy up',
+      icon: 'layout',
+      title: 'Auto-layout the whole level',
+      onSelect: () => send({ type: 'tidyUp', level }),
+    },
+    {
+      type: 'item',
+      label: 'Show as text',
+      icon: 'go-to-file',
+      title: 'Open the flow file as text',
+      onSelect: () => send({ type: 'openText' }),
+    },
+    ...(mode === 'design'
+      ? [
+          {
+            type: 'item' as const,
+            label: 'Validate design',
+            icon: 'check-all',
+            title: 'Check the flow again and show the Problems panel',
+            onSelect: () => send({ type: 'validate' }),
+          },
+        ]
+      : []),
+    { type: 'separator' },
+    {
+      type: 'item',
+      label: 'Keyboard shortcuts',
+      icon: 'keyboard',
+      shortcut: '?',
+      onSelect: () => useUi.getState().showCheatSheet(true),
+    },
+  ];
+}
+
+/** Design mode's primary action (04 §1): run as skeleton; running for real is in its menu. */
 function DesignActions({ running }: { running: boolean }) {
   return (
-    <>
-      <button
-        type="button"
-        className="secondary"
-        disabled={running}
-        onClick={() => send({ type: 'run', mode: 'real' })}
-        title="Run for real (not check mode), after a confirmation naming inventory and hosts"
-        aria-label="Run for real"
-      >
-        <span className="codicon codicon-debug-alt" aria-hidden="true" />
-      </button>
+    <div className="afd-split">
       <button
         type="button"
         disabled={running}
@@ -192,10 +248,23 @@ function DesignActions({ running }: { running: boolean }) {
         />{' '}
         {running ? 'Running…' : 'Run as skeleton'}
       </button>
-      <button type="button" onClick={() => send({ type: 'validate' })}>
-        <span className="codicon codicon-check-all" aria-hidden="true" /> Validate design
-      </button>
-    </>
+      <MenuButton
+        label="More run options"
+        title="More run options"
+        disabled={running}
+        items={() => [
+          {
+            type: 'item',
+            label: 'Run for real…',
+            icon: 'debug-alt',
+            title: 'Run for real (not check mode), after a confirmation naming inventory and hosts',
+            onSelect: () => send({ type: 'run', mode: 'real' }),
+          },
+        ]}
+      >
+        <span className="codicon codicon-chevron-down" aria-hidden="true" />
+      </MenuButton>
+    </div>
   );
 }
 
