@@ -59,11 +59,18 @@ export async function pasteText(text: string): Promise<Ulid[]> {
   return pasted;
 }
 
-/** Typing in a field, or text selected in a panel, keeps the browser's own copy and paste. */
+/**
+ * Typing in a field, or text selected in a panel, keeps the browser's own copy and paste. Text
+ * selected on the canvas does not count: a right-click there can select a word of a node title.
+ */
 function ownedByText(): boolean {
   const active = document.activeElement as HTMLElement | null;
   if (active?.closest('input, textarea, select, [contenteditable="true"]')) return true;
-  return !!document.getSelection()?.toString();
+  const selected = document.getSelection();
+  if (!selected?.toString()) return false;
+  const at = selected.anchorNode;
+  const element = at instanceof Element ? at : at?.parentElement;
+  return !element?.closest('.react-flow');
 }
 
 /** Document copy/paste listeners for the canvas; returns the cleanup. */

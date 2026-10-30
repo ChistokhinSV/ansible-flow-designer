@@ -361,20 +361,36 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [openQuickAdd, screenToFlowPosition, setError],
   );
 
-  // A paste lands where the pointer is on the canvas, else in the middle of the view (AFD-17).
+  // Where a paste lands (AFD-17): where VS Code's context menu was opened, else the pointer on the
+  // canvas, else the last click on it (Edit menu, palette), else the middle of the view. Reaching
+  // the context menu or the Edit menu takes the pointer off the canvas, hence the remembered spots.
   const pointer = useRef<{ x: number; y: number } | null>(null);
+  const menuAt = useRef<{ x: number; y: number } | null>(null);
+  const clickedAt = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
+    // A key or a click starts something new: the context menu spot no longer applies.
+    const forget = () => {
+      menuAt.current = null;
+    };
+    document.addEventListener('keydown', forget, true);
+    document.addEventListener('mousedown', forget, true);
     setPastePlace(() => {
       const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
-      if (!pane || pane.width === 0) return undefined;
-      const at = pointer.current ?? {
-        x: pane.left + pane.width / 2,
-        y: pane.top + pane.height / 2,
-      };
+      const middle =
+        pane && pane.width > 0
+          ? { x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 }
+          : undefined;
+      const at = menuAt.current ?? pointer.current ?? clickedAt.current ?? middle;
+      menuAt.current = null;
+      if (!at) return undefined;
       const p = screenToFlowPosition(at);
       return { x: Math.round(p.x), y: Math.round(p.y) };
     });
-    return () => setPastePlace(() => undefined);
+    return () => {
+      document.removeEventListener('keydown', forget, true);
+      document.removeEventListener('mousedown', forget, true);
+      setPastePlace(() => undefined);
+    };
   }, [screenToFlowPosition]);
 
   const saved = useMemo(() => loadState<SavedState>(), []);
@@ -433,8 +449,20 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         if (n.type === 'flow' && n.data.view.node.type === 'subflow') setLevel(n.id);
       }}
       zoomOnDoubleClick={false}
-      onPaneClick={() => {
+      onPaneClick={(e) => {
+        clickedAt.current = { x: e.clientX, y: e.clientY };
         if (picking) setPick(null);
+      }}
+      // VS Code's context menu (Cut, Copy, Paste) acts on the selection: a right-click selects the
+      // node under it, unless that node is part of the selected group.
+      onNodeContextMenu={(e, n) => {
+        menuAt.current = { x: e.clientX, y: e.clientY };
+        if (n.type !== 'flow') return;
+        const current = useUi.getState().selection;
+        if (current.node !== n.id && !current.nodes?.includes(n.id)) select({ node: n.id });
+      }}
+      onPaneContextMenu={(e) => {
+        menuAt.current = { x: e.clientX, y: e.clientY };
       }}
       onMoveStart={() => {
         openPortMenu(null);

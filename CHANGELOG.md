@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.1 — AFD-17 follow-up
+
+- VS Code's context menu on the canvas (Cut, Copy, Paste) now does what it says, from product-owner feedback:
+  - A right-click selects the node under it, unless that node is part of the selected group. _Copy_ copied the earlier selection before.
+  - _Paste_ lands where the menu was opened. It went to the middle of the view before, because reaching the menu takes the pointer off the canvas.
+  - Paste from the Edit menu or the palette goes to the last click on the canvas, else the middle of the view. Ctrl+V goes to the pointer, as before.
+- Text selected on the canvas (a right-click can select a word of a node title) no longer stops Copy from taking the nodes.
+
 ## 0.13.0 — AFD-17
 
 - Copy and paste of nodes through the system clipboard (ADR-0001 amendment).

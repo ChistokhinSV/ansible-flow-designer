@@ -30,6 +30,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Copy and paste nodes (AFD-17):** select one or more nodes and press Ctrl+C (Cmd+C), or use _Copy_ in the inspector or the selection panel, or _Ansible Flow: Copy Nodes_. The clipboard holds plain YAML: the nodes with their inner levels, the wires between them, their layout and their open-on-purpose decisions. Press Ctrl+V on any flow canvas (or _Ansible Flow: Paste Nodes_) to paste them on the open level, at the pointer, in one undo step. Or paste the text into any text file and keep it as a snippet.
+  - The right-click menu works too: a right-click selects the node under it (a selected group stays selected) for _Copy_, and _Paste_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
   - Every pasted node, inner node and wire gets a new ID. A key the level already has gets `-2`, `-3`, …, and `from:` references between the pasted nodes follow it. References to nodes that were not copied stay as written.
   - Status `tested` becomes `implemented`: the copy has not run here. Wires to nodes that were not copied are dropped. Start nodes are not pasted.
   - Pasted into a subflow without inner steps, the first pasted node becomes its entry.
