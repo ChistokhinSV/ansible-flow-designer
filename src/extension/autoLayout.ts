@@ -1,7 +1,7 @@
 // Top-down layered layout with ELK, run in the host (5–15 nodes per level: milliseconds, no worker).
 import type ELK from 'elkjs/lib/elk.bundled.js';
 import { nodeSize } from '../core/flow/geometry';
-import { buildModel, type Level } from '../core/flow/model';
+import { buildModel, type FlowModel, type Level } from '../core/flow/model';
 import type { FlowDocument, Layout, Position, Ulid } from '../core/flow/types';
 
 // ELK is three quarters of the host code (about 160 ms to load). It loads at the first layout, not
@@ -49,8 +49,12 @@ export async function layoutAll(doc: FlowDocument): Promise<void> {
 
 /**
  * In-memory positions for nodes the layout block does not place (ADR-0002). With no stored
- * positions at all the level gets a full ELK layout; otherwise each missing node goes below its
- * placed predecessor, or below everything.
+ * positions at all the level gets a full ELK layout. Otherwise (AFD-23) the missing nodes keep
+ * ELK's shape around the placed ones: each goes where ELK puts it relative to a placed neighbour
+ * (its predecessor first), else by the placed nodes' median shift, and moves right while it would
+ * overlap a node. Before, each missing node went straight below its predecessor, so a flow with
+ * only Start and Done placed (the New Flow template) and everything else added by an AI agent
+ * stood in one column, siblings on top of each other.
  */
 export async function autoPositions(
   level: Level,
@@ -63,21 +67,84 @@ export async function autoPositions(
   }
   const missing = level.nodes.filter((n) => n?.id && !placed.has(n.id));
   if (missing.length === 0) return {};
-  if (placed.size === 0) return layoutLevel(level);
+  const elkAt = await layoutLevel(level);
+  if (placed.size === 0) return elkAt;
 
   const out: Record<Ulid, Position> = {};
-  let bottom = Math.max(...[...placed.values()].map((p) => p.y)) + 120;
-  for (const n of missing) {
-    const pred = level.edges.find(
-      (e) => e?.to?.node === n.id && (placed.has(e.from.node) || out[e.from.node]),
+  const known = (id: Ulid) => placed.get(id) ?? out[id];
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+  const shifts = [...placed].flatMap(([id, p]) => {
+    const e = elkAt[id];
+    return e ? [{ x: p.x - e.x, y: p.y - e.y }] : [];
+  });
+  const shift = { x: median(shifts.map((s) => s.x)), y: median(shifts.map((s) => s.y)) };
+  const type = new Map(level.nodes.filter((n) => n?.id).map((n) => [n.id, n.type]));
+  const boxes = [...placed].map(([id, p]) => ({ ...p, ...nodeSize(type.get(id) ?? 'task') }));
+  const overlaps = (p: Position, size: { width: number; height: number }) =>
+    boxes.some(
+      (b) =>
+        p.x < b.x + b.width + GAP &&
+        p.x + size.width + GAP > b.x &&
+        p.y < b.y + b.height + GAP &&
+        p.y + size.height + GAP > b.y,
     );
-    const from = pred ? (placed.get(pred.from.node) ?? out[pred.from.node]) : undefined;
-    if (from) {
-      out[n.id] = { x: from.x, y: from.y + 120 };
-    } else {
-      out[n.id] = { x: 0, y: bottom };
-      bottom += 100;
-    }
+  // Top-down in ELK's order, so a predecessor is placed before the nodes below it.
+  const order = [...missing].sort(
+    (a, b) =>
+      (elkAt[a.id]?.y ?? 0) - (elkAt[b.id]?.y ?? 0) ||
+      (elkAt[a.id]?.x ?? 0) - (elkAt[b.id]?.x ?? 0),
+  );
+  for (const n of order) {
+    const e = elkAt[n.id] ?? { x: 0, y: 0 };
+    const anchor =
+      level.edges.find((w) => w?.to?.node === n.id && known(w.from?.node))?.from.node ??
+      level.edges.find((w) => w?.from?.node === n.id && known(w.to?.node))?.to.node;
+    const a = anchor ? known(anchor) : undefined;
+    const ea = anchor ? elkAt[anchor] : undefined;
+    const size = nodeSize(n.type);
+    const p =
+      a && ea
+        ? { x: a.x + e.x - ea.x, y: a.y + e.y - ea.y }
+        : { x: e.x + shift.x, y: e.y + shift.y };
+    for (let i = 0; i < 40 && overlaps(p, size); i++) p.x += size.width + GAP * 2;
+    const at = { x: Math.round(p.x), y: Math.round(p.y) };
+    out[n.id] = at;
+    boxes.push({ ...at, ...size });
   }
   return out;
+}
+
+/** Room kept between an auto-placed node and its neighbours. */
+const GAP = 24;
+
+/** Where the New Flow template put Start and Done until AFD-23. */
+const TEMPLATE: Partial<Record<string, Position>> = {
+  start: { x: 0, y: 0 },
+  end: { x: 36, y: 160 },
+};
+
+/**
+ * The layout the canvas shows (AFD-23): the stored one, except that a level whose only positions
+ * are the New Flow template's (Start at 0,0 and Done at 36,160), while it has other nodes, is shown
+ * with a full auto-layout. Flows made before AFD-23 and then filled by an AI agent look like that.
+ * The shown positions are written on the first move or Tidy up, like any auto position.
+ */
+export function shownLayout(model: FlowModel): Layout | undefined {
+  const layout = model.doc.layout;
+  if (!layout) return layout;
+  let out: Layout | undefined;
+  for (const level of model.levels.values()) {
+    const nodes = level.nodes.filter((n) => n?.id);
+    const placed = nodes.filter((n) => layout[n.id]);
+    if (nodes.length <= 2 || placed.length !== 2) continue;
+    const template = placed.every((n) => {
+      const t = TEMPLATE[n.type];
+      const p = layout[n.id];
+      return !!t && p?.x === t.x && p?.y === t.y;
+    });
+    if (!template || placed[0]?.type === placed[1]?.type) continue;
+    out ??= { ...layout };
+    for (const n of placed) delete out[n.id];
+  }
+  return out ?? layout;
 }

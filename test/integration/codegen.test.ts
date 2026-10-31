@@ -27,27 +27,38 @@ describe('M3 acceptance: code generation', () => {
   afterEach(closeAll);
 
   it('saving a flow writes generated/ exactly as the engine produces it, once', async () => {
-    for (const uri of [EDGE, OS]) {
-      const doc = await openDesigner(uri);
-      // Make the document dirty with a layout-only change so the save really happens.
-      const api = await testApi();
-      const first = docOf(doc.getText()).nodes[1]?.id as string;
-      await api.run(uri, { kind: 'moveNodes', positions: { [first]: { x: 12, y: 160 } } });
-      const outcome = await saveAndGenerate(uri);
-      assert.ok(outcome.ok, outcome.error);
-      const expected = optionA.generate(docOf(doc.getText()), {
-        source: uri.path.split('/').pop() as string,
-      });
-      for (const f of expected.files) {
-        const path = generatedOf(uri, f.name).fsPath;
-        assert.equal(readFileSync(path, 'utf8'), f.text, f.name);
+    // The moves below place one node without the positions the canvas would freeze: put the flows
+    // back afterwards, so later suites do not start from a half-placed layout (AFD-23).
+    const originals = [EDGE, OS].map((uri) => [uri, readFileSync(uri.fsPath, 'utf8')] as const);
+    try {
+      for (const uri of [EDGE, OS]) {
+        const doc = await openDesigner(uri);
+        // Make the document dirty with a layout-only change so the save really happens.
+        const api = await testApi();
+        const first = docOf(doc.getText()).nodes[1]?.id as string;
+        await api.run(uri, { kind: 'moveNodes', positions: { [first]: { x: 12, y: 160 } } });
+        const outcome = await saveAndGenerate(uri);
+        assert.ok(outcome.ok, outcome.error);
+        const expected = optionA.generate(docOf(doc.getText()), {
+          source: uri.path.split('/').pop() as string,
+        });
+        for (const f of expected.files) {
+          const path = generatedOf(uri, f.name).fsPath;
+          assert.equal(readFileSync(path, 'utf8'), f.text, f.name);
+        }
+        const stamp = statSync(generatedOf(uri, expected.files[0]?.name ?? '').fsPath).mtimeMs;
+        await api.run(uri, { kind: 'moveNodes', positions: { [first]: { x: 14, y: 160 } } });
+        const again = await saveAndGenerate(uri);
+        assert.deepEqual(again.written, [], 'layout-only change: generated code unchanged');
+        assert.equal(
+          statSync(generatedOf(uri, expected.files[0]?.name ?? '').fsPath).mtimeMs,
+          stamp,
+        );
+        await closeAll();
       }
-      const stamp = statSync(generatedOf(uri, expected.files[0]?.name ?? '').fsPath).mtimeMs;
-      await api.run(uri, { kind: 'moveNodes', positions: { [first]: { x: 14, y: 160 } } });
-      const again = await saveAndGenerate(uri);
-      assert.deepEqual(again.written, [], 'layout-only change: generated code unchanged');
-      assert.equal(statSync(generatedOf(uri, expected.files[0]?.name ?? '').fsPath).mtimeMs, stamp);
+    } finally {
       await closeAll();
+      for (const [uri, text] of originals) writeFileSync(uri.fsPath, text);
     }
   });
 

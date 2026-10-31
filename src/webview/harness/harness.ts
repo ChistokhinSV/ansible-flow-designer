@@ -36,7 +36,7 @@ import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
-import { autoPositions, layoutLevel } from '../../extension/autoLayout';
+import { autoPositions, layoutLevel, shownLayout } from '../../extension/autoLayout';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
 function fixedIds(): () => string {
@@ -150,6 +150,9 @@ async function snapshot(): Promise<Snapshot> {
     };
   }
   const { model, findings } = validateFlow(parsed.doc);
+  // As the host shows it (AFD-23).
+  const layout = shownLayout(model);
+  const shown = layout === model.doc.layout ? model.doc : { ...model.doc, layout };
   const preview = findings.some((f) => f.severity === 'error')
     ? undefined
     : codePreview(parsed.doc, 'harness.flow.yaml');
@@ -157,15 +160,13 @@ async function snapshot(): Promise<Snapshot> {
   const gaps = findings.filter((f) => f.code === 'missing-id' || f.code === 'unknown-key').length;
   return {
     docVersion: version,
-    doc: model.doc,
+    doc: shown,
     stale: false,
     findings: [...findings, ...(preview?.findings ?? [])],
     openPorts: openFailPorts(model),
     autoPositions: Object.assign(
       {},
-      ...(await Promise.all(
-        [...model.levels.values()].map((l) => autoPositions(l, model.doc.layout)),
-      )),
+      ...(await Promise.all([...model.levels.values()].map((l) => autoPositions(l, shown.layout)))),
     ),
     plays: preview?.plays,
     ...(gaps > 0 ? { idGaps: gaps } : {}),

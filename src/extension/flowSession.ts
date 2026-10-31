@@ -29,7 +29,7 @@ import type {
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
-import { autoPositions, layoutLevel } from './autoLayout';
+import { autoPositions, layoutLevel, shownLayout } from './autoLayout';
 import { checkBindings } from './catalog/bindingCheck';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
@@ -165,7 +165,10 @@ export class FlowSession implements vscode.Disposable {
       const gaps = validated.findings.filter(
         (f) => f.code === 'missing-id' || f.code === 'unknown-key',
       ).length;
-      const shown = model.doc;
+      // A level placed only where the old New Flow template put Start and Done is shown
+      // auto-laid out (AFD-23).
+      const layout = shownLayout(model);
+      const shown = layout === model.doc.layout ? model.doc : { ...model.doc, layout };
 
       const preview = validated.findings.some((f) => f.severity === 'error')
         ? undefined

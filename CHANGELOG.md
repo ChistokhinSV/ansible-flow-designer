@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.1 — AFD-23
+
+- **Agent-built flows no longer stand in one column.** New flows stored positions for Start and Done only. The canvas then skipped its auto-layout and put every other node straight below the step before it, so siblings sat on top of each other (product-owner report). Earlier agent-built flows looked right only because those agents ran _Tidy up_ at the end.
+  - New flows (_New Flow_, `flow_new`, _Create a flow here_) store no positions: the canvas lays them out until the first move or _Tidy up_.
+  - A level whose only positions are the old template's is shown fully auto-laid out. Flows made with 0.17.0 or earlier look right without changes.
+  - On a level where only some nodes have positions, the others go where the auto-layout puts them next to their placed neighbours, overlapping nothing.
+- `just docs-shots` exits when it started the harness itself (on Windows, Vite outlived `npx`).
+
 ## 0.17.0 — AFD-22
 
 User documentation, inside VS Code and in the repository.

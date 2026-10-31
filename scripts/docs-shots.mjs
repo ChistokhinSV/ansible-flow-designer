@@ -193,10 +193,19 @@ async function harnessUp() {
 async function startHarness() {
   if (await harnessUp()) return undefined;
   log('Starting the webview harness');
+  // Vite's own script on this Node, not through npx: on Windows npx needs a shell, and killing
+  // the shell would leave Vite running (and this script waiting for it).
   const vite = spawn(
-    'npx',
-    ['--no-install', 'vite', '--config', 'vite.config.mts', '--mode', 'harness', '--strictPort'],
-    { stdio: 'ignore', shell: process.platform === 'win32' },
+    process.execPath,
+    [
+      'node_modules/vite/bin/vite.js',
+      '--config',
+      'vite.config.mts',
+      '--mode',
+      'harness',
+      '--strictPort',
+    ],
+    { stdio: 'ignore' },
   );
   for (let i = 0; i < 60 && !(await harnessUp()); i++) await new Promise((r) => setTimeout(r, 500));
   if (!(await harnessUp())) throw new Error(`The harness did not start on port ${PORT}`);
