@@ -42,7 +42,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `key` (string): Short name, unique on its level: lowercase letters, digits and dashes. Wires and from: references may use it.
 - `intent` (string | null): What the node should do, in a sentence. Skeleton runs print it.
 - `status` (draft | specified | implemented): draft, specified or implemented. tested is set by runs only.
-- `condition` (string | null): Decision nodes: Jinja expression evaluated per host
+- `condition` (string | null): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed | null): End nodes
 - `handler` (rollback | notify | retry | exclude | null): Marks a failure handler node (what kind of handling it does)
 - `join_mode` (all | any | null): Join nodes: per host, all = every branch delivered the host (default), any = at least one
@@ -145,6 +145,7 @@ Handle an output with a ready-made pattern: adds the handler node and its wires 
 
 - `at` (string, required): An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts.
 - `pattern` (rollback | notify-stop | exclude | retry | stop | done | escalate | report, required): Which pattern (see the pattern list).
+- `end` (string): End node (same level) the hosts go to, instead of the one the pattern picks: it reuses an end keyed stopped/failed (excluded, done), else makes a new one.
 
 ```json
 {"op":"apply_pattern","at":"push-config.failed_hosts","pattern":"rollback"}
@@ -152,7 +153,7 @@ Handle an output with a ready-made pattern: adds the handler node and its wires 
 
 ### set_io
 
-Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow").
+Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"). from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.
 
 - `node` (string, required): A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). "flow" for the flow inputs.
 - `side` (inputs | outputs, required): inputs or outputs.
@@ -276,8 +277,11 @@ Lay out a level again (positions only).
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
 | no-targets | No flow input seeds the hosts entering the start node. | Add a host_list flow input with targets: true (set_io flow). |
-| from-unresolved | An input names an output that no earlier node has (from:). | Use <node_key>.<output> of a node that runs before, or flow.<input>. |
-| binding-unknown-var | A binding parameter uses a variable no input provides. | Add the input (set_io) or fix the Jinja name. |
+| from-unresolved | A from: names nothing this node can read. | Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow. |
+| binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. |
+| condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
+| subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
+| until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become AWX segments. | Keep approvals on the top level, one at a time. |
 | runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals). | Use awx_workflow with approvals, awx_job without. |

@@ -3,6 +3,7 @@
 // "Save binding" as one command (one undo step); the other tabs edit like the inspector does.
 import { useEffect, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
+import { registerName } from '../../core/engine/binding';
 import { SLUG } from '../../core/flow/ids';
 import { buildModel } from '../../core/flow/model';
 import type { FlowNode, NodeSettings } from '../../core/flow/types';
@@ -237,7 +238,19 @@ const SETTINGS: {
     key: 'retries',
     label: 'Retries',
     kind: 'int',
-    help: 'Module nodes retry until the result succeeds',
+    help: 'Module nodes retry until the result succeeds, or until Until holds',
+  },
+  {
+    key: 'until',
+    label: 'Until',
+    kind: 'text',
+    help: 'Poll until this Jinja test holds',
+  },
+  {
+    key: 'delay',
+    label: 'Delay',
+    kind: 'int',
+    help: 'Seconds between retries (Ansible default 5)',
   },
   {
     key: 'serial',
@@ -289,7 +302,7 @@ function Execution({ node }: { node: FlowNode }) {
         return (
           <div key={s.key}>
             <CommitField
-              label={`${s.label} · ${s.help}`}
+              label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
               value={
                 Array.isArray(value) ? value.join(', ') : value === undefined ? '' : String(value)
               }

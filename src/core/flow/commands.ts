@@ -6,6 +6,7 @@ import type { Path, YamlFile } from '../yaml/parse';
 import type { YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
 import { parseClip } from './clipboard';
+import { enclosing, liftOf } from './dataRefs';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
@@ -62,6 +63,8 @@ export type FlowCommand =
       from: PortRef;
       /** Where the handler node (or, without one, the new end node) goes. */
       position?: Position;
+      /** The end node to wire to instead of the one the pattern picks (AFD-21). */
+      end?: Ulid;
       freeze?: Record<Ulid, Position>;
     }
   | { kind: 'setDecision'; node: Ulid; port: string; reason: string; by?: string }
@@ -173,6 +176,8 @@ export interface CommandResult {
   pasted?: Ulid[];
   /** Tested nodes the command changed, now implemented again (decision 15). */
   dropped?: Ulid[];
+  /** What the command did besides what was asked (outputs lifted, AFD-21). */
+  notes?: string[];
 }
 
 export class CommandError extends Error {
@@ -538,6 +543,7 @@ function addNode(
   tx: YamlTransaction,
   ctx: CommandContext,
   cmd: Extract<FlowCommand, { kind: 'addNode' }>,
+  notes: string[],
 ): Ulid {
   if (cmd.insertOn && cmd.connectFrom)
     throw new CommandError('bad-command', 'Use either insertOn or connectFrom');
@@ -545,6 +551,7 @@ function addNode(
     throw new CommandError('bad-type', `A ${cmd.type} node cannot be inserted on a wire`);
   }
   const id = insertNode(tx, ctx, cmd);
+  liftPathRefs(tx, id, notes);
   setPositions(tx, { ...cmd.freeze, ...(cmd.position ? { [id]: cmd.position } : {}) });
   if (cmd.connectFrom) addEdge(tx, ctx, cmd.connectFrom, { node: id, port: 'in' });
   if (cmd.insertOn) insertOnEdge(tx, ctx, cmd.insertOn, id, CONTINUES_ON[cmd.type] as string);
@@ -603,6 +610,7 @@ function applyPattern(
   tx: YamlTransaction,
   ctx: CommandContext,
   cmd: Extract<FlowCommand, { kind: 'applyPattern' }>,
+  notes: string[],
 ): Ulid | undefined {
   const st = state(tx);
   const source = nodeAt(st, cmd.from.node);
@@ -614,6 +622,23 @@ function applyPattern(
   }
   const level = checkOutput(st, cmd.from);
   const recipe = recipeFor(cmd.pattern, source.node, cmd.from.port, level);
+  const chosen = cmd.end ? level.nodes.find((n) => n?.id === cmd.end) : undefined;
+  if (cmd.end) {
+    if (!recipe.end)
+      throw new CommandError(
+        'bad-end',
+        recipe.reuse
+          ? `"${cmd.pattern}" reuses ${recipe.reuse.key} here, which is wired already; it takes no end`
+          : `"${cmd.pattern}" wires to no end node`,
+      );
+    if (chosen?.type !== 'end')
+      throw new CommandError('bad-end', 'The end must be an end node on the same level');
+    if ((chosen.outcome ?? 'success') !== recipe.end.outcome)
+      throw new CommandError(
+        'bad-end',
+        `"${cmd.pattern}" ends hosts with outcome ${recipe.end.outcome}, and ${chosen.key} has outcome ${chosen.outcome ?? 'success'}`,
+      );
+  }
   if (recipe.reuse) {
     setPositions(tx, cmd.freeze ?? {});
     addEdge(tx, ctx, cmd.from, { node: recipe.reuse.id, port: 'in' });
@@ -631,12 +656,17 @@ function applyPattern(
     handler = created.id;
     if (cmd.position) positions[handler] = cmd.position;
   }
-  let end = recipe.end ? findEnd(level, recipe.end)?.id : undefined;
+  let end = recipe.end ? (chosen ?? findEnd(level, recipe.end))?.id : undefined;
+  if (end) {
+    const key = level.nodes.find((n) => n?.id === end)?.key;
+    notes.push(`${cmd.pattern}: the hosts end at ${key} (an existing end node)`);
+  }
   if (recipe.end && !end) {
     const { title, outcome } = recipe.end;
     const created = nodeItem(ctx, { type: 'end', title, outcome }, taken);
     nodes.push(created.item);
     end = created.id;
+    notes.push(`${cmd.pattern}: the hosts end at ${created.item.key} (a new end node)`);
     if (cmd.position) {
       positions[end] = handler
         ? { x: cmd.position.x, y: cmd.position.y + END_BELOW }
@@ -892,7 +922,11 @@ function implValue(impl: ImplBinding): YamlValue {
   return out;
 }
 
-function setBinding(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBinding' }>): void {
+function setBinding(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'setBinding' }>,
+  notes: string[],
+): void {
   const { node, path } = nodeAt(state(tx), cmd.id);
   if (node.type !== 'task' && node.type !== 'subflow')
     throw new CommandError('bad-type', `A ${node.type} node has no implementation`);
@@ -917,6 +951,7 @@ function setBinding(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setB
   }
   setField(tx, path, 'impl', cmd.impl ? implValue(cmd.impl) : null, NODE_ORDER);
   setField(tx, path, 'status', cmd.status, NODE_ORDER);
+  liftPathRefs(tx, cmd.id, notes);
 }
 
 function ignoreDrift(
@@ -967,6 +1002,8 @@ function outputRefRewrites(
   const head = `${node.key}.${from}`;
   for (const entry of st.model.nodes.values()) {
     if (keyScope(st.model, entry.level).get(node.key) !== id) continue;
+    // Inside a subflow, and on its own outputs, `<key>.<name>` is its input (AFD-21).
+    if (entry.node.id === id || enclosing(st.model, entry.level).some((s) => s.id === id)) continue;
     for (const side of ['inputs', 'outputs'] as const) {
       for (const [name, field] of Object.entries(entry.node[side] ?? {})) {
         const ref = field?.from;
@@ -981,9 +1018,136 @@ function outputRefRewrites(
   return out;
 }
 
+/** Inner `from: <subflow>.<old>[.path]` references to a renamed subflow input (AFD-21). */
+function inputRefRewrites(
+  st: State,
+  id: Ulid,
+  from: string,
+  to: string,
+): { path: Path; value: string }[] {
+  const { node } = nodeAt(st, id);
+  const out: { path: Path; value: string }[] = [];
+  const head = `${node.key}.${from}`;
+  for (const entry of st.model.nodes.values()) {
+    // The subflow's own outputs read its inner level, where `<key>.<name>` is its input too.
+    const own = entry.node.id === id;
+    if (!own && !enclosing(st.model, entry.level).some((s) => s.id === id)) continue;
+    if (!own && keyScope(st.model, entry.level).get(node.key) !== id) continue;
+    for (const side of own ? (['outputs'] as const) : (['inputs', 'outputs'] as const))
+      for (const [name, field] of Object.entries(entry.node[side] ?? {})) {
+        const ref = field?.from;
+        if (ref === head || ref?.startsWith(`${head}.`))
+          out.push({
+            path: [...entry.path, side, name, 'from'],
+            value: `${node.key}.${to}${ref.slice(head.length)}`,
+          });
+      }
+  }
+  return out;
+}
+
+/**
+ * AFD-21: `from: sub/step.output` names a step inside another subflow. Each subflow on the way
+ * lifts the output (as extract_subflow does, AFD-7), and the reference reads the outermost one, so
+ * the file stays encapsulated.
+ */
+function liftPathRefs(tx: YamlTransaction, id: Ulid, notes: string[]): void {
+  const { node } = nodeAt(state(tx), id);
+  for (const side of ['inputs', 'outputs'] as const)
+    for (const [name, field] of Object.entries(node[side] ?? {})) {
+      const from = field?.from;
+      if (typeof from !== 'string') continue;
+      const [head = '', out, ...rest] = from.trim().split('.');
+      if (!head.includes('/') || !out) continue;
+      const value = [liftPath(tx, id, side, head, out, notes), ...rest].join('.');
+      const at = nodeAt(state(tx), id).path;
+      tx.apply((f) => setIn(f, [...at, side, name, 'from'], value));
+    }
+}
+
+/** Lifts `head` (`sub/…/step`) `.out` up to the level the reader sees; the reference it reads. */
+function liftPath(
+  tx: YamlTransaction,
+  readerId: Ulid,
+  side: 'inputs' | 'outputs',
+  head: string,
+  out: string,
+  notes: string[],
+): string {
+  const st = state(tx);
+  const reader = nodeAt(st, readerId);
+  const at = side === 'outputs' && st.model.levels.has(readerId) ? readerId : reader.level;
+  const scope = keyScope(st.model, at);
+  const [first = '', ...more] = head.split('/');
+  const top = st.model.nodes.get(scope.get(first) ?? '')?.node;
+  if (!top) throw new CommandError('not-found', `${head}.${out}: no node "${first}" here`);
+  const chain: FlowNode[] = [top];
+  for (const seg of more) {
+    const parent = chain.at(-1) as FlowNode;
+    const step = (parent.subflow?.nodes ?? []).find((n) => n?.key === seg);
+    if (!step) {
+      const steps = (parent.subflow?.nodes ?? []).map((n) => n?.key).filter(Boolean);
+      throw new CommandError(
+        'not-found',
+        parent.type === 'subflow'
+          ? `${head}.${out}: subflow ${parent.key} has no step ${seg} (steps: ${steps.join(', ') || 'none'})`
+          : `${head}.${out}: ${parent.key} is a ${parent.type}, not a subflow`,
+      );
+    }
+    chain.push(step);
+  }
+  const inner = chain.at(-1) as FlowNode;
+  if (!inner.outputs || !(out in inner.outputs)) {
+    const has = Object.keys(inner.outputs ?? {});
+    throw new CommandError(
+      'not-found',
+      `${head} has no output ${out} (${has.length ? `it has ${has.join(', ')}` : 'it has none'})`,
+    );
+  }
+  // The deepest node of the path the reader sees directly needs no lifting.
+  let start = 0;
+  for (let i = chain.length - 1; i > 0; i--)
+    if (scope.get((chain[i] as FlowNode).key) === (chain[i] as FlowNode).id) {
+      start = i;
+      break;
+    }
+  let name = out;
+  for (let i = chain.length - 2; i >= start; i--)
+    name = liftOne(tx, (chain[i] as FlowNode).id, chain[i + 1] as FlowNode, name, notes);
+  return `${(chain[start] as FlowNode).key}.${name}`;
+}
+
+/** The subflow output that lifts `child.name`: an existing one, else a new one. */
+function liftOne(
+  tx: YamlTransaction,
+  subId: Ulid,
+  child: FlowNode,
+  name: string,
+  notes: string[],
+): string {
+  const { node: sub, path } = nodeAt(state(tx), subId);
+  for (const o of Object.keys(sub.outputs ?? {})) {
+    const l = liftOf(sub, o);
+    if (l && 'inner' in l && l.inner.id === child.id && l.output === name && !l.path.length)
+      return o;
+  }
+  const taken = new Set(Object.keys(sub.outputs ?? {}));
+  let as = taken.has(name) ? `${child.key.replaceAll('-', '_')}_${name}` : name;
+  for (let i = 2; taken.has(as); i++) as = `${child.key.replaceAll('-', '_')}_${name}_${i}`;
+  const value = contract({
+    type: child.outputs?.[name]?.type ?? 'any',
+    from: `${child.key}.${name}`,
+  });
+  if (sub.outputs) tx.apply((f) => setIn(f, [...path, 'outputs', as], value));
+  else setField(tx, path, 'outputs', { [as]: value }, NODE_ORDER);
+  notes.push(`${sub.key} now lifts ${child.key}.${name} as its output ${as}`);
+  return as;
+}
+
 function setContractField(
   tx: YamlTransaction,
   cmd: Extract<FlowCommand, { kind: 'setContractField' }>,
+  notes: string[],
 ): void {
   const st = state(tx);
   let base: Path;
@@ -1020,6 +1184,12 @@ function setContractField(
     if (rewrites.length > 0)
       tx.applyAll(rewrites.map((r) => (f: YamlFile) => setIn(f, r.path, r.value)));
   }
+  // A renamed subflow input: its inner steps read it as `<key>.<name>` (AFD-21).
+  if (cmd.target !== 'flow' && cmd.side === 'inputs' && cmd.rename && cmd.rename !== cmd.name) {
+    const rewrites = inputRefRewrites(state(tx), cmd.target, cmd.name, name);
+    if (rewrites.length > 0)
+      tx.applyAll(rewrites.map((r) => (f: YamlFile) => setIn(f, r.path, r.value)));
+  }
   // A renamed node input: the binding's parameters read it by name (chips are Jinja, D-26).
   if (cmd.target !== 'flow' && cmd.side === 'inputs' && cmd.rename && cmd.rename !== cmd.name) {
     const params = nodeAt(state(tx), cmd.target).node.impl?.params;
@@ -1034,6 +1204,7 @@ function setContractField(
     cmd.target === 'flow' ? after_.doc.flow.inputs : nodeAt(after_, cmd.target).node[cmd.side];
   if (side) tx.apply((f) => setIn(f, [...base, cmd.side, name], value));
   else setField(tx, base, cmd.side, { [name]: value }, order);
+  if (cmd.target !== 'flow') liftPathRefs(tx, cmd.target, notes);
 }
 
 function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
@@ -1616,9 +1787,10 @@ export function planCommand(
   let pasted: Ulid[] | undefined;
   /** Nodes whose design a command only re-references (their tested status stays). */
   const rereferenced: Ulid[] = [];
+  const notes: string[] = [];
   switch (cmd.kind) {
     case 'addNode':
-      created = addNode(tx, ctx, cmd);
+      created = addNode(tx, ctx, cmd, notes);
       break;
     case 'updateNode':
       updateNode(tx, cmd);
@@ -1651,7 +1823,7 @@ export function planCommand(
       created = addEdge(tx, ctx, cmd.from, cmd.to);
       break;
     case 'applyPattern':
-      created = applyPattern(tx, ctx, cmd);
+      created = applyPattern(tx, ctx, cmd, notes);
       break;
     case 'setDecision':
       setDecision(tx, cmd);
@@ -1670,10 +1842,10 @@ export function planCommand(
       setPortEnabled(tx, cmd);
       break;
     case 'setContractField':
-      setContractField(tx, cmd);
+      setContractField(tx, cmd, notes);
       break;
     case 'setBinding':
-      setBinding(tx, cmd);
+      setBinding(tx, cmd, notes);
       break;
     case 'setStatuses':
       for (const [id, status] of Object.entries(cmd.statuses))
@@ -1743,5 +1915,13 @@ export function planCommand(
     if (dropped.length > 0) implementedAgain(tx, dropped);
     else dropped = undefined;
   }
-  return { edits: tx.edits(), text: tx.text, file: tx.current, created, pasted, dropped };
+  return {
+    edits: tx.edits(),
+    text: tx.text,
+    file: tx.current,
+    created,
+    pasted,
+    dropped,
+    ...(notes.length ? { notes } : {}),
+  };
 }

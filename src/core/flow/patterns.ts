@@ -1,6 +1,7 @@
 // Failure patterns (D-16) and the other ready-made port resolutions of the port menu (04 §3).
 // A pattern is a recipe: an optional handler node wired from the source port, plus wires to an
-// end node (reused when the level has a matching one) and back to the happy path. The command
+// end node (reused when the level has one with a key the pattern names, AFD-21) and back to the
+// happy path. The command
 // layer turns a recipe into one WorkspaceEdit; code templates per pattern arrive with M3 codegen.
 import type { Level } from './model';
 import type { FlowNode, HandlerKind, NodeSettings, NodeType } from './types';
@@ -111,10 +112,8 @@ export interface NodeRecipe {
 export interface EndRecipe {
   outcome: 'success' | 'failed';
   title: string;
-  /** Keys of end nodes to reuse, best first. */
+  /** Keys of end nodes to reuse, best first; otherwise a new end is made. */
   prefer: readonly string[];
-  /** Reuse any end with the same outcome when none of `prefer` exists. */
-  anyOutcome: boolean;
   /** Ports wired to the end: of the handler node, or the source port itself (`source`). */
   from: readonly string[];
 }
@@ -129,7 +128,9 @@ export interface Recipe {
   rejoin?: { port: string; sourcePort: string };
 }
 
-const FAILED_END = { outcome: 'failed', anyOutcome: true } as const;
+// An end is reused only by key: a stop or a failed rollback must not land in "Rolled back" or
+// "Not approved" just because that end also has outcome failed (AFD-21).
+const FAILED_END = { outcome: 'failed' } as const;
 
 /** A rollback handler: marked `handler: rollback`, or keyed `rollback` as in flows predating the marker. */
 export function isRollback(node: FlowNode | undefined): boolean {
@@ -184,7 +185,6 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
           outcome: 'failed',
           title: 'Excluded',
           prefer: ['excluded'],
-          anyOutcome: false,
           from: ['ok_hosts', 'failed_hosts'],
         },
       };
@@ -209,7 +209,6 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
           outcome: 'success',
           title: 'Done',
           prefer: ['done'],
-          anyOutcome: true,
           from: ['source'],
         },
       };
@@ -244,5 +243,5 @@ export function findEnd(level: Level, end: EndRecipe): FlowNode | undefined {
     const hit = ends.find((n) => n.key === key);
     if (hit) return hit;
   }
-  return end.anyOutcome ? ends[0] : undefined;
+  return undefined;
 }

@@ -11,6 +11,7 @@ import { parse } from 'yaml';
 import { optionA } from '../../src/core/engine/optionA';
 import type { GenerateResult } from '../../src/core/engine/types';
 import { planCommand } from '../../src/core/flow/commands';
+import { completeIds } from '../../src/core/flow/completeIds';
 import { createIdFactory } from '../../src/core/flow/ids';
 import { buildModel } from '../../src/core/flow/model';
 import type { FlowDocument } from '../../src/core/flow/types';
@@ -64,6 +65,16 @@ const LEVELS = 'test/fixtures/engine/routing-levels.flow.yaml';
 const DATA = 'test/fixtures/engine/data-passing.flow.yaml';
 const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
+const ACROSS = 'test/fixtures/engine/data-across.flow.yaml';
+/** The ports every host takes in ACROSS up to the approval (AFD-21); exits count as the subflow's. */
+const ACROSS_PORTS = [
+  'precheck.ok_hosts',
+  'backup.ok_hosts',
+  'check-file.ok_hosts',
+  'poll.ok_hosts',
+  'restore.ok_hosts',
+];
+const byKey = (text: string) => completeIds(text, createIdFactory()).text;
 /** How often a node's TODO task ran for a host, across every segment of a chain. */
 const todoRuns = (run: Run, key: string, host: string) =>
   run.events.filter(
@@ -507,6 +518,48 @@ const SCENARIOS: Scenario[] = [
       expect(failed('no host reached')).toBe(true);
       expect(failed('only after an approval')).toBe(false);
     },
+  },
+  // AFD-21: a subflow input read inside, outputs lifted by from and by name, until polling, and
+  // the local approval outcome from afd_approvals. Each scenario polls on its own hosts.
+  {
+    name: 'data across levels: inputs and lifted outputs arrive, until polls, approved by default',
+    flow: ACROSS,
+    transform: byKey,
+    vars: { devices: ['h01', 'h02'] },
+    rc: 0,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [h, { ports: [...ACROSS_PORTS, 'approve.approved'] }]),
+    ),
+  },
+  {
+    name: 'afd_approvals rejected: the hosts take approve.rejected',
+    flow: ACROSS,
+    transform: byKey,
+    vars: { devices: ['h03', 'h04'], afd_approvals: { approve: 'rejected' } },
+    rc: 2,
+    expect: Object.fromEntries(
+      ['h03', 'h04'].map((h) => [
+        h,
+        { ports: [...ACROSS_PORTS, 'approve.rejected'], outcome: '[not-approved] Not approved' },
+      ]),
+    ),
+  },
+  {
+    name: 'afd_approvals naming an outcome the approval lacks stops the hosts loudly',
+    flow: ACROSS,
+    transform: byKey,
+    vars: { devices: ['h05'], afd_approvals: { approve: 'timeout' } },
+    rc: 2,
+    expect: { h05: { ports: ACROSS_PORTS } },
+    also: (run) =>
+      expect(
+        run.events.some(
+          (e) =>
+            e.event === 'result' &&
+            e.status === 'failed' &&
+            e.task === '[approve] afd_approvals outcome',
+        ),
+      ).toBe(true),
   },
   ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,

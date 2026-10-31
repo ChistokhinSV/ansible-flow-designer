@@ -1,7 +1,8 @@
 // What a bound node runs and how data reaches it (M5, ADR-0011): the module task or include_role
 // Option A emits, the play vars that pass upstream outputs in as node inputs, and set_fact
 // placeholders that let an unbound node's outputs flow through a skeleton run.
-import { type FlowModel, keyScope } from '../flow/model';
+import { liftOf, resolveFrom } from '../flow/dataRefs';
+import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
 import { groupPart } from './util';
 import { flow, type Out, type OutMap, writeBlock } from './yamlWriter';
@@ -45,7 +46,9 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number)
     };
   }
   const reg = registerName(node, impl);
-  const retries = node.settings?.retries;
+  const { retries, delay, until } = node.settings ?? {};
+  // A polling step stops when `until` holds (AFD-21); plain retries stop on the first success.
+  const condition = until?.trim() || (retries ? `${reg} is succeeded` : undefined);
   return {
     name: `[${node.key}] ${oneLine(node.title)}`,
     [impl.ref]: (impl.params ?? {}) as Out,
@@ -53,7 +56,8 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number)
     ignore_unreachable: true,
     timeout,
     retries,
-    until: retries ? `${reg} is succeeded` : undefined,
+    delay: condition ? delay : undefined,
+    until: condition,
   };
 }
 
@@ -83,13 +87,54 @@ export function outputVar(node: FlowNode, output: string): string {
     const rest = from.slice('impl.register'.length);
     return `${registerName(node)}${rest}`;
   }
-  // A subflow output lifted from an inner step (AFD-7) is that step's variable.
-  if (node.type === 'subflow' && from) {
-    const [head, out, ...path] = from.split('.');
-    const inner = node.subflow?.nodes?.find((n) => n?.key === head);
-    if (inner && out) return [outputVar(inner, out), ...path].join('.');
+  // A subflow output lifted from an inner step (AFD-7), named by from or by the same name (AFD-21),
+  // is that step's variable.
+  if (node.type === 'subflow') {
+    const lift = liftOf(node, output);
+    if (lift && 'inner' in lift)
+      return [outputVar(lift.inner, lift.output), ...lift.path].join('.');
   }
   return output;
+}
+
+/**
+ * The expression a `from:` reads, and whether it is a host variable of the producing host (an
+ * output) rather than an extra var. Inside a subflow, `<subflow>.<input>` follows the subflow's
+ * input to where it comes from (AFD-21); an input without `from` is read by its own name.
+ */
+export function sourceExpr(
+  model: FlowModel,
+  node: FlowNode,
+  level: string,
+  from: string,
+  depth = 0,
+): { expr: string; host: boolean } | undefined {
+  const src = resolveFrom(model, node, level, 'inputs', from);
+  switch (src.kind) {
+    case 'flow':
+      return { expr: [src.name, ...src.path].join('.'), host: false };
+    case 'output':
+      return src.name
+        ? { expr: [outputVar(src.node, src.name), ...src.path].join('.'), host: true }
+        : undefined;
+    case 'subflowInput': {
+      const up = src.field.from?.trim();
+      const at = model.nodes.get(src.node.id)?.level;
+      const inner =
+        up && at && depth < 16 ? sourceExpr(model, src.node, at, up, depth + 1) : undefined;
+      if (!inner) return { expr: [src.name, ...src.path].join('.'), host: false };
+      return { expr: [inner.expr, ...src.path].join('.'), host: inner.host };
+    }
+    case 'unresolved': {
+      // The validator reports it; the code reads the name, as it did before AFD-21.
+      const [head, name = '', ...path] = from.split('.');
+      if (src.target && name)
+        return { expr: [outputVar(src.target, name), ...path].join('.'), host: true };
+      return head === 'flow' && name ? { expr: [name, ...path].join('.'), host: false } : undefined;
+    }
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -101,20 +146,11 @@ export function outputVar(node: FlowNode, output: string): string {
  */
 export function inputVars(model: FlowModel, level: string, node: FlowNode, via?: string): OutMap {
   const vars: OutMap = {};
-  const scope = keyScope(model, level);
   for (const [name, field] of Object.entries(node.inputs ?? {})) {
     const from = field?.from?.trim();
     if (!from) continue;
-    const [head, output, ...path] = from.split('.');
-    let expr: string | undefined;
-    if (head === 'flow' && output) expr = [output, ...path].join('.');
-    else if (head && output) {
-      const upstream = model.nodes.get(scope.get(head) ?? '')?.node;
-      if (upstream) {
-        expr = [outputVar(upstream, output), ...path].join('.');
-        if (via) expr = `${via}.${expr}`;
-      }
-    }
+    const src = sourceExpr(model, node, level, from);
+    const expr = src && (src.host && via ? `${via}.${src.expr}` : src.expr);
     if (expr && expr !== name) vars[name] = `{{ ${expr} }}`;
   }
   return vars;

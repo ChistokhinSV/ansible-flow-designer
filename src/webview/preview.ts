@@ -41,7 +41,8 @@ export function bindingText(impl: ImplBinding | null | undefined): string | unde
 function settingBadges(s: NodeSettings | undefined): string[] {
   if (!s) return [];
   const out: string[] = [];
-  if (s.retries) out.push(`retry ×${s.retries}`);
+  if (s.retries) out.push(s.until ? `poll ×${s.retries}` : `retry ×${s.retries}`);
+  else if (s.until) out.push('poll');
   if (s.serial !== undefined) out.push(`serial ${s.serial}`);
   if (s.timeout) out.push(`timeout ${s.timeout}`);
   if (s.max_fail_percentage !== undefined) out.push(`max fail ${s.max_fail_percentage}%`);

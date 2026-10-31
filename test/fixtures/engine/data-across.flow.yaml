@@ -1,0 +1,159 @@
+# Engine test flow for AFD-21, written by key (the test completes the IDs): data crosses subflow
+# boundaries (a subflow input read inside, outputs lifted by from and by name), a step polls with
+# until, and a top-level approval takes the outcome afd_approvals names.
+schema_version: 1
+flow:
+  key: data-across
+  name: Engine test · data across levels
+  version: 1
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+- key: start
+  type: start
+  title: Start
+- key: precheck
+  type: subflow
+  title: Pre-checks
+  outputs:
+    fos_platform:
+      type: string
+      from: facts.fos_platform
+  subflow:
+    nodes:
+    - key: facts
+      type: task
+      title: Normalize facts
+      outputs:
+        fos_platform:
+          type: string
+      impl:
+        kind: module
+        ref: ansible.builtin.set_fact
+        params:
+          fos_platform: FGT-{{ inventory_hostname }}
+    boundary:
+      in: facts
+      outputs:
+        ok_hosts:
+        - node: facts
+          port: ok_hosts
+- key: backup
+  type: subflow
+  title: Backup
+  outputs:
+    backup_file:
+      type: string
+  subflow:
+    nodes:
+    - key: store
+      type: task
+      title: Store backup
+      outputs:
+        backup_file:
+          type: string
+          from: impl.register.stdout
+      impl:
+        kind: module
+        ref: ansible.builtin.command
+        params:
+          cmd: echo /srv/backups/{{ inventory_hostname }}.conf
+    boundary:
+      in: store
+      outputs:
+        ok_hosts:
+        - node: store
+          port: ok_hosts
+- key: restore
+  type: subflow
+  title: Restore
+  inputs:
+    backup_file:
+      type: string
+      from: backup.backup_file
+  subflow:
+    nodes:
+    - key: check-file
+      type: task
+      title: Check what arrived
+      inputs:
+        file:
+          type: string
+          from: restore.backup_file
+        platform:
+          type: string
+          from: precheck.fos_platform
+      impl:
+        kind: module
+        ref: ansible.builtin.assert
+        params:
+          that:
+          - file == '/srv/backups/' + inventory_hostname + '.conf'
+          - platform == 'FGT-' + inventory_hostname
+    - key: poll
+      type: task
+      title: Wait for the third answer
+      outputs:
+        count:
+          type: string
+          from: impl.register.stdout
+      settings:
+        retries: 5
+        delay: 0
+        until: poll_result.stdout | int >= 3
+      impl:
+        kind: module
+        ref: ansible.builtin.shell
+        params:
+          cmd: n=$(cat /tmp/afd-poll-{{ inventory_hostname }} 2>/dev/null || echo 0); n=$((n+1)); echo $n > /tmp/afd-poll-{{ inventory_hostname }}; echo $n
+    - key: check-count
+      type: task
+      title: Polled three times
+      inputs:
+        count:
+          type: string
+          from: poll.count
+      impl:
+        kind: module
+        ref: ansible.builtin.assert
+        params:
+          that:
+          - count == '3'
+    edges:
+    - from: {node: check-file, port: ok_hosts}
+      to: {node: poll, port: in}
+    - from: {node: poll, port: ok_hosts}
+      to: {node: check-count, port: in}
+    boundary:
+      in: check-file
+      outputs:
+        ok_hosts:
+        - node: check-count
+          port: ok_hosts
+- key: approve
+  type: approval
+  title: Approve
+- key: done
+  type: end
+  title: Done
+  outcome: success
+- key: not-approved
+  type: end
+  title: Not approved
+  outcome: failed
+edges:
+- from: {node: start, port: ok_hosts}
+  to: {node: precheck, port: in}
+- from: {node: precheck, port: ok_hosts}
+  to: {node: backup, port: in}
+- from: {node: backup, port: ok_hosts}
+  to: {node: restore, port: in}
+- from: {node: restore, port: ok_hosts}
+  to: {node: approve, port: in}
+- from: {node: approve, port: approved}
+  to: {node: done, port: in}
+- from: {node: approve, port: rejected}
+  to: {node: not-approved, port: in}

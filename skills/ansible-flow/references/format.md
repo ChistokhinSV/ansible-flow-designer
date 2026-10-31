@@ -47,7 +47,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `ports` (list of port): Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task).
 - `impl` (impl): What the node runs: a module, a role or a playbook. Absent: a TODO stub.
 - `undo` (impl): What reverses the node, run by Rollback for the failed hosts.
-- `condition` (string): Decision nodes: Jinja expression evaluated per host
+- `condition` (string): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed): End nodes
 - `join_mode` (all | any): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
@@ -62,7 +62,9 @@ How the node runs (play keywords).
 - `max_fail_percentage` (number): Fail the whole node when more than this share of hosts fail.
 - `serial` (string | integer): Batch size or percentage for rolling execution.
 - `timeout` (string): Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port.
-- `retries` (integer): Retries before a host fails.
+- `retries` (integer): Retries before a host fails (module steps). Without until, a step stops retrying on its first success.
+- `delay` (integer): Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls.
+- `until` (string): Poll until this holds: a Jinja test without braces, e.g. wait_ha_result.json.results | length == 2. It reads the step's registered result (impl.register, else <key with _ for ->_result) and its inputs. Module steps only; retries sets the attempts.
 - `become` (boolean): Run with privilege escalation.
 - `credential` (string): AWX credential name (AWX runs only).
 - `execution_environment` (string): AWX execution environment name.
@@ -115,7 +117,7 @@ One input or output field.
 - `type` (string | integer | boolean | list | dict | host_list | any, required): Value type. host_list is a list of inventory hosts or groups.
 - `required` (boolean): Inputs: a run must provide a value.
 - `default` (any): Inputs: value used when none is given.
-- `from` (string): Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result).
+- `from` (string): Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name.
 - `targets` (boolean): Flow inputs only: this host_list input seeds the start node's host set.
 
 ### Binding (impl, undo)

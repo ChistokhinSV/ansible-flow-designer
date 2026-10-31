@@ -125,3 +125,17 @@ export function refsIn(value: unknown): string[] {
   });
   return [...names];
 }
+
+/**
+ * Variables read by values Ansible evaluates as bare expressions (assert `that`, decision
+ * conditions, `until`): no braces needed, though a value with braces is read as a template.
+ */
+export function exprRefs(value: unknown): string[] {
+  const names = new Set<string>();
+  mapStrings(value, (s) => {
+    const found = s.includes('{{') ? parseRefs(s) : identifiers(s).map((t) => t.name);
+    for (const n of found) names.add(n);
+    return s;
+  });
+  return [...names];
+}

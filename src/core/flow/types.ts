@@ -55,6 +55,10 @@ export interface NodeSettings {
   serial?: string | number;
   timeout?: string;
   retries?: number;
+  /** Seconds between tries (Ansible `delay`, default 5). */
+  delay?: number;
+  /** Jinja test without braces: retry until it holds; reads the registered result (AFD-21). */
+  until?: string;
   become?: boolean;
   credential?: string;
   execution_environment?: string;

@@ -1,0 +1,148 @@
+# Data across subflow boundaries (AFD-21), written by key: an inner step reads its subflow's input,
+# subflow outputs lift inner outputs by the same name, and a step polls with until.
+schema_version: 1
+flow:
+  key: data-across
+  name: Data across levels
+  version: 1
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    target_version:
+      type: string
+      required: true
+nodes:
+- key: start
+  type: start
+  title: Start
+- key: precheck
+  type: subflow
+  title: Pre-checks
+  outputs:
+    baseline:
+      type: dict
+  subflow:
+    nodes:
+    - key: facts
+      type: task
+      title: Normalize facts
+      outputs:
+        fos_platform:
+          type: string
+        pre_version:
+          type: string
+      impl:
+        kind: module
+        ref: ansible.builtin.set_fact
+        params:
+          fos_platform: FGT60F
+          pre_version: 7.6.1
+    - key: capture
+      type: task
+      title: Capture baseline
+      outputs:
+        baseline:
+          type: dict
+          from: impl.register
+      impl:
+        kind: module
+        ref: fortinet.fortios.fortios_monitor_fact
+        params:
+          selector: system_status
+    edges:
+    - from: {node: facts, port: ok_hosts}
+      to: {node: capture, port: in}
+    boundary:
+      in: facts
+      outputs:
+        ok_hosts:
+        - node: capture
+          port: ok_hosts
+- key: backup
+  type: subflow
+  title: Backup
+  outputs:
+    backup_file:
+      type: string
+  subflow:
+    nodes:
+    - key: store
+      type: task
+      title: Store backup
+      outputs:
+        backup_file:
+          type: string
+          from: impl.register.dest
+      impl:
+        kind: module
+        ref: ansible.builtin.copy
+        params:
+          content: backup
+          dest: /srv/backups/{{ inventory_hostname }}.conf
+    boundary:
+      in: store
+      outputs:
+        ok_hosts:
+        - node: store
+          port: ok_hosts
+- key: rollback
+  type: subflow
+  title: Rollback
+  inputs:
+    backup_file:
+      type: string
+      from: backup.backup_file
+  subflow:
+    nodes:
+    - key: restore
+      type: task
+      title: Restore config
+      inputs:
+        file:
+          type: string
+          from: rollback.backup_file
+      impl:
+        kind: module
+        ref: fortinet.fortios.fortios_monitor
+        params:
+          file: '{{ file }}'
+    - key: wait
+      type: task
+      title: Wait for the version
+      inputs:
+        want:
+          type: string
+          from: flow.target_version
+      settings:
+        retries: 30
+        delay: 10
+        until: wait_result.meta.version == want
+      impl:
+        kind: module
+        ref: fortinet.fortios.fortios_monitor_fact
+        params:
+          selector: system_status
+    edges:
+    - from: {node: restore, port: ok_hosts}
+      to: {node: wait, port: in}
+    boundary:
+      in: restore
+      outputs:
+        ok_hosts:
+        - node: wait
+          port: ok_hosts
+- key: done
+  type: end
+  title: Done
+  outcome: success
+edges:
+- from: {node: start, port: ok_hosts}
+  to: {node: precheck, port: in}
+- from: {node: precheck, port: ok_hosts}
+  to: {node: backup, port: in}
+- from: {node: backup, port: ok_hosts}
+  to: {node: rollback, port: in}
+- from: {node: rollback, port: ok_hosts}
+  to: {node: done, port: in}

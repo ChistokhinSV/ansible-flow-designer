@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.16.0 — AFD-21
+
+Second real use of the AI assistants: an agent built a FortiGate upgrade flow and listed what got in its way.
+- **Data crosses subflow boundaries.**
+  - Inside a subflow, `from: <subflow>.<input>` reads the subflow's input; the generated code follows it to the source.
+  - A subflow output without `from` lifts the inner output of the same name. `subflow-output-unset` warns when nothing inside sets it: before, such an output silently read an unset variable at runtime.
+  - `set_io` and the @ picker lift a step inside another subflow (`precheck/normalize-facts.fos_platform`) to that subflow's outputs in the same edit.
+  - Renaming a subflow input rewrites the inner reads; renaming an output no longer touches them.
+  - Warnings about unknown names say where the value could come from (the subflow's input, an upstream output, a step to lift).
+- **Polling.** New settings `until` (a test on the registered result) and `delay` (seconds between tries). describe shows the register name; the Properties page has Until and Delay fields.
+- **Bare expressions are checked:** `assert` `that:`, `debug` `var`, decision conditions (`condition-unknown-var`) and `until`.
+- **Pattern ends.** `stop`, `notify-stop`, `escalate` and `rollback` reuse an end node only by key (stopped, failed), not any end with outcome failed. `apply_pattern` takes an `end`; the answer names the end used.
+- **The problem count in `flow_edit` answers** counts every finding (several on one node used to count once) and splits it by severity.
+- **Local approvals.** `afd_approvals` chooses an approval's outcome in local runs; the playbook header says how. The stale "AWX approval node in M7" message is gone.
+- **Data lens:** outputs a subflow lifts are no longer reported as unread, and readers are counted per node (keys repeat across levels).
+
 ## 0.15.1 — AFD-20
 
 First real use of the AI assistants: Copilot's first edit failed, and Claude Code drew PlantUML.

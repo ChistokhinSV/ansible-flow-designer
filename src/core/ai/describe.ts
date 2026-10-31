@@ -1,5 +1,7 @@
 // A flow described for AI tools (AFD-19): compact, by key, one line per node and wire, with the
 // open fail ports and the problems. IDs never appear.
+import { registerName } from '../engine/binding';
+import { liftOf } from '../flow/dataRefs';
 import { FINDING_CODES } from '../flow/findingCodes';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
@@ -8,9 +10,14 @@ import type { ContractField, FlowNode } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import { keyPath, levelName, withoutIds } from './refs';
 
-function fields(contract: Record<string, ContractField> | undefined): string {
+function fields(contract: Record<string, ContractField> | undefined, node?: FlowNode): string {
   return Object.entries(contract ?? {})
-    .map(([name, f]) => `${name}${f?.from ? `<-${f.from}` : ''}`)
+    .map(([name, f]) => {
+      if (f?.from) return `${name}<-${f.from}`;
+      // A subflow output without from lifts the inner output of the same name (AFD-21).
+      const lift = node?.type === 'subflow' ? liftOf(node, name) : undefined;
+      return lift && 'inner' in lift ? `${name}<-${lift.inner.key}.${name} (same name)` : name;
+    })
     .join(', ');
 }
 
@@ -28,8 +35,13 @@ function nodeLine(node: FlowNode): string {
     node.join_mode ? `join: ${node.join_mode}` : '',
     extra.length ? `ports +${extra.join(' +')}` : '',
     node.impl ? `impl: ${node.impl.kind} ${node.impl.ref}` : '',
+    // until reads the registered result by name (AFD-21).
+    node.impl?.kind === 'module' &&
+    (node.impl.register || node.settings?.retries || node.settings?.until)
+      ? `register: ${registerName(node)}`
+      : '',
     fields(node.inputs) ? `inputs: ${fields(node.inputs)}` : '',
-    fields(node.outputs) ? `outputs: ${fields(node.outputs)}` : '',
+    fields(node.outputs) ? `outputs: ${fields(node.outputs, node)}` : '',
     node.settings && Object.keys(node.settings).length
       ? `settings: ${Object.entries(node.settings)
           .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join('|') : v}`)

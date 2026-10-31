@@ -70,7 +70,7 @@ export type Op =
   | { op: 'enable_port' | 'disable_port'; node: string; port: string }
   | { op: 'leave_open'; at: string; reason: string }
   | { op: 'reopen'; at: string }
-  | { op: 'apply_pattern'; at: string; pattern: PatternId }
+  | { op: 'apply_pattern'; at: string; pattern: PatternId; end?: string }
   | {
       op: 'set_io';
       node: string;
@@ -299,8 +299,16 @@ async function commandsOf(
       if (!(PATTERN_IDS as readonly string[]).includes(op.pattern))
         throw new RefError(`Unknown pattern "${op.pattern}"; patterns: ${PATTERN_IDS.join(', ')}`);
       const at = outputPort(st, op.at);
+      const end = op.end ? resolveNode(st.model, op.end, at.node.level) : undefined;
+      if (end && end.level !== at.node.level)
+        throw new RefError(`${end.path} is not on the level of ${at.node.path}`);
       return [
-        { kind: 'applyPattern', pattern: op.pattern, from: { node: at.node.id, port: at.port } },
+        {
+          kind: 'applyPattern',
+          pattern: op.pattern,
+          from: { node: at.node.id, port: at.port },
+          ...(end ? { end: end.id } : {}),
+        },
       ];
     }
     case 'set_io': {
@@ -403,6 +411,7 @@ export async function applyOps(
       for (const cmd of await commandsOf(st, op, ctx, notes)) {
         const r = planCommand(st.text, cmd, { newId: ctx.newId }, st.file);
         st = stateOf(r.text, r.file);
+        notes.push(...(r.notes ?? []));
         for (const id of r.dropped ?? []) dropped.add(keyPath(st.model, id));
         if (cmd.kind === 'addNode' && r.created) {
           const extra = op.op === 'add_node' ? op : undefined;
@@ -427,6 +436,7 @@ export async function applyOps(
           for (const c of more) {
             const m = planCommand(st.text, c, { newId: ctx.newId }, st.file);
             st = stateOf(m.text, m.file);
+            notes.push(...(m.notes ?? []));
           }
         }
       }

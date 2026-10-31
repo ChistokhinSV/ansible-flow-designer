@@ -3,16 +3,10 @@
 // generated-task preview are the same functions the tests run.
 import { registerName } from '../engine/binding';
 import type { FlowCommand } from '../flow/commands';
+import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
-import type {
-  ContractField,
-  ContractType,
-  FlowNode,
-  ImplBinding,
-  NodeStatus,
-  Ulid,
-} from '../flow/types';
+import type { ContractField, ContractType, FlowNode, ImplBinding, NodeStatus } from '../flow/types';
 import { MAGIC_VARS } from '../flow/validate';
 import type { CatalogOption, CatalogPlugin, CatalogReturn } from './types';
 
@@ -243,30 +237,7 @@ export function checklist(
 
 // ---- data references ----------------------------------------------------------------------------
 
-/** Nodes whose hosts reach this one: earlier on its level, then before each enclosing subflow. */
-export function upstreamNodes(model: FlowModel, id: Ulid): FlowNode[] {
-  const out: FlowNode[] = [];
-  let entry = model.nodes.get(id);
-  while (entry) {
-    const level = model.levels.get(entry.level);
-    if (!level) break;
-    const seen = new Set([entry.node.id]);
-    const queue = [entry.node.id];
-    while (queue.length > 0) {
-      const at = queue.shift();
-      for (const e of level.edges) {
-        const from = e?.from?.node;
-        if (e?.to?.node !== at || !from || seen.has(from)) continue;
-        seen.add(from);
-        queue.push(from);
-        const n = model.nodes.get(from)?.node;
-        if (n && n.type !== 'start') out.push(n);
-      }
-    }
-    entry = level.parent ? model.nodes.get(level.parent) : undefined;
-  }
-  return out;
-}
+export { upstreamNodes };
 
 export interface RefChoice {
   /** The variable the chip reads. */
@@ -306,19 +277,54 @@ export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
       field: { type: f?.type ?? 'any', from },
     });
   }
-  for (const up of upstreamNodes(model, node.id)) {
-    for (const [name, f] of Object.entries(up.outputs ?? {})) {
-      const from = `${up.key}.${name}`;
-      if (sources.has(from)) continue;
-      const as = freeName(name, taken);
-      taken.add(as);
-      out.push({
-        name: as,
-        label: from,
-        detail: `output of "${up.title}" · adds a node input`,
-        field: { type: f?.type ?? 'any', from },
-      });
+  const offer = (name: string, from: string, detail: string, type: ContractField['type']) => {
+    if (sources.has(from)) return;
+    sources.add(from);
+    const as = freeName(name, taken);
+    taken.add(as);
+    out.push({ name: as, label: from, detail, field: { type, from } });
+  };
+  // Inside a subflow, `<subflow>.<input>` reads the subflow's input (AFD-21).
+  const at = model.nodes.get(node.id)?.level;
+  for (const sub of at ? enclosing(model, at) : [])
+    for (const [name, f] of Object.entries(sub.inputs ?? {}))
+      offer(
+        name,
+        `${sub.key}.${name}`,
+        `input of subflow "${sub.title}" · adds a node input`,
+        f?.type ?? 'any',
+      );
+  const upstream = upstreamNodes(model, node.id);
+  for (const up of upstream)
+    for (const [name, f] of Object.entries(up.outputs ?? {}))
+      offer(
+        name,
+        `${up.key}.${name}`,
+        `output of "${up.title}" · adds a node input`,
+        f?.type ?? 'any',
+      );
+  // Outputs of steps inside earlier subflows: choosing one lifts it to the subflow (AFD-21).
+  const inside = (sub: FlowNode, path: string): void => {
+    for (const step of sub.subflow?.nodes ?? []) {
+      if (!step?.key) continue;
+      const at = `${path}/${step.key}`;
+      for (const [name, f] of Object.entries(step.outputs ?? {})) {
+        // Already lifted: the subflow's own output is offered above.
+        const lifted = Object.keys(sub.outputs ?? {}).some((o) => {
+          const l = liftOf(sub, o);
+          return !!l && 'inner' in l && l.inner.id === step.id && l.output === name;
+        });
+        if (lifted) continue;
+        offer(
+          name,
+          `${at}.${name}`,
+          `output of "${step.title}" inside "${sub.title}" · lifts it to ${path.split('/')[0]}`,
+          f?.type ?? 'any',
+        );
+      }
+      if (step.subflow) inside(step, at);
     }
-  }
+  };
+  for (const up of upstream) if (up.type === 'subflow') inside(up, up.key);
   return out;
 }

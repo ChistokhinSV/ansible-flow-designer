@@ -266,7 +266,7 @@
           },
           "from": {
             "type": "string",
-            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output), flow.<input> (a flow input), or impl.register[.path] (outputs: the bound task's registered result)."
+            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name."
           },
           "targets": {
             "type": "boolean",
@@ -480,7 +480,7 @@
         },
         "condition": {
           "type": "string",
-          "description": "Decision nodes: Jinja expression evaluated per host"
+          "description": "Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs"
         },
         "outcome": {
           "enum": [
@@ -530,7 +530,16 @@
             },
             "retries": {
               "type": "integer",
-              "description": "Retries before a host fails."
+              "description": "Retries before a host fails (module steps). Without until, a step stops retrying on its first success."
+            },
+            "delay": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls."
+            },
+            "until": {
+              "type": "string",
+              "description": "Poll until this holds: a Jinja test without braces, e.g. wait_ha_result.json.results | length == 2. It reads the step's registered result (impl.register, else <key with _ for ->_result) and its inputs. Module steps only; retries sets the attempts."
             },
             "become": {
               "type": "boolean",

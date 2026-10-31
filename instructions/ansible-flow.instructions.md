@@ -10,4 +10,6 @@ This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes w
   references, then run **Complete IDs** (designer banner or the quick fix).
 - One wire per output port; wires stay on one level; handle every fail port (wire it or leave it
   open on purpose with a reason); never set `status: tested`.
+- Steps read data through inputs (`from:`), including parameters, `assert` `that:` and decision
+  conditions; inside a subflow `<subflow>.<input>` reads its input.
 - Do not change `flow.version`, `layout` or files under `generated/`.

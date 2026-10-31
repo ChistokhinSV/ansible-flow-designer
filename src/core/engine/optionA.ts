@@ -59,6 +59,8 @@ class Generator {
   private readonly files: { ctx: LevelCtx; chunks: Chunk[] }[] = [];
   private order = 0;
   private todo = false;
+  /** Approvals a local run passes unless afd_approvals says otherwise (AFD-21). */
+  private approvals: string[] = [];
   /** Work nodes that run on an inventory_target (AFD-14). */
   private readonly overrides: Map<Ulid, string>;
 
@@ -683,7 +685,7 @@ class Generator {
                   'ansible.builtin.group_by': { key: this.group([], node.key, 'waiting') },
                 },
               ]
-            : this.approvalTasks(ctx, node);
+            : this.approvalTasks(ctx, node, vars);
         break;
       case 'parallel':
         tasks = legalPorts(node)
@@ -874,10 +876,18 @@ class Generator {
     ];
   }
 
-  private approvalTasks(ctx: LevelCtx, node: FlowNode): Out[] {
-    this.todo = true;
+  private approvalTasks(ctx: LevelCtx, node: FlowNode, vars: OutMap): Out[] {
     const enabled = new Set(portsFor(node).map((p) => p.name));
-    const choices: Choice[] = [];
+    const ports = ['approved', ...['rejected', 'timeout'].filter((p) => enabled.has(p))];
+    // A local run approves unless the extra var afd_approvals names another outcome for this
+    // approval (AFD-21); AWX workflow runs wait in a real approval node (AFD-11).
+    const key = [...ctx.path, node.key].join('/');
+    this.approvals.push(key);
+    vars.afd_approval = `{{ (afd_approvals | default({}))['${key}'] | default('approved') }}`;
+    const pick = 'afd_approval';
+    const choices: Choice[] = ports
+      .slice(1)
+      .map((port) => ({ test: `${pick} == '${port}'`, group: this.target(ctx, node, port), port }));
     if (this.opts.simulate) {
       for (const port of ['rejected', 'timeout'])
         if (enabled.has(port))
@@ -885,11 +895,18 @@ class Generator {
     }
     return [
       {
-        name: `[${node.key}] TODO approval`,
+        name: `[${node.key}] local approval`,
         'ansible.builtin.debug': {
-          msg: `TODO: ${oneLine(node.title)} is approved automatically in local runs (AWX approval node in M7)`,
+          msg: `${oneLine(node.title)}: {{ afd_approval }} in this local run (afd_approvals chooses; AWX workflow runs wait in an approval node)`,
         },
         run_once: true,
+      },
+      {
+        name: `[${node.key}] afd_approvals outcome`,
+        'ansible.builtin.fail': {
+          msg: `afd_approvals['${key}'] must be one of ${ports.join(', ')}`,
+        },
+        when: `${pick} not in [${ports.map((p) => `'${p}'`).join(', ')}]`,
       },
       choose(node, choices, { group: this.target(ctx, node, 'approved'), port: 'approved' }),
     ];
@@ -982,6 +999,10 @@ class Generator {
       );
     else if (!ctx.parent && this.todo)
       lines.push('# Unbound nodes run TODO messages: run with --check until every node is bound.');
+    if (!this.segment && !ctx.parent && this.approvals.length > 0)
+      lines.push(
+        `# Local runs approve ${this.approvals.join(', ')}; choose another outcome with -e '{"afd_approvals": {"${this.approvals[0]}": "rejected"}}'.`,
+      );
     if (this.opts.simulate)
       lines.push('# SIMULATION build: afd_simulate sends chosen hosts down other ports.');
     return lines;

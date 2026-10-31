@@ -213,6 +213,11 @@ export const OP_SPECS: OpSpec[] = [
     properties: {
       at: OUT,
       pattern: { enum: [...PATTERN_IDS], description: 'Which pattern (see the pattern list).' },
+      end: {
+        ...NODE,
+        description:
+          'End node (same level) the hosts go to, instead of the one the pattern picks: it reuses an end keyed stopped/failed (excluded, done), else makes a new one.',
+      },
     },
     required: ['at', 'pattern'],
     example: { op: 'apply_pattern', at: 'push-config.failed_hosts', pattern: 'rollback' },
@@ -220,7 +225,7 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'set_io',
     summary:
-      'Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow").',
+      'Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"). from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.',
     properties: {
       node: { ...NODE, description: `${NODE.description} "flow" for the flow inputs.` },
       side: { enum: ['inputs', 'outputs'], description: 'inputs or outputs.' },

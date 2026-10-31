@@ -180,7 +180,7 @@ describe('segment playbooks', () => {
   it('local runs keep the single playbook, auto-approved', () => {
     const whole = parse(out.files[0]?.text ?? '') as Play[];
     expect(whole.find((p) => p.name === '[gate] Approve the change')?.tasks?.[0]?.name).toBe(
-      '[gate] TODO approval',
+      '[gate] local approval',
     );
   });
 });

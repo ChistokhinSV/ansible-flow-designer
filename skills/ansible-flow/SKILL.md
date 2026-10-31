@@ -59,6 +59,9 @@ the ports a node has). Correct that op and send the whole batch again.
 - Every fail port (failed_hosts, unreachable, timeout, rejected) must be handled: wired to a
   handler (`apply_pattern` rollback, notify-stop, retry, exclude, stop), or left open on purpose
   with `leave_open` and a reason the user agrees with. Do not leave them open silently.
+- Patterns that end hosts reuse an end node only by key (stopped, failed, excluded, done), else
+  they add one. Pass `end` to `apply_pattern` to choose the end, e.g. a rejected approval to
+  `not-approved`; the answer names the end it used.
 - `status` goes draft → specified (has inputs or outputs) → implemented (bound to code). Never set
   `tested`: only a passing run sets it.
 - Do not edit `flow.version`, IDs, `layout` or anything under `generated/`: the tools bump the
@@ -68,6 +71,31 @@ the ports a node has). Correct that op and send the whole batch again.
   while designing.
 - Use fictional sample values in examples (192.0.2.0/24, example.net); never put secrets in a
   flow. Credentials are AWX credential names (`settings.credential`).
+
+## Data between steps
+
+Values pass through node inputs and outputs, never through variables a step happens to leave on
+the host. The designer checks every name a step reads, and the generated code passes inputs in.
+
+- An output: `set_io` on the producer, e.g. `fgt_facts` with `from: impl.register` (the module's
+  registered result) or `impl.register.dest`. A `set_fact` step's outputs need no `from`.
+- An input: `set_io` on the reader with `from:`
+  - `<key>.<output>`: a node that runs before, on this level or around it;
+  - `flow.<input>`: a flow input;
+  - inside a subflow, `<subflow key>.<input>`: that subflow's own input. Give the subflow the input
+    first (`from: backup.backup_file`), then its steps read `rollback.backup_file`.
+- Parameters read inputs by name: `{{ fw_blob }}`. So do `assert` `that:` lists and decision
+  conditions (no braces): `fos_version == target_version` needs inputs `fos_version` and
+  `target_version` on that node.
+- From outside a subflow you read what it lifts: an output of the subflow node naming an inner
+  step's output (`from: normalize-facts.fos_platform`; without `from`, the inner output of the same
+  name). Easier: give the path `precheck/normalize-facts.fos_platform` as the `from` of `set_io`;
+  the tool adds the output to `precheck` and stores `precheck.fos_platform`.
+- Polling: `settings.retries` with `settings.until`, a test on the step's registered result
+  without braces (`wait_ha_result.json.results.ha_members | length == 2`), and `settings.delay`
+  seconds between tries. describe shows the register name (`register: wait_ha_result`).
+- Approvals approve by themselves in local runs; `-e '{"afd_approvals": {"approve": "rejected"}}'`
+  takes another port. AWX workflow runs wait in a real approval node.
 
 ## Ops cheat sheet
 
@@ -82,6 +110,10 @@ the ports a node has). Correct that op and send the whole batch again.
 {"op": "enable_port", "node": "push-config", "port": "unreachable"}
 {"op": "update_node", "node": "check-ntp", "intent": "Compare NTP servers with the standard"}
 {"op": "set_io", "node": "check-ntp", "side": "outputs", "name": "ntp_ok", "field": {"type": "boolean"}}
+{"op": "set_io", "node": "rollback/restore", "side": "inputs", "name": "backup_file", "field": {"type": "string", "from": "rollback.backup_file"}}
+{"op": "set_io", "node": "upgrade/load-image", "side": "inputs", "name": "fos_platform", "field": {"type": "string", "from": "precheck/normalize-facts.fos_platform"}}
+{"op": "update_node", "node": "upgrade/wait-ha", "settings": {"retries": 60, "delay": 30, "until": "wait_ha_result.json.results.ha_members | length == 2"}}
+{"op": "apply_pattern", "at": "approve.rejected", "pattern": "stop", "end": "not-approved"}
 {"op": "bind", "node": "check-ntp", "impl": {"kind": "module", "ref": "cisco.ios.ios_command", "params": {"commands": ["show ntp associations"]}}}
 {"op": "extract_subflow", "nodes": ["backup-config", "push-config"], "title": "Change"}
 {"op": "delete", "nodes": ["old-step"]}

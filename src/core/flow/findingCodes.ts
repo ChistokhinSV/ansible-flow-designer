@@ -117,12 +117,26 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'Add a host_list flow input with targets: true (set_io flow).',
   },
   'from-unresolved': {
-    meaning: 'An input names an output that no earlier node has (from:).',
-    fix: 'Use <node_key>.<output> of a node that runs before, or flow.<input>.',
+    meaning: 'A from: names nothing this node can read.',
+    fix: 'Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow.',
   },
   'binding-unknown-var': {
-    meaning: 'A binding parameter uses a variable no input provides.',
-    fix: 'Add the input (set_io) or fix the Jinja name.',
+    meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
+    fix: 'Add the input the message names (set_io) or fix the name.',
+  },
+  'condition-unknown-var': {
+    meaning:
+      'A decision condition or until uses a variable that is not an input (or, for until, the result).',
+    fix: 'Add the input the message names (set_io) or fix the name.',
+  },
+  'subflow-output-unset': {
+    meaning:
+      'A subflow output names no inner output, and no single inner step has one of that name.',
+    fix: 'Set its from to <inner_step>.<output> (set_io).',
+  },
+  'until-not-module': {
+    meaning: 'settings.until on a role or playbook step, where Ansible cannot retry.',
+    fix: 'Move the polling into a module step, or remove until.',
   },
   'approval-split': {
     meaning: 'Approval outcomes go to different places in a way AWX cannot express.',

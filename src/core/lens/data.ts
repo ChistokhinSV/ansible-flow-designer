@@ -1,7 +1,8 @@
 // Data lens (04 §7, decision 14): what each node reads and writes, and the data wires derived from
 // `from:` references. A reference into another level is drawn from the producer to the subflow
 // that contains the consumer, on the producer's level.
-import { buildModel, keyScope, ROOT } from '../flow/model';
+import { liftOf, resolveFrom } from '../flow/dataRefs';
+import { buildModel, ROOT } from '../flow/model';
 import type { FlowDocument, Ulid } from '../flow/types';
 import { isWork, listChip, title, visibleAt } from './common';
 import type { DataWire, LensChip, LensFinding, LensItem, LensView } from './types';
@@ -30,7 +31,6 @@ export function dataLens(doc: FlowDocument): LensView {
 
   for (const { node, level } of model.nodes.values()) {
     if (!isWork(node)) continue;
-    const scope = keyScope(model, level);
     const ins = Object.keys(node.inputs ?? {});
     const outs = Object.keys(node.outputs ?? {});
     chips[node.id] = [listChip('in: ', ins), listChip('out: ', outs)].filter(
@@ -52,26 +52,26 @@ export function dataLens(doc: FlowDocument): LensView {
           });
         continue;
       }
-      const [head = '', ...rest] = from.split('.');
-      const out = rest[0] ?? '';
-      if (head === 'impl') continue;
-      if (head === 'flow') {
-        if (!(out in flowInputs)) {
-          findings.push(unresolved(node.id, node.title, name, from));
-          continue;
-        }
+      const src = resolveFrom(model, node, level, 'inputs', from);
+      // Inside a subflow, <subflow>.<input> reads its input: drawn where the subflow gets it.
+      if (src.kind === 'impl' || src.kind === 'subflowInput') continue;
+      if (src.kind === 'unresolved') {
+        findings.push(unresolved(node.id, node.title, name, from, src.why));
+        continue;
+      }
+      if (src.kind === 'flow') {
+        const out = src.name;
         inputUse.set(out, (inputUse.get(out) ?? new Set()).add(node.id));
         const to = start ? visibleAt(model, node.id, ROOT) : undefined;
         if (start && to) wire(start, to, out, `flow.${out} → ${node.title}.${name}`);
         continue;
       }
-      const producer = scope.get(head);
-      const p = producer ? model.nodes.get(producer) : undefined;
-      if (!producer || !p || (out && !(out in (p.node.outputs ?? {})))) {
-        findings.push(unresolved(node.id, node.title, name, from));
-        continue;
-      }
-      const key = `${head}.${out}`;
+      const producer = src.node.id;
+      const p = model.nodes.get(producer);
+      if (!p) continue;
+      const out = src.name;
+      // By producer ID: keys repeat across levels.
+      const key = `${producer}.${out}`;
       readers.set(key, (readers.get(key) ?? new Set()).add(node.id));
       const to = visibleAt(model, node.id, p.level);
       if (to)
@@ -84,10 +84,19 @@ export function dataLens(doc: FlowDocument): LensView {
     }
   }
 
+  // A subflow output reads the inner output it lifts (AFD-7, AFD-21).
+  for (const { node } of model.nodes.values())
+    for (const out of node.type === 'subflow' ? Object.keys(node.outputs ?? {}) : []) {
+      const lift = liftOf(node, out);
+      if (!lift || !('inner' in lift)) continue;
+      const key = `${lift.inner.id}.${lift.output}`;
+      readers.set(key, (readers.get(key) ?? new Set()).add(node.id));
+    }
+
   const variables: LensItem[] = [];
   for (const { node } of model.nodes.values()) {
     for (const out of Object.keys(node.outputs ?? {})) {
-      const users = [...(readers.get(`${node.key}.${out}`) ?? [])];
+      const users = [...(readers.get(`${node.id}.${out}`) ?? [])];
       variables.push({
         key: `var:${node.id}.${out}`,
         label: `${node.key}.${out}`,
@@ -147,13 +156,19 @@ export function dataLens(doc: FlowDocument): LensView {
   };
 }
 
-function unresolved(node: Ulid, nodeTitle: string, name: string, from: string): LensFinding {
+function unresolved(
+  node: Ulid,
+  nodeTitle: string,
+  name: string,
+  from: string,
+  why: string,
+): LensFinding {
   return {
     id: `data:unresolved:${node}.${name}`,
     lens: 'data',
     severity: 'warning',
     title: `${nodeTitle}: ${name} reads ${from}, which does not exist`,
-    detail: `"${from}" is neither a flow input nor an output of a node this one can see.`,
+    detail: `"${from}" ${why}.`,
     node,
     nodes: [node],
     fixes: [{ label: 'Open properties', properties: node }],

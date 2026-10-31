@@ -164,21 +164,41 @@ export function flowReference(input: { topic?: ReferenceTopic }): ToolResult {
  * Problems keyed by what they are about (code, node by key, port, field), so an edit that renames
  * a node or adds IDs does not make old problems look new.
  */
-function problemKeys(model: FlowModel, findings: Finding[]): Map<string, Finding> {
-  return new Map(
-    findings.map((f) => {
-      const edge = f.edge ? model.edges.get(f.edge)?.edge : undefined;
-      const about = [
-        f.code,
-        f.node ? keyPath(model, f.node) : '',
-        f.port ?? '',
-        edge ? `${keyPath(model, edge.from.node)}.${edge.from.port}` : '',
-        f.path.filter((p) => typeof p === 'string').join('.'),
-        f.node || edge ? '' : withoutIds(model, f.message),
-      ];
-      return [about.join('|'), f] as [string, Finding];
-    }),
-  );
+/**
+ * Findings by what they are about, so an edit can tell which are new and which went away. The
+ * message is part of it (one node can have several findings of one code, AFD-21), with the node's
+ * title taken out, so retitling a node is not a new problem. Several equal findings count each.
+ */
+function problemKeys(model: FlowModel, findings: Finding[]): Map<string, Finding[]> {
+  const out = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const node = f.node ? model.nodes.get(f.node)?.node : undefined;
+    const edge = f.edge ? model.edges.get(f.edge)?.edge : undefined;
+    let message = withoutIds(model, f.message);
+    if (node?.title) message = message.replaceAll(`"${node.title}"`, '"<node>"');
+    const key = [
+      f.code,
+      f.node ? keyPath(model, f.node) : '',
+      f.port ?? '',
+      edge ? `${keyPath(model, edge.from.node)}.${edge.from.port}` : '',
+      f.path.filter((p) => typeof p === 'string').join('.'),
+      message,
+    ].join('|');
+    out.set(key, [...(out.get(key) ?? []), f]);
+  }
+  return out;
+}
+
+/** "11 warning(s), 2 note(s)" for the findings that went away. */
+function solvedText(solved: Finding[]): string {
+  if (solved.length === 0) return '';
+  const n = (s: Finding['severity']) => solved.filter((f) => f.severity === s).length;
+  const parts = [
+    n('error') ? `${n('error')} error(s)` : '',
+    n('warning') ? `${n('warning')} warning(s)` : '',
+    n('info') ? `${n('info')} note(s)` : '',
+  ].filter(Boolean);
+  return `; solved by this edit: ${parts.join(', ')}`;
 }
 
 /** Changed lines, whole, for a dry run. */
@@ -240,8 +260,8 @@ export async function flowEdit(
   const before = problemKeys(l.model, l.findings);
   const report = (text: string, model: FlowModel, findings: Finding[], notes: string[]) => {
     const after = problemKeys(model, findings);
-    const added = [...after.entries()].filter(([k]) => !before.has(k)).map(([, f]) => f);
-    const solved = [...before.keys()].filter((k) => !after.has(k)).length;
+    const added = [...after.entries()].flatMap(([k, fs]) => fs.slice(before.get(k)?.length ?? 0));
+    const solved = [...before.entries()].flatMap(([k, fs]) => fs.slice(after.get(k)?.length ?? 0));
     return [
       ...(result.created.length ? [`Created: ${result.created.join(', ')}`] : []),
       ...(result.dropped.length
@@ -249,7 +269,7 @@ export async function flowEdit(
         : []),
       ...result.notes,
       ...notes,
-      `Problems: ${countFindings(findings)}${solved ? `; ${solved} solved by this edit` : ''}`,
+      `Problems: ${countFindings(findings)}${solvedText(solved)}`,
       ...(added.length ? ['New problems:', formatFindings(model, added, 30)] : []),
       `Revision: ${revisionOf(text)}`,
     ].join('\n');

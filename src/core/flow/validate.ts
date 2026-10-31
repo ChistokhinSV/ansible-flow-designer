@@ -1,10 +1,12 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
+import { registerName } from '../engine/binding';
 import { planSegments } from '../engine/segments';
 import type { Path } from '../yaml/parse';
 import { idGaps, withIds } from './completeIds';
-import { refsIn } from './jinja';
-import { buildModel, type FlowModel, keyScope, ROOT } from './model';
+import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
+import { exprRefs, refsIn } from './jinja';
+import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
@@ -372,19 +374,60 @@ function checkApprovalSplit(
 export const MAGIC_VARS =
   /^(ansible_[a-z0-9_]*|inventory_hostname(_short)?|inventory_dir|inventory_file|hostvars|groups|group_names|play_hosts|playbook_dir|role_path|role_name|omit|item|ansible_loop_var|lookup|query|q|now|range|dict|namespace|loop|afd_[a-z0-9_]*)$/;
 
+/** Module parameters Ansible evaluates as bare expressions, by module short name. */
+const BARE_PARAMS: Record<string, readonly string[]> = { assert: ['that'], debug: ['var'] };
+
+function bareParams(impl: NonNullable<FlowNode['impl']>): unknown[] {
+  if (impl.kind !== 'module') return [];
+  const short = impl.ref.replace(/^ansible\.(builtin|legacy)\./, '');
+  return (BARE_PARAMS[short] ?? []).map((k) => impl.params?.[k]).filter((v) => v !== undefined);
+}
+
+/**
+ * Where a name a node reads could come from, as the fix (AFD-21): the enclosing subflow's input, an
+ * upstream output, or an output of a step inside an upstream subflow (which the tools lift).
+ */
+function hintFor(model: FlowModel, node: FlowNode, level: string, name: string): string {
+  for (const sub of enclosing(model, level))
+    if (sub.inputs && name in sub.inputs)
+      return `; subflow ${sub.key} has it as an input: add input ${name} (from: ${sub.key}.${name})`;
+  const upstream = upstreamNodes(model, node.id);
+  for (const up of upstream)
+    if (up.outputs && name in up.outputs) return `; add input ${name} (from: ${up.key}.${name})`;
+  const inside = (sub: FlowNode, path: string): string | undefined => {
+    for (const step of sub.subflow?.nodes ?? []) {
+      if (!step?.key) continue;
+      if (step.outputs && name in step.outputs) return `${path}/${step.key}`;
+      const deeper = step.subflow ? inside(step, `${path}/${step.key}`) : undefined;
+      if (deeper) return deeper;
+    }
+    return undefined;
+  };
+  for (const up of upstream) {
+    const at = up.type === 'subflow' ? inside(up, up.key) : undefined;
+    if (at)
+      return `; ${at} sets it: add input ${name} from ${at}.${name} with the AI tools or the @ picker, which lift it to ${up.key}`;
+  }
+  return '';
+}
+
 /**
  * Binding parameters read node inputs (chips, D-26). A read of anything else works only by luck
  * (a flow extra var, another node's fact), and the design does not show the data dependency.
+ * Bare expressions (assert `that`) are read too (AFD-21).
  */
 function checkBindingVars(
+  model: FlowModel,
   node: FlowNode,
+  level: string,
   path: Path,
   flowInputs: Set<string>,
   add: (f: Finding) => void,
 ): void {
   if (!node.impl?.params) return;
   const inputs = new Set(Object.keys(node.inputs ?? {}));
-  for (const name of refsIn(node.impl.params)) {
+  const read = new Set([...refsIn(node.impl.params), ...exprRefs(bareParams(node.impl))]);
+  for (const name of read) {
     if (inputs.has(name) || MAGIC_VARS.test(name)) continue;
     const flow = flowInputs.has(name);
     add({
@@ -392,8 +435,67 @@ function checkBindingVars(
       severity: flow ? 'info' : 'warning',
       message: flow
         ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
-        : `${label(node)} reads "${name}", which is not an input of this node`,
+        : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
       path: [...path, 'impl', 'params'],
+      node: node.id,
+    });
+  }
+}
+
+/** Decision conditions and `until` read node inputs too (AFD-21); `until` also the step's result. */
+function checkConditions(
+  model: FlowModel,
+  node: FlowNode,
+  level: string,
+  path: Path,
+  flowInputs: Set<string>,
+  add: (f: Finding) => void,
+): void {
+  const inputs = new Set(Object.keys(node.inputs ?? {}));
+  const check = (expr: string, where: Path, what: string, result?: string) => {
+    for (const name of exprRefs(expr)) {
+      if (inputs.has(name) || name === result || MAGIC_VARS.test(name)) continue;
+      const flow = flowInputs.has(name);
+      add({
+        code: 'condition-unknown-var',
+        severity: flow ? 'info' : 'warning',
+        message: flow
+          ? `${label(node)} ${what} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
+          : `${label(node)} ${what} reads "${name}", which is not ${result ? `its result (${result}) or ` : ''}an input of this node${hintFor(model, node, level, name)}`,
+        path: where,
+        node: node.id,
+      });
+    }
+  };
+  if (node.type === 'decision' && typeof node.condition === 'string')
+    check(node.condition, [...path, 'condition'], 'condition');
+  const until = node.settings?.until;
+  if (typeof until !== 'string' || !until.trim()) return;
+  if (node.impl?.kind === 'role' || node.impl?.kind === 'playbook')
+    add({
+      code: 'until-not-module',
+      severity: 'warning',
+      message: `${label(node)} runs a ${node.impl.kind}: until applies to a module step only, so it is ignored`,
+      path: [...path, 'settings', 'until'],
+      node: node.id,
+    });
+  else check(until, [...path, 'settings', 'until'], 'until', registerName(node));
+}
+
+/** A subflow output without from lifts the inner output of the same name (AFD-21). */
+function checkLifts(node: FlowNode, path: Path, add: (f: Finding) => void): void {
+  if (node.type !== 'subflow' || !node.subflow?.nodes?.length) return;
+  for (const [name, field] of Object.entries(node.outputs ?? {})) {
+    if (field?.from) continue;
+    const lift = liftOf(node, name);
+    if (lift && 'inner' in lift) continue;
+    add({
+      code: 'subflow-output-unset',
+      severity: 'warning',
+      message: lift
+        ? `Subflow ${label(node)} output ${name}: ${lift.ambiguous.join(' and ')} all have it; name one in from (${lift.ambiguous[0]}.${name})`
+        : `Subflow ${label(node)} output ${name}: no inner step has an output ${name}, so nothing sets it; name the inner output it lifts in from (<step>.<output>)`,
+      path: [...path, 'outputs', name],
       node: node.id,
     });
   }
@@ -402,36 +504,27 @@ function checkBindingVars(
 function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   const flowInputs = new Set(Object.keys(model.doc.flow?.inputs ?? {}));
   for (const { node, path, level } of model.nodes.values()) {
-    const scope = keyScope(model, level);
-    // A subflow's outputs read its inner steps (AFD-7 lifts them there).
-    const inner = model.levels.has(node.id) ? keyScope(model, node.id) : scope;
     for (const side of ['inputs', 'outputs'] as const) {
       for (const [name, field] of Object.entries(node[side] ?? {})) {
         const from = field?.from;
-        if (!from) continue;
-        const [head, rest] = [from.split('.')[0] ?? '', from.split('.').slice(1).join('.')];
-        let ok = true;
-        if (head === 'flow') ok = flowInputs.has(rest);
-        else if (head === 'impl') ok = true;
-        else {
-          const ref = (side === 'outputs' ? inner : scope).get(head);
-          const target = ref ? model.nodes.get(ref)?.node : undefined;
-          // `key.output` or a path into it (`key.output.changed`).
-          ok = !!target && (rest === '' || (rest.split('.')[0] ?? '') in (target.outputs ?? {}));
-        }
-        if (!ok) {
-          add({
-            code: 'from-unresolved',
-            severity: 'warning',
-            message: `${label(node)} ${side}.${name}: "${from}" does not resolve to a flow input or an upstream output`,
-            path: [...path, side, name, 'from'],
-            node: node.id,
-          });
-        }
+        if (typeof from !== 'string' || !from) continue;
+        const src = resolveFrom(model, node, level, side, from);
+        if (src.kind !== 'unresolved') continue;
+        add({
+          code: 'from-unresolved',
+          severity: 'warning',
+          message: `${label(node)} ${side}.${name}: "${from}" ${src.why}`,
+          path: [...path, side, name, 'from'],
+          node: node.id,
+        });
       }
     }
+    checkLifts(node, path, add);
   }
-  for (const { node, path } of model.nodes.values()) checkBindingVars(node, path, flowInputs, add);
+  for (const { node, path, level } of model.nodes.values()) {
+    checkBindingVars(model, node, level, path, flowInputs, add);
+    checkConditions(model, node, level, path, flowInputs, add);
+  }
   const runtime = model.doc.flow?.runtime?.kind;
   // AWX workflows split at top-level approvals (AFD-11, ADR-0016).
   const plan = planSegments(model);

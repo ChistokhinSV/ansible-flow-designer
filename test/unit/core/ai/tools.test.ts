@@ -102,7 +102,8 @@ describe('AI tools', () => {
     expect(r.isError).toBeUndefined();
     expect(io.writes).toBe(1);
     expect(r.text).toContain('Created: check-ntp, notify-on-call');
-    expect(r.text).toMatch(/1 solved by this edit/);
+    expect(r.text).toContain('solved by this edit: 1 warning(s)');
+    expect(r.text).toContain('notify-stop: the hosts end at failed (an existing end node)');
     const after = io.files.get(EDGE) as string;
     expect(errorsOf(after)).toEqual([]);
     const doc = parse(after) as FlowDocument;
@@ -149,6 +150,67 @@ describe('AI tools', () => {
       'precheck.ok_hosts is already wired to backup-config: rewire it to the new end node',
     );
     expect(io.writes).toBe(0);
+  });
+
+  it('AFD-21: paths into subflows are lifted, every solved problem counts, pattern ends can be named', async () => {
+    const io = memoryIO();
+    const path = 'flows/data-across.flow.yaml';
+    io.files.set(path, read('test/fixtures/flows/data-across.flow.yaml'));
+    // Three unknown names in one node's assert: three warnings, not one.
+    const broken = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'bind',
+          node: 'rollback/restore',
+          impl: {
+            kind: 'module',
+            ref: 'ansible.builtin.assert',
+            params: { that: ['a == b', 'c'] },
+          },
+        },
+      ],
+    });
+    expect(broken.text.match(/warning binding-unknown-var at rollback\/restore/g)).toHaveLength(3);
+    const fixed = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'bind',
+          node: 'rollback/restore',
+          impl: {
+            kind: 'module',
+            ref: 'fortinet.fortios.fortios_monitor',
+            params: { file: '{{ file }}', platform: '{{ platform }}' },
+          },
+        },
+        {
+          op: 'set_io',
+          node: 'rollback/restore',
+          side: 'inputs',
+          name: 'platform',
+          field: { type: 'string', from: 'precheck/facts.fos_platform' },
+        },
+      ],
+    });
+    expect(fixed.isError, fixed.text).toBeUndefined();
+    expect(fixed.text).toContain(
+      'precheck now lifts facts.fos_platform as its output fos_platform',
+    );
+    expect(fixed.text).toContain('solved by this edit: 3 warning(s)');
+    expect(fixed.text).not.toContain('New problems');
+    const ended = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        { op: 'add_node', type: 'end', title: 'Manual recovery', key: 'manual', outcome: 'failed' },
+        { op: 'apply_pattern', at: 'rollback.failed_hosts', pattern: 'notify-stop', end: 'manual' },
+      ],
+    });
+    expect(ended.text).toContain('notify-stop: the hosts end at manual (an existing end node)');
+    const d = await call(io, 'flow_describe', { path });
+    expect(d.text).toContain('outputs: backup_file<-store.backup_file (same name)');
+    expect(d.text).toContain('register: wait_result');
+    expect(d.text).toContain('inputs: file<-rollback.backup_file, platform<-precheck.fos_platform');
   });
 
   it('AFD-20: a chain built with after on a new flow; on_wire inside a subflow stays there', async () => {
