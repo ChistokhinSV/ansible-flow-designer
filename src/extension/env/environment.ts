@@ -10,7 +10,12 @@ import {
 } from '../../core/run/environment';
 import { ProbeClient } from './probeClient';
 
+/** Why nothing runs in Restricted Mode: the repository's ansible.cfg, plugins and playbooks are code. */
+export const UNTRUSTED =
+  'This workspace is not trusted, so Ansible Flow does not start Ansible or the probe here: trust the workspace to run flows, lenses and the module catalog';
+
 export function environmentFor(scope: vscode.Uri): EnvironmentResult {
+  if (!vscode.workspace.isTrusted) return { ok: false, error: UNTRUSTED };
   const c = vscode.workspace.getConfiguration('afd', scope);
   const afd: AfdEnvSettings = {
     kind: c.get('environment.kind', 'auto'),

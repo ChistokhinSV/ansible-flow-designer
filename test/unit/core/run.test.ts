@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { optionA } from '../../../src/core/engine/optionA';
 import type { FlowDocument } from '../../../src/core/flow/types';
-import { probeProcess, runProcess, shQuote } from '../../../src/core/run/command';
+import { probeProcess, runProcess, shQuote, splitInputs } from '../../../src/core/run/command';
 import {
   type AfdEnvSettings,
   resolveEnvironment,
@@ -136,6 +136,30 @@ describe('command lines', () => {
       cwd: '/repo',
     });
     expect(plain.env.ANSIBLE_CALLBACK_PLUGINS).toBe('/ext/probe/callback_plugins');
+    // AFD-29: secret inputs never reach vars.json; a temporary file inside the run holds them.
+    const secret = runProcess(
+      env,
+      paths,
+      {
+        playbook: 'g/x.yml',
+        check: false,
+        runDir: 'C:\\runs\\2',
+        vault: true,
+        secrets: true,
+        hasConfig: false,
+      },
+      'afd-run-2',
+    );
+    expect(secret.args).toContain('AFD_SECRET_VARS');
+    expect(secret.args.join(' ')).not.toMatch(/AFD_SECRET_VARS=/);
+    const both = secret.args.at(-1) ?? '';
+    expect(both).toContain(`sv=$(mktemp) && printf '%s' "$AFD_SECRET_VARS" > "$sv"`);
+    expect(both).toContain('-e @/afd-run/vars.json -e @"$sv" --vault-password-file "$vp" g/x.yml');
+    expect(both).toMatch(/rc=\$\?; rm -f "\$vp" "\$sv"; exit \$rc$/);
+    expect(splitInputs({ devices: ['a'], enable_secret: 'x', api_key: 'k', count: 2 })).toEqual({
+      plain: { devices: ['a'], count: 2 },
+      secret: { enable_secret: 'x', api_key: 'k' },
+    });
     expect(shQuote("it's")).toBe(`'it'"'"'s'`);
   });
 });

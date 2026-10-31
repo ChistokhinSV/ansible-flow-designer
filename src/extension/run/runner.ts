@@ -11,12 +11,13 @@ import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
 import { SECRET } from '../../core/import/secrets';
 import type { RunView } from '../../core/protocol';
-import { runProcess } from '../../core/run/command';
+import { runProcess, splitInputs } from '../../core/run/command';
 import { summarizeRun } from '../../core/run/events';
 import { generateFlow } from '../codegen';
-import { environmentFor, type ProbeManager } from '../env/environment';
+import { environmentFor, type ProbeManager, UNTRUSTED } from '../env/environment';
 import { authorName } from '../gitHead';
 import { appendAudit } from './audit';
+import { dropVars, KEEP_RUNS, pruneRuns } from './storage';
 
 export interface RunOptions {
   mode: 'check' | 'real';
@@ -209,12 +210,15 @@ export async function runFlow(
 
   const env = environmentFor(folder.uri);
   if (!env.ok) {
+    const trust = env.error === UNTRUSTED;
     void vscode.window
-      .showErrorMessage(env.error, 'Open Settings')
-      .then(
-        (pick) =>
-          pick &&
-          vscode.commands.executeCommand('workbench.action.openSettings', 'afd.environment'),
+      .showErrorMessage(env.error, trust ? 'Manage Workspace Trust' : 'Open Settings')
+      .then((pick) =>
+        !pick
+          ? undefined
+          : trust
+            ? vscode.commands.executeCommand('workbench.trust.manage')
+            : vscode.commands.executeCommand('workbench.action.openSettings', 'afd.environment'),
       );
     return fail(env.error);
   }
@@ -279,10 +283,18 @@ export async function runFlow(
 
   const runDir = vscode.Uri.joinPath(deps.storage, 'runs', doc.flow.id, id);
   await vscode.workspace.fs.createDirectory(runDir);
+  // Secret inputs travel in an environment variable only; vars.json goes when the run ends.
+  const { plain, secret } = splitInputs(inputs);
+  const secrets = Object.keys(secret).length > 0;
   await vscode.workspace.fs.writeFile(
     vscode.Uri.joinPath(runDir, 'vars.json'),
-    new TextEncoder().encode(JSON.stringify(inputs, null, 2)),
+    new TextEncoder().encode(JSON.stringify(plain, null, 2)),
   );
+  await pruneRuns(
+    deps.storage.fsPath,
+    doc.flow.id,
+    config.get<number>('runs.keep', KEEP_RUNS),
+  ).catch(() => undefined);
   const root = generated.result.files[0]?.name ?? `${doc.flow.key}.yml`;
   const playbook = vscode.workspace
     .asRelativePath(vscode.Uri.joinPath(generated.dir, root), false)
@@ -296,6 +308,7 @@ export async function runFlow(
       check: options.mode === 'check',
       runDir: runDir.fsPath,
       vault: vaultPassword !== undefined,
+      secrets,
       hasConfig: existsSync(vscode.Uri.joinPath(folder.uri, 'ansible.cfg').fsPath),
     },
     `afd-run-${id.toLowerCase()}`,
@@ -334,6 +347,7 @@ export async function runFlow(
 
   const env2: Record<string, string> = { ...spec.env };
   if (vaultPassword !== undefined) env2.AFD_VAULT_PASSWORD = vaultPassword;
+  if (secrets) env2.AFD_SECRET_VARS = JSON.stringify(secret);
   const task = new vscode.Task(
     { type: 'afd-run', flow: doc.flow.key, mode: options.mode },
     folder,
@@ -365,6 +379,7 @@ export async function runFlow(
     );
   });
 
+  await dropVars(runDir.fsPath).catch(() => undefined);
   let text = '';
   try {
     text = new TextDecoder().decode(

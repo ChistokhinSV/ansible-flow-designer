@@ -21,12 +21,45 @@ import { appendAudit } from '../run/audit';
 import { collectInputs, stamp, targetsOf } from '../run/runner';
 import { relativeTo } from '../sync/codeSync';
 import { runWorkflow, setupWorkflow } from './awxWorkflow';
-import { AwxClient } from './client';
+import { AwxClient, followLimit, StoppedFollowing } from './client';
 
 const POLL_MS = 2000;
 /** Events are stored after the job ends; give them this long to arrive. */
 const EVENTS_GRACE_MS = 20_000;
 const PROJECT_SYNC_MS = 180_000;
+
+/**
+ * Follows a launched job or workflow under a cancellable notification (AFD-29). Cancelling, or the
+ * follow limit, stops the polling only: the job keeps running in AWX.
+ */
+function following<T>(
+  title: string,
+  follow: (stop: () => 'cancelled' | 'timeout' | undefined) => Promise<T>,
+): Promise<T> {
+  return Promise.resolve(
+    vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title, cancellable: true },
+      (_progress, token) => follow(followLimit(() => token.isCancellationRequested)),
+    ),
+  );
+}
+
+/** After following stopped: the job still runs in AWX, so offer to cancel it there or open it. */
+function offerCancel(awx: AwxClient, stopped: StoppedFollowing): void {
+  const cancel = 'Cancel It in AWX';
+  const open = 'Open in AWX';
+  void vscode.window.showWarningMessage(stopped.message, cancel, open).then(async (pick) => {
+    if (pick === open) await vscode.env.openExternal(vscode.Uri.parse(stopped.url));
+    if (pick !== cancel) return;
+    try {
+      if (stopped.kind === 'job') await awx.cancel(stopped.id);
+      else await awx.cancelWorkflow(stopped.id);
+      void vscode.window.showInformationMessage(`AWX ${stopped.kind} ${stopped.id} was cancelled`);
+    } catch (e) {
+      void vscode.window.showErrorMessage((e as Error).message);
+    }
+  });
+}
 
 export interface AwxDeps {
   secrets: vscode.SecretStorage;
@@ -374,22 +407,27 @@ export async function launchInAwx(
       environment: `AWX workflow: ${name}`,
     };
     deps.report({ ...base, state: 'running' });
+    const routes = generated.result.routes;
     let end: Awaited<ReturnType<typeof runWorkflow>>;
     try {
-      end = await runWorkflow(
-        {
-          awx,
-          doc,
-          segments,
-          routes: generated.result.routes,
-          sha: git?.sha,
-          update: (s) =>
-            deps.report({ ...base, state: 'running', awx: s.info, summary: s.summary }),
-        },
-        template.id,
-        inputs,
+      end = await following(`Following AWX workflow ${name}`, (stop) =>
+        runWorkflow(
+          {
+            awx,
+            doc,
+            segments,
+            routes,
+            sha: git?.sha,
+            stop,
+            update: (s) =>
+              deps.report({ ...base, state: 'running', awx: s.info, summary: s.summary }),
+          },
+          template.id,
+          inputs,
+        ),
       );
     } catch (e) {
+      if (e instanceof StoppedFollowing) offerCancel(awx, e);
       const run: RunView = { ...base, state: 'error', error: (e as Error).message };
       deps.report(run);
       return run;
@@ -477,25 +515,33 @@ export async function launchInAwx(
     ...(state === 'error' ? { error: job.job_explanation || `AWX job ${job.status}` } : {}),
   });
   deps.report(view('running'));
-  let ended: number | undefined;
-  for (;;) {
-    await new Promise((r) => setTimeout(r, POLL_MS));
-    try {
-      job = await awx.job(job.id);
-      const fresh = await awx.events(job.id, events.at(-1)?.counter ?? 0);
-      events.push(...fresh);
-      const finished = FINISHED.has(job.status);
-      if (finished) ended ??= Date.now();
-      const complete = (job as AwxJob & { event_processing_finished?: boolean })
-        .event_processing_finished;
-      if (finished && (complete || Date.now() - (ended ?? 0) > EVENTS_GRACE_MS)) break;
-      if (fresh.length > 0) deps.report(view('running'));
-    } catch (e) {
-      // A dropped tunnel or a restarting AWX: keep the last state and say why.
-      const run = { ...view('error'), error: (e as Error).message };
-      deps.report(run);
-      return run;
+  const stopped = await following(`Following AWX job ${job.id}`, async (stop) => {
+    let ended: number | undefined;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      const why = stop();
+      if (why) return new StoppedFollowing('job', job.id, awx.jobUrl(job.id), why === 'timeout');
+      try {
+        job = await awx.job(job.id);
+        const fresh = await awx.events(job.id, events.at(-1)?.counter ?? 0);
+        events.push(...fresh);
+        const finished = FINISHED.has(job.status);
+        if (finished) ended ??= Date.now();
+        const complete = (job as AwxJob & { event_processing_finished?: boolean })
+          .event_processing_finished;
+        if (finished && (complete || Date.now() - (ended ?? 0) > EVENTS_GRACE_MS)) return;
+        if (fresh.length > 0) deps.report(view('running'));
+      } catch (e) {
+        // A dropped tunnel or a restarting AWX: keep the last state and say why.
+        return e as Error;
+      }
     }
+  });
+  if (stopped) {
+    if (stopped instanceof StoppedFollowing) offerCancel(awx, stopped);
+    const run = { ...view('error'), error: stopped.message };
+    deps.report(run);
+    return run;
   }
   // AWX stores a running job's events out of counter order, so polling `counter__gt` can skip
   // one that lands late: read them all once more now that the job ended.

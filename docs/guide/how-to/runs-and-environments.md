@@ -38,6 +38,9 @@ modules support it.
 
 The vault password is asked per run when the inventory or repository vars contain vault data
 (`afd.run.askVaultPassword`). It is passed through an environment variable, never stored or logged.
+Secret-looking inputs (names with password, secret, token, key or vault) are typed hidden, travel
+the same way and are never remembered. Other input values are written for the run only and deleted
+when it ends.
 
 ## After a run
 
@@ -45,7 +48,10 @@ The vault password is asked per run when the inventory or repository vars contai
 - Switch to **Run**: nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
   Select a node or a wire to list the hosts and why they failed.
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which
-  flow version, which targets, without input values.
+  flow version, which targets, without input values. It rotates at 1 MB and keeps two older files;
+  each flow keeps the event logs of its last 30 runs (`afd.runs.keep`).
+- Runs need a trusted workspace: in Restricted Mode you can design and generate, but not run
+  ([settings](../reference/settings.md#restricted-mode)).
 - After a passing real run of the current flow version, the run panel offers **Mark N nodes
   tested**.
 

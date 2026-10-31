@@ -18,7 +18,7 @@ import { buildModel } from '../../core/flow/model';
 import type { FlowDocument, Ulid } from '../../core/flow/types';
 import type { AwxApproval, AwxRunInfo } from '../../core/protocol';
 import { type RunSummary, summarizeRun } from '../../core/run/events';
-import type { AwxClient } from './client';
+import { type AwxClient, StoppedFollowing } from './client';
 
 const POLL_MS = 2000;
 /** Events are stored after a job ends; give them this long to arrive. */
@@ -140,6 +140,8 @@ export interface WorkflowWatch {
   update(state: { info: AwxRunInfo; summary: RunSummary; workflow: AwxWorkflowJob }): void;
   /** Local HEAD, for the revision check. */
   sha?: string;
+  /** Asked before each poll: a reason to stop following (the workflow keeps running in AWX). */
+  stop?: () => 'cancelled' | 'timeout' | undefined;
 }
 
 /** Launches the workflow with the inputs and follows it until it and its jobs' events are done. */
@@ -193,6 +195,9 @@ export async function runWorkflow(
 
   for (;;) {
     await new Promise((r) => setTimeout(r, POLL_MS));
+    const why = watch.stop?.();
+    if (why)
+      throw new StoppedFollowing('workflow', workflow.id, state().info.url, why === 'timeout');
     workflow = await awx.get<AwxWorkflowJob>(`/api/v2/workflow_jobs/${workflow.id}/`);
     const nodes = await awx.all<AwxWorkflowJobNode>(
       `/api/v2/workflow_jobs/${workflow.id}/workflow_nodes/`,

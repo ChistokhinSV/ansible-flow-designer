@@ -30,6 +30,11 @@ not find the playbooks, the setup stops and names them.
 - warns when AWX would run another commit than your HEAD (unpushed or uncommitted changes);
 - launches with the inputs as extra vars and follows the job's events until it ends.
 
+While it follows the job, a notification shows **Following AWX job …** with a **Cancel** button.
+Cancelling, or 12 hours without the job ending, stops following only: the job keeps running in
+AWX, and a message offers **Cancel It in AWX** or **Open in AWX**. AWX keeps a job's extra vars in
+its record, so avoid secret flow inputs for AWX launches until surveys keep them masked.
+
 ## Follow the run
 
 **Run** mode shows the last run, AWX or local, read-only:

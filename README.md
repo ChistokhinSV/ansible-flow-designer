@@ -36,8 +36,9 @@ The rest of this page is the complete feature reference.
 - **Run as skeleton (M3):** the top bar button generates the code, asks for the flow inputs (remembered per flow), and runs `ansible-playbook --check` in a terminal, in your Ansible environment.
   - An event callback maps the run back to the flow: the top bar shows hosts, failures and the exit code, and the inspector lists the hosts that left each port.
   - _Run for real…_ first shows a confirmation naming the inventory, host count, hosts missing from the inventory and production-looking groups.
-  - The vault password is asked per run when vault data is present, and is passed through an environment variable only.
-  - Every launch is written to a local audit log (_Show Run Audit Log_), without input values.
+  - The vault password is asked per run when vault data is present, and is passed through an environment variable only. Secret-looking inputs travel the same way and are never remembered; other input values are deleted when the run ends (AFD-29).
+  - Every launch is written to a local audit log (_Show Run Audit Log_), without input values. The log rotates at 1 MB; each flow keeps the events of its last runs (`afd.runs.keep`, 30).
+  - **Restricted Mode (AFD-29):** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync) and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
 - **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Right-click menu (AFD-18):** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
   - **Node:** Open subflow, Properties…, Bind implementation…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify on-call and stop, Leave open on purpose…), Add next node…, Cut, Copy, Duplicate, Show in text, Peek code, Delete.

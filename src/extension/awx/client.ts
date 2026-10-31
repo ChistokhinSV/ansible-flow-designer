@@ -43,6 +43,7 @@ function describe(body: unknown): string {
 
 export class AwxClient {
   readonly base: string;
+  private readonly origin: string;
 
   constructor(
     url: string,
@@ -50,6 +51,7 @@ export class AwxClient {
     private readonly options: AwxOptions = {},
   ) {
     this.base = url.replace(/\/+$/, '');
+    this.origin = new URL(this.base).origin;
   }
 
   /** The AWX UI page of a job's output. */
@@ -59,6 +61,9 @@ export class AwxClient {
 
   request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = new URL(path.startsWith('http') ? path : `${this.base}${path}`);
+    // The token goes to the configured AWX only (AFD-29), whatever a response points to.
+    if (url.origin !== this.origin)
+      return Promise.reject(new AwxError(`Not sending the AWX token to ${url.origin}`));
     const lib = url.protocol === 'https:' ? https : http;
     const data = body === undefined ? undefined : JSON.stringify(body);
     return new Promise<T>((resolve, reject) => {
@@ -142,8 +147,13 @@ export class AwxClient {
     while (next) {
       const page: AwxPage<T> = await this.get<AwxPage<T>>(next);
       out.push(...page.results);
-      // `next` is a path on the same host.
-      next = page.next ? new URL(page.next, `${this.base}/`).toString() : null;
+      // AWX answers with a path; an absolute `next` (a proxy rewriting hosts) is followed on the
+      // configured AWX, so the token never leaves it.
+      if (!page.next) next = null;
+      else {
+        const url = new URL(page.next, `${this.base}/`);
+        next = `${this.origin}${url.pathname}${url.search}`;
+      }
     }
     return out;
   }
@@ -212,4 +222,41 @@ export class AwxClient {
   async cancel(jobId: number): Promise<void> {
     await this.post(`/api/v2/jobs/${jobId}/cancel/`, {});
   }
+
+  async cancelWorkflow(workflowJobId: number): Promise<void> {
+    await this.post(`/api/v2/workflow_jobs/${workflowJobId}/cancel/`, {});
+  }
+}
+
+/**
+ * Following an AWX job stopped before it finished (AFD-29): the user cancelled the progress, or it
+ * ran past the follow limit. The job itself keeps running in AWX.
+ */
+export class StoppedFollowing extends Error {
+  constructor(
+    readonly kind: 'job' | 'workflow',
+    readonly id: number,
+    readonly url: string,
+    timedOut: boolean,
+  ) {
+    super(
+      timedOut
+        ? `Stopped following AWX ${kind} ${id} after ${FOLLOW_HOURS} hours: it keeps running in AWX`
+        : `Stopped following AWX ${kind} ${id}: it keeps running in AWX`,
+    );
+    this.name = 'StoppedFollowing';
+  }
+}
+
+/** How long a launch follows a job or workflow before it stops polling (it can be stopped sooner). */
+export const FOLLOW_HOURS = 12;
+
+/** A follow loop's stop check: cancelled by the user, or past the follow limit. */
+export function followLimit(cancelled: () => boolean, start = Date.now()) {
+  return (): 'cancelled' | 'timeout' | undefined =>
+    cancelled()
+      ? 'cancelled'
+      : Date.now() - start > FOLLOW_HOURS * 3600_000
+        ? 'timeout'
+        : undefined;
 }

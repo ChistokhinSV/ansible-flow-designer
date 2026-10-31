@@ -46,6 +46,7 @@ import {
 } from './import/playbookImport';
 import { auditUri } from './run/audit';
 import { type RunDeps, type RunOptions, runFlow } from './run/runner';
+import { KEEP_RUNS, sweepRuns } from './run/storage';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { tourReached } from './tour';
 
@@ -114,6 +115,11 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   const codeDiagnostics = vscode.languages.createDiagnosticCollection('ansible-flow-code');
   const probeDir = vscode.Uri.joinPath(context.extensionUri, 'dist', 'probe').fsPath;
   const probes = new ProbeManager(probeDir, ensureCacheDir(context.globalStorageUri));
+  // No run is going yet: drop what earlier runs left behind (AFD-29), in the background.
+  void sweepRuns(
+    context.globalStorageUri.fsPath,
+    vscode.workspace.getConfiguration('afd').get<number>('runs.keep', KEEP_RUNS),
+  ).catch(() => undefined);
   const catalog = new CatalogService({
     storage: context.globalStorageUri,
     probes,

@@ -86,3 +86,14 @@ The summary gained:
 - The AWX link opens the job output; per-host filtering is left to AWX's own search.
 - AWX runs the commit its project checks out. Unpushed changes show as a revision mismatch, never as silently different results.
 - `cancelled` stays model-only.
+
+## Amendment: run data, token origin, Restricted Mode (AFD-29, 2026-10-31)
+
+Found in the improvement review (KB AFD-A-17): `vars.json` kept every run input, secrets included, in the extension storage for good; the AWX client followed any `next` link with the token; run folders and the audit log grew without limit; AWX follow loops had no end but the job's; the extension declared no workspace-trust support.
+
+- **Secret inputs** (the import's `SECRET` name rule) go to the run as JSON in `AFD_SECRET_VARS`. The run's shell writes them to a `mktemp` file passed with `-e @file` and removes it when `ansible-playbook` exits, the same way as the vault password. The host never writes them. `vars.json` holds the other inputs and is deleted after the run; a startup sweep deletes those left by earlier versions.
+- **Token origin:** `AwxClient.request` refuses any URL whose origin is not the configured AWX's; `all()` follows a foreign `next` on the configured origin (path and query only).
+- **Retention:** `afd.runs.keep` (default 30) run folders per flow, pruned when a run starts and at startup; `audit.jsonl` rotates at 1 MB to `audit.1.jsonl` and `audit.2.jsonl`.
+- **Following AWX:** a cancellable notification and a 12-hour limit (`FOLLOW_HOURS`). Stopping ends the polling only; a message offers _Cancel It in AWX_ (job or workflow job cancel) and _Open in AWX_.
+- **Restricted Mode:** `capabilities.untrustedWorkspaces: limited`. `environmentFor` refuses in an untrusted workspace, so runs, syntax checks and every probe use (catalog, lenses, Re-sync) wait for trust; `afd.environment.*`, `afd.awx.url` and `afd.awx.verifyTls` are restricted configurations. AWX launches and imports stay available: they run nothing locally, and the AWX address comes from user settings only.
+- **Known limit:** AWX itself stores a launch's extra vars, secrets included, in the job record. Survey password fields generated from flow inputs (planned, AFD-58) will keep them masked there.

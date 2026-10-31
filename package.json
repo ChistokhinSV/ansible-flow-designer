@@ -3,12 +3,27 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
   "engines": {
     "vscode": "^1.140.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode you can design and edit flows and generate playbooks. Runs, the Ansible probe (module catalog, lenses, code sync) and the environment and AWX address settings of the workspace need a trusted workspace.",
+      "restrictedConfigurations": [
+        "afd.environment.kind",
+        "afd.environment.image",
+        "afd.environment.containerEngine",
+        "afd.environment.containerOptions",
+        "afd.environment.python",
+        "afd.awx.url",
+        "afd.awx.verifyTls"
+      ]
+    }
   },
   "categories": [
     "Visualization",
@@ -211,15 +226,15 @@
         },
         {
           "command": "afd.runSkeleton",
-          "when": "activeCustomEditorId == afd.flowEditor"
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
         },
         {
           "command": "afd.runReal",
-          "when": "activeCustomEditorId == afd.flowEditor"
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
         },
         {
           "command": "afd.syntaxCheck",
-          "when": "activeCustomEditorId == afd.flowEditor"
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
         },
         {
           "command": "afd.copyNodes",
@@ -240,6 +255,10 @@
         {
           "command": "afd.exportImage",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.catalog.rebuild",
+          "when": "isWorkspaceTrusted"
         }
       ],
       "explorer/context": [
@@ -328,6 +347,13 @@
           "default": "auto",
           "scope": "resource",
           "markdownDescription": "Ask for the vault password before a run (`auto`: when the inventory or repository vars contain vault data). The password is used for that run only and never stored."
+        },
+        "afd.runs.keep": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "scope": "machine-overridable",
+          "markdownDescription": "Run folders kept per flow in the extension storage (their event logs). Older ones are deleted when a run starts. Run inputs are never kept: secret-looking ones never reach the disk and the rest are deleted when the run ends."
         },
         "afd.awx.url": {
           "type": "string",

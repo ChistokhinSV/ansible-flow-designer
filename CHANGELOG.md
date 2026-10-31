@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.23.0 — AFD-29
+
+- **Security and run data** (improvement program, wave 1):
+  - **Secret run inputs never touch the disk.** Before, `runs/<flow>/<run>/vars.json` in the extension storage held every run input in plain text, secret-looking ones included, and was never deleted. Secret inputs now travel in an environment variable, like the vault password, into a temporary file that lives inside the run's environment as long as the run. The other inputs are written for the run and deleted when it ends. At startup, `vars.json` files left by earlier versions are deleted.
+  - **The AWX token stays with the configured AWX.** A request to another origin is refused, and a page link pointing elsewhere is followed on the configured AWX.
+  - **Retention:** each flow keeps the event logs of its last 30 runs (`afd.runs.keep`), and the audit log rotates at 1 MB, keeping two older files.
+  - **Restricted Mode:** the extension now works in untrusted workspaces with limited features. You can design, edit and generate flows; local runs and the Ansible probe (catalog, lenses, Re-sync) need trust, and the workspace's `afd.environment.*` and `afd.awx.*` values are ignored until then.
+  - **AWX runs can be stopped:** following a job or workflow shows a cancellable notification and stops after 12 hours at most. Stopping leaves the job running in AWX and offers to cancel it there or open it.
+
 ## 0.22.0 — AFD-28
 
 - **Tutorial 5: bring existing playbooks into flows** (25 minutes): import a sample repository as is, find its plays, block with rescue/always, roles, handler and variables on the canvas, look at a step's task keywords, run it as a skeleton, then let an AI assistant redesign it by intent and compare.
