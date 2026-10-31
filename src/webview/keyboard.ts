@@ -3,6 +3,7 @@
 // Ctrl/Cmd+C, X, V, Z and Y are never stopped, since VS Code turns them into copy, cut, paste and
 // undo for the page. Typing in a field and keys inside menus and dialogs (`nokey`) are left alone.
 import { canEdit, deleteSelection, duplicate, rename, selectedNodes, upLevel } from './editActions';
+import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
 import { IS_MAC } from './shortcuts';
 import { useUi } from './store';
 
@@ -11,14 +12,8 @@ const FIELD = 'input, textarea, select, [contenteditable="true"]';
 /** Escape closes the innermost open thing, and only that; at the end it clears the selection. */
 function closeInnermost(): boolean {
   const ui = useUi.getState();
-  if (ui.contextMenu) ui.openContextMenu(null);
-  else if (ui.portMenu) ui.openPortMenu(null);
-  else if (ui.cheatSheet) ui.showCheatSheet(false);
-  else if (ui.quickAdd) ui.openQuickAdd(null);
-  else if (ui.decide) ui.setDecide(null);
-  else if (ui.ignore) ui.setIgnore(null);
-  else if (ui.accept) ui.setAccept(null);
-  else if (ui.pick) ui.setPick(null);
+  const open = ESCAPE_ORDER.find((o) => isOpen(ui, o));
+  if (open) useUi.setState({ [open]: CLOSED[open] });
   // The properties page closes itself (it may ask about unsaved changes).
   else if (ui.properties) return false;
   else if (ui.preview) ui.setPreview(null);

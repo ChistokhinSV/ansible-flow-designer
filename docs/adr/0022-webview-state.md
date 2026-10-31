@@ -17,3 +17,11 @@ The webview rebuilt the flow model from the snapshot's document in 25 places, an
 
 - One build per snapshot (`just ux-baseline`); no visible change.
 - A document object must not be changed after its model is cached; the webview only ever replaces snapshots.
+
+## Amendment: overlays, reason dialog, right panel (AFD-35, 2026-10-31)
+
+- **Overlays as a table, not one field:** the plan was one discriminated `overlay` field. Overlays stack on purpose (a reason dialog over the properties page; the pick bar over a usable canvas), so a single field would model them wrongly. The store keeps a field per overlay; `webview/overlays.ts` declares what opening each one (or changing level or mode) closes (`CLOSES`, applied with `closing()`), which overlays hold the pointer (no hover card over them) and the Escape order. The keyboard handler and the setters use these tables.
+- **Derived views stay setter-maintained:** drift, run states and the lens view are computed once in the setters that change their inputs (snapshot, run, scan, lens, facts), which already gives one computation per change; moving them into selectors would compute them per subscriber.
+- **One reason dialog** (`panels/ReasonDialog.tsx`) for open-on-purpose, drift ignore and lens accept.
+- **`rightPanelFor(state)`** (`webview/rightPanel.ts`) and `rightPanelLabel` replace the nested conditional in `App`; table-tested.
+- **`webview/inspect.ts`** holds the DOM summaries integration tests read.

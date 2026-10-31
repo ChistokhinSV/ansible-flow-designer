@@ -9,6 +9,7 @@ import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import { type NodeRun, runStates } from '../core/run/view';
+import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
 export interface QuickAddState {
   type: NodeType;
@@ -272,15 +273,15 @@ export const useUi = create<UiState>((set, get) => ({
   setTestMode: (testMode) => set({ testMode }),
   select: (selection) => set({ selection }),
   openQuickAdd: (quickAdd) => set({ quickAdd }),
-  openPortMenu: (portMenu) => set({ portMenu, contextMenu: null }),
+  openPortMenu: (portMenu) => set({ portMenu, ...closing('portMenu') }),
   openContextMenu: (contextMenu) => {
     clearTimeout(openTimer);
-    set({ contextMenu, portMenu: null, preview: null });
+    set({ contextMenu, ...closing('contextMenu') });
   },
   requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
-  showCheatSheet: (cheatSheet) => set({ cheatSheet, contextMenu: null }),
-  setPick: (pick) => set({ pick, portMenu: null }),
-  setDecide: (decide) => set({ decide, portMenu: null }),
+  showCheatSheet: (cheatSheet) => set({ cheatSheet, ...closing('cheatSheet') }),
+  setPick: (pick) => set({ pick, ...closing('pick') }),
+  setDecide: (decide) => set({ decide, ...closing('decide') }),
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
   setError: (error) => set({ error }),
@@ -306,16 +307,7 @@ export const useUi = create<UiState>((set, get) => ({
   setLevel(level) {
     if (level === get().level) return;
     clearTimeout(openTimer);
-    set({
-      level,
-      selection: {},
-      portMenu: null,
-      contextMenu: null,
-      pick: null,
-      quickAdd: null,
-      decide: null,
-      preview: null,
-    });
+    set({ level, selection: {}, ...closing('level') });
   },
   setPreview(preview) {
     clearTimeout(openTimer);
@@ -337,7 +329,7 @@ export const useUi = create<UiState>((set, get) => ({
     openTimer = setTimeout(() => {
       const s = get();
       // Menus, picks and dialogs own the pointer; no card on top of them.
-      if (s.portMenu || s.contextMenu || s.pick || s.quickAdd || s.decide) return;
+      if (HOLDS_POINTER.some((o) => isOpen(s, o))) return;
       set({ preview: { node, x: box.right + 12, y: box.top, left: box.left } });
     }, PREVIEW_DELAY);
   },
@@ -348,16 +340,10 @@ export const useUi = create<UiState>((set, get) => ({
   },
   openProperties(node, tab = 'general', bindKind) {
     clearTimeout(openTimer);
-    set({
-      properties: { node, tab, bindKind },
-      preview: null,
-      portMenu: null,
-      contextMenu: null,
-      quickAdd: null,
-    });
+    set({ properties: { node, tab, bindKind }, ...closing('properties') });
   },
   setMode(mode) {
-    set({ mode, portMenu: null, contextMenu: null, pick: null, quickAdd: null, preview: null });
+    set({ mode, ...closing('mode') });
   },
   setSync(sync) {
     set({ sync, drift: driftOf(get().snapshot, sync.scan) });

@@ -1,7 +1,7 @@
 // "Design vs code" (M6, mockup 04, D-29): where the code was read from, how many nodes the
 // generated code matches by ID, drift items with an action on each side, the last run; for a
 // selected node, the tasks it runs with their file and line. Nothing here resolves anything.
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { DriftItem, NodeCode } from '../../core/drift/types';
 import { modelOf } from '../../core/flow/model';
 import type { RunView } from '../../core/protocol';
@@ -10,6 +10,7 @@ import { send } from '../bus';
 import { ago } from '../constants';
 import { runDriftAction } from '../driftActions';
 import { useUi } from '../store';
+import { ReasonDialog } from './ReasonDialog';
 
 function SyncSource() {
   const sync = useUi((s) => s.sync);
@@ -299,62 +300,21 @@ export function NodeCodePanel({ id }: { id: string }) {
 export function IgnoreDialog() {
   const target = useUi((s) => s.ignore);
   const close = useUi((s) => s.setIgnore);
-  const [reason, setReason] = useState('');
-  const field = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (!target) return;
-    setReason('');
-    setTimeout(() => field.current?.focus(), 0);
-  }, [target]);
   if (!target) return null;
-  const submit = async (e?: FormEvent) => {
-    e?.preventDefault();
-    if (!reason.trim()) return;
-    const ack = await run({ kind: 'ignoreDrift', node: target.node, item: target.item, reason });
-    if (ack.ok) close(null);
-  };
   return (
-    <div className="afd-modal-backdrop">
-      <form
-        className="afd-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="afd-ignore-title"
-        onSubmit={submit}
-        onKeyDown={(e) => {
-          // Only this dialog closes: the page behind it (Properties) stays open.
-          if (e.key !== 'Escape') return;
-          e.stopPropagation();
-          close(null);
-        }}
-      >
-        <h2 id="afd-ignore-title">Ignore this drift</h2>
-        <p className="muted">
-          <strong>{target.title}</strong> · {target.label}. Code and design stay as they are; the
-          item moves to the ignored list. The decision is recorded in the flow with your Git user
-          name.
-        </p>
-        <div className="afd-field">
-          <label htmlFor="afd-ignore-reason">Reason (required)</label>
-          <textarea
-            id="afd-ignore-reason"
-            ref={field}
-            className="afd-input"
-            rows={3}
-            value={reason}
-            placeholder="e.g. The role runs it from main"
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </div>
-        <div className="afd-modal-actions">
-          <button type="button" className="secondary" onClick={() => close(null)}>
-            Cancel
-          </button>
-          <button type="submit" disabled={!reason.trim()}>
-            Ignore
-          </button>
-        </div>
-      </form>
-    </div>
+    <ReasonDialog
+      id="afd-ignore"
+      title="Ignore this drift"
+      placeholder="e.g. The role runs it from main"
+      submit="Ignore"
+      target={target}
+      record={(reason) =>
+        run({ kind: 'ignoreDrift', node: target.node, item: target.item, reason })
+      }
+      close={() => close(null)}
+    >
+      <strong>{target.title}</strong> · {target.label}. Code and design stay as they are; the item
+      moves to the ignored list. The decision is recorded in the flow with your Git user name.
+    </ReasonDialog>
   );
 }

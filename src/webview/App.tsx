@@ -1,11 +1,10 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { ROOT } from '../core/flow/model';
-import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
 import { deleteSelection } from './editActions';
+import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
 import { CanvasContextMenu } from './menu/CanvasContextMenu';
 import { Banner } from './panels/Banner';
@@ -27,84 +26,9 @@ import { SelectionPanel } from './panels/SelectionPanel';
 import { TopBar } from './panels/TopBar';
 import { Properties } from './properties/Properties';
 import { svgToPng } from './rasterize';
+import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
 import { useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
-
-function domSummary(docVersion: number): DomSummary {
-  const nodes = [...document.querySelectorAll<HTMLElement>('[data-node-id]')].map((el) => {
-    const handles = [...el.querySelectorAll<HTMLElement>('[data-port]')];
-    const names = (pred: (p: HTMLElement) => boolean) =>
-      handles.filter(pred).map((p) => p.dataset.port ?? '');
-    return {
-      id: el.dataset.nodeId ?? '',
-      legal: names(() => true),
-      ports: names((p) => p.dataset.portState !== 'available'),
-      rest: names((p) => p.dataset.rest === 'true'),
-    };
-  });
-  const banner = document.querySelector<HTMLElement>('[data-banner-count]');
-  const frame = document.querySelector<HTMLElement>('[data-frame]');
-  const gaps = document.querySelector<HTMLElement>('[data-id-gaps]');
-  return {
-    docVersion,
-    level: useUi.getState().level,
-    nodes,
-    edges: document.querySelectorAll('.react-flow__edge').length,
-    banner: banner ? Number(banner.dataset.bannerCount) : null,
-    idGaps: gaps ? Number(gaps.dataset.idGaps) : null,
-    frame: frame
-      ? {
-          ports: [...frame.querySelectorAll<HTMLElement>('[data-frame-port]')]
-            .filter((p) => p.dataset.portState !== 'available')
-            .map((p) => p.dataset.framePort ?? ''),
-          wires: document.querySelectorAll('.afd-boundary-edge').length,
-        }
-      : null,
-    run:
-      useUi.getState().mode === 'run'
-        ? {
-            nodes: Object.fromEntries(
-              [...document.querySelectorAll<HTMLElement>('[data-node-id]')].map((el) => [
-                el.dataset.nodeId ?? '',
-                el.dataset.runState ?? '',
-              ]),
-            ),
-            wires: Object.fromEntries(
-              [...document.querySelectorAll<SVGElement>('.react-flow__edge[data-id]')].map((el) => [
-                el.dataset.id ?? '',
-                el.querySelector('.react-flow__edge-text')?.textContent ?? '',
-              ]),
-            ),
-          }
-        : undefined,
-    lens: lensSummary(),
-  };
-}
-
-function lensSummary(): DomSummary['lens'] {
-  const ui = useUi.getState();
-  if (!ui.lens) return undefined;
-  const nodes = [...document.querySelectorAll<HTMLElement>('[data-node-id]')];
-  return {
-    lens: ui.lens,
-    chips: Object.fromEntries(
-      nodes.map((el) => {
-        const chips = el.dataset.lens ?? '';
-        return [el.dataset.nodeId ?? '', chips ? chips.split('|') : []];
-      }),
-    ),
-    findings: [...document.querySelectorAll<HTMLElement>('[data-finding]')].map(
-      (el) => `${el.dataset.finding}${el.dataset.accepted ? ' (accepted)' : ''}`,
-    ),
-    dataWires: document.querySelectorAll('.afd-data-edge').length,
-    highlighted: nodes
-      .filter((el) => el.classList.contains('lens-hit'))
-      .map((el) => el.dataset.nodeId ?? ''),
-    card: [...document.querySelectorAll<HTMLElement>('[data-summary-card] dt')].map(
-      (dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent ?? ''}`,
-    ),
-  };
-}
 
 /** Theme tokens follow VS Code's theme class on <body>. */
 function useThemeTokens() {
@@ -193,6 +117,32 @@ function useHost() {
   }, [snapshot, testMode]);
 }
 
+/** The right side's panel (AFD-35: chosen by `rightPanelFor`). */
+function RightPanelView({ panel }: { panel: RightPanel }) {
+  switch (panel.kind) {
+    case 'lens':
+      return <LensPanel />;
+    case 'nodeCode':
+      return <NodeCodePanel id={panel.id} />;
+    case 'drift':
+      return <DriftPanel />;
+    case 'nodeRun':
+      return <NodeRunPanel id={panel.id} />;
+    case 'wireRun':
+      return <WireRunPanel edge={panel.edge} />;
+    case 'run':
+      return <RunPanel />;
+    case 'selection':
+      return <SelectionPanel ids={panel.ids} />;
+    case 'inspector':
+      return <Inspector id={panel.id} context={panel.context} />;
+    case 'boundary':
+      return <BoundaryPanel edge={panel.edge} />;
+    case 'flow':
+      return <FlowDescription />;
+  }
+}
+
 export function App() {
   useThemeTokens();
   useHost();
@@ -212,6 +162,13 @@ export function App() {
     return () => clearTimeout(t);
   }, [error, setError]);
 
+  const panel = rightPanelFor({
+    lens,
+    mode,
+    selection: { node: selected, edge: wire, nodes: many },
+    level,
+  });
+
   if (!snapshot) return <div className="afd-loading">Loading flow…</div>;
   if (!snapshot.doc) return <NotAFlow snapshot={snapshot} />;
   return (
@@ -225,50 +182,8 @@ export function App() {
           <PickBar />
           <FlowCanvas />
         </main>
-        <aside
-          className="afd-right"
-          aria-label={
-            lens && !selected && !wire
-              ? 'Lens findings'
-              : mode === 'implementation'
-                ? 'Design vs code'
-                : mode === 'run'
-                  ? 'Run results'
-                  : selected
-                    ? 'Node inspector'
-                    : level !== ROOT
-                      ? 'Subflow description'
-                      : 'Flow description'
-          }
-        >
-          {lens && !selected && !wire && !many ? (
-            <LensPanel />
-          ) : mode === 'implementation' ? (
-            selected ? (
-              <NodeCodePanel id={selected} />
-            ) : (
-              <DriftPanel />
-            )
-          ) : mode === 'run' ? (
-            selected ? (
-              <NodeRunPanel id={selected} />
-            ) : wire && !/^(entry|exit):/.test(wire) ? (
-              <WireRunPanel edge={wire} />
-            ) : (
-              <RunPanel />
-            )
-          ) : many?.length ? (
-            <SelectionPanel ids={many} />
-          ) : selected ? (
-            <Inspector id={selected} />
-          ) : wire && /^(entry|exit):/.test(wire) ? (
-            <BoundaryPanel edge={wire} />
-          ) : level !== ROOT ? (
-            // Inside a subflow with nothing selected: that subflow, not the whole flow (AFD-30).
-            <Inspector id={level} context />
-          ) : (
-            <FlowDescription />
-          )}
+        <aside className="afd-right" aria-label={rightPanelLabel(panel)}>
+          <RightPanelView panel={panel} />
         </aside>
         <QuickAdd />
         <DecisionDialog />

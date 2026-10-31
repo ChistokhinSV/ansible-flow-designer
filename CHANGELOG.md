@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.1 — AFD-35
+
+- **Webview foundations, part 2** (improvement program, wave 2; nothing changes on screen):
+  - Overlays (menus, dialogs, the pick bar, the hover card, the properties page) follow one declared table of what opening each one closes, and Escape closes them in one declared order (`webview/overlays.ts`), instead of resets spread over the store and the keyboard handler.
+  - _Leave open on purpose_, _Ignore this drift_ and _Mark as expected_ share one reason dialog.
+  - The right panel is chosen by one tested rule (`rightPanelFor`); its accessible name now also says "Selected nodes" and "Subflow boundary" for those panels.
+  - The test-only DOM summaries moved out of `App.tsx` into `webview/inspect.ts`.
+
 ## 0.24.0 — AFD-34
 
 - **Webview foundations, part 1** (improvement program, wave 2; nothing changes on screen):

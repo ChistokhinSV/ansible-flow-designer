@@ -1,12 +1,8 @@
-// Lens side panels (04 §1, §7, mockup 09). Left: the lens browser (groups, variables,
-// collections…); hovering a row highlights its nodes and dims the rest. Right, with nothing
-// selected: the summary, findings with their one-edit fixes, and "Mark expected" (a
-// finding_accepted decision with a reason, M8-4).
-import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { LENSES, type LensFinding, type LensItem } from '../../core/lens/types';
 import { run } from '../actions';
 import { send } from '../bus';
 import { useUi } from '../store';
+import { ReasonDialog } from './ReasonDialog';
 
 const labelOf = (id: string) => LENSES.find((l) => l.id === id)?.label ?? id;
 
@@ -219,61 +215,21 @@ export function LensPanel() {
 export function AcceptDialog() {
   const target = useUi((s) => s.accept);
   const close = useUi((s) => s.setAccept);
-  const [reason, setReason] = useState('');
-  const field = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (!target) return;
-    setReason('');
-    setTimeout(() => field.current?.focus(), 0);
-  }, [target]);
   if (!target) return null;
-  const submit = async (e?: FormEvent) => {
-    e?.preventDefault();
-    if (!reason.trim()) return;
-    const ack = await run({ kind: 'acceptFinding', finding: target.id, node: target.node, reason });
-    if (ack.ok) close(null);
-  };
   return (
-    <div className="afd-modal-backdrop">
-      <form
-        className="afd-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="afd-accept-title"
-        onSubmit={submit}
-        onKeyDown={(e) => {
-          // Only this dialog closes: the page behind it (Properties) stays open.
-          if (e.key !== 'Escape') return;
-          e.stopPropagation();
-          close(null);
-        }}
-      >
-        <h2 id="afd-accept-title">Mark as expected</h2>
-        <p className="muted">
-          <strong>{target.title}</strong>. The finding stays visible as expected; the decision is
-          recorded in the flow with your Git user name.
-        </p>
-        <div className="afd-field">
-          <label htmlFor="afd-accept-reason">Reason (required)</label>
-          <textarea
-            id="afd-accept-reason"
-            ref={field}
-            className="afd-input"
-            rows={3}
-            value={reason}
-            placeholder="e.g. The spines must drain while the edge switch reboots"
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </div>
-        <div className="afd-modal-actions">
-          <button type="button" className="secondary" onClick={() => close(null)}>
-            Cancel
-          </button>
-          <button type="submit" disabled={!reason.trim()}>
-            Mark expected
-          </button>
-        </div>
-      </form>
-    </div>
+    <ReasonDialog
+      id="afd-accept"
+      title="Mark as expected"
+      placeholder="e.g. The spines must drain while the edge switch reboots"
+      submit="Mark expected"
+      target={target}
+      record={(reason) =>
+        run({ kind: 'acceptFinding', finding: target.id, node: target.node, reason })
+      }
+      close={() => close(null)}
+    >
+      <strong>{target.title}</strong>. The finding stays visible as expected; the decision is
+      recorded in the flow with your Git user name.
+    </ReasonDialog>
   );
 }
