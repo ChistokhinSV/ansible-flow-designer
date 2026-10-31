@@ -11,8 +11,10 @@ phase.
 - **Back**, the breadcrumb, or **Alt+↑** returns to the parent level.
 - With nothing selected, the right panel describes the subflow you are in (its title, intent,
   contract and ports), not the whole flow.
-- Chips at the top show what the inner steps inherit: inventory target, credential, execution
-  environment, become, serial.
+- Chips at the top show the settings of the subflows around you. The inner steps inherit the
+  inventory target (**inherits …**). Become, serial, credential and the execution environment set
+  on a subflow are shown as **not applied**: the generated plays of the inner steps do not use
+  them yet, so set them on the steps.
 - Pause on a subflow node to preview its inner steps, exits and last-run results.
 
 ![The inner level of the pre-checks subflow](../images/subflow-level-light.png)

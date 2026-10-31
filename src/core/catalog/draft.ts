@@ -6,6 +6,7 @@ import type { FlowCommand } from '../flow/commands';
 import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
+import { statusAfterBinding } from '../flow/status';
 import type { ContractField, ContractType, FlowNode, ImplBinding, NodeStatus } from '../flow/types';
 import { MAGIC_VARS } from '../flow/validate';
 import type { CatalogOption, CatalogPlugin, CatalogReturn } from './types';
@@ -91,9 +92,8 @@ export function isDirty(node: FlowNode, d: BindingDraft): boolean {
 export function bindingCommand(node: FlowNode, d: BindingDraft): FlowCommand {
   const impl = draftImpl(d);
   const current: NodeStatus = node.status ?? 'draft';
-  let status: NodeStatus | undefined;
-  if (impl) status = current === 'implemented' && !isDirty(node, d) ? undefined : 'implemented';
-  else if (current === 'implemented' || current === 'tested') status = 'specified';
+  // The rule every writer shares (AFD-31); setBinding applies it too when no status is sent.
+  const status = statusAfterBinding(current, !!impl, !isDirty(node, d));
   const changed = (patch: Record<string, ContractField | null>, side: 'inputs' | 'outputs') =>
     Object.fromEntries(
       Object.entries(patch).filter(

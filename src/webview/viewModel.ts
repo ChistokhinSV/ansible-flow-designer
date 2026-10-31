@@ -115,30 +115,40 @@ export function levelTrail(doc: FlowDocument, levelId: string): { id: string; ti
   return [{ id: ROOT, title: doc.flow.name }, ...trail];
 }
 
-/** Settings a level runs under, from its subflow node and the subflows around it (D-23 chips). */
+/**
+ * Settings of the subflows around a level (D-23 chips), as the generated code treats them
+ * (AFD-31): steps inside inherit the inventory target; become, serial, credential and the EE are
+ * set on the subflow but not applied to its steps, and the chip says so.
+ */
 export function inheritedContext(
   doc: FlowDocument,
   levelId: string,
-): { label: string; title: string }[] {
+): { label: string; title: string; applied: boolean }[] {
   const model = buildModel(doc);
-  const chips: { label: string; title: string }[] = [];
+  const chips: { label: string; title: string; applied: boolean }[] = [];
   const seen = new Set<string>();
   let id: string | undefined = levelId;
   while (id && id !== ROOT) {
     const entry = model.nodes.get(id);
     if (!entry) break;
     const s = entry.node.settings ?? {};
-    const from = `from ${entry.node.title}`;
-    const add = (key: string, label: string) => {
+    const by = entry.node.title;
+    const add = (key: string, label: string, applied: boolean) => {
       if (seen.has(key)) return;
       seen.add(key);
-      chips.push({ label, title: from });
+      chips.push({
+        label: applied ? label : `${label} · not applied`,
+        title: applied
+          ? `From ${by}: every step inside runs on it`
+          : `Set on ${by}, but the generated plays of the steps inside do not use it: set it on the steps`,
+        applied,
+      });
     };
-    if (s.inventory_target) add('inventory', `inherits ${s.inventory_target}`);
-    if (s.credential) add('credential', s.credential);
-    if (s.execution_environment) add('ee', `EE ${s.execution_environment}`);
-    if (s.become) add('become', 'become');
-    if (s.serial !== undefined) add('serial', `serial ${s.serial}`);
+    if (s.inventory_target) add('inventory', `inherits ${s.inventory_target}`, true);
+    if (s.credential) add('credential', s.credential, false);
+    if (s.execution_environment) add('ee', `EE ${s.execution_environment}`, false);
+    if (s.become) add('become', 'become', false);
+    if (s.serial !== undefined) add('serial', `serial ${s.serial}`, false);
     id = entry.level;
   }
   return chips;

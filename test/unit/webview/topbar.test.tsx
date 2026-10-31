@@ -86,4 +86,36 @@ describe('top bar', () => {
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('AFD-31: level chips say which subflow settings the steps inside really get', () => {
+    const changed = parse(
+      readFileSync(join(__dirname, '../../../examples/os-upgrade.flow.yaml'), 'utf8'),
+    ) as FlowDocument;
+    const sub = [...buildModel(changed).nodes.values()].find(
+      (e) => e.node.type === 'subflow' && e.node.subflow?.nodes?.length,
+    )?.node;
+    if (!sub) throw new Error('no subflow');
+    sub.settings = { inventory_target: 'controllers', become: true, serial: 2 };
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: 2,
+        doc: changed,
+        stale: false,
+        findings: [],
+        openPorts: openFailPorts(buildModel(changed)),
+        autoPositions: {},
+      }),
+    );
+    act(() => useUi.getState().setLevel(sub.id));
+    render(<TopBar />);
+    const chips = [...document.querySelectorAll<HTMLElement>('.afd-context')].map((c) => [
+      c.textContent,
+      c.dataset.applied,
+    ]);
+    expect(chips).toEqual([
+      ['inherits controllers', 'true'],
+      ['become · not applied', 'false'],
+      ['serial 2 · not applied', 'false'],
+    ]);
+  });
 });

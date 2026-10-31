@@ -1,6 +1,6 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
-import { registerName } from '../engine/binding';
+import { outputVar, registerName } from '../engine/binding';
 import { planSegments } from '../engine/segments';
 import type { Path } from '../yaml/parse';
 import { idGaps, withIds } from './completeIds';
@@ -551,6 +551,12 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         const from = field?.from;
         if (typeof from !== 'string' || !from) continue;
         const src = resolveFrom(model, node, level, side, from);
+        if (src.kind === 'output' && side === 'inputs') {
+          const at: Path = [...path, side, name, 'from'];
+          checkCollision(model, node, src.node, src.name, from, at, name, add);
+          if (field.default === undefined && !guarded(node, name))
+            checkProducerRuns(model, node, src.node, from, at, name, add);
+        }
         if (src.kind !== 'unresolved') continue;
         add({
           code: 'from-unresolved',
@@ -563,6 +569,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
     }
     checkLifts(node, path, add);
   }
+  checkTopLevelOutcomes(model, add);
   for (const { node, path, level } of model.nodes.values()) {
     checkBindingVars(model, node, level, path, flowInputs, add);
     checkConditions(model, node, level, path, flowInputs, add);
@@ -720,6 +727,166 @@ function checkBoundaryFlow(
       });
     }
   }
+}
+
+/**
+ * An outcome on the top level that leads nowhere strands its hosts, as an unmapped inner exit
+ * does inside a subflow (AFD-31: warned at every level).
+ */
+function checkTopLevelOutcomes(model: FlowModel, add: (f: Finding) => void): void {
+  const level = model.levels.get(ROOT);
+  if (!level) return;
+  const wired = new Set(level.edges.map((e) => `${e?.from?.node}|${e?.from?.port}`));
+  for (const n of level.nodes) {
+    if (!n?.id) continue;
+    for (const p of portsFor(n)) {
+      if (p.direction !== 'out' || p.fail || p.name === 'cancelled') continue;
+      if (wired.has(`${n.id}|${p.name}`)) continue;
+      add({
+        code: 'success-port-unwired',
+        severity: 'warning',
+        message: `${label(n)} · ${p.name} leads nowhere: its hosts stop there without reaching an end node`,
+        path: model.nodes.get(n.id)?.path ?? [],
+        node: n.id,
+        port: p.name,
+      });
+    }
+  }
+}
+
+/**
+ * Every use of an input in the binding goes through `| default(…)`, as the handlers an import
+ * writes do (`(x_result | default({})) is changed`): a missing value is expected there.
+ */
+function guarded(node: FlowNode, input: string): boolean {
+  const text = JSON.stringify([node.impl?.params ?? {}, node.impl?.keywords ?? {}]);
+  const uses = text.match(new RegExp(`\\b${input}\\b`, 'g'))?.length ?? 0;
+  const safe = text.match(new RegExp(`\\b${input}\\s*\\|\\s*default\\b`, 'g'))?.length ?? 0;
+  return uses > 0 && uses === safe;
+}
+
+/** The step that really sets a node's output: a subflow output follows its lift inward. */
+function producerOf(node: FlowNode, output: string, depth = 0): FlowNode {
+  if (node.type !== 'subflow' || depth > 16) return node;
+  const lift = liftOf(node, output);
+  return lift && 'inner' in lift ? producerOf(lift.inner, lift.output, depth + 1) : node;
+}
+
+/** The host variables each step's outputs land in (flat facts, or its register), by step. */
+function hostVariables(model: FlowModel): Map<string, Set<Ulid>> {
+  const vars = new Map<string, Set<Ulid>>();
+  for (const { node } of model.nodes.values()) {
+    if (node.type === 'subflow') continue;
+    for (const out of Object.keys(node.outputs ?? {})) {
+      const root = outputVar(node, out).split('.')[0] ?? out;
+      const set = vars.get(root) ?? new Set<Ulid>();
+      set.add(node.id);
+      vars.set(root, set);
+    }
+  }
+  return vars;
+}
+
+const variablesOf = new WeakMap<FlowModel, Map<string, Set<Ulid>>>();
+
+/**
+ * `from: a.result` reads a host variable, not a value scoped to `a` (AFD-31): another step that
+ * sets the same variable, or a flow input (an extra var) of that name, changes what it reads.
+ */
+function checkCollision(
+  model: FlowModel,
+  reader: FlowNode,
+  target: FlowNode,
+  output: string,
+  from: string,
+  path: Path,
+  input: string,
+  add: (f: Finding) => void,
+): void {
+  const producer = producerOf(target, output);
+  const root = outputVar(target, output).split('.')[0] ?? output;
+  let vars = variablesOf.get(model);
+  if (!vars) {
+    vars = hostVariables(model);
+    variablesOf.set(model, vars);
+  }
+  const others = [...(vars.get(root) ?? [])]
+    .filter((id) => id !== producer.id)
+    .map((id) => label(model.nodes.get(id)?.node));
+  const flowInput = root in (model.doc.flow?.inputs ?? {});
+  if (others.length === 0 && !flowInput) return;
+  const who = [...(flowInput ? [`the flow input ${root}`] : []), ...others].join(', ');
+  add({
+    code: 'output-name-collision',
+    severity: 'warning',
+    message: `${label(reader)} inputs.${input}: "${from}" is the host variable ${root}, which ${who} also set${others.length + (flowInput ? 1 : 0) > 1 ? '' : 's'}: it reads ${flowInput ? 'the flow input' : 'whichever ran last'}`,
+    path,
+    node: reader.id,
+  });
+}
+
+/** The nodes reachable on a level from `start` over its wires, never passing `skip`. */
+function reachable(edges: { from: PortRef; to: PortRef }[], start: Ulid[], skip?: Ulid): Set<Ulid> {
+  const seen = new Set<Ulid>(start.filter((s) => s !== skip));
+  const queue = [...seen];
+  while (queue.length > 0) {
+    const at = queue.shift();
+    for (const e of edges) {
+      const to = e?.to?.node;
+      if (e?.from?.node !== at || !to || to === skip || seen.has(to)) continue;
+      seen.add(to);
+      queue.push(to);
+    }
+  }
+  return seen;
+}
+
+/**
+ * The step a `from:` reads must have run, and succeeded, for every host that gets here (AFD-31):
+ * on its level it lies on every path from the entry to the reader (or the subflow holding it), and
+ * no path from its fail ports leads there.
+ */
+function checkProducerRuns(
+  model: FlowModel,
+  reader: FlowNode,
+  producer: FlowNode,
+  from: string,
+  path: Path,
+  input: string,
+  add: (f: Finding) => void,
+): void {
+  const where = model.nodes.get(producer.id)?.level;
+  const level = where ? model.levels.get(where) : undefined;
+  if (!level) return;
+  // The reader, or the subflow around it, on the producer's level.
+  let at = model.nodes.get(reader.id);
+  while (at && at.level !== where) at = model.nodes.get(at.level);
+  if (!at || at.node.id === producer.id) return;
+  const target = at.node.id;
+  const parent = level.parent ? model.nodes.get(level.parent)?.node : undefined;
+  const entries =
+    level.id === ROOT
+      ? level.nodes.filter((n) => n?.type === 'start').map((n) => n.id)
+      : parent?.subflow?.boundary?.in
+        ? [parent.subflow.boundary.in]
+        : [];
+  const say = (why: string) =>
+    add({
+      code: 'ref-may-be-undefined',
+      severity: 'warning',
+      message: `${label(reader)} inputs.${input}: "${from}" ${why}: those hosts arrive without the value`,
+      path,
+      node: reader.id,
+    });
+  if (entries.length > 0 && reachable(level.edges, entries, producer.id).has(target)) {
+    say(`is set by ${label(producer)}, which some paths to here do not run`);
+    return;
+  }
+  const failed = level.edges
+    .filter((e) => e?.from?.node === producer.id && isFailPort(e.from.port))
+    .map((e) => e.to.node);
+  if (failed.length > 0 && reachable(level.edges, failed).has(target))
+    say(`is set by ${label(producer)}, and hosts that fail in it still get here`);
 }
 
 /** D-09: you cannot roll back a device you cannot reach. */

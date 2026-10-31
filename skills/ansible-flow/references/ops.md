@@ -306,6 +306,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
 | no-targets | No flow input seeds the hosts entering the start node. | Add a host_list flow input with targets: true (set_io flow). |
 | from-unresolved | A from: names nothing this node can read. | Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow. |
+| output-name-collision | A from: reads an output that is a host variable another step (or a flow input) also sets: the generated code reads whichever ran last, and a flow input always wins. | Rename one of the outputs, or register the result (impl.register) and read impl.register.<path>. |
+| ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. | Read it after the paths join on the producing step, wire the failure path elsewhere, or give the input a default. |
 | binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. |
 | condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
 | subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
@@ -317,7 +319,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | boundary-ref | The subflow entry or an exit names something that is not on its inner level. | set_entry / add_exit with an inner node of that subflow. |
 | boundary-no-entry | A subflow has inner steps but no entry: hosts cannot get in. | set_entry to its first step. |
 | boundary-port-unfed | A subflow port has wires outside but no inner exit feeds it. | add_exit from an inner output to that port. |
-| inner-exit-unmapped | An inner output leaves the subflow through a port the subflow lacks. | Enable the port on the subflow node, or remove the exit. |
+| inner-exit-unmapped | A success port of a step inside a subflow is neither wired nor an exit of the subflow: its hosts never reach an outer port. | Wire it to the next inner step, or add_exit from it to a port of the subflow. |
+| success-port-unwired | A success port on the top level is not wired: its hosts stop there without reaching an end node. | Wire it to the next step or to an end node (Done). |
 | codegen-cycle | Wires form a cycle; flows run top-down. | Remove a wire; retries use apply_pattern retry. |
 | codegen-no-input | A node gets no hosts: nothing wires into it. | Wire an output into its in port, or delete it. |
 | codegen-no-targets | The generated playbook has no hosts to start with. | Add a host_list flow input with targets: true. |

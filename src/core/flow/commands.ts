@@ -13,6 +13,7 @@ import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model'
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
 import { testedDropBack } from './semantic';
+import { statusAfterBinding } from './status';
 import type {
   BoundaryExit,
   ContractField,
@@ -982,7 +983,16 @@ function setBinding(
       ? { ...cmd.impl, keywords: kept }
       : cmd.impl;
   setField(tx, path, 'impl', impl ? implValue(impl) : null, NODE_ORDER);
-  setField(tx, path, 'status', cmd.status, NODE_ORDER);
+  // Every writer gets the same lifecycle rule (AFD-31): the AI `bind` op sends no status.
+  const current = node.status ?? 'draft';
+  const status =
+    cmd.status ??
+    statusAfterBinding(
+      current,
+      !!impl,
+      JSON.stringify(impl ?? null) === JSON.stringify(node.impl ?? null),
+    );
+  setField(tx, path, 'status', status === current ? undefined : status, NODE_ORDER);
   liftPathRefs(tx, cmd.id, notes);
 }
 

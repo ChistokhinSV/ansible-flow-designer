@@ -72,7 +72,12 @@ export function TopBar() {
           </span>
         ))}
         {chips.map((c) => (
-          <span key={c.label} className="afd-chip afd-context" title={c.title}>
+          <span
+            key={c.label}
+            className={`afd-chip afd-context${c.applied ? '' : ' muted'}`}
+            title={c.title}
+            data-applied={c.applied}
+          >
             {c.label}
           </span>
         ))}

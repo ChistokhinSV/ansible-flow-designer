@@ -55,3 +55,11 @@ Decisions (product owner, 2026-10-31):
 - Same-name lifting is implicit; describe and the warning make it visible.
 - An end node per pattern can mean more end nodes than before; `end` lets the author merge them.
 - Engine tests run the new data paths, polling and `afd_approvals` on ansible-core 2.19–2.21.
+
+## Amendment: what a reference really reads (AFD-31, 2026-10-31)
+
+Found in the improvement review (KB AFD-A-17): a `from:` looks scoped to a node, but an output that is not register-based compiles to a host fact named after the output (`outputVar`), and `resolveFrom` checks that the key is visible, not that the producer ran.
+
+- `output-name-collision` (warning, at the reader): the reference's host variable (the root of `outputVar`, following subflow lifts to the producing step) is also set by another step's output, or is a flow input name (an extra var, which always wins).
+- `ref-may-be-undefined` (warning, at the reader): on the producer's level, the reader (or the subflow holding it) is reachable from the level's entry (the start nodes, or the subflow's `boundary.in`) without passing the producer, or is reachable from the producer's fail-port wires. Skipped when the input has a `default` or every use in the binding goes through `| default(…)` (imported handlers).
+- The generated code is unchanged; AFD-53 (per-node capture) removes the collision itself.

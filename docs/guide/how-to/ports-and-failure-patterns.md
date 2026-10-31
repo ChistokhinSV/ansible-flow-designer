@@ -79,10 +79,22 @@ decisions:
 The warning goes away. The hosts still fail at the end of the run, with your reason in the
 message. Wiring the port later removes the decision in the same edit.
 
+## Success ports that lead nowhere
+
+A success port (`ok_hosts`, `unchanged`, a decision branch) that is not wired strands its hosts:
+they stop there without reaching an end node. The designer warns at every level:
+`success-port-unwired` on the top level, `inner-exit-unmapped` inside a subflow (wire it on, or
+make it an exit of the subflow).
+
 ## What happens at run time
 
 Every task rescues its failures, so failed hosts take their port instead of stopping the play. A
 final **outcome play** fails the hosts left on open ports or on failed end nodes. The job still
 ends red, but every branch runs first.
+
+A module step without the optional `unreachable` port treats unreachable hosts as Ansible does:
+they fail the run (or the enclosing subflow's `unreachable` port, when it has one). The banner does
+not count this, since nearly every step would be listed; enable `unreachable` on the steps where
+you want to handle it.
 
 See also: [control flow](control-flow.md), [problem codes](../reference/problems.md).

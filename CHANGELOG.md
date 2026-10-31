@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.23.2 — AFD-31
+
+- **One lifecycle rule for every writer** (improvement program, wave 1): binding a step makes it _implemented_ and unbinding it _specified_, whether the binding comes from the properties page, an AI assistant or an import. Before, a step an assistant bound stayed _draft_.
+- **New warnings that keep the design honest about the generated code:**
+  - `success-port-unwired`: a success port on the top level that leads nowhere (inside subflows this was already `inner-exit-unmapped`, whose description now says what it checks).
+  - `output-name-collision`: `from: a.result` reads a host variable that another step, or a flow input, also sets; the reader gets whichever ran last (a flow input always wins).
+  - `ref-may-be-undefined`: the step a `from:` reads does not run for every host that gets there (a path goes around it, or its failures are wired on). Reads guarded with `| default(…)`, as imported handlers are, are fine.
+- **Level chips tell the truth:** inside a subflow, only the inventory target is inherited by the steps; become, serial, credential and the execution environment set on the subflow now show as _not applied_.
+- The example `os-upgrade` flow shows the new warning on _Notify on-call_ (its `ok_hosts` leads nowhere).
+
 ## 0.23.1 — AFD-30
 
 - **Fixed in the designer** (improvement program, wave 1):

@@ -39,3 +39,10 @@ Fail-type ports (counted by the open-port banner): `failed_hosts`, `unreachable`
 - **Open on purpose:** anyone may set it; a reason is required; `by` comes from git `user.name`, falling back to the OS user.
 - **Data ports:** shown in the Data lens only; data wires are derived from contract `from:` references and never stored as edges.
 - **Key renames** rewrite every `from: <oldkey>.*` reference in the same edit (one undo step), because `from:` references keys while edges reference IDs.
+
+## Amendment: shared lifecycle rule, success ports, honest chips (AFD-31, 2026-10-31)
+
+- `statusAfterBinding` (`core/flow/status.ts`) is the one rule for a binding change: bound → implemented (a tested node with an unchanged binding stays tested), unbound → specified. The properties page sends it; `setBinding` applies it when a command sends no status (the AI `bind` op, imports).
+- An unwired success port warns at every level: `success-port-unwired` on the top level, `inner-exit-unmapped` inside subflows (its text corrected).
+- Level chips: only `inventory_target` is inherited by inner steps; become, serial, credential and EE on a subflow show as "not applied" until the generator applies them (AFD-52).
+- The implicit `unreachable` failing of module steps without the port is not counted on the banner (it would list almost every step); the ports guide explains it.

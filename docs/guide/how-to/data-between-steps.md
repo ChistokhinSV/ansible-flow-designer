@@ -74,6 +74,25 @@ reads.
 | `binding-unknown-var`   | a parameter (or an `assert` `that:`) reads a name that is not an input |
 | `condition-unknown-var` | a decision condition or `until` reads a name that is not an input      |
 | `subflow-output-unset`  | a subflow output that nothing inside sets                              |
+| `output-name-collision` | the output is a host variable another step or a flow input also sets   |
+| `ref-may-be-undefined`  | the producing step does not run (or succeed) for every host that reads |
 
 A flow input read directly is only a note: add it as an input to show the dependency. Full list:
 [problem codes](../reference/problems.md).
+
+### Outputs are host variables
+
+An output that is not read from the register (`impl.register`) is a host variable named after the
+output: a role's or `set_fact`'s fact. `from: backup.result` then reads the variable `result`, not
+something private to `backup`. If another step also sets `result`, the reader gets whichever ran
+last, and a flow input called `result` (an extra var) always wins. The designer warns about it
+(`output-name-collision`): rename one output, or register the result and read
+`impl.register.<path>`.
+
+### Values that may be missing
+
+A step can only read what has run for its hosts. The designer warns (`ref-may-be-undefined`) when
+the producing step is not on every path to the reader (a branch or a failure path goes around it),
+or when hosts that failed in it are wired on to the reader. Read the value after the paths join,
+wire the failure path elsewhere, give the input a default, or read it with `| default(…)` in the
+binding, as imported handlers do.

@@ -135,6 +135,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A from: names nothing this node can read.',
     fix: 'Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow.',
   },
+  'output-name-collision': {
+    meaning:
+      'A from: reads an output that is a host variable another step (or a flow input) also sets: the generated code reads whichever ran last, and a flow input always wins.',
+    fix: 'Rename one of the outputs, or register the result (impl.register) and read impl.register.<path>.',
+  },
+  'ref-may-be-undefined': {
+    meaning:
+      'A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value.',
+    fix: 'Read it after the paths join on the producing step, wire the failure path elsewhere, or give the input a default.',
+  },
   'binding-unknown-var': {
     meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
     fix: 'Add the input the message names (set_io) or fix the name.',
@@ -182,8 +192,14 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'add_exit from an inner output to that port.',
   },
   'inner-exit-unmapped': {
-    meaning: 'An inner output leaves the subflow through a port the subflow lacks.',
-    fix: 'Enable the port on the subflow node, or remove the exit.',
+    meaning:
+      'A success port of a step inside a subflow is neither wired nor an exit of the subflow: its hosts never reach an outer port.',
+    fix: 'Wire it to the next inner step, or add_exit from it to a port of the subflow.',
+  },
+  'success-port-unwired': {
+    meaning:
+      'A success port on the top level is not wired: its hosts stop there without reaching an end node.',
+    fix: 'Wire it to the next step or to an end node (Done).',
   },
   'codegen-cycle': {
     meaning: 'Wires form a cycle; flows run top-down.',
