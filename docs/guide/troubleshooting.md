@@ -24,7 +24,11 @@ These need an Ansible environment with ansible-core 2.19 or later
   folder in WSL.
 - **The image is not found:** pull it first (`docker pull <image>`), or check
   `afd.environment.image`.
-- **ansible-core is older than 2.19:** use a newer image or venv.
+- **ansible-core is older than 2.19:** the error names the version found. Use a newer image or
+  venv.
+- **A lens, Re-sync or a run waits for the catalog:** it no longer does: reading the collection
+  docs runs in a probe of its own. A call that times out restarts the probe for the next one; the
+  details are in the _Ansible Flow_ output channel.
 - **Hosts are unreachable in a container run:** the container needs your SSH keys and name
   resolution. Mount the keys with `afd.environment.containerOptions`.
 - **"No hosts matched":** the targets you entered are not in the inventory. Check
@@ -81,5 +85,7 @@ These need an Ansible environment with ansible-core 2.19 or later
 ## Still stuck?
 
 **Validate design** lists every problem with its fix ([problem codes](reference/problems.md)). Runs
-print to their terminal (**Show terminal** in the run panel), and the AI setup logs to the
-_Ansible Flow: AI setup_ output channel (View → Output).
+print to their terminal (**Show terminal** in the run panel). The _Ansible Flow_ output channel
+(View → Output) logs the Ansible probe: when it starts, which ansible-core it found, its warnings
+and timeouts (set the channel's level to Debug for every probe line). The AI setup logs to the
+_Ansible Flow: AI setup_ channel.

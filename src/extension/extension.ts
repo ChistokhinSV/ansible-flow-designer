@@ -44,6 +44,7 @@ import {
   type PlaybookImportOutcome,
   type PlaybookImportRequest,
 } from './import/playbookImport';
+import { logChannel } from './log';
 import { auditUri } from './run/audit';
 import { type RunDeps, type RunOptions, runFlow } from './run/runner';
 import { KEEP_RUNS, sweepRuns } from './run/storage';
@@ -114,7 +115,11 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   const diagnostics = vscode.languages.createDiagnosticCollection('ansible-flow');
   const codeDiagnostics = vscode.languages.createDiagnosticCollection('ansible-flow-code');
   const probeDir = vscode.Uri.joinPath(context.extensionUri, 'dist', 'probe').fsPath;
-  const probes = new ProbeManager(probeDir, ensureCacheDir(context.globalStorageUri));
+  const log = logChannel();
+  context.subscriptions.push(log);
+  const probes = new ProbeManager(probeDir, ensureCacheDir(context.globalStorageUri), (line) =>
+    line.startsWith('probe stderr:') ? log.debug(line) : log.info(line),
+  );
   // No run is going yet: drop what earlier runs left behind (AFD-29), in the background.
   void sweepRuns(
     context.globalStorageUri.fsPath,
@@ -281,8 +286,11 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('afd.environment') || e.affectsConfiguration('ansible'))
+      if (e.affectsConfiguration('afd.environment') || e.affectsConfiguration('ansible')) {
         probes.dispose();
+        // The loaded catalog describes the old environment (AFD-32).
+        catalog.environmentChanged();
+      }
     }),
     vscode.commands.registerCommand('afd.runSkeleton', (uri?: vscode.Uri) => run('check', uri)),
     vscode.commands.registerCommand('afd.runReal', (uri?: vscode.Uri) => run('real', uri)),

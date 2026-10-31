@@ -17,6 +17,7 @@ import type {
 } from '../../core/catalog/types';
 import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import type { ProbeManager } from '../env/environment';
+import type { ProbeClient } from '../env/probeClient';
 import { CatalogIndex, INDEX_SCHEMA } from './catalogIndex';
 import type { BuildJob, BuildResult } from './catalogWorker';
 
@@ -127,9 +128,24 @@ export class CatalogService implements vscode.Disposable {
     report: (message: string) => void,
   ): Promise<CatalogIndex> {
     const e = this.entry(folder);
-    const probe = this.deps.probes.forFolder(folder.uri);
+    // Dumps run on a probe of their own, stopped when done (AFD-32).
+    const probe = this.deps.probes.forFolder(folder.uri, 'catalog');
     if ('error' in probe) throw new Error(probe.error);
     if (!probe.cache) throw new Error('No catalog cache folder');
+    try {
+      return await this.loadWith(folder, probe, rebuild, report, e);
+    } finally {
+      this.deps.probes.release(folder.uri, 'catalog');
+    }
+  }
+
+  private async loadWith(
+    folder: vscode.WorkspaceFolder,
+    probe: { client: ProbeClient; label: string; cache?: string },
+    rebuild: boolean,
+    report: (message: string) => void,
+    e: Entry,
+  ): Promise<CatalogIndex> {
     await this.context(folder);
     const step = (message: string) => {
       report(message);
@@ -275,6 +291,14 @@ export class CatalogService implements vscode.Disposable {
       e.status = { state: 'ready', environment: last?.environment, ...index.stats() };
     }
     return { index: e.index, environment: e.status.environment ?? 'the environment' };
+  }
+
+  /**
+   * The environment settings changed (AFD-32): every loaded index belongs to the old environment,
+   * so the next search asks the new one again. Validation keeps using the last index meanwhile.
+   */
+  environmentChanged(): void {
+    for (const e of this.entries.values()) if (e.index) e.stale = true;
   }
 
   async roles(folder: vscode.WorkspaceFolder): Promise<RoleInfo[]> {

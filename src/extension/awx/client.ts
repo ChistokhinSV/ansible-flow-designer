@@ -19,11 +19,19 @@ export class AwxError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    /** The socket error code when AWX could not be reached (ECONNRESET, …). */
+    readonly code?: string,
   ) {
     super(message);
     this.name = 'AwxError';
   }
 }
+
+/**
+ * Errors a second try fixes: a kept-alive socket the server (or the tunnel in front of it) closed
+ * while idle, which the next request then hits (AFD-32).
+ */
+const STALE_SOCKET = new Set(['ECONNRESET', 'EPIPE', 'ECONNABORTED']);
 
 export interface AwxOptions {
   verifyTls?: boolean;
@@ -116,11 +124,11 @@ export class AwxClient {
       req.on('timeout', () =>
         req.destroy(new AwxError(`AWX did not answer ${url.pathname} in time`)),
       );
-      req.on('error', (e) =>
+      req.on('error', (e: NodeJS.ErrnoException) =>
         reject(
           e instanceof AwxError
             ? e
-            : new AwxError(`Cannot reach AWX at ${this.base}: ${e.message}`),
+            : new AwxError(`Cannot reach AWX at ${this.base}: ${e.message}`, undefined, e.code),
         ),
       );
       if (data) req.write(data);
@@ -128,8 +136,14 @@ export class AwxClient {
     });
   }
 
-  get<T>(path: string): Promise<T> {
-    return this.request<T>('GET', path);
+  /** A GET is safe to repeat, so a stale kept-alive socket gets one more try. */
+  async get<T>(path: string): Promise<T> {
+    try {
+      return await this.request<T>('GET', path);
+    } catch (e) {
+      if (!(e instanceof AwxError) || !e.code || !STALE_SOCKET.has(e.code)) throw e;
+      return this.request<T>('GET', path);
+    }
   }
 
   post<T>(path: string, body: unknown): Promise<T> {

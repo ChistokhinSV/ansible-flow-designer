@@ -37,6 +37,12 @@ export function environmentFor(scope: vscode.Uri): EnvironmentResult {
   return resolveEnvironment(afd, redhat, process.platform);
 }
 
+/**
+ * What a probe process is for (AFD-32): catalog dumps can take minutes, so they get their own
+ * process and never hold up the lenses, Re-sync or a run's inventory check.
+ */
+export type ProbePurpose = 'main' | 'catalog';
+
 export class ProbeManager implements vscode.Disposable {
   private readonly clients = new Map<string, ProbeClient>();
   private seq = 0;
@@ -45,7 +51,13 @@ export class ProbeManager implements vscode.Disposable {
     private readonly probeDir: string,
     /** Catalog cache on this machine (global storage), mounted into containers (M5). */
     private readonly cacheDir?: string,
+    /** Where probe lifecycle and stderr lines go. */
+    private readonly log: (line: string) => void = () => {},
   ) {}
+
+  private keyOf(folder: vscode.Uri, purpose: ProbePurpose, env: unknown): string {
+    return `${folder.toString()}|${purpose}|${JSON.stringify(env)}`;
+  }
 
   /**
    * The probe for a repository folder in the configured environment (started lazily); `cache` is
@@ -53,11 +65,12 @@ export class ProbeManager implements vscode.Disposable {
    */
   forFolder(
     folder: vscode.Uri,
+    purpose: ProbePurpose = 'main',
   ): { client: ProbeClient; label: string; cache?: string } | { error: string } {
     const resolved = environmentFor(folder);
     if (!resolved.ok) return { error: resolved.error };
     const env = resolved.env;
-    const key = `${folder.toString()}|${JSON.stringify(env)}`;
+    const key = this.keyOf(folder, purpose, env);
     let client = this.clients.get(key);
     if (!client) {
       const spec = probeProcess(
@@ -65,11 +78,21 @@ export class ProbeManager implements vscode.Disposable {
         { root: folder.fsPath, probe: this.probeDir, cache: this.cacheDir },
         `afd-probe-${process.pid}-${++this.seq}`,
       );
-      client = new ProbeClient(spec, folder.fsPath, env.kind === 'container');
+      client = new ProbeClient(spec, folder.fsPath, env.kind === 'container', this.log);
       this.clients.set(key, client);
     }
     const cache = this.cacheDir && (env.kind === 'container' ? CONTAINER.cache : this.cacheDir);
     return { client, label: env.label, cache };
+  }
+
+  /** Stops a folder's probe of this purpose (a catalog probe once its dump is done). */
+  release(folder: vscode.Uri, purpose: ProbePurpose): void {
+    const prefix = `${folder.toString()}|${purpose}|`;
+    for (const [key, client] of this.clients)
+      if (key.startsWith(prefix)) {
+        client.dispose();
+        this.clients.delete(key);
+      }
   }
 
   dispose(): void {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.3 — AFD-32
+
+- **The Ansible probe is more resilient** (improvement program, wave 1):
+  - Calls wait their turn in the extension, so a call's timeout counts from when it is sent. Before, a lens or Re-sync call could time out while it was still waiting behind a long catalog dump, and its timeout then stopped the probe, failing the dump and every other call.
+  - A call that times out fails alone: the probe restarts for the calls behind it.
+  - Reading the collection docs for the module catalog runs in a probe of its own, stopped when it is done.
+  - An environment whose ansible-core is older than 2.19 is refused with a message naming the version found and what to change.
+  - Changing the environment settings makes the module catalog read the new environment on the next search.
+  - New _Ansible Flow_ output channel: the probe's start, ansible-core version, timeouts and (at Debug level) every stderr line.
+- **AWX:** a GET that hits a socket the server or tunnel closed while idle is tried once more, instead of failing with "read ECONNRESET".
+
 ## 0.23.2 — AFD-31
 
 - **One lifecycle rule for every writer** (improvement program, wave 1): binding a step makes it _implemented_ and unbinding it _specified_, whether the binding comes from the properties page, an AI assistant or an import. Before, a step an assistant bound stayed _draft_.

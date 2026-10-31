@@ -69,11 +69,18 @@ describe('AWX client', () => {
   const seen: { url?: string; auth?: string }[] = [];
 
   beforeAll(async () => {
+    let reset = 0;
     server = createServer((req: IncomingMessage, res) => {
       seen.push({ url: req.url, auth: req.headers.authorization });
       res.setHeader('Content-Type', 'application/json');
+      // AFD-32: the first ping finds its socket closed, as a stale kept-alive one would be.
+      if (req.url === '/api/v2/ping/' && reset++ === 0) {
+        req.socket.destroy();
+        return;
+      }
+      if (req.url === '/api/v2/ping/') res.end(JSON.stringify({ version: '24.6.1' }));
       // Page 1 points to another host, as a misconfigured proxy might.
-      if (req.url?.includes('page=2')) res.end(JSON.stringify({ results: [2], next: null }));
+      else if (req.url?.includes('page=2')) res.end(JSON.stringify({ results: [2], next: null }));
       else
         res.end(
           JSON.stringify({ results: [1], next: 'http://elsewhere.example.net/api/v2/x/?page=2' }),
@@ -92,6 +99,12 @@ describe('AWX client', () => {
     await expect(awx.get('http://elsewhere.example.net/api/v2/ping/')).rejects.toThrow(
       'Not sending the AWX token to http://elsewhere.example.net',
     );
+  });
+
+  it('tries a GET once more when the socket was reset (AFD-32)', async () => {
+    const awx = new AwxClient(base, 'test-token');
+    expect(await awx.ping()).toEqual({ version: '24.6.1' });
+    expect(seen.filter((s) => s.url === '/api/v2/ping/')).toHaveLength(2);
   });
 
   it('stops following when cancelled or past the follow limit', () => {
