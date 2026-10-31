@@ -71,6 +71,12 @@ Command Palette → **Ansible Flow: Import from AWX…**
 1. Choose **From AWX** (uses your URL and token), or **From an export file…** (made with
    `awx export --workflow_job_templates --job_templates > awx-export.json`).
 2. Pick the workflow (job templates are listed too) and the new flow's key.
+3. Choose **As is**. (**With an AI assistant** hands the template to Copilot or another assistant
+   to redesign by intent: see [Tutorial 5](05-import-playbooks.md), step 7.)
+
+A job template whose playbook is in this repository is imported with its steps: its playbook
+becomes a subflow, as in [Tutorial 5](05-import-playbooks.md). A playbook from another repository
+stays one step, and the notes say which project to check out.
 
 The new flow opens, laid out top-down at every level. The flow description says where it came
 from; **Show notes** lists what did not map one to one.

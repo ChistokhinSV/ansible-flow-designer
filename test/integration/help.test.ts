@@ -47,6 +47,52 @@ describe('AFD-22 acceptance: user help', () => {
     await vscode.workspace.fs.delete(vscode.Uri.joinPath(uri, '..'), { recursive: true });
   });
 
+  it('AFD-28: Open Sample copies the sample playbooks into a free folder only, and they import clean', async () => {
+    const api = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
+    const exists = async (u: vscode.Uri) =>
+      vscode.workspace.fs.stat(u).then(
+        () => true,
+        () => false,
+      );
+    // The test repository has its own ansible.cfg: refused, nothing copied.
+    await vscode.commands.executeCommand('afd.openSample', 'playbooks/edge-baseline');
+    assert.equal(await exists(vscode.Uri.joinPath(root, 'site.yml')), false);
+    // A free folder gets the whole sample, and site.yml opens.
+    const practice = vscode.Uri.joinPath(root, 'practice');
+    try {
+      await vscode.commands.executeCommand('afd.openSample', 'playbooks/edge-baseline', practice);
+      for (const f of [
+        'ansible.cfg',
+        'inventory.ini',
+        'site.yml',
+        'roles/push_baseline/tasks/ntp.yml',
+      ])
+        assert.ok(await exists(vscode.Uri.joinPath(practice, ...f.split('/'))), f);
+      await until(() => /site\.yml/.test(activeTab()?.label ?? ''), 'site.yml editor');
+      const r = await api.importPlaybooks({
+        source: practice,
+        playbooks: ['practice/site.yml'],
+        keys: ['practice-site'],
+      });
+      assert.equal(r.error, undefined);
+      assert.deepEqual(r.counts, { steps: 20, implemented: 20, drafts: 0 });
+      const flow = r.uris[0] as vscode.Uri;
+      await openDesigner(flow);
+      const errors = api
+        .diagnostics(flow)
+        .filter((d) => d.severity === vscode.DiagnosticSeverity.Error);
+      assert.deepEqual(
+        errors.map((d) => d.message),
+        [],
+      );
+      await closeAll();
+      await vscode.workspace.fs.delete(vscode.Uri.joinPath(flow, '..'), { recursive: true });
+    } finally {
+      await vscode.workspace.fs.delete(practice, { recursive: true });
+    }
+  });
+
   it('Open User Guide shows a guide page in the Markdown preview, never a file outside it', async () => {
     await vscode.commands.executeCommand('afd.openGuide', 'how-to/subflows.md');
     await until(() => /Subflows/i.test(activeTab()?.label ?? ''), 'subflows preview');

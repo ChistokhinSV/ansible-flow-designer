@@ -1,0 +1,656 @@
+schema_version: 1
+flow:
+  id: 01JDSMP0000000000000000052
+  key: site
+  name: site
+  version: 1
+  imported_from:
+    kind: playbook
+    path: site.yml
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+      default:
+      - edge
+    out_dir:
+      type: string
+      default: /tmp/edge-baseline
+    enable_secret:
+      type: string
+      required: true
+nodes:
+- id: 01JDSMP0000000000000000001
+  key: start
+  type: start
+  title: Start
+- id: 01JDSMP0000000000000000002
+  key: pre-checks
+  type: subflow
+  title: Pre-checks
+  subflow:
+    nodes:
+    - id: 01JDSMP0000000000000000003
+      key: create-the-report-folder
+      type: task
+      title: Create the report folder
+      intent: Create the report folder
+      status: implemented
+      impl:
+        kind: module
+        ref: ansible.builtin.file
+        params:
+          path: '{{ out_dir }}/{{ inventory_hostname }}'
+          state: directory
+          mode: '0755'
+        keywords:
+          check_mode: false
+      inputs:
+        out_dir:
+          type: string
+          from: flow.out_dir
+    - id: 01JDSMP0000000000000000004
+      key: read-the-software-version
+      type: task
+      title: Read the software version
+      intent: Read the software version
+      status: implemented
+      impl:
+        kind: module
+        ref: ansible.builtin.command
+        params:
+          cmd: echo "17.9.4"
+        register: version_check
+        keywords:
+          changed_when: false
+          check_mode: false
+      outputs:
+        version_check:
+          type: dict
+          from: impl.register
+    - id: 01JDSMP0000000000000000006
+      key: check-the-version-is-supported
+      type: task
+      title: Check the version is supported
+      intent: Check the version is supported
+      status: implemented
+      impl:
+        kind: module
+        ref: ansible.builtin.assert
+        params:
+          that:
+          - version_check.stdout is version('17.0', '>=')
+          fail_msg: Unsupported version {{ version_check.stdout }}
+      inputs:
+        version_check:
+          type: dict
+          from: read-the-software-version.version_check
+    - id: 01JDSMP0000000000000000008
+      key: record-the-pre-check
+      type: task
+      title: Record the pre-check
+      intent: Record the pre-check
+      status: implemented
+      impl:
+        kind: module
+        ref: ansible.builtin.copy
+        params:
+          content: "version {{ version_check.stdout }}\n"
+          dest: '{{ out_dir }}/{{ inventory_hostname }}/precheck.txt'
+          mode: '0644'
+        keywords:
+          when: version_check.stdout is version('17.0', '>=')
+      inputs:
+        version_check:
+          type: dict
+          from: read-the-software-version.version_check
+        out_dir:
+          type: string
+          from: flow.out_dir
+    edges:
+    - id: 01JDSMP0000000000000000005
+      from:
+        node: 01JDSMP0000000000000000003
+        port: ok_hosts
+      to:
+        node: 01JDSMP0000000000000000004
+        port: in
+    - id: 01JDSMP0000000000000000007
+      from:
+        node: 01JDSMP0000000000000000004
+        port: ok_hosts
+      to:
+        node: 01JDSMP0000000000000000006
+        port: in
+    - id: 01JDSMP0000000000000000009
+      from:
+        node: 01JDSMP0000000000000000006
+        port: ok_hosts
+      to:
+        node: 01JDSMP0000000000000000008
+        port: in
+    boundary:
+      in: 01JDSMP0000000000000000003
+      outputs:
+        ok_hosts:
+        - node: 01JDSMP0000000000000000008
+          port: ok_hosts
+  status: implemented
+- id: 01JDSMP0000000000000000011
+  key: baseline
+  type: subflow
+  title: baseline
+  subflow:
+    nodes:
+    - id: 01JDSMP0000000000000000012
+      key: edge-baseline
+      type: subflow
+      title: Edge baseline
+      subflow:
+        nodes:
+        - id: 01JDSMP0000000000000000013
+          key: load-baseline-yml
+          type: task
+          title: Load baseline.yml
+          intent: Load the variables of vars/baseline.yml
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.include_vars
+            params:
+              file: '{{ playbook_dir }}/../../../vars/baseline.yml'
+          outputs:
+            uplinks:
+              type: any
+            canary_switch:
+              type: any
+            ntp_servers:
+              type: any
+        - id: 01JDSMP0000000000000000014
+          key: netops-backup
+          type: task
+          title: netops_backup
+          intent: Runs role netops_backup
+          status: implemented
+          impl:
+            kind: role
+            ref: netops_backup
+        - id: 01JDSMP0000000000000000016
+          key: push-the-baseline
+          type: subflow
+          title: Push the baseline
+          subflow:
+            nodes:
+            - id: 01JDSMP0000000000000000017
+              key: render-the-motd
+              type: task
+              title: Render the MOTD
+              intent: Render the MOTD
+              status: implemented
+              impl:
+                kind: module
+                ref: ansible.builtin.template
+                params:
+                  src: '{{ playbook_dir }}/../../../templates/motd.j2'
+                  dest: '{{ out_dir }}/{{ inventory_hostname }}/motd.txt'
+                  mode: '0644'
+                register: render_the_motd_result
+              inputs:
+                out_dir:
+                  type: string
+                  from: flow.out_dir
+              outputs:
+                render_the_motd_result:
+                  type: dict
+                  from: impl.register
+            - id: 01JDSMP0000000000000000018
+              key: configure-the-uplinks
+              type: task
+              title: Configure the uplinks
+              intent: Configure the uplinks
+              status: implemented
+              impl:
+                kind: module
+                ref: ansible.builtin.copy
+                params:
+                  content: "interface {{ item }}\n description uplink to the core\n"
+                  dest: '{{ out_dir }}/{{ inventory_hostname }}/{{ item }}.cfg'
+                  mode: '0644'
+                register: configure_the_uplinks_result
+                keywords:
+                  loop: '{{ uplinks }}'
+              inputs:
+                out_dir:
+                  type: string
+                  from: flow.out_dir
+                uplinks:
+                  type: any
+                  from: load-baseline-yml.uplinks
+              outputs:
+                configure_the_uplinks_result:
+                  type: dict
+                  from: impl.register
+            - id: 01JDSMP0000000000000000020
+              key: refuse-the-change-on-the-canary-switch
+              type: task
+              title: Refuse the change on the canary switch
+              intent: Refuse the change on the canary switch
+              status: implemented
+              impl:
+                kind: module
+                ref: ansible.builtin.fail
+                params:
+                  msg: the canary switch refused the baseline
+                keywords:
+                  when: inventory_hostname == canary_switch
+              inputs:
+                canary_switch:
+                  type: any
+                  from: load-baseline-yml.canary_switch
+            edges:
+            - id: 01JDSMP0000000000000000019
+              from:
+                node: 01JDSMP0000000000000000017
+                port: ok_hosts
+              to:
+                node: 01JDSMP0000000000000000018
+                port: in
+            - id: 01JDSMP0000000000000000021
+              from:
+                node: 01JDSMP0000000000000000018
+                port: ok_hosts
+              to:
+                node: 01JDSMP0000000000000000020
+                port: in
+            boundary:
+              in: 01JDSMP0000000000000000017
+              outputs:
+                ok_hosts:
+                - node: 01JDSMP0000000000000000020
+                  port: ok_hosts
+          status: implemented
+          outputs:
+            render_the_motd_result:
+              type: any
+              from: render-the-motd.render_the_motd_result
+            configure_the_uplinks_result:
+              type: any
+              from: configure-the-uplinks.configure_the_uplinks_result
+        - id: 01JDSMP0000000000000000023
+          key: record-the-rollback
+          type: task
+          title: Record the rollback
+          intent: Record the rollback
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.copy
+            params:
+              content: "rolled back\n"
+              dest: '{{ out_dir }}/{{ inventory_hostname }}/rollback.txt'
+              mode: '0644'
+          inputs:
+            out_dir:
+              type: string
+              from: flow.out_dir
+        - id: 01JDSMP0000000000000000025
+          key: record-the-attempt
+          type: task
+          title: Record the attempt
+          intent: Record the attempt
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.copy
+            params:
+              content: "attempted\n"
+              dest: '{{ out_dir }}/{{ inventory_hostname }}/attempt.txt'
+              mode: '0644'
+          inputs:
+            out_dir:
+              type: string
+              from: flow.out_dir
+        - id: 01JDSMP0000000000000000028
+          key: record-the-attempt-after-failure
+          type: task
+          title: Record the attempt
+          intent: Record the attempt
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.copy
+            params:
+              content: "attempted\n"
+              dest: '{{ out_dir }}/{{ inventory_hostname }}/attempt.txt'
+              mode: '0644'
+          inputs:
+            out_dir:
+              type: string
+              from: flow.out_dir
+        - id: 01JDSMP0000000000000000030
+          key: check-the-enable-secret-was-given
+          type: task
+          title: Check the enable secret was given
+          intent: Check the enable secret was given
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.assert
+            params:
+              that:
+              - enable_secret | length > 0
+              quiet: true
+          inputs:
+            enable_secret:
+              type: string
+              from: flow.enable_secret
+        - id: 01JDSMP0000000000000000032
+          key: verify-ntp
+          type: subflow
+          title: Verify NTP
+          subflow:
+            nodes:
+            - id: 01JDSMP0000000000000000033
+              key: read-the-ntp-status
+              type: task
+              title: Read the NTP status
+              intent: Read the NTP status
+              status: implemented
+              impl:
+                kind: module
+                ref: ansible.builtin.command
+                params:
+                  cmd: echo "synchronised to {{ ntp_servers | first }}"
+                register: ntp_status
+                keywords:
+                  changed_when: false
+                  check_mode: false
+              inputs:
+                ntp_servers:
+                  type: any
+                  from: load-baseline-yml.ntp_servers
+              outputs:
+                ntp_status:
+                  type: dict
+                  from: impl.register
+            - id: 01JDSMP0000000000000000034
+              key: record-the-ntp-status
+              type: task
+              title: Record the NTP status
+              intent: Record the NTP status
+              status: implemented
+              impl:
+                kind: module
+                ref: ansible.builtin.copy
+                params:
+                  content: "{{ ntp_status.stdout }}\n"
+                  dest: '{{ out_dir }}/{{ inventory_hostname }}/ntp.txt'
+                  mode: '0644'
+              inputs:
+                ntp_status:
+                  type: dict
+                  from: read-the-ntp-status.ntp_status
+                out_dir:
+                  type: string
+                  from: flow.out_dir
+            edges:
+            - id: 01JDSMP0000000000000000035
+              from:
+                node: 01JDSMP0000000000000000033
+                port: ok_hosts
+              to:
+                node: 01JDSMP0000000000000000034
+                port: in
+            boundary:
+              in: 01JDSMP0000000000000000033
+              outputs:
+                ok_hosts:
+                - node: 01JDSMP0000000000000000034
+                  port: ok_hosts
+          status: implemented
+        - id: 01JDSMP0000000000000000037
+          key: apply-the-ntp-and-aaa-baseline
+          type: subflow
+          title: Apply the NTP and AAA baseline
+          impl:
+            kind: role
+            ref: push_baseline
+          intent: Runs role push_baseline, one step per task file
+          subflow:
+            nodes:
+            - id: 01JDSMP0000000000000000038
+              key: ntp
+              type: task
+              title: NTP
+              intent: 'push_baseline: tasks/ntp'
+              status: implemented
+              impl:
+                kind: role
+                ref: push_baseline
+                params:
+                  tasks_from: ntp
+            - id: 01JDSMP0000000000000000039
+              key: aaa
+              type: task
+              title: AAA
+              intent: 'push_baseline: tasks/aaa'
+              status: implemented
+              impl:
+                kind: role
+                ref: push_baseline
+                params:
+                  tasks_from: aaa
+            edges:
+            - id: 01JDSMP0000000000000000040
+              from:
+                node: 01JDSMP0000000000000000038
+                port: ok_hosts
+              to:
+                node: 01JDSMP0000000000000000039
+                port: in
+            boundary:
+              in: 01JDSMP0000000000000000038
+              outputs:
+                ok_hosts:
+                - node: 01JDSMP0000000000000000039
+                  port: ok_hosts
+          status: implemented
+        - id: 01JDSMP0000000000000000042
+          key: save-config
+          type: task
+          title: Save config
+          intent: Save config
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.copy
+            params:
+              content: "saved\n"
+              dest: '{{ out_dir }}/{{ inventory_hostname }}/saved.txt'
+              mode: '0644'
+            keywords:
+              when: (render_the_motd_result | default({})) is changed or (configure_the_uplinks_result | default({})) is changed
+          inputs:
+            out_dir:
+              type: string
+              from: flow.out_dir
+            render_the_motd_result:
+              type: dict
+              from: push-the-baseline.render_the_motd_result
+            configure_the_uplinks_result:
+              type: dict
+              from: push-the-baseline.configure_the_uplinks_result
+        edges:
+        - id: 01JDSMP0000000000000000015
+          from:
+            node: 01JDSMP0000000000000000013
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000014
+            port: in
+        - id: 01JDSMP0000000000000000022
+          from:
+            node: 01JDSMP0000000000000000014
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000016
+            port: in
+        - id: 01JDSMP0000000000000000024
+          from:
+            node: 01JDSMP0000000000000000016
+            port: failed_hosts
+          to:
+            node: 01JDSMP0000000000000000023
+            port: in
+        - id: 01JDSMP0000000000000000026
+          from:
+            node: 01JDSMP0000000000000000016
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000025
+            port: in
+        - id: 01JDSMP0000000000000000027
+          from:
+            node: 01JDSMP0000000000000000023
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000025
+            port: in
+        - id: 01JDSMP0000000000000000029
+          from:
+            node: 01JDSMP0000000000000000023
+            port: failed_hosts
+          to:
+            node: 01JDSMP0000000000000000028
+            port: in
+        - id: 01JDSMP0000000000000000031
+          from:
+            node: 01JDSMP0000000000000000025
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000030
+            port: in
+        - id: 01JDSMP0000000000000000036
+          from:
+            node: 01JDSMP0000000000000000030
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000032
+            port: in
+        - id: 01JDSMP0000000000000000041
+          from:
+            node: 01JDSMP0000000000000000032
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000037
+            port: in
+        - id: 01JDSMP0000000000000000043
+          from:
+            node: 01JDSMP0000000000000000037
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000042
+            port: in
+        boundary:
+          in: 01JDSMP0000000000000000013
+          outputs:
+            failed_hosts:
+            - node: 01JDSMP0000000000000000028
+              port: ok_hosts
+              reason: 'Push the baseline: failed before the always steps'
+            ok_hosts:
+            - node: 01JDSMP0000000000000000042
+              port: ok_hosts
+      status: implemented
+    - id: 01JDSMP0000000000000000044
+      key: report
+      type: subflow
+      title: Report
+      subflow:
+        nodes:
+        - id: 01JDSMP0000000000000000045
+          key: gather-facts
+          type: task
+          title: Gather facts
+          intent: Gather the facts of the hosts (the play gathered them)
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.gather_facts
+        - id: 01JDSMP0000000000000000046
+          key: write-the-summary
+          type: task
+          title: Write the summary
+          intent: Write the summary
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.copy
+            params:
+              content: "baseline done on {{ ansible_facts['hostname'] | default('localhost') }}\n"
+              dest: '{{ out_dir | default(''/tmp/edge-baseline'') }}/summary.txt'
+              mode: '0644'
+          inputs:
+            out_dir:
+              type: string
+              from: flow.out_dir
+        edges:
+        - id: 01JDSMP0000000000000000047
+          from:
+            node: 01JDSMP0000000000000000045
+            port: ok_hosts
+          to:
+            node: 01JDSMP0000000000000000046
+            port: in
+        boundary:
+          in: 01JDSMP0000000000000000045
+          outputs:
+            ok_hosts:
+            - node: 01JDSMP0000000000000000046
+              port: ok_hosts
+      status: implemented
+      settings:
+        inventory_target: local
+    edges:
+    - id: 01JDSMP0000000000000000048
+      from:
+        node: 01JDSMP0000000000000000012
+        port: ok_hosts
+      to:
+        node: 01JDSMP0000000000000000044
+        port: in
+    boundary:
+      in: 01JDSMP0000000000000000012
+      outputs:
+        ok_hosts:
+        - node: 01JDSMP0000000000000000044
+          port: ok_hosts
+  status: implemented
+- id: 01JDSMP0000000000000000050
+  key: done
+  type: end
+  title: Done
+  outcome: success
+edges:
+- id: 01JDSMP0000000000000000010
+  from:
+    node: 01JDSMP0000000000000000001
+    port: ok_hosts
+  to:
+    node: 01JDSMP0000000000000000002
+    port: in
+- id: 01JDSMP0000000000000000049
+  from:
+    node: 01JDSMP0000000000000000002
+    port: ok_hosts
+  to:
+    node: 01JDSMP0000000000000000011
+    port: in
+- id: 01JDSMP0000000000000000051
+  from:
+    node: 01JDSMP0000000000000000011
+    port: ok_hosts
+  to:
+    node: 01JDSMP0000000000000000050
+    port: in

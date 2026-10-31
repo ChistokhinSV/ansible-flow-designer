@@ -1,0 +1,3 @@
+# Edge switch baseline: pre-checks, then the baseline itself (sample playbooks to import).
+- import_playbook: prechecks.yml
+- import_playbook: baseline.yml

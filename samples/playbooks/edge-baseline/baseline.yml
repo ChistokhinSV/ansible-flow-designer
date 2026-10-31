@@ -1,0 +1,80 @@
+- name: Edge baseline
+  hosts: edge
+  gather_facts: false
+  vars_files:
+    - vars/baseline.yml
+  vars_prompt:
+    - name: enable_secret
+      prompt: Enable secret of the switches
+      private: true
+  vars:
+    out_dir: /tmp/edge-baseline
+
+  roles:
+    - role: netops_backup
+
+  tasks:
+    - name: Push the baseline
+      block:
+        - name: Render the MOTD
+          ansible.builtin.template:
+            src: motd.j2
+            dest: "{{ out_dir }}/{{ inventory_hostname }}/motd.txt"
+            mode: "0644"
+          notify: Save config
+
+        - name: Configure the uplinks
+          ansible.builtin.copy:
+            content: "interface {{ item }}\n description uplink to the core\n"
+            dest: "{{ out_dir }}/{{ inventory_hostname }}/{{ item }}.cfg"
+            mode: "0644"
+          loop: "{{ uplinks }}"
+          notify: config changed
+
+        - name: Refuse the change on the canary switch
+          ansible.builtin.fail:
+            msg: the canary switch refused the baseline
+          when: inventory_hostname == canary_switch
+      rescue:
+        - name: Record the rollback
+          ansible.builtin.copy:
+            content: "rolled back\n"
+            dest: "{{ out_dir }}/{{ inventory_hostname }}/rollback.txt"
+            mode: "0644"
+      always:
+        - name: Record the attempt
+          ansible.builtin.copy:
+            content: "attempted\n"
+            dest: "{{ out_dir }}/{{ inventory_hostname }}/attempt.txt"
+            mode: "0644"
+
+    - name: Check the enable secret was given
+      ansible.builtin.assert:
+        that:
+          - enable_secret | length > 0
+        quiet: true
+
+    - name: Verify NTP
+      ansible.builtin.include_tasks: tasks/verify.yml
+
+    - name: Apply the NTP and AAA baseline
+      ansible.builtin.include_role:
+        name: push_baseline
+
+  handlers:
+    - name: Save config
+      ansible.builtin.copy:
+        content: "saved\n"
+        dest: "{{ out_dir }}/{{ inventory_hostname }}/saved.txt"
+        mode: "0644"
+      listen: config changed
+
+- name: Report
+  hosts: local
+  gather_facts: true
+  tasks:
+    - name: Write the summary
+      ansible.builtin.copy:
+        content: "baseline done on {{ ansible_facts['hostname'] | default('localhost') }}\n"
+        dest: "{{ out_dir | default('/tmp/edge-baseline') }}/summary.txt"
+        mode: "0644"

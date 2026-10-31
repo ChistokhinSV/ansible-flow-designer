@@ -16,15 +16,18 @@ playbooks are generated from it.
   walkthrough on VS Code's Welcome page.
 - Want something to look at first? **Ansible Flow: Open Sample Flow…** copies a sample into your
   folder.
+- Already have playbooks? Follow **[Tutorial 5: bring existing playbooks into flows](tutorials/05-import-playbooks.md)**,
+  or right-click a playbook or folder → **Import Ansible Playbooks…**.
 
 ## Tutorials
 
-| Tutorial                                                             | You will                                                                                  | Time   |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
-| [1. Your first flow](tutorials/01-first-flow.md)                     | create a flow, add steps, handle failures, use a subflow, run a skeleton                  | 15 min |
-| [2. From design to production](tutorials/02-design-to-production.md) | bind modules, pass data between steps, poll a device, compare with the code, run for real | 30 min |
-| [3. AWX end to end](tutorials/03-awx-end-to-end.md)                  | set up a template, run approvals as an AWX workflow, follow the run, import a workflow    | 30 min |
-| [4. With an AI assistant](tutorials/04-ai-assistant.md)              | let Copilot or Claude Code build and fix a flow                                           | 20 min |
+| Tutorial                                                                   | You will                                                                                                        | Time   |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------ |
+| [1. Your first flow](tutorials/01-first-flow.md)                           | create a flow, add steps, handle failures, use a subflow, run a skeleton                                        | 15 min |
+| [2. From design to production](tutorials/02-design-to-production.md)       | bind modules, pass data between steps, poll a device, compare with the code, run for real                       | 30 min |
+| [3. AWX end to end](tutorials/03-awx-end-to-end.md)                        | set up a template, run approvals as an AWX workflow, follow the run, import a workflow                          | 30 min |
+| [4. With an AI assistant](tutorials/04-ai-assistant.md)                    | let Copilot or Claude Code build and fix a flow                                                                 | 20 min |
+| [5. Bring existing playbooks into flows](tutorials/05-import-playbooks.md) | import playbooks as is, find blocks, roles and handlers on the canvas, run them, let an assistant redesign them | 25 min |
 
 ## How-to pages
 

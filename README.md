@@ -8,9 +8,9 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
 
 - **Get started:** after installing, VS Code's Welcome page shows three walkthroughs: _Design your first Ansible flow_, _Build flows with an AI assistant_ and _Run your flows in AWX_. **Ansible Flow: Get Started** opens the first one again.
 - **The user guide** ([docs/guide](docs/guide/README.md)), also in VS Code with **Ansible Flow: Open User Guide** or _User guide_ in the designer's "…" menu:
-  - tutorials: [your first flow](docs/guide/tutorials/01-first-flow.md), [from design to production](docs/guide/tutorials/02-design-to-production.md), [AWX end to end](docs/guide/tutorials/03-awx-end-to-end.md), [with an AI assistant](docs/guide/tutorials/04-ai-assistant.md);
+  - tutorials: [your first flow](docs/guide/tutorials/01-first-flow.md), [from design to production](docs/guide/tutorials/02-design-to-production.md), [AWX end to end](docs/guide/tutorials/03-awx-end-to-end.md), [with an AI assistant](docs/guide/tutorials/04-ai-assistant.md), [bring existing playbooks into flows](docs/guide/tutorials/05-import-playbooks.md);
   - how-to pages for every feature, the [commands](docs/guide/reference/commands.md), [settings](docs/guide/reference/settings.md), [problem codes](docs/guide/reference/problems.md) and [troubleshooting](docs/guide/troubleshooting.md).
-- **Samples:** **Ansible Flow: Open Sample Flow…** copies a sample into your folder: a firewall firmware upgrade (subflows, data across levels, polling, an approval, rollback) or the edge baseline (with failures left to handle).
+- **Samples:** **Ansible Flow: Open Sample Flow…** copies a sample into your folder: a firewall firmware upgrade (subflows, data across levels, polling, an approval, rollback) or the edge baseline (with failures left to handle); or, into an empty folder, sample playbooks to import (a site.yml with roles, a block with rescue and handlers, for Tutorial 5).
 
 The rest of this page is the complete feature reference.
 

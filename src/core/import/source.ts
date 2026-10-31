@@ -930,9 +930,10 @@ class Reader {
         onRolesPath: true,
       }));
     } else {
+      // Ansible's order: roles/ next to the playbook, then roles_path, then the playbook's folder.
       candidates = [
-        ...cfgRoles.map((p) => ({ dir: join(p, name), onRolesPath: true })),
         { dir: join(fromDir, 'roles', name), onRolesPath: false },
+        ...cfgRoles.map((p) => ({ dir: join(p, name), onRolesPath: true })),
         { dir: join('roles', name), onRolesPath: false },
         { dir: join(fromDir, name), onRolesPath: false },
       ];

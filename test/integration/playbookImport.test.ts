@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
+import { collectInputs } from '../../src/extension/run/runner';
 import { closeAll, openDesigner, testApi } from './helpers';
 
 /** The repository (the bundle runs from out/test/integration). */
@@ -227,6 +228,33 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
     } finally {
       rmSync(file, { force: true });
     }
+  });
+
+  it('AFD-28: a run never remembers an imported secret input, only the others', async () => {
+    const stored = new Map<string, unknown>();
+    const state = {
+      keys: () => [...stored.keys()],
+      get: <T>(k: string, d?: T) => (stored.has(k) ? (stored.get(k) as T) : d),
+      update: async (k: string, v: unknown) => {
+        stored.set(k, v);
+      },
+    } as unknown as vscode.Memento;
+    const doc = {
+      flow: {
+        id: 'flow-1',
+        inputs: {
+          devices: { type: 'host_list', required: true, targets: true },
+          enable_secret: { type: 'string', required: true },
+        },
+      },
+    } as unknown as FlowDocument;
+    const values = await collectInputs(
+      doc,
+      { devices: ['edge'], enable_secret: 'example-enable' },
+      state,
+    );
+    assert.deepEqual(values, { devices: ['edge'], enable_secret: 'example-enable' });
+    assert.deepEqual(stored.get('afd.inputs.flow-1'), { devices: ['edge'] });
   });
 
   (url && token ? it : it.skip)('an AWX job template from the lab AWX API', async () => {

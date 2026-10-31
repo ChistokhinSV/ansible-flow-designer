@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.22.0 — AFD-28
+
+- **Tutorial 5: bring existing playbooks into flows** (25 minutes): import a sample repository as is, find its plays, block with rescue/always, roles, handler and variables on the canvas, look at a step's task keywords, run it as a skeleton, then let an AI assistant redesign it by intent and compare.
+- **Sample playbooks to import:** **Open Sample Flow…** now also offers _Playbooks to import: edge-baseline_. It is a small fictional repository: `site.yml` importing two playbooks, a role and a split role, a block with rescue and always, a loop, a handler with `listen`, a prompt, and simulated switches. It copies into an empty folder only, never over an `ansible.cfg` or inventory, and offers **Import Ansible Playbooks…** right after.
+- **Walkthroughs:** "Design your first Ansible flow" has a step **Or import playbooks you already have**; "Build flows with an AI assistant" has **Import playbooks with an assistant**. Both check off when you import.
+- **Guide:** the import how-to links Tutorial 5. Tutorials 3 and 4 have import sections (Tutorial 4 lists the ten tools), and troubleshooting has an _Imports_ section. Two new screenshots: an imported play and a step's task keywords.
+- **Fixed:**
+  - Secret-looking run inputs (an imported prompt or vault value, such as `enable_secret`) are now typed hidden and never remembered between runs. Before, every prompted input was kept in the workspace state.
+  - The import looks for a role in `roles/` next to the playbook before `roles_path`, as Ansible does.
+  - A step with task keywords no longer shows unsaved changes on its Implementation tab, and its generated-task preview shows the keywords.
+
 ## 0.21.0 — AFD-27
 
 - **Import with an AI assistant:** _Import Ansible Playbooks…_ and _Import from AWX…_ now ask **As is** or **With an AI assistant**. An assistant designs the flow by intent: a few subflows by purpose (pre-checks, backup, the change, verification, rollback), steps named by what they achieve, and the same modules, parameters and keywords as the source.

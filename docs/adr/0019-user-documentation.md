@@ -47,3 +47,26 @@ Decisions (product owner, 2026-10-31):
 - The guides are checked by tests: links, images (none unused), command links and completion events, every command and setting documented, generated pages current, samples valid.
 - Screenshots drift as the UI changes: one command regenerates them. The PNGs add about 3 MB to the VSIX.
 - The README stays the complete feature reference; the guides are task-oriented and link back to it where useful.
+
+## Amendment: import documentation (AFD-28, 2026-10-31)
+
+Decisions (product owner, 2026-10-31):
+1. A new Tutorial 5 for import: as is, then with an AI assistant. Tutorials 3 and 4 get short import sections.
+2. Bundled sample playbooks, so every reader imports the same thing.
+3. Scripted screenshots.
+4. Import steps in the first-flow and AI walkthroughs.
+
+Design:
+- **Sample:** `samples/playbooks/edge-baseline/` holds the playbooks at its top level, so its roles resolve next to the playbook as well as through its own `ansible.cfg`. A prompt stands in for the vault value, and the read-only commands use `check_mode: false`, so the skeleton run goes through.
+- **Copying:** _Open Sample Flow…_ lists playbook samples under a separator (`afd.openSample playbooks/<name> [folder]`).
+  - It copies the top-level entries only when none of them exists in the target folder; otherwise it warns and offers _Open Folder…_.
+  - It opens `site.yml` and offers _Import Ansible Playbooks…_.
+- **Screenshots:** the harness loads the sample's import as `playbook-import`, the golden `test/fixtures/import/sample-site.flow.yaml`, which the docs test keeps current. The new shots are `playbook-import` (light and dark, used by the walkthrough) and `task-keywords`.
+- **Walkthroughs:**
+  - `afd.firstFlow` step `import` (media: the screenshot), `afd.aiAssistants` step `import` (media: `media/walkthrough/ai-import.md`);
+  - both complete on `onCommand:afd.importPlaybooks`;
+  - the first step's import link moved to its own step.
+- **The tutorial was followed for real:**
+  - the sample import is checked in unit and integration tests (20 steps, the notes, the levels the tutorial names);
+  - the engine suite runs the sample and its import for real side by side (the same files), and the import as a skeleton (every host through, the canary by the rescue);
+  - a real Claude Code ran step 7's prompt.

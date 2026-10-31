@@ -136,3 +136,76 @@ describe.each(IMAGES)('imported playbook on %s', (image) => {
     expect(flow).toEqual(orig);
   });
 });
+
+// AFD-28: Tutorial 5's sample playbooks, as the tutorial uses them: imported as is, run for real
+// next to site.yml (same files, nobody failed), and run as a skeleton (check mode): every host gets
+// through, the canary switch by the rescue path.
+describe.each(IMAGES)('the sample playbooks of Tutorial 5 on %s', (image) => {
+  let dir = '';
+  const SAMPLE = join(__dirname, '../../samples/playbooks/edge-baseline');
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), 'afd-sample-'));
+    const repo = join(dir, 'repo');
+    cpSync(SAMPLE, repo, { recursive: true });
+    const read = await readPlaybook(fsSource(repo), 'site.yml');
+    if (!read.playbook) throw new Error(read.notes.join('\n'));
+    const result = importPlaybook(read.playbook, {
+      key: 'site',
+      newId: createIdFactory(),
+      generatedDir: 'flows/site/generated',
+    });
+    const text = flowText(result.doc);
+    mkdirSync(join(repo, 'flows/site/generated'), { recursive: true });
+    writeFileSync(join(repo, 'flows/site/site.flow.yaml'), text);
+    const gen = optionA.generate(parse(text) as FlowDocument, { source: 'site.flow.yaml' });
+    if (!gen.ok) throw new Error(JSON.stringify(gen.findings));
+    for (const f of gen.files) writeFileSync(join(repo, 'flows/site/generated', f.name), f.text);
+    const vars = (out: string) =>
+      JSON.stringify({ devices: ['edge'], out_dir: out, enable_secret: ENABLE });
+    writeFileSync(join(dir, 'flow-vars.json'), vars('/work/flow'));
+    writeFileSync(join(dir, 'check-vars.json'), vars('/work/check'));
+    writeFileSync(
+      join(dir, 'run.sh'),
+      [
+        '#!/bin/sh',
+        'cd /work/repo',
+        'export ANSIBLE_CONFIG=/work/repo/ansible.cfg ANSIBLE_HOST_PATTERN_MISMATCH=ignore ANSIBLE_LOCALHOST_WARNING=False',
+        `ansible-playbook site.yml -e out_dir=/work/orig -e enable_secret=${ENABLE} > /work/orig.txt 2>&1; echo $? > /work/orig.rc`,
+        'ansible-playbook flows/site/generated/site.yml -e @/work/flow-vars.json > /work/flow.txt 2>&1; echo $? > /work/flow.rc',
+        'ansible-playbook flows/site/generated/site.yml --check -e @/work/check-vars.json > /work/check.txt 2>&1; echo $? > /work/check.rc',
+      ].join('\n'),
+    );
+    execFileSync('docker', ['run', '--rm', '-v', `${dir}:/work`, image, 'sh', '/work/run.sh'], {
+      stdio: 'pipe',
+      timeout: 600_000,
+    });
+  }, 660_000);
+
+  afterAll(() => {
+    if (dir && !process.env.AFD_KEEP) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('runs for real like site.yml: the same files, nobody failed', () => {
+    const rc = (name: string) => Number(readFileSync(join(dir, `${name}.rc`), 'utf8'));
+    const orig = readFileSync(join(dir, 'orig.txt'), 'utf8');
+    expect(rc('orig'), orig).toBe(0);
+    expect(rc('flow'), readFileSync(join(dir, 'flow.txt'), 'utf8')).toBe(0);
+    const files = tree(join(dir, 'orig'));
+    expect(Object.keys(files).length).toBeGreaterThan(40);
+    expect(tree(join(dir, 'flow'))).toEqual(files);
+    expect(files['sw-edge-04/rollback.txt']).toBe('rolled back\n');
+  });
+
+  it('runs as a skeleton: every host gets through, the canary by the rescue, nothing written', () => {
+    const out = readFileSync(join(dir, 'check.txt'), 'utf8');
+    expect(Number(readFileSync(join(dir, 'check.rc'), 'utf8')), out).toBe(0);
+    expect(notOk(out)).toEqual([]);
+    // The rescue step's play ran for the canary switch only.
+    const rescue = out.split('PLAY [').find((s) => s.startsWith('[record-the-rollback]')) ?? '';
+    expect(rescue).toContain('sw-edge-04');
+    expect(rescue).not.toContain('sw-edge-01');
+    // Only the report folders (check_mode: false); no file is written in check mode.
+    expect(Object.keys(tree(join(dir, 'check')))).toEqual([]);
+  });
+});

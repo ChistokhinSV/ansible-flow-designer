@@ -271,6 +271,21 @@ describe('secrets, files and roles', () => {
     ]);
   });
 
+  it('looks in roles/ next to the playbook before roles_path, as Ansible does', async () => {
+    const r = await readPlaybook(
+      memory({
+        'ansible.cfg': '[defaults]\nroles_path = roles\n',
+        'pb/play.yml': '- hosts: all\n  roles: [own]\n',
+        'pb/roles/own/tasks/main.yml': '- ping:\n',
+        'roles/own/tasks/main.yml': '- debug:\n',
+      }),
+      'pb/play.yml',
+    );
+    const play = r.playbook?.plays[0] as PlayForm;
+    const role = play.roles[0] as RoleForm;
+    expect([role.dir, role.onRolesPath]).toEqual(['pb/roles/own', false]);
+  });
+
   it('reads ansible.cfg paths relative to its folder', () => {
     expect(
       parseConfig(

@@ -1,0 +1,5 @@
+# One file per part of the baseline.
+- name: NTP
+  ansible.builtin.include_tasks: ntp.yml
+- name: AAA
+  ansible.builtin.include_tasks: aaa.yml

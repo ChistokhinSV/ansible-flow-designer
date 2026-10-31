@@ -67,9 +67,12 @@ function merge(
 
 /** The node as it will be after Save binding (preview, checklist). */
 export function stagedNode(node: FlowNode, d: BindingDraft): FlowNode {
+  const impl = draftImpl(d);
+  // Save binding keeps the task keywords (AFD-26); playbook bindings take none.
+  const keywords = impl && impl.kind !== 'playbook' ? node.impl?.keywords : undefined;
   return {
     ...node,
-    impl: draftImpl(d),
+    impl: impl && keywords ? { ...impl, keywords } : impl,
     inputs: merge(node.inputs, d.inputs),
     outputs: merge(node.outputs, d.outputs),
   };

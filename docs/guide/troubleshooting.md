@@ -49,6 +49,24 @@ These need an Ansible environment with ansible-core 2.19 or later
 - **401 or 403:** the token expired or lacks rights. Run **Set AWX Token** again.
 - **The run warns about another commit:** AWX runs what its project checks out. Push your changes.
 
+## Imports
+
+- **"No playbooks in …":** a playbook is a YAML list of plays (`hosts:`) or `import_playbook`
+  entries. Task files, vars files and roles are imported through the playbooks that use them.
+- **A role step is a draft, or the notes say "add its folder to roles_path":** generated playbooks
+  find roles through the repository's `ansible.cfg`. Add the role's folder to `roles_path` under
+  `[defaults]`, then import again.
+- **A step is a draft with "not fully qualified":** the module's short name is not an
+  `ansible.builtin` module and the module catalog is not loaded. Open the step's properties and bind
+  the full name (for example `cisco.ios.ios_config`), or open a flow first so the catalog loads.
+- **"not read in because its file name is templated" or "it runs in a loop":** dynamic includes have
+  no fixed content to import. Bind the step, or make it a subflow by hand.
+- **A file "is encrypted with Ansible Vault as a whole":** the import never decrypts. Values from it
+  are read by name where tasks use them.
+- **"The sample playbooks bring ansible.cfg, …":** open an empty folder for Tutorial 5's sample.
+- **With an AI assistant, nothing happens after pasting the prompt:** the assistant needs the
+  Ansible Flow tools. Run **Set Up AI Assistants…** and restart it.
+
 ## AI assistants
 
 - **The agent does not see the flow tools:** run **Set Up AI Assistants…** and restart the agent.

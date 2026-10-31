@@ -10,9 +10,9 @@ terminal agents).
 
 ## 1. Get the assistant ready
 
-**Copilot** needs nothing: switch the chat to **Agent** mode. The `ansible-flow` skill and seven
+**Copilot** needs nothing: switch the chat to **Agent** mode. The `ansible-flow` skill and ten
 tools come with the extension (`#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`,
-`#flowEdit`, `#flowNew`, `#flowCompleteIds`).
+`#flowEdit`, `#flowNew`, `#flowCompleteIds`, `#flowExport`, `#sourceOutline`, `#flowImport`).
 
 **Other agents** need the skill and the flow tools once. When VS Code starts, the extension looks for
 the agents on your machine and offers **Set Up** in one notice. You can also run
@@ -80,6 +80,14 @@ with the details:
 The agent binds the module and sets `retries`, `delay` and `until`
 ([retries and polling](../how-to/polling-and-retries.md)).
 
+## 6. Start from playbooks you already have
+
+Ask for a flow from your playbooks, or let the import command write the request for you:
+right-click a playbook → **Import Ansible Playbooks…** → **With an AI assistant**. The agent reads
+the playbooks with `source_outline`, which gives the exact module, parameters and keywords of every
+task. It groups them by purpose, keeps failure handling where the playbooks have it, and reports
+what it changed. [Tutorial 5](05-import-playbooks.md) does this with a sample repository.
+
 ## Tips
 
 - Keep the flow open in the designer while the agent works: you see each edit land.
@@ -94,3 +102,4 @@ The agent binds the module and sets `retries`, `delay` and `until`
 - Copilot works with no setup; other agents need one setup.
 - Agents build flows with all-or-nothing edits by key, and say what they changed.
 - You review on the canvas, with the Data lens and in Git, and agents fix problems from the codes.
+- Agents redesign existing playbooks by intent, keeping their modules and parameters.

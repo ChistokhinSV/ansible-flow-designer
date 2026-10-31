@@ -14,6 +14,7 @@ import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
 import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
 import driftScan from '../../../test/fixtures/drift/scan.json';
 import handWritten from '../../../test/fixtures/flows/hand-written.flow.yaml?raw';
+import sampleImport from '../../../test/fixtures/import/sample-site.flow.yaml?raw';
 import lensFixture from '../../../test/fixtures/lens/facts.json';
 import lensE2e from '../../../test/fixtures/lens/flows/lens-e2e/lens-e2e.flow.yaml?raw';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
@@ -56,6 +57,8 @@ const FLOWS: Record<string, string> = {
   'awx-e2e': awxE2e,
   'lens-e2e': lensE2e,
   'awx-import': awxImport,
+  // AFD-28: the sample playbooks imported as is (Tutorial 5).
+  'playbook-import': sampleImport,
   // AFD-16: an empty *.flow.yaml, and one that is not a flow.
   empty: '',
   broken: 'flow: [not closed\n',

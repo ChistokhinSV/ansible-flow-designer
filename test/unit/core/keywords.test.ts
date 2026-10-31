@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import schemaJson from '../../../schema/flow.schema.json';
 import { describeFlow } from '../../../src/core/ai/describe';
-import { bindingTask } from '../../../src/core/engine/binding';
+import { draftOf, isDirty, stagedNode } from '../../../src/core/catalog/draft';
+import { bindingTask, bindingTaskText } from '../../../src/core/engine/binding';
 import { optionA } from '../../../src/core/engine/optionA';
 import { nodeDetails } from '../../../src/core/export/details';
 import { CommandError, planCommand } from '../../../src/core/flow/commands';
@@ -249,5 +250,17 @@ describe('AFD-27: a list input with a string default', () => {
     expect(found.map((f) => f.message)).toEqual([
       'Flow input devices is a host_list but its default is the string "edge": write it as a list, [edge]',
     ]);
+  });
+});
+
+describe('AFD-28: the properties page with task keywords', () => {
+  it('a step with keywords is not dirty before any edit, and its preview shows them', () => {
+    const text = withModule({ loop: '{{ uplinks }}' }, { register: 'validate_result' });
+    const node = nodeOf(text, 'validate');
+    const draft = draftOf(node);
+    expect(isDirty(node, draft)).toBe(false);
+    expect(bindingTaskText(node, stagedNode(node, draft).impl as ImplBinding)).toContain(
+      'loop: "{{ uplinks }}"',
+    );
   });
 });

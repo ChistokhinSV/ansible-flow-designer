@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -2144,8 +2144,8 @@
         "steps": [
           {
             "id": "open",
-            "title": "Open a sample, start a new flow, or import playbooks",
-            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, start from scratch with a start and a done node, or turn playbooks you already have into flows, one step per task.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\n[Import Ansible Playbooks](command:afd.importPlaybooks)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
+            "title": "Open a sample or start a new flow",
+            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/canvas-light.png",
@@ -2157,7 +2157,23 @@
             },
             "completionEvents": [
               "onCommand:afd.openSample",
-              "onCommand:afd.newFlow",
+              "onCommand:afd.newFlow"
+            ]
+          },
+          {
+            "id": "import",
+            "title": "Or import playbooks you already have",
+            "description": "Right-click a playbook or a folder → **Import Ansible Playbooks…**. **As is** makes one step per task, with blocks, roles and handlers in place; **With an AI assistant** redesigns them by intent.\n[Import Ansible Playbooks](command:afd.importPlaybooks)\nTry it on sample playbooks (in an empty folder): [Copy the sample playbooks](command:afd.openSample?%5B%22playbooks%2Fedge-baseline%22%5D)\n[Tutorial: bring existing playbooks into flows](command:afd.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/playbook-import-light.png",
+                "dark": "docs/guide/images/playbook-import-dark.png",
+                "hc": "docs/guide/images/playbook-import-dark.png",
+                "hcLight": "docs/guide/images/playbook-import-light.png"
+              },
+              "altText": "A playbook imported as a flow: its block, roles and handler as steps"
+            },
+            "completionEvents": [
               "onCommand:afd.importPlaybooks"
             ]
           },
@@ -2310,6 +2326,17 @@
             "media": {
               "markdown": "media/walkthrough/ai-prompts.md"
             }
+          },
+          {
+            "id": "import",
+            "title": "Import playbooks with an assistant",
+            "description": "Turn existing playbooks into a flow designed by intent: **Import Ansible Playbooks…** → **With an AI assistant**. Copilot Chat opens with the prompt ready; other assistants get it on the clipboard.\n[Import Ansible Playbooks](command:afd.importPlaybooks)\n[Tutorial: bring existing playbooks into flows](command:afd.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/ai-import.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.importPlaybooks"
+            ]
           },
           {
             "id": "review",

@@ -4,6 +4,9 @@ Turn automation you already have into flows: playbooks and folders of playbooks 
 task files, handlers and variables), AWX job templates and AWX workflows. An import is a one-time
 copy: the playbooks and AWX are only read, and the new flow is yours to change.
 
+New to it? [Tutorial 5](../tutorials/05-import-playbooks.md) imports a sample repository step by step:
+**Open Sample Flow…** → _Playbooks to import: edge-baseline_ copies it into an empty folder.
+
 ## Import playbooks
 
 Command Palette → **Ansible Flow: Import Ansible Playbooks…**, or right-click a playbook or a

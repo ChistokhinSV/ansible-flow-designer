@@ -177,6 +177,24 @@ const SHOTS = {
     },
   },
   'awx-import': { flow: 'awx-import', walk: true },
+  // AFD-28: the sample playbooks imported as is: the baseline play, and a looped step's keywords.
+  'playbook-import': {
+    flow: 'playbook-import',
+    walk: true,
+    act: async (page) => ui(page, 'setLevel', await idOf(page, 'baseline/edge-baseline')),
+  },
+  'task-keywords': {
+    flow: 'playbook-import',
+    act: async (page) => {
+      await ui(page, 'setLevel', await idOf(page, 'baseline/edge-baseline/push-the-baseline'));
+      await ui(
+        page,
+        'openProperties',
+        await idOf(page, 'baseline/edge-baseline/push-the-baseline/configure-the-uplinks'),
+        'execution',
+      );
+    },
+  },
   'hand-written': { flow: 'hand-written' },
 };
 

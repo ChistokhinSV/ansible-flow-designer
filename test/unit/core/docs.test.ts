@@ -1,14 +1,18 @@
 // AFD-22: the user guide, the walkthroughs and the samples stay whole. Links and images resolve,
 // every command and setting is documented, command links name real commands, generated pages are
 // current, and the samples validate and generate.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { guideReferenceFiles } from '../../../src/core/ai/reference';
+import { flowText } from '../../../src/core/awx/import';
 import { optionA } from '../../../src/core/engine/optionA';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
+import { importPlaybook } from '../../../src/core/import/playbook';
+import { type PlaybookForm, readPlaybook, scanFolder } from '../../../src/core/import/source';
+import { fsSource } from './helpers';
 
 const ROOT = resolve(__dirname, '../../..');
 const GUIDE = join(ROOT, 'docs', 'guide');
@@ -172,6 +176,63 @@ describe('samples', () => {
     ]);
     expect(readFileSync(join(ROOT, 'samples', 'edge-baseline.flow.yaml'), 'utf8')).toBe(
       readFileSync(join(ROOT, 'examples', 'edge-baseline.flow.yaml'), 'utf8'),
+    );
+  });
+});
+
+describe('sample playbooks to import (Tutorial 5)', () => {
+  const dir = join(ROOT, 'samples', 'playbooks', 'edge-baseline');
+
+  it('import as is the way the tutorial says: clean, the same steps, only the prompt noted', async () => {
+    const io = fsSource(dir);
+    const scan = await scanFolder(io, '');
+    expect(scan.playbooks.map((p) => [p.path, p.entry])).toEqual([
+      ['rollback.yml', true],
+      ['site.yml', true],
+      ['baseline.yml', false],
+      ['prechecks.yml', false],
+    ]);
+    const read = await readPlaybook(io, 'site.yml');
+    // Fixed IDs: the result is the golden file the guide's screenshots show (the harness loads it).
+    let i = 0;
+    const seq = () => `01JDSMP${String(++i).padStart(19, '0')}`;
+    const r = importPlaybook(
+      read.playbook as PlaybookForm,
+      { key: 'site', newId: seq, generatedDir: 'flows/site/generated' },
+      read.notes,
+    );
+    const golden = join(ROOT, 'test/fixtures/import/sample-site.flow.yaml');
+    if (process.env.AFD_UPDATE_GOLDEN) writeFileSync(golden, flowText(r.doc));
+    expect(flowText(r.doc)).toBe(readFileSync(golden, 'utf8'));
+    expect(r.counts).toEqual({ steps: 20, implemented: 20, drafts: 0 });
+    expect(r.notes).toEqual([
+      'Imported by name only (vault, prompted or secret-looking): enable_secret. Give them when running.',
+    ]);
+    const doc = parse(flowText(r.doc)) as FlowDocument;
+    const findings = validateFlow(doc).findings;
+    expect(findings.filter((f) => f.severity === 'error')).toEqual([]);
+    expect(findings.map((f) => f.code)).toEqual(['open-fail-port', 'open-fail-port']);
+    expect(optionA.generate(doc, { source: 'site.flow.yaml' }).ok).toBe(true);
+    // The tutorial walks through these.
+    const keys = (nodes: FlowDocument['nodes']): string[] =>
+      nodes.flatMap((n) => [n.key, ...keys(n.subflow?.nodes ?? [])]);
+    expect(keys(doc.nodes)).toEqual(
+      expect.arrayContaining([
+        'pre-checks',
+        'baseline',
+        'edge-baseline',
+        'report',
+        'load-baseline-yml',
+        'netops-backup',
+        'push-the-baseline',
+        'record-the-rollback',
+        'record-the-attempt',
+        'record-the-attempt-after-failure',
+        'verify-ntp',
+        'apply-the-ntp-and-aaa-baseline',
+        'save-config',
+        'gather-facts',
+      ]),
     );
   });
 });

@@ -9,6 +9,7 @@ import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
+import { SECRET } from '../../core/import/secrets';
 import type { RunView } from '../../core/protocol';
 import { runProcess } from '../../core/run/command';
 import { summarizeRun } from '../../core/run/events';
@@ -145,20 +146,26 @@ export async function collectInputs(
       if (field?.default !== undefined) values[name] = remembered[name] ?? field.default;
       continue;
     }
+    // Secret-looking inputs (an imported vault value or prompt, AFD-28) are typed hidden.
+    const secret = SECRET.test(name);
     const text = await vscode.window.showInputBox({
       title: `Run ${doc.flow.name}: input "${name}"`,
       prompt:
         field?.type === 'host_list'
           ? 'Hosts or groups, comma-separated'
-          : `${field?.type ?? 'value'}`,
-      value: showInput(remembered[name] ?? field?.default),
+          : `${field?.type ?? 'value'}${secret ? ' (not remembered)' : ''}`,
+      value: secret ? '' : showInput(remembered[name] ?? field?.default),
+      password: secret,
       ignoreFocusOut: true,
       validateInput: (v) => (v.trim() ? undefined : 'Required'),
     });
     if (text === undefined) return undefined;
     values[name] = parseInput(field?.type, text);
   }
-  await state.update(inputsKey(doc.flow.id), { ...remembered, ...values });
+  // Remembered for the next run, except secrets: they are asked each time and never stored.
+  const keep = Object.fromEntries(Object.entries(values).filter(([k]) => !SECRET.test(k)));
+  const old = Object.fromEntries(Object.entries(remembered).filter(([k]) => !SECRET.test(k)));
+  await state.update(inputsKey(doc.flow.id), { ...old, ...keep });
   return values;
 }
 

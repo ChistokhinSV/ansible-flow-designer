@@ -1,0 +1,31 @@
+- name: Pre-checks
+  hosts: edge
+  gather_facts: false
+  vars:
+    out_dir: /tmp/edge-baseline
+  tasks:
+    - name: Create the report folder
+      ansible.builtin.file:
+        path: "{{ out_dir }}/{{ inventory_hostname }}"
+        state: directory
+        mode: "0755"
+      check_mode: false
+
+    - name: Read the software version
+      ansible.builtin.command: echo "17.9.4"
+      register: version_check
+      changed_when: false
+      check_mode: false
+
+    - name: Check the version is supported
+      ansible.builtin.assert:
+        that:
+          - version_check.stdout is version('17.0', '>=')
+        fail_msg: "Unsupported version {{ version_check.stdout }}"
+
+    - name: Record the pre-check
+      ansible.builtin.copy:
+        content: "version {{ version_check.stdout }}\n"
+        dest: "{{ out_dir }}/{{ inventory_hostname }}/precheck.txt"
+        mode: "0644"
+      when: version_check.stdout is version('17.0', '>=')

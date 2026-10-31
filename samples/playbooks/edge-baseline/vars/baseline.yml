@@ -1,0 +1,8 @@
+ntp_servers:
+  - 192.0.2.10
+  - 192.0.2.11
+uplinks:
+  - uplink1
+  - uplink2
+# The switch that refuses the change, to show the rescue path.
+canary_switch: sw-edge-04

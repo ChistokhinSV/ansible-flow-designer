@@ -1,0 +1,11 @@
+- name: Read the NTP status
+  ansible.builtin.command: echo "synchronised to {{ ntp_servers | first }}"
+  register: ntp_status
+  changed_when: false
+  check_mode: false
+
+- name: Record the NTP status
+  ansible.builtin.copy:
+    content: "{{ ntp_status.stdout }}\n"
+    dest: "{{ out_dir }}/{{ inventory_hostname }}/ntp.txt"
+    mode: "0644"
