@@ -3,6 +3,7 @@
 import { SLUG } from '../../core/flow/ids';
 import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
+import { useEditable } from '../editActions';
 import { useUi } from '../store';
 import { bannerCount, readiness, STATUS_ORDER } from '../viewModel';
 import { ContractEditor } from './ContractEditor';
@@ -10,6 +11,7 @@ import { CommitField, ReadOnly } from './fields';
 
 export function FlowDescription() {
   const snapshot = useUi((s) => s.snapshot);
+  const editable = useEditable();
   const doc = snapshot?.doc;
   if (!doc?.flow) return <p className="muted">No flow loaded.</p>;
   const { flow } = doc;
@@ -18,56 +20,58 @@ export function FlowDescription() {
   return (
     <div className="afd-panel-body">
       <h2>Flow</h2>
-      <CommitField
-        label="Name"
-        value={flow.name ?? ''}
-        onCommit={(v) => void update({ name: v })}
-        validate={(v) => (v.trim() ? undefined : 'Required')}
-      />
-      <CommitField
-        label="Key"
-        value={flow.key ?? ''}
-        mono
-        onCommit={(v) => void update({ key: v })}
-        validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
-      />
-      <ReadOnly label="ID (fixed)" value={flow.id} mono />
-      <ReadOnly label="Version" value={String(flow.version)} />
-      <CommitField
-        label="Goal"
-        value={flow.goal ?? ''}
-        multiline
-        onCommit={(v) => void update({ goal: v.trim() ? v : null })}
-      />
-      <CommitField
-        label="Owner"
-        value={flow.owner ?? ''}
-        onCommit={(v) => void update({ owner: v.trim() ? v : null })}
-      />
-      <ReadOnly
-        label="Runtime"
-        value={
-          flow.runtime
-            ? [flow.runtime.kind, flow.runtime.template].filter(Boolean).join(' · ')
-            : 'not set'
-        }
-      />
-      {flow.imported_from && (
-        <ReadOnly label="Imported from" value={importedFromText(flow.imported_from)} />
-      )}
-      <CommitField
-        label="Maintenance window"
-        value={flow.maintenance_window ?? ''}
-        mono
-        placeholder="e.g. 4h or 2h30m"
-        onCommit={(v) => void update({ maintenance_window: v.trim() ? v : null })}
-        validate={(v) =>
-          !v.trim() || /^([0-9]+[smhd])+$/.test(v.trim().toLowerCase().replaceAll(/\s+/g, ''))
-            ? undefined
-            : 'A duration like 4h, 90m or 2h30m'
-        }
-      />
-      <ContractEditor title="Inputs" target="flow" side="inputs" contract={flow.inputs} />
+      <fieldset className="afd-editable" disabled={!editable}>
+        <CommitField
+          label="Name"
+          value={flow.name ?? ''}
+          onCommit={(v) => void update({ name: v })}
+          validate={(v) => (v.trim() ? undefined : 'Required')}
+        />
+        <CommitField
+          label="Key"
+          value={flow.key ?? ''}
+          mono
+          onCommit={(v) => void update({ key: v })}
+          validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
+        />
+        <ReadOnly label="ID (fixed)" value={flow.id} mono />
+        <ReadOnly label="Version" value={String(flow.version)} />
+        <CommitField
+          label="Goal"
+          value={flow.goal ?? ''}
+          multiline
+          onCommit={(v) => void update({ goal: v.trim() ? v : null })}
+        />
+        <CommitField
+          label="Owner"
+          value={flow.owner ?? ''}
+          onCommit={(v) => void update({ owner: v.trim() ? v : null })}
+        />
+        <ReadOnly
+          label="Runtime"
+          value={
+            flow.runtime
+              ? [flow.runtime.kind, flow.runtime.template].filter(Boolean).join(' · ')
+              : 'not set'
+          }
+        />
+        {flow.imported_from && (
+          <ReadOnly label="Imported from" value={importedFromText(flow.imported_from)} />
+        )}
+        <CommitField
+          label="Maintenance window"
+          value={flow.maintenance_window ?? ''}
+          mono
+          placeholder="e.g. 4h or 2h30m"
+          onCommit={(v) => void update({ maintenance_window: v.trim() ? v : null })}
+          validate={(v) =>
+            !v.trim() || /^([0-9]+[smhd])+$/.test(v.trim().toLowerCase().replaceAll(/\s+/g, ''))
+              ? undefined
+              : 'A duration like 4h, 90m or 2h30m'
+          }
+        />
+        <ContractEditor title="Inputs" target="flow" side="inputs" contract={flow.inputs} />
+      </fieldset>
       <section className="afd-section">
         <h3>Readiness</h3>
         <ul className="afd-readiness">

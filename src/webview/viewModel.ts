@@ -87,9 +87,9 @@ export function nextRequirement(node: FlowNode): string | undefined {
     case 'draft':
       return 'Define at least one input or output to make it specified';
     case 'specified':
-      return 'Bind a module, role or playbook to make it implemented (M5)';
+      return 'Bind a module, role or playbook to make it implemented';
     case 'implemented':
-      return 'Record a passing run of this flow version to make it tested (M7)';
+      return 'A passing real run of this flow version makes it tested';
     default:
       return undefined;
   }

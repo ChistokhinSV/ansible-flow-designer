@@ -10,7 +10,7 @@ flow:
   owner: netops
   runtime:
     kind: awx_workflow
-    template: '[AWX TEMPLATE NAME]'
+    template: 'AFD · edge-baseline'
   inputs:
     site:
       type: string

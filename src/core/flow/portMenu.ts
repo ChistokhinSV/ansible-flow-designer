@@ -108,7 +108,7 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
       items.push({
         kind: 'later',
         label: 'Bind undo task',
-        hint: 'Binding arrives in M5; Rollback calls undo for the failed hosts only (D-11)',
+        hint: 'Not supported: wire rollback steps from the failure port instead',
       });
     } else {
       items.push({ kind: 'pick', label: 'Connect from another node…', mode: 'from' });

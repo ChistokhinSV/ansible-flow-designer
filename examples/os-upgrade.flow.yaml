@@ -9,7 +9,7 @@ flow:
   owner: netops
   runtime:
     kind: awx_workflow
-    template: '[AWX TEMPLATE NAME]'
+    template: 'AFD · os-upgrade'
   inputs:
     site:
       type: string

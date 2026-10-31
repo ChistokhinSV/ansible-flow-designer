@@ -1,7 +1,7 @@
 // Node properties page over the canvas (M5, mockup 11): General, Implementation, Inputs and
 // outputs, Ports and Execution. The binding is staged on the Implementation tab and written by
 // "Save binding" as one command (one undo step); the other tabs edit like the inspector does.
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { registerName } from '../../core/engine/binding';
 import { SLUG } from '../../core/flow/ids';
@@ -10,6 +10,7 @@ import { buildModel } from '../../core/flow/model';
 import type { FlowNode, NodeSettings } from '../../core/flow/types';
 import { run } from '../actions';
 import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { useEditable } from '../editActions';
 import { ContractEditor } from '../panels/ContractEditor';
 import { CommitField } from '../panels/fields';
 import { Lifecycle, PortRow, TypeFields, updatePatch } from '../panels/Inspector';
@@ -51,9 +52,18 @@ export function Properties({ node: id }: { node: string }) {
     }
   }, [resyncAfter, version, node]);
 
+  // Escape never drops a staged binding silently: with unsaved changes it asks first (AFD-30).
+  const dirtyRef = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  leavingRef.current = leaving;
+  const editable = useEditable();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented) close();
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (leavingRef.current) setLeaving(false);
+      else if (dirtyRef.current) setLeaving(true);
+      else close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -62,13 +72,15 @@ export function Properties({ node: id }: { node: string }) {
   if (!doc || !model || !entry || !node || !draft) return null;
   const bindable = node.type === 'task' || node.type === 'subflow';
   const dirty = bindable && isDirty(node, draft);
+  dirtyRef.current = dirty;
   const trail = levelTrail(doc, entry.level).map((l) => l.title);
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     setSaving(true);
     const before = version;
     const ack = await run(bindingCommand(node, draft));
     setSaving(false);
     if (ack.ok) setResyncAfter(before);
+    return ack.ok;
   };
   const cancel = () => {
     setDraft(draftOf(node));
@@ -127,7 +139,7 @@ export function Properties({ node: id }: { node: string }) {
           </button>
         ))}
       </div>
-      <div className="afd-props-body" role="tabpanel">
+      <fieldset className="afd-editable afd-props-body" role="tabpanel" disabled={!editable}>
         {tab === 'implementation' && bindable ? (
           <Implementation node={node} model={model} draft={draft} setDraft={setDraft} />
         ) : tab === 'io' ? (
@@ -154,7 +166,44 @@ export function Properties({ node: id }: { node: string }) {
         ) : (
           <General node={node} />
         )}
-      </div>
+      </fieldset>
+      {leaving ? (
+        <div className="afd-modal-backdrop">
+          <div
+            className="afd-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="afd-leave-title"
+            data-leave-binding
+          >
+            <h2 id="afd-leave-title">Discard the binding change?</h2>
+            <p className="muted">
+              The Implementation tab has a change that is not saved yet. Closing now drops it.
+            </p>
+            <div className="afd-modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
+                autoFocus
+                onClick={() => setLeaving(false)}
+              >
+                Keep editing
+              </button>
+              <button type="button" className="secondary" onClick={cancel} data-leave-discard>
+                Discard
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save().then((ok) => ok && close())}
+              >
+                Save binding
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -278,7 +327,7 @@ const SETTINGS: {
     key: 'inventory_target',
     label: 'Inventory target',
     kind: 'text',
-    help: 'Informational (decision 23)',
+    help: 'Run the work on these hosts (an inventory pattern) instead of the arriving ones; steps inside a subflow inherit it',
   },
 ];
 

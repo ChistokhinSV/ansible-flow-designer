@@ -11,6 +11,7 @@ import {
   type HostResult,
   nodeHosts,
   runPassed,
+  runVerdict,
   testedCandidates,
 } from '../../core/run/view';
 import { run as runCommand } from '../actions';
@@ -29,8 +30,10 @@ function statusOf(run: RunView): { label: string; tone: 'ok' | 'warn' | 'neutral
     return { label: run.awx ? `running (${run.awx.status})` : 'running', tone: 'neutral' };
   if (run.state === 'error') return { label: run.error ?? 'failed', tone: 'warn' };
   if (runPassed(run)) return { label: `passed · exit ${run.rc}`, tone: 'ok' };
-  const label = run.awx ? `${run.awx.status} · exit ${run.rc}` : `exit ${run.rc}`;
-  return { label, tone: run.rc === 0 ? 'ok' : 'warn' };
+  const { ok, failed } = runVerdict(run);
+  const hosts = failed ? ` · ${failed} failed` : '';
+  const label = run.awx ? `${run.awx.status} · exit ${run.rc}${hosts}` : `exit ${run.rc}${hosts}`;
+  return { label, tone: ok ? 'ok' : 'warn' };
 }
 
 function OpenRun({ run }: { run: RunView }) {

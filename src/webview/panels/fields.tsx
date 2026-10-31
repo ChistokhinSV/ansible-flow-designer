@@ -32,8 +32,14 @@ export function CommitField({
   useFocusRequest(focusKey, ref);
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
+  // Escape blurs the field; the blur must not commit what Escape just reverted (AFD-30).
+  const reverting = useRef(false);
   const error = draft !== value ? validate?.(draft) : undefined;
   const commit = () => {
+    if (reverting.current) {
+      reverting.current = false;
+      return;
+    }
     if (draft === value) return;
     if (validate?.(draft)) {
       setDraft(value);
@@ -43,8 +49,12 @@ export function CommitField({
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Escape') {
+      // The field handles it: the page around it (Properties) stays open.
+      e.preventDefault();
+      reverting.current = true;
       setDraft(value);
       (e.target as HTMLElement).blur();
+      reverting.current = false;
     } else if (e.key === 'Enter' && (!multiline || e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       commit();

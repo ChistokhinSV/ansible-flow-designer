@@ -680,6 +680,18 @@ textarea {
   color: var(--afd-muted);
 }
 
+/* A panel's fields, read-only while the flow text cannot take edits (AFD-30). */
+.afd-editable {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.afd-editable:disabled {
+  opacity: 0.75;
+}
+
 .afd-modal-actions {
   display: flex;
   justify-content: flex-end;

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.1 — AFD-30
+
+- **Fixed in the designer** (improvement program, wave 1):
+  - **Esc no longer loses a staged binding.** On the properties page, Esc with an unsaved binding change asks: _Keep editing_, _Discard_ or _Save binding_. Esc in a field reverts that field only; before, it could also commit what it reverted and close the page.
+  - **Read-only while the text is broken:** the inspector, the flow panel and the properties page show their fields read-only while the file has YAML errors or missing IDs, instead of accepting edits that were then refused.
+  - **Inside a subflow,** the right panel with nothing selected describes that subflow, not the whole flow. The breadcrumb starts at the flow (the "Flows" label that led nowhere is gone).
+  - **Inner steps by name:** the "Click the node…" bar and the _Leave open on purpose_ dialog named steps inside subflows by their ID.
+  - **Delete from the inspector** goes through the same delete as the canvas (boundary wires, one undo step).
+  - **One run verdict:** the top bar and the run panel agree; a failure routed to a handler is not shown as ok. A run that stopped after it started says _Run interrupted_, not _Run not started_.
+  - **Wording:** no milestone or decision codes in the UI ("(M5)", "decision 23"); the _Inventory target_ help says what the setting does; the undo port says binding an undo task is not supported; the copy tooltip shows the macOS keys on a Mac; the sample flows name a real AWX template (`AFD · <key>`) instead of a placeholder.
+
 ## 0.23.0 — AFD-29
 
 - **Security and run data** (improvement program, wave 1):

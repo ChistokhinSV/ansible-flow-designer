@@ -124,7 +124,7 @@ export function accessLens(
       lens: 'access',
       severity: 'info',
       title: 'Node credentials apply in AWX only',
-      detail: `${joinTitles(ids.map((id) => title(model, id)))} name an AWX credential. Local runs use the environment's keys and the inventory's connection variables (decision 22).`,
+      detail: `${joinTitles(ids.map((id) => title(model, id)))} name an AWX credential. Local runs use the environment's keys and the inventory's connection variables.`,
       nodes: ids,
       fixes: [],
     });

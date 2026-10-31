@@ -8,6 +8,7 @@
 import { ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
+import { runVerdict } from '../../core/run/view';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
@@ -55,10 +56,10 @@ export function TopBar() {
             <span className="codicon codicon-arrow-left" aria-hidden="true" /> Back
           </button>
         ) : null}
-        <span className="muted">Flows</span>
+        {/* The flow is the root of the trail (AFD-30): no "Flows" label that goes nowhere. */}
         {trail.map((t, i) => (
           <span key={t.id} className="afd-crumb">
-            <span className="muted">/</span>
+            {i > 0 ? <span className="muted">/</span> : null}
             {i < trail.length - 1 ? (
               <button type="button" className="link" onClick={() => setLevel(t.id)}>
                 {i === 0 ? (flow?.name ?? 'Untitled flow') : t.title}
@@ -329,12 +330,13 @@ function RunStatus({ run }: { run: RunView | null }) {
   if (run.state === 'error')
     return (
       <span className="afd-run-status error" title={run.error} data-run-state="error">
-        <span className="codicon codicon-error" aria-hidden="true" /> Run not started
+        <span className="codicon codicon-error" aria-hidden="true" />{' '}
+        {run.awx || run.summary ? 'Run interrupted' : 'Run not started'}
       </span>
     );
   const s = run.summary;
-  const failed = s ? Object.keys(s.outcome).length + s.failures.length : 0;
-  const ok = run.rc === 0 && failed === 0;
+  // The same verdict as the run panel (AFD-30).
+  const { ok, failed } = runVerdict(run);
   const where = run.awx ? `AWX #${run.awx.jobId} · ` : '';
   const label = s?.stoppedEarly
     ? `${where}Stopped early · exit ${run.rc}`

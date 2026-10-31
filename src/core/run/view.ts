@@ -100,6 +100,16 @@ export function formatSeconds(seconds: number | undefined): string {
   return `${m} min ${String(Math.round(seconds - m * 60)).padStart(2, '0')} s`;
 }
 
+/**
+ * A finished run at a glance, one verdict for the top bar and the run panel (AFD-30): ok when it
+ * exited 0, did not stop early and failed no host (a failure routed to a handler still counts).
+ */
+export function runVerdict(run: RunView): { ok: boolean; failed: number } {
+  const s = run.summary;
+  const failed = s ? Object.keys(s.outcome).length + s.failures.length : 0;
+  return { ok: run.rc === 0 && failed === 0 && !s?.stoppedEarly, failed };
+}
+
 /** The run passed: real (not check mode), exit 0, every host routed and no failed outcome. */
 export function runPassed(run: RunView | null): boolean {
   const s = run?.summary;

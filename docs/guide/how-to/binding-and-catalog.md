@@ -45,7 +45,12 @@ for dicts. Required and already-set parameters come first.
 - **Generated task** shows the task exactly as the playbook will run it.
 
 **Save binding** writes the binding, the inputs and outputs it added, and the status `implemented`
-in one undo step. Renaming an input later rewrites the parameters that read it.
+in one undo step. Renaming an input later rewrites the parameters that read it. Until you save, the
+change is only on the page: **Esc** with an unsaved change asks whether to keep editing, discard it
+or save it. Esc in a field only reverts that field.
+
+While the flow file has YAML errors or missing IDs, the inspector and the properties page are
+read-only; fix the text first (**Show as text**).
 
 ## Task keywords
 

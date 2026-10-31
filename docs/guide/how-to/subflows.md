@@ -9,6 +9,8 @@ phase.
 - Double-click a subflow, press **Enter**, or use **Open subflow** (node menu, inspector, summary
   card).
 - **Back**, the breadcrumb, or **Alt+↑** returns to the parent level.
+- With nothing selected, the right panel describes the subflow you are in (its title, intent,
+  contract and ports), not the whole flow.
 - Chips at the top show what the inner steps inherit: inventory target, credential, execution
   environment, become, serial.
 - Pause on a subflow node to preview its inner steps, exits and last-run results.

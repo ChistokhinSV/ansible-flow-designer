@@ -22,6 +22,14 @@ export function canEdit(): boolean {
   return mode !== 'run' && !!snapshot?.doc && !snapshot.stale && !snapshot.idGaps;
 }
 
+/**
+ * The flow text can take edits: it parses and no IDs are missing. Panels show their fields
+ * read-only otherwise, instead of accepting input the host then refuses (AFD-30).
+ */
+export function useEditable(): boolean {
+  return useUi((s) => !!s.snapshot?.doc && !s.snapshot.stale && !s.snapshot.idGaps);
+}
+
 /** The boundary wires of an open subflow (`entry:…`, `exit:…`, see viewModel) as menu targets. */
 export function boundaryWire(
   id: string,

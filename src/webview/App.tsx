@@ -1,5 +1,6 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
+import { ROOT } from '../core/flow/model';
 import type { DomSummary } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
@@ -235,7 +236,9 @@ export function App() {
                   ? 'Run results'
                   : selected
                     ? 'Node inspector'
-                    : 'Flow description'
+                    : level !== ROOT
+                      ? 'Subflow description'
+                      : 'Flow description'
           }
         >
           {lens && !selected && !wire && !many ? (
@@ -260,6 +263,9 @@ export function App() {
             <Inspector id={selected} />
           ) : wire && /^(entry|exit):/.test(wire) ? (
             <BoundaryPanel edge={wire} />
+          ) : level !== ROOT ? (
+            // Inside a subflow with nothing selected: that subflow, not the whole flow (AFD-30).
+            <Inspector id={level} context />
           ) : (
             <FlowDescription />
           )}
