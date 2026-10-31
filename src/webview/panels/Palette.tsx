@@ -16,7 +16,7 @@ const PATTERN_ICON: Partial<Record<PatternId, string>> = {
 };
 const PALETTE_PATTERNS = Object.values(PATTERNS).filter((p) => p.palette);
 
-/** Body class while a pattern is dragged: every node shows its problem ports (styles.css). */
+/** Body class while a pattern is dragged: every node shows its problem ports (styles/). */
 const DRAGGING = 'afd-dragging-pattern';
 
 const ITEMS: { type: NodeType; icon: string; hint: string }[] = [

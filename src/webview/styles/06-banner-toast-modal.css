@@ -1,0 +1,125 @@
+/* ---------- banner, toast, modal ---------- */
+
+.afd-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--afd-border);
+  font-size: var(--afd-fs-12);
+}
+
+.afd-banner.warning {
+  background: var(--vscode-inputValidation-warningBackground, rgba(217, 119, 6, 0.12));
+  border-left: 3px solid var(--afd-unreachable);
+}
+
+.afd-banner.error {
+  background: var(--vscode-inputValidation-errorBackground, rgba(194, 65, 12, 0.12));
+  border-left: 3px solid var(--afd-failed);
+}
+
+.afd-banner.info {
+  background: var(--vscode-inputValidation-infoBackground, rgba(29, 78, 216, 0.1));
+  border-left: 3px solid var(--afd-focus);
+}
+
+.afd-banner button.icon {
+  margin-left: auto;
+}
+
+.afd-toast {
+  position: absolute;
+  right: calc(var(--afd-right-width) + 16px);
+  bottom: 16px;
+  max-width: 420px;
+  padding: 8px 12px;
+  background: var(--vscode-notifications-background, var(--afd-panel));
+  color: var(--vscode-notifications-foreground, var(--afd-fg));
+  border: 1px solid var(--vscode-notifications-border, var(--afd-border));
+  border-left: 3px solid var(--afd-failed);
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  z-index: 80;
+}
+
+.afd-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 55;
+}
+
+.afd-modal {
+  width: 440px;
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  color: var(--vscode-editorWidget-foreground, var(--afd-fg));
+  border: 1px solid var(--vscode-editorWidget-border, var(--afd-border));
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+  padding: 12px 16px;
+}
+
+.afd-modal h2 {
+  margin-top: 0;
+}
+
+.afd-type-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 0;
+  border: 0;
+}
+
+.afd-type-picker button {
+  background: transparent;
+  color: var(--afd-fg);
+  border: 1px solid var(--afd-border);
+  font-size: var(--afd-fs-12);
+}
+
+.afd-type-picker button.active {
+  border-color: var(--afd-focus);
+  background: var(--vscode-list-activeSelectionBackground, rgba(29, 78, 216, 0.15));
+  color: var(--vscode-list-activeSelectionForeground, var(--afd-fg));
+}
+
+.afd-key-preview {
+  font-size: var(--afd-fs-11);
+}
+
+.afd-fieldset {
+  border: 1px solid var(--afd-border);
+  padding: 6px 8px;
+  margin: 0 0 8px;
+}
+
+.afd-fieldset legend {
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+/* A panel's fields, read-only while the flow text cannot take edits (AFD-30). */
+.afd-editable {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.afd-editable:disabled {
+  opacity: 0.75;
+}
+
+.afd-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}

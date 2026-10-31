@@ -1,0 +1,79 @@
+/* ---------- top bar dropdowns, split button, shortcuts sheet (AFD-18) ---------- */
+
+.afd-lens-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.afd-lens-pick button.afd-lens-on {
+  border-color: var(--vscode-focusBorder, var(--afd-accent, #3794ff));
+}
+
+.afd-split {
+  display: inline-flex;
+}
+
+.afd-split > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.afd-split > button:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 0 4px;
+  border-left: 1px solid var(--vscode-button-separator, rgba(255, 255, 255, 0.4));
+}
+
+.afd-cheatsheet {
+  width: 520px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.afd-cheatsheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.afd-cheatsheet h2 {
+  margin: 0;
+  font-size: var(--afd-fs-14);
+}
+
+.afd-cheatsheet h3 {
+  margin: 12px 0 4px;
+  font-size: var(--afd-fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--afd-muted);
+}
+
+.afd-cheatsheet dl {
+  margin: 0;
+}
+
+.afd-cheatsheet dl > div {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.afd-cheatsheet dt,
+.afd-cheatsheet dd {
+  margin: 0;
+}
+
+.afd-cheatsheet kbd {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--afd-fs-11p5);
+  padding: 1px 5px;
+  border: 1px solid var(--vscode-keybindingLabel-border, var(--afd-border));
+  border-bottom-color: var(--vscode-keybindingLabel-bottomBorder, var(--afd-border));
+  border-radius: 3px;
+  background: var(--vscode-keybindingLabel-background, transparent);
+  color: var(--vscode-keybindingLabel-foreground, inherit);
+}

@@ -1,0 +1,109 @@
+/* ---------- Implementation mode (M6, mockup 04) ---------- */
+
+.afd-node-artifact {
+  color: var(--afd-fg);
+}
+
+.afd-node-code {
+  font-size: var(--afd-fs-11);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.afd-node-code.tone-ok {
+  color: var(--afd-ok);
+}
+
+.afd-node-code.tone-warn {
+  color: var(--afd-unreachable);
+}
+
+.afd-node-code.tone-neutral {
+  color: var(--afd-muted);
+}
+
+.afd-sync-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--afd-fs-12);
+  margin-bottom: 8px;
+}
+
+.afd-sync-env {
+  font-size: var(--afd-fs-11);
+}
+
+.afd-matched {
+  margin: 4px 0;
+}
+
+.afd-drift-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.afd-drift-item {
+  border: 1px solid var(--afd-border);
+  border-left: 3px solid var(--afd-unreachable);
+  border-radius: 3px;
+  padding: 6px 8px;
+}
+
+.afd-drift-item.sev-info {
+  border-left-color: var(--afd-neutral);
+}
+
+.afd-drift-item.kind-code_without_design {
+  border-left-color: var(--afd-decision);
+}
+
+.afd-drift-item.ignored {
+  opacity: 0.75;
+  border-left-color: var(--afd-neutral);
+}
+
+.afd-drift-head {
+  font-size: var(--afd-fs-12);
+}
+
+.afd-drift-detail {
+  margin: 4px 0 6px;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-drift-ignored {
+  font-size: var(--afd-fs-11);
+  margin: 0 0 6px;
+}
+
+.afd-drift-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.afd-code-tasks {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-code-tasks li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--afd-border);
+}
+
+.afd-code-tasks li.dynamic {
+  font-style: italic;
+}

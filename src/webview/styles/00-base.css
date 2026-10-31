@@ -1,0 +1,76 @@
+/* Ansible Flow Designer webview. Base colors and fonts come from VS Code's --vscode-* variables;
+   port/status colors (--afd-*) are set at runtime from theme/tokens.ts per theme kind.
+   The aliases live on body, not :root, so they resolve against the theme variables wherever the
+   host defines them (html or body). */
+
+body {
+  --afd-bg: var(--vscode-editor-background, #ffffff);
+  --afd-fg: var(--vscode-editor-foreground, #1f2328);
+  --afd-panel: var(--vscode-sideBar-background, var(--afd-bg));
+  --afd-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  --afd-muted: var(--vscode-descriptionForeground, #6b7280);
+  --afd-focus: var(--vscode-focusBorder, #1d4ed8);
+  --afd-input-bg: var(--vscode-input-background, #ffffff);
+  --afd-input-fg: var(--vscode-input-foreground, var(--afd-fg));
+  --afd-input-border: var(--vscode-input-border, var(--afd-border));
+  --afd-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+  --afd-contrast: var(--vscode-contrastBorder, transparent);
+  /* Type scale (AFD-36): the sizes in use, as tokens; the canvas redesign (AFD-42) narrows it. */
+  --afd-fs-9: 9px;
+  --afd-fs-9p5: 9.5px;
+  --afd-fs-10: 10px;
+  --afd-fs-10p5: 10.5px;
+  --afd-fs-11: 11px;
+  --afd-fs-11p5: 11.5px;
+  --afd-fs-12: 12px;
+  --afd-fs-12p5: 12.5px;
+  --afd-fs-13: 13px;
+  --afd-fs-14: 14px;
+  --afd-fs-18: 18px;
+  --afd-font-node-title: var(--afd-fs-12p5);
+  --afd-font-node-sub: var(--afd-fs-11);
+  /* Spacing and the side panels. */
+  --afd-space-1: 2px;
+  --afd-space-2: 4px;
+  --afd-space-3: 8px;
+  --afd-space-4: 12px;
+  --afd-space-5: 16px;
+  --afd-left-width: 184px;
+  --afd-right-width: 320px;
+  --xy-background-color: var(--afd-bg);
+  --xy-background-pattern-color: var(--vscode-editorLineNumber-foreground, #c4c4c4);
+  --xy-edge-stroke: var(--afd-neutral);
+  --xy-controls-button-background-color: var(--afd-panel);
+  --xy-controls-button-color: var(--afd-fg);
+  --xy-controls-button-border-color: var(--afd-border);
+  background: var(--afd-bg);
+  color: var(--afd-fg);
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.mono {
+  font-family: var(--afd-mono);
+}
+
+.muted {
+  color: var(--afd-muted);
+}
+
+:focus-visible {
+  outline: 1px solid var(--afd-focus);
+  outline-offset: 1px;
+}

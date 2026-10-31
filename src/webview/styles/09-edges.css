@@ -1,0 +1,51 @@
+/* ---------- edges (04 §2): solid normal, dashed problem, colored by port ---------- */
+
+.react-flow__edge.afd-edge .react-flow__edge-path {
+  stroke-width: 1.6;
+}
+
+.react-flow__edge.tone-ok .react-flow__edge-path {
+  stroke: var(--afd-ok);
+}
+
+.react-flow__edge.tone-failed .react-flow__edge-path {
+  stroke: var(--afd-failed);
+}
+
+.react-flow__edge.tone-unreachable .react-flow__edge-path {
+  stroke: var(--afd-unreachable);
+}
+
+.react-flow__edge.tone-decision .react-flow__edge-path {
+  stroke: var(--afd-decision);
+}
+
+.react-flow__edge.tone-approval .react-flow__edge-path {
+  stroke: var(--afd-approval);
+}
+
+.react-flow__edge.tone-undo .react-flow__edge-path {
+  stroke: var(--afd-undo);
+}
+
+.react-flow__edge.problem .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 2.6;
+}
+
+.react-flow__edge-textbg {
+  fill: var(--afd-bg);
+}
+
+.react-flow__edge-text {
+  fill: var(--afd-muted);
+  font-size: var(--afd-fs-10);
+  font-family: var(--afd-mono);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}

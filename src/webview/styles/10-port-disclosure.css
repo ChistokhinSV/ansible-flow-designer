@@ -1,0 +1,104 @@
+/* ---------- progressive port disclosure (D-14) ---------- */
+
+/* Margin around the node and its labels that keeps it "hovered" while the pointer travels to a
+   port; only live once the node is hovered, so it never steals clicks from neighbours. */
+.afd-hover-zone {
+  position: absolute;
+  inset: -24px -96px -26px -56px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.afd-node:hover > .afd-hover-zone,
+.afd-node.active > .afd-hover-zone {
+  pointer-events: auto;
+}
+
+.react-flow__handle.afd-port.reveal {
+  visibility: hidden;
+}
+
+.afd-node:hover .afd-port.reveal,
+.afd-node.selected .afd-port.reveal,
+.afd-node.active .afd-port.reveal,
+.afd-connecting .afd-port.reveal.side-top,
+.afd-connecting .afd-port.reveal.side-left,
+body.afd-dragging-pattern .afd-port.reveal.side-right {
+  visibility: visible;
+}
+
+.afd-port.state-available {
+  opacity: 0.85;
+}
+
+/* Every shown port opens its menu on click, wired ones too (AFD-22): React Flow turns pointer events
+   off for handles that cannot start a wire, which made a wired port's menu unreachable. */
+.react-flow__handle.afd-port {
+  pointer-events: all;
+  cursor: pointer;
+}
+.react-flow__handle.afd-port.connectionindicator {
+  cursor: crosshair;
+}
+
+/* Bigger hit area than the 10px square. */
+.react-flow__handle.afd-port::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.afd-port-label {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--afd-bg);
+  color: var(--afd-muted);
+  font-family: var(--afd-mono);
+  font-size: var(--afd-fs-10);
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.afd-node:hover .afd-port-label,
+.afd-node.selected .afd-port-label,
+.afd-node.active .afd-port-label {
+  visibility: visible;
+}
+
+.afd-port.side-right .afd-port-label {
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.afd-port.side-left .afd-port-label {
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.afd-port.side-bottom .afd-port-label {
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.afd-port.side-top .afd-port-label {
+  left: 12px;
+  bottom: 4px;
+}
+
+.afd-port.state-open-fail .afd-port-label {
+  color: var(--afd-fg);
+}
+
+body.afd-dragging-pattern .afd-port.state-open-fail {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--afd-unreachable) 45%, transparent);
+}
+
+.afd-picking .react-flow__node {
+  cursor: crosshair;
+}

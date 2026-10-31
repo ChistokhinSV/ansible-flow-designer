@@ -1,0 +1,322 @@
+/* ---------- lenses and semantic zoom (M8, D-18, D-19, 04 §7) ---------- */
+
+.afd-lens-chip {
+  border-color: transparent;
+  font-weight: 500;
+  font-size: var(--afd-fs-10p5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.afd-lens-chips.lens-inventory .afd-lens-chip {
+  background: var(--afd-lens-inventory-bg);
+  color: var(--afd-lens-inventory-fg);
+}
+
+.afd-lens-chips.lens-data .afd-lens-chip {
+  background: var(--afd-lens-data-bg);
+  color: var(--afd-lens-data-fg);
+}
+
+.afd-lens-chips.lens-code .afd-lens-chip {
+  background: var(--afd-lens-code-bg);
+  color: var(--afd-lens-code-fg);
+}
+
+.afd-lens-chips.lens-access .afd-lens-chip {
+  background: var(--afd-lens-access-bg);
+  color: var(--afd-lens-access-fg);
+}
+
+.afd-lens-chips.lens-timing .afd-lens-chip {
+  background: var(--afd-lens-timing-bg);
+  color: var(--afd-lens-timing-fg);
+}
+
+/* High contrast has no tint: the chip keeps an outline. */
+[data-theme^="hc"] .afd-lens-chip {
+  border-color: currentColor;
+}
+
+.afd-lens-chip.tone-warn {
+  border-color: var(--afd-unreachable);
+  border-style: solid;
+}
+
+.afd-lens-chip.tone-muted {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Two chips at most (D-19); a long pair wraps to a second line instead of being cut. */
+.afd-lens-chips {
+  margin-top: 3px;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  overflow: hidden;
+}
+
+/* A pill with a chip: title and chip share its 40px. */
+.afd-node.type-start:has(.afd-lens-chip),
+.afd-node.type-end:has(.afd-lens-chip) {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  gap: 0;
+}
+
+.afd-node.type-start .afd-lens-chips,
+.afd-node.type-end .afd-lens-chips {
+  margin-top: 1px;
+  justify-content: center;
+}
+
+.afd-node.type-start .afd-lens-chip,
+.afd-node.type-end .afd-lens-chip {
+  font-size: var(--afd-fs-9p5);
+  padding: 0 4px;
+}
+
+/* Hovering a lens panel row: its nodes stand out, the rest dims (04 §7). */
+.afd-node.lens-dim {
+  opacity: 0.28;
+}
+
+.afd-node.lens-hit {
+  box-shadow: 0 0 0 2px var(--afd-accent);
+}
+
+/* Data lens: control wires recede, derived data wires are dotted (decision 14). */
+.react-flow__edge.lens-control .react-flow__edge-path,
+.react-flow__edge.lens-control .react-flow__edge-textwrapper {
+  opacity: 0.3;
+}
+
+.react-flow__edge.afd-data-edge .react-flow__edge-path {
+  stroke: var(--afd-lens-data);
+  stroke-dasharray: 2 4;
+  stroke-width: 1.6;
+}
+
+.react-flow__edge.afd-data-edge .react-flow__edge-text {
+  fill: var(--afd-lens-data);
+  font-style: italic;
+}
+
+.afd-data-handle.react-flow__handle {
+  opacity: 0;
+  width: 4px;
+  height: 4px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  pointer-events: none;
+}
+
+/* D-19 near: summary rows inside the box. */
+.afd-node-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 6px;
+  margin: 2px 0 0;
+  font-size: var(--afd-fs-9);
+  line-height: 11px;
+}
+
+.afd-node-summary dt {
+  color: var(--afd-muted);
+}
+
+.afd-node-summary dd {
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* D-19 selected: the summary card under the node. */
+.afd-summary-card {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 280px;
+  z-index: 10;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-editorWidget-border, var(--afd-border));
+  background: var(--vscode-editorWidget-background, var(--afd-bg));
+  color: var(--vscode-editorWidget-foreground, var(--afd-fg));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  cursor: default;
+  font-size: var(--afd-fs-12);
+  text-align: left;
+}
+
+.afd-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.afd-summary-head .muted {
+  margin-left: auto;
+  font-size: var(--afd-fs-11);
+}
+
+.afd-summary-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 0;
+}
+
+.afd-summary-rows dt {
+  color: var(--afd-muted);
+}
+
+.afd-summary-rows dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.afd-summary-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.afd-summary-actions button.link {
+  padding: 0;
+  font-size: var(--afd-fs-11p5);
+}
+
+/* Lens side panels. */
+.afd-lens-browser {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.afd-lens-source p {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+
+.afd-lens-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.afd-lens-item-button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--afd-fg);
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.afd-lens-item-button:disabled {
+  opacity: 1;
+}
+
+.afd-lens-item:hover .afd-lens-item-button {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+}
+
+.afd-lens-item-value {
+  font-weight: 600;
+}
+
+.afd-lens-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-lens-item-detail {
+  grid-column: 1 / -1;
+  font-size: var(--afd-fs-11);
+}
+
+.afd-lens-item.tone-warn .afd-lens-item-label {
+  color: var(--afd-unreachable);
+}
+
+.afd-lens-item.tone-muted .afd-lens-item-label {
+  opacity: 0.7;
+}
+
+.afd-lens-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0 0 8px;
+}
+
+.afd-lens-stats dd {
+  margin: 0;
+  font-size: var(--afd-fs-18);
+  font-weight: 600;
+}
+
+.afd-lens-stats dt {
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+.afd-lens-note {
+  margin: 0 0 6px;
+}
+
+.afd-panel-title .afd-lens-refresh {
+  float: right;
+  padding: 0 4px;
+}
+
+.afd-findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.afd-finding {
+  border: 1px solid var(--afd-border);
+  border-left: 3px solid var(--afd-neutral);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.afd-finding.severity-warning {
+  border-left-color: var(--afd-unreachable);
+}
+
+.afd-finding.accepted {
+  border-left-color: var(--afd-ok);
+  opacity: 0.8;
+}
+
+.afd-finding-title {
+  font-weight: 600;
+}
+
+.afd-finding-detail {
+  margin: 4px 0;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-finding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.afd-finding-accepted {
+  margin: 4px 0 0;
+  font-size: var(--afd-fs-12);
+}

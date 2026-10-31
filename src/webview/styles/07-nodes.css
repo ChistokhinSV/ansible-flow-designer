@@ -1,0 +1,130 @@
+/* ---------- nodes ---------- */
+
+.react-flow__node-flow {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.afd-node {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--afd-neutral);
+  background: var(--afd-bg);
+  color: var(--afd-fg);
+  outline: 1px solid var(--afd-contrast);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+/* Lifecycle (04 §2): draft = dashed gray, specified = light purple, implemented = light green. */
+.afd-node.status-draft {
+  border-style: dashed;
+}
+
+.afd-node.status-specified {
+  background: var(--afd-fill-specified);
+  border-color: var(--afd-approval);
+}
+
+.afd-node.status-implemented {
+  background: var(--afd-fill-implemented);
+  border-color: var(--afd-ok);
+}
+
+.afd-node.status-tested {
+  background: var(--afd-fill-tested);
+  border-color: var(--afd-ok);
+  border-width: 2px;
+}
+
+/* Type shapes. */
+.afd-node.type-subflow {
+  border-style: double;
+  border-width: 4px;
+}
+
+.afd-node.type-decision {
+  background: var(--afd-fill-decision);
+  border-color: var(--afd-decision);
+}
+
+.afd-node.type-approval {
+  background: var(--afd-fill-approval);
+  border-color: var(--afd-approval);
+}
+
+.afd-node.handler {
+  background: var(--afd-fill-handler);
+  border-color: var(--afd-unreachable);
+}
+
+.afd-node.type-start,
+.afd-node.type-end {
+  border-radius: 999px;
+  border-style: solid;
+  align-items: center;
+  font-weight: 600;
+}
+
+.afd-node.type-end.outcome-failed {
+  background: var(--afd-fill-failed-end);
+  border-color: var(--afd-failed);
+}
+
+.afd-node.selected {
+  box-shadow: 0 0 0 2px var(--afd-focus);
+}
+
+.afd-node-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.afd-node-title {
+  font-weight: 600;
+  font-size: var(--afd-font-node-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.afd-node-sub {
+  font-size: var(--afd-font-node-sub);
+  color: var(--afd-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.afd-chips {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.afd-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  border: 1.5px solid var(--afd-neutral);
+}
+
+.afd-dot.status-specified {
+  background: var(--afd-approval);
+  border-color: var(--afd-approval);
+}
+
+.afd-dot.status-implemented,
+.afd-dot.status-tested {
+  background: var(--afd-ok);
+  border-color: var(--afd-ok);
+}

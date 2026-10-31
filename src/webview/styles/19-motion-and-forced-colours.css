@@ -1,0 +1,27 @@
+/* biome-ignore-all lint/complexity/noImportantStyles: reduced motion has to override every animation and transition, whatever their specificity */
+/* ---------- motion and forced colours (AFD-36) ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows contrast themes: ports, dots and chips keep the colours the theme tokens give them
+   (each state also has its own shape or text), and focus uses the system highlight. */
+@media (forced-colors: active) {
+  .afd-port,
+  .afd-dot,
+  .afd-swatch {
+    forced-color-adjust: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight;
+  }
+}

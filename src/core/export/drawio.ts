@@ -34,7 +34,7 @@ const style = (parts: Record<string, string | number | undefined>) =>
 
 export const toneColour = (tone: PortTone) => (tone === 'neutral' ? TONE.neutral : TONE[tone]);
 
-/** Fill, border and line of a node as the canvas CSS draws it (styles.css `.afd-node`). */
+/** Fill, border and line of a node as the canvas CSS draws it (styles/07-nodes.css `.afd-node`). */
 export function nodeLook(node: FlowNode) {
   let fill = INK.bg;
   let stroke = TONE.neutral;

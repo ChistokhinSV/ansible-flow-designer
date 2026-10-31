@@ -1,0 +1,159 @@
+/* ---------- controls ---------- */
+
+button {
+  font: inherit;
+  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--vscode-button-background, #1d4ed8);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  padding: 3px 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+button:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground, #1e40af);
+}
+
+button.secondary,
+button.chip-button {
+  color: var(--vscode-button-secondaryForeground, var(--afd-fg));
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.15));
+}
+
+button.secondary:hover:not(:disabled),
+button.chip-button:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.25));
+}
+
+button.icon,
+button.link {
+  background: transparent;
+  color: var(--afd-fg);
+  padding: 2px 4px;
+}
+
+button.link {
+  color: var(--vscode-textLink-foreground, var(--afd-accent));
+  text-decoration: underline;
+}
+
+button.icon:hover:not(:disabled),
+button.link:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.afd-segmented,
+.afd-type-picker {
+  min-width: 0;
+  margin: 0;
+}
+
+.afd-segmented {
+  display: inline-flex;
+  padding: 0;
+  border: 1px solid var(--afd-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.afd-segmented button {
+  background: transparent;
+  color: var(--afd-fg);
+  border: 0;
+  border-radius: 0;
+  padding: 3px 8px;
+}
+
+.afd-segmented button.active {
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  font-weight: 600;
+}
+
+.afd-input,
+select,
+textarea {
+  font: inherit;
+  width: 100%;
+  background: var(--afd-input-bg);
+  color: var(--afd-input-fg);
+  border: 1px solid var(--afd-input-border);
+  border-radius: 2px;
+  padding: 3px 6px;
+}
+
+.afd-input.invalid {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--afd-failed));
+}
+
+.afd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.afd-field label,
+.afd-label {
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+.afd-field-error {
+  font-size: var(--afd-fs-11);
+  color: var(--vscode-errorForeground, var(--afd-failed));
+}
+
+.afd-readonly {
+  word-break: break-all;
+}
+
+.afd-check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-chip {
+  display: inline-block;
+  font-size: var(--afd-fs-11);
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid var(--afd-border);
+  color: var(--afd-muted);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.afd-code {
+  font-family: var(--afd-mono);
+  font-size: var(--afd-fs-12);
+  background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.12));
+  padding: 6px 8px;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  margin: 4px 0 8px;
+}
+
+.afd-generated > summary {
+  cursor: pointer;
+  font-size: var(--afd-fs-12);
+  color: var(--afd-muted);
+  margin: 4px 0;
+}
+
+.afd-generated .afd-code {
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 320px;
+}

@@ -1,0 +1,132 @@
+/* ---------- subflow levels (M4, D-23, mockup 10) ---------- */
+
+.afd-back {
+  padding: 2px 8px;
+}
+
+.afd-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.afd-crumb button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground, var(--afd-decision));
+  cursor: pointer;
+  font: inherit;
+}
+
+.afd-chip.afd-context {
+  color: var(--vscode-foreground);
+  border-style: dashed;
+}
+
+.afd-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--afd-border-strong, var(--afd-neutral));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--afd-neutral) 5%, transparent);
+  box-sizing: border-box;
+}
+
+.afd-frame-title {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+.afd-frame-empty {
+  position: absolute;
+  inset: 40% 24px auto;
+  margin: 0;
+  text-align: center;
+  color: var(--afd-muted);
+  font-size: var(--afd-fs-12);
+}
+
+.react-flow__handle.afd-frame-port {
+  width: 12px;
+  height: 12px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 1px;
+  background: var(--afd-bg);
+  border: 2px solid var(--afd-neutral);
+  pointer-events: all;
+}
+
+.afd-frame-port.tone-ok {
+  border-color: var(--afd-ok);
+}
+.afd-frame-port.tone-failed {
+  border-color: var(--afd-failed);
+}
+.afd-frame-port.tone-unreachable {
+  border-color: var(--afd-unreachable);
+}
+
+.afd-frame-port.state-connected.tone-ok {
+  background: var(--afd-ok);
+}
+.afd-frame-port.state-connected.tone-failed {
+  background: var(--afd-failed);
+}
+.afd-frame-port.state-connected.tone-unreachable {
+  background: var(--afd-unreachable);
+}
+.afd-frame-port.state-connected.tone-neutral {
+  background: var(--afd-neutral);
+}
+
+/* Fed only by inner fail ports that bubble up (ADR-0004): half filled. */
+.afd-frame-port.state-bubbled {
+  background: linear-gradient(135deg, var(--afd-failed) 50%, var(--afd-bg) 50%);
+}
+
+.afd-frame-port.state-unfed {
+  border-color: var(--afd-unreachable);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--afd-unreachable) 30%, transparent);
+}
+
+.afd-frame-port.state-available {
+  border-style: dotted;
+  visibility: hidden;
+}
+
+.afd-connecting .afd-frame-port.state-available {
+  visibility: visible;
+}
+
+.afd-frame-label {
+  position: absolute;
+  font-size: var(--afd-fs-11);
+  white-space: nowrap;
+  color: var(--afd-muted);
+  pointer-events: none;
+}
+
+.afd-frame-port.side-top .afd-frame-label {
+  left: 16px;
+  top: -4px;
+}
+.afd-frame-port.side-bottom .afd-frame-label {
+  left: 16px;
+  top: 0;
+}
+.afd-frame-port.side-right .afd-frame-label {
+  left: 16px;
+  top: -3px;
+}
+
+.afd-panel-title {
+  font-size: var(--afd-fs-13);
+  margin: 0 0 8px;
+}

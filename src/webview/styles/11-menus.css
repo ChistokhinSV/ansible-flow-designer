@@ -1,0 +1,113 @@
+/* ---------- menus: canvas context menu, port menu, top bar dropdowns (AFD-18) ---------- */
+
+.afd-menu {
+  position: fixed;
+  z-index: 70;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--vscode-menu-background, var(--afd-panel));
+  color: var(--vscode-menu-foreground, var(--afd-fg));
+  border: 1px solid var(--vscode-menu-border, var(--afd-border));
+  border-radius: 6px;
+  box-shadow: 0 6px 20px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
+  font-size: var(--afd-fs-12p5);
+}
+
+.afd-menu > button[role^="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  min-height: 26px;
+  padding: 0 8px 0 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.afd-menu > button[role^="menuitem"]:hover:not([aria-disabled="true"]),
+.afd-menu > button[role^="menuitem"]:focus-visible,
+.afd-menu > button.afd-menu-open {
+  background: var(
+    --vscode-menu-selectionBackground,
+    var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.18))
+  );
+  color: var(--vscode-menu-selectionForeground, inherit);
+  border-color: var(--vscode-menu-selectionBorder, transparent);
+  outline: none;
+}
+
+.afd-menu > button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.afd-menu-icon {
+  width: 16px;
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.afd-menu-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+}
+
+.afd-menu-why {
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+.afd-menu-key {
+  margin-left: 16px;
+  font-family: inherit;
+  font-size: var(--afd-fs-11p5);
+  color: var(--vscode-menu-foreground, var(--afd-muted));
+  opacity: 0.7;
+  background: none;
+  border: 0;
+}
+
+.afd-menu-more {
+  margin-left: 12px;
+}
+
+.afd-menu-sep {
+  border: 0;
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--vscode-menu-separatorBackground, var(--afd-border));
+}
+
+.afd-port-menu {
+  width: 236px;
+}
+
+.afd-port-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 2px 4px 6px;
+  color: var(--afd-muted);
+  font-size: var(--afd-fs-12);
+}
+
+.afd-port-menu-head strong {
+  color: var(--afd-fg);
+}
+
+.afd-port-menu-note {
+  margin: 0 6px 4px;
+  color: var(--afd-muted);
+  font-size: var(--afd-fs-11p5);
+}

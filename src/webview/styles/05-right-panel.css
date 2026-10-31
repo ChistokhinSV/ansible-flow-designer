@@ -1,0 +1,128 @@
+/* ---------- right panel ---------- */
+
+.afd-panel-body {
+  padding: 8px 12px 24px;
+}
+
+.afd-section {
+  border-top: 1px solid var(--afd-border);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.afd-inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+
+.afd-inspector-head .afd-chip {
+  margin-right: auto;
+}
+
+.afd-stepper {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+  gap: 2px;
+}
+
+.afd-stepper li {
+  flex: 1;
+}
+
+.afd-stepper button {
+  width: 100%;
+  justify-content: center;
+  font-size: var(--afd-fs-11);
+  background: transparent;
+  color: var(--afd-muted);
+  border: 1px solid var(--afd-border);
+  padding: 2px 0;
+}
+
+.afd-stepper li.done button {
+  color: var(--afd-fg);
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+}
+
+.afd-stepper li.current button {
+  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--vscode-button-background, var(--afd-accent));
+  font-weight: 600;
+}
+
+.afd-contract li,
+.afd-ports li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-contract select {
+  width: auto;
+}
+
+.afd-contract-name {
+  min-width: 80px;
+}
+
+.afd-contract-from {
+  font-size: var(--afd-fs-11);
+}
+
+.afd-contract li button.icon {
+  margin-left: auto;
+}
+
+.afd-ports li {
+  flex-wrap: wrap;
+}
+
+.afd-ports li .muted {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-ports li.state-available {
+  opacity: 0.7;
+}
+
+.afd-port-quick {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding-left: 16px;
+}
+
+.afd-port-quick button.link {
+  padding: 0;
+  font-size: var(--afd-fs-11p5);
+}
+
+.afd-palette-hint {
+  margin: -4px 0 6px;
+  font-size: var(--afd-fs-11);
+}
+
+.afd-inline-add,
+.afd-optional-ports {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.chip-button {
+  font-size: var(--afd-fs-11);
+  padding: 0 6px;
+}

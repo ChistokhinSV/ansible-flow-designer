@@ -25,3 +25,10 @@ The webview rebuilt the flow model from the snapshot's document in 25 places, an
 - **One reason dialog** (`panels/ReasonDialog.tsx`) for open-on-purpose, drift ignore and lens accept.
 - **`rightPanelFor(state)`** (`webview/rightPanel.ts`) and `rightPanelLabel` replace the nested conditional in `App`; table-tested.
 - **`webview/inspect.ts`** holds the DOM summaries integration tests read.
+
+## Amendment: styles (AFD-36, 2026-10-31)
+
+- `src/webview/styles/NN-area.css`, imported in order by `styles/index.css`: the old file's sections, unchanged in order, so the cascade is the same (screenshots byte-identical, `just ux-baseline`).
+- Tokens in `00-base.css`: `--afd-fs-*` for each font size in use (no literal pixel sizes elsewhere; unit-tested), `--afd-font-node-title` / `--afd-font-node-sub` for the canvas redesign, `--afd-space-*`, `--afd-left-width` / `--afd-right-width` (the grid and the toast).
+- `prefers-reduced-motion` turns animations and transitions off; `forced-colors` keeps the state colours of ports, dots and swatches and uses `Highlight` for focus.
+- The improvement review's "duplicate selectors" were grouped rules followed by one selector's additions (`button.icon, button.link` then `button.link`): normal CSS, left as they are. Merging the first pair tried changed the icon buttons, which the screenshot gate caught.

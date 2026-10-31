@@ -1,0 +1,85 @@
+/* ---------- ports (D-13): squares = control; filled = connected; amber = open fail ---------- */
+
+.react-flow__handle.afd-port,
+.afd-swatch.port {
+  width: 10px;
+  height: 10px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 1px;
+  background: var(--afd-bg);
+  border: 2px solid var(--afd-neutral);
+}
+
+.afd-port.tone-ok,
+.afd-swatch.tone-ok {
+  border-color: var(--afd-ok);
+}
+
+.afd-port.tone-failed,
+.afd-swatch.tone-failed {
+  border-color: var(--afd-failed);
+}
+
+.afd-port.tone-unreachable {
+  border-color: var(--afd-unreachable);
+}
+
+.afd-port.tone-decision {
+  border-color: var(--afd-decision);
+}
+
+.afd-port.tone-approval {
+  border-color: var(--afd-approval);
+}
+
+.afd-port.tone-undo {
+  border-color: var(--afd-undo);
+}
+
+.afd-port.state-connected.tone-ok,
+.afd-swatch.state-connected.tone-ok {
+  background: var(--afd-ok);
+}
+
+.afd-port.state-connected.tone-failed {
+  background: var(--afd-failed);
+}
+
+.afd-port.state-connected.tone-unreachable {
+  background: var(--afd-unreachable);
+}
+
+.afd-port.state-connected.tone-decision {
+  background: var(--afd-decision);
+}
+
+.afd-port.state-connected.tone-approval {
+  background: var(--afd-approval);
+}
+
+.afd-port.state-connected.tone-undo {
+  background: var(--afd-undo);
+}
+
+.afd-port.state-connected.tone-neutral {
+  background: var(--afd-neutral);
+}
+
+.afd-port.state-open-fail,
+.afd-swatch.state-open-fail {
+  border-color: var(--afd-unreachable);
+  border-width: 2.5px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--afd-unreachable) 30%, transparent);
+}
+
+.afd-port.state-open-purpose,
+.afd-swatch.state-open-purpose {
+  border-color: var(--afd-neutral);
+  border-style: dashed;
+}
+
+.afd-port.optional:not(.state-connected),
+.afd-swatch.optional {
+  border-style: dotted;
+}

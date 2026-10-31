@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.24.2 — AFD-36
+
+- **Styles** (improvement program, wave 2; nothing changes on screen in the usual themes):
+  - The 2,400-line stylesheet is split into one file per area (`src/webview/styles/`, imported in cascade order).
+  - Every font size comes from a type scale token (`--afd-fs-*`, the sizes in use), with role tokens for node titles and sub-lines; the side panel widths are variables, so the error toast follows the right panel instead of a hard-coded 336 px.
+  - **Reduced motion:** with the system's reduce-motion setting, the designer does not animate.
+  - **Windows contrast themes:** ports, status dots and legend swatches keep their state colours, and focus uses the system highlight.
+  - A unit test keeps literal pixel font sizes out and every area file imported.
+
 ## 0.24.1 — AFD-35
 
 - **Webview foundations, part 2** (improvement program, wave 2; nothing changes on screen):

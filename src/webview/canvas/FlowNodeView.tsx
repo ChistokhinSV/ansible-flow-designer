@@ -4,7 +4,7 @@
 // rows, and a selected node opens its summary card below it.
 // Ports follow D-14: every port of the type is rendered (so wires can reach them and positions stay
 // fixed), but at rest only connected, open-fail and open-on-purpose ports show; hover, selection,
-// an open port menu or a wire being dragged reveal the rest with labels (CSS in styles.css).
+// an open port menu or a wire being dragged reveal the rest with labels (CSS in styles/).
 import {
   Handle,
   type Node,

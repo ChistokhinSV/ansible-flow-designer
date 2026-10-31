@@ -1,0 +1,21 @@
+/* The designer's styles (AFD-36), one file per area, in cascade order: base tokens first. */
+@import "./00-base.css";
+@import "./01-shell.css";
+@import "./02-controls.css";
+@import "./03-runs.css";
+@import "./04-palette-and-legend.css";
+@import "./05-right-panel.css";
+@import "./06-banner-toast-modal.css";
+@import "./07-nodes.css";
+@import "./08-ports.css";
+@import "./09-edges.css";
+@import "./10-port-disclosure.css";
+@import "./11-menus.css";
+@import "./12-subflow-levels.css";
+@import "./13-hover-preview-card.css";
+@import "./14-node-properties-page.css";
+@import "./15-implementation-mode.css";
+@import "./16-run-mode.css";
+@import "./17-lenses.css";
+@import "./18-top-bar-menus.css";
+@import "./19-motion-and-forced-colours.css";
