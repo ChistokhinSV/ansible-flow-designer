@@ -236,3 +236,29 @@ export function referenceFiles(): Record<string, string> {
     ].join('\n'),
   };
 }
+
+/** The user guide's generated reference pages (AFD-22): docs/guide/reference/<name> -> text. */
+export function guideReferenceFiles(): Record<string, string> {
+  return {
+    'problems.md': [
+      GENERATED,
+      '',
+      '# Problem codes',
+      '',
+      'Every problem the designer reports has a code. It shows in the Problems panel, in the banner, and in the answers of the AI flow tools. The message itself says which node and which name; this table says what the code means and how to fix it. Back to the [guide](../README.md).',
+      '',
+      problemsReference().replace(/^## Problem codes\n\n/, ''),
+    ].join('\n'),
+    'flow-format.md': [
+      GENERATED,
+      '',
+      '# Flow file format',
+      '',
+      'A flow is one YAML file, `<key>.flow.yaml`. The designer writes it for you; this page is for reading it, editing it by hand ([hand-written YAML](../how-to/hand-written-yaml.md)) or reviewing a diff. The AI assistants read the same reference. Back to the [guide](../README.md).',
+      '',
+      formatReference(),
+      portsReference(),
+      patternsReference(),
+    ].join('\n'),
+  };
+}

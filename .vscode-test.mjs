@@ -101,6 +101,7 @@ export default defineConfig([
       'out/test/integration/clipboard.test.js',
       'out/test/integration/edit.test.js',
       'out/test/integration/ai.test.js',
+      'out/test/integration/help.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -127,6 +128,8 @@ export default defineConfig([
   { ...common, label: 'edit', files: 'out/test/integration/edit.test.js' },
   // AFD-19: AI assistants (Complete IDs, Copilot tools, setup, MCP on VS Code's runtime).
   { ...common, label: 'ai', files: 'out/test/integration/ai.test.js' },
+  // AFD-22: samples, the user guide, the walkthrough and its tour keys.
+  { ...common, label: 'help', files: 'out/test/integration/help.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {

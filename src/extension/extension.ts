@@ -35,9 +35,11 @@ import {
   type SessionDeps,
 } from './flowSession';
 import { headText } from './gitHead';
+import { registerHelp } from './help';
 import { auditUri } from './run/audit';
 import { type RunDeps, type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
+import { tourReached } from './tour';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
@@ -93,6 +95,8 @@ export interface AfdTestApi {
     home?: string;
     repo?: string;
   }): Promise<SetupItem[] | undefined>;
+  /** AFD-22: the walkthrough tour keys the designer's edits have set this session. */
+  tour(): string[];
 }
 
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
@@ -178,6 +182,12 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false }),
   });
   context.subscriptions.push(...registerFlowTools(flowIO));
+  // AFD-22: the user guide, the walkthroughs and the sample flows.
+  context.subscriptions.push(
+    ...registerHelp(context, (uri) =>
+      vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false }),
+    ),
+  );
   const aiSetup = new AiSetup(context);
   context.subscriptions.push(
     vscode.commands.registerCommand('afd.setupAi', () => aiSetup.setup()),
@@ -374,6 +384,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     aiTool: (name, input) => runTool(flowIO, name, input),
     setupAi: (picks) => aiSetup.setup(picks, false),
     removeAi: (picks) => aiSetup.remove(picks),
+    tour: () => tourReached(),
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
     reveal: (uri, node) => get(uri).reveal(node),

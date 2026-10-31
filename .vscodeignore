@@ -5,6 +5,10 @@
 !dist/mcp.js
 !skills/**
 !instructions/**
+!docs/guide/**
+!samples/**
+!media/icon.png
+!media/walkthrough/**
 !dist/webview/**
 !dist/probe/**
 !schema/flow.schema.json

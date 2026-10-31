@@ -1,5 +1,6 @@
 // Regenerates what AI assistants read from the code that defines the flow format (AFD-19): the
-// skill's reference files and the Copilot tool entries in package.json. Run with `just gen-ai`;
+// skill's reference files, the Copilot tool entries in package.json and the user guide's reference
+// pages (AFD-22). Run with `just gen-ai`;
 // a unit test fails while either is stale.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -11,7 +12,7 @@ const out = join(root, 'out', 'gen-ai.mjs');
 await build({
   stdin: {
     contents:
-      "export { referenceFiles } from './src/core/ai/reference';\nexport { languageModelTools } from './src/core/ai/contributions';",
+      "export { guideReferenceFiles, referenceFiles } from './src/core/ai/reference';\nexport { languageModelTools } from './src/core/ai/contributions';",
     resolveDir: root,
     loader: 'ts',
   },
@@ -21,13 +22,22 @@ await build({
   outfile: out,
   logLevel: 'warning',
 });
-const { referenceFiles, languageModelTools } = await import(pathToFileURL(out).href);
+const { guideReferenceFiles, referenceFiles, languageModelTools } = await import(
+  pathToFileURL(out).href
+);
 
 const refs = join(root, 'skills', 'ansible-flow', 'references');
 mkdirSync(refs, { recursive: true });
 for (const [name, text] of Object.entries(referenceFiles())) {
   writeFileSync(join(refs, name), text);
   console.log(`wrote skills/ansible-flow/references/${name}`);
+}
+
+const guide = join(root, 'docs', 'guide', 'reference');
+mkdirSync(guide, { recursive: true });
+for (const [name, text] of Object.entries(guideReferenceFiles())) {
+  writeFileSync(join(guide, name), text);
+  console.log(`wrote docs/guide/reference/${name}`);
 }
 
 const pkgPath = join(root, 'package.json');

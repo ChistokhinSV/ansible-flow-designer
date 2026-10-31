@@ -41,6 +41,7 @@ import { readCode, readInventory, rememberedTargets, rememberTargets } from './l
 import { readHistory, recordRun } from './run/history';
 import { type SyncDeps, scanFlow } from './sync/codeSync';
 import { generateStub, openCode, writeSpecs } from './sync/driftActions';
+import { markTour } from './tour';
 
 /** Decision 15: say which tested nodes are implemented again, since their design changed. */
 export function announceImplementedAgain(
@@ -400,8 +401,11 @@ export class FlowSession implements vscode.Disposable {
         break;
       }
       case 'validate':
-        await this.refresh();
-        await vscode.commands.executeCommand('workbench.actions.view.problems');
+        // Through the command, so the walkthrough step that waits for it checks off (AFD-22).
+        await vscode.commands.executeCommand('afd.validate');
+        break;
+      case 'openGuide':
+        await vscode.commands.executeCommand('afd.openGuide', m.page);
         break;
       case 'run':
         await vscode.commands.executeCommand(
@@ -625,6 +629,7 @@ export class FlowSession implements vscode.Disposable {
     this.pendingParse = result.file;
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) return { ok: false, error: 'VS Code rejected the edit' };
+    markTour(command);
     if (result.dropped) announceImplementedAgain(flowFromFile(result.file).doc, result.dropped);
     return { ok: true, ...made };
   }

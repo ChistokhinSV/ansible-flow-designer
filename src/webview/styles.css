@@ -989,6 +989,16 @@ body.afd-dragging-pattern .afd-port.reveal.side-right {
   opacity: 0.85;
 }
 
+/* Every shown port opens its menu on click, wired ones too (AFD-22): React Flow turns pointer events
+   off for handles that cannot start a wire, which made a wired port's menu unreachable. */
+.react-flow__handle.afd-port {
+  pointer-events: all;
+  cursor: pointer;
+}
+.react-flow__handle.afd-port.connectionindicator {
+  cursor: crosshair;
+}
+
 /* Bigger hit area than the 10px square. */
 .react-flow__handle.afd-port::after {
   content: "";

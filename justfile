@@ -85,6 +85,11 @@ test-ai $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label ai
 
+# User help inside VS Code (AFD-22): samples, the guide, the walkthrough, tour keys
+test-help $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label help
+
 # AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
@@ -127,9 +132,13 @@ codegen *args:
 harness:
     npx --no-install vite --config vite.config.mts --mode harness
 
+# Screenshots for the user guide and walkthroughs, and the icon (AFD-22): the harness in Edge
+docs-shots *names:
+    node scripts/docs-shots.mjs {{ names }}
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
 package:
-    npx --no-install vsce package --no-dependencies --out out/
+    npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --out out/
 
 # Remove build outputs
 [windows]

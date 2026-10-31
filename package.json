@@ -2,7 +2,8 @@
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
-  "version": "0.16.0",
+  "icon": "media/icon.png",
+  "version": "0.17.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -145,6 +146,21 @@
       {
         "command": "afd.removeAi",
         "title": "Remove AI Assistant Setup...",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.openGuide",
+        "title": "Open User Guide",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.openWalkthrough",
+        "title": "Get Started",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.openSample",
+        "title": "Open Sample Flow…",
         "category": "Ansible Flow"
       }
     ],
@@ -1496,6 +1512,268 @@
           }
         }
       }
+    ],
+    "walkthroughs": [
+      {
+        "id": "afd.firstFlow",
+        "title": "Design your first Ansible flow",
+        "description": "Sketch automation as a diagram of steps wired port to port, handle every failure, and run it as a walking skeleton.",
+        "featuredFor": [
+          "**/*.flow.yaml"
+        ],
+        "steps": [
+          {
+            "id": "open",
+            "title": "Open a sample or start a new flow",
+            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/canvas-light.png",
+                "dark": "docs/guide/images/canvas-dark.png",
+                "hc": "docs/guide/images/canvas-dark.png",
+                "hcLight": "docs/guide/images/canvas-light.png"
+              },
+              "altText": "A firewall upgrade flow on the designer canvas"
+            },
+            "completionEvents": [
+              "onCommand:afd.openSample",
+              "onCommand:afd.newFlow"
+            ]
+          },
+          {
+            "id": "add-steps",
+            "title": "Add steps",
+            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add node here…**. To put a step between two nodes, click the wire's port and choose **Insert node on this wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/quick-add-light.png",
+                "dark": "docs/guide/images/quick-add-dark.png",
+                "hc": "docs/guide/images/quick-add-dark.png",
+                "hcLight": "docs/guide/images/quick-add-light.png"
+              },
+              "altText": "Quick add inserting a task on a wire"
+            },
+            "completionEvents": [
+              "onContext:afd.tour.nodeAdded"
+            ]
+          },
+          {
+            "id": "handle-failures",
+            "title": "Handle every failure",
+            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or leave it open on purpose with a reason.\n[How-to: ports and failure patterns](command:afd.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/port-menu-light.png",
+                "dark": "docs/guide/images/port-menu-dark.png",
+                "hc": "docs/guide/images/port-menu-dark.png",
+                "hcLight": "docs/guide/images/port-menu-light.png"
+              },
+              "altText": "The port menu of an open failed_hosts port"
+            },
+            "completionEvents": [
+              "onContext:afd.tour.failureHandled"
+            ]
+          },
+          {
+            "id": "subflow",
+            "title": "Go top-down with subflows",
+            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into subflow**.\n[How-to: subflows](command:afd.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/subflow-level-light.png",
+                "dark": "docs/guide/images/subflow-level-dark.png",
+                "hc": "docs/guide/images/subflow-level-dark.png",
+                "hcLight": "docs/guide/images/subflow-level-light.png"
+              },
+              "altText": "The inner level of a pre-checks subflow"
+            },
+            "completionEvents": [
+              "onContext:afd.tour.subflow"
+            ]
+          },
+          {
+            "id": "validate",
+            "title": "Check the design",
+            "description": "The designer checks the flow as you edit: missing wires, unhandled failures, data a step reads that nothing provides. Problems go to the Problems panel, each with its fix.\n[Validate Design](command:afd.validate)\n[Reference: problem codes](command:afd.openGuide?%5B%22reference%2Fproblems.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/open-ports-banner-light.png",
+                "dark": "docs/guide/images/open-ports-banner-dark.png",
+                "hc": "docs/guide/images/open-ports-banner-dark.png",
+                "hcLight": "docs/guide/images/open-ports-banner-light.png"
+              },
+              "altText": "The banner counting open fail ports"
+            },
+            "completionEvents": [
+              "onCommand:afd.validate"
+            ]
+          },
+          {
+            "id": "generate",
+            "title": "See the generated playbook",
+            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node to see its play in the inspector.\n[Generate Playbook](command:afd.generate)\n[How-to: code generation](command:afd.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/inspector-light.png",
+                "dark": "docs/guide/images/inspector-dark.png",
+                "hc": "docs/guide/images/inspector-dark.png",
+                "hcLight": "docs/guide/images/inspector-light.png"
+              },
+              "altText": "The inspector showing a node and its generated play"
+            },
+            "completionEvents": [
+              "onCommand:afd.generate"
+            ]
+          },
+          {
+            "id": "skeleton-run",
+            "title": "Run it as a walking skeleton",
+            "description": "Steps without code run as TODO messages, so the whole flow runs from the first minute: `ansible-playbook --check` in your Ansible environment (an execution environment image, WSL or a venv). Run mode then shows how many hosts took each wire.\n[Run as Skeleton](command:afd.runSkeleton)\n[How-to: runs and environments](command:afd.openGuide?%5B%22how-to%2Fruns-and-environments.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/run-mode-light.png",
+                "dark": "docs/guide/images/run-mode-dark.png",
+                "hc": "docs/guide/images/run-mode-dark.png",
+                "hcLight": "docs/guide/images/run-mode-light.png"
+              },
+              "altText": "Run mode with host counts on every wire"
+            },
+            "completionEvents": [
+              "onCommand:afd.runSkeleton"
+            ]
+          },
+          {
+            "id": "next",
+            "title": "Keep going",
+            "description": "Bind steps to modules from your environment's catalog, pass data between them, poll until a device is back, and run for real or in AWX.\n[Open the User Guide](command:afd.openGuide)\n[Tutorial: from design to production](command:afd.openGuide?%5B%22tutorials%2F02-design-to-production.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/guide.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.openGuide"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "afd.aiAssistants",
+        "title": "Build flows with an AI assistant",
+        "description": "Copilot, Claude Code, Codex and other agents learn the flow format and edit flows by key with the flow tools.",
+        "steps": [
+          {
+            "id": "copilot",
+            "title": "Copilot is ready",
+            "description": "In Copilot's agent mode the `ansible-flow` skill and seven flow tools are there without setup. Ask for a flow, or for a change to the open one.\n[Open Chat](command:workbench.action.chat.open)",
+            "media": {
+              "markdown": "media/walkthrough/ai-copilot.md"
+            },
+            "completionEvents": [
+              "onCommand:workbench.action.chat.open"
+            ]
+          },
+          {
+            "id": "setup",
+            "title": "Set up Claude Code, Codex and other agents",
+            "description": "Agents in a terminal or another editor need the skill copied and the flow tools registered once. The extension offers it when it finds them; you can also run it any time.\n[Set Up AI Assistants](command:afd.setupAi)\n[How-to: AI assistants](command:afd.openGuide?%5B%22how-to%2Fai-assistants.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/ai-setup.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.setupAi"
+            ]
+          },
+          {
+            "id": "prompt",
+            "title": "Ask for a flow",
+            "description": "Say what the automation should achieve, how it is split into phases and what happens to failed hosts. The agent builds the flow with all-or-nothing edits and fixes the problems it causes.\n[Tutorial: build a flow with an AI assistant](command:afd.openGuide?%5B%22tutorials%2F04-ai-assistant.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/ai-prompts.md"
+            }
+          },
+          {
+            "id": "review",
+            "title": "Review and fix",
+            "description": "The canvas shows every edit. Check the Problems panel, and ask the agent to fix what is left without changing the logic.\n[Validate Design](command:afd.validate)",
+            "media": {
+              "markdown": "media/walkthrough/ai-review.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.validate"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "afd.awx",
+        "title": "Run your flows in AWX",
+        "description": "Turn a flow into an AWX job template or approval workflow, launch it from VS Code and follow it on the canvas.",
+        "steps": [
+          {
+            "id": "connect",
+            "title": "Connect to AWX",
+            "description": "Point the extension at your AWX and store a personal access token in VS Code's secret storage.\n[Open the AWX setting](command:workbench.action.openSettings?%5B%22afd.awx.url%22%5D)\n[Set AWX Token](command:afd.awx.setToken)",
+            "media": {
+              "markdown": "media/walkthrough/awx-connect.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.awx.setToken"
+            ]
+          },
+          {
+            "id": "template",
+            "title": "Set up the template",
+            "description": "Create the job template (or the approval workflow) for the open flow, in the AWX project that holds your repository.\n[Set Up AWX Template](command:afd.awx.setupTemplate)\n[How-to: AWX](command:afd.openGuide?%5B%22how-to%2Fawx.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/awx-template.md"
+            },
+            "completionEvents": [
+              "onCommand:afd.awx.setupTemplate"
+            ]
+          },
+          {
+            "id": "approvals",
+            "title": "Approvals become AWX approvals",
+            "description": "Top-level approval nodes split the flow into a workflow with an approval node at each gate. Local runs approve by themselves, or take the outcome you pass in `afd_approvals`.\n[How-to: approvals](command:afd.openGuide?%5B%22how-to%2Fapprovals.md%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/awx-approvals.md"
+            }
+          },
+          {
+            "id": "launch",
+            "title": "Launch and follow the run",
+            "description": "Launch asks for the flow inputs and confirms the targets and the commit. Run mode shows every node's hosts, failures and times, and offers to mark nodes tested after a passing run.\n[Launch in AWX](command:afd.awx.launch)\n[Tutorial: AWX end to end](command:afd.openGuide?%5B%22tutorials%2F03-awx-end-to-end.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/awx-run-light.png",
+                "dark": "docs/guide/images/awx-run-dark.png",
+                "hc": "docs/guide/images/awx-run-dark.png",
+                "hcLight": "docs/guide/images/awx-run-light.png"
+              },
+              "altText": "Run mode replaying an AWX job"
+            },
+            "completionEvents": [
+              "onCommand:afd.awx.launch"
+            ]
+          },
+          {
+            "id": "import",
+            "title": "Import an existing AWX workflow",
+            "description": "Turn a workflow job template you already have into a flow, laid out top-down, from AWX or from an `awx export` file.\n[Import AWX Workflow](command:afd.importAwxWorkflow)\n[How-to: import an AWX workflow](command:afd.openGuide?%5B%22how-to%2Fimport-awx.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/awx-import-light.png",
+                "dark": "docs/guide/images/awx-import-dark.png",
+                "hc": "docs/guide/images/awx-import-dark.png",
+                "hcLight": "docs/guide/images/awx-import-light.png"
+              },
+              "altText": "A flow imported from an AWX workflow"
+            },
+            "completionEvents": [
+              "onCommand:afd.importAwxWorkflow"
+            ]
+          }
+        ]
+      }
     ]
   },
   "scripts": {
@@ -1531,6 +1809,7 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "jsdom": "30.1.3",
+    "playwright-core": "1.64.1",
     "smol-toml": "1.9.1",
     "typescript": "7.0.2",
     "vite": "8.3.5",

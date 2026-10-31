@@ -180,6 +180,8 @@ export type WebviewMessage =
   /** AFD-19: real IDs for a flow written by hand, in one edit. */
   | { type: 'completeIds' }
   | { type: 'validate' }
+  /** AFD-22: a page of the user guide (docs/guide), README.md when none. */
+  | { type: 'openGuide'; page?: string }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
   | { type: 'generate' }

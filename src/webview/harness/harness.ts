@@ -3,6 +3,7 @@
 // default themes. `just harness`, then http://localhost:5178/harness/index.html?flow=os-upgrade
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
+import firewallUpgrade from '../../../samples/firewall-upgrade.flow.yaml?raw';
 import awxImport from '../../../test/fixtures/awx/import/edge-upgrade.flow.yaml?raw';
 import awxJob from '../../../test/fixtures/awx/job-events.json';
 import awxE2e from '../../../test/fixtures/awx/repo/flows/awx-e2e/awx-e2e.flow.yaml?raw';
@@ -12,6 +13,7 @@ import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
 import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
 import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
 import driftScan from '../../../test/fixtures/drift/scan.json';
+import handWritten from '../../../test/fixtures/flows/hand-written.flow.yaml?raw';
 import lensFixture from '../../../test/fixtures/lens/facts.json';
 import lensE2e from '../../../test/fixtures/lens/flows/lens-e2e/lens-e2e.flow.yaml?raw';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
@@ -36,9 +38,20 @@ import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../.
 import { summarizeRun } from '../../core/run/events';
 import { autoPositions, layoutLevel } from '../../extension/autoLayout';
 
+/** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
+function fixedIds(): () => string {
+  let n = 0;
+  return () => `01JDGKS${String(++n).padStart(19, '0')}`;
+}
+
 const FLOWS: Record<string, string> = {
   'edge-baseline': edgeBaseline,
   'os-upgrade': osUpgrade,
+  // AFD-22: the bundled sample, and a flow as New Flow makes it (screenshots for the guides).
+  'firewall-upgrade': firewallUpgrade,
+  // Fixed IDs: the screenshots come out the same on every run.
+  new: newFlowText('Firewall upgrade', 'firewall-upgrade', fixedIds()),
+  'hand-written': handWritten,
   'edge-drift': edgeDrift,
   'awx-e2e': awxE2e,
   'lens-e2e': lensE2e,
@@ -474,6 +487,8 @@ for (const name of Object.keys(THEMES)) {
   bar.append(b);
 }
 document.body.append(bar);
+// `just docs-shots` (AFD-22): no harness controls in the screenshots.
+if (params.has('shots')) bar.style.display = 'none';
 setTheme(params.get('theme') ?? 'light');
 (window as unknown as { afdText: () => string }).afdText = () => text;
 

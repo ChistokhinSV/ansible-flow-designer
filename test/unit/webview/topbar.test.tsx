@@ -45,12 +45,22 @@ describe('top bar', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run for real…' }));
     expect(posted.at(-1)).toEqual({ type: 'run', mode: 'real' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    expect(items()).toEqual(['Tidy up', 'Show as text', 'Validate design', 'Keyboard shortcuts']);
+    expect(items()).toEqual([
+      'Tidy up',
+      'Show as text',
+      'Validate design',
+      'Keyboard shortcuts',
+      'User guide',
+    ]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Tidy up' }));
     expect(posted.at(-1)).toEqual({ type: 'tidyUp', level: 'root' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Keyboard shortcuts' }));
     expect(useUi.getState().cheatSheet).toBe(true);
+    // AFD-22: the user guide opens on the host, in the Markdown preview.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'User guide' }));
+    expect(posted.at(-1)).toEqual({ type: 'openGuide' });
   });
 
   it('Implementation: no Validate design in "…"; the menu button toggles', () => {
@@ -59,7 +69,7 @@ describe('top bar', () => {
     const more = screen.getByRole('button', { name: 'More actions' });
     fireEvent.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
-    expect(items()).toEqual(['Tidy up', 'Show as text', 'Keyboard shortcuts']);
+    expect(items()).toEqual(['Tidy up', 'Show as text', 'Keyboard shortcuts', 'User guide']);
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();
   });

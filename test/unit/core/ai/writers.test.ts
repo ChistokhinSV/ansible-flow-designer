@@ -63,7 +63,8 @@ afterEach(() => {
   rmSync(repo, { recursive: true, force: true });
 });
 
-describe('AI assistant setup', () => {
+// Temp homes, many files and a fake CLI: in a loaded full-suite run a test took over 5 s (91 ms alone).
+describe('AI assistant setup', { timeout: 20_000 }, () => {
   it('writes skill copies and registrations once; a second run changes nothing', async () => {
     mkdirSync(join(home, '.gemini'));
     writeFileSync(
@@ -265,7 +266,7 @@ describe('AI assistant setup', () => {
     const left = read(home, '.config/opencode/opencode.jsonc');
     expect(left).toContain('"$schema"');
     expect(left).not.toContain('ansible-flow');
-  }, 20_000); // many temp files: twice past 5 s in a loaded full-suite run (91 ms alone)
+  });
 
   it('AFD-20: agents are found by program, extension, config folder or app; others get a guide', async () => {
     mkdirSync(join(home, '.codex'));

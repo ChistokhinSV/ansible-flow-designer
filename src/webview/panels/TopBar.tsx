@@ -229,6 +229,13 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       shortcut: '?',
       onSelect: () => useUi.getState().showCheatSheet(true),
     },
+    {
+      type: 'item',
+      label: 'User guide',
+      icon: 'book',
+      title: 'Tutorials and how-to pages, in a Markdown preview',
+      onSelect: () => send({ type: 'openGuide' }),
+    },
   ];
 }
 

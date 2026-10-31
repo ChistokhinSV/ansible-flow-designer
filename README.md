@@ -2,7 +2,17 @@
 
 A VS Code extension for designing Ansible automation top-down. You sketch a flow as a graph of typed nodes and ports, run it as a walking skeleton, and then bind each node to a module, role or playbook. The flow document (`*.flow.yaml`) stays the source of truth: Ansible code is generated from it, and drift is detected in both directions.
 
-**Status: M6 done.** The designer edits flows on a canvas (port menus, failure patterns, open-on-purpose decisions, subflows with a drill-down boundary view). It binds nodes to modules, roles and playbooks found in your execution environment's catalog, generates Ansible code that passes data between nodes on every save, and runs it as a walking skeleton or for real, mapping the results back to the nodes. Implementation mode compares the design with the code it runs and lists drift both ways. Run mode comes in M7 (plan: `docs/adr/`, handoff `docs/06`). Tracking: YouTrack project AFD (epic AFD-1, M1 = AFD-2, M2 = AFD-3, M3 = AFD-4, M4 = AFD-6, M5 = AFD-8, M6 = AFD-9), knowledge base AFD-A-1.
+**Status:** v1 is feature complete: design, code generation, runs, Implementation mode, AWX, lenses, import, AI assistants (YouTrack AFD, knowledge base AFD-A-1).
+
+## Learn
+
+- **Get started:** after installing, VS Code's Welcome page shows three walkthroughs: _Design your first Ansible flow_, _Build flows with an AI assistant_ and _Run your flows in AWX_. **Ansible Flow: Get Started** opens the first one again.
+- **The user guide** ([docs/guide](docs/guide/README.md)), also in VS Code with **Ansible Flow: Open User Guide** or _User guide_ in the designer's "…" menu:
+  - tutorials: [your first flow](docs/guide/tutorials/01-first-flow.md), [from design to production](docs/guide/tutorials/02-design-to-production.md), [AWX end to end](docs/guide/tutorials/03-awx-end-to-end.md), [with an AI assistant](docs/guide/tutorials/04-ai-assistant.md);
+  - how-to pages for every feature, the [commands](docs/guide/reference/commands.md), [settings](docs/guide/reference/settings.md), [problem codes](docs/guide/reference/problems.md) and [troubleshooting](docs/guide/troubleshooting.md).
+- **Samples:** **Ansible Flow: Open Sample Flow…** copies a sample into your folder: a firewall firmware upgrade (subflows, data across levels, polling, an approval, rollback) or the edge baseline (with failures left to handle).
+
+The rest of this page is the complete feature reference.
 
 ## What the designer does
 
@@ -109,7 +119,7 @@ A VS Code extension for designing Ansible automation top-down. You sketch a flow
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
-- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Validate design_ and _Keyboard shortcuts_.
+- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Validate design_, _Keyboard shortcuts_ and _User guide_ (AFD-22).
 - **Lenses (M8, ADR-0014):** the top bar's _Lens_ dropdown (None, Inventory, Data, Code, Access, Timing; ✕ clears it) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
   - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
@@ -139,7 +149,7 @@ just package
 ```
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.12.1.vsix
+code --install-extension out/ansible-flow-designer-0.17.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later:
