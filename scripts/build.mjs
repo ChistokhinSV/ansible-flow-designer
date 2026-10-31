@@ -13,9 +13,22 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 // it from 900 KB for the import tools (the reader and mappers, about 60 KB; a lazy chunk would carry
 // its own copy of yaml and the flow model).
 const MCP_BUDGET = 960 * 1024;
+// AFD-37: the extension host bundle (activation loads it in every window) and the webview, which
+// loads with each designer. Measured at 0.24.x: 697 KB and 963 KB; the budgets leave room for a wave.
+const EXTENSION_BUDGET = 768 * 1024;
+const WEBVIEW_BUDGET = 1088 * 1024;
+
+/** Fails a production build when a bundle grew past its budget. */
+function checkBudget(file, budget) {
+  const size = statSync(file).size;
+  if (production && size > budget)
+    throw new Error(
+      `${file} is ${Math.round(size / 1024)} KB, over the ${budget / 1024} KB budget`,
+    );
+}
 
 /**
- * ELK is most of the host code: the extension loads it on first use (autoLayout.ts), from its
+ * ELK is most of the host code: the extension loads it on first use (src/node/autoLayout.ts), from its
  * own file dist/elk.js, so activation and the debugger's source maps skip it.
  * @type {import('esbuild').Plugin}
  */
@@ -50,7 +63,7 @@ const hostOptions = {
   // The catalog index is built in a worker thread (node:sqlite is synchronous, M5).
   entryPoints: {
     extension: 'src/extension/extension.ts',
-    catalogWorker: 'src/extension/catalog/catalogWorker.ts',
+    catalogWorker: 'src/node/catalog/catalogWorker.ts',
     elk: 'elkjs/lib/elk.bundled.js',
     mcp: 'src/mcp/main.ts',
   },
@@ -118,10 +131,8 @@ if (testsOnly) {
 } else {
   copyProbe();
   await esbuild.build(hostOptions);
-  const mcp = statSync('dist/mcp.js').size;
-  if (production && mcp > MCP_BUDGET)
-    throw new Error(
-      `dist/mcp.js is ${Math.round(mcp / 1024)} KB, over the ${MCP_BUDGET / 1024} KB budget`,
-    );
+  checkBudget('dist/mcp.js', MCP_BUDGET);
+  checkBudget('dist/extension.js', EXTENSION_BUDGET);
   await buildWebview();
+  checkBudget('dist/webview/index.js', WEBVIEW_BUDGET);
 }

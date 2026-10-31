@@ -2,34 +2,52 @@
 // extension folder (which changes with every update) to global storage, so registrations survive
 // updates; it runs on Node when Node 20+ is on PATH, else on VS Code's own runtime.
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import type * as vscode from 'vscode';
-import type { Launch } from './writers';
+import type { Launch } from '../../node/ai/writers';
 
 const FILES = ['mcp.js', 'elk.js'];
 
-const digest = async (path: string) => {
+/** What was copied: each source file's size and modification time (no hashing at startup). */
+type Stamp = Record<string, { size: number; mtimeMs: number }>;
+
+async function stampOf(path: string): Promise<{ size: number; mtimeMs: number } | undefined> {
   try {
-    return createHash('sha256')
-      .update(await fs.readFile(path))
-      .digest('hex');
+    const s = await fs.stat(path);
+    return { size: s.size, mtimeMs: s.mtimeMs };
   } catch {
     return undefined;
   }
-};
+}
 
-/** Copies the server into global storage when it changed; returns its path there. */
+/**
+ * Copies the server into global storage when it changed; returns its path there. "Changed" is the
+ * source's size or modification time against what was copied (AFD-37: hashing ~2.4 MB at every
+ * start was the slowest part of activation after an AI setup).
+ */
 export async function installServer(context: vscode.ExtensionContext): Promise<string> {
   const dir = join(context.globalStorageUri.fsPath, 'mcp');
   await fs.mkdir(dir, { recursive: true });
+  const stampFile = join(dir, 'installed.json');
+  let installed: Stamp = {};
+  try {
+    installed = JSON.parse(await fs.readFile(stampFile, 'utf8')) as Stamp;
+  } catch {}
+  let changed = false;
   for (const name of FILES) {
     const from = join(context.extensionUri.fsPath, 'dist', name);
     const to = join(dir, name);
-    const src = await digest(from);
-    if (src && src !== (await digest(to))) await fs.copyFile(from, to);
+    const src = await stampOf(from);
+    if (!src) continue;
+    const was = installed[name];
+    const same = was && was.size === src.size && was.mtimeMs === src.mtimeMs;
+    if (same && (await stampOf(to))?.size === src.size) continue;
+    await fs.copyFile(from, to);
+    installed[name] = src;
+    changed = true;
   }
+  if (changed) await fs.writeFile(stampFile, JSON.stringify(installed), 'utf8');
   return join(dir, 'mcp.js');
 }
 

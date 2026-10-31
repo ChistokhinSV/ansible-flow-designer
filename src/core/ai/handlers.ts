@@ -1,7 +1,7 @@
 // The AI tools themselves (AFD-19), independent of who calls them: Copilot through the extension
 // host, Claude Code, Codex and Gemini through the MCP server. Each adapter supplies a FlowIO (how
 // files are found, read and written there); every answer is plain text by key, never with IDs.
-import { flowText, importWorkflow } from '../awx/import';
+import { importWorkflow } from '../awx/import';
 import {
   type AwxExport,
   exportTemplates,
@@ -20,6 +20,7 @@ import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
 import type { SchemaValidator } from '../flow/schema';
 import { newFlowText } from '../flow/template';
+import { flowText } from '../flow/text';
 import { type Finding, validateFlow } from '../flow/validate';
 import { generatedDirOf, sourceOutline } from '../import/outline';
 import { importPlaybook } from '../import/playbook';

@@ -52,5 +52,44 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/core/**", "src/node/**", "src/mcp/**", "src/cli/**", "src/webview/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "vscode": "The core, node, MCP, CLI and webview layers run without VS Code (AFD-37, ADR-0023): use src/extension for the vscode API."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "vscode": "The core runs without VS Code (ADR-0023).",
+                  "node:fs": "The core does no IO: take it as a parameter (ADR-0023).",
+                  "node:fs/promises": "The core does no IO: take it as a parameter (ADR-0023).",
+                  "node:child_process": "The core starts no processes (ADR-0023)."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

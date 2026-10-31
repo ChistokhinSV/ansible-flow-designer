@@ -16,10 +16,10 @@ import type {
   SearchHit,
 } from '../../core/catalog/types';
 import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../core/protocol';
+import { CatalogIndex, INDEX_SCHEMA } from '../../node/catalog/catalogIndex';
+import type { BuildJob, BuildResult } from '../../node/catalog/catalogWorker';
+import type { ProbeClient } from '../../node/env/probeClient';
 import type { ProbeManager } from '../env/environment';
-import type { ProbeClient } from '../env/probeClient';
-import { CatalogIndex, INDEX_SCHEMA } from './catalogIndex';
-import type { BuildJob, BuildResult } from './catalogWorker';
 
 /** A first dump of a big EE takes about half a minute; slow disks and Podman machines more. */
 const DUMP_TIMEOUT = 15 * 60_000;

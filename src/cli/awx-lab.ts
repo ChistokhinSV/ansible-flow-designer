@@ -3,7 +3,7 @@
 // from the environment or ./.env (never printed). Usage: just awx-lab [--sync]
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { AwxNamed, AwxProject } from '../core/awx/types';
-import { AwxClient } from '../extension/awx/client';
+import { AwxClient } from '../node/awx/client';
 
 const EE = {
   name: 'AFD EE (ansible-core 2.19)',

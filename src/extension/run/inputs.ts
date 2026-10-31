@@ -1,0 +1,90 @@
+// Flow inputs for runs (AFD-37: shared by local runs, AWX launches and the lenses): given values,
+// else remembered ones per flow in this workspace, else prompted; secrets typed hidden and never
+// remembered (AFD-28).
+import * as vscode from 'vscode';
+import type { FlowDocument } from '../../core/flow/types';
+import { SECRET } from '../../core/import/secrets';
+
+export const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
+
+export function parseInput(type: string | undefined, text: string): unknown {
+  const t = text.trim();
+  switch (type) {
+    case 'host_list':
+      return t
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    case 'integer':
+      return Number(t);
+    case 'boolean':
+      return /^(true|yes|1)$/i.test(t);
+    case 'list':
+    case 'dict':
+      try {
+        return JSON.parse(t);
+      } catch {
+        return t;
+      }
+    default:
+      return t;
+  }
+}
+
+function showInput(value: unknown): string {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value !== null && typeof value === 'object') return JSON.stringify(value);
+  return value === undefined ? '' : String(value);
+}
+
+/** Flow inputs: given values, else remembered ones (per flow, this workspace), else prompted. */
+export async function collectInputs(
+  doc: FlowDocument,
+  given: Record<string, unknown> | undefined,
+  state: vscode.Memento,
+): Promise<Record<string, unknown> | undefined> {
+  const remembered = state.get<Record<string, unknown>>(inputsKey(doc.flow.id), {});
+  const values: Record<string, unknown> = {};
+  for (const [name, field] of Object.entries(doc.flow.inputs ?? {})) {
+    if (given && name in given) {
+      values[name] = given[name];
+      continue;
+    }
+    if (given) {
+      if (field?.default !== undefined) values[name] = field.default;
+      continue;
+    }
+    const needed = field?.required || field?.type === 'host_list';
+    if (!needed) {
+      if (field?.default !== undefined) values[name] = remembered[name] ?? field.default;
+      continue;
+    }
+    // Secret-looking inputs (an imported vault value or prompt, AFD-28) are typed hidden.
+    const secret = SECRET.test(name);
+    const text = await vscode.window.showInputBox({
+      title: `Run ${doc.flow.name}: input "${name}"`,
+      prompt:
+        field?.type === 'host_list'
+          ? 'Hosts or groups, comma-separated'
+          : `${field?.type ?? 'value'}${secret ? ' (not remembered)' : ''}`,
+      value: secret ? '' : showInput(remembered[name] ?? field?.default),
+      password: secret,
+      ignoreFocusOut: true,
+      validateInput: (v) => (v.trim() ? undefined : 'Required'),
+    });
+    if (text === undefined) return undefined;
+    values[name] = parseInput(field?.type, text);
+  }
+  // Remembered for the next run, except secrets: they are asked each time and never stored.
+  const keep = Object.fromEntries(Object.entries(values).filter(([k]) => !SECRET.test(k)));
+  const old = Object.fromEntries(Object.entries(remembered).filter(([k]) => !SECRET.test(k)));
+  await state.update(inputsKey(doc.flow.id), { ...old, ...keep });
+  return values;
+}
+
+export function targetsOf(doc: FlowDocument, inputs: Record<string, unknown>): string[] {
+  const lists = Object.entries(doc.flow.inputs ?? {}).filter(([, f]) => f?.type === 'host_list');
+  const name = (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
+  const value = name ? inputs[name] : undefined;
+  return Array.isArray(value) ? value.map(String) : [];
+}

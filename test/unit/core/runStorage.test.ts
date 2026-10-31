@@ -5,8 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AwxClient, FOLLOW_HOURS, followLimit } from '../../../src/extension/awx/client';
-import { pruneRuns, rotateLog, sweepRuns } from '../../../src/extension/run/storage';
+import { AwxClient, FOLLOW_HOURS, followLimit } from '../../../src/node/awx/client';
+import { pruneRuns, rotateLog, sweepRuns } from '../../../src/node/run/storage';
 
 describe('run storage', () => {
   const run = (root: string, flow: string, id: string) => {

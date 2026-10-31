@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { parse as parseToml } from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findAgents, mcpJson, otherAgentGuide } from '../../../../src/extension/ai/agents';
+import { findAgents, mcpJson, otherAgentGuide } from '../../../../src/node/ai/agents';
 import {
   applySetup,
   type Env,
@@ -15,7 +15,7 @@ import {
   planSetup,
   removeSetup,
   type SkillFiles,
-} from '../../../../src/extension/ai/writers';
+} from '../../../../src/node/ai/writers';
 
 const LAUNCH: Launch = {
   command: 'C:\\Program Files\\VS Code\\Code.exe',

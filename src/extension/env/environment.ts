@@ -8,7 +8,7 @@ import {
   type RedHatSettings,
   resolveEnvironment,
 } from '../../core/run/environment';
-import { ProbeClient } from './probeClient';
+import { ProbeClient } from '../../node/env/probeClient';
 
 /** Why nothing runs in Restricted Mode: the repository's ansible.cfg, plugins and playbooks are code. */
 export const UNTRUSTED =

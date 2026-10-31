@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { expandable, flowText, importWorkflow } from '../../../src/core/awx/import';
+import { expandable, importWorkflow } from '../../../src/core/awx/import';
 import { sanitizedExport } from '../../../src/core/awx/sanitize';
 import {
   type AwxExport,
@@ -19,6 +19,7 @@ import { optionA } from '../../../src/core/engine/optionA';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
+import { flowText } from '../../../src/core/flow/text';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { importPrompt } from '../../../src/core/import/prompt';

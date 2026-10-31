@@ -11,7 +11,7 @@ import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel, ROOT } from '../../../src/core/flow/model';
 import { newFlowText } from '../../../src/core/flow/template';
 import type { FlowDocument, Layout, Position } from '../../../src/core/flow/types';
-import { autoPositions, shownLayout } from '../../../src/extension/autoLayout';
+import { autoPositions, shownLayout } from '../../../src/node/autoLayout';
 import { readExample } from './helpers';
 
 const sample = () =>

@@ -7,8 +7,7 @@ import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
-import { AGENT_INFO, agentLabel, findAgents, mcpJson, otherAgentGuide } from './agents';
-import { installServer, launchFor, onPath, programsOnPath } from './launcher';
+import { AGENT_INFO, agentLabel, findAgents, mcpJson, otherAgentGuide } from '../../node/ai/agents';
 import {
   AGENTS,
   type Agent,
@@ -26,7 +25,9 @@ import {
   skillDirs,
   skillState,
   writeSkill,
-} from './writers';
+} from '../../node/ai/writers';
+import { logChannel } from '../log';
+import { installServer, launchFor, onPath, programsOnPath } from './launcher';
 
 const STATE = 'afd.ai.setup';
 /** Agents already offered the setup (asked again only for new ones). */
@@ -55,12 +56,10 @@ const list = (names: string[]) =>
   names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 
 export class AiSetup {
-  private readonly log: vscode.OutputChannel;
+  /** The extension's one log (AFD-37); the setup's lines start with "AI setup". */
+  private readonly log = logChannel();
 
-  constructor(private readonly context: vscode.ExtensionContext) {
-    this.log = vscode.window.createOutputChannel('Ansible Flow: AI setup');
-    context.subscriptions.push(this.log);
-  }
+  constructor(private readonly context: vscode.ExtensionContext) {}
 
   private get version(): string {
     return (this.context.extension.packageJSON as { version: string }).version;
@@ -152,8 +151,8 @@ export class AiSetup {
       if (go !== 'Apply') return undefined;
     }
     await applySetup(items, env, launch, skill);
-    this.log.appendLine(`[${new Date().toISOString()}] Set up (${this.version}):`);
-    for (const line of lines) this.log.appendLine(`  ${line}`);
+    this.log.info(`AI setup (${this.version}):`);
+    for (const line of lines) this.log.info(`AI setup:   ${line}`);
     if (!chosen.home) {
       const record: SetupRecord = {
         version: this.version,
@@ -284,7 +283,7 @@ export class AiSetup {
         return;
       }
       await writeSkill(dir, await this.skillFiles());
-      this.log.appendLine(`[${new Date().toISOString()}] Skill copied for another agent: ${dir}`);
+      this.log.info(`AI setup: skill copied for another agent: ${dir}`);
       void vscode.window.showInformationMessage(`The skill is in ${dir}. Restart the agent.`);
     }
   }
@@ -310,8 +309,8 @@ export class AiSetup {
       if (go !== 'Remove') return undefined;
     }
     const removed = await removeSetup(agents, env);
-    this.log.appendLine(`[${new Date().toISOString()}] Removed:`);
-    for (const line of this.describe(removed, env.home)) this.log.appendLine(`  ${line}`);
+    this.log.info('AI setup: removed:');
+    for (const line of this.describe(removed, env.home)) this.log.info(`AI setup:   ${line}`);
     if (!picks?.home) await this.context.globalState.update(STATE, undefined);
     await this.refreshContext(env.home);
     if (!picks)

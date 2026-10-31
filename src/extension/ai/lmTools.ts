@@ -2,21 +2,24 @@
 // open documents (unsaved changes included) and edit through one WorkspaceEdit, one undo step; the
 // file is saved afterwards when it had no unsaved changes before, so the usual save rules (version
 // bump, generated/) apply as for any save.
+import { realpath } from 'node:fs/promises';
+import { isAbsolute, relative as relativePath } from 'node:path';
 import * as vscode from 'vscode';
 import { COPILOT_PREFIX } from '../../core/ai/contributions';
 import { type FlowIO, runTool } from '../../core/ai/handlers';
 import { type Op, opLabel } from '../../core/ai/ops';
+import { isSourceFile, SKIP_GLOB, SOURCE_MAX_BYTES } from '../../core/ai/sourceRules';
 import { TOOL_SPECS, type ToolSpec } from '../../core/ai/specs';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
 import { diffEdits } from '../../core/yaml/edits';
-import { layoutLevel, shownPositions } from '../autoLayout';
+import { layoutLevel, shownPositions } from '../../node/autoLayout';
 import { authorName } from '../gitHead';
 import { workspaceSource } from '../import/common';
 
 const FLOWS = '**/*.flow.yaml';
-const SKIP = '**/{node_modules,.git,generated,out,dist,.vscode-test}/**';
+const SKIP = SKIP_GLOB;
 
 export interface HostToolDeps {
   schema: SchemaValidator;
@@ -31,15 +34,37 @@ export interface HostToolDeps {
   ): ((name: string, collections: string[]) => string | undefined) | undefined;
 }
 
-/** Ansible files the import tools may read (AFD-27): YAML, AWX export JSON, ansible.cfg. */
-const SOURCE_FILE = /(\.ya?ml|\.json|(^|\/)ansible\.cfg)$/;
+/** Whether a file of the folder really lies inside it (a symlink may point elsewhere). */
+async function stillInside(folder: vscode.WorkspaceFolder, path: string): Promise<boolean> {
+  const uri = vscode.Uri.joinPath(folder.uri, path);
+  if (uri.scheme !== 'file') return true;
+  try {
+    const [root, file] = await Promise.all([realpath(folder.uri.fsPath), realpath(uri.fsPath)]);
+    const rel = relativePath(root, file);
+    return !rel.startsWith('..') && !isAbsolute(rel);
+  } catch {
+    return false;
+  }
+}
 
-/** A workspace folder's Ansible files for the tools: inside the folder only, read-only. */
+/**
+ * A workspace folder's Ansible files for the tools: inside the folder only (through symlinks too),
+ * read-only, the same kinds and sizes the MCP server reads (AFD-37, core/ai/sourceRules).
+ */
 function toolSource(folder: vscode.WorkspaceFolder): SourceIO {
   const io = workspaceSource(folder);
   const ok = (path: string) => !normalize(path).startsWith('..');
   return {
-    read: async (path) => (ok(path) && SOURCE_FILE.test(path) ? io.read(path) : undefined),
+    read: async (path) => {
+      if (!ok(path) || !isSourceFile(path) || !(await stillInside(folder, path))) return undefined;
+      try {
+        const stat = await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, path));
+        if (stat.size > SOURCE_MAX_BYTES) return undefined;
+      } catch {
+        return undefined;
+      }
+      return io.read(path);
+    },
     list: async (dir) => (ok(dir) ? io.list(dir) : []),
     exists: async (path) => ok(path) && (await exists(vscode.Uri.joinPath(folder.uri, path))),
   };
@@ -84,6 +109,7 @@ async function resolve(path: string, mustExist = true, exportFile = false): Prom
 }
 
 export function hostFlowIO(deps: HostToolDeps): FlowIO {
+  let sourceFolder: vscode.WorkspaceFolder | undefined;
   return {
     async list() {
       const uris = await vscode.workspace.findFiles(FLOWS, SKIP, 500);
@@ -152,6 +178,7 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
       const named = folders.length > 1 ? folders.find((f) => f.name === first) : undefined;
       const folder = named ?? folders[0];
       if (!folder) return undefined;
+      sourceFolder = folder;
       return {
         io: toolSource(folder),
         path: named ? rest.join('/') : path,
@@ -159,7 +186,8 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
       };
     },
     resolveModule(name, collections) {
-      const folder = vscode.workspace.workspaceFolders?.[0];
+      // The folder the import reads from (multi-root), else the first one.
+      const folder = sourceFolder ?? vscode.workspace.workspaceFolders?.[0];
       return folder ? deps.resolveModule?.(folder)?.(name, collections) : undefined;
     },
   };

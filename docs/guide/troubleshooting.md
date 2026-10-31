@@ -87,5 +87,5 @@ These need an Ansible environment with ansible-core 2.19 or later
 **Validate design** lists every problem with its fix ([problem codes](reference/problems.md)). Runs
 print to their terminal (**Show terminal** in the run panel). The _Ansible Flow_ output channel
 (View → Output) logs the Ansible probe: when it starts, which ansible-core it found, its warnings
-and timeouts (set the channel's level to Debug for every probe line). The AI setup logs to the
-_Ansible Flow: AI setup_ channel.
+and timeouts (set the channel's level to Debug for every probe line), and what _Set Up AI
+Assistants_ wrote (lines starting with "AI setup").

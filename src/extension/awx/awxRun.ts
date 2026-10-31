@@ -13,15 +13,17 @@ import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
-import type { RunView } from '../../core/protocol';
+import type { RunErrorCode, RunView } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
-import { generatedDir, generateFlow } from '../codegen';
-import { authorName, gitState } from '../gitHead';
+import { runWorkflow, setupWorkflow } from '../../node/awx/awxWorkflow';
+import { AwxClient, followLimit, StoppedFollowing } from '../../node/awx/client';
+import { generatedDir } from '../codegen';
+import { CANCELLED } from '../errors';
+import { gitState } from '../gitHead';
 import { appendAudit } from '../run/audit';
-import { collectInputs, stamp, targetsOf } from '../run/runner';
+import { collectInputs, targetsOf } from '../run/inputs';
+import { auditHeader, prepareRun, stamp } from '../run/prepare';
 import { relativeTo } from '../sync/codeSync';
-import { runWorkflow, setupWorkflow } from './awxWorkflow';
-import { AwxClient, followLimit, StoppedFollowing } from './client';
 
 const POLL_MS = 2000;
 /** Events are stored after the job ends; give them this long to arrive. */
@@ -95,11 +97,15 @@ const tokenKey = (url: string) => `afd.awx.token:${url}`;
 export async function awxClient(
   scope: vscode.Uri,
   secrets: vscode.SecretStorage,
-): Promise<AwxClient | string> {
+): Promise<AwxClient | { error: string; code: RunErrorCode }> {
   const { url, verifyTls } = settings(scope);
-  if (!url) return 'Set afd.awx.url to the AWX address first';
+  if (!url) return { error: 'Set afd.awx.url to the AWX address first', code: 'awx-url' };
   const token = await secrets.get(tokenKey(url));
-  if (!token) return `No AWX token for ${url}: run "Ansible Flow: Set AWX Token"`;
+  if (!token)
+    return {
+      error: `No AWX token for ${url}: run "Ansible Flow: Set AWX Token"`,
+      code: 'awx-token',
+    };
   return new AwxClient(url, token, { verifyTls });
 }
 
@@ -199,7 +205,7 @@ export async function setupTemplate(
   if (!doc || !folder)
     return { ok: false, error: 'Open a valid flow inside its repository folder' };
   const awx = await awxClient(document.uri, deps.secrets);
-  if (typeof awx === 'string') return { ok: false, error: awx };
+  if ('error' in awx) return { ok: false, error: awx.error };
   try {
     const project = await pick(
       await awx.list<AwxNamed>('projects'),
@@ -307,22 +313,30 @@ export async function launchInAwx(
 ): Promise<RunView> {
   const id = stamp();
   const startedAt = new Date().toISOString();
-  const fail = (error: string): RunView => {
-    const run: RunView = { id, mode: 'real', state: 'error', startedAt, error, source: 'awx' };
+  const fail = (error: string, errorCode?: RunErrorCode): RunView => {
+    const run: RunView = {
+      id,
+      mode: 'real',
+      state: 'error',
+      startedAt,
+      error,
+      source: 'awx',
+      ...(errorCode ? { errorCode } : {}),
+    };
     deps.report(run);
     return run;
   };
-  if (document.isDirty) await document.save();
-  const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-  if (!folder) return fail('Open the repository folder that contains this flow first');
-  const generated = await generateFlow(document, deps.schema);
-  if (!generated.ok || !generated.result) return fail(generated.error ?? 'Code generation failed');
-  const doc = parseFlow(document.getText()).doc;
-  if (!doc) return fail('The flow does not parse');
+  const prepared = await prepareRun(document, deps.schema);
+  if (!prepared.ok) return fail(prepared.error);
+  const { folder, generated, doc } = prepared;
   const name = doc.flow.runtime?.template;
-  if (!name) return fail('The flow has no AWX job template: run "Set Up AWX Template" first');
+  if (!name)
+    return fail(
+      'The flow has no AWX job template: run "Set Up AWX Template" first',
+      'awx-template',
+    );
   const awx = await awxClient(document.uri, deps.secrets);
-  if (typeof awx === 'string') return fail(awx);
+  if ('error' in awx) return fail(awx.error, awx.code);
 
   const workflow = doc.flow.runtime?.kind === 'awx_workflow';
   const segments = generated.result.segments;
@@ -344,7 +358,7 @@ export async function launchInAwx(
       `AWX has no ${workflow ? 'workflow' : 'job'} template "${name}": run "Set Up AWX Template"`,
     );
   const inputs = await collectInputs(doc, options.inputs, deps.state);
-  if (!inputs) return fail('Cancelled');
+  if (!inputs) return fail(CANCELLED, 'cancelled');
   const targets = targetsOf(doc, inputs);
   if (targets.length === 0) return fail('No target hosts: the targets input is empty');
 
@@ -377,19 +391,13 @@ export async function launchInAwx(
       { modal: true, detail: detail.join('\n') },
       go,
     );
-    if (choice !== go) return fail('Cancelled');
+    if (choice !== go) return fail(CANCELLED, 'cancelled');
   }
 
   if (workflow && segments) {
     const audited = {
       run: id,
-      user: await authorName(document.uri),
-      flow: {
-        id: doc.flow.id,
-        key: doc.flow.key,
-        version: doc.flow.version,
-        file: vscode.workspace.asRelativePath(document.uri),
-      },
+      ...(await auditHeader(document, doc)),
       mode: 'real',
       source: 'awx',
       awx: { url: awx.base, workflow: name },
@@ -468,13 +476,7 @@ export async function launchInAwx(
   }
   const audit = {
     run: id,
-    user: await authorName(document.uri),
-    flow: {
-      id: doc.flow.id,
-      key: doc.flow.key,
-      version: doc.flow.version,
-      file: vscode.workspace.asRelativePath(document.uri),
-    },
+    ...(await auditHeader(document, doc)),
     mode: 'real',
     source: 'awx',
     awx: { url: awx.base, template: name, job: job.id },

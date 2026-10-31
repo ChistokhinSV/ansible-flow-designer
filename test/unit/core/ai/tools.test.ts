@@ -16,7 +16,7 @@ import { buildModel } from '../../../../src/core/flow/model';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
-import { layoutLevel, shownPositions } from '../../../../src/extension/autoLayout';
+import { layoutLevel, shownPositions } from '../../../../src/node/autoLayout';
 import { fsSource, NETOPS } from '../helpers';
 
 const read = (p: string) => readFileSync(join(__dirname, '../../../..', p), 'utf8');

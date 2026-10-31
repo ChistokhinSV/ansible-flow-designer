@@ -3,7 +3,7 @@
 // two older files (AFD-29).
 import { appendFile, mkdir } from 'node:fs/promises';
 import * as vscode from 'vscode';
-import { rotateLog } from './storage';
+import { rotateLog } from '../../node/run/storage';
 
 /** Size at which audit.jsonl moves to audit.1.jsonl; audit.1 and audit.2 are kept. */
 const AUDIT_ROTATE_BYTES = 1024 * 1024;

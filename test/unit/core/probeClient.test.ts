@@ -3,7 +3,7 @@
 // and an ansible-core below the floor is refused with a clear message.
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { coreSupported, ProbeClient } from '../../../src/extension/env/probeClient';
+import { coreSupported, ProbeClient } from '../../../src/node/env/probeClient';
 
 const FAKE = join(__dirname, '../../fixtures/probe/fake-probe.mjs');
 const clients: ProbeClient[] = [];

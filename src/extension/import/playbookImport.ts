@@ -3,8 +3,8 @@
 // A one-time copy: the playbooks are only read. Like a new flow (AFD-23), the file stores no
 // positions; the canvas lays the levels out.
 import * as vscode from 'vscode';
-import { flowText } from '../../core/awx/import';
 import type { IdFactory } from '../../core/flow/ids';
+import { flowText } from '../../core/flow/text';
 import { importPlaybook } from '../../core/import/playbook';
 import { importPrompt } from '../../core/import/prompt';
 import { basename, normalize } from '../../core/import/read';

@@ -35,6 +35,9 @@ export interface Snapshot {
 }
 
 /** A skeleton or real run of the flow and what it did per node (M3; full Run mode is M7). */
+/** Why a run did not start or stopped, when a command can fix it (AFD-37). */
+export type RunErrorCode = 'cancelled' | 'awx-url' | 'awx-token' | 'awx-template';
+
 export interface RunView {
   id: string;
   mode: 'check' | 'real';
@@ -43,6 +46,8 @@ export interface RunView {
   finishedAt?: string;
   rc?: number;
   error?: string;
+  /** What kind of error, so the host offers the fix (AFD-37). */
+  errorCode?: RunErrorCode;
   environment?: string;
   summary?: RunSummary;
   /** Where it ran: a local terminal task (M3) or an AWX job (M7). */

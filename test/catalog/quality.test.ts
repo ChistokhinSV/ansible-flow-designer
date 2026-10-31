@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { CollectionFile } from '../../src/core/catalog/types';
-import { CatalogIndex } from '../../src/extension/catalog/catalogIndex';
+import { CatalogIndex } from '../../src/node/catalog/catalogIndex';
 
 const dir = process.env.AFD_CATALOG_DIR ?? '';
 const spec = parse(

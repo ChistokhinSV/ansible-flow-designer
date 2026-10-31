@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { duration, flowText, importWorkflow } from '../../../src/core/awx/import';
+import { duration, importWorkflow } from '../../../src/core/awx/import';
 import {
   type AwxExport,
   type AwxReader,
@@ -21,9 +21,10 @@ import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel, ROOT } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
+import { flowText } from '../../../src/core/flow/text';
 import type { FlowDocument, FlowNode, Position } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
-import { layoutAll } from '../../../src/extension/autoLayout';
+import { layoutAll } from '../../../src/node/autoLayout';
 
 const DIR = join(__dirname, '../../fixtures/awx/import');
 const api = JSON.parse(readFileSync(join(DIR, 'api.json'), 'utf8')) as Record<string, unknown>;

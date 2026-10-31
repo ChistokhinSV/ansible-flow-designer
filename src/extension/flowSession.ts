@@ -29,8 +29,8 @@ import type {
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
-import { autoPositions, layoutLevel, shownLayout } from './autoLayout';
-import { checkBindings } from './catalog/bindingCheck';
+import { autoPositions, layoutLevel, shownLayout } from '../node/autoLayout';
+import { checkBindings } from '../node/catalog/bindingCheck';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';

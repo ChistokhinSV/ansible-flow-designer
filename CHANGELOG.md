@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.3 — AFD-37
+
+- **Host architecture** (improvement program, wave 2):
+  - **Layers:** the modules that run without VS Code moved to `src/node/` (layout, AWX client, catalog index, probe client, agent setup writers, run storage); Biome now refuses `vscode` in the core, node, MCP, CLI and webview layers, and file or process access in the core. The flow file text writer moved to `core/flow/text.ts`.
+  - **Commands** live in per-area modules (`src/extension/commands/`); `activate()` only composes (654 → 102 lines). A command run without an open flow now says "Open a flow first" with _New Flow…_ instead of doing nothing.
+  - **Errors** carry a code: a missing AWX address, token or template comes with the button that fixes it, and cancelled prompts are never shown as errors. _Set Up AI Assistants_ now logs to the one _Ansible Flow_ output channel.
+  - **Runs** share one preamble (save, generate, read) and audit header; the inputs helpers have their own module.
+  - **Import sources:** Copilot's tools and the MCP server read the same kinds of files, skip the same folders and refuse files over 2 MB; Copilot's tools also refuse a symlink that leads out of the folder, and in a multi-root workspace resolve module names with the folder the playbooks come from.
+  - **Startup:** after an AI setup, the extension no longer hashes the MCP server (about 2.4 MB) at every start; it compares size and time.
+  - **Bundle budgets** for the extension (768 KB) and the webview (1,088 KB) next to the MCP server's (960 KB).
+
 ## 0.24.2 — AFD-36
 
 - **Styles** (improvement program, wave 2; nothing changes on screen in the usual themes):

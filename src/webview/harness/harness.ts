@@ -37,7 +37,7 @@ import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
-import { autoPositions, layoutLevel, shownLayout } from '../../extension/autoLayout';
+import { autoPositions, layoutLevel, shownLayout } from '../../node/autoLayout';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
 function fixedIds(): () => string {

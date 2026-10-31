@@ -4,20 +4,19 @@
 import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
-import { parseFlow } from '../../core/flow/document';
 import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
-import { SECRET } from '../../core/import/secrets';
-import type { RunView } from '../../core/protocol';
+import type { RunErrorCode, RunView } from '../../core/protocol';
 import { runProcess, splitInputs } from '../../core/run/command';
 import { summarizeRun } from '../../core/run/events';
-import { generateFlow } from '../codegen';
+import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { environmentFor, type ProbeManager, UNTRUSTED } from '../env/environment';
-import { authorName } from '../gitHead';
+import { CANCELLED } from '../errors';
 import { appendAudit } from './audit';
-import { dropVars, KEEP_RUNS, pruneRuns } from './storage';
+import { collectInputs, targetsOf } from './inputs';
+import { auditHeader, prepareRun, stamp } from './prepare';
 
 export interface RunOptions {
   mode: 'check' | 'real';
@@ -46,8 +45,6 @@ interface InventoryFacts {
   prod_hosts: string[];
   vault: boolean;
 }
-
-export const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
 
 /** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */
 export interface TargetUse {
@@ -95,95 +92,6 @@ export function targetLines(uses: TargetUse[]): string[] {
   });
 }
 
-export function parseInput(type: string | undefined, text: string): unknown {
-  const t = text.trim();
-  switch (type) {
-    case 'host_list':
-      return t
-        .split(/[,\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    case 'integer':
-      return Number(t);
-    case 'boolean':
-      return /^(true|yes|1)$/i.test(t);
-    case 'list':
-    case 'dict':
-      try {
-        return JSON.parse(t);
-      } catch {
-        return t;
-      }
-    default:
-      return t;
-  }
-}
-
-function showInput(value: unknown): string {
-  if (Array.isArray(value)) return value.join(', ');
-  if (value !== null && typeof value === 'object') return JSON.stringify(value);
-  return value === undefined ? '' : String(value);
-}
-
-/** Flow inputs: given values, else remembered ones (per flow, this workspace), else prompted. */
-export async function collectInputs(
-  doc: FlowDocument,
-  given: Record<string, unknown> | undefined,
-  state: vscode.Memento,
-): Promise<Record<string, unknown> | undefined> {
-  const remembered = state.get<Record<string, unknown>>(inputsKey(doc.flow.id), {});
-  const values: Record<string, unknown> = {};
-  for (const [name, field] of Object.entries(doc.flow.inputs ?? {})) {
-    if (given && name in given) {
-      values[name] = given[name];
-      continue;
-    }
-    if (given) {
-      if (field?.default !== undefined) values[name] = field.default;
-      continue;
-    }
-    const needed = field?.required || field?.type === 'host_list';
-    if (!needed) {
-      if (field?.default !== undefined) values[name] = remembered[name] ?? field.default;
-      continue;
-    }
-    // Secret-looking inputs (an imported vault value or prompt, AFD-28) are typed hidden.
-    const secret = SECRET.test(name);
-    const text = await vscode.window.showInputBox({
-      title: `Run ${doc.flow.name}: input "${name}"`,
-      prompt:
-        field?.type === 'host_list'
-          ? 'Hosts or groups, comma-separated'
-          : `${field?.type ?? 'value'}${secret ? ' (not remembered)' : ''}`,
-      value: secret ? '' : showInput(remembered[name] ?? field?.default),
-      password: secret,
-      ignoreFocusOut: true,
-      validateInput: (v) => (v.trim() ? undefined : 'Required'),
-    });
-    if (text === undefined) return undefined;
-    values[name] = parseInput(field?.type, text);
-  }
-  // Remembered for the next run, except secrets: they are asked each time and never stored.
-  const keep = Object.fromEntries(Object.entries(values).filter(([k]) => !SECRET.test(k)));
-  const old = Object.fromEntries(Object.entries(remembered).filter(([k]) => !SECRET.test(k)));
-  await state.update(inputsKey(doc.flow.id), { ...old, ...keep });
-  return values;
-}
-
-export function targetsOf(doc: FlowDocument, inputs: Record<string, unknown>): string[] {
-  const lists = Object.entries(doc.flow.inputs ?? {}).filter(([, f]) => f?.type === 'host_list');
-  const name = (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
-  const value = name ? inputs[name] : undefined;
-  return Array.isArray(value) ? value.map(String) : [];
-}
-
-export function stamp(d = new Date()): string {
-  return d
-    .toISOString()
-    .replaceAll(/[-:]/g, '')
-    .replace(/\.\d+Z$/, 'Z');
-}
-
 export async function runFlow(
   document: vscode.TextDocument,
   deps: RunDeps,
@@ -191,22 +99,23 @@ export async function runFlow(
 ): Promise<RunView> {
   const startedAt = new Date().toISOString();
   const id = stamp();
-  const fail = (error: string): RunView => {
-    const run: RunView = { id, mode: options.mode, state: 'error', startedAt, error };
+  const fail = (error: string, errorCode?: RunErrorCode): RunView => {
+    const run: RunView = {
+      id,
+      mode: options.mode,
+      state: 'error',
+      startedAt,
+      error,
+      ...(errorCode ? { errorCode } : {}),
+    };
     deps.report(run);
     return run;
   };
 
-  if (document.isDirty) await document.save();
-  const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-  if (!folder) return fail('Open the repository folder that contains this flow first');
-  const generated = await generateFlow(document, deps.schema);
-  if (!generated.ok || !generated.result || !generated.dir)
-    return fail(generated.error ?? 'Code generation failed');
-  if (generated.kept.length > 0)
-    return fail('Generated code was edited by hand: run "Generate Playbook" first');
-  const doc = parseFlow(document.getText()).doc;
-  if (!doc) return fail('The flow does not parse');
+  const prepared = await prepareRun(document, deps.schema, { refuseKept: true });
+  if (!prepared.ok) return fail(prepared.error);
+  const { folder, generated, doc } = prepared;
+  if (!generated.dir) return fail('Code generation failed');
 
   const env = environmentFor(folder.uri);
   if (!env.ok) {
@@ -223,7 +132,7 @@ export async function runFlow(
     return fail(env.error);
   }
   const inputs = await collectInputs(doc, options.inputs, deps.state);
-  if (!inputs) return fail('Cancelled');
+  if (!inputs) return fail(CANCELLED, 'cancelled');
   const targets = targetsOf(doc, inputs);
   if (targets.length === 0) return fail('No target hosts: the targets input is empty');
 
@@ -266,7 +175,7 @@ export async function runFlow(
       { modal: true, detail: detail.join('\n') },
       go,
     );
-    if (pick !== go) return fail('Cancelled');
+    if (pick !== go) return fail(CANCELLED, 'cancelled');
   }
 
   const ask = config.get<'auto' | 'always' | 'never'>('run.askVaultPassword', 'auto');
@@ -278,7 +187,7 @@ export async function runFlow(
       password: true,
       ignoreFocusOut: true,
     });
-    if (vaultPassword === undefined) return fail('Cancelled');
+    if (vaultPassword === undefined) return fail(CANCELLED, 'cancelled');
   }
 
   const runDir = vscode.Uri.joinPath(deps.storage, 'runs', doc.flow.id, id);
@@ -316,13 +225,7 @@ export async function runFlow(
 
   const audit = {
     run: id,
-    user: await authorName(document.uri),
-    flow: {
-      id: doc.flow.id,
-      key: doc.flow.key,
-      version: doc.flow.version,
-      file: vscode.workspace.asRelativePath(document.uri),
-    },
+    ...(await auditHeader(document, doc)),
     mode: options.mode,
     environment: probe.label,
     inventory: facts.sources,

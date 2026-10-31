@@ -9,7 +9,7 @@ import { parse } from 'yaml';
 import type { AwxWorkflowJobNode } from '../../src/core/awx/types';
 import type { FlowDocument } from '../../src/core/flow/types';
 import type { RunView } from '../../src/core/protocol';
-import { AwxClient } from '../../src/extension/awx/client';
+import { AwxClient } from '../../src/node/awx/client';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 
 const url = process.env.AFD_AWX_URL;

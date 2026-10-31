@@ -24,7 +24,6 @@ import { flatPlays, importPlaybook } from '../import/playbook';
 import type { ImportResult } from '../import/result';
 import { cleanVars, isSecret } from '../import/secrets';
 import type { PlaybookForm } from '../import/source';
-import { renderBlock, type YamlValue } from '../yaml/render';
 import type { SurveyQuestion, WorkflowNodeSource, WorkflowSource } from './workflow';
 
 export interface ImportOptions {
@@ -507,14 +506,4 @@ class Importer {
 
 export function importWorkflow(src: WorkflowSource, opts: ImportOptions): ImportResult {
   return new Importer(opts).run(src);
-}
-
-/** The flow file's text (block style, two-space indent, indentless sequences as in the examples). */
-export function flowText(doc: FlowDocument, eol: '\n' | '\r\n' = '\n'): string {
-  const lines = renderBlock(doc as unknown as YamlValue, 0, {
-    eol,
-    indentUnit: 2,
-    seqIndentless: true,
-  });
-  return `${lines.join(eol)}${eol}`;
 }

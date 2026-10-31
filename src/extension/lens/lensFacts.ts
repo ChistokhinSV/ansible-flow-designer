@@ -10,7 +10,7 @@ import { parseRequirements } from '../../core/lens/requirements';
 import type { CodeFacts, CodeNodeFacts, InventoryFacts } from '../../core/lens/types';
 import type { CatalogService } from '../catalog/catalogService';
 import type { ProbeManager } from '../env/environment';
-import { inputsKey, parseInput } from '../run/runner';
+import { inputsKey, parseInput } from '../run/inputs';
 
 const REQUIREMENTS = [
   'collections/requirements.yml',

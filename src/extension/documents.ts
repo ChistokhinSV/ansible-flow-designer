@@ -1,0 +1,122 @@
+// Flow documents' lifecycle (AFD-37: out of activate): a session per open flow, refreshed on
+// edits; on save, the version bump and the tested drop-back (ADR-0006), then generated code
+// (ADR-0009).
+import * as vscode from 'vscode';
+import { parseFlow } from '../core/flow/document';
+import { planSave } from '../core/flow/save';
+import { type CodegenOutcome, generateFlow } from './codegen';
+import { announceImplementedAgain, type SessionDeps } from './flowSession';
+import { headText } from './gitHead';
+import { type Host, isFlow } from './host';
+
+export function registerDocuments(host: Host): vscode.Disposable[] {
+  const { sessions, lastSaved, savedCode, deps } = host;
+  return [
+    vscode.workspace.onDidOpenTextDocument((doc) => {
+      if (isFlow(doc)) void host.sessionFor(doc).refresh();
+    }),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      if (e.contentChanges.length > 0) void sessions.get(e.document.uri.toString())?.refresh();
+    }),
+    vscode.workspace.onDidCloseTextDocument((doc) => {
+      const key = doc.uri.toString();
+      sessions.get(key)?.dispose();
+      sessions.delete(key);
+      lastSaved.delete(key);
+    }),
+    vscode.workspace.onWillSaveTextDocument((e) => {
+      if (isFlow(e.document))
+        e.waitUntil(saveEdits(e.document, lastSaved.get(e.document.uri.toString())));
+    }),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (!isFlow(doc)) return;
+      lastSaved.set(doc.uri.toString(), doc.getText());
+      if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true)) {
+        const code = writeCode(doc, deps, false);
+        savedCode.set(doc.uri.toString(), code);
+        // Implementation mode shows the code: once it is rewritten, sync again (M6).
+        void code.then(() => sessions.get(doc.uri.toString())?.resyncIfScanned());
+      }
+    }),
+  ];
+}
+
+/**
+ * Writes generated/ for a flow (ADR-0009). On save this is quiet unless something needs the user;
+ * from the command, files edited by hand can be overwritten after a confirmation.
+ */
+export async function writeCode(
+  doc: vscode.TextDocument,
+  deps: SessionDeps,
+  explicit: boolean,
+): Promise<CodegenOutcome> {
+  let outcome = await generateFlow(doc, deps.schema);
+  if (!outcome.ok) {
+    if (explicit) void vscode.window.showErrorMessage(outcome.error ?? 'Code generation failed');
+    else vscode.window.setStatusBarMessage(`$(warning) ${outcome.error}`, 6000);
+    return outcome;
+  }
+  if (outcome.kept.length > 0) {
+    const names = outcome.kept.map((u) => vscode.workspace.asRelativePath(u)).join(', ');
+    const overwrite = 'Overwrite';
+    const asked = vscode.window.showWarningMessage(
+      `Generated code was edited by hand and was not updated: ${names}`,
+      { modal: explicit },
+      overwrite,
+    );
+    // On save the answer may come much later (or never); the save path must not wait for it.
+    if (!explicit) {
+      void asked.then((pick) =>
+        pick === overwrite ? generateFlow(doc, deps.schema, { force: true }) : undefined,
+      );
+      return outcome;
+    }
+    if ((await asked) === overwrite) {
+      const forced = await generateFlow(doc, deps.schema, { force: true });
+      outcome = { ...forced, written: [...outcome.written, ...forced.written] };
+    }
+  }
+  const n = outcome.written.length;
+  if (n > 0 || explicit) {
+    const where = outcome.dir ? vscode.workspace.asRelativePath(outcome.dir) : 'generated';
+    vscode.window.setStatusBarMessage(
+      n > 0 ? `$(check) Generated ${n} file(s) in ${where}` : `$(check) ${where} is up to date`,
+      4000,
+    );
+  }
+  return outcome;
+}
+
+async function diskText(uri: vscode.Uri): Promise<string | undefined> {
+  try {
+    return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * On save: tested nodes edited by hand since the file on disk are implemented again (decision 15),
+ * and flow.version moves once relative to Git HEAD, or the last saved text (ADR-0006).
+ */
+async function saveEdits(
+  document: vscode.TextDocument,
+  lastSaved: string | undefined,
+): Promise<vscode.TextEdit[]> {
+  const text = document.getText();
+  const saved = (await diskText(document.uri)) ?? lastSaved;
+  const base = (await headText(document.uri)) ?? lastSaved;
+  let plan: ReturnType<typeof planSave>;
+  try {
+    plan = planSave(text, saved, base);
+  } catch {
+    return [];
+  }
+  announceImplementedAgain(parseFlow(text).doc, plan.dropped);
+  return plan.edits.map((e) =>
+    vscode.TextEdit.replace(
+      new vscode.Range(document.positionAt(e.start), document.positionAt(e.end)),
+      e.newText,
+    ),
+  );
+}

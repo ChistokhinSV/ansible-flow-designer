@@ -3,7 +3,7 @@
 // Job templates whose playbook is in the repository become subflows of the playbook's steps; a
 // workflow is laid out top-down with ELK at every level. A one-time copy: AWX is only read.
 import * as vscode from 'vscode';
-import { flowText, type ImportResult, importWorkflow } from '../../core/awx/import';
+import { type ImportResult, importWorkflow } from '../../core/awx/import';
 import { sanitizedExport } from '../../core/awx/sanitize';
 import {
   type AwxExport,
@@ -16,10 +16,11 @@ import {
   workflowFromExport,
 } from '../../core/awx/workflow';
 import { type IdFactory, SLUG } from '../../core/flow/ids';
+import { flowText } from '../../core/flow/text';
 import { importPrompt } from '../../core/import/prompt';
 import type { PlaybookForm } from '../../core/import/source';
 import { readPlaybook } from '../../core/import/source';
-import { layoutAll } from '../autoLayout';
+import { layoutAll } from '../../node/autoLayout';
 import { type AiStart, type ImportMode, pickMode, startAiImport } from '../import/aiStart';
 import { askKey, exists, flowDir, pickFolder, workspaceSource } from '../import/common';
 import { awxClient } from './awxRun';
@@ -92,7 +93,7 @@ async function fromAwx(
   from: Extract<ImportSource, { kind: 'awx' }>,
 ): Promise<Picked | string> {
   const client = await awxClient(folder.uri, secrets);
-  if (typeof client === 'string') return client;
+  if ('error' in client) return client.error;
   type Row = { id: number; name: string; description?: string };
   const workflows = from.template === 'job' ? [] : await client.list<Row>('workflow_job_templates');
   const jobs = from.template === 'workflow' ? [] : await client.list<Row>('job_templates');

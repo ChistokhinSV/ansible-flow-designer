@@ -12,7 +12,7 @@ import { createIdFactory } from '../../../../src/core/flow/ids';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
-import { layoutLevel, shownPositions } from '../../../../src/extension/autoLayout';
+import { layoutLevel, shownPositions } from '../../../../src/node/autoLayout';
 
 const ROOT = join(__dirname, '../../../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8').replaceAll('\r\n', '\n');

@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
-import { collectInputs } from '../../src/extension/run/runner';
+import { collectInputs } from '../../src/extension/run/inputs';
 import { closeAll, openDesigner, testApi } from './helpers';
 
 /** The repository (the bundle runs from out/test/integration). */

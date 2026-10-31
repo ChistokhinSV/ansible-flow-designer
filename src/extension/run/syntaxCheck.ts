@@ -1,10 +1,9 @@
 // `ansible-playbook --syntax-check` of the generated code inside the flow's environment (modules
 // must exist there, 07 §5). Errors become diagnostics on the generated files.
 import * as vscode from 'vscode';
-import { parseFlow } from '../../core/flow/document';
 import type { SchemaValidator } from '../../core/flow/schema';
-import { generateFlow } from '../codegen';
 import type { ProbeManager } from '../env/environment';
+import { prepareRun } from './prepare';
 
 export interface SyntaxOutcome {
   ok: boolean;
@@ -25,17 +24,14 @@ export async function syntaxCheck(
   probes: ProbeManager,
   diagnostics: vscode.DiagnosticCollection,
 ): Promise<SyntaxOutcome> {
-  const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
-  if (!folder) return { ok: false, message: 'Open the repository folder first', errors: [] };
-  if (doc.isDirty) await doc.save();
-  const generated = await generateFlow(doc, schema);
-  if (!generated.ok || !generated.result || !generated.dir)
-    return { ok: false, message: generated.error ?? 'Code generation failed', errors: [] };
+  const prepared = await prepareRun(doc, schema);
+  if (!prepared.ok) return { ok: false, message: prepared.error, errors: [] };
+  const { folder, generated, doc: flow } = prepared;
+  if (!generated.dir) return { ok: false, message: 'Code generation failed', errors: [] };
   const probe = probes.forFolder(folder.uri);
   if ('error' in probe) return { ok: false, message: probe.error, errors: [] };
 
   // Ansible templates `hosts:` even in a syntax check, so host_list inputs need a placeholder.
-  const flow = parseFlow(doc.getText()).doc;
   const placeholders: Record<string, unknown> = {};
   for (const [name, field] of Object.entries(flow?.flow.inputs ?? {}))
     if (field?.type === 'host_list') placeholders[name] = ['localhost'];

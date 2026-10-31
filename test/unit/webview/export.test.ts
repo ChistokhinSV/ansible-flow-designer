@@ -17,7 +17,7 @@ import { openFailPorts } from '../../../src/core/flow/openPorts';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
-import { shownPositions } from '../../../src/extension/autoLayout';
+import { shownPositions } from '../../../src/node/autoLayout';
 import { readExample } from '../core/helpers';
 
 const schema = createSchemaValidator();

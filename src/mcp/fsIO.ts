@@ -2,22 +2,24 @@
 // MCP roots, else the working directory) are seen or written. A write acts like a save in the
 // designer: tested nodes changed by the edit drop back, flow.version moves once against Git HEAD,
 // and generated/ is refreshed without overwriting hand edits. Files are replaced atomically.
+
 import { execFile } from 'node:child_process';
 import { promises as fs, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { findNodeAtLocation, getNodeValue, parseTree } from 'jsonc-parser';
 import type { FlowIO } from '../core/ai/handlers';
 import type { OpsContext } from '../core/ai/ops';
+import { isSourceFile, SKIP_DIRS, SOURCE_MAX_BYTES } from '../core/ai/sourceRules';
 import { planGenerated } from '../core/engine/writePlan';
 import type { IdFactory } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
 import { applyEdits } from '../core/yaml/edits';
-import { layoutLevel, shownPositions } from '../extension/autoLayout';
+import { layoutLevel, shownPositions } from '../node/autoLayout';
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const SKIP = new Set(['node_modules', '.git', 'generated', 'out', 'dist', '.venv', 'venv', '.tox']);
+const MAX_BYTES = SOURCE_MAX_BYTES;
+const SKIP = new Set(SKIP_DIRS);
 const TIMEOUT_MS = 5000;
 
 function git(cwd: string, args: string[]): Promise<string | undefined> {
@@ -46,9 +48,6 @@ const inside = (root: string, path: string) => {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 };
 
-/** Ansible files the import tools may read (AFD-27): YAML, AWX export JSON, ansible.cfg. */
-const SOURCE_FILE = /(\.ya?ml|\.json|(^|\/)ansible\.cfg)$/;
-
 /**
  * One root's Ansible files, read-only, by repository path (AFD-27). Paths are resolved through
  * symlinks and must stay inside the root; only YAML, JSON and ansible.cfg are read, at most 2 MB.
@@ -64,7 +63,7 @@ export class FsSourceIO implements SourceIO {
 
   async read(path: string): Promise<string | undefined> {
     const file = this.within(path);
-    if (!file || !SOURCE_FILE.test(posix(file))) return undefined;
+    if (!file || !isSourceFile(posix(file))) return undefined;
     try {
       const stat = await fs.stat(file);
       if (!stat.isFile() || stat.size > MAX_BYTES) return undefined;
