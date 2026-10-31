@@ -135,3 +135,21 @@ Decisions (product owner, 2026-10-31):
   - group_vars and role defaults read in params stay unknown variables (warnings).
 - **Roles need roles_path:** a role outside the repository's `roles_path` is bound by name, and
   the notes say to add its folder.
+
+## Amendment: AI-assisted import (AFD-27, 2026-10-31)
+
+Decisions 4, 5 (AI over AWX) and 8, as designed:
+- **Tools** (`src/core/ai/handlers.ts`, `src/core/import/outline.ts`):
+  - `source_outline {path, flow?, focus?, page?}` outlines a folder (playbooks, entries first, roles), a playbook (plays and a numbered tree of tasks; each with `impl:` exactly as the as-is import writes it, paths rewritten for `flow`), a role folder, or an AWX export (templates, nodes, edges, which playbooks are in this repository). It ends with what an as-is import would note. Pages of about 24,000 characters; `focus: "#n"` shows one task in full. Secrets show as `<secret name>`.
+  - `flow_import {source, path?, template?, name?}` runs the deterministic import (a playbook, or a workflow or job template of an AWX export, expanding playbooks of the repository) and creates the file through `FlowIO.create`, so it is a save (generated code written).
+- **Reading:** `FlowIO.source(path)` returns the reader of the root that holds the path:
+  - **MCP** (`FsSourceIO`): realpath and inside-root checks; reads `.yml`, `.yaml`, `.json` and `ansible.cfg` only, at most 2 MB; existence of other files may be asked, never their content;
+  - **Copilot:** `workspace.fs` (open editors win), paths that leave the folder refused, the same file kinds;
+  - both: multi-root by the root's name, and the catalog resolves short module names where it is loaded (Copilot).
+- **The prompt** (`src/core/import/prompt.ts`) names the source and the flow to write. It asks for `source_outline`, intent-based subflows, copied `impl`, `set_io` for data, failures handled only where the source handles them, handlers as `when: (<register> | default({})) is changed` steps, `flow_validate`, and a report; `flow_import` is for an exact copy.
+- **Commands:** after the source and keys, a mode pick (As is / With an AI assistant). The AI mode checks the keys, writes nothing but (for AWX) the sanitized export, and hands the prompt over (`src/extension/import/aiStart.ts`):
+  - the prompt always goes to the clipboard;
+  - with Copilot Chat installed, a pick offers it: `workbench.action.chat.open {query, mode: 'agent', isPartialQuery: true}` fills the chat without sending;
+  - on any failure, the clipboard message offers _Set Up AI Assistants_.
+- **Sanitized export** (`src/core/awx/sanitize.ts`): built from the normalized `WorkflowSource` only. Extra vars and node extra data with secret values become `$encrypted$`; password and secret survey defaults are dropped; credentials are kept by name and kind; projects keep their SCM URL without credentials. It is written to `flows/<key>/source/awx-export.json`, and importing it gives the same flow as the source it came from (tested).
+- **Bundle:** `mcp.js` grows to 926 KB. The budget is raised to 960 KB (ADR-0017 amendment) rather than splitting a lazy chunk, which would carry its own copy of `yaml` and the flow model.

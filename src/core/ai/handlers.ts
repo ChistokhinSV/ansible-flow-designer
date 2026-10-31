@@ -1,6 +1,14 @@
 // The AI tools themselves (AFD-19), independent of who calls them: Copilot through the extension
 // host, Claude Code, Codex and Gemini through the MCP server. Each adapter supplies a FlowIO (how
 // files are found, read and written there); every answer is plain text by key, never with IDs.
+import { flowText, importWorkflow } from '../awx/import';
+import {
+  type AwxExport,
+  exportTemplates,
+  jobTemplateFromExport,
+  playbooksOf,
+  workflowFromExport,
+} from '../awx/workflow';
 import { checksum } from '../engine/util';
 import { toDrawio } from '../export/drawio';
 import { type ExportSource, levelSuffix, scenesOf } from '../export/scene';
@@ -13,6 +21,11 @@ import { openFailPorts } from '../flow/openPorts';
 import type { SchemaValidator } from '../flow/schema';
 import { newFlowText } from '../flow/template';
 import { type Finding, validateFlow } from '../flow/validate';
+import { generatedDirOf, sourceOutline } from '../import/outline';
+import { importPlaybook } from '../import/playbook';
+import type { SourceIO } from '../import/read';
+import type { ImportResult } from '../import/result';
+import { type PlaybookForm, readPlaybook } from '../import/source';
 import { diffEdits } from '../yaml/edits';
 import { countFindings, describeFlow, formatFindings } from './describe';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
@@ -39,6 +52,15 @@ export interface FlowIO {
    * as the tools show it. Throws for anything else.
    */
   writeExport?(path: string, text: string): Promise<string>;
+  /**
+   * AFD-27: Ansible files inside the roots (playbooks, task files, roles, ansible.cfg, AWX export
+   * JSON), read-only: the reader of the root that holds `path`, the path within it, and the prefix
+   * tools show for that root (its name when there are several, else ''). Absent where the host
+   * cannot read them.
+   */
+  source?(path: string): { io: SourceIO; path: string; prefix: string } | undefined;
+  /** Short module name + the play's collections → FQCN, where a catalog is loaded. */
+  resolveModule?(name: string, collections: string[]): string | undefined;
 }
 
 export interface ToolResult {
@@ -459,6 +481,147 @@ export async function flowExport(
   }
 }
 
+/**
+ * AFD-27: existing automation (a playbook, a folder, a role, an AWX export) as text an agent designs
+ * from: structure, and per task the exact binding an import writes. Secrets by name only.
+ */
+export async function sourceOutlineTool(
+  io: FlowIO,
+  input: { path?: string; focus?: string; flow?: string; page?: number },
+): Promise<ToolResult> {
+  const path = input.path?.trim();
+  if (!path)
+    return fail(
+      'path: a playbook, a folder, a role folder or an AWX export (.json), relative to the workspace',
+    );
+  const at = io.source?.(path);
+  if (!at) return fail('Reading playbooks is not available here');
+  const flow =
+    input.flow && at.prefix && input.flow.startsWith(at.prefix)
+      ? input.flow.slice(at.prefix.length)
+      : input.flow;
+  try {
+    return {
+      text: await sourceOutline(at.io, {
+        path: at.path,
+        ...(input.focus ? { focus: input.focus } : {}),
+        ...(flow ? { flow } : {}),
+        ...(input.page ? { page: input.page } : {}),
+        ...(io.resolveModule ? { resolveModule: io.resolveModule } : {}),
+      }),
+    };
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+}
+
+/**
+ * AFD-27: the as-is import (AFD-26) as a tool: a playbook, or a template of an AWX export, becomes a
+ * new flow, one step per task. For an exact copy; an intent-based design is built with flow_new and
+ * flow_edit from source_outline instead.
+ */
+export async function flowImport(
+  io: FlowIO,
+  input: { source?: string; path?: string; template?: string; name?: string },
+): Promise<ToolResult> {
+  const given = input.source?.trim().replace(/^\.\//, '');
+  if (!given)
+    return fail('source: a playbook (.yml) or an AWX export (.json), relative to the workspace');
+  const at = io.source?.(given);
+  if (!at) return fail('Reading playbooks is not available here');
+  const src = at.io;
+  const source = at.path;
+  const stem = slugify(
+    (input.template ?? source.split('/').pop() ?? '').replace(/\.(ya?ml|json)$/, ''),
+    'imported',
+  );
+  const path = input.path?.trim() || `${at.prefix}flows/${stem}/${stem}.flow.yaml`;
+  if (!path.endsWith('.flow.yaml')) return fail('path must end with .flow.yaml');
+  const base =
+    path
+      .split('/')
+      .pop()
+      ?.replace(/\.flow\.yaml$/, '') ?? '';
+  const key = SLUG.test(base) ? base : stem;
+  const newId = io.ops(path).newId;
+  let result: ImportResult;
+  if (source.endsWith('.json')) {
+    let data: unknown;
+    try {
+      data = JSON.parse((await src.read(source)) ?? '');
+    } catch {
+      return fail(`${source} is not readable JSON`);
+    }
+    const names = exportTemplates(data);
+    if (typeof names === 'string') return fail(`${source}: ${names}`);
+    const all = [...names.workflows, ...names.jobs];
+    const template = input.template ?? (all.length === 1 ? all[0] : undefined);
+    if (!template || !all.includes(template))
+      return fail(`template: one of ${all.map((n) => `"${n}"`).join(', ')}`);
+    const job = !names.workflows.includes(template);
+    const wf = job
+      ? jobTemplateFromExport(data as AwxExport, template)
+      : workflowFromExport(data as AwxExport, template);
+    const present = new Set<string>();
+    const playbooks = new Map<string, PlaybookForm>();
+    for (const ref of playbooksOf(wf)) {
+      const read = await readPlaybook(src, ref.replace(/^\.?\//, ''));
+      if (!read.playbook) continue;
+      present.add(ref);
+      if (read.playbook.plays.length) playbooks.set(ref, read.playbook);
+    }
+    result = importWorkflow(wf, {
+      key,
+      newId,
+      hasPlaybook: (r) => present.has(r),
+      playbooks,
+      kind: job ? 'awx_job_template' : 'awx_workflow',
+    });
+  } else {
+    const read = await readPlaybook(
+      src,
+      source,
+      io.resolveModule ? { resolveModule: io.resolveModule } : {},
+    );
+    if (!read.playbook?.plays.length)
+      return fail(
+        read.notes.join(' ') || `${source} has no plays: import the playbook that uses it`,
+      );
+    result = importPlaybook(
+      read.playbook,
+      {
+        key,
+        newId,
+        generatedDir: generatedDirOf(
+          path.startsWith(at.prefix) ? path.slice(at.prefix.length) : path,
+          key,
+        ),
+        ...(input.name ? { name: input.name } : {}),
+      },
+      read.notes,
+    );
+  }
+  let created: { text: string; notes: string[] };
+  try {
+    created = await io.create(path, flowText(result.doc));
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  const checked = check(created.text, io.schema);
+  if (typeof checked === 'string') return fail(checked);
+  const c = result.counts;
+  return {
+    text: [
+      `Created ${path} from ${source}${input.template ? ` (${input.template})` : ''}: ${c.steps} step(s), ${c.implemented} implemented, ${c.drafts} draft. One step per task, as the source has them.`,
+      ...created.notes,
+      ...(result.notes.length
+        ? ['What did not map one to one:', ...result.notes.map((n) => `- ${n}`)]
+        : []),
+      describeFlow(checked.model, checked.findings, revisionOf(created.text)),
+    ].join('\n'),
+  };
+}
+
 /** Runs a tool by name: the adapters' single entry point. */
 export async function runTool(io: FlowIO, name: string, input: unknown): Promise<ToolResult> {
   const args = (input && typeof input === 'object' ? input : {}) as Record<string, never>;
@@ -479,6 +642,10 @@ export async function runTool(io: FlowIO, name: string, input: unknown): Promise
       return flowCompleteIds(io, args);
     case 'flow_export':
       return flowExport(io, args);
+    case 'source_outline':
+      return sourceOutlineTool(io, args);
+    case 'flow_import':
+      return flowImport(io, args);
   }
   return fail(`Unknown tool ${name}`);
 }

@@ -9,8 +9,10 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 const testsOnly = process.argv.includes('--tests');
 const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
-// The MCP server for terminal agents (AFD-19) starts per agent session: keep it small.
-const MCP_BUDGET = 900 * 1024;
+// The MCP server for terminal agents (AFD-19) starts per agent session: keep it small. AFD-27 raised
+// it from 900 KB for the import tools (the reader and mappers, about 60 KB; a lazy chunk would carry
+// its own copy of yaml and the flow model).
+const MCP_BUDGET = 960 * 1024;
 
 /**
  * ELK is most of the host code: the extension loads it on first use (autoLayout.ts), from its

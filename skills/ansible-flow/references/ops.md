@@ -276,6 +276,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | Code | Meaning | Fix |
 | --- | --- | --- |
 | schema | The file breaks the flow schema (a field of the wrong type or an unknown field). | Correct the field named in the message; see the format reference. |
+| input-default-type | A host_list or list flow input has a string default; the generated code joins it letter by letter. | Write the default as a list: default: [edge] (set_io on flow with field {type: host_list, default: [edge]}). |
 | keyword-reserved | A task keyword in impl.keywords that the flow models itself (register, tags, become, timeout, retries, until, notify, block) or that is no task keyword. | Move it where the message says (impl.register, settings, a handler step, a subflow), or remove it. |
 | keyword-ignored | Task keywords that cannot apply: on a playbook binding, or vars on a role binding (role variables belong in params). | Remove them, or bind a module or role; move role variables to params. |
 | missing-id | Written by hand: a node, wire or the flow has no ID, or a reference names a node by key. | Run Complete IDs (designer banner or quick fix, or flow_complete_ids). Never invent IDs. |

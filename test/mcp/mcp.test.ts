@@ -35,6 +35,8 @@ beforeAll(async () => {
   mkdirSync(join(repo, 'flows/edge-baseline'), { recursive: true });
   cpSync(join(ROOT, 'examples/edge-baseline.flow.yaml'), join(repo, FLOW));
   writeFileSync(join(repo, 'README.md'), '# not a flow\n');
+  // AFD-27: an Ansible repository around the flow (the import fixture).
+  cpSync(join(ROOT, 'test/fixtures/import/netops'), join(repo, 'netops'), { recursive: true });
   git('init', '-q');
   git('config', 'user.name', 'Test Author');
   git('config', 'user.email', 'author@example.net');
@@ -67,8 +69,10 @@ describe('MCP server', () => {
         'flow_export',
         'flow_list',
         'flow_new',
+        'flow_import',
         'flow_reference',
         'flow_validate',
+        'source_outline',
       ].sort(),
     );
     expect(tools.find((t) => t.name === 'flow_describe')?.annotations?.readOnlyHint).toBe(true);
@@ -189,5 +193,41 @@ describe('MCP server', () => {
     expect(outside.text).toMatch(/outside/);
     // Exports leave the flow as it was.
     expect(disk()).toBe(before);
+  });
+
+  it('AFD-27: outlines playbooks and imports one as is; reads only Ansible files inside the root', async () => {
+    const o = await call('source_outline', {
+      path: 'netops/site.yml',
+      flow: 'flows/site/site.flow.yaml',
+    });
+    expect(o.isError).toBe(false);
+    expect(o.text).toContain('#6 Render the MOTD · ansible.builtin.template · notify Save config');
+    expect(o.text).toContain('{{ playbook_dir }}/../../../netops/playbooks/templates/motd.j2');
+    expect(o.text).not.toContain('ANSIBLE_VAULT');
+    expect((await call('source_outline', { path: 'netops' })).text).toContain('top level');
+    // Not YAML, or outside the root: never read.
+    expect((await call('source_outline', { path: 'netops/.vault-pass' })).text).not.toContain(
+      'afd-test-vault-pass',
+    );
+    expect((await call('source_outline', { path: '../outside.yml' })).text).toMatch(/not found/);
+    const r = await call('flow_import', {
+      source: 'netops/site.yml',
+      path: 'flows/site/site.flow.yaml',
+    });
+    expect(r.isError).toBe(false);
+    // The repository root has no ansible.cfg, so netops/roles is not searched: two draft role steps.
+    expect(r.text).toMatch(
+      /^Created flows\/site\/site.flow.yaml from netops\/site.yml: 20 step\(s\), 18 implemented, 2 draft/,
+    );
+    expect(r.text).toContain('Role netops_backup was not found in the repository');
+    expect(readFileSync(join(repo, 'flows/site/site.flow.yaml'), 'utf8')).not.toContain(
+      'ANSIBLE_VAULT',
+    );
+    // A creation is a save: generated/ is written, and its plays find the template.
+    const generated = readFileSync(
+      join(repo, 'flows/site/generated/site.baseline.edge-baseline.push-the-baseline.yml'),
+      'utf8',
+    );
+    expect(generated).toContain('{{ playbook_dir }}/../../../netops/playbooks/templates/motd.j2');
   });
 });

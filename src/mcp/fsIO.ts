@@ -12,6 +12,7 @@ import { planGenerated } from '../core/engine/writePlan';
 import type { IdFactory } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
+import type { SourceIO } from '../core/import/read';
 import { applyEdits } from '../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../extension/autoLayout';
 
@@ -45,6 +46,59 @@ const inside = (root: string, path: string) => {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 };
 
+/** Ansible files the import tools may read (AFD-27): YAML, AWX export JSON, ansible.cfg. */
+const SOURCE_FILE = /(\.ya?ml|\.json|(^|\/)ansible\.cfg)$/;
+
+/**
+ * One root's Ansible files, read-only, by repository path (AFD-27). Paths are resolved through
+ * symlinks and must stay inside the root; only YAML, JSON and ansible.cfg are read, at most 2 MB.
+ * Whether any other file exists (a template a task names) may be asked, never its content.
+ */
+export class FsSourceIO implements SourceIO {
+  constructor(private readonly root: string) {}
+
+  private within(path: string): string | undefined {
+    const target = real(join(this.root, ...path.split('/').filter(Boolean)));
+    return inside(this.root, target) ? target : undefined;
+  }
+
+  async read(path: string): Promise<string | undefined> {
+    const file = this.within(path);
+    if (!file || !SOURCE_FILE.test(posix(file))) return undefined;
+    try {
+      const stat = await fs.stat(file);
+      if (!stat.isFile() || stat.size > MAX_BYTES) return undefined;
+      return await fs.readFile(file, 'utf8');
+    } catch {
+      return undefined;
+    }
+  }
+
+  async list(dir: string): Promise<{ name: string; dir: boolean }[]> {
+    const folder = this.within(dir);
+    if (!folder) return [];
+    try {
+      const entries = await fs.readdir(folder, { withFileTypes: true });
+      return entries
+        .filter((e) => !(e.isDirectory() && SKIP.has(e.name)))
+        .map((e) => ({ name: e.name, dir: e.isDirectory() }));
+    } catch {
+      return [];
+    }
+  }
+
+  async exists(path: string): Promise<boolean> {
+    const file = this.within(path);
+    if (!file) return false;
+    try {
+      await fs.stat(file);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export class FsFlowIO implements FlowIO {
   private roots: string[];
 
@@ -58,6 +112,20 @@ export class FsFlowIO implements FlowIO {
 
   setRoots(roots: string[]): void {
     if (roots.length > 0) this.roots = roots.map(real);
+  }
+
+  /** AFD-27: the Ansible files of the root a path names (by its name when there are several). */
+  source(path: string): { io: SourceIO; path: string; prefix: string } | undefined {
+    const parts = path.replaceAll('\\', '/').split('/');
+    const named =
+      this.roots.length > 1 ? this.roots.find((r) => basename(r) === parts[0]) : undefined;
+    const root = named ?? this.roots[0];
+    if (!root) return undefined;
+    return {
+      io: new FsSourceIO(root),
+      path: named ? parts.slice(1).join('/') : path,
+      prefix: named ? `${parts[0]}/` : this.roots.length > 1 ? `${basename(root)}/` : '',
+    };
   }
 
   /** A path as tools show it: relative to its root (prefixed with the root's name when several). */

@@ -237,3 +237,17 @@ describe('impl.keywords edits and display', () => {
     expect(keywordHint(node.impl)).toBe('when + loop');
   });
 });
+
+describe('AFD-27: a list input with a string default', () => {
+  it('warns that it would be joined letter by letter', () => {
+    const doc = docOf(EDGE);
+    (doc.flow.inputs as Record<string, { type: string; default?: unknown }>).devices = {
+      type: 'host_list',
+      default: 'edge',
+    };
+    const found = validateFlow(doc).findings.filter((f) => f.code === 'input-default-type');
+    expect(found.map((f) => f.message)).toEqual([
+      'Flow input devices is a host_list but its default is the string "edge": write it as a list, [edge]',
+    ]);
+  });
+});

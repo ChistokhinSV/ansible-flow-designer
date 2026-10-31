@@ -9,9 +9,11 @@ import { type Op, opLabel } from '../../core/ai/ops';
 import { TOOL_SPECS, type ToolSpec } from '../../core/ai/specs';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
+import { normalize, type SourceIO } from '../../core/import/read';
 import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../autoLayout';
 import { authorName } from '../gitHead';
+import { workspaceSource } from '../import/common';
 
 const FLOWS = '**/*.flow.yaml';
 const SKIP = '**/{node_modules,.git,generated,out,dist,.vscode-test}/**';
@@ -23,6 +25,24 @@ export interface HostToolDeps {
   activeFlow(): vscode.Uri | undefined;
   /** Opens a flow the tools created in the designer. */
   open(uri: vscode.Uri): Thenable<unknown>;
+  /** AFD-27: short module names → FQCN from the folder's catalog, when one is loaded. */
+  resolveModule?(
+    folder: vscode.WorkspaceFolder,
+  ): ((name: string, collections: string[]) => string | undefined) | undefined;
+}
+
+/** Ansible files the import tools may read (AFD-27): YAML, AWX export JSON, ansible.cfg. */
+const SOURCE_FILE = /(\.ya?ml|\.json|(^|\/)ansible\.cfg)$/;
+
+/** A workspace folder's Ansible files for the tools: inside the folder only, read-only. */
+function toolSource(folder: vscode.WorkspaceFolder): SourceIO {
+  const io = workspaceSource(folder);
+  const ok = (path: string) => !normalize(path).startsWith('..');
+  return {
+    read: async (path) => (ok(path) && SOURCE_FILE.test(path) ? io.read(path) : undefined),
+    list: async (dir) => (ok(dir) ? io.list(dir) : []),
+    exists: async (path) => ok(path) && (await exists(vscode.Uri.joinPath(folder.uri, path))),
+  };
 }
 
 const multiRoot = () => (vscode.workspace.workspaceFolders?.length ?? 0) > 1;
@@ -126,6 +146,22 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
       };
     },
     schema: deps.schema,
+    source(path) {
+      const folders = vscode.workspace.workspaceFolders ?? [];
+      const [first, ...rest] = path.split(/[\\/]/);
+      const named = folders.length > 1 ? folders.find((f) => f.name === first) : undefined;
+      const folder = named ?? folders[0];
+      if (!folder) return undefined;
+      return {
+        io: toolSource(folder),
+        path: named ? rest.join('/') : path,
+        prefix: named ? `${first}/` : folders.length > 1 ? `${folder.name}/` : '',
+      };
+    },
+    resolveModule(name, collections) {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      return folder ? deps.resolveModule?.(folder)?.(name, collections) : undefined;
+    },
   };
 }
 
@@ -141,7 +177,12 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
     options: vscode.LanguageModelToolInvocationPrepareOptions<Input>,
   ): vscode.PreparedToolInvocation {
     const input = options.input ?? {};
-    const where = typeof input.path === 'string' ? input.path : 'the open flow';
+    const where =
+      typeof input.path === 'string'
+        ? input.path
+        : this.spec.name === 'source_outline' || this.spec.name === 'flow_import'
+          ? String(input.source ?? '')
+          : 'the open flow';
     const message = `${this.spec.title}: ${where}`;
     if (this.spec.readOnly || input.dry_run === true) return { invocationMessage: message };
     const ops = Array.isArray(input.ops) ? (input.ops as Op[]) : [];
@@ -152,9 +193,11 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
           ? `Add the missing IDs to **${where}** in one edit.`
           : this.spec.name === 'flow_export'
             ? `Write a ${input.format === 'svg' ? 'SVG image' : 'draw.io diagram'} of **${where}**${typeof input.out === 'string' ? ` to **${input.out}**` : ' next to it'}.`
-            : [`Change **${where}**:`, ...ops.slice(0, 20).map((o) => `- ${opLabel(o)}`)].join(
-                '\n',
-              );
+            : this.spec.name === 'flow_import'
+              ? `Create **${typeof input.path === 'string' ? input.path : 'a new flow under flows/'}** from **${String(input.source)}**${typeof input.template === 'string' ? ` (${input.template})` : ''}, one step per task.`
+              : [`Change **${where}**:`, ...ops.slice(0, 20).map((o) => `- ${opLabel(o)}`)].join(
+                  '\n',
+                );
     return {
       invocationMessage: message,
       confirmationMessages: {
@@ -162,7 +205,9 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
         message: new vscode.MarkdownString(
           this.spec.name === 'flow_export'
             ? `${detail}\n\nThe flow itself does not change; an existing file there is replaced.`
-            : `${detail}\n\nOne undo step; saved when the file had no unsaved changes.`,
+            : this.spec.name === 'flow_import'
+              ? `${detail}\n\nThe source is only read; nothing existing changes.`
+              : `${detail}\n\nOne undo step; saved when the file had no unsaved changes.`,
         ),
       },
     };

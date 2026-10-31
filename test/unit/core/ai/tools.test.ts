@@ -17,6 +17,7 @@ import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
 import { layoutLevel, shownPositions } from '../../../../src/extension/autoLayout';
+import { fsSource, NETOPS } from '../helpers';
 
 const read = (p: string) => readFileSync(join(__dirname, '../../../..', p), 'utf8');
 const ULID = /[0-9A-HJKMNP-TV-Z]{26}/;
@@ -499,5 +500,116 @@ describe('AI tools', () => {
       (await call(io, 'flow_export', { path: FW, format: 'svg', level: 'backup/export' })).text,
     ).toMatch(/not a subflow/);
     expect((await call(io, 'flow_export', { path: HAND })).text).toMatch(/flow_complete_ids/);
+  });
+});
+
+describe('AFD-27: import tools', () => {
+  /** memoryIO with the netops repository readable as Ansible sources. */
+  function withSource() {
+    const io = memoryIO();
+    return Object.assign(io, {
+      source: (path: string) => ({ io: fsSource(NETOPS), path, prefix: '' }),
+    });
+  }
+
+  it('source_outline outlines a folder, a playbook (bindings to copy), one task, a role', async () => {
+    const io = withSource();
+    const folder = (await call(io, 'source_outline', { path: '.' })).text;
+    expect(folder).toContain('- site.yml · "site.yml" · top level');
+    expect(folder).toContain('- push_baseline (roles/push_baseline) · split into task files');
+    const book = (
+      await call(io, 'source_outline', { path: 'site.yml', flow: 'flows/edge/edge.flow.yaml' })
+    ).text;
+    expect(book).toContain('Paths in impl are written for flows/edge/generated');
+    expect(book).toContain(
+      '#2 Read the software version · ansible.builtin.command · register version_check · changed_when',
+    );
+    expect(book).toContain('"src":"{{ playbook_dir }}/../../../playbooks/templates/motd.j2"');
+    expect(book).toContain('rescue (runs for hosts that failed in the block');
+    expect(book).toContain('#15 role push_baseline "Apply the NTP and AAA baseline"');
+    expect(book).toContain('snmp_community=<secret snmp_community>');
+    // What the as-is import adds itself is spelled out too: vars files, gathered facts, split roles.
+    expect(book).toContain(
+      'step impl: {"kind":"module","ref":"ansible.builtin.include_vars","params":{"file":"{{ playbook_dir }}/../../../vars/baseline.yml"}}',
+    );
+    expect(book).toContain(
+      'gathers facts first: step impl: {"kind":"module","ref":"ansible.builtin.gather_facts"}',
+    );
+    expect(book).toContain(
+      'step "AAA" impl: {"kind":"role","ref":"push_baseline","params":{"tasks_from":"aaa"}}',
+    );
+    expect(book).not.toContain('ANSIBLE_VAULT');
+    expect(book).toContain('An as-is import (flow_import) would make 21 step(s)');
+    const one = (await call(io, 'source_outline', { path: 'site.yml', focus: '#7' })).text;
+    expect(one).toMatch(
+      /^#7 Configure the uplinks · play "Edge baseline" · playbooks\/baseline.yml:34/,
+    );
+    expect(one).toContain('"loop": "{{ uplinks }}"');
+    expect((await call(io, 'source_outline', { path: 'roles/push_baseline' })).text).toContain(
+      'argument_specs main: ntp_servers',
+    );
+    // A task's impl copies into a step that validates and binds the same module.
+    const impl = JSON.parse(/impl: (\{.*\})$/m.exec(book)?.[1] ?? '{}');
+    expect(impl).toEqual({
+      kind: 'module',
+      ref: 'ansible.builtin.file',
+      params: { path: '{{ out_dir }}/{{ inventory_hostname }}', state: 'directory', mode: '0755' },
+    });
+  });
+
+  it('flow_import makes the as-is flow from a playbook or an AWX export', async () => {
+    const io = withSource();
+    const r = await call(io, 'flow_import', { source: 'site.yml' });
+    expect(r.isError).toBeFalsy();
+    expect(r.text).toMatch(
+      /^Created flows\/site\/site.flow.yaml from site.yml: 21 step\(s\), 21 implemented, 0 draft/,
+    );
+    expect(r.text).toContain('Imported by name only');
+    const text = io.files.get('flows/site/site.flow.yaml') as string;
+    expect(errorsOf(text)).toEqual([]);
+    expect(text).not.toContain('ANSIBLE_VAULT');
+    expect((await call(io, 'flow_import', { source: 'site.yml' })).text).toMatch(/exists/);
+    expect((await call(io, 'flow_import', { source: 'playbooks/tasks/verify.yml' })).isError).toBe(
+      true,
+    );
+  });
+
+  it('flow_import takes an AWX template, expanding playbooks of the repository', async () => {
+    const io = withSource();
+    const src = fsSource(NETOPS);
+    const exportJson = JSON.stringify({
+      job_templates: [
+        { name: 'Edge pre-checks', playbook: 'playbooks/prechecks.yml', limit: 'edge' },
+      ],
+    });
+    Object.assign(io, {
+      source: (path: string) => ({
+        io: { ...src, read: async (p: string) => (p === 'awx.json' ? exportJson : src.read(p)) },
+        path,
+        prefix: '',
+      }),
+    });
+    const r = await call(io, 'flow_import', {
+      source: 'awx.json',
+      path: 'flows/pre/pre.flow.yaml',
+    });
+    expect(r.text).toMatch(/^Created flows\/pre\/pre.flow.yaml from awx.json: 4 step\(s\)/);
+    const doc = parse(io.files.get('flows/pre/pre.flow.yaml') as string) as FlowDocument;
+    expect(doc.flow.imported_from).toMatchObject({
+      kind: 'awx_job_template',
+      template: 'Edge pre-checks',
+    });
+    const outline = (await call(io, 'source_outline', { path: 'awx.json' })).text;
+    expect(outline).toContain('playbooks/prechecks.yml (in this repository)');
+  });
+
+  it('say so where Ansible files cannot be read', async () => {
+    const io = memoryIO();
+    expect((await call(io, 'source_outline', { path: 'site.yml' })).text).toMatch(
+      /not available here/,
+    );
+    expect((await call(io, 'flow_import', { source: 'site.yml' })).text).toMatch(
+      /not available here/,
+    );
   });
 });

@@ -197,6 +197,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     },
     open: (uri) =>
       vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false }),
+    resolveModule: playbookDeps.resolveModule,
   });
   context.subscriptions.push(...registerFlowTools(flowIO));
   // AFD-22: the user guide, the walkthroughs and the sample flows.
@@ -375,6 +376,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     vscode.commands.registerCommand('afd.newFlow', () => newFlow(deps)),
     vscode.commands.registerCommand('afd.importAwxWorkflow', async () => {
       const outcome = await importAwxWorkflow(context.secrets, deps.newId);
+      // With an AI assistant, the prompt went to the chat or the clipboard (AFD-27).
+      if (outcome.prompt) return;
       if (outcome.error) {
         if (outcome.error !== 'Cancelled') void vscode.window.showErrorMessage(outcome.error);
         return;
@@ -385,6 +388,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }),
     vscode.commands.registerCommand('afd.importPlaybooks', async (uri?: vscode.Uri) => {
       const outcome = await importPlaybooks(playbookDeps, uri ? { source: uri } : {});
+      // With an AI assistant, the prompt went to the chat or the clipboard (AFD-27).
+      if (outcome.prompt) return;
       if (outcome.error && !outcome.uris.length) {
         if (outcome.error !== 'Cancelled') void vscode.window.showErrorMessage(outcome.error);
         return;
@@ -491,8 +496,10 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         inputs,
         yes: true,
       }),
-    importAwx: (request) => importAwxWorkflow(context.secrets, deps.newId, request),
-    importPlaybooks: (request) => importPlaybooks(playbookDeps, request),
+    // Tests import as is unless they ask for the AI mode.
+    importAwx: (request) =>
+      importAwxWorkflow(context.secrets, deps.newId, { mode: 'as-is', ...request }),
+    importPlaybooks: (request) => importPlaybooks(playbookDeps, { mode: 'as-is', ...request }),
     initFlow: (uri) => get(uri).initFlow(),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);

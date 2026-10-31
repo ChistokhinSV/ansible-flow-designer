@@ -155,3 +155,11 @@ Consequences:
 - Agents can arrange a flow and follow layout requests without `tidy_up` replacing the whole level.
 - A place needs `OpsContext.positions`. Without it (a host that cannot run ELK), ops that take a place fail with "positions are not available here"; both shipped hosts provide it.
 - An agent that places by numbers without reading the layout can overlap nodes. The answer reports it, and `move` or `unplace` repairs it.
+
+## Amendment: AFD-27 (0.21.0)
+
+Two more tools, ten in all:
+- `source_outline` (read-only) and `flow_import` (creates a flow) read Ansible files through `FlowIO.source(path)` (ADR-0021 amendment). The MCP server reads only YAML, JSON and `ansible.cfg` inside its roots, resolved through symlinks, at most 2 MB each.
+- Copilot asks for confirmation before `flow_import`: "Create … from …, one step per task"; the source is only read.
+- The skill (183 lines), the MCP instructions and the Copilot instructions send import requests to `source_outline` and an intent-based design, with `flow_import` for an exact copy.
+- `dist/mcp.js` is 926 KB with the import reader and mappers; the budget in `scripts/build.mjs` is 960 KB.

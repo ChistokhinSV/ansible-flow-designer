@@ -164,3 +164,64 @@ Afterwards the steps are `prepare/precheck` and `prepare/backup-config`.
 Without `position` the new step goes where the canvas places it, next to its neighbours.
 `flow_describe` with `layout: true` shows the coordinates; `unplace` with `level: top` hands the
 whole level back to automatic placement, and `tidy_up` stores a fresh layered layout.
+
+## Import a playbook by intent
+
+"Turn site.yml into a flow." After `source_outline` (path `site.yml`, flow
+`flows/edge-baseline/edge-baseline.flow.yaml`), two tasks of the pre-checks play become steps of a
+`pre-checks` subflow, each with the `impl` the outline showed, copied as is; the second reads the
+first one's registered result.
+
+```json
+{
+  "ops": [
+    {
+      "op": "add_node",
+      "type": "subflow",
+      "title": "Pre-checks",
+      "after": "start.ok_hosts",
+      "intent": "Stop before the change on switches that run an unsupported version"
+    },
+    {
+      "op": "add_node",
+      "in": "pre-checks",
+      "type": "task",
+      "title": "Read the software version",
+      "impl": {
+        "kind": "module",
+        "ref": "ansible.builtin.command",
+        "params": { "cmd": "show version | include Version" },
+        "register": "version_check",
+        "keywords": { "changed_when": false }
+      }
+    },
+    {
+      "op": "add_node",
+      "type": "task",
+      "title": "Check the version is supported",
+      "after": "pre-checks/read-the-software-version.ok_hosts",
+      "impl": {
+        "kind": "module",
+        "ref": "ansible.builtin.assert",
+        "params": { "that": ["version_check.stdout is version('17.0', '>=')"] }
+      }
+    },
+    {
+      "op": "set_io",
+      "node": "pre-checks/read-the-software-version",
+      "side": "outputs",
+      "name": "version_check",
+      "field": { "type": "dict", "from": "impl.register" }
+    },
+    {
+      "op": "set_io",
+      "node": "pre-checks/check-the-version-is-supported",
+      "side": "inputs",
+      "name": "version_check",
+      "field": { "type": "dict", "from": "read-the-software-version.version_check" }
+    }
+  ]
+}
+```
+
+Failures the playbook does not handle stay open; `flow_validate` lists them for the user to decide.

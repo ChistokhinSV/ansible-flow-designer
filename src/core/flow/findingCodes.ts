@@ -10,6 +10,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'The file breaks the flow schema (a field of the wrong type or an unknown field).',
     fix: 'Correct the field named in the message; see the format reference.',
   },
+  'input-default-type': {
+    meaning:
+      'A host_list or list flow input has a string default; the generated code joins it letter by letter.',
+    fix: 'Write the default as a list: default: [edge] (set_io on flow with field {type: host_list, default: [edge]}).',
+  },
   'keyword-reserved': {
     meaning:
       'A task keyword in impl.keywords that the flow models itself (register, tags, become, timeout, retries, until, notify, block) or that is no task keyword.',

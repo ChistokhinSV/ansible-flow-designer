@@ -20,6 +20,7 @@ Rules: one wire per output port; wires stay on one level; handle every fail port
 Data passes through node inputs and outputs (set_io, from:): inside a subflow <subflow>.<input> reads its input; a from: path like precheck/normalize-facts.x is lifted to precheck for you.
 Layout: leave positions out unless the user asks for an arrangement; the canvas places nodes without one. To arrange, pass position ({x, y}, or {below|above|right_of|left_of: node}) to add_node, or use move; flow_describe with layout: true shows where nodes are; unplace hands nodes back to automatic placement.
 A draw.io file or an image of a flow: flow_export (draw.io with a page per level and the node details, or SVG), never a drawing by hand.
+Existing playbooks, roles or AWX templates: read them with source_outline (each task's impl to copy), then design the flow by intent with flow_new and flow_edit; flow_import only for an exact copy.
 flow_reference explains the format, ports, patterns and ops. The ansible-flow skill has the full rules and examples.`;
 
 const io = new FsFlowIO([process.cwd()], createSchemaValidator(), createIdFactory());

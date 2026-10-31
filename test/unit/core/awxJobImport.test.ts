@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { expandable, flowText, importWorkflow } from '../../../src/core/awx/import';
+import { sanitizedExport } from '../../../src/core/awx/sanitize';
 import {
   type AwxExport,
   type AwxReader,
@@ -20,6 +21,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
+import { importPrompt } from '../../../src/core/import/prompt';
 import { type PlaybookForm, readPlaybook } from '../../../src/core/import/source';
 import { fsSource, NETOPS } from './helpers';
 
@@ -217,5 +219,69 @@ describe('workflow job nodes with a playbook in the repository', () => {
     const step = sub.subflow?.nodes?.find((n) => n.key === 'record-the-pre-check');
     expect(step?.impl?.keywords?.vars).toEqual({ out_dir: '/srv/edge' });
     expect(r.doc.flow.inputs).toHaveProperty('out_dir');
+  });
+});
+
+describe('AFD-27: the sanitized export an AI assistant reads', () => {
+  const data = JSON.parse(
+    readFileSync(join(__dirname, '../../fixtures/awx/import/export.json'), 'utf8'),
+  ) as AwxExport;
+  /** Nodes and wires by key: two imports differ only in their ids. */
+  const shape = (doc: FlowDocument): unknown =>
+    JSON.parse(
+      JSON.stringify(doc, (k, v) => (k === 'id' || k === 'node' || k === 'in' ? undefined : v)),
+    );
+
+  it('imports to the same flow as the original export, with no secret values', () => {
+    const name = 'AFD fixture · edge upgrade';
+    const src = workflowFromExport(data, name);
+    // A secret the AWX export kept in clear would still not leave the extension.
+    const first = src.nodes.find((n) => n.kind === 'job') as (typeof src.nodes)[number];
+    first.extraData = { ...first.extraData, api_token: 'tok-123-example' };
+    const clean = sanitizedExport(src, 'workflow');
+    const text = JSON.stringify(clean);
+    expect(text).not.toContain('tok-123-example');
+    expect(text).toContain('"api_token":"$encrypted$"');
+    const again = workflowFromExport(clean, name);
+    const opts = { key: 'edge', newId: createIdFactory(), hasPlaybook: () => true };
+    expect(shape(importWorkflow(again, opts).doc)).toEqual(shape(importWorkflow(src, opts).doc));
+  });
+
+  it('a job template keeps its playbook, limit, survey (without secret defaults) and project', () => {
+    const src = jobTemplateFromExport(EXPORT, 'Edge pre-checks');
+    src.survey = [
+      { variable: 'change_ticket', type: 'text', default: 'CHG0001' },
+      { variable: 'enable_pw', type: 'password', default: 'secret-default' },
+    ];
+    const clean = sanitizedExport(src, 'job');
+    expect(JSON.stringify(clean)).not.toContain('secret-default');
+    expect(clean.projects).toEqual([
+      { name: 'Netops', scm_url: 'https://git.example.net/netops.git' },
+    ]);
+    const back = jobTemplateFromExport(clean, 'Edge pre-checks');
+    expect(back).toMatchObject({ limit: 'edge', nodes: [{ job: { playbook: PRECHECKS } }] });
+    expect(back.survey).toEqual([
+      { variable: 'change_ticket', type: 'text', default: 'CHG0001' },
+      { variable: 'enable_pw', type: 'password' },
+    ]);
+  });
+
+  it('the prompt names the source, the flow to write and the tools', () => {
+    const text = importPrompt({
+      sources: ['flows/edge/source/awx-export.json'],
+      targets: ['flows/edge/edge.flow.yaml'],
+      template: { kind: 'workflow', name: 'Edge upgrade' },
+    });
+    expect(text).toContain('the AWX workflow template "Edge upgrade"');
+    expect(text).toContain('- flows/edge/source/awx-export.json → flows/edge/edge.flow.yaml');
+    for (const tool of [
+      'source_outline',
+      'flow_new',
+      'flow_edit',
+      'set_io',
+      'flow_validate',
+      'flow_import',
+    ])
+      expect(text).toContain(tool);
   });
 });

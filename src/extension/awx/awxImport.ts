@@ -4,6 +4,7 @@
 // workflow is laid out top-down with ELK at every level. A one-time copy: AWX is only read.
 import * as vscode from 'vscode';
 import { flowText, type ImportResult, importWorkflow } from '../../core/awx/import';
+import { sanitizedExport } from '../../core/awx/sanitize';
 import {
   type AwxExport,
   exportTemplates,
@@ -15,9 +16,11 @@ import {
   workflowFromExport,
 } from '../../core/awx/workflow';
 import { type IdFactory, SLUG } from '../../core/flow/ids';
+import { importPrompt } from '../../core/import/prompt';
 import type { PlaybookForm } from '../../core/import/source';
 import { readPlaybook } from '../../core/import/source';
 import { layoutAll } from '../autoLayout';
+import { type AiStart, type ImportMode, pickMode, startAiImport } from '../import/aiStart';
 import { askKey, exists, flowDir, pickFolder, workspaceSource } from '../import/common';
 import { awxClient } from './awxRun';
 
@@ -32,6 +35,10 @@ export interface ImportRequest {
   source?: ImportSource;
   folder?: vscode.Uri;
   key?: string;
+  /** AFD-27: as is, or with an AI assistant (asked when absent). */
+  mode?: ImportMode;
+  /** AFD-27: where the AI prompt goes (asked when absent). */
+  via?: 'chat' | 'clipboard';
 }
 
 export interface ImportOutcome {
@@ -39,6 +46,10 @@ export interface ImportOutcome {
   notes: string[];
   counts?: ImportResult['counts'];
   error?: string;
+  /** AFD-27: the sanitized export the assistant reads, the prompt, and where it went. */
+  exportFile?: vscode.Uri;
+  prompt?: string;
+  started?: AiStart;
 }
 
 const cancelled = (): ImportOutcome => ({ notes: [], error: 'Cancelled' });
@@ -208,6 +219,28 @@ export async function importAwxWorkflow(
   const uri = vscode.Uri.joinPath(flowDir(folder, key), `${key}.flow.yaml`);
   if (await exists(flowDir(folder, key)))
     return { notes: [], error: `flows/${key} already exists` };
+  const mode = request.mode ?? (await pickMode(`"${src.name}"`));
+  if (!mode) return cancelled();
+  if (mode === 'ai') {
+    // The assistant reads AWX through a sanitized export: the token stays here (decision 5).
+    const exportFile = vscode.Uri.joinPath(flowDir(folder, key), 'source', 'awx-export.json');
+    const data = sanitizedExport(src, picked.template);
+    await vscode.workspace.fs.writeFile(
+      exportFile,
+      new TextEncoder().encode(`${JSON.stringify(data, null, 2)}\n`),
+    );
+    const prompt = importPrompt({
+      sources: [`flows/${key}/source/awx-export.json`],
+      targets: [`flows/${key}/${key}.flow.yaml`],
+      template: { kind: picked.template, name: src.name },
+    });
+    return {
+      notes: [],
+      exportFile,
+      prompt,
+      started: await startAiImport(prompt, request.via),
+    };
+  }
 
   // Playbooks in the repository: present ones bind, readable ones expand into steps (AFD-26).
   const io = workspaceSource(folder);

@@ -52,6 +52,25 @@ These have no one-to-one form and are noted:
 - `strategy` and `order`: left out;
 - a role that generated playbooks cannot find: add its folder to `roles_path` in `ansible.cfg`.
 
+## With an AI assistant
+
+The import commands ask how to make the flow: **As is** (above), or **With an AI assistant**. An
+assistant designs the flow by intent: a few subflows by purpose (pre-checks, backup, the change,
+verification, rollback), steps named by what they achieve, and the same modules, parameters and
+keywords as the playbook.
+
+- **Copilot Chat** opens in agent mode with the prompt filled in; read it and send it.
+- **Another assistant** (Claude Code, Codex, Gemini CLI, …): the prompt is on the clipboard; paste
+  it there. The assistant needs the Ansible Flow tools: run _Set Up AI Assistants…_ once.
+
+The prompt names the source and the flow to write. The assistant reads the source with
+`source_outline` (each task's binding, ready to copy), builds the flow with `flow_new` and
+`flow_edit`, keeps failures open where the playbook does, and reports what it grouped, changed or
+left out. Review the flow on the canvas like any change.
+
+You can also just ask, for example "turn site.yml into a flow, grouped by purpose", or "import
+site.yml as is" (the assistant then uses `flow_import`). See [AI assistants](ai-assistants.md).
+
 ## Import from AWX
 
 Command Palette → **Ansible Flow: Import from AWX…**
@@ -72,6 +91,9 @@ top-down at every level; its description shows where it came from.
   steps, as above, inside the template's step. A playbook the designer generated stays one step.
 - **A playbook that is not here** stays one playbook step, a draft; the notes name the project and
   where it lives. Check the project out and import again to get its steps.
+- **With an AI assistant**, the command writes `flows/<key>/source/awx-export.json` for the
+  assistant to read: the template, its nodes and edges, and the job templates, with secret values
+  left out (only their names stay). The AWX token never leaves VS Code.
 
 ### How workflows map
 

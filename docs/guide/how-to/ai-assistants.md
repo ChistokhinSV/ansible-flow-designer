@@ -8,8 +8,8 @@ silently. A step-by-step example: [Tutorial 4](../tutorials/04-ai-assistant.md).
 
 - In **agent mode**, the `ansible-flow` skill and the instructions for `*.flow.yaml` load when they
   are relevant.
-- Eight tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
-  `#flowNew`, `#flowCompleteIds`, `#flowExport`.
+- Ten tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
+  `#flowNew`, `#flowCompleteIds`, `#flowExport`, `#sourceOutline`, `#flowImport`.
 - An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved
   changes, so the version bump and `generated/` follow.
 
@@ -55,6 +55,8 @@ Good to know:
 | `flow_new`          | a new flow, `start -> done`, keyed by its file name                                                                                |
 | `flow_complete_ids` | adds the IDs a hand-written flow lacks                                                                                             |
 | `flow_export`       | writes a draw.io file (a page per level, node details as data) or SVG images of the flow ([export](export.md))                     |
+| `source_outline`    | reads a playbook, a folder, a role or an AWX export: its structure, and per task the binding to copy ([import](import.md))         |
+| `flow_import`       | imports a playbook or an AWX template one to one, one step per task ([import](import.md))                                          |
 - **Answers:** a `flow_edit` answer lists the nodes created, the problems it added or solved
   (counted one by one), and what it did besides the ops: a node put on a wire, an output lifted
   into a subflow, the end node a pattern used.

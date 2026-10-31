@@ -569,6 +569,66 @@ export const TOOL_SPECS: ToolSpec[] = [
       },
     },
   },
+  {
+    name: 'source_outline',
+    title: 'Outline existing automation',
+    description:
+      'Read existing Ansible automation before turning it into a flow: a playbook (its plays, tasks, blocks with rescue/always, includes, roles, handlers, variables), a folder (its playbooks, the top-level ones first, and roles), a role folder, or an AWX export (.json: workflow and job templates, their nodes and edges, which playbooks are in this repository). Each task line has the exact binding an import writes (impl: module or role, params, register, keywords), to copy into add_node or bind so the flow runs what the playbook ran. Use it whenever the user wants playbooks, roles or AWX templates imported, converted or redesigned as a flow. Secrets show by name only. Long outlines come in pages.',
+    readOnly: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description:
+            'A playbook (.yml), a folder, a role folder or an AWX export (.json), relative to the workspace root.',
+        },
+        flow: {
+          type: 'string',
+          description:
+            'The flow you will write (flows/<key>/<key>.flow.yaml): template, copy and vars file paths in impl are rewritten so its generated playbooks find them.',
+        },
+        focus: {
+          type: 'string',
+          description: 'A task number ("#7") to see one task in full (long parameters uncut).',
+        },
+        page: { type: 'integer', minimum: 1, description: 'Page of a long outline (default 1).' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'flow_import',
+    title: 'Import automation as is',
+    description:
+      'Import a playbook, or a workflow or job template of an AWX export, as a new flow one to one: one step per task in source order, plays and imported playbooks as subflows, blocks with rescue/always as a subflow and its failure path, roles as steps, handlers as conditional steps, variables wired as inputs and outputs, secrets by name only. Use it only when the user wants an exact copy. For a design by intent (fewer, purposeful subflows), read the source with source_outline and build the flow with flow_new and flow_edit instead.',
+    readOnly: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: {
+          type: 'string',
+          description:
+            'A playbook (.yml) or an AWX export (.json), relative to the workspace root.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'The new flow file. Default: flows/<name>/<name>.flow.yaml from the source name.',
+        },
+        template: {
+          type: 'string',
+          description:
+            'AWX export only: the workflow or job template to import, when it has several.',
+        },
+        name: {
+          type: 'string',
+          description: 'The flow name. Default: the first play name or the file name.',
+        },
+      },
+      required: ['source'],
+    },
+  },
 ];
 
 const takesNull = (s: Json | undefined) =>

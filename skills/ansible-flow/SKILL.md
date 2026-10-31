@@ -1,6 +1,6 @@
 ---
 name: ansible-flow
-description: Create, draw, read and change Ansible flow diagrams, the Ansible Flow Designer flows (*.flow.yaml) of typed nodes wired port to port that generate Ansible playbooks. Use whenever the user asks for an Ansible flow, flow diagram, automation or runbook flow (create one, add or move steps, wire nodes, handle failures and rollback, split it into subflows or levels, bind modules or roles, explain or fix problems). Build it as a .flow.yaml with the flow tools, not as a PlantUML, Mermaid or draw.io picture, even where other diagrams are drawn with those; for a draw.io file or an image of a flow, export it with flow_export.
+description: Create, draw, read and change Ansible flow diagrams, the Ansible Flow Designer flows (*.flow.yaml) of typed nodes wired port to port that generate Ansible playbooks. Use whenever the user asks for an Ansible flow, flow diagram, automation or runbook flow (create one, add or move steps, wire nodes, handle failures and rollback, split it into subflows or levels, bind modules or roles, explain or fix problems). Build it as a .flow.yaml with the flow tools, not as a PlantUML, Mermaid or draw.io picture, even where other diagrams are drawn with those; for a draw.io file or an image of a flow, export it with flow_export. To turn existing playbooks, roles or AWX templates into a flow, read them with source_outline.
 ---
 
 # Ansible flows
@@ -26,6 +26,8 @@ prefix: `afd_` in VS Code Copilot, `mcp__ansible-flow__` in Claude Code.
 | flow_new          | create a new flow (start, done and a devices input)                    |
 | flow_complete_ids | add the IDs a hand-written flow lacks                                  |
 | flow_export       | write a draw.io file (a page per level) or SVG images of a flow        |
+| source_outline    | read playbooks, a folder, a role or an AWX export to import            |
+| flow_import       | import a playbook or AWX template one to one (exact copy only)         |
 
 Workflow:
 
@@ -46,6 +48,21 @@ PlantUML or Mermaid. It keeps the canvas look and puts each node's details into 
 
 If an op fails, nothing was written: the error names the op and says how to fix it (nearest keys,
 the ports a node has). Correct that op and send the whole batch again.
+
+## Import playbooks or AWX templates
+
+Design by intent unless the user asks for an exact copy (then `flow_import` does it in one call).
+1. `source_outline` the playbook, folder or AWX export, with `flow` set to the file you will write.
+   Each `#n` task has the `impl` (module or role, params, register, keywords) to copy as is.
+2. Plan a few subflows by purpose (pre-checks, backup, change, verify, rollback or notify), steps
+   named by what they achieve, in the order the source runs them.
+3. `flow_new`, then a `flow_edit` batch per level: `add_node` with the copied `impl` (`in:` puts it
+   in a subflow), `set_io` for what later steps read (registers, loaded variables). Play vars and
+   prompts become flow inputs, secrets without a default.
+4. Keep behaviour: task keywords stay in `impl.keywords`; handle a fail port only where the source
+   does (rescue, `ignore_errors`, retries), leave the rest open; a handler is a step with
+   `keywords.when: "(<register> | default({})) is changed"`.
+5. `flow_validate`, then report how you grouped the tasks and what you left out.
 
 ## Rules
 

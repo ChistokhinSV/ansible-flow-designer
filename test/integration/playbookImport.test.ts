@@ -148,6 +148,87 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
     }
   });
 
+  it('AFD-27: with an AI assistant, the prompt goes to the clipboard and nothing is written', async () => {
+    const api = await testApi();
+    const r = await api.importPlaybooks({
+      source: vscode.Uri.joinPath(root(), 'netops'),
+      playbooks: ['netops/site.yml'],
+      keys: ['ai-site'],
+      mode: 'ai',
+      via: 'clipboard',
+    });
+    assert.equal(r.error, undefined);
+    assert.equal(r.started, 'clipboard');
+    assert.deepEqual(r.uris, []);
+    assert.ok(r.prompt?.includes('- netops/site.yml → flows/ai-site/ai-site.flow.yaml'), r.prompt);
+    assert.ok(r.prompt?.includes('source_outline'));
+    assert.equal(await vscode.env.clipboard.readText(), r.prompt);
+    assert.equal(
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(root(), 'flows', 'ai-site')).then(
+        () => true,
+        () => false,
+      ),
+      false,
+    );
+  });
+
+  it('AFD-27: the chat route opens the chat or falls back to the clipboard, never failing', async () => {
+    const api = await testApi();
+    const r = await api.importPlaybooks({
+      source: vscode.Uri.joinPath(root(), 'netops', 'playbooks', 'prechecks.yml'),
+      keys: ['ai-chat'],
+      mode: 'ai',
+      via: 'chat',
+    });
+    assert.equal(r.error, undefined);
+    assert.ok(r.started === 'chat' || r.started === 'clipboard', String(r.started));
+    console.log(`[afd27] chat route: ${r.started}`);
+    assert.equal(await vscode.env.clipboard.readText(), r.prompt);
+  });
+
+  it('AFD-27: AWX with an AI assistant writes a sanitized export for the assistant to read', async () => {
+    const api = await testApi();
+    const file = join(tmpdir(), `afd27-export-${Date.now()}.json`);
+    writeFileSync(
+      file,
+      JSON.stringify({
+        job_templates: [
+          {
+            name: 'Edge pre-checks',
+            playbook: 'netops/playbooks/prechecks.yml',
+            extra_vars: '{"out_dir": "/srv/reports", "api_token": "tok-example-123"}',
+            project: { name: 'Netops', type: 'project' },
+          },
+        ],
+      }),
+    );
+    try {
+      made.add('ai-awx');
+      const r = await api.importAwx({
+        source: { kind: 'file', path: file, name: 'Edge pre-checks' },
+        folder: root(),
+        key: 'ai-awx',
+        mode: 'ai',
+        via: 'clipboard',
+      });
+      assert.equal(r.error, undefined);
+      assert.equal(r.uri, undefined, 'the assistant writes the flow');
+      assert.equal(
+        vscode.workspace.asRelativePath(r.exportFile as vscode.Uri),
+        'flows/ai-awx/source/awx-export.json',
+      );
+      const text = new TextDecoder().decode(
+        await vscode.workspace.fs.readFile(r.exportFile as vscode.Uri),
+      );
+      assert.ok(!text.includes('tok-example-123'), 'no secret value in the export');
+      assert.ok(text.includes('"api_token": "$encrypted$"'));
+      assert.ok(r.prompt?.includes('the AWX job template "Edge pre-checks"'), r.prompt);
+      assert.equal(await vscode.env.clipboard.readText(), r.prompt);
+    } finally {
+      rmSync(file, { force: true });
+    }
+  });
+
   (url && token ? it : it.skip)('an AWX job template from the lab AWX API', async () => {
     const api = await testApi();
     const scope = root();

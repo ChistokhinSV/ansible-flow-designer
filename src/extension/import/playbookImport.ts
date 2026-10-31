@@ -6,9 +6,11 @@ import * as vscode from 'vscode';
 import { flowText } from '../../core/awx/import';
 import type { IdFactory } from '../../core/flow/ids';
 import { importPlaybook } from '../../core/import/playbook';
+import { importPrompt } from '../../core/import/prompt';
 import { basename, normalize } from '../../core/import/read';
 import type { ImportResult } from '../../core/import/result';
 import { readPlaybook, scanFolder } from '../../core/import/source';
+import { type AiStart, type ImportMode, pickMode, startAiImport } from './aiStart';
 import {
   addCounts,
   askKey,
@@ -27,10 +29,17 @@ export interface PlaybookImportRequest {
   playbooks?: string[];
   /** Flow keys, one per playbook. */
   keys?: string[];
+  /** AFD-27: as is (default when given by tests), or with an AI assistant. */
+  mode?: ImportMode;
+  /** AFD-27: where the AI prompt goes (asked when absent). */
+  via?: 'chat' | 'clipboard';
 }
 
 export interface PlaybookImportOutcome extends ImportSummary {
   error?: string;
+  /** AFD-27: the prompt handed to the AI assistant, and where it went. */
+  prompt?: string;
+  started?: AiStart;
 }
 
 export interface PlaybookImportDeps {
@@ -91,6 +100,9 @@ export async function importPlaybooks(
     }
   }
 
+  const what = playbooks.length === 1 ? (playbooks[0] as string) : `${playbooks.length} playbooks`;
+  const mode = request.mode ?? (await pickMode(what));
+  if (!mode) return fail('Cancelled');
   const names = playbooks.map((p) => basename(p).replace(/\.ya?ml$/, ''));
   let keys = request.keys;
   if (!keys) {
@@ -99,6 +111,17 @@ export async function importPlaybooks(
       if (!key) return fail('Cancelled');
       keys = [key];
     } else keys = await freeKeys(folder, names);
+  }
+
+  if (mode === 'ai') {
+    // The assistant writes the flows; the command only checks the keys and hands over the prompt.
+    for (const key of keys)
+      if (await exists(flowDir(folder, key))) return fail(`flows/${key} already exists`);
+    const prompt = importPrompt({
+      sources: playbooks,
+      targets: keys.map((k) => `flows/${k}/${k}.flow.yaml`),
+    });
+    return { uris: [], notes: [], prompt, started: await startAiImport(prompt, request.via) };
   }
 
   const resolveModule = deps.resolveModule?.(folder);

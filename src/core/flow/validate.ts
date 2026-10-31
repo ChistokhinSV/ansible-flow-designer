@@ -338,6 +338,15 @@ function checkEnginePorts(
 }
 
 function checkTargets(model: FlowModel, add: (f: Finding) => void): void {
+  // A list default that is a string (default: edge) is joined letter by letter (AFD-27).
+  for (const [name, f] of Object.entries(model.doc.flow?.inputs ?? {}))
+    if ((f?.type === 'host_list' || f?.type === 'list') && typeof f.default === 'string')
+      add({
+        code: 'input-default-type',
+        severity: 'warning',
+        message: `Flow input ${name} is a ${f.type} but its default is the string "${f.default}": write it as a list, [${f.default}]`,
+        path: ['flow', 'inputs', name, 'default'],
+      });
   const inputs = Object.values(model.doc.flow?.inputs ?? {});
   if (inputs.some((f) => f?.type === 'host_list')) return;
   add({

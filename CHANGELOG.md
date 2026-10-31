@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.21.0 — AFD-27
+
+- **Import with an AI assistant:** _Import Ansible Playbooks…_ and _Import from AWX…_ now ask **As is** or **With an AI assistant**. An assistant designs the flow by intent: a few subflows by purpose (pre-checks, backup, the change, verification, rollback), steps named by what they achieve, and the same modules, parameters and keywords as the source.
+  - **Copilot Chat** opens in agent mode with the prompt filled in (you send it). For **Claude Code, Codex and other assistants** the prompt is on the clipboard to paste. It is always on the clipboard too.
+  - **AWX:** the extension writes `flows/<key>/source/awx-export.json` for the assistant, built from what the import read with every secret value left out (names only, as `$encrypted$`). The AWX token never leaves VS Code.
+- **New AI tools** (Copilot and the MCP server, ten in all):
+  - `source_outline` reads a playbook, a folder, a role or an AWX export: plays, tasks, blocks with rescue/always, includes, roles (split ones marked), handlers and variables. Each task carries the exact binding an import writes (`impl`), with template and file paths rewritten for the flow to write, ready to copy into `add_node`. Secrets show by name only; long outlines come in pages; `focus` shows one task in full.
+  - `flow_import` runs the as-is import (AFD-26) for an exact copy.
+  - They read only YAML, JSON and `ansible.cfg` inside the workspace (the MCP server resolves symlinks and stays inside its roots, 2 MB per file).
+- The skill has an "Import playbooks or AWX templates" section and a worked example; the MCP server's and Copilot's instructions send import requests to `source_outline`.
+- The MCP server's size budget is now 960 KB (it is 926 KB with the import code).
+
 ## 0.20.0 — AFD-26
 
 - **Import Ansible playbooks:** **Ansible Flow: Import Ansible Playbooks…**, or right-click a playbook or a folder in the Explorer.
