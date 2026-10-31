@@ -1,0 +1,219 @@
+{
+  "label": "baseline",
+  "generated": "2026-10-31T20:30:29.485Z",
+  "readablePx": 11,
+  "flows": {
+    "new": {
+      "levels": [
+        {
+          "level": "top level",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 1,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        }
+      ],
+      "buildsPerSnapshot": 6
+    },
+    "edge-baseline": {
+      "levels": [
+        {
+          "level": "top level",
+          "nodes": 8,
+          "zoom": 0.92,
+          "titleMinPx": 11.5,
+          "titleMedianPx": 11.5,
+          "readable": 8,
+          "wireLabels": 7,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 1
+        }
+      ],
+      "buildsPerSnapshot": 6
+    },
+    "firewall-upgrade": {
+      "levels": [
+        {
+          "level": "top level",
+          "nodes": 14,
+          "zoom": 0.63,
+          "titleMinPx": 7.8,
+          "titleMedianPx": 7.8,
+          "readable": 0,
+          "wireLabels": 18,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 1,
+          "labelsOnNodes": 1
+        },
+        {
+          "level": "Pre-checks",
+          "nodes": 4,
+          "zoom": 1.08,
+          "titleMinPx": 13.5,
+          "titleMedianPx": 13.5,
+          "readable": 4,
+          "wireLabels": 9,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 1
+        },
+        {
+          "level": "Backup",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 5,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Upgrade",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 5,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Post-checks",
+          "nodes": 1,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 1,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Rollback",
+          "nodes": 1,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 1,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        }
+      ],
+      "buildsPerSnapshot": 6
+    },
+    "playbook-import": {
+      "levels": [
+        {
+          "level": "top level",
+          "nodes": 4,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 4,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Pre-checks",
+          "nodes": 4,
+          "zoom": 1.03,
+          "titleMinPx": 12.9,
+          "titleMedianPx": 12.9,
+          "readable": 4,
+          "wireLabels": 5,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "baseline",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Edge baseline",
+          "nodes": 10,
+          "zoom": 0.5,
+          "titleMinPx": 6.2,
+          "titleMedianPx": 6.2,
+          "readable": 0,
+          "wireLabels": 13,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 1,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Push the baseline",
+          "nodes": 3,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 3,
+          "wireLabels": 4,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Verify NTP",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Apply the NTP and AAA baseline",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        },
+        {
+          "level": "Report",
+          "nodes": 2,
+          "zoom": 1.1,
+          "titleMinPx": 13.8,
+          "titleMedianPx": 13.8,
+          "readable": 2,
+          "wireLabels": 3,
+          "nodeOverlaps": 0,
+          "labelOverlaps": 0,
+          "labelsOnNodes": 0
+        }
+      ],
+      "buildsPerSnapshot": 6
+    }
+  }
+}

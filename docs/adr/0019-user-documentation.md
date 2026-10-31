@@ -70,3 +70,7 @@ Design:
   - the sample import is checked in unit and integration tests (20 steps, the notes, the levels the tutorial names);
   - the engine suite runs the sample and its import for real side by side (the same files), and the import as a skeleton (every host through, the canary by the rescue);
   - a real Claude Code ran step 7's prompt.
+
+## Amendment: UX baseline (AFD-33, 2026-10-31)
+
+The improvement program (KB AFD-A-17) measures the UI before and after its redesign. `scripts/ux-baseline.mjs` (`just ux-baseline [label]`) reuses the screenshot harness (`scripts/harness-lib.mjs`, shared with `docs-shots`): screenshots of four flows in four views at two sizes, and per-level canvas metrics measured in the page (React Flow zoom × the node title's font size, wire label count, overlapping boxes) plus `modelStats.builds` (a counter in `core/flow/model.ts`) for one snapshot. Output goes to `docs/ux/<label>/`, which is not packaged; `docs/ux/baseline` is the reference. The eight-task table and the accessibility checklist are written by hand and get a column per wave.

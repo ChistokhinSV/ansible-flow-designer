@@ -499,3 +499,7 @@ setTheme(params.get('theme') ?? 'light');
 await import('../main');
 // The webview store, so the browser pane can set what a pointer cannot (a group selection).
 (window as unknown as { afdUi: unknown }).afdUi = (await import('../store')).useUi;
+// Model builds, for the UX baseline's builds-per-snapshot metric (AFD-33).
+(window as unknown as { afdModelStats: unknown }).afdModelStats = (
+  await import('../../core/flow/model')
+).modelStats;

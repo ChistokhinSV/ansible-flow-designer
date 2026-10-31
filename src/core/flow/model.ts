@@ -34,7 +34,11 @@ export interface FlowModel {
   edges: Map<Ulid, EdgeEntry>;
 }
 
+/** How often a model was built: the UX baseline counts builds per snapshot (AFD-33). */
+export const modelStats = { builds: 0 };
+
 export function buildModel(doc: FlowDocument): FlowModel {
+  modelStats.builds++;
   const model: FlowModel = { doc, levels: new Map(), nodes: new Map(), edges: new Map() };
   addLevel(model, ROOT, undefined, [], doc.nodes ?? [], doc.edges ?? []);
   return model;

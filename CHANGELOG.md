@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.23.4 — AFD-33
+
+- **UX baseline** (improvement program, wave 1; development only, nothing changes in the designer):
+  - `just ux-baseline [label]` writes `docs/ux/<label>/`: four flows (empty, branching, with subflows, imported) in Design, Code, Run and with a lens, at 1280×800 and 1920×1080, plus canvas metrics per level (effective title size at the zoom a level opens with, readable nodes, wire labels, overlaps) and model builds per snapshot.
+  - The baseline: the subflow-heavy sample opens at zoom 0.63 (titles 7.8 px, none readable), the imported play at 0.5 (6.2 px); 18 wire labels on the sample's top level; 6 model builds per snapshot.
+  - `docs/ux/baseline/tasks.md`: the steps of eight core tasks today and which ones work with the keyboard only (finding a step and wiring to a picked node do not). `docs/ux/a11y-checklist.md`: the accessibility checks per surface with the baseline results.
+  - The screenshot scripts share their harness helpers (`scripts/harness-lib.mjs`).
+
 ## 0.23.3 — AFD-32
 
 - **The Ansible probe is more resilient** (improvement program, wave 1):

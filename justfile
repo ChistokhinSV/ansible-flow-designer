@@ -141,6 +141,10 @@ harness:
 docs-shots *names:
     node scripts/docs-shots.mjs {{ names }}
 
+# UX baseline (AFD-33): screenshots in every mode at two sizes and canvas metrics into docs/ux/<label>/
+ux-baseline label="baseline":
+    node scripts/ux-baseline.mjs {{ label }}
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
 package:
     npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --out out/

@@ -2,49 +2,16 @@
 // fixture flows) driven in the installed Edge by playwright-core, one PNG per shot and theme, and the
 // extension icon rendered from its SVG. `just docs-shots [name…]`; reuses a running harness.
 // The clock is fixed, so a run looks the same every time. Env: AFD_SHOTS_BROWSER (msedge | chrome).
-import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
+import { host, idOf, log, openFlow, settle, startHarness, ui } from './harness-lib.mjs';
 
-const PORT = 5178;
-const BASE = `http://localhost:${PORT}/harness/index.html`;
 const OUT = 'docs/guide/images';
 const VIEWPORT = { width: 1200, height: 720 };
 const only = process.argv.slice(2);
 
-const pad = (n) => String(n).padStart(2, '0');
-function log(msg) {
-  const d = new Date();
-  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  console.log(`[${t} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}] ${msg}`);
-}
-
 // ---- page helpers (run in the harness page) ------------------------------------------------------
-
-/** Node ID by key path (`precheck/normalize`). */
-const idOf = (page, path) =>
-  page.evaluate((p) => {
-    const doc = window.afdUi.getState().snapshot?.doc;
-    let nodes = doc?.nodes ?? [];
-    let found;
-    for (const key of p.split('/')) {
-      found = nodes.find((n) => n?.key === key);
-      nodes = found?.subflow?.nodes ?? [];
-    }
-    if (!found) throw new Error(`no node ${p}`);
-    return found.id;
-  }, path);
-
-/** Calls a webview store action. */
-const ui = (page, action, ...args) =>
-  page.evaluate(([a, xs]) => window.afdUi.getState()[a](...xs), [action, args]);
-
-/** Sends a message to the harness host, as the webview does. */
-const host = (page, message) =>
-  page.evaluate((m) => window.acquireVsCodeApi().postMessage(m), message);
-
-const settle = (page, ms = 600) => page.waitForTimeout(ms);
 
 /** A port's handle on the canvas, for menus that open next to it. */
 async function portBox(page, node, port) {
@@ -200,41 +167,8 @@ const SHOTS = {
 
 // ---- run -----------------------------------------------------------------------------------------
 
-async function harnessUp() {
-  try {
-    return (await fetch(BASE)).ok;
-  } catch {
-    return false;
-  }
-}
-
-async function startHarness() {
-  if (await harnessUp()) return undefined;
-  log('Starting the webview harness');
-  // Vite's own script on this Node, not through npx: on Windows npx needs a shell, and killing
-  // the shell would leave Vite running (and this script waiting for it).
-  const vite = spawn(
-    process.execPath,
-    [
-      'node_modules/vite/bin/vite.js',
-      '--config',
-      'vite.config.mts',
-      '--mode',
-      'harness',
-      '--strictPort',
-    ],
-    { stdio: 'ignore' },
-  );
-  for (let i = 0; i < 60 && !(await harnessUp()); i++) await new Promise((r) => setTimeout(r, 500));
-  if (!(await harnessUp())) throw new Error(`The harness did not start on port ${PORT}`);
-  return vite;
-}
-
 async function shoot(page, name, shot, theme) {
-  const url = `${BASE}?flow=${shot.flow}&theme=${theme}&shots=1`;
-  await page.goto(url);
-  await page.waitForFunction(() => window.afdUi?.getState().snapshot);
-  await settle(page, 900);
+  await openFlow(page, shot.flow, theme);
   if (shot.act) await shot.act(page);
   await settle(page);
   const file = join(OUT, `${name}-${theme}.png`);
