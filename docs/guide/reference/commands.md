@@ -24,6 +24,16 @@ on a flow use the one open in the designer. Back to the [guide](../README.md).
 | `afd.pasteNodes` · Paste Nodes   | pastes nodes on the open level                      |
 | `afd.completeIds` · Complete IDs | adds the IDs a hand-written flow lacks, in one edit |
 
+## Export
+
+| Command                                         | Does                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `afd.exportDrawio` · Export as draw.io Diagram… | every level as a page of a `.drawio` file, with the node details as data |
+| `afd.exportImage` · Export as Image (SVG, PNG)… | the top level or every level as `.drawio.svg` or `.drawio.png` images    |
+
+Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the designer's "…" menu
+([export](../how-to/export.md)).
+
 ## Code and runs
 
 | Command                                           | Does                                                  |

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.0 — AFD-25
+
+- **Export as draw.io:** _Export as draw.io…_ in the designer's "…" menu, **Ansible Flow: Export as draw.io Diagram…**, or right-click a `*.flow.yaml` in the Explorer.
+  - One page per level: the top level first, then each subflow. A subflow node links to its page, and each subflow page's title links back.
+  - It looks like the canvas (light theme): status fills, dashed drafts, double subflow borders, ports and wires coloured by port and labelled.
+  - Ports are small shapes the wires attach to, so moving a node in draw.io keeps its wires.
+  - Every node carries its details as draw.io shape data (Edit Data, Ctrl+M) and a hover summary: key, path, type, status, intent, handler/outcome/condition, binding and parameters, inputs and outputs with `from:`, settings, subflow entry and exits, open fail ports, ports open on purpose with the reason, and problems. The page background holds the flow's name, version, goal, inputs and problem counts.
+- **Export as image:** _Export as image…_ for the open level, or **Ansible Flow: Export as Image (SVG, PNG)…** for the top level or every level (one file each, `<key>--<subflow>`).
+  - SVG, or PNG at twice the size. PNG is drawn by the designer, which opens for it.
+  - Always the light theme.
+  - The images are `.drawio.svg` / `.drawio.png`: they embed the draw.io diagram, so draw.io opens them as editable diagrams.
+- **AI tool `flow_export`** (Copilot and the MCP server) writes a draw.io file or SVG images next to the flow, or where `out` says inside the workspace. The skill and the agents' instructions send requests for a picture or a draw.io file of a flow there, instead of a drawing by hand.
+- The canvas's level geometry and colour palette moved to `src/core` (no behaviour change), so exports and the canvas draw from the same code. `@xyflow/system` 0.0.83 is now a direct dependency, for React Flow's wire routes; its d3 parts stay out of the host and MCP bundles (the host grows by about 40 KB).
+
 ## 0.18.0 — AFD-24
 
 - **AI agents can place nodes.** Until now only _Tidy up_ wrote positions, so an agent could not follow "put the notify step under the rollback".

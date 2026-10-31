@@ -169,7 +169,9 @@ export type HostMessage =
   /** AFD-17 palette commands: copy the selected nodes, or paste text the host read. */
   | { type: 'clipboard'; action: 'copy' }
   /** `at`: the spot on the canvas where the context menu's Paste here was chosen (AFD-18). */
-  | { type: 'clipboard'; action: 'paste'; text: string; at?: Position };
+  | { type: 'clipboard'; action: 'paste'; text: string; at?: Position }
+  /** AFD-25 PNG export: draw this SVG (light, `width` x `height` px) on a canvas and send the PNG. */
+  | { type: 'renderPng'; reqId: number; svg: string; width: number; height: number };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -208,7 +210,11 @@ export type WebviewMessage =
   /** AFD-17: nodes as text for the system clipboard (Copy buttons, the palette command). */
   | { type: 'copyText'; text: string; count: number }
   /** AFD-18: Paste here in the context menu; the host reads the clipboard and answers this panel. */
-  | { type: 'requestPaste'; at?: Position };
+  | { type: 'requestPaste'; at?: Position }
+  /** AFD-25: the "…" menu's exports; images cover the level open on the canvas. */
+  | { type: 'export'; format: 'drawio' | 'image'; level: string }
+  /** AFD-25: the PNG drawn for `renderPng`, base64. */
+  | { type: 'pngRendered'; reqId: number; data?: string; error?: string };
 
 /** What the canvas actually rendered (test mode). */
 export interface DomSummary {

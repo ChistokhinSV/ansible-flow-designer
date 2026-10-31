@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -162,6 +162,16 @@
         "command": "afd.openSample",
         "title": "Open Sample Flow…",
         "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.exportDrawio",
+        "title": "Export as draw.io Diagram…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.exportImage",
+        "title": "Export as Image (SVG, PNG)…",
+        "category": "Ansible Flow"
       }
     ],
     "menus": {
@@ -217,6 +227,26 @@
         {
           "command": "afd.completeIds",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.exportDrawio",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.exportImage",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "afd.exportDrawio",
+          "when": "resourceFilename =~ /\\.flow\\.yaml$/",
+          "group": "7_afd_export@1"
+        },
+        {
+          "command": "afd.exportImage",
+          "when": "resourceFilename =~ /\\.flow\\.yaml$/",
+          "group": "7_afd_export@2"
         }
       ]
     },
@@ -1702,6 +1732,43 @@
             }
           }
         }
+      },
+      {
+        "name": "afd_flow_export",
+        "displayName": "Export a flow",
+        "toolReferenceName": "flowExport",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Export an Ansible flow as a draw.io diagram (a page per level, wired as on the canvas, with each node's key, type, status, intent, binding, data, settings and problems as draw.io shape data) or as SVG images of its levels that draw.io also opens as diagrams. Use it whenever the user wants a draw.io file, picture or image of a flow, instead of drawing the flow by hand in draw.io, PlantUML or Mermaid. Files go next to the flow unless out says where.",
+        "modelDescription": "Export an Ansible flow as a draw.io diagram (a page per level, wired as on the canvas, with each node's key, type, status, intent, binding, data, settings and problems as draw.io shape data) or as SVG images of its levels that draw.io also opens as diagrams. Use it whenever the user wants a draw.io file, picture or image of a flow, instead of drawing the flow by hand in draw.io, PlantUML or Mermaid. Files go next to the flow unless out says where. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "drawio",
+                "svg"
+              ],
+              "description": "drawio (default): one .drawio file, a page per level. svg: an image of a level (.drawio.svg). PNG is only in VS Code (Export as Image)."
+            },
+            "level": {
+              "type": "string",
+              "description": "svg only: top (default), all (one image per level), or a subflow key."
+            },
+            "out": {
+              "type": "string",
+              "description": "File to write, relative to the workspace root. Default: next to the flow, <key>.drawio or <key>[--subflow].drawio.svg. With level all, the top level's file; the others go next to it."
+            }
+          }
+        }
       }
     ],
     "walkthroughs": [
@@ -1975,6 +2042,7 @@
     "@modelcontextprotocol/server": "2.4.0",
     "@vscode/codicons": "0.0.46-24",
     "@xyflow/react": "12.12.0",
+    "@xyflow/system": "0.0.83",
     "ajv": "8.20.0",
     "elkjs": "0.12.0",
     "jsonc-parser": "3.3.1",

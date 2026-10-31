@@ -48,6 +48,8 @@ describe('top bar', () => {
     expect(items()).toEqual([
       'Tidy up',
       'Show as text',
+      'Export as draw.io…',
+      'Export as image…',
       'Validate design',
       'Keyboard shortcuts',
       'User guide',
@@ -61,6 +63,10 @@ describe('top bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'User guide' }));
     expect(posted.at(-1)).toEqual({ type: 'openGuide' });
+    // AFD-25: exports run on the host; images cover the open level.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export as image…' }));
+    expect(posted.at(-1)).toEqual({ type: 'export', format: 'image', level: 'root' });
   });
 
   it('Implementation: no Validate design in "…"; the menu button toggles', () => {
@@ -69,7 +75,14 @@ describe('top bar', () => {
     const more = screen.getByRole('button', { name: 'More actions' });
     fireEvent.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
-    expect(items()).toEqual(['Tidy up', 'Show as text', 'Keyboard shortcuts', 'User guide']);
+    expect(items()).toEqual([
+      'Tidy up',
+      'Show as text',
+      'Export as draw.io…',
+      'Export as image…',
+      'Keyboard shortcuts',
+      'User guide',
+    ]);
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();
   });

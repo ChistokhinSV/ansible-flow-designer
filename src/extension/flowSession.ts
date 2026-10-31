@@ -95,6 +95,10 @@ export class FlowSession implements vscode.Disposable {
   private layoutCache = new Map<string, Record<Ulid, Position>>();
   private nextReq = 1;
   private readonly inspectWaiters = new Map<number, (r: DomSummary) => void>();
+  /** AFD-25: panels that have loaded, and callers waiting for one (PNG export). */
+  private readonly readyPanels = new Set<vscode.WebviewPanel>();
+  private readyWaiters: (() => void)[] = [];
+  private readonly pngWaiters = new Map<number, (r: { data?: string; error?: string }) => void>();
   private readonly renderWaiters: { version: number; resolve: () => void }[] = [];
   readonly perf: PerfEvent[] = [];
   readonly cspViolations: string[] = [];
@@ -325,6 +329,7 @@ export class FlowSession implements vscode.Disposable {
     panel.onDidDispose(() => {
       sub.dispose();
       this.panels.delete(panel);
+      this.readyPanels.delete(panel);
     });
   }
 
@@ -339,6 +344,8 @@ export class FlowSession implements vscode.Disposable {
   private async onMessage(panel: vscode.WebviewPanel, m: WebviewMessage): Promise<void> {
     switch (m.type) {
       case 'ready':
+        this.readyPanels.add(panel);
+        for (const w of this.readyWaiters.splice(0)) w();
         this.post(panel, { type: 'config', testMode: this.deps.testMode });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
@@ -443,6 +450,15 @@ export class FlowSession implements vscode.Disposable {
       case 'inspectResult':
         this.inspectWaiters.get(m.reqId)?.(m.result);
         this.inspectWaiters.delete(m.reqId);
+        break;
+      case 'pngRendered':
+        this.pngWaiters.get(m.reqId)?.(m);
+        this.pngWaiters.delete(m.reqId);
+        break;
+      case 'export':
+        if (m.format === 'drawio')
+          await vscode.commands.executeCommand('afd.exportDrawio', this.uri);
+        else await vscode.commands.executeCommand('afd.exportImage', this.uri, { level: m.level });
         break;
       case 'perf':
         this.perf.push({ event: m.event, ms: m.ms, docVersion: m.docVersion });
@@ -694,6 +710,40 @@ export class FlowSession implements vscode.Disposable {
     const range = new vscode.Range(this.document.positionAt(s), this.document.positionAt(e));
     editor.selection = new vscode.Selection(range.start, range.end);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  }
+
+  /** Resolves once a designer panel of this flow has loaded (AFD-25: PNG export opens one). */
+  whenReady(timeoutMs = 30_000): Promise<void> {
+    if (this.readyPanels.size > 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('the designer did not open')), timeoutMs);
+      this.readyWaiters.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * AFD-25: a designer panel draws the SVG on a canvas and returns the PNG bytes. Only a browser
+   * lays out the text, so PNG export needs the designer open.
+   */
+  renderPng(svg: string, width: number, height: number): Promise<Uint8Array> {
+    const panel = [...this.readyPanels].find((p) => p.active) ?? [...this.readyPanels][0];
+    if (!panel) return Promise.reject(new Error('the designer is not open'));
+    const reqId = this.nextReq++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pngWaiters.delete(reqId);
+        reject(new Error('drawing the PNG timed out'));
+      }, 60_000);
+      this.pngWaiters.set(reqId, (r) => {
+        clearTimeout(timer);
+        if (r.data) resolve(Buffer.from(r.data, 'base64'));
+        else reject(new Error(r.error ?? 'drawing the PNG failed'));
+      });
+      this.post(panel, { type: 'renderPng', reqId, svg, width, height });
+    });
   }
 
   /** Test mode: the first panel's DOM summary. */

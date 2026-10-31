@@ -26,6 +26,23 @@ const elkApart = {
   },
 };
 
+/**
+ * Exports route wires with React Flow's getSmoothStepPath from @xyflow/system (AFD-25). That
+ * package also imports d3's zoom and drag, which declare side effects and so stay in a bundle
+ * unused (about 40 KB). The host and the MCP server never pan or drag: d3 is an empty module there.
+ * @type {import('esbuild').Plugin}
+ */
+const noD3 = {
+  name: 'no-d3',
+  setup(build) {
+    build.onResolve({ filter: /^d3-/ }, (args) => ({ path: args.path, namespace: 'no-d3' }));
+    build.onLoad({ filter: /.*/, namespace: 'no-d3' }, () => ({
+      contents: 'module.exports = {};',
+      loader: 'js',
+    }));
+  },
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const hostOptions = {
   // The catalog index is built in a worker thread (node:sqlite is synchronous, M5).
@@ -35,7 +52,7 @@ const hostOptions = {
     elk: 'elkjs/lib/elk.bundled.js',
     mcp: 'src/mcp/main.ts',
   },
-  plugins: [elkApart],
+  plugins: [elkApart, noD3],
   // jsonc-parser's default (UMD) build requires its parts at run time; the ESM build bundles.
   alias: { 'jsonc-parser': './node_modules/jsonc-parser/lib/esm/main.js' },
   outdir: 'dist',

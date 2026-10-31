@@ -64,6 +64,7 @@ describe('MCP server', () => {
         'flow_complete_ids',
         'flow_describe',
         'flow_edit',
+        'flow_export',
         'flow_list',
         'flow_new',
         'flow_reference',
@@ -165,5 +166,28 @@ describe('MCP server', () => {
     const after = await call('flow_describe', { path, layout: true });
     expect(after.text).toMatch(/start \(start\) "Start" · at -?\d+,-?\d+/);
     expect(after.text).toMatch(/done \(end\) "Done" · outcome: success · at -?\d+,-?\d+/);
+  });
+
+  it('AFD-25: flow_export writes draw.io and SVG files inside the root, nowhere else', async () => {
+    const before = disk();
+    const d = await call('flow_export', { path: FLOW });
+    expect(d.isError).toBe(false);
+    const drawio = readFileSync(join(repo, 'flows/edge-baseline/edge-baseline.drawio'), 'utf8');
+    expect(drawio).toMatch(/^<mxfile [^>]*><diagram id="afd-root"/);
+    expect(drawio).toContain('key="push-baseline"');
+    const s = await call('flow_export', {
+      path: FLOW,
+      format: 'svg',
+      out: 'docs/pics/edge.drawio.svg',
+    });
+    expect(s.text).toContain('Wrote docs/pics/edge.drawio.svg');
+    expect(readFileSync(join(repo, 'docs/pics/edge.drawio.svg'), 'utf8')).toContain(
+      'content="&lt;mxfile',
+    );
+    const outside = await call('flow_export', { path: FLOW, out: '../outside.drawio' });
+    expect(outside.isError).toBe(true);
+    expect(outside.text).toMatch(/outside/);
+    // Exports leave the flow as it was.
+    expect(disk()).toBe(before);
   });
 });

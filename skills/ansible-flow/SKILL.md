@@ -1,6 +1,6 @@
 ---
 name: ansible-flow
-description: Create, draw, read and change Ansible flow diagrams, the Ansible Flow Designer flows (*.flow.yaml) of typed nodes wired port to port that generate Ansible playbooks. Use whenever the user asks for an Ansible flow, flow diagram, automation or runbook flow (create one, add or move steps, wire nodes, handle failures and rollback, split it into subflows or levels, bind modules or roles, explain or fix problems). Build it as a .flow.yaml with the flow tools, not as a PlantUML, Mermaid or draw.io picture, even where other diagrams are drawn with those.
+description: Create, draw, read and change Ansible flow diagrams, the Ansible Flow Designer flows (*.flow.yaml) of typed nodes wired port to port that generate Ansible playbooks. Use whenever the user asks for an Ansible flow, flow diagram, automation or runbook flow (create one, add or move steps, wire nodes, handle failures and rollback, split it into subflows or levels, bind modules or roles, explain or fix problems). Build it as a .flow.yaml with the flow tools, not as a PlantUML, Mermaid or draw.io picture, even where other diagrams are drawn with those; for a draw.io file or an image of a flow, export it with flow_export.
 ---
 
 # Ansible flows
@@ -25,6 +25,7 @@ prefix: `afd_` in VS Code Copilot, `mcp__ansible-flow__` in Claude Code.
 | flow_edit         | change a flow with ops (all or nothing)                                |
 | flow_new          | create a new flow (start, done and a devices input)                    |
 | flow_complete_ids | add the IDs a hand-written flow lacks                                  |
+| flow_export       | write a draw.io file (a page per level) or SVG images of a flow        |
 
 Workflow:
 
@@ -38,6 +39,10 @@ Workflow:
 4. Read the answer: `Created`, `New problems`, the new revision. Fix new problems in the next
    batch, or tell the user why they stay.
 5. Tell the user what changed on the diagram. The designer canvas updates by itself.
+
+When the user wants a picture, a draw.io file or an image of a flow, run `flow_export`
+(`format: drawio`, or `svg` with `level: top | all | <subflow>`) instead of drawing it in draw.io,
+PlantUML or Mermaid. It keeps the canvas look and puts each node's details into draw.io shape data.
 
 If an op fails, nothing was written: the error names the op and says how to fix it (nearest keys,
 the ports a node has). Correct that op and send the whole batch again.

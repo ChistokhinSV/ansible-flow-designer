@@ -210,6 +210,20 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       title: 'Open the flow file as text',
       onSelect: () => send({ type: 'openText' }),
     },
+    {
+      type: 'item',
+      label: 'Export as draw.io…',
+      icon: 'export',
+      title: 'Every level as a page of a draw.io diagram, with the node details as shape data',
+      onSelect: () => send({ type: 'export', format: 'drawio', level }),
+    },
+    {
+      type: 'item',
+      label: 'Export as image…',
+      icon: 'file-media',
+      title: 'This level as an SVG or PNG image that draw.io also opens as a diagram',
+      onSelect: () => send({ type: 'export', format: 'image', level }),
+    },
     ...(mode === 'design'
       ? [
           {

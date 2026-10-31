@@ -2,10 +2,14 @@
 // host, Claude Code, Codex and Gemini through the MCP server. Each adapter supplies a FlowIO (how
 // files are found, read and written there); every answer is plain text by key, never with IDs.
 import { checksum } from '../engine/util';
+import { toDrawio } from '../export/drawio';
+import { type ExportSource, levelSuffix, scenesOf } from '../export/scene';
+import { sceneSvg } from '../export/svg';
 import { completeIds } from '../flow/completeIds';
 import { parseFlow } from '../flow/document';
 import { SLUG, slugify } from '../flow/ids';
 import { type FlowModel, ROOT } from '../flow/model';
+import { openFailPorts } from '../flow/openPorts';
 import type { SchemaValidator } from '../flow/schema';
 import { newFlowText } from '../flow/template';
 import { type Finding, validateFlow } from '../flow/validate';
@@ -30,6 +34,11 @@ export interface FlowIO {
   /** How ops run for a flow: IDs, the author of decisions, the layout for tidy_up. */
   ops(path: string): OpsContext;
   schema: SchemaValidator;
+  /**
+   * AFD-25: writes an export (.drawio or .svg) inside the roots, creating folders; returns its path
+   * as the tools show it. Throws for anything else.
+   */
+  writeExport?(path: string, text: string): Promise<string>;
 }
 
 export interface ToolResult {
@@ -373,6 +382,83 @@ export async function flowCompleteIds(io: FlowIO, input: { path?: string }): Pro
   };
 }
 
+/**
+ * AFD-25: the flow as a draw.io file (a page per level) or SVG images of its levels, which embed
+ * the draw.io file. Positions are what the canvas shows; PNG needs the designer, so not here.
+ */
+export async function flowExport(
+  io: FlowIO,
+  input: { path?: string; format?: string; level?: string; out?: string },
+): Promise<ToolResult> {
+  const format = input.format ?? 'drawio';
+  if (format !== 'drawio' && format !== 'svg')
+    return fail(
+      'format is drawio or svg. For PNG, the user runs Export as Image in VS Code: the designer draws the text.',
+    );
+  const l = await load(io, input.path);
+  if (isResult(l)) return l;
+  if (l.findings.some((f) => f.code === 'missing-id' || f.code === 'unknown-key'))
+    return fail(`${l.path} lacks IDs; run flow_complete_ids first`);
+  const positions = io.ops(l.path).positions;
+  if (!io.writeExport || !positions) return fail('Exports cannot be written here');
+  const shown = await positions(l.model);
+  const src: ExportSource = {
+    doc: { ...l.model.doc, layout: shown.stored },
+    shown,
+    findings: l.findings,
+    openPorts: openFailPorts(l.model),
+  };
+  const dir = l.path.includes('/') ? l.path.slice(0, l.path.lastIndexOf('/') + 1) : '';
+  const key = l.model.doc.flow.key;
+  const all = scenesOf(src);
+  try {
+    if (format === 'drawio') {
+      const out = input.out ?? `${dir}${key}.drawio`;
+      if (!out.endsWith('.drawio')) return fail('out must end in .drawio');
+      const written = await io.writeExport(out, toDrawio(src));
+      const subs = all.length - 1;
+      return {
+        text: [
+          `Wrote ${written}: ${all.length} page(s), the top level${subs ? ` and ${subs} subflow(s), each linked from its subflow node` : ''}.`,
+          'Nodes, ports and wires look as on the canvas. Each node carries its key, type, status, intent, binding, inputs, outputs, settings, open ports and problems as draw.io shape data (Edit Data, Ctrl+M; hover shows a summary).',
+          'It opens in draw.io (desktop or app.diagrams.net) and in the Draw.io VS Code extension. The flow file stays the source: export again after changes.',
+        ].join('\n'),
+      };
+    }
+    let scenes = all.filter((s) => s.level === ROOT);
+    if (input.level === 'all') scenes = all;
+    else if (input.level && input.level !== 'top') {
+      const sub = resolveNode(l.model, input.level);
+      if (sub.node.type !== 'subflow')
+        return fail(
+          `${sub.path} is a ${sub.node.type}, not a subflow; level is top, all or a subflow`,
+        );
+      scenes = all.filter((s) => s.level === sub.id);
+    }
+    const first = scenes[0];
+    if (!first) return fail('That level is not in the flow');
+    const out = input.out ?? `${dir}${key}${levelSuffix(first)}.drawio.svg`;
+    if (!out.endsWith('.svg')) return fail('out must end in .svg (best .drawio.svg)');
+    const ext = out.endsWith('.drawio.svg') ? '.drawio.svg' : '.svg';
+    const stem = out.slice(0, -ext.length);
+    const base = scenes.length > 1 ? stem.slice(0, stem.length - levelSuffix(first).length) : stem;
+    const written: string[] = [];
+    for (const scene of scenes) {
+      const file = scenes.length > 1 ? `${base}${levelSuffix(scene)}${ext}` : out;
+      const svg = sceneSvg(src, scene, { embed: toDrawio(src, { first: scene.level }) });
+      written.push(await io.writeExport(file, svg));
+    }
+    return {
+      text: [
+        `Wrote ${written.join(', ')}.`,
+        'SVG images in the canvas look, light theme. Each embeds the draw.io diagram (all levels, this one first), so draw.io opens it as an editable diagram with the node details.',
+      ].join('\n'),
+    };
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+}
+
 /** Runs a tool by name: the adapters' single entry point. */
 export async function runTool(io: FlowIO, name: string, input: unknown): Promise<ToolResult> {
   const args = (input && typeof input === 'object' ? input : {}) as Record<string, never>;
@@ -391,6 +477,8 @@ export async function runTool(io: FlowIO, name: string, input: unknown): Promise
       return flowNew(io, args);
     case 'flow_complete_ids':
       return flowCompleteIds(io, args);
+    case 'flow_export':
+      return flowExport(io, args);
   }
   return fail(`Unknown tool ${name}`);
 }

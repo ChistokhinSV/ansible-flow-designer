@@ -15,6 +15,7 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react';
 import { Fragment, type MouseEvent, memo, useEffect, useMemo, useRef } from 'react';
+import { NODE_TYPE_LABEL } from '../../core/export/details';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
@@ -33,16 +34,8 @@ const SIDE: Record<PortSide, Position> = {
   right: Position.Right,
 };
 
-export const TYPE_LABEL: Record<NodeType, string> = {
-  start: 'Start',
-  end: 'End',
-  task: 'Task',
-  subflow: 'Subflow',
-  decision: 'Decision',
-  approval: 'Approval',
-  parallel: 'Parallel',
-  join: 'Join',
-};
+/** Shared with the exports (AFD-25). */
+export const TYPE_LABEL: Record<NodeType, string> = NODE_TYPE_LABEL;
 
 export const STATE_LABEL: Record<PortState, string> = {
   connected: 'connected',

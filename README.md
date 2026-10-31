@@ -59,6 +59,10 @@ The rest of this page is the complete feature reference.
   | Esc                      | Close the menu or dialog on top; else clear the selection |
   | Shift+F10                | Context menu for the selection                            |
 
+- **Export (AFD-25, ADR-0020):** _Export as draw.io…_ and _Export as image…_ in the "…" menu, the same commands in the Command Palette, and on a `*.flow.yaml` in the Explorer's right-click menu.
+  - **draw.io:** every level is a page (subflow nodes link to their page). It looks like the canvas, and the node details are draw.io shape data (Edit Data, Ctrl+M): intent, binding and parameters, inputs and outputs, settings, open ports and problems.
+  - **Images:** SVG, or PNG at twice the size, of the open level, the top level or every level. They are always light, and they embed the draw.io diagram (`.drawio.svg`, `.drawio.png`).
+  - The flow stays the source: export again after a change ([how-to](docs/guide/how-to/export.md)).
 - **Copy and paste nodes (AFD-17):** select one or more nodes and press Ctrl+C (Cmd+C), or use _Copy_ in the inspector or the selection panel, or _Ansible Flow: Copy Nodes_. The clipboard holds plain YAML: the nodes with their inner levels, the wires between them, their layout and their open-on-purpose decisions. Press Ctrl+V on any flow canvas (or _Ansible Flow: Paste Nodes_) to paste them on the open level, at the pointer, in one undo step. Or paste the text into any text file and keep it as a snippet.
   - In the right-click menu, _Copy_ takes the node you right-clicked (a selected group stays selected), and _Paste here_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
   - Every pasted node, inner node and wire gets a new ID. A key the level already has gets `-2`, `-3`, …, and `from:` references between the pasted nodes follow it. References to nodes that were not copied stay as written.
@@ -119,7 +123,7 @@ The rest of this page is the complete feature reference.
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
-- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Validate design_, _Keyboard shortcuts_ and _User guide_ (AFD-22).
+- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Export as draw.io…_, _Export as image…_ (AFD-25), _Validate design_, _Keyboard shortcuts_ and _User guide_ (AFD-22).
 - **Lenses (M8, ADR-0014):** the top bar's _Lens_ dropdown (None, Inventory, Data, Code, Access, Timing; ✕ clears it) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
   - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
@@ -313,7 +317,7 @@ The extension teaches AI assistants the flow format and gives them tools that ed
 
 **Copilot (VS Code):** nothing to set up.
 - The `ansible-flow` skill and the instructions for `*.flow.yaml` load when they are relevant.
-- Seven tools are in agent mode and can be referenced with `#`: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`, `#flowNew`, `#flowCompleteIds`.
+- Eight tools are in agent mode and can be referenced with `#`: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`, `#flowNew`, `#flowCompleteIds`, `#flowExport`.
 - An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved changes, so the version bump and `generated/` follow as on any save.
 
 **Other agents** (Claude Code, Codex, Gemini CLI, OpenCode, ZCode, GitHub Copilot CLI, Cursor) need the skill copied and the tools registered once (AFD-20):
@@ -355,6 +359,7 @@ The extension teaches AI assistants the flow format and gives them tools that ed
   Errors name the op and how to fix it ("No node "chek-ntp"; did you mean check-ntp?"), and nothing is written. The answer lists the nodes created and the problems the edit added or solved, counted one by one.
 - `set_io` takes a path into another subflow as `from:` (`precheck/normalize-facts.fos_platform`): the subflow gets an output that lifts it, the field reads `precheck.fos_platform`, and the answer says so (AFD-21).
 - `apply_pattern` takes an `end` to choose the end node; the answer names the end it used.
+- `flow_export` (AFD-25) writes a draw.io file (a page per level, node details as shape data) or SVG images of a level or every level next to the flow. PNG comes only from VS Code's _Export as image_.
 - **Layout (AFD-24):** agents leave positions out unless you ask for an arrangement; the canvas places those nodes next to their neighbours. To arrange, `add_node`, `apply_pattern` and `extract_subflow` take a `position` (`{x, y}`, or `below` / `above` / `right_of` / `left_of` a node, with a `gap`), `move` places nodes later and `unplace` hands them back to the canvas. `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y`. The first position on an auto-laid-out level also stores the others where they are shown, and a position that overlaps another node is reported in the answer.
 - `flow_new` starts a flow as `start -> done`, keyed by its file name. `add_node` with `after: "start.ok_hosts"` puts the first step between them, and each next `after` grows the chain: on a port that is already wired, the new node goes on that wire.
 - A terminal agent's edit acts like a save in the designer:

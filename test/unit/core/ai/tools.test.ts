@@ -24,15 +24,26 @@ const EDGE = 'examples/edge-baseline.flow.yaml';
 const HAND = 'flows/ntp-check.flow.yaml';
 const schema = createSchemaValidator();
 
-function memoryIO(): FlowIO & { files: Map<string, string>; writes: number } {
+function memoryIO(): FlowIO & {
+  files: Map<string, string>;
+  writes: number;
+  exports: Map<string, string>;
+} {
   const newId = createIdFactory();
   const files = new Map([
     [EDGE, read(EDGE)],
     [HAND, read('test/fixtures/flows/hand-written.flow.yaml')],
   ]);
+  const exports = new Map<string, string>();
   const io = {
     files,
     writes: 0,
+    exports,
+    writeExport: async (p: string, t: string) => {
+      if (!/[.](drawio|svg)$/.test(p)) throw new Error(`${p}: exports are .drawio or .svg files`);
+      exports.set(p, t);
+      return p;
+    },
     list: async () => [...files.keys()],
     read: async (p: string) => {
       const t = files.get(p);
@@ -448,5 +459,45 @@ describe('AI tools', () => {
 
   it('every op example is a valid op', () => {
     expect(checkOps(OP_SPECS.map((s) => s.example))).toEqual([]);
+  });
+
+  it('AFD-25: flow_export writes a draw.io file next to the flow, or SVGs of its levels', async () => {
+    const io = memoryIO();
+    const FW = 'flows/firewall-upgrade/firewall-upgrade.flow.yaml';
+    io.files.set(FW, read('samples/firewall-upgrade.flow.yaml'));
+    const d = await call(io, 'flow_export', { path: FW });
+    expect(d.isError).toBeFalsy();
+    expect(d.text).toMatch(
+      /^Wrote flows\/firewall-upgrade\/firewall-upgrade[.]drawio: \d+ page\(s\)/,
+    );
+    const file = io.exports.get('flows/firewall-upgrade/firewall-upgrade.drawio') ?? '';
+    expect(file.match(/<diagram /g)?.length).toBeGreaterThan(3);
+    // The flow file itself does not change.
+    expect(io.writes).toBe(0);
+    const all = await call(io, 'flow_export', { path: FW, format: 'svg', level: 'all' });
+    expect(all.isError).toBeFalsy();
+    const svgs = [...io.exports.keys()].filter((k) => k.endsWith('.drawio.svg'));
+    expect(svgs).toContain('flows/firewall-upgrade/firewall-upgrade.drawio.svg');
+    expect(svgs).toContain('flows/firewall-upgrade/firewall-upgrade--upgrade.drawio.svg');
+    expect(svgs.length).toBe(file.match(/<diagram /g)?.length);
+    const one = await call(io, 'flow_export', {
+      path: FW,
+      format: 'svg',
+      level: 'upgrade',
+      out: 'docs/upgrade.svg',
+    });
+    expect(one.text).toMatch(/^Wrote docs\/upgrade[.]svg[.]/);
+    expect(io.exports.get('docs/upgrade.svg')).toMatch(
+      /^<[?]xml[\s\S]*<svg [^>]*content="&lt;mxfile/,
+    );
+    // Refusals say what to do instead.
+    expect((await call(io, 'flow_export', { path: FW, format: 'png' })).text).toMatch(
+      /Export as Image in VS Code/,
+    );
+    expect((await call(io, 'flow_export', { path: FW, out: 'x.png' })).text).toMatch(/[.]drawio/);
+    expect(
+      (await call(io, 'flow_export', { path: FW, format: 'svg', level: 'backup/export' })).text,
+    ).toMatch(/not a subflow/);
+    expect((await call(io, 'flow_export', { path: HAND })).text).toMatch(/flow_complete_ids/);
   });
 });

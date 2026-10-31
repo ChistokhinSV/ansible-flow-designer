@@ -38,8 +38,11 @@ async function exists(uri: vscode.Uri): Promise<boolean> {
 }
 
 /** A tool's path as a URI inside the workspace; anything else is refused. */
-async function resolve(path: string, mustExist = true): Promise<vscode.Uri> {
-  if (!path.endsWith('.flow.yaml')) throw new Error(`${path} is not a flow file (*.flow.yaml)`);
+async function resolve(path: string, mustExist = true, exportFile = false): Promise<vscode.Uri> {
+  if (exportFile && !/\.(drawio|svg)$/i.test(path))
+    throw new Error(`${path}: exports are .drawio or .svg files`);
+  if (!exportFile && !path.endsWith('.flow.yaml'))
+    throw new Error(`${path} is not a flow file (*.flow.yaml)`);
   const folders = vscode.workspace.workspaceFolders ?? [];
   const candidates = /^([a-zA-Z]:[\\/]|\/)/.test(path)
     ? [vscode.Uri.file(path)]
@@ -102,6 +105,12 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
       await deps.open(uri);
       return { text, notes: ['Opened in the designer.'] };
     },
+    async writeExport(path, text) {
+      const uri = await resolve(path, false, true);
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+      await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
+      return relative(uri);
+    },
     ops(path) {
       return {
         newId: deps.newId,
@@ -141,13 +150,19 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
         ? `Create **${String(input.path)}** ("${String(input.name)}").`
         : this.spec.name === 'flow_complete_ids'
           ? `Add the missing IDs to **${where}** in one edit.`
-          : [`Change **${where}**:`, ...ops.slice(0, 20).map((o) => `- ${opLabel(o)}`)].join('\n');
+          : this.spec.name === 'flow_export'
+            ? `Write a ${input.format === 'svg' ? 'SVG image' : 'draw.io diagram'} of **${where}**${typeof input.out === 'string' ? ` to **${input.out}**` : ' next to it'}.`
+            : [`Change **${where}**:`, ...ops.slice(0, 20).map((o) => `- ${opLabel(o)}`)].join(
+                '\n',
+              );
     return {
       invocationMessage: message,
       confirmationMessages: {
         title: `${this.spec.title}?`,
         message: new vscode.MarkdownString(
-          `${detail}\n\nOne undo step; saved when the file had no unsaved changes.`,
+          this.spec.name === 'flow_export'
+            ? `${detail}\n\nThe flow itself does not change; an existing file there is replaced.`
+            : `${detail}\n\nOne undo step; saved when the file had no unsaved changes.`,
         ),
       },
     };

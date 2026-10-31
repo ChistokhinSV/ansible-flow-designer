@@ -536,6 +536,34 @@ export const TOOL_SPECS: ToolSpec[] = [
     readOnly: false,
     inputSchema: { type: 'object', properties: { path: PATH } },
   },
+  {
+    name: 'flow_export',
+    title: 'Export a flow',
+    description:
+      "Export an Ansible flow as a draw.io diagram (a page per level, wired as on the canvas, with each node's key, type, status, intent, binding, data, settings and problems as draw.io shape data) or as SVG images of its levels that draw.io also opens as diagrams. Use it whenever the user wants a draw.io file, picture or image of a flow, instead of drawing the flow by hand in draw.io, PlantUML or Mermaid. Files go next to the flow unless out says where.",
+    readOnly: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: PATH,
+        format: {
+          type: 'string',
+          enum: ['drawio', 'svg'],
+          description:
+            'drawio (default): one .drawio file, a page per level. svg: an image of a level (.drawio.svg). PNG is only in VS Code (Export as Image).',
+        },
+        level: {
+          type: 'string',
+          description: 'svg only: top (default), all (one image per level), or a subflow key.',
+        },
+        out: {
+          type: 'string',
+          description:
+            "File to write, relative to the workspace root. Default: next to the flow, <key>.drawio or <key>[--subflow].drawio.svg. With level all, the top level's file; the others go next to it.",
+        },
+      },
+    },
+  },
 ];
 
 const takesNull = (s: Json | undefined) =>

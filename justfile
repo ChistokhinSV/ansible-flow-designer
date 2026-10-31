@@ -90,6 +90,11 @@ test-help $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label help
 
+# Exports inside VS Code (AFD-25): draw.io, an SVG per level, PNG drawn by the designer
+test-export $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label export
+
 # AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests

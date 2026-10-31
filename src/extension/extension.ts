@@ -27,6 +27,7 @@ import {
 import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { ProbeManager } from './env/environment';
+import { registerExport } from './export';
 import {
   announceImplementedAgain,
   type CommandOutcome,
@@ -187,6 +188,29 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     ...registerHelp(context, (uri) =>
       vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false }),
     ),
+  );
+  // AFD-25: draw.io and image exports of the flow the user means.
+  context.subscriptions.push(
+    ...registerExport({
+      session: async (uri) => {
+        const editor = vscode.window.activeTextEditor?.document;
+        const target =
+          uri ??
+          activeSession(sessions)?.uri ??
+          (editor && isFlow(editor) ? editor.uri : undefined);
+        return target ? sessionFor(await vscode.workspace.openTextDocument(target)) : undefined;
+      },
+      designer: async (uri) => {
+        const session = sessionFor(await vscode.workspace.openTextDocument(uri));
+        if (!session.hasPanels)
+          await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, {
+            preview: false,
+          });
+        await session.whenReady();
+        return session;
+      },
+      agent: `Ansible Flow Designer ${context.extension.packageJSON.version as string}`,
+    }),
   );
   const aiSetup = new AiSetup(context);
   context.subscriptions.push(

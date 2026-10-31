@@ -25,6 +25,7 @@ import { NodeRunPanel, RunPanel, WireRunPanel } from './panels/RunPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
 import { TopBar } from './panels/TopBar';
 import { Properties } from './properties/Properties';
+import { svgToPng } from './rasterize';
 import { useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
 
@@ -155,6 +156,11 @@ function useHost() {
           reqId: m.reqId,
           result: domSummary(ui.snapshot?.docVersion ?? -1),
         });
+      } else if (m.type === 'renderPng') {
+        svgToPng(m.svg, m.width, m.height).then(
+          (data) => send({ type: 'pngRendered', reqId: m.reqId, data }),
+          (e: Error) => send({ type: 'pngRendered', reqId: m.reqId, error: e.message }),
+        );
       }
     });
     const onCsp = (e: SecurityPolicyViolationEvent) =>

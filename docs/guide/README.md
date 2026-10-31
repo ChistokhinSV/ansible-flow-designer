@@ -35,6 +35,7 @@ playbooks are generated from it.
 - [Decisions, parallel branches, approvals and ends](how-to/control-flow.md)
 - [Copy and paste nodes](how-to/copy-paste.md)
 - [Hand-written YAML and Complete IDs](how-to/hand-written-yaml.md)
+- [Export as draw.io or an image](how-to/export.md)
 
 **Implementing**
 - [Bind a step to a module, role or playbook](how-to/binding-and-catalog.md)

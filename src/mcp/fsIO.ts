@@ -147,6 +147,21 @@ export class FsFlowIO implements FlowIO {
     return { text, notes: await this.generate(file, text) };
   }
 
+  /** AFD-25: a .drawio or .svg export inside the roots (folders created); the shown path. */
+  async writeExport(path: string, text: string): Promise<string> {
+    if (!/\.(drawio|svg)$/i.test(path))
+      throw new Error(`${path}: exports are .drawio or .svg files`);
+    const target = isAbsolute(path) ? resolve(path) : resolve(this.roots[0] ?? '.', path);
+    // The nearest existing folder decides, symlinks followed, so a link cannot lead outside.
+    let dir = dirname(target);
+    while (dir !== dirname(dir) && !(await fs.stat(dir).catch(() => undefined))) dir = dirname(dir);
+    if (!this.roots.some((r) => inside(r, target) && inside(r, real(dir))))
+      throw new Error(`${path} is outside ${this.roots.map(posix).join(', ')}`);
+    await fs.mkdir(dirname(target), { recursive: true });
+    await fs.writeFile(target, text, 'utf8');
+    return this.show(target);
+  }
+
   async create(path: string, text: string) {
     const file = await this.locate(path, false);
     try {

@@ -12,5 +12,6 @@ This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes w
   open on purpose with a reason); never set `status: tested`.
 - Steps read data through inputs (`from:`), including parameters, `assert` `that:` and decision
   conditions; inside a subflow `<subflow>.<input>` reads its input.
+- For a draw.io file or an image of a flow use `#flowExport`, not a drawing by hand.
 - Do not change `flow.version` or files under `generated/`. Leave positions out unless asked: the
   canvas places nodes; to arrange them use `position` on `add_node`, `move` or `unplace`.
