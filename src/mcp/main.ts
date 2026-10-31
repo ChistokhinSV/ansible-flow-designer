@@ -18,6 +18,7 @@ When the user asks for an Ansible flow, flow diagram or automation flow, build i
 Read a flow with flow_describe before changing it, then change it with one flow_edit batch that names nodes by key (never IDs) and passes the revision. add_node with after: "start.ok_hosts" puts the first step of a new flow between start and done.
 Rules: one wire per output port; wires stay on one level; handle every fail port (wire it, apply_pattern, or leave_open with a reason); never set status tested; do not edit flow.version or generated/.
 Data passes through node inputs and outputs (set_io, from:): inside a subflow <subflow>.<input> reads its input; a from: path like precheck/normalize-facts.x is lifted to precheck for you.
+Layout: leave positions out unless the user asks for an arrangement; the canvas places nodes without one. To arrange, pass position ({x, y}, or {below|above|right_of|left_of: node}) to add_node, or use move; flow_describe with layout: true shows where nodes are; unplace hands nodes back to automatic placement.
 flow_reference explains the format, ports, patterns and ops. The ansible-flow skill has the full rules and examples.`;
 
 const io = new FsFlowIO([process.cwd()], createSchemaValidator(), createIdFactory());

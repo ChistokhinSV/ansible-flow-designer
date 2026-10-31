@@ -10,7 +10,7 @@ import { TOOL_SPECS, type ToolSpec } from '../../core/ai/specs';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { diffEdits } from '../../core/yaml/edits';
-import { layoutLevel } from '../autoLayout';
+import { layoutLevel, shownPositions } from '../autoLayout';
 import { authorName } from '../gitHead';
 
 const FLOWS = '**/*.flow.yaml';
@@ -113,6 +113,7 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
           }
         },
         layout: layoutLevel,
+        positions: shownPositions,
       };
     },
     schema: deps.schema,

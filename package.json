@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.17.1",
+  "version": "0.18.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -381,6 +381,10 @@
             "level": {
               "type": "string",
               "description": "all (default), top, or a subflow key to describe one level."
+            },
+            "layout": {
+              "type": "boolean",
+              "description": "Also list where each node is: \"at x,y\" for a stored position, \"auto x,y\" where the canvas places it now (AFD-24). Use it before move, or to place new nodes next to existing ones."
             }
           }
         }
@@ -742,6 +746,42 @@
                           }
                         },
                         "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
+                      },
+                      "position": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "Where the new node goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Left edge, canvas pixels."
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Top edge, canvas pixels (y grows down)."
+                          },
+                          "below": {
+                            "type": "string",
+                            "description": "Under this node, centred on it."
+                          },
+                          "above": {
+                            "type": "string",
+                            "description": "Over this node, centred on it."
+                          },
+                          "right_of": {
+                            "type": "string",
+                            "description": "Right of this node, level with it."
+                          },
+                          "left_of": {
+                            "type": "string",
+                            "description": "Left of this node, level with it."
+                          },
+                          "gap": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Pixels between the two nodes."
+                          }
+                        }
                       }
                     },
                     "required": [
@@ -1129,6 +1169,42 @@
                       "end": {
                         "type": "string",
                         "description": "End node (same level) the hosts go to, instead of the one the pattern picks: it reuses an end keyed stopped/failed (excluded, done), else makes a new one."
+                      },
+                      "position": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "Where the handler node the pattern adds (for a pattern without one, its new end node; a new end goes below the handler) goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Left edge, canvas pixels."
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Top edge, canvas pixels (y grows down)."
+                          },
+                          "below": {
+                            "type": "string",
+                            "description": "Under this node, centred on it."
+                          },
+                          "above": {
+                            "type": "string",
+                            "description": "Over this node, centred on it."
+                          },
+                          "right_of": {
+                            "type": "string",
+                            "description": "Right of this node, level with it."
+                          },
+                          "left_of": {
+                            "type": "string",
+                            "description": "Left of this node, level with it."
+                          },
+                          "gap": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Pixels between the two nodes."
+                          }
+                        }
                       }
                     },
                     "required": [
@@ -1355,6 +1431,42 @@
                         "type": "string",
                         "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
                         "description": "Key of the new subflow; default: from the title."
+                      },
+                      "position": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "Where the new subflow node goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Left edge, canvas pixels."
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Top edge, canvas pixels (y grows down)."
+                          },
+                          "below": {
+                            "type": "string",
+                            "description": "Under this node, centred on it."
+                          },
+                          "above": {
+                            "type": "string",
+                            "description": "Over this node, centred on it."
+                          },
+                          "right_of": {
+                            "type": "string",
+                            "description": "Right of this node, level with it."
+                          },
+                          "left_of": {
+                            "type": "string",
+                            "description": "Left of this node, level with it."
+                          },
+                          "gap": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Pixels between the two nodes."
+                          }
+                        }
                       }
                     },
                     "required": [
@@ -1422,7 +1534,86 @@
                   },
                   {
                     "type": "object",
-                    "description": "Lay out a level again (positions only).",
+                    "description": "Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                    "properties": {
+                      "op": {
+                        "const": "move"
+                      },
+                      "nodes": {
+                        "type": "object",
+                        "description": "Node (key, or subflow/step) -> where it goes.",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "description": "Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "description": "Left edge, canvas pixels."
+                            },
+                            "y": {
+                              "type": "number",
+                              "description": "Top edge, canvas pixels (y grows down)."
+                            },
+                            "below": {
+                              "type": "string",
+                              "description": "Under this node, centred on it."
+                            },
+                            "above": {
+                              "type": "string",
+                              "description": "Over this node, centred on it."
+                            },
+                            "right_of": {
+                              "type": "string",
+                              "description": "Right of this node, level with it."
+                            },
+                            "left_of": {
+                              "type": "string",
+                              "description": "Left of this node, level with it."
+                            },
+                            "gap": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Pixels between the two nodes."
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "nodes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Drop stored positions so the canvas places these nodes automatically again (positions only). Name nodes, or a level: top, all, or a subflow key.",
+                    "properties": {
+                      "op": {
+                        "const": "unplace"
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                        },
+                        "description": "Nodes to hand back to auto-placement."
+                      },
+                      "level": {
+                        "type": "string",
+                        "description": "top, all, or a subflow key: every node there."
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.",
                     "properties": {
                       "op": {
                         "const": "tidy_up"

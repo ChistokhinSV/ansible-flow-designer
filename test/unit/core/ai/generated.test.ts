@@ -12,6 +12,7 @@ import { createIdFactory } from '../../../../src/core/flow/ids';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
+import { layoutLevel, shownPositions } from '../../../../src/extension/autoLayout';
 
 const ROOT = join(__dirname, '../../../..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8').replaceAll('\r\n', '\n');
@@ -71,7 +72,11 @@ describe('AI assistant files', () => {
     for (const [, block] of blocks) {
       const { ops } = JSON.parse(block as string) as { ops: Op[] };
       expect(checkOps(ops)).toEqual([]);
-      const r = await applyOps(flow, ops, { newId: createIdFactory() });
+      const r = await applyOps(flow, ops, {
+        newId: createIdFactory(),
+        layout: layoutLevel,
+        positions: shownPositions,
+      });
       expect(errors(r.text), block).toEqual([]);
     }
   });

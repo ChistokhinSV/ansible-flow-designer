@@ -59,6 +59,12 @@ Good to know:
   into a subflow, the end node a pattern used.
 - **`set_io`** takes a path into another subflow (`precheck/normalize.fw_version`) and lifts it.
 - **`apply_pattern`** takes an `end` to choose the end node.
+- **Layout:** agents leave positions out unless you ask for an arrangement; the canvas places those
+  nodes next to their neighbours. Ask "put the notify step under the rollback" and the agent passes
+  a `position` (`{x, y}`, or `below` / `above` / `right_of` / `left_of` a node) to `add_node`, or
+  uses `move` later; `unplace` hands nodes back to automatic placement and `tidy_up` lays out a
+  level. `flow_describe` with `layout` shows where each node is. The first position on an
+  automatically laid out level also stores the others where you see them, so nothing jumps.
 - **Terminal agents** write the file like a save: `flow.version` once per commit, tested nodes that
   changed drop back to implemented, `generated/` is refreshed. They touch only `*.flow.yaml` inside
   the agent's roots.

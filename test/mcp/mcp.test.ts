@@ -152,4 +152,18 @@ describe('MCP server', () => {
     expect(c.text).toContain('7 node(s), 5 wire(s), 15 reference(s)');
     expect(readFileSync(join(repo, 'flows/ntp.flow.yaml'), 'utf8')).toMatch(ULID);
   });
+
+  it('AFD-24: positions on the MCP server: describe shows them, move stores them with ELK', async () => {
+    const path = 'flows/vlan/vlan-audit.flow.yaml';
+    const d = await call('flow_describe', { path, layout: true });
+    expect(d.text).toMatch(/start \(start\) "Start" · auto -?\d+,-?\d+/);
+    const m = await call('flow_edit', {
+      path,
+      ops: [{ op: 'move', nodes: { done: { below: 'start', gap: 120 } } }],
+    });
+    expect(m.text).toContain('Applied 1 op(s)');
+    const after = await call('flow_describe', { path, layout: true });
+    expect(after.text).toMatch(/start \(start\) "Start" · at -?\d+,-?\d+/);
+    expect(after.text).toMatch(/done \(end\) "Done" · outcome: success · at -?\d+,-?\d+/);
+  });
 });

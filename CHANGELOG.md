@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.0 — AFD-24
+
+- **AI agents can place nodes.** Until now only _Tidy up_ wrote positions, so an agent could not follow "put the notify step under the rollback".
+  - `add_node`, `apply_pattern` and `extract_subflow` take a `position`: `{x, y}` (top-left corner, canvas pixels), or `below` / `above` / `right_of` / `left_of` a node on the same level with an optional `gap`. A relative place steps aside until the spot is free.
+  - New ops: `move` places or moves nodes later (several in order, each may be relative to the one before); `unplace` hands nodes, or a whole level, back to automatic placement.
+  - The first position on a level the canvas lays out also stores the other nodes where the canvas shows them, as a drag on the canvas does, so nothing jumps.
+  - A position that overlaps another node is applied, and the answer says so.
+- **The tools explain layout.** Every place-taking op, `move`, `unplace` and `tidy_up` describes the coordinate system, the node sizes and what happens to nodes without a position (the canvas places them next to their neighbours). `flow_describe` with `layout: true` lists each node `at x,y` (stored) or `auto x,y` (where the canvas puts it now).
+- The skill, the MCP server's instructions and the Copilot instructions tell agents to leave positions out unless the user asks for an arrangement; the skill has a worked example, and the user guide's AI page explains what to ask for.
+
 ## 0.17.1 — AFD-23
 
 - **Agent-built flows no longer stand in one column.** New flows stored positions for Start and Done only. The canvas then skipped its auto-layout and put every other node straight below the step before it, so siblings sat on top of each other (product-owner report). Earlier agent-built flows looked right only because those agents ran _Tidy up_ at the end.

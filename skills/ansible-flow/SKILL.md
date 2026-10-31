@@ -64,8 +64,8 @@ the ports a node has). Correct that op and send the whole batch again.
   `not-approved`; the answer names the end it used.
 - `status` goes draft → specified (has inputs or outputs) → implemented (bound to code). Never set
   `tested`: only a passing run sets it.
-- Do not edit `flow.version`, IDs, `layout` or anything under `generated/`: the tools bump the
-  version, keep positions and regenerate code.
+- Do not edit `flow.version`, IDs or anything under `generated/`: the tools bump the version and
+  regenerate code. Positions change only through the layout ops (see Layout).
 - Bindings (`bind`): use fully qualified names (`ansible.builtin.command`, `cisco.ios.ios_config`)
   that exist; ask the user when unsure. Without a binding a node runs as a TODO stub, which is fine
   while designing.
@@ -97,6 +97,25 @@ the host. The designer checks every name a step reads, and the generated code pa
 - Approvals approve by themselves in local runs; `-e '{"afd_approvals": {"approve": "rejected"}}'`
   takes another port. AWX workflow runs wait in a real approval node.
 
+## Layout
+
+Leave positions out unless the user asks for an arrangement: the canvas places every node that has
+no position next to its neighbours, and lays out a new flow by itself. On a flow the user arranged
+by hand, place a new node relative to a neighbour when its spot matters (a handler beside the step
+it handles).
+
+- When the user says where things go ("the handler to the right of the push", "notify under the
+  rollback"), pass `position` to add_node, apply_pattern or extract_subflow, or `move` nodes later.
+  A position is `{x, y}` (top-left corner, canvas pixels, y grows down) or one of `below`, `above`,
+  `right_of`, `left_of` naming a node on the same level, with an optional `gap`. Prefer relative
+  places: they step aside until the spot is free.
+- `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y` (where the
+  canvas puts it now) and the node sizes. Read it before placing by numbers.
+- The first position on a level the canvas lays out also stores the others where they are shown,
+  so nothing jumps. The answer warns when a position overlaps another node.
+- `unplace` (nodes, or `level`: top, all or a subflow key) hands nodes back to the canvas;
+  `tidy_up` stores a fresh layered layout for a level.
+
 ## Ops cheat sheet
 
 ```json
@@ -116,6 +135,9 @@ the host. The designer checks every name a step reads, and the generated code pa
 {"op": "apply_pattern", "at": "approve.rejected", "pattern": "stop", "end": "not-approved"}
 {"op": "bind", "node": "check-ntp", "impl": {"kind": "module", "ref": "cisco.ios.ios_command", "params": {"commands": ["show ntp associations"]}}}
 {"op": "extract_subflow", "nodes": ["backup-config", "push-config"], "title": "Change"}
+{"op": "add_node", "type": "task", "title": "Notify on-call", "after": "rollback.ok_hosts", "position": {"below": "rollback"}}
+{"op": "move", "nodes": {"failed": {"below": "notify-on-call"}, "report": {"x": 480, "y": 640}}}
+{"op": "unplace", "level": "top"}
 {"op": "delete", "nodes": ["old-step"]}
 ```
 

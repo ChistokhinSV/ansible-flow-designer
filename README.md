@@ -355,6 +355,7 @@ The extension teaches AI assistants the flow format and gives them tools that ed
   Errors name the op and how to fix it ("No node "chek-ntp"; did you mean check-ntp?"), and nothing is written. The answer lists the nodes created and the problems the edit added or solved, counted one by one.
 - `set_io` takes a path into another subflow as `from:` (`precheck/normalize-facts.fos_platform`): the subflow gets an output that lifts it, the field reads `precheck.fos_platform`, and the answer says so (AFD-21).
 - `apply_pattern` takes an `end` to choose the end node; the answer names the end it used.
+- **Layout (AFD-24):** agents leave positions out unless you ask for an arrangement; the canvas places those nodes next to their neighbours. To arrange, `add_node`, `apply_pattern` and `extract_subflow` take a `position` (`{x, y}`, or `below` / `above` / `right_of` / `left_of` a node, with a `gap`), `move` places nodes later and `unplace` hands them back to the canvas. `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y`. The first position on an auto-laid-out level also stores the others where they are shown, and a position that overlaps another node is reported in the answer.
 - `flow_new` starts a flow as `start -> done`, keyed by its file name. `add_node` with `after: "start.ok_hosts"` puts the first step between them, and each next `after` grows the chain: on a port that is already wired, the new node goes on that wire.
 - A terminal agent's edit acts like a save in the designer:
   - `flow.version` moves once per commit;

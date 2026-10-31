@@ -13,7 +13,7 @@ import type { IdFactory } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import { applyEdits } from '../core/yaml/edits';
-import { layoutLevel } from '../extension/autoLayout';
+import { layoutLevel, shownPositions } from '../extension/autoLayout';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const SKIP = new Set(['node_modules', '.git', 'generated', 'out', 'dist', '.venv', 'venv', '.tox']);
@@ -206,6 +206,7 @@ export class FsFlowIO implements FlowIO {
         return (await git(root ?? '.', ['config', 'user.name']))?.trim() || undefined;
       },
       layout: layoutLevel,
+      positions: shownPositions,
     };
   }
 }

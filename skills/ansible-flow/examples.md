@@ -141,3 +141,26 @@ Afterwards the steps are `prepare/precheck` and `prepare/backup-config`.
   ]
 }
 ```
+
+## Place nodes where the user wants them
+
+"Tell on-call after a rollback; put that step under the rollback and the failed end under it."
+
+```json
+{
+  "ops": [
+    {
+      "op": "add_node",
+      "type": "task",
+      "title": "Notify on-call",
+      "after": "rollback.ok_hosts",
+      "position": { "below": "rollback" }
+    },
+    { "op": "move", "nodes": { "failed": { "below": "notify-on-call" } } }
+  ]
+}
+```
+
+Without `position` the new step goes where the canvas places it, next to its neighbours.
+`flow_describe` with `layout: true` shows the coordinates; `unplace` with `level: top` hands the
+whole level back to automatic placement, and `tidy_up` stores a fresh layered layout.

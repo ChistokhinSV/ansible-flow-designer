@@ -148,3 +148,17 @@ export function shownLayout(model: FlowModel): Layout | undefined {
   }
   return out ?? layout;
 }
+
+/**
+ * Where the canvas shows every node (AFD-24), for the AI tools: `stored` positions (the old
+ * template's dropped, as in the view) and `auto` positions for the rest, on every level.
+ */
+export async function shownPositions(
+  model: FlowModel,
+): Promise<{ stored: Layout; auto: Record<Ulid, Position> }> {
+  const stored = shownLayout(model) ?? {};
+  const auto: Record<Ulid, Position> = {};
+  for (const level of model.levels.values())
+    Object.assign(auto, await autoPositions(level, stored));
+  return { stored, auto };
+}

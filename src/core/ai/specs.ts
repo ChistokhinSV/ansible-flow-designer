@@ -46,6 +46,29 @@ const TARGET = {
   type: 'string',
   description: 'The node the wire goes to (its in port), or node.port for another input port.',
 };
+/** How the canvas places nodes, for every op that can take a position (AFD-24). */
+export const LAYOUT_RULES =
+  'Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.';
+
+const PLACE = {
+  type: 'object',
+  additionalProperties: false,
+  description: `Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. ${LAYOUT_RULES}`,
+  properties: {
+    x: { type: 'number', description: 'Left edge, canvas pixels.' },
+    y: { type: 'number', description: 'Top edge, canvas pixels (y grows down).' },
+    below: { type: 'string', description: 'Under this node, centred on it.' },
+    above: { type: 'string', description: 'Over this node, centred on it.' },
+    right_of: { type: 'string', description: 'Right of this node, level with it.' },
+    left_of: { type: 'string', description: 'Left of this node, level with it.' },
+    gap: { type: 'number', minimum: 0, description: 'Pixels between the two nodes.' },
+  },
+};
+const placeOf = (what: string) => ({
+  ...PLACE,
+  description: `Where ${what} goes; leave it out for automatic placement. ${PLACE.description}`,
+});
+
 const CONTRACT_FIELD = inline(
   (defs.contract as { additionalProperties: Json }).additionalProperties,
 ) as Json;
@@ -93,6 +116,7 @@ export const OP_SPECS: OpSpec[] = [
       outputs: field('outputs'),
       settings: field('settings'),
       impl: field('impl'),
+      position: placeOf('the new node'),
     },
     required: ['type', 'title'],
     example: {
@@ -218,6 +242,9 @@ export const OP_SPECS: OpSpec[] = [
         description:
           'End node (same level) the hosts go to, instead of the one the pattern picks: it reuses an end keyed stopped/failed (excluded, done), else makes a new one.',
       },
+      position: placeOf(
+        'the handler node the pattern adds (for a pattern without one, its new end node; a new end goes below the handler)',
+      ),
     },
     required: ['at', 'pattern'],
     example: { op: 'apply_pattern', at: 'push-config.failed_hosts', pattern: 'rollback' },
@@ -303,6 +330,7 @@ export const OP_SPECS: OpSpec[] = [
       nodes: { type: 'array', items: NODE, description: 'Nodes to move.' },
       title: field('title'),
       key: field('key', 'Key of the new subflow; default: from the title.'),
+      position: placeOf('the new subflow node'),
     },
     required: ['nodes', 'title'],
     example: {
@@ -329,8 +357,36 @@ export const OP_SPECS: OpSpec[] = [
     },
   },
   {
+    op: 'move',
+    summary: `Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. ${LAYOUT_RULES}`,
+    properties: {
+      nodes: {
+        type: 'object',
+        description: 'Node (key, or subflow/step) -> where it goes.',
+        additionalProperties: PLACE,
+      },
+    },
+    required: ['nodes'],
+    example: {
+      op: 'move',
+      nodes: { 'check-ntp': { x: 320, y: 140 }, 'fix-ntp': { right_of: 'check-ntp' } },
+    },
+  },
+  {
+    op: 'unplace',
+    summary:
+      'Drop stored positions so the canvas places these nodes automatically again (positions only). Name nodes, or a level: top, all, or a subflow key.',
+    properties: {
+      nodes: { type: 'array', items: NODE, description: 'Nodes to hand back to auto-placement.' },
+      level: { type: 'string', description: 'top, all, or a subflow key: every node there.' },
+    },
+    required: [],
+    example: { op: 'unplace', level: 'top' },
+  },
+  {
     op: 'tidy_up',
-    summary: 'Lay out a level again (positions only).',
+    summary:
+      'Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.',
     properties: {
       level: { type: 'string', description: 'top (default), all, or a subflow key.' },
     },
@@ -385,6 +441,11 @@ export const TOOL_SPECS: ToolSpec[] = [
         level: {
           type: 'string',
           description: 'all (default), top, or a subflow key to describe one level.',
+        },
+        layout: {
+          type: 'boolean',
+          description:
+            'Also list where each node is: "at x,y" for a stored position, "auto x,y" where the canvas places it now (AFD-24). Use it before move, or to place new nodes next to existing ones.',
         },
       },
     },

@@ -45,7 +45,8 @@ A node's **status** is shown by its dot: draft, specified (has inputs or outputs
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
   number of wires in.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
-  **Tidy up** lays out the whole level.
+  **Tidy up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
+  added) are placed next to their neighbours until you move them.
 - **Delete:** Delete or Backspace. A whole selection is one undo step.
 - **Select several:** Ctrl+click, or Shift+drag a box.
 

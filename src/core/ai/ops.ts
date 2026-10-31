@@ -4,6 +4,7 @@
 import { CommandError, type FlowCommand, planCommand } from '../flow/commands';
 import { completeIds } from '../flow/completeIds';
 import { flowFromFile } from '../flow/document';
+import { nodeSize } from '../flow/geometry';
 import { type IdFactory, SLUG, slugify } from '../flow/ids';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { PATTERN_IDS, type PatternId } from '../flow/patterns';
@@ -13,6 +14,7 @@ import type {
   HandlerKind,
   ImplBinding,
   JoinMode,
+  Layout,
   NodeSettings,
   NodeStatus,
   NodeType,
@@ -22,6 +24,14 @@ import type {
 import { parseYaml, type YamlFile } from '../yaml/parse';
 import { YamlEditError } from '../yaml/transaction';
 import { keyPath, levelName, RefError, resolveNode, resolvePort, withoutIds } from './refs';
+
+/**
+ * Where a node goes on its level (AFD-24): the top-left corner in canvas pixels (y grows down), or
+ * next to another node of the same level, `gap` pixels away.
+ */
+export type Place =
+  | { x: number; y: number }
+  | { below?: string; above?: string; right_of?: string; left_of?: string; gap?: number };
 
 export type Op =
   | {
@@ -48,6 +58,7 @@ export type Op =
       outputs?: Record<string, ContractField>;
       settings?: NodeSettings;
       impl?: ImplBinding;
+      position?: Place;
     }
   | {
       op: 'update_node';
@@ -70,7 +81,7 @@ export type Op =
   | { op: 'enable_port' | 'disable_port'; node: string; port: string }
   | { op: 'leave_open'; at: string; reason: string }
   | { op: 'reopen'; at: string }
-  | { op: 'apply_pattern'; at: string; pattern: PatternId; end?: string }
+  | { op: 'apply_pattern'; at: string; pattern: PatternId; end?: string; position?: Place }
   | {
       op: 'set_io';
       node: string;
@@ -90,7 +101,9 @@ export type Op =
   | { op: 'set_entry'; subflow: string; node: string | null }
   | { op: 'add_exit'; from: string; port: string; reason?: string }
   | { op: 'remove_exit'; from: string; port: string }
-  | { op: 'extract_subflow'; nodes: string[]; title: string; key?: string }
+  | { op: 'extract_subflow'; nodes: string[]; title: string; key?: string; position?: Place }
+  | { op: 'move'; nodes: Record<string, Place> }
+  | { op: 'unplace'; nodes?: string[]; level?: string }
   | { op: 'bind'; node: string; impl: ImplBinding | null }
   | { op: 'tidy_up'; level?: string };
 
@@ -110,6 +123,8 @@ export interface OpsContext {
   author?: () => string | undefined | Promise<string | undefined>;
   /** Auto-layout of a level, for tidy_up (ELK lives outside the core). */
   layout?: (level: Level) => Promise<Record<Ulid, Position>>;
+  /** Where the canvas shows every node: stored positions and auto ones (AFD-24). */
+  positions?: (model: FlowModel) => Promise<{ stored: Layout; auto: Record<Ulid, Position> }>;
 }
 
 export interface OpsResult {
@@ -172,12 +187,122 @@ function levelKeys(st: State, level: string): Set<string> {
   return new Set((st.model.levels.get(level)?.nodes ?? []).map((n) => n?.key).filter(Boolean));
 }
 
+/** Default room between placed nodes: ELK's spacing (AFD-24). */
+const GAP_BELOW = 56;
+const GAP_BESIDE = 48;
+
+type Shown = { stored: Layout; auto: Record<Ulid, Position> };
+type Box = { id: Ulid; x: number; y: number; width: number; height: number };
+
+async function shownOf(st: State, ctx: OpsContext): Promise<Shown> {
+  if (!ctx.positions) throw new RefError('positions are not available here');
+  return ctx.positions(st.model);
+}
+
+/** Boxes of a level as the canvas shows them, with positions set earlier in the same op. */
+function boxesOf(st: State, shown: Shown, level: string, set: Record<Ulid, Position>): Box[] {
+  return (st.model.levels.get(level)?.nodes ?? []).flatMap((n) => {
+    const p = set[n.id] ?? shown.stored[n.id] ?? shown.auto[n.id];
+    return n?.id && p ? [{ id: n.id, ...p, ...nodeSize(n.type) }] : [];
+  });
+}
+
+const overlap = (a: Omit<Box, 'id'>, b: Omit<Box, 'id'>) =>
+  a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+
+/**
+ * The position a Place names for a node of `type` on `level`. Relative places step aside (right of
+ * a node below or above, further down beside one) until the spot is free; absolute ones are taken
+ * as given, and an overlap is reported after the batch.
+ */
+function resolvePlace(
+  st: State,
+  shown: Shown,
+  level: string,
+  type: NodeType,
+  place: Place,
+  set: Record<Ulid, Position>,
+  self?: Ulid,
+): Position {
+  const size = nodeSize(type);
+  if ('x' in place || 'y' in place) {
+    const { x, y } = place as { x: number; y: number };
+    if (!Number.isFinite(x) || !Number.isFinite(y))
+      throw new RefError(
+        'position needs both x and y as numbers, or one of below, above, right_of, left_of',
+      );
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+  const rel = place as Exclude<Place, { x: number; y: number }>;
+  const sides = (['below', 'above', 'right_of', 'left_of'] as const).filter((k) => rel[k]);
+  if (sides.length !== 1)
+    throw new RefError('position takes x and y, or exactly one of below, above, right_of, left_of');
+  const side = sides[0] as 'below' | 'above' | 'right_of' | 'left_of';
+  const ref = resolveNode(st.model, rel[side] as string, level);
+  if (ref.level !== level)
+    throw new RefError(
+      `${ref.path} is on ${levelName(st.model, ref.level)}, not on ${levelName(st.model, level)}: positions are per level`,
+    );
+  const boxes = boxesOf(st, shown, level, set).filter((b) => b.id !== self);
+  const r = boxes.find((b) => b.id === ref.id);
+  if (!r) throw new RefError(`${ref.path} has no position yet`);
+  const vertical = side === 'below' || side === 'above';
+  const gap = rel.gap ?? (vertical ? GAP_BELOW : GAP_BESIDE);
+  const p =
+    side === 'below'
+      ? { x: r.x + (r.width - size.width) / 2, y: r.y + r.height + gap }
+      : side === 'above'
+        ? { x: r.x + (r.width - size.width) / 2, y: r.y - size.height - gap }
+        : side === 'right_of'
+          ? { x: r.x + r.width + gap, y: r.y + (r.height - size.height) / 2 }
+          : { x: r.x - size.width - gap, y: r.y + (r.height - size.height) / 2 };
+  for (let i = 0; i < 40 && boxes.some((b) => overlap({ ...p, ...size }, b)); i++) {
+    if (vertical) p.x += size.width + GAP_BESIDE;
+    else p.y += size.height + GAP_BELOW;
+  }
+  return { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
+/**
+ * The shown positions of a level's nodes that are not stored yet: written with the first placed
+ * node, as the canvas does on a drag, so nothing else moves (AFD-24).
+ */
+function freezeOf(
+  st: State,
+  shown: Shown,
+  level: string,
+  except: Ulid[] = [],
+): Record<Ulid, Position> {
+  const out: Record<Ulid, Position> = {};
+  for (const n of st.model.levels.get(level)?.nodes ?? [])
+    if (n?.id && !shown.stored[n.id] && shown.auto[n.id] && !except.includes(n.id))
+      out[n.id] = shown.auto[n.id] as Position;
+  return out;
+}
+
+/** Position and freeze for a new node of `type` on `level`, when the op gives a place. */
+async function placeNew(
+  st: State,
+  ctx: OpsContext,
+  level: string,
+  type: NodeType,
+  place: Place | undefined,
+): Promise<{ position?: Position; freeze?: Record<Ulid, Position> }> {
+  if (!place) return {};
+  const shown = await shownOf(st, ctx);
+  return {
+    position: resolvePlace(st, shown, level, type, place, {}),
+    freeze: freezeOf(st, shown, level),
+  };
+}
+
 /** The FlowCommands of one op, planned against the current state. */
 async function commandsOf(
   st: State,
   op: Op,
   ctx: OpsContext,
   notes: string[],
+  placed: Set<Ulid>,
 ): Promise<FlowCommand[]> {
   switch (op.op) {
     case 'add_node': {
@@ -220,8 +345,10 @@ async function commandsOf(
           `Key "${key}" is already used on ${levelName(st.model, level)}; pass another key`,
         );
       const failed = op.failed_to ? resolveNode(st.model, op.failed_to, level) : undefined;
+      const at = await placeNew(st, ctx, level, op.type, op.position);
       const cmd: FlowCommand = {
         kind: 'addNode',
+        ...at,
         ...(parent ? { parent } : {}),
         type: op.type,
         title: op.title,
@@ -302,12 +429,15 @@ async function commandsOf(
       const end = op.end ? resolveNode(st.model, op.end, at.node.level) : undefined;
       if (end && end.level !== at.node.level)
         throw new RefError(`${end.path} is not on the level of ${at.node.path}`);
+      // The place is the handler's (or, for a pattern without one, the new end's).
+      const where = await placeNew(st, ctx, at.node.level, 'task', op.position);
       return [
         {
           kind: 'applyPattern',
           pattern: op.pattern,
           from: { node: at.node.id, port: at.port },
           ...(end ? { end: end.id } : {}),
+          ...where,
         },
       ];
     }
@@ -354,14 +484,62 @@ async function commandsOf(
         : [{ kind: 'disconnectBoundary', subflow: from.node.level, from: ref, port: op.port }];
     }
     case 'extract_subflow': {
-      const nodes = op.nodes.map((n) => resolveNode(st.model, n).id);
+      const nodes = op.nodes.map((n) => resolveNode(st.model, n));
+      const where = op.position
+        ? await placeNew(st, ctx, nodes[0]?.level ?? ROOT, 'subflow', op.position)
+        : {};
       return [
-        { kind: 'extractSubflow', nodes, title: op.title, ...(op.key ? { key: op.key } : {}) },
+        {
+          kind: 'extractSubflow',
+          nodes: nodes.map((n) => n.id),
+          title: op.title,
+          ...(op.key ? { key: op.key } : {}),
+          // The extracted nodes leave the level: their positions are not frozen there.
+          ...(where.freeze
+            ? {
+                position: where.position,
+                freeze: Object.fromEntries(
+                  Object.entries(where.freeze).filter(([id]) => !nodes.some((n) => n.id === id)),
+                ),
+              }
+            : {}),
+        },
       ];
     }
     case 'bind': {
       const node = resolveNode(st.model, op.node);
       return [{ kind: 'setBinding', id: node.id, impl: op.impl }];
+    }
+    case 'move': {
+      const entries = Object.entries(op.nodes ?? {});
+      if (entries.length === 0) throw new RefError('Name the nodes to move: {"node-key": {x, y}}');
+      const shown = await shownOf(st, ctx);
+      const set: Record<Ulid, Position> = {};
+      const levels = new Set<string>();
+      for (const [ref, place] of entries) {
+        const node = resolveNode(st.model, ref);
+        set[node.id] = resolvePlace(st, shown, node.level, node.node.type, place, set, node.id);
+        levels.add(node.level);
+        placed.add(node.id);
+      }
+      const freeze = Object.assign(
+        {},
+        ...[...levels].map((l) => freezeOf(st, shown, l, Object.keys(set))),
+      ) as Record<Ulid, Position>;
+      return [{ kind: 'moveNodes', positions: { ...freeze, ...set } }];
+    }
+    case 'unplace': {
+      if (!op.nodes?.length && !op.level)
+        throw new RefError('Name nodes, or a level (top, all or a subflow key), to unplace');
+      const ids = (op.nodes ?? []).map((n) => resolveNode(st.model, n).id);
+      if (op.level) {
+        const levels =
+          op.level === 'all'
+            ? [...st.model.levels.values()]
+            : [st.model.levels.get(op.level === 'top' ? ROOT : subflowOf(st, op.level))];
+        for (const l of levels) for (const n of l?.nodes ?? []) if (n?.id) ids.push(n.id);
+      }
+      return [{ kind: 'unplaceNodes', ids }];
     }
     case 'tidy_up': {
       if (!ctx.layout) throw new RefError('tidy_up is not available here');
@@ -406,12 +584,15 @@ export async function applyOps(
   }
   let st = stateOf(current);
   const existing = new Set(st.model.nodes.keys());
+  /** Nodes the batch put at a place the agent gave (AFD-24): checked for overlaps at the end. */
+  const placed = new Set<Ulid>();
   for (const [i, op] of ops.entries()) {
     try {
-      for (const cmd of await commandsOf(st, op, ctx, notes)) {
+      for (const cmd of await commandsOf(st, op, ctx, notes, placed)) {
         const r = planCommand(st.text, cmd, { newId: ctx.newId }, st.file);
         st = stateOf(r.text, r.file);
         notes.push(...(r.notes ?? []));
+        if ('position' in cmd && cmd.position && r.created) placed.add(r.created);
         for (const id of r.dropped ?? []) dropped.add(keyPath(st.model, id));
         if (cmd.kind === 'addNode' && r.created) {
           const extra = op.op === 'add_node' ? op : undefined;
@@ -451,9 +632,31 @@ export async function applyOps(
       );
     }
   }
+  if (placed.size > 0 && ctx.positions) notes.push(...(await overlapNotes(st, ctx, placed)));
   // Patterns and extraction add nodes too: report every node the batch made.
   const created = [...st.model.nodes.keys()]
     .filter((id) => !existing.has(id))
     .map((id) => keyPath(st.model, id));
   return { text: st.text, created, dropped: [...dropped], notes };
+}
+
+/** "a overlaps b" for nodes placed where the agent said (AFD-24): placed as asked, reported. */
+async function overlapNotes(st: State, ctx: OpsContext, placed: Set<Ulid>): Promise<string[]> {
+  const shown = await shownOf(st, ctx);
+  const out: string[] = [];
+  for (const id of placed) {
+    const level = st.model.nodes.get(id)?.level;
+    if (level === undefined) continue;
+    const boxes = boxesOf(st, shown, level, {});
+    const me = boxes.find((b) => b.id === id);
+    if (!me) continue;
+    const hits = boxes
+      .filter((b) => b.id !== id && overlap(me, b))
+      .map((b) => keyPath(st.model, b.id));
+    if (hits.length)
+      out.push(
+        `${keyPath(st.model, id)} at ${me.x},${me.y} overlaps ${hits.join(', ')}: move one of them (move) if that is not wanted`,
+      );
+  }
+  return out;
 }

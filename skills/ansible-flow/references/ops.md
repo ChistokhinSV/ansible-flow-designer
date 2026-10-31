@@ -28,6 +28,7 @@ Add a node. after continues from an output port: a free port is wired to the new
 - `outputs` (map of object): Values the node produces for later nodes.
 - `settings` (object): How the node runs (play keywords).
 - `impl` (object | null): What the node runs: a module, a role or a playbook. Absent: a TODO stub.
+- `position` (object): Where the new node goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
 
 ```json
 {"op":"add_node","type":"task","title":"Check NTP","on_wire":"precheck.ok_hosts","intent":"Compare the NTP servers with the standard"}
@@ -146,6 +147,7 @@ Handle an output with a ready-made pattern: adds the handler node and its wires 
 - `at` (string, required): An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts.
 - `pattern` (rollback | notify-stop | exclude | retry | stop | done | escalate | report, required): Which pattern (see the pattern list).
 - `end` (string): End node (same level) the hosts go to, instead of the one the pattern picks: it reuses an end keyed stopped/failed (excluded, done), else makes a new one.
+- `position` (object): Where the handler node the pattern adds (for a pattern without one, its new end node; a new end goes below the handler) goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
 
 ```json
 {"op":"apply_pattern","at":"push-config.failed_hosts","pattern":"rollback"}
@@ -220,6 +222,7 @@ Move connected nodes of one level into a new subflow node; wires across the edge
 - `nodes` (list of string, required): Nodes to move.
 - `title` (string, required): Human name shown on the canvas.
 - `key` (string): Key of the new subflow; default: from the title.
+- `position` (object): Where the new subflow node goes; leave it out for automatic placement. Where the node goes: {x, y}, or exactly one of below / above / right_of / left_of naming a node of the same level (key, or subflow/step), with an optional gap in pixels (default 56 below/above, 48 beside); a relative place steps aside until it is free. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
 
 ```json
 {"op":"extract_subflow","nodes":["backup","push-config","verify"],"title":"Fix NTP"}
@@ -236,9 +239,30 @@ Bind what the node runs (a module, role or playbook), or null for a TODO stub. P
 {"op":"bind","node":"check-ntp","impl":{"kind":"module","ref":"cisco.ios.ios_command","params":{"commands":["show ntp associations"]},"register":"ntp"}}
 ```
 
+### move
+
+Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
+
+- `nodes` (map of object, required): Node (key, or subflow/step) -> where it goes.
+
+```json
+{"op":"move","nodes":{"check-ntp":{"x":320,"y":140},"fix-ntp":{"right_of":"check-ntp"}}}
+```
+
+### unplace
+
+Drop stored positions so the canvas places these nodes automatically again (positions only). Name nodes, or a level: top, all, or a subflow key.
+
+- `nodes` (list of string): Nodes to hand back to auto-placement.
+- `level` (string): top, all, or a subflow key: every node there.
+
+```json
+{"op":"unplace","level":"top"}
+```
+
 ### tidy_up
 
-Lay out a level again (positions only).
+Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.
 
 - `level` (string): top (default), all, or a subflow key.
 

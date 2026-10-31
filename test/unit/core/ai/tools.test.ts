@@ -12,9 +12,11 @@ import {
 } from '../../../../src/core/ai/handlers';
 import { checkOps, OP_SPECS } from '../../../../src/core/ai/specs';
 import { createIdFactory } from '../../../../src/core/flow/ids';
+import { buildModel } from '../../../../src/core/flow/model';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
+import { layoutLevel, shownPositions } from '../../../../src/extension/autoLayout';
 
 const read = (p: string) => readFileSync(join(__dirname, '../../../..', p), 'utf8');
 const ULID = /[0-9A-HJKMNP-TV-Z]{26}/;
@@ -47,7 +49,7 @@ function memoryIO(): FlowIO & { files: Map<string, string>; writes: number } {
       files.set(p, t);
       return { text: t, notes: [] };
     },
-    ops: () => ({ newId }),
+    ops: () => ({ newId, layout: layoutLevel, positions: shownPositions }),
     schema,
   };
   return io;
@@ -211,6 +213,89 @@ describe('AI tools', () => {
     expect(d.text).toContain('outputs: backup_file<-store.backup_file (same name)');
     expect(d.text).toContain('register: wait_result');
     expect(d.text).toContain('inputs: file<-rollback.backup_file, platform<-precheck.fos_platform');
+  });
+
+  it('AFD-24: agents place nodes on create and later; the rest freezes; overlaps are reported', async () => {
+    const io = memoryIO();
+    const path = 'flows/layout-check/layout-check.flow.yaml';
+    await call(io, 'flow_new', { path, name: 'Layout check' });
+    const doc = () => parse(io.files.get(path) as string) as FlowDocument;
+    const at = (key: string) => {
+      const d = doc();
+      const id = d.nodes.find((n) => n.key === key)?.id as string;
+      return d.layout?.[id];
+    };
+    // No position: placed by the canvas, nothing stored.
+    await call(io, 'flow_edit', {
+      path,
+      ops: [{ op: 'add_node', type: 'task', title: 'Check', after: 'start.ok_hosts' }],
+    });
+    expect(doc().layout).toBeUndefined();
+    const before = await call(io, 'flow_describe', { path, layout: true });
+    expect(before.text).toContain('Layout: Positions are per level');
+    expect(before.text).toMatch(/check \(task, draft\) "Check" · auto -?\d+,-?\d+/);
+    // A position on create stores it, and the shown positions of the others (nothing moves).
+    const shown = await shownPositions(buildModel(doc()));
+    const placed = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'Report',
+          after: 'check.failed_hosts',
+          position: { right_of: 'check' },
+        },
+      ],
+    });
+    expect(placed.isError, placed.text).toBeUndefined();
+    const check = shown.auto[doc().nodes.find((n) => n.key === 'check')?.id as string];
+    expect(at('check')).toEqual(check);
+    expect(at('report')).toEqual({ x: (check?.x ?? 0) + 208 + 48, y: check?.y });
+    expect(Object.keys(doc().layout ?? {})).toHaveLength(4);
+    // Relative places step aside; an absolute one is taken as given and reported when it overlaps.
+    const moved = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        { op: 'add_node', type: 'task', title: 'Notify', position: { right_of: 'check' } },
+        { op: 'move', nodes: { done: { x: at('check')?.x ?? 0, y: at('check')?.y ?? 0 } } },
+      ],
+    });
+    expect(at('notify')?.y).toBeGreaterThan(at('report')?.y ?? 0);
+    expect(moved.text).toContain('done at ');
+    expect(moved.text).toMatch(/done at -?\d+,-?\d+ overlaps check/);
+    // A pattern's handler goes where asked; its new end goes below it.
+    await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'apply_pattern',
+          at: 'notify.failed_hosts',
+          pattern: 'notify-stop',
+          position: { x: 900, y: 600 },
+        },
+      ],
+    });
+    expect(at('notify-on-call')).toEqual({ x: 900, y: 600 });
+    expect(at('stopped')?.y).toBeGreaterThan(600);
+    const described = await call(io, 'flow_describe', { path, layout: true });
+    expect(described.text).toContain('notify-on-call (task, draft) "Notify on-call"');
+    expect(described.text).toContain('at 900,600');
+    // Unplace hands a level back to the canvas.
+    await call(io, 'flow_edit', { path, ops: [{ op: 'unplace', level: 'top' }] });
+    expect(doc().layout).toBeUndefined();
+    // Errors: a place needs x and y, or one relation on the same level.
+    const bad = await call(io, 'flow_edit', {
+      path,
+      ops: [{ op: 'move', nodes: { check: { x: 10 } } }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain('position needs both x and y');
+    const two = await call(io, 'flow_edit', {
+      path,
+      ops: [{ op: 'move', nodes: { check: { below: 'start', right_of: 'start' } } }],
+    });
+    expect(two.text).toContain('exactly one of below, above, right_of, left_of');
   });
 
   it('AFD-20: a chain built with after on a new flow; on_wire inside a subflow stays there', async () => {

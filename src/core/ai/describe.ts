@@ -6,9 +6,10 @@ import { FINDING_CODES } from '../flow/findingCodes';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
 import { defaultPortNames, portsFor } from '../flow/ports';
-import type { ContractField, FlowNode } from '../flow/types';
+import type { ContractField, FlowNode, Position } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import { keyPath, levelName, withoutIds } from './refs';
+import { LAYOUT_RULES } from './specs';
 
 function fields(contract: Record<string, ContractField> | undefined, node?: FlowNode): string {
   return Object.entries(contract ?? {})
@@ -21,7 +22,21 @@ function fields(contract: Record<string, ContractField> | undefined, node?: Flow
     .join(', ');
 }
 
-function nodeLine(node: FlowNode): string {
+/** Where the canvas shows nodes (AFD-24): stored positions and auto ones. */
+export interface ShownLayout {
+  stored: Partial<Record<string, Position>>;
+  auto: Partial<Record<string, Position>>;
+}
+
+function placeOf(node: FlowNode, layout: ShownLayout | undefined): string {
+  if (!layout) return '';
+  const at = layout.stored[node.id];
+  if (at) return `at ${at.x},${at.y}`;
+  const auto = layout.auto[node.id];
+  return auto ? `auto ${auto.x},${auto.y}` : '';
+}
+
+function nodeLine(node: FlowNode, layout?: ShownLayout): string {
   const extra = portsFor(node)
     .map((p) => p.name)
     .filter((p) => !defaultPortNames(node).includes(p));
@@ -42,6 +57,7 @@ function nodeLine(node: FlowNode): string {
       : '',
     fields(node.inputs) ? `inputs: ${fields(node.inputs)}` : '',
     fields(node.outputs) ? `outputs: ${fields(node.outputs, node)}` : '',
+    placeOf(node, layout),
     node.settings && Object.keys(node.settings).length
       ? `settings: ${Object.entries(node.settings)
           .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join('|') : v}`)
@@ -76,6 +92,7 @@ export function describeFlow(
   findings: readonly Finding[],
   revision: string,
   level?: string,
+  layout?: ShownLayout,
 ): string {
   const { doc } = model;
   const f = doc.flow;
@@ -96,6 +113,7 @@ export function describeFlow(
         ]
       : []),
     `Revision: ${revision} (pass it to flow_edit)`,
+    ...(layout ? [`Layout: ${LAYOUT_RULES}`] : []),
   ];
   const open = openFailPorts(model);
   const decided = (doc.decisions ?? []).filter((d) => d?.kind === 'open_on_purpose' && d.node);
@@ -112,7 +130,7 @@ export function describeFlow(
         );
     }
     out.push('  nodes:');
-    for (const n of lv.nodes) if (n?.key) out.push(`    ${nodeLine(n)}`);
+    for (const n of lv.nodes) if (n?.key) out.push(`    ${nodeLine(n, layout)}`);
     out.push('  wires:');
     const wires = lv.edges.filter((e) => e?.from && e.to);
     if (wires.length === 0) out.push('    (none)');

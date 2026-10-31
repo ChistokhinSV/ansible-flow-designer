@@ -130,3 +130,28 @@ Verified with Claude Code 2.1.308 headless, using the user's own CLAUDE.md (whic
 - Both flows ended with 0 problems, two levels, and every fail port handled.
 - OpenCode 1.0.10 read the written `opencode.jsonc` and started the server.
 - ZCode, Copilot CLI and Cursor are covered by tests of the written files only.
+
+## Amendment: AFD-24 (0.18.0)
+
+Context: agents could not set positions. Only `tidy_up` wrote them (ELK), so a request like "put the notify step under the rollback" could not be followed, and the tools did not say how unplaced nodes are shown (AFD-23 found the canvas placing them).
+
+Decisions (product owner, 2026-10-31):
+1. **Absolute and relative places.** `{x, y}` is the top-left corner in canvas pixels, per level. Or `below` / `above` / `right_of` / `left_of` a node on the same level, with an optional `gap` (defaults: 56 px vertical, 48 px beside).
+2. **Ops:** `position` on `add_node`, `apply_pattern` (the handler, or its new end) and `extract_subflow`; a `move` op for later; an `unplace` op that drops stored positions (nodes, or a level: `top`, `all`, a subflow key).
+3. **Freeze like the canvas.** The first position on an auto-laid-out level also stores the other nodes where the canvas shows them, as a drag does.
+4. **Positions on request:** `flow_describe` with `layout: true` lists `at x,y` (stored) or `auto x,y` (shown by the canvas).
+5. **Overlaps are allowed**, and the answer names what overlaps.
+6. **Agents leave positions out unless the user asks for an arrangement** (skill, MCP instructions, Copilot instructions).
+
+Design:
+- **Op handling** (`core/ai/ops.ts`):
+  - places resolve against what the canvas shows (stored positions plus ELK's auto positions), taken from `OpsContext.positions`. The core stays free of ELK; the extension (`lmTools`) and the MCP server (`fsIO`) pass `shownPositions` from `extension/autoLayout.ts`;
+  - a relative place starts centred under or over its reference node, or level with it beside, and steps right (vertical relations) or down (beside) until it overlaps nothing;
+  - `move` resolves its nodes in order, so one place can name a node moved before it in the same op.
+- **Commands:** `unplaceNodes` deletes layout keys, and the whole block when it empties. Like `moveNodes`, it is not a design change, so `flow.version` does not move.
+- **Shared wording:** one rules text (`LAYOUT_RULES` in `specs.ts`) covers coordinates, node sizes (start/end 136x40, others 208x76) and auto-placement. Every place-taking op's schema, `move`, `unplace`, and the `flow_describe` header with `layout` carry it, so the generated references and Copilot tools say the same.
+
+Consequences:
+- Agents can arrange a flow and follow layout requests without `tidy_up` replacing the whole level.
+- A place needs `OpsContext.positions`. Without it (a host that cannot run ELK), ops that take a place fail with "positions are not available here"; both shipped hosts provide it.
+- An agent that places by numbers without reading the layout can overlap nodes. The answer reports it, and `move` or `unplace` repairs it.

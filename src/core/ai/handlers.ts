@@ -116,7 +116,7 @@ export async function flowList(io: FlowIO): Promise<ToolResult> {
 
 export async function flowDescribe(
   io: FlowIO,
-  input: { path?: string; level?: string },
+  input: { path?: string; level?: string; layout?: boolean },
 ): Promise<ToolResult> {
   const l = await load(io, input.path);
   if (isResult(l)) return l;
@@ -136,7 +136,11 @@ export async function flowDescribe(
       }
     }
   }
-  return { text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level)}` };
+  // AFD-24: where the canvas shows each node, when asked.
+  const shown = input.layout ? await io.ops(l.path).positions?.(l.model) : undefined;
+  return {
+    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown)}`,
+  };
 }
 
 export async function flowValidate(io: FlowIO, input: { path?: string }): Promise<ToolResult> {

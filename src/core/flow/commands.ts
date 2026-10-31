@@ -75,6 +75,8 @@ export type FlowCommand =
   /** AFD-18: a selection (nodes and wires of one level) goes in one edit, so one undo restores it. */
   | { kind: 'deleteNodes'; ids: Ulid[]; edges?: Ulid[] }
   | { kind: 'moveNodes'; positions: Record<Ulid, Position> }
+  /** AFD-24: drop stored positions, so the canvas places these nodes again. */
+  | { kind: 'unplaceNodes'; ids: Ulid[] }
   | { kind: 'tidyUp'; positions: Record<Ulid, Position> }
   | { kind: 'connect'; from: PortRef; to: PortRef }
   | { kind: 'disconnect'; edge: Ulid }
@@ -445,6 +447,15 @@ function positionOps(st: State, positions: Record<Ulid, Position>): Op[] {
 
 function setPositions(tx: YamlTransaction, positions: Record<Ulid, Position>): void {
   tx.applyAll(positionOps(state(tx), positions));
+}
+
+/** Removes stored positions; the whole block goes when nothing is left in it. */
+function unplaceNodes(tx: YamlTransaction, ids: readonly Ulid[]): void {
+  const layout = state(tx).doc.layout ?? {};
+  const gone = ids.filter((id) => id in layout);
+  if (gone.length === 0) return;
+  if (gone.length === Object.keys(layout).length) tx.apply((f) => deleteKey(f, [], 'layout'));
+  else tx.applyAll(gone.map((id) => (f: YamlFile) => deleteKey(f, ['layout'], id)));
 }
 
 interface NodeSpec {
@@ -1767,6 +1778,7 @@ export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): voi
 const NO_DESIGN = new Set<FlowCommand['kind']>([
   'moveNodes',
   'tidyUp',
+  'unplaceNodes',
   'setStatuses',
   'ignoreDrift',
   'clearDriftIgnore',
@@ -1818,6 +1830,9 @@ export function planCommand(
     case 'moveNodes':
     case 'tidyUp':
       setPositions(tx, cmd.positions);
+      break;
+    case 'unplaceNodes':
+      unplaceNodes(tx, cmd.ids);
       break;
     case 'connect':
       created = addEdge(tx, ctx, cmd.from, cmd.to);
