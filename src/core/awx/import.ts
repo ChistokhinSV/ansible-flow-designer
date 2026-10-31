@@ -8,18 +8,18 @@
 // - a failure no edge handles stays open: AWX fails the workflow there too.
 // Values that are encrypted or look secret are imported by name only.
 import { duration } from '../engine/util';
-import { type IdFactory, slugify, uniqueKey } from '../flow/ids';
+import { importedFlow, LevelBuilder } from '../flow/builder';
+import { type IdFactory, slugify } from '../flow/ids';
 import type {
   BoundaryExit,
   Contract,
   ContractField,
   ContractType,
-  Edge,
-  FlowDocument,
   FlowNode,
   NodeSettings,
   Ulid,
 } from '../flow/types';
+import { walkNodes } from '../flow/walk';
 import { flatPlays, importPlaybook } from '../import/playbook';
 import type { ImportResult } from '../import/result';
 import { cleanVars, isSecret } from '../import/secrets';
@@ -95,18 +95,16 @@ class Importer {
   constructor(private readonly opts: ImportOptions) {}
 
   run(src: WorkflowSource): ImportResult {
-    const level = this.level(src, true);
+    const { level } = this.level(src, true);
     const inputs = this.inputs(src);
     // Variables of expanded playbooks join the flow inputs; AWX extra vars and surveys win.
     for (const [k, f] of Object.entries(this.playbookInputs)) if (!(k in inputs)) inputs[k] = f;
-    const doc: FlowDocument = {
-      schema_version: 1,
-      flow: {
-        id: this.opts.newId(),
+    const doc = importedFlow(
+      this.opts.newId(),
+      {
         key: this.opts.key,
         name: src.name,
-        version: 1,
-        ...(src.description ? { goal: src.description } : {}),
+        goal: src.description,
         imported_from: {
           kind: this.opts.kind ?? 'awx_workflow',
           template: src.name,
@@ -117,9 +115,8 @@ class Importer {
         },
         inputs,
       },
-      nodes: level.nodes,
-      edges: level.edges,
-    };
+      level,
+    );
     if (this.hidden.size)
       this.notes.push(
         `Imported by name only (encrypted or secret-looking): ${[...this.hidden].sort().join(', ')}.`,
@@ -182,29 +179,20 @@ class Importer {
     src: WorkflowSource,
     top: boolean,
   ): {
-    nodes: FlowNode[];
-    edges: Edge[];
+    level: LevelBuilder;
     entry?: Ulid;
     outputs?: Record<string, BoundaryExit[]>;
   } {
     const newId = this.opts.newId;
-    const keys = new Set<string>(top ? ['start', 'done'] : []);
-    const nodes: FlowNode[] = [];
-    const edges: Edge[] = [];
+    const level = new LevelBuilder(newId, top ? ['start', 'done'] : []);
+    const { nodes } = level;
     const edge = (from: FlowNode, port: string, to: FlowNode) =>
-      edges.push({
-        id: newId(),
-        from: { node: from.id, port },
-        to: { node: to.id, port: 'in' },
-      });
-    const start: FlowNode | undefined = top
-      ? { id: newId(), key: 'start', type: 'start', title: 'Start' }
-      : undefined;
-    if (start) nodes.push(start);
+      level.wire({ node: from.id, port }, to.id);
+    const start = top ? level.start() : undefined;
 
     const mapped = new Map<string, FlowNode>();
     for (const n of src.nodes) {
-      const f = this.node(n, keys);
+      const f = this.node(n, level);
       mapped.set(n.identifier, f);
       nodes.push(f);
     }
@@ -213,8 +201,7 @@ class Importer {
       incoming.set(target, [...(incoming.get(target) ?? []), { node, port }]);
     };
     const parallel = (title: string, base: string, count: number): FlowNode => {
-      const key = uniqueKey(slugify(base, 'parallel'), keys);
-      keys.add(key);
+      const key = level.key(slugify(base, 'parallel'));
       const p: FlowNode = { id: newId(), key, type: 'parallel', title, branches: count };
       nodes.push(p);
       return p;
@@ -265,8 +252,7 @@ class Importer {
       const f = mapped.get(n.identifier) as FlowNode;
       const from = incoming.get(n.identifier) ?? [];
       if (n.converge && new Set(from.map((i) => i.node.id)).size >= 2) {
-        const key = uniqueKey(slugify(`join ${f.key}`, 'join'), keys);
-        keys.add(key);
+        const key = level.key(slugify(`join ${f.key}`, 'join'));
         const j: FlowNode = {
           id: newId(),
           key,
@@ -293,7 +279,7 @@ class Importer {
         for (const o of openOk) edge(o.node, o.port, done);
       }
       // Open fail ports stay open: the banner shows the failures AWX does not handle either.
-      return { nodes, edges };
+      return { level };
     }
     // Inside a subflow, outcomes leave through the parent's ok_hosts; failed_hosts bubbles up by
     // itself (decision 10), approval problems need an explicit exit.
@@ -301,16 +287,14 @@ class Importer {
     if (openOk.length) outputs.ok_hosts = openOk.map((o) => ({ node: o.node.id, port: o.port }));
     const exits = openFail.filter((o) => o.port !== 'failed_hosts');
     if (exits.length) outputs.failed_hosts = exits.map((o) => ({ node: o.node.id, port: o.port }));
-    return { nodes, edges, entry, outputs };
+    return { level, entry, outputs };
   }
 
-  private node(n: WorkflowNodeSource, keys: Set<string>): FlowNode {
+  private node(n: WorkflowNodeSource, level: LevelBuilder): FlowNode {
     const title = n.name || 'Missing template';
-    const key = uniqueKey(
+    const key = level.key(
       slugify(n.identifier && !UUID.test(n.identifier) ? n.identifier : title, 'step'),
-      keys,
     );
-    keys.add(key);
     const id = this.opts.newId();
     const label = `"${key}"`;
     if (n.kind === 'approval') {
@@ -338,8 +322,8 @@ class Importer {
       if (n.workflow?.nodes.length) {
         const inner = this.level(n.workflow, false);
         node.subflow = {
-          nodes: inner.nodes,
-          edges: inner.edges,
+          nodes: inner.level.nodes,
+          edges: inner.level.edges,
           boundary: {
             ...(inner.entry ? { in: inner.entry } : {}),
             ...(inner.outputs && Object.keys(inner.outputs).length
@@ -437,24 +421,20 @@ class Importer {
     const edges = doc.edges.filter((e) => !ends.has(e.from.node) && !ends.has(e.to.node));
     const jt = n.job;
     const extra = this.clean(n.extraData);
-    const visit = (list: FlowNode[]) => {
-      for (const x of list) {
-        if (x.subflow?.nodes) visit(x.subflow.nodes);
-        if (x.type !== 'task') continue;
-        const s: NodeSettings = { ...x.settings };
-        if (jt?.become) s.become = true;
-        if (jt?.timeout && !s.timeout) s.timeout = duration(jt.timeout);
-        if (Object.keys(s).length) x.settings = s;
-        // The node's extra vars outrank everything in AWX: task vars (role vars for roles).
-        if (extra && x.impl?.kind === 'role') x.impl.params = { ...x.impl.params, ...extra };
-        else if (extra && x.impl)
-          x.impl.keywords = {
-            ...x.impl.keywords,
-            vars: { ...(x.impl.keywords?.vars as Record<string, unknown> | undefined), ...extra },
-          };
-      }
-    };
-    visit(nodes);
+    for (const x of walkNodes(nodes)) {
+      if (x.type !== 'task') continue;
+      const s: NodeSettings = { ...x.settings };
+      if (jt?.become) s.become = true;
+      if (jt?.timeout && !s.timeout) s.timeout = duration(jt.timeout);
+      if (Object.keys(s).length) x.settings = s;
+      // The node's extra vars outrank everything in AWX: task vars (role vars for roles).
+      if (extra && x.impl?.kind === 'role') x.impl.params = { ...x.impl.params, ...extra };
+      else if (extra && x.impl)
+        x.impl.keywords = {
+          ...x.impl.keywords,
+          vars: { ...(x.impl.keywords?.vars as Record<string, unknown> | undefined), ...extra },
+        };
+    }
     for (const [k, f] of Object.entries(doc.flow.inputs ?? {}))
       if (!f.targets && !(k in this.playbookInputs)) this.playbookInputs[k] = f;
     this.notes.push(...sub.notes.map((note) => `${at.label} (${jt?.playbook}): ${note}`));

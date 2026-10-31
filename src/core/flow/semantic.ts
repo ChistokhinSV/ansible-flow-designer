@@ -1,6 +1,7 @@
 // Semantic projection of a flow document: everything except layout (D-30, ADR-0006). Two documents
 // with equal keys differ only in node positions, comments or formatting.
 import type { FlowDocument, FlowNode, Ulid } from './types';
+import { walkNodes } from './walk';
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -63,13 +64,6 @@ function nodeDesign(node: FlowNode): unknown {
   return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };
 }
 
-function* allNodes(nodes: FlowNode[] | undefined): Generator<FlowNode> {
-  for (const n of nodes ?? []) {
-    yield n;
-    if (n.subflow && typeof n.subflow === 'object') yield* allNodes(n.subflow.nodes);
-  }
-}
-
 /** FNV-1a: a short fingerprint is enough to tell a node's design apart (no crypto in the webview). */
 function fnv1a(text: string): string {
   let h = 0x811c9dc5;
@@ -83,7 +77,7 @@ function fnv1a(text: string): string {
 /** Fingerprint of every node's design, kept with a run so `tested` is proposed only for what ran. */
 export function nodeDesigns(doc: FlowDocument): Record<Ulid, string> {
   const out: Record<Ulid, string> = {};
-  for (const n of allNodes(doc.nodes)) out[n.id] = fnv1a(JSON.stringify(canonical(nodeDesign(n))));
+  for (const n of walkNodes(doc.nodes)) out[n.id] = fnv1a(JSON.stringify(canonical(nodeDesign(n))));
   return out;
 }
 
@@ -97,10 +91,10 @@ export function testedDropBack(
   after: FlowDocument,
   keep?: ReadonlySet<Ulid>,
 ): Ulid[] {
-  const was = new Map([...allNodes(before.nodes)].map((n) => [n.id, n]));
+  const was = new Map([...walkNodes(before.nodes)].map((n) => [n.id, n]));
   const old = nodeDesigns(before);
   const now = nodeDesigns(after);
-  return [...allNodes(after.nodes)]
+  return [...walkNodes(after.nodes)]
     .filter(
       (n) =>
         n.status === 'tested' &&

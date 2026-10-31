@@ -9,16 +9,16 @@
 // - registered and set variables become outputs, and the steps that read them get inputs.
 // A failure nothing handles stays open: Ansible stops that host there too. Secrets are imported by
 // name only.
-import { duration, groupPart } from '../engine/util';
-import { type IdFactory, slugify, uniqueKey } from '../flow/ids';
+import { duration } from '../engine/util';
+import { importedFlow, LevelBuilder } from '../flow/builder';
+import { groupPart } from '../flow/dataNames';
+import { type IdFactory, slugify } from '../flow/ids';
 import { exprRefs, refsIn } from '../flow/jinja';
 import { keywordReads } from '../flow/keywords';
 import type {
   BoundaryExit,
   Contract,
   ContractType,
-  Edge,
-  FlowDocument,
   FlowNode,
   ImplBinding,
   NodeSettings,
@@ -26,6 +26,7 @@ import type {
   Ulid,
 } from '../flow/types';
 import { bareParams, MAGIC_VARS } from '../flow/validate';
+import { walkNodes } from '../flow/walk';
 import { shortName } from './builtins';
 import { basename, relative } from './read';
 import type { ImportResult } from './result';
@@ -52,20 +53,18 @@ export interface PlaybookImportOptions {
 }
 
 /** A level being built: nodes, wires, and the ports the next step hangs off. */
-class Level {
-  readonly nodes: FlowNode[] = [];
-  readonly edges: Edge[] = [];
-  readonly taken: Set<string>;
+class Level extends LevelBuilder {
   cursor: PortRef[] = [];
   entry?: Ulid;
   readonly exits: Record<string, BoundaryExit[]> = {};
   failedEnd?: FlowNode;
   /** Steps of the current play section, for play settings (serial, any_errors_fatal). */
   constructor(
+    newId: IdFactory,
     readonly parents: FlowNode[],
     readonly top: boolean,
   ) {
-    this.taken = new Set(top ? ['start', 'done', 'failed'] : []);
+    super(newId, top ? ['start', 'done', 'failed'] : []);
   }
 }
 
@@ -125,9 +124,8 @@ class PlaybookImporter {
     this.hosts = first?.hosts;
     this.collectVars(plays);
 
-    const top = new Level([], true);
-    const start: FlowNode = { id: this.opts.newId(), key: 'start', type: 'start', title: 'Start' };
-    top.nodes.push(start);
+    const top = new Level(this.opts.newId, [], true);
+    const start = top.start();
     top.cursor = [{ node: start.id, port: 'ok_hosts' }];
     this.book(book, top, plays.length > 1);
     const done: FlowNode = {
@@ -163,23 +161,20 @@ class PlaybookImporter {
       this.notes.push(
         `Read but not set in the playbook (inventory, role defaults or extra vars): ${[...this.unknownReads].sort().join(', ')}. The banner shows them as unknown variables.`,
       );
-    const doc: FlowDocument = {
-      schema_version: 1,
-      flow: {
-        id: this.opts.newId(),
+    const doc = importedFlow(
+      this.opts.newId(),
+      {
         key: this.opts.key,
         // A playbook of imports (site.yml) is named after its file, a playbook of plays after the first.
         name:
           this.opts.name ??
           ((book.plays[0]?.kind === 'play' && first?.name) ||
             basename(book.path).replace(/\.ya?ml$/, '')),
-        version: 1,
         imported_from: { kind: 'playbook', path: book.path },
         inputs,
       },
-      nodes: top.nodes,
-      edges: top.edges,
-    };
+      top,
+    );
     return { doc, notes: this.notes, counts: this.counts(top.nodes) };
   }
 
@@ -242,20 +237,14 @@ class PlaybookImporter {
   }
 
   private key(level: Level, text: string, fallback: string): string {
-    const key = uniqueKey(keyBase(text, fallback), level.taken);
-    level.taken.add(key);
-    return key;
-  }
-
-  private wire(level: Level, from: PortRef, to: Ulid): void {
-    level.edges.push({ id: this.opts.newId(), from, to: { node: to, port: 'in' } });
+    return level.key(keyBase(text, fallback));
   }
 
   /** Adds a node after the cursor; it becomes the cursor (its ok_hosts, or approved). */
   private place(level: Level, node: FlowNode, extraPorts: string[] = []): void {
     level.nodes.push(node);
     if (!this.steps.has(node.id)) this.info(node, level);
-    if (level.cursor.length) for (const from of level.cursor) this.wire(level, from, node.id);
+    if (level.cursor.length) for (const from of level.cursor) level.wire(from, node.id);
     else if (!level.top && !level.entry) level.entry = node.id;
     if (node.type === 'end') {
       level.cursor = [];
@@ -281,7 +270,7 @@ class PlaybookImporter {
         level.nodes.push(level.failedEnd);
         this.info(level.failedEnd, level);
       }
-      for (const p of ports) this.wire(level, p, level.failedEnd.id);
+      for (const p of ports) level.wire(p, level.failedEnd.id);
       return;
     }
     const list = level.exits.failed_hosts ?? [];
@@ -304,7 +293,7 @@ class PlaybookImporter {
       ...extra,
     };
     this.info(node, level);
-    const inner = new Level([...level.parents, node], false);
+    const inner = new Level(this.opts.newId, [...level.parents, node], false);
     build(inner);
     const outputs: Record<string, BoundaryExit[]> = { ...inner.exits };
     if (inner.cursor.length) outputs.ok_hosts = [...(outputs.ok_hosts ?? []), ...inner.cursor];
@@ -820,17 +809,14 @@ class PlaybookImporter {
 
   private counts(nodes: FlowNode[]): ImportResult['counts'] {
     const counts = { steps: 0, implemented: 0, drafts: 0 };
-    const walk = (list: FlowNode[]) => {
-      for (const n of list) {
-        if (n.type === 'subflow' && n.subflow?.nodes?.length) walk(n.subflow.nodes);
-        else if (n.type === 'task' || n.type === 'approval' || n.type === 'subflow') {
-          counts.steps++;
-          if (n.status === 'implemented') counts.implemented++;
-          else counts.drafts++;
-        }
+    for (const n of walkNodes(nodes)) {
+      if (n.type === 'subflow' && n.subflow?.nodes?.length) continue;
+      if (n.type === 'task' || n.type === 'approval' || n.type === 'subflow') {
+        counts.steps++;
+        if (n.status === 'implemented') counts.implemented++;
+        else counts.drafts++;
       }
-    };
-    walk(nodes);
+    }
     return counts;
   }
 }

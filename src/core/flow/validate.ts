@@ -1,9 +1,9 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
-import { outputVar, registerName } from '../engine/binding';
-import { planSegments } from '../engine/segments';
 import type { Path } from '../yaml/parse';
+import { fedByBubbling, levelTaken, untaken } from './bubbling';
 import { idGaps, withIds } from './completeIds';
+import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { exprRefs, refsIn } from './jinja';
 import { keywordReads } from './keywords';
@@ -12,6 +12,7 @@ import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
+import { planSegments } from './segments';
 import type { Decision, FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -684,23 +685,12 @@ function checkBoundaryFlow(
       node: parent.id,
     });
   }
-  const wired = new Set(edges.map((e) => `${e?.from?.node}|${e?.from?.port}`));
-  const exits = new Set(
-    Object.values(boundary?.outputs ?? {}).flatMap((refs) =>
-      (refs ?? []).map((r) => `${r?.node}|${r?.port}`),
-    ),
-  );
+  const taken = levelTaken(edges, parent);
   for (const port of portsFor(parent)) {
     if (port.direction !== 'out' || port.name === 'cancelled') continue;
     const fed =
       (boundary?.outputs?.[port.name] ?? []).length > 0 ||
-      (port.fail &&
-        inner.some(
-          (n) =>
-            portsFor(n).some((p) => p.name === port.name) &&
-            !wired.has(`${n.id}|${port.name}`) &&
-            !exits.has(`${n.id}|${port.name}`),
-        ));
+      fedByBubbling(parent, port.name, inner, taken);
     if (!fed) {
       add({
         code: 'boundary-port-unfed',
@@ -715,8 +705,7 @@ function checkBoundaryFlow(
   for (const n of inner) {
     for (const p of portsFor(n)) {
       if (p.direction !== 'out' || p.fail || p.name === 'cancelled') continue;
-      const id = `${n.id}|${p.name}`;
-      if (wired.has(id) || exits.has(id)) continue;
+      if (!untaken(n.id, p.name, taken)) continue;
       add({
         code: 'inner-exit-unmapped',
         severity: 'warning',

@@ -6,8 +6,8 @@
 // is reachable on both sides of an approval is in both segments: every producer and consumer of a
 // routing group sits in one segment, so only the hosts waiting at the gate and the hosts bound for
 // the outcome cross segments. `finish` runs the outcome when no host reached a gate.
-import { type FlowModel, ROOT } from '../flow/model';
-import type { Edge, FlowNode, Ulid } from '../flow/types';
+import { type FlowModel, ROOT } from './model';
+import type { Edge, FlowNode, Ulid } from './types';
 
 export interface Segment {
   /** File and AWX name part: `start`, `<approval>-approved`, `<approval>-rejected`, `finish`. */

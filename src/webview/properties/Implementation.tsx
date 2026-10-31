@@ -14,7 +14,8 @@ import {
   stagedNode,
 } from '../../core/catalog/draft';
 import type { Badge, CatalogOption, SearchHit } from '../../core/catalog/types';
-import { bindingTaskText, registerName } from '../../core/engine/binding';
+import { bindingTaskText } from '../../core/engine/binding';
+import { registerName } from '../../core/flow/dataNames';
 import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';

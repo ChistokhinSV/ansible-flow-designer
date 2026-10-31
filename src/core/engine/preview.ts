@@ -1,7 +1,7 @@
 // What a node compiles to, for the inspector (mockup 03), plus the engine's findings for the canvas.
 import type { FlowDocument, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
-import { optionA } from './optionA';
+import { engineFor } from './engines';
 
 export interface CodePreview {
   /** Generated play text per node (its own lines from its level file). */
@@ -11,7 +11,7 @@ export interface CodePreview {
 }
 
 export function codePreview(doc: FlowDocument, source: string): CodePreview {
-  const result = optionA.generate(doc, { source });
+  const result = engineFor(doc).generate(doc, { source });
   const plays: Record<Ulid, string> = {};
   for (const [node, range] of Object.entries(result.plays)) {
     const file = result.files.find((f) => f.name === range.file);

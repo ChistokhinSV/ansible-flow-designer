@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.6 — AFD-40
+
+- **Core, one rule in one place** (improvement program, wave 2; no visible change, generated code byte-identical):
+  - **Subflow bubbling** is one module (`core/flow/bubbling.ts`) for the open-port banner, the generated routing, the subflow frame, the boundary check and Extract into Subflow; output lifting is one (`core/flow/lift.ts`) for Extract into Subflow and references into subflows.
+  - **Walking and building:** one node walker (`core/flow/walk.ts`); the AWX and playbook importers build levels with one `LevelBuilder` (`core/flow/builder.ts`).
+  - **Layers:** the variable names a flow's data lives in (`core/flow/dataNames.ts`) and the approval segments (`core/flow/segments.ts`) moved out of the engine, so the validator no longer imports it (Biome now refuses it); `engineFor(doc)` picks the engine for every caller.
+- **Fixed:** Extract into Subflow could give two lifted outputs the same name when the prefixed name was taken too (`q.a_b_c`, `z.c` and `a-b.c` all read outside lifted two `a_b_c`); the second is now `a_b_c_2`.
+
 ## 0.24.5 — AFD-39
 
 - **Stop a run** (improvement program, wave 2): while a run goes, the top bar shows **Stop**, and the Command Palette has **Ansible Flow: Stop Run**. A local run's terminal task ends and the run shows as stopped (not failed); an AWX job or workflow is cancelled in AWX and followed until AWX reports it canceled.

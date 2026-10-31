@@ -16,8 +16,9 @@ import {
   platformCollection,
   platformsOf,
 } from '../../../src/core/catalog/rank';
-import { bindingTaskText, inputVars, outputVar } from '../../../src/core/engine/binding';
+import { bindingTaskText, inputVars } from '../../../src/core/engine/binding';
 import { CommandError, type FlowCommand, planCommand } from '../../../src/core/flow/commands';
+import { outputVar } from '../../../src/core/flow/dataNames';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { joinSegments, parseRefs, refsIn, renameRef, segments } from '../../../src/core/flow/jinja';
 import { buildModel } from '../../../src/core/flow/model';

@@ -5,10 +5,12 @@ import { deleteKey, insertItem, type OpResult, removeItem, setIn } from '../yaml
 import type { Path, YamlFile } from '../yaml/parse';
 import type { YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
+import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
-import { enclosing, liftOf } from './dataRefs';
+import { enclosing } from './dataRefs';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
+import { existingLift, liftField, liftName } from './lift';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
@@ -30,6 +32,7 @@ import type {
   SubflowBody,
   Ulid,
 } from './types';
+import { descendantIds } from './walk';
 
 type Boundary = NonNullable<SubflowBody['boundary']>;
 
@@ -858,7 +861,7 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
   ops.push(...removeIndexes(level.edgesPath, edgeIdx, level.edges.length));
 
   // The node, every step of its inner levels, and its place in an enclosing boundary.
-  const gone = new Set([id, ...descendants(node)]);
+  const gone = new Set([id, ...descendantIds(node)]);
   const decisions = st.doc.decisions ?? [];
   const decisionIdx = decisions
     .map((d, i) => (d?.node && gone.has(d.node) ? i : -1))
@@ -900,10 +903,6 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
       );
   }
   tx.applyAll(ops);
-}
-
-function descendants(node: FlowNode): Ulid[] {
-  return (node.subflow?.nodes ?? []).flatMap((n) => (n?.id ? [n.id, ...descendants(n)] : []));
 }
 
 function setPortEnabled(
@@ -1168,18 +1167,10 @@ function liftOne(
   notes: string[],
 ): string {
   const { node: sub, path } = nodeAt(state(tx), subId);
-  for (const o of Object.keys(sub.outputs ?? {})) {
-    const l = liftOf(sub, o);
-    if (l && 'inner' in l && l.inner.id === child.id && l.output === name && !l.path.length)
-      return o;
-  }
-  const taken = new Set(Object.keys(sub.outputs ?? {}));
-  let as = taken.has(name) ? `${child.key.replaceAll('-', '_')}_${name}` : name;
-  for (let i = 2; taken.has(as); i++) as = `${child.key.replaceAll('-', '_')}_${name}_${i}`;
-  const value = contract({
-    type: child.outputs?.[name]?.type ?? 'any',
-    from: `${child.key}.${name}`,
-  });
+  const existing = existingLift(sub, child, name);
+  if (existing) return existing;
+  const as = liftName(new Set(Object.keys(sub.outputs ?? {})), child.key, name);
+  const value = contract(liftField(child, name));
   if (sub.outputs) tx.apply((f) => setIn(f, [...path, 'outputs', as], value));
   else setField(tx, path, 'outputs', { [as]: value }, NODE_ORDER);
   notes.push(`${sub.key} now lifts ${child.key}.${name} as its output ${as}`);
@@ -1387,8 +1378,6 @@ function exitPort(port: string): string {
   return isFailPort(port) ? 'failed_hosts' : 'ok_hosts';
 }
 
-const groupKey = (ref: PortRef) => `${ref.node}|${ref.port}`;
-
 /**
  * Moves a connected selection of one level into a new subflow node, in one edit. IDs never
  * change. Wires entering the group end at the subflow's `in` (the group has one entry node, its
@@ -1477,7 +1466,11 @@ function extractSubflow(
     dest.set(port, where);
   };
   for (const e of outgoing)
-    claim(exitPort(e.from.port), `node:${groupKey(e.to)}`, `${title(e.from.node)}.${e.from.port}`);
+    claim(
+      exitPort(e.from.port),
+      `node:${portKey(e.to.node, e.to.port)}`,
+      `${title(e.from.node)}.${e.from.port}`,
+    );
   for (const x of enclosing)
     claim(exitPort(x.ref.port), `leave:${x.leaves}`, `${title(x.ref.node)}.${x.ref.port}`);
 
@@ -1490,7 +1483,7 @@ function extractSubflow(
   const id = ctx.newId();
 
   // Outputs read outside the group are lifted to the subflow (AFD-7 decision).
-  const movedIds = new Set(entries.flatMap((e) => [e.node.id, ...descendants(e.node)]));
+  const movedIds = new Set(entries.flatMap((e) => [e.node.id, ...descendantIds(e.node)]));
   const keyOf = new Map(entries.map((e) => [e.node.key, e.node]));
   const lifted = new Map<string, { name: string; field: ContractField }>();
   const rewrites: { path: Path; value: string; node: Ulid }[] = [];
@@ -1506,12 +1499,7 @@ function extractSubflow(
         let lift = lifted.get(ref);
         if (!lift) {
           const names = new Set([...lifted.values()].map((l) => l.name));
-          const plain = out;
-          const prefixed = `${(head as string).replaceAll('-', '_')}_${out}`;
-          lift = {
-            name: names.has(plain) ? prefixed : plain,
-            field: { type: source.outputs?.[out]?.type ?? 'any', from: ref },
-          };
+          lift = { name: liftName(names, source.key, out), field: liftField(source, out) };
           lifted.set(ref, lift);
         }
         rewrites.push({
@@ -1522,23 +1510,17 @@ function extractSubflow(
       }
   }
 
-  // Inner fail ports that bubbled to the enclosing level keep bubbling through the new subflow.
+  // Fail ports nothing takes keep leaving the same way: through the new subflow's port.
   const exits = new Set([...dest.keys()]);
-  const wiredOut = new Set(level.edges.map((e) => groupKey(e.from)));
-  for (const x of enclosing) wiredOut.add(groupKey(x.ref));
-  const decided = new Set(
-    (st.doc.decisions ?? [])
-      .filter((d) => d?.kind === 'open_on_purpose')
-      .map((d) => `${d.node}|${d.port}`),
-  );
+  const usedHere = levelTaken(level.edges, parent);
+  const decided = openOnPurpose(st.doc);
   for (const e of entries)
-    for (const p of portsFor(e.node))
-      if (p.direction === 'out' && isFailPort(p.name) && !wiredOut.has(`${e.node.id}|${p.name}`))
-        if (
-          !decided.has(`${e.node.id}|${p.name}`) &&
-          isPortLegal({ type: 'subflow' } as FlowNode, p.name)
-        )
-          exits.add(p.name);
+    for (const port of untakenFailPorts(e.node, usedHere))
+      if (
+        !decided.has(portKey(e.node.id, port)) &&
+        isPortLegal({ type: 'subflow' } as FlowNode, port)
+      )
+        exits.add(port);
   const optional = optionalPortNames('subflow');
   const ports = [...exits].filter((p) => optional.includes(p)).sort();
 

@@ -3,7 +3,7 @@
 // "Save binding" as one command (one undo step); the other tabs edit like the inspector does.
 import { useEffect, useId, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
-import { registerName } from '../../core/engine/binding';
+import { registerName } from '../../core/flow/dataNames';
 import { SLUG } from '../../core/flow/ids';
 import { keywordProblem } from '../../core/flow/keywords';
 import { modelOf } from '../../core/flow/model';

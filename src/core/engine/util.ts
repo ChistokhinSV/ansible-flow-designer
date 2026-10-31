@@ -35,8 +35,3 @@ export function duration(seconds: number): string {
   const s = seconds % 60;
   return `${h ? `${h}h` : ''}${m ? `${m}m` : ''}${s ? `${s}s` : ''}` || '0s';
 }
-
-/** Ansible group names: lowercase letters, digits and underscores. */
-export function groupPart(key: string): string {
-  return key.toLowerCase().replaceAll(/[^a-z0-9_]/g, '_');
-}

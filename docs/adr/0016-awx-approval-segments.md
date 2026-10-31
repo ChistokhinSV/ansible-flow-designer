@@ -20,7 +20,7 @@ Spike (lab AWX 24.6.1, 2026-10-30):
 
 ## Decision
 
-**Segments** (`core/engine/segments.ts`, pure):
+**Segments** (`core/flow/segments.ts` since AFD-40, pure):
 - `start` holds the top-level nodes reachable from start without passing an approval;
 - an approval in a segment is its gate;
 - `<gate>-approved` holds what the gate's approved port reaches;

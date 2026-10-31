@@ -2,7 +2,7 @@
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
 import * as vscode from 'vscode';
 import type { CodeScan, DriftAction } from '../core/drift/types';
-import { optionA } from '../core/engine/optionA';
+import { engineFor } from '../core/engine/engines';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { completeIds } from '../core/flow/completeIds';
@@ -592,7 +592,7 @@ export class FlowSession implements vscode.Disposable {
   async peekCode(node: Ulid): Promise<void> {
     const snapshot = await this.snapshot();
     if (!snapshot.doc) return;
-    const result = optionA.generate(snapshot.doc, {
+    const result = engineFor(snapshot.doc).generate(snapshot.doc, {
       source: this.uri.path.split('/').pop() ?? 'flow.yaml',
     });
     if (!result.ok) {

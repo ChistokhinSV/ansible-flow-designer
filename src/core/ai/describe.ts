@@ -1,6 +1,6 @@
 // A flow described for AI tools (AFD-19): compact, by key, one line per node and wire, with the
 // open fail ports and the problems. IDs never appear.
-import { registerName } from '../engine/binding';
+import { registerName } from '../flow/dataNames';
 import { liftOf } from '../flow/dataRefs';
 import { FINDING_CODES } from '../flow/findingCodes';
 import { type FlowModel, ROOT } from '../flow/model';

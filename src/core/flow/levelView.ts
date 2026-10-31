@@ -2,6 +2,7 @@
 // state (D-13), edges with tone and problem styling (04 §2), and a subflow's boundary frame (D-23).
 // Shared by the webview canvas and the exports (AFD-25), so a picture matches the canvas.
 import type { Snapshot } from '../protocol';
+import { fedByBubbling, levelTaken } from './bubbling';
 import { nodeSize } from './geometry';
 import { modelOf, ROOT } from './model';
 import { legalPorts, type PortSpec, type PortTone, portSpec } from './ports';
@@ -197,11 +198,9 @@ export function boundaryView(
   }
 
   const inner = view.nodes.map((n) => n.node);
-  const wired = new Set(view.edges.map((e) => `${e.source}|${e.sourcePort}`));
-  const exited = new Set(
-    Object.values(boundary?.outputs ?? {}).flatMap((refs) =>
-      (refs ?? []).map((r) => `${r?.node}|${r?.port}`),
-    ),
+  const taken = levelTaken(
+    view.edges.map((e) => ({ from: { node: e.source, port: e.sourcePort } })),
+    subflow,
   );
   const ports: FramePortView[] = [];
   for (const p of legalPorts(subflow)) {
@@ -219,17 +218,7 @@ export function boundaryView(
     }
     let state: FramePortState = p.enabled ? 'unfed' : 'available';
     if ((boundary?.outputs?.[p.name] ?? []).length > 0) state = 'connected';
-    else if (
-      p.enabled &&
-      p.fail &&
-      inner.some(
-        (n) =>
-          portSpecsOf(n).has(p.name) &&
-          !wired.has(`${n.id}|${p.name}`) &&
-          !exited.has(`${n.id}|${p.name}`),
-      )
-    )
-      state = 'bubbled';
+    else if (fedByBubbling(subflow, p.name, inner, taken)) state = 'bubbled';
     ports.push({
       name: p.name,
       side: p.side === 'right' ? 'right' : 'bottom',
@@ -280,12 +269,4 @@ export function boundaryView(
     }
   }
   return { subflow, id, frame, ports, edges };
-}
-
-function portSpecsOf(node: FlowNode): Set<string> {
-  return new Set(
-    legalPorts(node)
-      .filter((p) => p.enabled)
-      .map((p) => p.name),
-  );
 }

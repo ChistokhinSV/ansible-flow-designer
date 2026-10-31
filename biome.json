@@ -90,6 +90,32 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/core/flow/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "vscode": "The core runs without VS Code (ADR-0023).",
+                  "node:fs": "The core does no IO: take it as a parameter (ADR-0023).",
+                  "node:fs/promises": "The core does no IO: take it as a parameter (ADR-0023).",
+                  "node:child_process": "The core starts no processes (ADR-0023)."
+                },
+                "patterns": [
+                  {
+                    "group": ["../engine", "../engine/*"],
+                    "message": "The flow model does not depend on an engine (AFD-40): the engine reads the model, not the other way round. Shared names live in core/flow (dataNames, segments)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

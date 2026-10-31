@@ -1,8 +1,9 @@
 // The binding being configured in the properties view (M5, mockup 11): staged in the webview and
 // written by "Save binding" as one setBinding command. Pure, so the form, the checklist and the
 // generated-task preview are the same functions the tests run.
-import { registerName } from '../engine/binding';
+
 import type { FlowCommand } from '../flow/commands';
+import { registerName } from '../flow/dataNames';
 import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';

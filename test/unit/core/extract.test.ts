@@ -173,4 +173,41 @@ describe('extract into a subflow', () => {
     expect(fail(PORTS, ['probe', 'rollback'])).toThrow(/not connected/);
     expect(fail(PORTS, ['start', 'probe'])).toThrow(/Start and end nodes stay/);
   });
+  it('numbers a lifted output whose prefixed name is taken too (AFD-40)', () => {
+    const id = (n: number) => `01JD${String(n).padStart(22, '0')}`;
+    const text = [
+      'schema_version: 1',
+      `flow: { id: ${id(1)}, key: clash, name: Clash, version: 1 }`,
+      'nodes:',
+      `  - { id: ${id(2)}, key: start, type: start, title: Start }`,
+      `  - { id: ${id(3)}, key: q, type: task, title: Q, outputs: { a_b_c: { type: any } } }`,
+      `  - { id: ${id(4)}, key: z, type: task, title: Z, outputs: { c: { type: any } } }`,
+      `  - { id: ${id(5)}, key: a-b, type: task, title: AB, outputs: { c: { type: any } } }`,
+      `  - id: ${id(6)}`,
+      '    key: reader',
+      '    type: task',
+      '    title: Reader',
+      '    inputs:',
+      '      i1: { type: any, from: q.a_b_c }',
+      '      i2: { type: any, from: z.c }',
+      '      i3: { type: any, from: a-b.c }',
+      `  - { id: ${id(7)}, key: done, type: end, title: Done, outcome: success }`,
+      'edges:',
+      ...[2, 3, 4, 5, 6].map(
+        (n, i) =>
+          `  - { id: ${id(10 + i)}, from: { node: ${id(n)}, port: ok_hosts }, to: { node: ${id(n + 1)}, port: in } }`,
+      ),
+      '',
+    ].join('\n');
+    const cmd: FlowCommand = {
+      kind: 'extractSubflow',
+      nodes: [id(3), id(4), id(5)],
+      title: 'Grouped',
+      position: { x: 0, y: 0 },
+    };
+    const after = parse(planCommand(text, cmd, { newId: createIdFactory() }).text) as FlowDocument;
+    expect(Object.keys(keyed(after, 'grouped').outputs ?? {})).toEqual(['a_b_c', 'c', 'a_b_c_2']);
+    expect(keyed(after, 'grouped').outputs?.a_b_c_2?.from).toBe('a-b.c');
+    expect(keyed(after, 'reader').inputs?.i3?.from).toBe('grouped.a_b_c_2');
+  });
 });

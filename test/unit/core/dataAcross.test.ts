@@ -3,10 +3,11 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { refChoices } from '../../../src/core/catalog/draft';
-import { inputVars, outputVar } from '../../../src/core/engine/binding';
+import { inputVars } from '../../../src/core/engine/binding';
 import { optionA } from '../../../src/core/engine/optionA';
 import { type FlowCommand, planCommand } from '../../../src/core/flow/commands';
 import { completeIds } from '../../../src/core/flow/completeIds';
+import { outputVar } from '../../../src/core/flow/dataNames';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel, ROOT } from '../../../src/core/flow/model';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';

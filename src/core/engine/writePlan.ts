@@ -4,8 +4,8 @@
 import { parseFlow } from '../flow/document';
 import type { SchemaIssue } from '../flow/schema';
 import { validateFlow } from '../flow/validate';
+import { engineFor } from './engines';
 import { GENERATED_MARK, generatedState } from './files';
-import { optionA } from './optionA';
 import type { GenerateResult } from './types';
 
 export interface GeneratedDir {
@@ -43,7 +43,7 @@ export async function planGenerated(
       error: `The flow has ${errors.length} error(s); generated code was not updated`,
       ...empty,
     };
-  const result = optionA.generate(parsed.doc, {
+  const result = engineFor(parsed.doc).generate(parsed.doc, {
     source: options.source,
     eol: text.includes('\r\n') ? '\r\n' : '\n',
     root: options.root,

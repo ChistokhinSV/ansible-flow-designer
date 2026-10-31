@@ -1,12 +1,20 @@
 // Option A code generation (handoff 05, ADR-0003, ADR-0009): one playbook per flow level, one play
 // per node, host sets routed between plays with group_by, and a final outcome play that fails the
 // hosts left on open ports or failed end nodes (no host ever fails inside a node play).
+import {
+  bubbles,
+  type LevelTaken,
+  levelTaken,
+  portKey,
+  unreachableBubbles,
+} from '../flow/bubbling';
+import { groupPart, outputVar, registerName } from '../flow/dataNames';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
+import { planSegments, type Segment } from '../flow/segments';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
-import { bindingTask, inputVars, outputVar, registerName, stubFacts } from './binding';
-import { planSegments, type Segment } from './segments';
+import { bindingTask, inputVars, stubFacts } from './binding';
 import { effectiveTargets } from './targets';
 import type {
   Engine,
@@ -17,7 +25,7 @@ import type {
   Route,
   SegmentFile,
 } from './types';
-import { checksum, durationSeconds, groupPart } from './util';
+import { checksum, durationSeconds } from './util';
 import { comment, flow, type Out, type OutMap, writeBlock } from './yamlWriter';
 
 export const CHECKSUM_PREFIX = '# Checksum: ';
@@ -56,6 +64,7 @@ class Generator {
   private readonly routes: Record<string, Route> = {};
   private readonly outcome: OutcomeEntry[] = [];
   private readonly targets = new Map<string, string>();
+  private readonly takenOf = new Map<Level, LevelTaken>();
   private readonly files: { ctx: LevelCtx; chunks: Chunk[] }[] = [];
   private order = 0;
   private todo = false;
@@ -237,6 +246,16 @@ class Generator {
     return `{{ ${chosen[0]} | join(',') }}`;
   }
 
+  /** What takes the ports of the level's steps, once per level. */
+  private taken(ctx: LevelCtx): LevelTaken {
+    let taken = this.takenOf.get(ctx.level);
+    if (!taken) {
+      taken = levelTaken(ctx.level.edges, ctx.parent?.node);
+      this.takenOf.set(ctx.level, taken);
+    }
+    return taken;
+  }
+
   private group(path: string[], key: string, port: string): string {
     return `flow_${[...path, key].map(groupPart).join('__')}_${groupPart(port)}`;
   }
@@ -252,14 +271,15 @@ class Generator {
     if (known) return known;
     const own = this.group(ctx.path, node.key, port);
     let target = own;
-    const wired = ctx.level.edges.some((e) => e?.from?.node === node.id && e.from.port === port);
+    const taken = this.taken(ctx);
+    const wired = taken.wired.has(portKey(node.id, port));
     const parent = ctx.parent;
     if (!wired && parent) {
       const exported = Object.entries(parent.node.subflow?.boundary?.outputs ?? {}).find(
         ([, refs]) => (refs ?? []).some((r) => r?.node === node.id && r.port === port),
       );
       if (exported) target = this.target(parent.ctx, parent.node, exported[0]);
-      else if (isFailPort(port) && portsFor(parent.node).some((p) => p.name === port))
+      else if (bubbles(parent.node, node.id, port, taken))
         target = this.target(parent.ctx, parent.node, port);
     }
     if (target === own) {
@@ -793,7 +813,7 @@ class Generator {
    */
   private unreachableNotEnabled(ctx: LevelCtx, node: FlowNode): string {
     const parent = ctx.parent;
-    if (parent && portsFor(parent.node).some((p) => p.name === 'unreachable'))
+    if (parent && unreachableBubbles(parent.node))
       return this.target(parent.ctx, parent.node, 'unreachable');
     const group = this.group(ctx.path, node.key, 'unreachable');
     if (!this.routes[group]) {
@@ -817,7 +837,7 @@ class Generator {
       const owner = r ? this.model.nodes.get(r.node)?.node : undefined;
       return owner ? [comment(`${port} leaves this level as [${owner.key}] ${r?.port}`)] : [];
     }
-    if (ctx.level.edges.some((e) => e?.from?.node === node.id && e.from.port === port)) return [];
+    if (this.taken(ctx).wired.has(portKey(node.id, port))) return [];
     const decided = (this.doc.decisions ?? []).some(
       (d) => d?.node === node.id && d.port === port && d.kind === 'open_on_purpose',
     );

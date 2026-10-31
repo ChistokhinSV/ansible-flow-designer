@@ -15,6 +15,7 @@ import {
   type Position,
   type Ulid,
 } from './types';
+import { descendantIds } from './walk';
 
 export const CLIP_HEADER = '# Ansible Flow Designer nodes: paste them on a flow canvas (Ctrl+V)';
 
@@ -23,10 +24,6 @@ export interface Clip {
   edges: Edge[];
   layout: Layout;
   decisions: Decision[];
-}
-
-function descendantIds(node: FlowNode): Ulid[] {
-  return (node.subflow?.nodes ?? []).flatMap((n) => (n?.id ? [n.id, ...descendantIds(n)] : []));
 }
 
 /**

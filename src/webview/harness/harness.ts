@@ -22,7 +22,7 @@ import type { AwxJobEvent } from '../../core/awx/types';
 import { badgesOf, metaOf } from '../../core/catalog/rank';
 import type { CatalogPlugin, CollectionFile } from '../../core/catalog/types';
 import type { CodeScan } from '../../core/drift/types';
-import { optionA } from '../../core/engine/optionA';
+import { engineFor } from '../../core/engine/engines';
 import { codePreview } from '../../core/engine/preview';
 import { type FlowCommand, planCommand } from '../../core/flow/commands';
 import { completeIds } from '../../core/flow/completeIds';
@@ -346,7 +346,7 @@ async function onMessage(m: WebviewMessage) {
       const startedAt = new Date().toISOString();
       const base = { id: 'harness', mode: m.mode, startedAt, environment: 'harness (fake)' };
       toWebview({ type: 'run', run: { ...base, state: 'running' } });
-      const { routes } = optionA.generate(doc, { source: 'harness.flow.yaml' });
+      const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
       const hosts = ['sw-edge-01', 'sw-edge-02'];
       const nodes: Record<string, Record<string, string[]>> = {};
       for (const r of Object.values(routes))
@@ -369,7 +369,7 @@ async function onMessage(m: WebviewMessage) {
       // Replays the lab's real AWX job of awx-e2e (test/fixtures/awx) for Run mode checks.
       const doc = parseFlow(text).doc;
       if (!doc) break;
-      const { routes } = optionA.generate(doc, { source: 'harness.flow.yaml' });
+      const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
       const summary = summarizeRun(
         awxEventsToLines(awxJob.events as AwxJobEvent[], playNodes(doc)),
         routes,

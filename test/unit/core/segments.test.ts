@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { optionA } from '../../../src/core/engine/optionA';
-import { planSegments } from '../../../src/core/engine/segments';
 import { buildModel } from '../../../src/core/flow/model';
+import { planSegments } from '../../../src/core/flow/segments';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 

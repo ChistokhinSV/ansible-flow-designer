@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { parse } from 'yaml';
-import { optionA } from '../core/engine/optionA';
+import { engineFor } from '../core/engine/engines';
 import type { FlowDocument } from '../core/flow/types';
 
 const args = process.argv.slice(2);
@@ -17,7 +17,8 @@ let stale = 0;
 for (const file of flows) {
   const text = readFileSync(file, 'utf8');
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
-  const result = optionA.generate(parse(text) as FlowDocument, {
+  const doc = parse(text) as FlowDocument;
+  const result = engineFor(doc).generate(doc, {
     source: basename(file),
     eol,
     simulate,

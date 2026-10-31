@@ -32,7 +32,7 @@ Decisions (product owner, 2026-10-31):
 
 **Generation** (`engine/binding.ts`):
 - `sourceExpr` follows a subflow input to its own `from`, on the subflow's level, so an inner step gets the upstream variable (`{{ store_result.dest }}`). Subflow inputs still compile to nothing themselves: host variables persist across the imported level files;
-- `outputVar` uses `liftOf`, so same-name outputs read the inner variable;
+- `outputVar` (`core/flow/dataNames.ts` since AFD-40) uses `liftOf`, so same-name outputs read the inner variable;
 - `until` replaces `<reg> is succeeded`, and `delay` is written only with a condition.
 
 **Commands** (`flow/commands.ts`):

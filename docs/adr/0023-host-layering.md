@@ -48,3 +48,15 @@ The improvement review found:
 - **Typing settles:** text changes go through `FlowSession.changed()`: the designer's own commands (the text equals the parse the command produced) and changes with no visible text editor (undo in the designer) refresh at once; typing in a visible text editor refreshes after 150 ms.
 - **Controllers:** `LensController` (lens facts, targets, the Timing history) and `SyncController` (code sync, drift actions) own their state; `FlowSession` keeps thin methods for the panels and the test API. `RequestTracker<T>` answers PNG drawing and DOM summary requests by id with a timeout.
 - **Not done:** computing the "freeze unplaced positions" maps on the host. The webview has one helper (`unplacedPositions`) called from six actions, each with the view it acts on; moving it would change every command's protocol for no behaviour change. The message router stays a `switch`, which is already one table.
+
+## Amendment: core, one rule in one place (AFD-40, 2026-10-31)
+
+A pure refactor: generated code, routes, plays, findings, open ports, level and frame views, and import output are byte-identical for every flow file in the repository (21), and the import goldens pass.
+
+- **Bubbling** (`core/flow/bubbling.ts`): what takes a level's ports (`levelTaken`: wires, boundary exits), `untakenFailPorts`, `bubbles` (an untaken fail port leaves by the parent's port of the same name), `fedByBubbling`, `unreachableBubbles` and `openOnPurpose`. Used by the open-port banner, Option A's routing and rescue comments, the subflow frame, the boundary check and Extract into Subflow (5 copies before).
+- **Lifting** (`core/flow/lift.ts`): `existingLift`, `liftName` (the output's own name, else `<key>_<output>`, then `_2`, `_3`), `liftField`. Used by references into subflows (`liftOne`) and Extract into Subflow, which now also numbers a second clash instead of writing the same output name twice.
+- **Walking** (`core/flow/walk.ts`): `walkNodes` and `descendantIds`, for design fingerprints, the clipboard, commands and both importers. Levels with paths stay in `buildModel`; `completeIds` keeps its own level walk because it must see nodes without IDs, which the model does not index.
+- **Builder** (`core/flow/builder.ts`): `LevelBuilder` (nodes, wires, taken keys, the start node) and `importedFlow` (the document of an import), used by the AWX and playbook importers. Paste edits YAML with remapped IDs and the new-flow template writes text, so they keep their own code.
+- **Data names** (`core/flow/dataNames.ts`): `groupPart`, `registerName`, `outputVar`; approval segments moved to `core/flow/segments.ts`. The validator no longer imports the engine, and Biome refuses `../engine` imports in `src/core/flow`.
+- **Engine choice** (`core/engine/engines.ts`): `engineFor(doc)` (Option A, ADR-0003) replaces the 7 direct `optionA.generate` calls outside tests.
+- **Not done:** the playbook import's own lift (one output name per variable, type `any`) stays: it matches how outputs compile today (one host fact per name) and changes with per-node capture (AFD-53).

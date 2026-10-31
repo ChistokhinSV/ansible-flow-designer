@@ -1,11 +1,12 @@
 // What a bound node runs and how data reaches it (M5, ADR-0011): the module task or include_role
 // Option A emits, the play vars that pass upstream outputs in as node inputs, and set_fact
 // placeholders that let an unbound node's outputs flow through a skeleton run.
-import { liftOf, resolveFrom } from '../flow/dataRefs';
+
+import { outputVar, registerName } from '../flow/dataNames';
+import { resolveFrom } from '../flow/dataRefs';
 import { ROLE_TASK_KEYWORDS, WITH } from '../flow/keywords';
 import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
-import { groupPart } from './util';
 import { flow, type Out, type OutMap, writeBlock } from './yamlWriter';
 
 /** include_role options; every other role param becomes a role var. */
@@ -18,14 +19,6 @@ export const INCLUDE_OPTIONS = new Set([
   'allow_duplicates',
   'rolespec_validate',
 ]);
-
-/** The variable a module node registers its result in. */
-export function registerName(
-  node: FlowNode,
-  impl: ImplBinding | null | undefined = node.impl,
-): string {
-  return impl?.register || `${groupPart(node.key)}_result`;
-}
 
 function oneLine(text: string): string {
   return text.replaceAll(/\s+/g, ' ').trim();
@@ -87,26 +80,6 @@ export function bindingTaskText(node: FlowNode, impl: ImplBinding): string {
     task.tags = flow([`node_${node.id}`]);
   }
   return writeBlock([task], 0).join('\n');
-}
-
-/**
- * The host variable that holds a node's output: `from: impl.register[.path]` reads the registered
- * result, anything else (roles, set_fact stubs) is a fact of the output's own name.
- */
-export function outputVar(node: FlowNode, output: string): string {
-  const from = node.outputs?.[output]?.from;
-  if (node.impl?.kind === 'module' && from?.startsWith('impl.register')) {
-    const rest = from.slice('impl.register'.length);
-    return `${registerName(node)}${rest}`;
-  }
-  // A subflow output lifted from an inner step (AFD-7), named by from or by the same name (AFD-21),
-  // is that step's variable.
-  if (node.type === 'subflow') {
-    const lift = liftOf(node, output);
-    if (lift && 'inner' in lift)
-      return [outputVar(lift.inner, lift.output), ...lift.path].join('.');
-  }
-  return output;
 }
 
 /**

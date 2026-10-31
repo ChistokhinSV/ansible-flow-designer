@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
 import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../core/awx/types';
-import { optionA } from '../../core/engine/optionA';
+import { engineFor } from '../../core/engine/engines';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
@@ -243,7 +243,7 @@ export async function setupTemplate(
       credentials = chosen.map((c) => c.item);
     }
     // Top-level approvals: an AWX workflow of segment playbooks (AFD-11, ADR-0016).
-    const plan = optionA.generate(doc, { source: document.uri.path.split('/').pop() ?? '' });
+    const plan = engineFor(doc).generate(doc, { source: document.uri.path.split('/').pop() ?? '' });
     const blocked = plan.findings.filter((f) => f.code === 'codegen-segments');
     if (blocked.length > 0)
       return {
