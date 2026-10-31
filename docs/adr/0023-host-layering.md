@@ -40,7 +40,7 @@ The improvement review found:
 ## Consequences
 
 - MCP and the CLI no longer import from `src/extension`.
-- The MCP bundle has 6 KB of room; wave 4's core additions will need it raised or the SDK's footprint (267 KB of the 954) reduced. That decision is due with AFD-49.
+- The MCP bundle has 6 KB of room; wave 4's core additions will need it raised or the SDK's footprint (267 KB of the 954) reduced. That decision is due with AFD-49. **Decided 2026-11-01:** the budget is raised to 1,088 KB, as the webview's (product owner); the SDK stays.
 
 ## Amendment: flow sessions (AFD-38, 2026-10-31)
 

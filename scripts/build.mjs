@@ -11,8 +11,9 @@ const testsOnly = process.argv.includes('--tests');
 const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 // The MCP server for terminal agents (AFD-19) starts per agent session: keep it small. AFD-27 raised
 // it from 900 KB for the import tools (the reader and mappers, about 60 KB; a lazy chunk would carry
-// its own copy of yaml and the flow model).
-const MCP_BUDGET = 960 * 1024;
+// its own copy of yaml and the flow model). At 954 KB after wave 2, the product owner raised it to
+// 1,088 KB for wave 4's core (migration, statuses, decisions); the MCP SDK is 267 KB of it.
+const MCP_BUDGET = 1088 * 1024;
 // AFD-37: the extension host bundle (activation loads it in every window) and the webview, which
 // loads with each designer. Measured at 0.24.x: 697 KB and 963 KB; the budgets leave room for a wave.
 const EXTENSION_BUDGET = 768 * 1024;
