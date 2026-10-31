@@ -342,7 +342,7 @@ describe('approvals in local runs', () => {
     });
     const whole = out.files[0]?.text ?? '';
     expect(whole).toContain(
-      `# Local runs approve change-approval; choose another outcome with -e '{"afd_approvals": {"change-approval": "rejected"}}'.`,
+      `# Local runs pass approvals [change-approval] automatically; choose another outcome with -e '{"afd_approvals": {"change-approval": "rejected"}}'.`,
     );
     expect(whole).toContain(
       `afd_approval: "{{ (afd_approvals | default({}))['change-approval'] | default('approved') }}"`,

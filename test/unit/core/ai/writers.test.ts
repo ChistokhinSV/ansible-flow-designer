@@ -265,7 +265,7 @@ describe('AI assistant setup', () => {
     const left = read(home, '.config/opencode/opencode.jsonc');
     expect(left).toContain('"$schema"');
     expect(left).not.toContain('ansible-flow');
-  });
+  }, 20_000); // many temp files: twice past 5 s in a loaded full-suite run (91 ms alone)
 
   it('AFD-20: agents are found by program, extension, config folder or app; others get a guide', async () => {
     mkdirSync(join(home, '.codex'));

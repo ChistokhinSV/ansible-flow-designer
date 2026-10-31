@@ -1001,7 +1001,7 @@ class Generator {
       lines.push('# Unbound nodes run TODO messages: run with --check until every node is bound.');
     if (!this.segment && !ctx.parent && this.approvals.length > 0)
       lines.push(
-        `# Local runs approve ${this.approvals.join(', ')}; choose another outcome with -e '{"afd_approvals": {"${this.approvals[0]}": "rejected"}}'.`,
+        `# Local runs pass approvals ${this.approvals.map((k) => `[${k}]`).join(', ')} automatically; choose another outcome with -e '{"afd_approvals": {"${this.approvals[0]}": "rejected"}}'.`,
       );
     if (this.opts.simulate)
       lines.push('# SIMULATION build: afd_simulate sends chosen hosts down other ports.');
