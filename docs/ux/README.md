@@ -10,6 +10,10 @@ Nothing here ships in the extension.
   - `metrics.json` and `metrics.md`: canvas readability per level, wire labels, overlaps, model
     builds per snapshot.
   - `tasks.md`: the steps of eight core tasks, and whether each works with the keyboard only.
+- `wave2/`: metrics after wave 2 (0.24.x, foundations): one model build per snapshot instead of six,
+  nothing else changed. Its screenshots matched `baseline/` byte for byte except the Data lens shots
+  (a few anti-aliased pixels on the dotted data wires, which also differ between two runs), so
+  they are not kept.
 - `a11y-checklist.md`: the accessibility checks for each surface, with the baseline result.
 
 Regenerate with `just ux-baseline <label>` (the harness in the installed Edge, fixed clock). After
