@@ -41,3 +41,10 @@ The improvement review found:
 
 - MCP and the CLI no longer import from `src/extension`.
 - The MCP bundle has 6 KB of room; wave 4's core additions will need it raised or the SDK's footprint (267 KB of the 954) reduced. That decision is due with AFD-49.
+
+## Amendment: flow sessions (AFD-38, 2026-10-31)
+
+- **Problems before layout:** `FlowSession.build` sets diagnostics right after validation, only when the build is for the current document version; `built` and `lastGood` are only replaced by a build of the same or a newer version. Before, a build awaited ELK before setting diagnostics, so an older build finishing late could write problems for text that had changed.
+- **Typing settles:** text changes go through `FlowSession.changed()`: the designer's own commands (the text equals the parse the command produced) and changes with no visible text editor (undo in the designer) refresh at once; typing in a visible text editor refreshes after 150 ms.
+- **Controllers:** `LensController` (lens facts, targets, the Timing history) and `SyncController` (code sync, drift actions) own their state; `FlowSession` keeps thin methods for the panels and the test API. `RequestTracker<T>` answers PNG drawing and DOM summary requests by id with a timeout.
+- **Not done:** computing the "freeze unplaced positions" maps on the host. The webview has one helper (`unplacedPositions`) called from six actions, each with the view it acts on; moving it would change every command's protocol for no behaviour change. The message router stays a `switch`, which is already one table.

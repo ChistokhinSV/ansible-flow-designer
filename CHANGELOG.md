@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.4 — AFD-38
+
+- **Flow sessions** (improvement program, wave 2):
+  - **No stale problems:** a flow's problems are set as soon as it is validated, and only for the text the document still has; a slower, older build can no longer overwrite them (or the snapshot) after a newer one.
+  - **Typing in the text editor** settles for 150 ms before the designer parses, validates, generates and lays out again; the designer's own edits and undo still show at once.
+  - The lens facts and the code sync each have their own controller (`session/lensController.ts`, `session/syncController.ts`), and requests a designer answers later (the PNG drawing, the test summaries) share one tracker.
+
 ## 0.24.3 — AFD-37
 
 - **Host architecture** (improvement program, wave 2):

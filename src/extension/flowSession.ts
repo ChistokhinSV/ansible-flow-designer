@@ -14,8 +14,6 @@ import type { SchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
-import { timingStats } from '../core/lens/history';
-import { inventoryPatterns } from '../core/lens/inventory';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type {
   CatalogRequest,
@@ -37,11 +35,15 @@ import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
-import { readCode, readInventory, rememberedTargets, rememberTargets } from './lens/lensFacts';
-import { readHistory, recordRun } from './run/history';
-import { type SyncDeps, scanFlow } from './sync/codeSync';
-import { generateStub, openCode, writeSpecs } from './sync/driftActions';
+import { LensController } from './session/lensController';
+import { RequestTracker } from './session/requests';
+import { SyncController } from './session/syncController';
+import type { SyncDeps } from './sync/codeSync';
+import { openCode } from './sync/driftActions';
 import { markTour } from './tour';
+
+/** How long typing in a text editor settles before the designer catches up (AFD-38). */
+const TYPING_SETTLES_MS = 150;
 
 /** Decision 15: say which tested nodes are implemented again, since their design changed. */
 export function announceImplementedAgain(
@@ -93,31 +95,43 @@ export class FlowSession implements vscode.Disposable {
   /** Parse produced by our own last command; reused when the document text matches it. */
   private pendingParse?: YamlFile;
   private layoutCache = new Map<string, Record<Ulid, Position>>();
-  private nextReq = 1;
-  private readonly inspectWaiters = new Map<number, (r: DomSummary) => void>();
+  /** Typing in the text editor settles before the next snapshot (AFD-38). */
+  private changeTimer?: NodeJS.Timeout;
+  private readonly inspects = new RequestTracker<DomSummary>();
+  private readonly pngs = new RequestTracker<{ data?: string; error?: string }>();
   /** AFD-25: panels that have loaded, and callers waiting for one (PNG export). */
   private readonly readyPanels = new Set<vscode.WebviewPanel>();
   private readyWaiters: (() => void)[] = [];
-  private readonly pngWaiters = new Map<number, (r: { data?: string; error?: string }) => void>();
   private readonly renderWaiters: { version: number; resolve: () => void }[] = [];
   readonly perf: PerfEvent[] = [];
   readonly cspViolations: string[] = [];
   /** Last skeleton or real run of this flow (shown in the top bar and inspector). */
   lastRun: RunView | null = null;
-  /** Last code sync (M6); a save re-syncs once there is one. */
-  lastScan?: CodeScan;
-  private syncing?: Promise<void>;
-  /** Lens facts gathered for this flow (M8) and the lens the panels show. */
-  lensFacts: LensFacts = {};
-  private lensOpen?: LensId;
-  /** Targets and patterns of the last inventory read: a new pattern reads again. */
-  private inventoryKey?: string;
-  private codeKey?: string;
+  /** Lens facts (M8) and code sync (M6), each in its own controller (AFD-38). */
+  private readonly lens: LensController;
+  private readonly code: SyncController;
 
   constructor(
     readonly document: vscode.TextDocument,
     private readonly deps: SessionDeps,
-  ) {}
+  ) {
+    const broadcast = (m: HostMessage) => this.broadcast(m);
+    const snapshot = () => this.snapshot();
+    this.lens = new LensController(document.uri, deps, broadcast, snapshot);
+    this.code = new SyncController(document.uri, deps, broadcast, snapshot, (c, extra) =>
+      this.runCommand(c, extra),
+    );
+  }
+
+  /** Lens facts gathered for this flow, as the panels have them. */
+  get lensFacts(): LensFacts {
+    return this.lens.facts;
+  }
+
+  /** The last code sync (M6). */
+  get lastScan(): CodeScan | undefined {
+    return this.code.lastScan;
+  }
 
   get uri(): vscode.Uri {
     return this.document.uri;
@@ -158,10 +172,11 @@ export class FlowSession implements vscode.Disposable {
         autoPositions: this.lastGood?.autoPositions ?? {},
       };
       // An empty file is a flow not started yet, not a problem.
-      this.deps.diagnostics.set(
-        this.uri,
-        err && !empty ? [parseErrorDiagnostic(this.document, err.message, err.offset)] : [],
-      );
+      if (this.current(version))
+        this.deps.diagnostics.set(
+          this.uri,
+          err && !empty ? [parseErrorDiagnostic(this.document, err.message, err.offset)] : [],
+        );
     } else {
       const validated = validateFlow(parsed.doc, this.deps.schema(parsed.doc));
       const { model } = validated;
@@ -184,6 +199,10 @@ export class FlowSession implements vscode.Disposable {
         ...(preview?.findings ?? []),
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
       ];
+      // Problems first, while this text is still the document's: the layout below takes a while,
+      // and a later build may finish before it (AFD-38).
+      if (this.current(version))
+        this.deps.diagnostics.set(this.uri, toDiagnostics(this.document, file, findings));
       snapshot = {
         docVersion: version,
         doc: shown,
@@ -194,11 +213,15 @@ export class FlowSession implements vscode.Disposable {
         plays: preview?.plays,
         ...(gaps > 0 ? { idGaps: gaps } : {}),
       };
-      this.lastGood = snapshot;
-      this.deps.diagnostics.set(this.uri, toDiagnostics(this.document, file, findings));
+      if (!this.lastGood || this.lastGood.docVersion <= version) this.lastGood = snapshot;
     }
-    this.built = { version, parsed, snapshot };
+    if (!this.built || this.built.version <= version) this.built = { version, parsed, snapshot };
     return snapshot;
+  }
+
+  /** Whether a build is for the document as it is now (an older one must not write problems). */
+  private current(version: number): boolean {
+    return version === this.document.version;
   }
 
   /** In-memory positions for unplaced nodes of every level (inner levels too, M4). */
@@ -233,81 +256,31 @@ export class FlowSession implements vscode.Disposable {
     const snapshot = await this.snapshot();
     if (snapshot.docVersion !== this.document.version) return;
     this.broadcast({ type: 'snapshot', snapshot });
-    if (this.lensOpen && snapshot.doc && !snapshot.stale) void this.gatherLens(snapshot.doc, false);
+    if (snapshot.doc && !snapshot.stale) this.lens.followed(snapshot.doc);
   }
 
-  /** Facts for the open lens; the inventory is read only when targets or patterns changed. */
-  private async gatherLens(doc: FlowDocument, refresh: boolean): Promise<void> {
-    const lens = this.lensOpen;
-    const deps = this.deps.lens;
-    if (!lens) return;
-    const bindings = JSON.stringify(
-      [...buildModel(doc).nodes.values()].map((e) => e.node.impl?.ref ?? ''),
-    );
-    if (lens !== 'data' && lens !== 'timing' && (refresh || this.codeKey !== bindings)) {
-      this.codeKey = bindings;
-      this.lensFacts.code = await readCode(this.uri, doc, this.deps.catalog);
-      this.broadcast({ type: 'lensFacts', facts: { code: this.lensFacts.code } });
+  /**
+   * The document changed. The designer's own edits, and undo in the designer, show at once;
+   * typing in a text editor settles for a moment first, instead of parsing, validating,
+   * generating and laying out at every key (AFD-38).
+   */
+  changed(): void {
+    clearTimeout(this.changeTimer);
+    const typing = vscode.window.visibleTextEditors.some((e) => e.document === this.document);
+    if (!typing || this.pendingParse?.text === this.document.getText()) {
+      void this.refresh();
+      return;
     }
-    if (lens === 'timing' && deps && (refresh || !this.lensFacts.timing)) {
-      this.lensFacts.timing = timingStats(await readHistory(deps.storage, doc.flow.id));
-      this.broadcast({ type: 'lensFacts', facts: { timing: this.lensFacts.timing } });
-    }
-    if ((lens === 'inventory' || lens === 'access') && deps) {
-      const targets = rememberedTargets(doc, deps.state);
-      const key = `${targets}|${inventoryPatterns(doc, targets, this.lensFacts.code).join('|')}`;
-      const current = this.lensFacts.inventory;
-      if (!refresh && this.inventoryKey === key && current?.state !== 'error') return;
-      this.inventoryKey = key;
-      this.lensFacts.inventory = { state: 'loading', targets, facts: current?.facts };
-      this.broadcast({ type: 'lensFacts', facts: { inventory: this.lensFacts.inventory } });
-      try {
-        const { facts, inventory } = await readInventory(
-          this.uri,
-          doc,
-          deps.probes,
-          targets,
-          this.lensFacts.code,
-        );
-        this.lensFacts.inventory = { state: 'ready', facts, targets, inventory };
-      } catch (e) {
-        this.inventoryKey = undefined;
-        this.lensFacts.inventory = { state: 'error', error: (e as Error).message, targets };
-      }
-      this.broadcast({ type: 'lensFacts', facts: { inventory: this.lensFacts.inventory } });
-    }
+    this.changeTimer = setTimeout(() => void this.refresh(), TYPING_SETTLES_MS);
   }
 
-  async openLens(lens: LensId | null, refresh = false): Promise<void> {
-    this.lensOpen = lens ?? undefined;
-    const doc = (await this.snapshot()).doc;
-    if (doc) await this.gatherLens(doc, refresh);
-  }
-
-  /** The Inventory lens's "Set targets": asks, remembers with the run inputs, reads again. */
-  private async askTargets(): Promise<void> {
-    const deps = this.deps.lens;
-    const doc = (await this.snapshot()).doc;
-    if (!deps || !doc) return;
-    const text = await vscode.window.showInputBox({
-      title: `${doc.flow.name}: flow targets`,
-      prompt: 'Hosts or groups the flow runs on, comma-separated (remembered for runs too)',
-      value: rememberedTargets(doc, deps.state),
-      ignoreFocusOut: true,
-      validateInput: (v) => (v.trim() ? undefined : 'Enter at least one host or group'),
-    });
-    if (text === undefined) return;
-    await rememberTargets(doc, deps.state, text);
-    await this.gatherLens(doc, true);
+  openLens(lens: LensId | null, refresh = false): Promise<void> {
+    return this.lens.show(lens, refresh);
   }
 
   /** Test API: targets without the input box. */
-  async useTargets(text: string): Promise<void> {
-    const deps = this.deps.lens;
-    const doc = (await this.snapshot()).doc;
-    if (!deps || !doc) return;
-    await rememberTargets(doc, deps.state, text);
-    await this.gatherLens(doc, true);
+  useTargets(text: string): Promise<void> {
+    return this.lens.useTargets(text);
   }
 
   /** Test API: the lens on every panel of this flow. */
@@ -362,7 +335,7 @@ export class FlowSession implements vscode.Disposable {
         await this.openLens(m.lens, m.refresh);
         break;
       case 'setTargets':
-        await this.askTargets();
+        await this.lens.askTargets();
         break;
       case 'sync':
         void this.sync();
@@ -448,12 +421,10 @@ export class FlowSession implements vscode.Disposable {
         break;
       }
       case 'inspectResult':
-        this.inspectWaiters.get(m.reqId)?.(m.result);
-        this.inspectWaiters.delete(m.reqId);
+        this.inspects.answer(m.reqId, m.result);
         break;
       case 'pngRendered':
-        this.pngWaiters.get(m.reqId)?.(m);
-        this.pngWaiters.delete(m.reqId);
+        this.pngs.answer(m.reqId, m);
         break;
       case 'export':
         if (m.format === 'drawio')
@@ -529,73 +500,27 @@ export class FlowSession implements vscode.Disposable {
 
   /** Re-sync from git: compile the code in the environment and push the scan to the panels. */
   sync(): Promise<void> {
-    if (this.syncing) return this.syncing;
-    const run = async () => {
-      const snapshot = await this.snapshot();
-      if (!snapshot.doc || !this.deps.sync) return;
-      this.broadcast({ type: 'sync', state: 'syncing', scan: this.lastScan });
-      try {
-        this.lastScan = await scanFlow(this.uri, snapshot.doc, this.deps.sync);
-        this.broadcast({ type: 'sync', state: 'done', scan: this.lastScan });
-      } catch (e) {
-        const error = e instanceof Error ? e.message : String(e);
-        this.broadcast({ type: 'sync', state: 'error', scan: this.lastScan, error });
-      }
-    };
-    this.syncing = run().finally(() => {
-      this.syncing = undefined;
-    });
-    return this.syncing;
+    return this.code.sync();
   }
 
   /** After a save: the generated code changed, so a shown sync is out of date. */
   resyncIfScanned(): void {
-    if (this.lastScan && this.hasPanels) void this.sync();
+    if (this.code.lastScan && this.hasPanels) void this.code.sync();
   }
 
   /** Test mode: a scan from elsewhere (no probe). */
   useScan(scan: CodeScan): void {
-    this.lastScan = scan;
-    this.broadcast({ type: 'sync', state: 'done', scan });
+    this.code.useScan(scan);
   }
 
-  async driftAction(action: DriftAction): Promise<CommandOutcome> {
-    const doc = (await this.snapshot()).doc;
-    if (!doc) return { ok: false, error: 'The flow does not parse' };
-    const host = { uri: this.uri, doc, runCommand: this.runCommand.bind(this) };
-    let outcome: CommandOutcome;
-    switch (action.kind) {
-      case 'generateStub':
-        outcome = await generateStub(host, action.node, action.role);
-        break;
-      case 'writeSpecs':
-        outcome = await writeSpecs(host, action.node, this.lastScan);
-        break;
-      case 'resync':
-        await this.sync();
-        return { ok: true };
-      case 'regenerate':
-        await vscode.commands.executeCommand('afd.generate', this.uri);
-        outcome = { ok: true };
-        break;
-      default:
-        return { ok: false, error: `${action.kind} is not a host action` };
-    }
-    if (outcome.ok) void this.sync();
-    return outcome;
+  driftAction(action: DriftAction): Promise<CommandOutcome> {
+    return this.code.driftAction(action);
   }
 
   setRun(run: RunView): void {
     this.lastRun = run;
     this.broadcast({ type: 'run', run });
-    const deps = this.deps.lens;
-    const id = this.built?.parsed.doc?.flow.id;
-    if (deps && id && run.state === 'done')
-      void recordRun(deps.storage, id, run).then((entries) => {
-        if (!entries) return;
-        this.lensFacts.timing = timingStats(entries);
-        this.broadcast({ type: 'lensFacts', facts: { timing: this.lensFacts.timing } });
-      });
+    this.lens.ran(run, this.built?.parsed.doc?.flow.id);
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */
@@ -728,37 +653,27 @@ export class FlowSession implements vscode.Disposable {
    * AFD-25: a designer panel draws the SVG on a canvas and returns the PNG bytes. Only a browser
    * lays out the text, so PNG export needs the designer open.
    */
-  renderPng(svg: string, width: number, height: number): Promise<Uint8Array> {
+  async renderPng(svg: string, width: number, height: number): Promise<Uint8Array> {
     const panel = [...this.readyPanels].find((p) => p.active) ?? [...this.readyPanels][0];
-    if (!panel) return Promise.reject(new Error('the designer is not open'));
-    const reqId = this.nextReq++;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pngWaiters.delete(reqId);
-        reject(new Error('drawing the PNG timed out'));
-      }, 60_000);
-      this.pngWaiters.set(reqId, (r) => {
-        clearTimeout(timer);
-        if (r.data) resolve(Buffer.from(r.data, 'base64'));
-        else reject(new Error(r.error ?? 'drawing the PNG failed'));
-      });
-      this.post(panel, { type: 'renderPng', reqId, svg, width, height });
-    });
+    if (!panel) throw new Error('the designer is not open');
+    const r = await this.pngs.request(
+      (reqId) => this.post(panel, { type: 'renderPng', reqId, svg, width, height }),
+      60_000,
+      'drawing the PNG',
+    );
+    if (!r.data) throw new Error(r.error ?? 'drawing the PNG failed');
+    return Buffer.from(r.data, 'base64');
   }
 
   /** Test mode: the first panel's DOM summary. */
   inspect(): Promise<DomSummary> {
     const panel = [...this.panels][0];
     if (!panel) return Promise.reject(new Error('no panel'));
-    const reqId = this.nextReq++;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('inspect timed out')), 10_000);
-      this.inspectWaiters.set(reqId, (r) => {
-        clearTimeout(timer);
-        resolve(r);
-      });
-      this.post(panel, { type: 'inspect', reqId });
-    });
+    return this.inspects.request(
+      (reqId) => this.post(panel, { type: 'inspect', reqId }),
+      10_000,
+      'inspect',
+    );
   }
 
   /** Opens a level (`root` or a subflow node id) in every panel of this flow. */
@@ -862,6 +777,7 @@ export class FlowSession implements vscode.Disposable {
   }
 
   dispose(): void {
+    clearTimeout(this.changeTimer);
     this.deps.diagnostics.delete(this.uri);
     for (const p of this.panels) p.dispose();
     this.panels.clear();

@@ -16,7 +16,7 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
       if (isFlow(doc)) void host.sessionFor(doc).refresh();
     }),
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.contentChanges.length > 0) void sessions.get(e.document.uri.toString())?.refresh();
+      if (e.contentChanges.length > 0) sessions.get(e.document.uri.toString())?.changed();
     }),
     vscode.workspace.onDidCloseTextDocument((doc) => {
       const key = doc.uri.toString();
