@@ -2,7 +2,7 @@
 // menu button of a port in the inspector. Suggestions for open ports, edit actions for connected
 // ones. Drawn by the shared menu (AFD-18).
 import { useMemo } from 'react';
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
 import { Menu } from '../menu/Menu';
 import { runPortItem } from '../portActions';
@@ -14,7 +14,7 @@ export function PortMenu() {
   const close = useUi((s) => s.openPortMenu);
 
   const content = useMemo(
-    () => (menu && snapshot?.doc ? portMenu(buildModel(snapshot.doc), menu.ref) : undefined),
+    () => (menu && snapshot?.doc ? portMenu(modelOf(snapshot.doc), menu.ref) : undefined),
     [menu, snapshot],
   );
   if (!menu || !content) return null;

@@ -6,10 +6,17 @@ import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { registerName } from '../../core/engine/binding';
 import { SLUG } from '../../core/flow/ids';
 import { keywordProblem } from '../../core/flow/keywords';
-import { buildModel } from '../../core/flow/model';
-import type { FlowNode, NodeSettings } from '../../core/flow/types';
+import { modelOf } from '../../core/flow/model';
+import type { FlowNode } from '../../core/flow/types';
+import {
+  EXECUTION_SETTINGS,
+  type SettingKey,
+  settingProblem,
+  settingText,
+  settingValue,
+} from '../../core/view/settings';
 import { run } from '../actions';
-import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { TYPE_LABEL } from '../constants';
 import { useEditable } from '../editActions';
 import { ContractEditor } from '../panels/ContractEditor';
 import { CommitField } from '../panels/fields';
@@ -32,7 +39,7 @@ export function Properties({ node: id }: { node: string }) {
   const tab = useUi((s) => s.properties?.tab ?? 'general');
   const close = useUi((s) => s.closeProperties);
   const doc = snapshot?.doc;
-  const model = doc ? buildModel(doc) : undefined;
+  const model = doc ? modelOf(doc) : undefined;
   const entry = model?.nodes.get(id);
   const node = entry?.node;
   const bindKind = useUi((s) => s.properties?.bindKind);
@@ -243,7 +250,7 @@ function General({ node }: { node: FlowNode }) {
 function PortsTab({ id }: { id: string }) {
   const snapshot = useUi((s) => s.snapshot);
   if (!snapshot?.doc) return null;
-  const model = buildModel(snapshot.doc);
+  const model = modelOf(snapshot.doc);
   const entry = model.nodes.get(id);
   if (!entry) return null;
   const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
@@ -271,73 +278,13 @@ function PortsTab({ id }: { id: string }) {
   );
 }
 
-type SettingKey = keyof NodeSettings;
-
-const SETTINGS: {
-  key: SettingKey;
-  label: string;
-  kind: 'text' | 'int' | 'bool' | 'list';
-  help: string;
-}[] = [
-  {
-    key: 'timeout',
-    label: 'Timeout',
-    kind: 'text',
-    help: '30s, 15m, 1h30m: the task timeout keyword (timeout port)',
-  },
-  {
-    key: 'retries',
-    label: 'Retries',
-    kind: 'int',
-    help: 'Module nodes retry until the result succeeds, or until Until holds',
-  },
-  {
-    key: 'until',
-    label: 'Until',
-    kind: 'text',
-    help: 'Poll until this Jinja test holds',
-  },
-  {
-    key: 'delay',
-    label: 'Delay',
-    kind: 'int',
-    help: 'Seconds between retries (Ansible default 5)',
-  },
-  {
-    key: 'serial',
-    label: 'Serial',
-    kind: 'text',
-    help: 'Hosts per batch: a number or a percentage',
-  },
-  {
-    key: 'max_fail_percentage',
-    label: 'Max fail percentage',
-    kind: 'int',
-    help: 'Stop the flow when more hosts fail',
-  },
-  { key: 'become', label: 'Become', kind: 'bool', help: 'Run with privilege escalation' },
-  { key: 'tags', label: 'Tags', kind: 'list', help: 'Extra play tags, comma separated' },
-  {
-    key: 'credential',
-    label: 'Credential (AWX)',
-    kind: 'text',
-    help: 'AWX credential name; local runs use the environment',
-  },
-  {
-    key: 'inventory_target',
-    label: 'Inventory target',
-    kind: 'text',
-    help: 'Run the work on these hosts (an inventory pattern) instead of the arriving ones; steps inside a subflow inherit it',
-  },
-];
-
 function Execution({ node }: { node: FlowNode }) {
   const set = (key: SettingKey, value: unknown) =>
     void updatePatch(node.id, { settings: { [key]: value } });
   const settings = node.settings ?? {};
   return (
     <div className="afd-props-page">
-      {SETTINGS.map((s) => {
+      {EXECUTION_SETTINGS.map((s) => {
         const value = settings[s.key];
         if (s.kind === 'bool')
           return (
@@ -354,29 +301,10 @@ function Execution({ node }: { node: FlowNode }) {
           <div key={s.key}>
             <CommitField
               label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
-              value={
-                Array.isArray(value) ? value.join(', ') : value === undefined ? '' : String(value)
-              }
+              value={settingText(value)}
               mono
-              validate={(v) =>
-                s.kind === 'int' && v.trim() && !/^[0-9]+$/.test(v.trim())
-                  ? 'A whole number'
-                  : undefined
-              }
-              onCommit={(v) => {
-                const t = v.trim();
-                if (!t) return set(s.key, null);
-                if (s.kind === 'int') return set(s.key, Number(t));
-                if (s.kind === 'list')
-                  return set(
-                    s.key,
-                    t
-                      .split(',')
-                      .map((x) => x.trim())
-                      .filter(Boolean),
-                  );
-                return set(s.key, /^[0-9]+$/.test(t) && s.key === 'serial' ? Number(t) : t);
-              }}
+              validate={(v) => settingProblem(s, v)}
+              onCommit={(v) => set(s.key, settingValue(s, v))}
             />
           </div>
         );

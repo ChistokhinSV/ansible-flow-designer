@@ -7,7 +7,7 @@ import {
   type CanvasTarget,
   canvasMenu,
 } from '../../core/flow/canvasMenu';
-import { buildModel, type FlowModel } from '../../core/flow/model';
+import { type FlowModel, modelOf } from '../../core/flow/model';
 import { run } from '../actions';
 import { send } from '../bus';
 import { copySelection } from '../clipboard';
@@ -133,7 +133,7 @@ export function CanvasContextMenu() {
   const close = useUi((s) => s.openContextMenu);
   const flow = useReactFlow();
   if (!menu || !snapshot?.doc) return null;
-  const model = buildModel(snapshot.doc);
+  const model = modelOf(snapshot.doc);
   const entries = canvasMenu(model, menu.target, {
     mode,
     level,

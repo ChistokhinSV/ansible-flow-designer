@@ -1,7 +1,7 @@
 // "Leave open on purpose" (D-15, decision 13): anyone may record it, a reason is required, and the
 // host fills `by` from the Git user name (or the OS user).
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import { run } from '../actions';
 import { useUi } from '../store';
 
@@ -24,7 +24,7 @@ export function DecisionDialog() {
 
   if (!target) return null;
   const doc = snapshot?.doc;
-  const node = doc ? buildModel(doc).nodes.get(target.node)?.node : undefined;
+  const node = doc ? modelOf(doc).nodes.get(target.node)?.node : undefined;
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();

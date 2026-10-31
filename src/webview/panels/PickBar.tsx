@@ -1,6 +1,6 @@
 // Hint while a port menu action waits for a node click ("Connect to another node…", "Rewire…").
 // Escape cancels it (keyboard.ts).
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import { useUi } from '../store';
 
 const VERB = {
@@ -17,7 +17,7 @@ export function PickBar() {
   if (!pick) return null;
   // Any level: the port may belong to a step inside a subflow (AFD-30).
   const doc = snapshot?.doc;
-  const title = (doc && buildModel(doc).nodes.get(pick.ref.node)?.node.title) ?? pick.ref.node;
+  const title = (doc && modelOf(doc).nodes.get(pick.ref.node)?.node.title) ?? pick.ref.node;
   return (
     <div className="afd-banner info" role="status" data-pick={pick.mode}>
       <span className="codicon codicon-target" aria-hidden="true" />

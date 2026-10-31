@@ -1,7 +1,7 @@
 // Design vs code (M6, D-29, 05 "Code to design"): matches generated plays to nodes by their
 // `node_<ULID>` tag (D-28), compares bindings with the code they run, and lists drift both ways.
 // Nothing here resolves anything: every item carries a design-side and a code-side action.
-import { buildModel, type FlowModel } from '../flow/model';
+import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import type { ContractField, ContractType, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { roleName } from './stub';
@@ -124,7 +124,7 @@ function nodeCode(scan: CodeScan, node: FlowNode, plays: CodePlay[], inner: Node
 }
 
 export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const items: DriftItem[] = [];
   const ignored = new Map<string, { reason?: string; by?: string }>();
   for (const d of doc.decisions ?? [])

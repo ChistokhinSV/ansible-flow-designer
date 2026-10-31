@@ -36,18 +36,18 @@ import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
+import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { boundaryWire, upLevel } from '../editActions';
+import { useLevelView } from '../hooks';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
-import { type BoundaryEdgeView, boundaryView, levelView, type NodeView } from '../viewModel';
+import { type BoundaryEdgeView, boundaryView, type NodeView } from '../viewModel';
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
-import { FlowNodeView, type FlowRFNode, TYPE_LABEL } from './FlowNodeView';
+import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
 
 const nodeTypes = { flow: FlowNodeView, boundary: BoundaryFrame };
 type CanvasNode = FlowRFNode | FrameRFNode;
-export const DRAG_MIME = 'application/x-afd-node-type';
-export const PATTERN_MIME = 'application/x-afd-pattern';
 
 interface SavedState {
   /** Top-level viewport (M1–M3 state). */
@@ -75,7 +75,7 @@ const hostCount = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
 
 export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
-  const optimistic = useUi((s) => s.optimistic);
+  const _optimistic = useUi((s) => s.optimistic);
   const selection = useUi((s) => s.selection);
   const select = useUi((s) => s.select);
   const setOptimistic = useUi((s) => s.setOptimistic);
@@ -99,10 +99,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const dataWires = useUi((s) => s.lensView?.dataWires);
   const dataLens = useUi((s) => s.lens === 'data');
 
-  const view = useMemo(
-    () => (snapshot ? levelView(snapshot, optimistic, level) : { nodes: [], edges: [] }),
-    [snapshot, optimistic, level],
-  );
+  const view = useLevelView();
   const boundary = useMemo(
     () => (snapshot ? boundaryView(snapshot, view, level) : undefined),
     [snapshot, view, level],

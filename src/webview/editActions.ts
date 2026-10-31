@@ -2,7 +2,7 @@
 // command, so a single undo step: deleting a selection, cutting, duplicating.
 import type { CanvasTarget } from '../core/flow/canvasMenu';
 import { copyNodes } from '../core/flow/clipboard';
-import { buildModel, ROOT } from '../core/flow/model';
+import { modelOf, ROOT } from '../core/flow/model';
 import type { Ulid } from '../core/flow/types';
 import { run } from './actions';
 import type { Ack } from './bus';
@@ -58,7 +58,7 @@ export async function deleteSelection(nodes: Ulid[], edges: string[] = []): Prom
   const gone = new Set(nodes);
   const doc = useUi.getState().snapshot?.doc;
   const entryOf = (subflow: Ulid) =>
-    doc ? buildModel(doc).nodes.get(subflow)?.node.subflow?.boundary?.in : undefined;
+    doc ? modelOf(doc).nodes.get(subflow)?.node.subflow?.boundary?.in : undefined;
   const plain: string[] = [];
   for (const id of edges) {
     const b = boundaryWire(id);
@@ -115,7 +115,7 @@ export function selectAll(): void {
 export function upLevel(): void {
   const ui = useUi.getState();
   if (ui.level === ROOT || !ui.snapshot?.doc) return;
-  const parent = buildModel(ui.snapshot.doc).nodes.get(ui.level)?.level ?? ROOT;
+  const parent = modelOf(ui.snapshot.doc).nodes.get(ui.level)?.level ?? ROOT;
   const left = ui.level;
   ui.setLevel(parent);
   // The subflow just left stays selected, so Enter goes back in.

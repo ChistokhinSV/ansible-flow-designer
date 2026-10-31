@@ -1,6 +1,6 @@
 // Run mode read-outs (04 §10, M7): what a run did per node, per wire and per host, and which nodes
 // it tested (decision 15). Pure; the webview and the host share them.
-import { buildModel, type FlowModel } from '../flow/model';
+import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import { nodeDesigns } from '../flow/semantic';
 import type { Edge, FlowDocument, Ulid } from '../flow/types';
@@ -77,7 +77,7 @@ export function arrivals(model: FlowModel, s: RunSummary, node: Ulid): string[] 
 
 /** Every node's run read-out, start and end nodes included (Run mode canvas). */
 export function runStates(doc: FlowDocument, s: RunSummary): Record<Ulid, NodeRun> {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const out: Record<Ulid, NodeRun> = {};
   for (const { node } of model.nodes.values()) {
     if (node.type === 'start') {
@@ -134,7 +134,7 @@ export function testedCandidates(doc: FlowDocument, run: RunView | null): Ulid[]
   if (!run || !runPassed(run) || run.flowVersion !== doc.flow.version) return [];
   const s = run.summary as RunSummary;
   const now = run.design ? nodeDesigns(doc) : undefined;
-  return [...buildModel(doc).nodes.values()]
+  return [...modelOf(doc).nodes.values()]
     .map((e) => e.node)
     .filter(
       (n) =>

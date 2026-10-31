@@ -10,12 +10,8 @@ import type { FlowCommand } from '../../../src/core/flow/commands';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
-import {
-  ago,
-  DriftPanel,
-  IgnoreDialog,
-  NodeCodePanel,
-} from '../../../src/webview/panels/DriftPanel';
+import { ago } from '../../../src/webview/constants';
+import { DriftPanel, IgnoreDialog, NodeCodePanel } from '../../../src/webview/panels/DriftPanel';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 

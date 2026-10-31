@@ -99,7 +99,12 @@ const buildsPerSnapshot = (page) =>
       new Promise((resolve) => {
         const state = window.afdUi.getState();
         window.afdModelStats.builds = 0;
-        state.setSnapshot({ ...state.snapshot, docVersion: state.snapshot.docVersion + 1 });
+        // A new snapshot carries a newly parsed document, as the host sends it.
+        state.setSnapshot({
+          ...state.snapshot,
+          doc: structuredClone(state.snapshot.doc),
+          docVersion: state.snapshot.docVersion + 1,
+        });
         setTimeout(() => resolve(window.afdModelStats.builds), 400);
       }),
   );

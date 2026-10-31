@@ -14,7 +14,8 @@ Nothing here ships in the extension.
 
 Regenerate with `just ux-baseline <label>` (the harness in the installed Edge, fixed clock). After
 a UI change, write a new label (for example `just ux-baseline wave3`) and compare it with
-`baseline`.
+`baseline`. The Design, Code and Run shots come out byte-identical from run to run; the Data lens
+shots do not (their wires and labels land a pixel apart between runs), so compare those by eye.
 
 ## Targets for the redesign (wave 3)
 

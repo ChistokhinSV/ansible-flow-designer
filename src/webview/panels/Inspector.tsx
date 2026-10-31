@@ -3,14 +3,15 @@
 // canvas port menu), the implementation with the play it generates (ADR-0009), and what the last
 // skeleton run sent through each port.
 import { SLUG } from '../../core/flow/ids';
-import { buildModel, type FlowModel } from '../../core/flow/model';
+import type { FlowModel } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
 import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
 import { run } from '../actions';
 import { send } from '../bus';
-import { STATE_LABEL, TYPE_LABEL } from '../canvas/FlowNodeView';
 import { copySelection } from '../clipboard';
+import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { deleteSelection, useEditable } from '../editActions';
+import { useModel, useNode } from '../hooks';
 import { runPortItem } from '../portActions';
 import { keysOf } from '../shortcuts';
 import { useUi } from '../store';
@@ -28,10 +29,9 @@ const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'excl
 export function Inspector({ id, context }: { id: string; context?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
   const editable = useEditable();
-  if (!snapshot?.doc) return null;
-  const model = buildModel(snapshot.doc);
-  const entry = model.nodes.get(id);
-  if (!entry) return null;
+  const model = useModel();
+  const entry = useNode(id);
+  if (!snapshot?.doc || !model || !entry) return null;
   const node = entry.node;
   const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
   const patch = (p: Parameters<typeof updatePatch>[1]) => void updatePatch(id, p);

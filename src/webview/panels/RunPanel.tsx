@@ -1,7 +1,7 @@
 // Run mode's right panel (04 §10, M7): the run with nothing selected (source, status, AWX job,
 // revision, failed hosts, the `tested` proposal of decision 15), a node's per-host results, or the
 // hosts that took a wire.
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import type { Edge, Ulid } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
 import {
@@ -16,8 +16,8 @@ import {
 } from '../../core/run/view';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
+import { ago } from '../constants';
 import { useUi } from '../store';
-import { ago } from './DriftPanel';
 
 function describe(run: RunView): string {
   if (run.source === 'awx' && run.awx)
@@ -58,7 +58,7 @@ function Proposal({ run }: { run: RunView }) {
   if (!doc) return null;
   const ids = testedCandidates(doc, run);
   if (ids.length === 0) return null;
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   return (
     <section className="afd-section" data-tested-proposal={ids.length}>
       <h3>Tested</h3>
@@ -201,7 +201,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
   const approval = useUi((s) => s.run?.awx?.approvals?.[id]);
-  const model = doc ? buildModel(doc) : undefined;
+  const model = doc ? modelOf(doc) : undefined;
   const node = model?.nodes.get(id)?.node;
   if (!model || !node) return null;
   const s = run?.summary;
@@ -297,7 +297,7 @@ export function WireRunPanel({ edge }: { edge: Ulid }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const summary = useUi((s) => s.run?.summary);
   if (!doc) return null;
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const e = edgeById(
     [...model.levels.values()].map((l) => l.edges),
     edge,

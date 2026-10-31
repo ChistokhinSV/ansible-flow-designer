@@ -1,6 +1,6 @@
 // Runs port menu items (04 §3). Shared by the canvas port menu, the inspector and the palette, so
 // every entry point produces the same commands; each command is one undo step on the host.
-import { buildModel } from '../core/flow/model';
+import { modelOf } from '../core/flow/model';
 import type { PatternId } from '../core/flow/patterns';
 import { freeOutput, type PortMenuItem, patternTarget } from '../core/flow/portMenu';
 import type { PortRef, Position, Ulid } from '../core/flow/types';
@@ -32,7 +32,7 @@ export async function applyPatternAt(pattern: PatternId, from: PortRef): Promise
 export async function dropPattern(pattern: PatternId, node: Ulid, port?: string): Promise<void> {
   const doc = useUi.getState().snapshot?.doc;
   if (!doc) return;
-  const target = patternTarget(buildModel(doc), node, pattern, port);
+  const target = patternTarget(modelOf(doc), node, pattern, port);
   if (!target) {
     useUi.getState().setError('This node has no open port this pattern fits');
     return;
@@ -110,7 +110,7 @@ export async function completePick(target: Ulid): Promise<void> {
         await run({ kind: 'rewire', edge: pick.edge, to: { node: target, port: 'in' } });
       return;
     case 'from': {
-      const port = freeOutput(buildModel(snapshot.doc), target);
+      const port = freeOutput(modelOf(snapshot.doc), target);
       if (!port) {
         setError('That node has no free output to wire from');
         return;

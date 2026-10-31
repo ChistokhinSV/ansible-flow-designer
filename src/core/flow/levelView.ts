@@ -3,7 +3,7 @@
 // Shared by the webview canvas and the exports (AFD-25), so a picture matches the canvas.
 import type { Snapshot } from '../protocol';
 import { nodeSize } from './geometry';
-import { buildModel, ROOT } from './model';
+import { modelOf, ROOT } from './model';
 import { legalPorts, type PortSpec, type PortTone, portSpec } from './ports';
 import type { FlowNode, Position, Ulid } from './types';
 
@@ -55,7 +55,7 @@ export function levelView(
 ): LevelView {
   const doc = snapshot.doc;
   if (!doc) return { nodes: [], edges: [] };
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const level = model.levels.get(levelId);
   if (!level) return { nodes: [], edges: [] };
   const edgeEnds = new Set<string>();
@@ -178,7 +178,7 @@ export function boundaryView(
 ): BoundaryView | undefined {
   const doc = snapshot.doc;
   if (!doc || levelId === ROOT) return undefined;
-  const subflow = buildModel(doc).nodes.get(levelId)?.node;
+  const subflow = modelOf(doc).nodes.get(levelId)?.node;
   if (!subflow) return undefined;
   const boundary = subflow.subflow?.boundary;
   const id = `${FRAME_PREFIX}${subflow.id}`;

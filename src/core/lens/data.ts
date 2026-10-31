@@ -2,13 +2,13 @@
 // `from:` references. A reference into another level is drawn from the producer to the subflow
 // that contains the consumer, on the producer's level.
 import { liftOf, resolveFrom } from '../flow/dataRefs';
-import { buildModel, ROOT } from '../flow/model';
+import { modelOf, ROOT } from '../flow/model';
 import type { FlowDocument, Ulid } from '../flow/types';
 import { isWork, listChip, title, visibleAt } from './common';
 import type { DataWire, LensChip, LensFinding, LensItem, LensView } from './types';
 
 export function dataLens(doc: FlowDocument): LensView {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const flowInputs = doc.flow.inputs ?? {};
   const start = model.levels.get(ROOT)?.nodes.find((n) => n?.type === 'start')?.id;
   const chips: Record<Ulid, LensChip[]> = {};

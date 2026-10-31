@@ -2,7 +2,7 @@
 // subflow. The command checks the selection (one way in, exits, connected); a refusal is shown here.
 import { useRef, useState } from 'react';
 import { slugify } from '../../core/flow/ids';
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import type { FlowNode, Ulid } from '../../core/flow/types';
 import { command } from '../bus';
 import { copySelection } from '../clipboard';
@@ -20,7 +20,7 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
   useFocusRequest('extractTitle', titleField);
   const doc = snapshot?.doc;
   if (!doc) return null;
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const nodes = ids.map((id) => model.nodes.get(id)?.node).filter((n): n is FlowNode => !!n);
   const name = title.trim() || 'Subflow';
   const at = nodes

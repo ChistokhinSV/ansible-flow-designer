@@ -15,15 +15,16 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react';
 import { Fragment, type MouseEvent, memo, useEffect, useMemo, useRef } from 'react';
-import { NODE_TYPE_LABEL } from '../../core/export/details';
 import { keywordHint } from '../../core/flow/keywords';
 import type { PortSide } from '../../core/flow/ports';
-import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
+import type { FlowNode, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
+import { codeState } from '../../core/view/codeState';
 import { send } from '../bus';
+import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { useUi } from '../store';
-import type { NodeView, PortState, PortView } from '../viewModel';
+import type { NodeView, PortView } from '../viewModel';
 
 export type FlowNodeData = { view: NodeView };
 export type FlowRFNode = Node<FlowNodeData, 'flow'>;
@@ -33,17 +34,6 @@ const SIDE: Record<PortSide, Position> = {
   bottom: Position.Bottom,
   left: Position.Left,
   right: Position.Right,
-};
-
-/** Shared with the exports (AFD-25). */
-export const TYPE_LABEL: Record<NodeType, string> = NODE_TYPE_LABEL;
-
-export const STATE_LABEL: Record<PortState, string> = {
-  connected: 'connected',
-  'open-fail': 'open: not handled',
-  'open-purpose': 'open on purpose',
-  open: 'open',
-  available: 'optional, not enabled',
 };
 
 const farSelector = (s: ReactFlowState) => s.transform[2] < 0.45;
@@ -115,34 +105,14 @@ function CodeLines({ node }: { node: FlowNode }) {
   );
   const ran = useUi((s) => (s.run?.state === 'done' ? s.run.summary : undefined));
   if (!code) return <div className="afd-node-sub muted">not synced</div>;
-  const inner = node.type === 'subflow' && (node.subflow?.nodes?.length ?? 0) > 0;
-  const count = `${code.tasks.length} task${code.tasks.length === 1 ? '' : 's'}`;
-  let state: string;
-  let tone = 'ok';
-  if (issue) {
-    state = `drift: ${issue.label}`;
-    tone = 'warn';
-  } else if (!node.impl?.ref && !inner && (node.type === 'task' || node.type === 'subflow')) {
-    state = 'runs as TODO stub';
-    tone = 'neutral';
-  } else if (ran?.failures.some((f) => f.node === node.id)) {
-    state = 'last run failed';
-    tone = 'warn';
-  } else if (ran?.nodes[node.id]) state = 'last run ok';
-  else if (inner) {
-    state = 'open subflow';
-    tone = 'neutral';
-  } else {
-    state = code.matched ? 'matched by ID' : 'not in generated code';
-    tone = code.matched ? 'neutral' : 'warn';
-  }
+  const { count, state, tone } = codeState(node, code, issue, ran);
   return (
     <>
       <div className="afd-node-sub mono afd-node-artifact" title={code.artifact}>
         {code.artifact}
       </div>
       <div className={`afd-node-code tone-${tone}`} data-code-state={state}>
-        {code.artifact === 'not bound' ? state : `${count} · ${state}`}
+        {count ? `${count} · ${state}` : state}
       </div>
     </>
   );

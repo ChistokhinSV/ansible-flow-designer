@@ -2,12 +2,12 @@
 // upstream node's outputs, preset optional ports, and "wire failed_hosts to the existing Rollback".
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { slugify, uniqueKey } from '../../core/flow/ids';
-import { buildModel, ROOT } from '../../core/flow/model';
+import { modelOf, ROOT } from '../../core/flow/model';
 import { findRollback } from '../../core/flow/patterns';
 import { optionalPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { run } from '../actions';
-import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { TYPE_LABEL } from '../constants';
 import { useUi } from '../store';
 import { levelView, unplacedPositions } from '../viewModel';
 
@@ -45,7 +45,7 @@ export function QuickAdd() {
     setTimeout(() => titleRef.current?.focus(), 0);
   }, [quick]);
 
-  const model = useMemo(() => (snapshot?.doc ? buildModel(snapshot.doc) : undefined), [snapshot]);
+  const model = useMemo(() => (snapshot?.doc ? modelOf(snapshot.doc) : undefined), [snapshot]);
   const levelId = useUi((s) => s.level);
   if (!quick || !model) return null;
   // Undefined inside a subflow that has no inner steps yet (the new node creates the level).

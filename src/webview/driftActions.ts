@@ -1,7 +1,7 @@
 // Drift actions from the "Design vs code" panel (M6, D-29). Design-side actions are flow commands
 // (one undo step each); code-side ones go to the host (open code, stubs, specs, re-sync).
 import type { DriftAction } from '../core/drift/types';
-import { buildModel } from '../core/flow/model';
+import { modelOf } from '../core/flow/model';
 import { run } from './actions';
 import { type Ack, hostAction, send } from './bus';
 import { useUi } from './store';
@@ -12,7 +12,7 @@ const GAP_Y = 140;
 function revealWhenShown(node: string, timeout = 3000): Promise<void> {
   const has = () => {
     const doc = useUi.getState().snapshot?.doc;
-    return !!doc && buildModel(doc).nodes.has(node);
+    return !!doc && modelOf(doc).nodes.has(node);
   };
   return new Promise((resolve) => {
     const done = () => {
@@ -42,7 +42,7 @@ export async function runDriftAction(action: DriftAction): Promise<Ack | undefin
   const ui = useUi.getState();
   const doc = ui.snapshot?.doc;
   if (!doc) return undefined;
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const node = 'node' in action ? model.nodes.get(action.node)?.node : undefined;
   switch (action.kind) {
     case 'renameOutput': {

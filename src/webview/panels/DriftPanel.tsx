@@ -3,21 +3,13 @@
 // selected node, the tasks it runs with their file and line. Nothing here resolves anything.
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import type { DriftItem, NodeCode } from '../../core/drift/types';
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import type { RunView } from '../../core/protocol';
 import { run } from '../actions';
 import { send } from '../bus';
+import { ago } from '../constants';
 import { runDriftAction } from '../driftActions';
 import { useUi } from '../store';
-
-export function ago(iso: string | undefined, now = Date.now()): string {
-  if (!iso) return '';
-  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  return `${Math.round(s / 86400)} d ago`;
-}
 
 function SyncSource() {
   const sync = useUi((s) => s.sync);
@@ -207,7 +199,7 @@ export function NodeCodePanel({ id }: { id: string }) {
   const drift = useUi((s) => s.drift);
   const doc = useUi((s) => s.snapshot?.doc);
   const select = useUi((s) => s.select);
-  const node = doc ? buildModel(doc).nodes.get(id)?.node : undefined;
+  const node = doc ? modelOf(doc).nodes.get(id)?.node : undefined;
   if (!node) return null;
   const code = drift?.nodes[id];
   const items = drift?.items.filter((i) => i.node === id) ?? [];

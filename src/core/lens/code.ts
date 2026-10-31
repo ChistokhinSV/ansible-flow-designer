@@ -1,7 +1,7 @@
 // Code lens (04 §7): what each node runs (module, role or playbook, with its collection version) and
 // in which execution environment, checked against the environment's catalog and the repository's
 // requirements pins (decision M8-5: offline, no Galaxy).
-import { buildModel } from '../flow/model';
+import { modelOf } from '../flow/model';
 import type { FlowDocument, Ulid } from '../flow/types';
 import { isWork, joinTitles, plural, title } from './common';
 import { satisfies } from './requirements';
@@ -17,7 +17,7 @@ function short(ref: string): string {
 }
 
 export function codeLens(doc: FlowDocument, facts: CodeFacts | undefined): LensView {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const chips: Record<Ulid, LensChip[]> = {};
   const findings: LensFinding[] = [];
   const env = facts ? eeLabel(facts.environment) : undefined;

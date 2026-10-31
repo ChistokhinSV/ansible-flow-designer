@@ -2,7 +2,7 @@
 // its maintenance window (decision M8-3). Durations come from the local run history (M8-2); the
 // flow estimate is the slowest path from start to an end, summing node averages.
 import { durationSeconds } from '../engine/util';
-import { buildModel, type FlowModel, ROOT } from '../flow/model';
+import { type FlowModel, modelOf, ROOT } from '../flow/model';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { formatSeconds } from '../run/view';
 import { isWork, plural, title } from './common';
@@ -60,7 +60,7 @@ function settingsChip(node: FlowNode): LensChip | undefined {
 }
 
 export function timingLens(doc: FlowDocument, t: TimingFacts | undefined): LensView {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const chips: Record<Ulid, LensChip[]> = {};
   const findings: LensFinding[] = [];
   const measured: LensItem[] = [];

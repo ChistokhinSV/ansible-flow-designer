@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.0 — AFD-34
+
+- **Webview foundations, part 1** (improvement program, wave 2; nothing changes on screen):
+  - The designer builds the flow model once per update instead of six times: `modelOf(doc)` caches it per document, and the webview and the views derived from a snapshot (level view, run view, lenses, drift) read the cached one. Commands and the validator still build from what they edit.
+  - Hooks `useModel`, `useNode` and `useLevelView` for components; node code state (`core/view/codeState.ts`) and the Execution settings table (`core/view/settings.ts`) moved out of components and are unit-tested; shared labels, drag types and `ago` live in `webview/constants.ts`.
+  - Measured with `just ux-baseline`: 1 model build per snapshot (was 6); the Design, Code and Run screenshots are byte-identical to the baseline.
+
 ## 0.23.4 — AFD-33
 
 - **UX baseline** (improvement program, wave 1; development only, nothing changes in the designer):

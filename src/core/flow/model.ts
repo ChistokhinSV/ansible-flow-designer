@@ -37,6 +37,21 @@ export interface FlowModel {
 /** How often a model was built: the UX baseline counts builds per snapshot (AFD-33). */
 export const modelStats = { builds: 0 };
 
+const models = new WeakMap<FlowDocument, FlowModel>();
+
+/**
+ * The model of a document that nobody changes any more, built once (AFD-34): the webview's
+ * snapshot, and the views derived from it. Code that edits a document builds its own model.
+ */
+export function modelOf(doc: FlowDocument): FlowModel {
+  let model = models.get(doc);
+  if (!model) {
+    model = buildModel(doc);
+    models.set(doc, model);
+  }
+  return model;
+}
+
 export function buildModel(doc: FlowDocument): FlowModel {
   modelStats.builds++;
   const model: FlowModel = { doc, levels: new Map(), nodes: new Map(), edges: new Map() };

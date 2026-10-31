@@ -3,7 +3,7 @@ import type { BindKind } from '../core/catalog/draft';
 import { computeDrift } from '../core/drift/drift';
 import type { CodeScan, DriftReport } from '../core/drift/types';
 import type { CanvasMode, CanvasTarget } from '../core/flow/canvasMenu';
-import { buildModel, ROOT } from '../core/flow/model';
+import { modelOf, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
@@ -238,7 +238,7 @@ export const useUi = create<UiState>((set, get) => ({
         return !(stored && stored.x === Math.round(p.x) && stored.y === Math.round(p.y));
       }),
     );
-    const model = snapshot.doc ? buildModel(snapshot.doc) : undefined;
+    const model = snapshot.doc ? modelOf(snapshot.doc) : undefined;
     const ids = new Set(model ? model.nodes.keys() : []);
     // The open subflow may be gone (deleted, or the text was edited): fall back to the top level.
     // A subflow without inner steps has no level in the model yet, but it can be open.
@@ -367,7 +367,7 @@ export const useUi = create<UiState>((set, get) => ({
   setCatalog: (catalog) => set({ catalog }),
   reveal(node) {
     const doc = get().snapshot?.doc;
-    const entry = doc ? buildModel(doc).nodes.get(node) : undefined;
+    const entry = doc ? modelOf(doc).nodes.get(node) : undefined;
     if (!entry) return;
     get().setLevel(entry.level);
     set({ selection: { node } });

@@ -1,6 +1,6 @@
 // Right panel for a selected boundary wire (D-23): the entry, or an exit with its reason (mockup 10
 // "SSH timeout"). Each change is one command; removing goes through the same commands as Delete.
-import { buildModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import { run } from '../actions';
 import { useUi } from '../store';
 import { boundaryView, levelView } from '../viewModel';
@@ -15,7 +15,7 @@ export function BoundaryPanel({ edge }: { edge: string }) {
   const b = boundaryView(snapshot, view, level);
   const wire = b?.edges.find((e) => e.id === edge);
   if (!b || !wire) return null;
-  const model = buildModel(snapshot.doc);
+  const model = modelOf(snapshot.doc);
   const title = (id: string) => model.nodes.get(id)?.node.title ?? id;
   const subflow = b.subflow.id;
 

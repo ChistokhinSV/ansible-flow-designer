@@ -4,8 +4,7 @@
 import { useReactFlow } from '@xyflow/react';
 import { PATTERNS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType } from '../../core/flow/types';
-import { DRAG_MIME, PATTERN_MIME } from '../canvas/FlowCanvas';
-import { TYPE_LABEL } from '../canvas/FlowNodeView';
+import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { dropPattern } from '../portActions';
 import { useUi } from '../store';
 

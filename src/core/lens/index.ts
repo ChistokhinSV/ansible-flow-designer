@@ -1,7 +1,7 @@
 // One entry point for the webview: the active lens's view with accepted findings marked, and the
 // summary card rows of semantic zoom (D-19), which draw on every lens's facts.
 import { durationSeconds } from '../engine/util';
-import { buildModel } from '../flow/model';
+import { modelOf } from '../flow/model';
 import type { FlowDocument, FlowNode } from '../flow/types';
 import type { RunView } from '../protocol';
 import { formatSeconds, nodeHosts } from '../run/view';
@@ -54,7 +54,7 @@ export function summaryRows(
   facts: LensFacts,
   run: RunView | null,
 ): SummaryRow[] {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const rows: SummaryRow[] = [];
   const add = (label: string, value: string | undefined) => {
     if (value) rows.push({ label, value });

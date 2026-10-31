@@ -2,7 +2,7 @@
 // that is. Generated plays run on the hosts that arrive (ADR-0004), except where a node declares
 // `settings.inventory_target`: its work then runs on that target instead (AFD-14). The `hosts:` of
 // an imported playbook are shown as declared too.
-import { buildModel, type FlowModel } from '../flow/model';
+import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
@@ -68,7 +68,7 @@ export function inventoryPatterns(doc: FlowDocument, targets: string, code?: Cod
     out.add(targets);
     for (const p of patternParts(targets)) out.add(p);
   }
-  for (const { node } of buildModel(doc).nodes.values()) {
+  for (const { node } of modelOf(doc).nodes.values()) {
     const d = declaredTarget(doc, node, targets, code);
     if (!d || d.unresolved) continue;
     out.add(d.pattern);
@@ -105,7 +105,7 @@ export function inventoryLens(
   run: RunView | null,
   code?: CodeFacts,
 ): LensView {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const facts = inv?.state === 'ready' ? inv.facts : undefined;
   const targets = facts?.targets ?? inv?.targets ?? '';
   const name = targetsInput(doc) ?? 'targets';

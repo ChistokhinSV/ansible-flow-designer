@@ -2,7 +2,7 @@
 // variables it reads. Node `credential` names apply in AWX (decision 22); locally the inventory's
 // connection variables decide, read by the probe with their origin and never decrypted.
 import { refsIn } from '../flow/jinja';
-import { buildModel } from '../flow/model';
+import { modelOf } from '../flow/model';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { isWork, joinTitles, neighbours, plural, title } from './common';
 import { declaredTarget } from './inventory';
@@ -31,7 +31,7 @@ export function accessLens(
   inv: InventoryState | undefined,
   code?: CodeFacts,
 ): LensView {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const facts = inv?.state === 'ready' ? inv.facts : undefined;
   const targets = facts?.targets ?? inv?.targets ?? '';
   const vaulted = facts?.vaulted ?? {};

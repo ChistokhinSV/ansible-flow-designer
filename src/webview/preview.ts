@@ -1,6 +1,6 @@
 // Content of the hover preview card (D-22, mockup 10): what a subflow runs inside, step by step
 // with its exits and last-run results, or what a bound node runs. Pure, so it is testable.
-import { buildModel } from '../core/flow/model';
+import { modelOf } from '../core/flow/model';
 import type { FlowDocument, FlowNode, ImplBinding, NodeSettings, Ulid } from '../core/flow/types';
 import type { RunView } from '../core/protocol';
 
@@ -93,7 +93,7 @@ function ordered(
 }
 
 export function previewOf(doc: FlowDocument, id: Ulid, run?: RunView | null): Preview | undefined {
-  const node = buildModel(doc).nodes.get(id)?.node;
+  const node = modelOf(doc).nodes.get(id)?.node;
   if (!node || !hasPreview(node)) return undefined;
   const inner = (node.subflow?.nodes ?? []).filter((n): n is FlowNode => !!n?.id);
   const boundary = node.subflow?.boundary;

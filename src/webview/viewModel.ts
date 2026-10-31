@@ -2,7 +2,7 @@
 // readiness, breadcrumbs, inherited settings. No React here, so it is testable.
 import { nodeSize } from '../core/flow/geometry';
 import type { LevelView } from '../core/flow/levelView';
-import { buildModel, ROOT } from '../core/flow/model';
+import { modelOf, ROOT } from '../core/flow/model';
 import type { OpenPort } from '../core/flow/openPorts';
 import type { FlowDocument, FlowNode, NodeStatus, Position, Ulid } from '../core/flow/types';
 
@@ -66,7 +66,7 @@ export function readiness(doc: FlowDocument | null): Readiness {
   const counts: Record<NodeStatus, number> = { draft: 0, specified: 0, implemented: 0, tested: 0 };
   let total = 0;
   if (!doc) return { counts, total };
-  for (const { node } of buildModel(doc).nodes.values()) {
+  for (const { node } of modelOf(doc).nodes.values()) {
     if (node.type === 'start' || node.type === 'end') continue;
     counts[node.status ?? 'draft']++;
     total++;
@@ -103,7 +103,7 @@ export function skeletonStub(node: FlowNode): string {
 
 /** Breadcrumb from the top level to `levelId` (D-23). */
 export function levelTrail(doc: FlowDocument, levelId: string): { id: string; title: string }[] {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const trail: { id: string; title: string }[] = [];
   let id: string | undefined = levelId;
   while (id && id !== ROOT) {
@@ -124,7 +124,7 @@ export function inheritedContext(
   doc: FlowDocument,
   levelId: string,
 ): { label: string; title: string; applied: boolean }[] {
-  const model = buildModel(doc);
+  const model = modelOf(doc);
   const chips: { label: string; title: string; applied: boolean }[] = [];
   const seen = new Set<string>();
   let id: string | undefined = levelId;
