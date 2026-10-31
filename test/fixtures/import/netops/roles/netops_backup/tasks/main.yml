@@ -1,0 +1,6 @@
+- name: Back up the running configuration
+  ansible.builtin.copy:
+    content: "backup of {{ inventory_hostname }}, keep {{ backup_keep }}\n"
+    dest: "{{ out_dir }}/{{ inventory_hostname }}/backup.cfg"
+    mode: "0644"
+  register: backup_result

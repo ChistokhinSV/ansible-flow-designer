@@ -1,0 +1,3 @@
+# Fictional edge baseline: pre-checks, then the baseline itself.
+- import_playbook: playbooks/prechecks.yml
+- import_playbook: playbooks/baseline.yml

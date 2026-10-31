@@ -2,7 +2,6 @@
 // environment's catalog, Understand it from its docs, Configure the binding with input chips.
 // Everything here edits the staged draft; "Save binding" writes it as one command.
 import { type ReactNode, useEffect, useId, useState } from 'react';
-import { parse, stringify } from 'yaml';
 import {
   type BindingDraft,
   type BindKind,
@@ -22,6 +21,7 @@ import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { catalogRequest, type Loaded, useCatalog } from '../catalog';
 import { useUi } from '../store';
 import { ChipField } from './ChipField';
+import { YamlField } from './YamlField';
 
 const BADGE: Record<Badge, { text: string; tone: 'ok' | 'neutral' | 'warn' }> = {
   'check-mode': { text: 'check mode', tone: 'ok' },
@@ -851,45 +851,6 @@ function ListField({
         Add line
       </button>
     </div>
-  );
-}
-
-function YamlField({
-  id,
-  value,
-  onChange,
-}: {
-  id: string;
-  value: unknown;
-  onChange(v: unknown): void;
-}) {
-  const text = value === undefined ? '' : stringify(value).trimEnd();
-  const [draft, setDraft] = useState(text);
-  const [error, setError] = useState<string>();
-  return (
-    <>
-      <textarea
-        id={id}
-        className={`afd-input mono${error ? ' invalid' : ''}`}
-        rows={3}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          if (!draft.trim()) {
-            setError(undefined);
-            onChange(undefined);
-            return;
-          }
-          try {
-            onChange(parse(draft));
-            setError(undefined);
-          } catch (e) {
-            setError(e instanceof Error ? e.message.split('\n')[0] : 'Not YAML');
-          }
-        }}
-      />
-      {error ? <div className="afd-field-error">{error}</div> : null}
-    </>
   );
 }
 

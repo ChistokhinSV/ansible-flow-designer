@@ -151,6 +151,8 @@ export interface NodePatch {
   branches?: number | null;
   /** Merged into `settings`; null removes a setting. */
   settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
+  /** Replaces the binding's task keywords (AFD-26); null or {} removes them. */
+  keywords?: Record<string, unknown> | null;
 }
 
 export interface FlowPatch {
@@ -817,6 +819,17 @@ function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'upda
       }
     }
   }
+  if (patch.keywords !== undefined) {
+    const impl = nodeAt(state(tx), cmd.id).node.impl;
+    if (!impl || impl.kind === 'playbook')
+      throw new CommandError(
+        'no-binding',
+        'Task keywords need a module or role binding: bind the node first',
+      );
+    const keywords = patch.keywords && Object.keys(patch.keywords).length ? patch.keywords : null;
+    if (keywords) tx.apply((f) => setIn(f, [...path, 'impl', 'keywords'], keywords as YamlValue));
+    else if (impl.keywords) tx.apply((f) => deleteKey(f, [...path, 'impl'], 'keywords'));
+  }
 }
 
 /** Ops removing the given indexes of a sequence (or emptying it) against one parse. */
@@ -930,6 +943,8 @@ function implValue(impl: ImplBinding): YamlValue {
   if (impl.collection_version) out.collection_version = impl.collection_version;
   if (impl.params && Object.keys(impl.params).length > 0) out.params = impl.params as YamlValue;
   if (impl.register) out.register = impl.register;
+  if (impl.keywords && Object.keys(impl.keywords).length > 0)
+    out.keywords = impl.keywords as YamlValue;
   return out;
 }
 
@@ -960,7 +975,13 @@ function setBinding(
       else setField(tx, path, side, { [name]: contract(field) }, NODE_ORDER);
     }
   }
-  setField(tx, path, 'impl', cmd.impl ? implValue(cmd.impl) : null, NODE_ORDER);
+  // A new binding keeps the task keywords unless it brings its own (AFD-26); playbooks take none.
+  const kept = node.impl?.keywords;
+  const impl =
+    cmd.impl && cmd.impl.keywords === undefined && kept && cmd.impl.kind !== 'playbook'
+      ? { ...cmd.impl, keywords: kept }
+      : cmd.impl;
+  setField(tx, path, 'impl', impl ? implValue(impl) : null, NODE_ORDER);
   setField(tx, path, 'status', cmd.status, NODE_ORDER);
   liftPathRefs(tx, cmd.id, notes);
 }

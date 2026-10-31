@@ -95,10 +95,10 @@ test-export $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label export
 
-# AWX workflow import inside VS Code (M9); the skeleton run needs AFD_TEST_IMAGE, the API import AFD_AWX_URL/TOKEN
+# Imports inside VS Code: AWX workflows (M9), playbooks and job templates (AFD-26); the skeleton run needs AFD_TEST_IMAGE, the API imports AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
-    npx --no-install vscode-test --label m9
+    npx --no-install vscode-test --label import
 
 # Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
 test-docker-lab *suites:

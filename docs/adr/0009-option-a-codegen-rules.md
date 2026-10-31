@@ -86,3 +86,25 @@ Arriving hosts never take `unreachable` or `unchanged` on such a node, and never
 - Generated code is longer than the handoff skeleton: every task node has a rescue, and there is one outcome play.
 - Happy-path runs warn for routing groups nobody entered ("Could not match supplied host pattern"). Our local runs set `ANSIBLE_HOST_PATTERN_MISMATCH=ignore`.
 - Role nodes cannot route `unreachable` or `unchanged` per host. If every host of a role node is unreachable, the run stops.
+
+## Amendment: task keywords (AFD-26, 2026-10-31)
+
+`impl.keywords` (`src/core/flow/keywords.ts`, ADR-0021) holds Ansible task keywords that the flow
+does not model, written on the generated task as is:
+- **Module bindings:** after the module, before Option A's `register`, `ignore_unreachable`,
+  `timeout` and retries.
+- **Role bindings:** `when`, `loop`, `loop_control` and `with_*` go on the `include_role` task;
+  every other keyword goes into `apply`, so it reaches each task of the role as a static
+  `roles:` entry would. Role variables stay params; `vars` is ignored with a warning.
+- **Playbook bindings** take none (`keyword-ignored`).
+
+Routing is unchanged:
+- a host the task skips (`when` false) leaves through `ok_hosts`, or `unchanged` when enabled (a
+  skipped result has `changed: false`);
+- a failure `ignore_errors` lets pass is not rescued, so the host leaves through `ok_hosts`;
+- a looped result keeps `changed` for the `unchanged` port and for handler conditions.
+
+The schema allow-lists the keywords. A keyword the flow models (register, tags, become, timeout,
+retries, delay, until, notify, block, …) is the error `keyword-reserved`, whose message names
+where it goes. Variables in keywords are checked like params: `when`, `changed_when` and
+`failed_when` are bare tests, and loop variables and the keywords' own `vars` count as known.

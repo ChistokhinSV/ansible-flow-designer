@@ -37,6 +37,13 @@ import {
 } from './flowSession';
 import { headText } from './gitHead';
 import { registerHelp } from './help';
+import { announceImport } from './import/common';
+import {
+  importPlaybooks,
+  type PlaybookImportDeps,
+  type PlaybookImportOutcome,
+  type PlaybookImportRequest,
+} from './import/playbookImport';
 import { auditUri } from './run/audit';
 import { type RunDeps, type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
@@ -87,6 +94,7 @@ export interface AfdTestApi {
   initFlow(uri: vscode.Uri): Promise<CommandOutcome>;
   /** M9: Import AWX Workflow with every pick given (writes the flow, does not open it). */
   importAwx(request: ImportRequest): Promise<ImportOutcome>;
+  importPlaybooks(request: PlaybookImportRequest): Promise<PlaybookImportOutcome>;
   /** AFD-19: a Copilot flow tool, called as Copilot calls it (without the confirmation). */
   aiTool(name: string, input: unknown): Promise<ToolResult>;
   /** AFD-19: Set Up / Remove AI Assistants with the picks given and no questions. */
@@ -121,6 +129,14 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     catalog,
     sync: { probes, catalog },
     lens: { probes, state: context.workspaceState, storage: context.globalStorageUri },
+  };
+  // Imports bind short module names by the folder's catalog, when one is already loaded (AFD-26).
+  const playbookDeps: PlaybookImportDeps = {
+    newId: deps.newId,
+    resolveModule: (folder) => {
+      const index = catalog.cached(folder)?.index;
+      return index ? (name, collections) => index.resolve(name, collections).fqcn : undefined;
+    },
   };
   const sessions = new Map<string, FlowSession>();
   const lastSaved = new Map<string, string>();
@@ -365,6 +381,17 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       }
       if (outcome.uri)
         await vscode.commands.executeCommand('vscode.openWith', outcome.uri, VIEW_TYPE);
+      void announceImport({ ...outcome, uris: outcome.uri ? [outcome.uri] : [] });
+    }),
+    vscode.commands.registerCommand('afd.importPlaybooks', async (uri?: vscode.Uri) => {
+      const outcome = await importPlaybooks(playbookDeps, uri ? { source: uri } : {});
+      if (outcome.error && !outcome.uris.length) {
+        if (outcome.error !== 'Cancelled') void vscode.window.showErrorMessage(outcome.error);
+        return;
+      }
+      if (outcome.uris[0])
+        await vscode.commands.executeCommand('vscode.openWith', outcome.uris[0], VIEW_TYPE);
+      if (outcome.error) void vscode.window.showWarningMessage(outcome.error);
       void announceImport(outcome);
     }),
     vscode.commands.registerCommand('afd.tidyUp', async () => {
@@ -465,24 +492,13 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         yes: true,
       }),
     importAwx: (request) => importAwxWorkflow(context.secrets, deps.newId, request),
+    importPlaybooks: (request) => importPlaybooks(playbookDeps, request),
     initFlow: (uri) => get(uri).initFlow(),
     catalogStatus: (uri) => {
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? catalog.status(folder) : undefined;
     },
   };
-}
-
-async function announceImport(outcome: ImportOutcome): Promise<void> {
-  const c = outcome.counts;
-  const text = `Imported ${vscode.workspace.asRelativePath(outcome.uri as vscode.Uri)}: ${c?.steps ?? 0} step(s), ${c?.implemented ?? 0} implemented, ${c?.drafts ?? 0} draft.`;
-  const show = outcome.notes.length ? 'Show notes' : undefined;
-  const pick = await vscode.window.showInformationMessage(text, ...(show ? [show] : []));
-  if (pick === show)
-    await vscode.window.showQuickPick(outcome.notes, {
-      title: 'What the import could not map one to one',
-      canPickMany: false,
-    });
 }
 
 async function announceRun(run: RunView): Promise<void> {

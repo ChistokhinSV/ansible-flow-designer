@@ -66,6 +66,8 @@ export function nodeDetails(node: FlowNode, ctx: NodeContext): Detail[] {
     add('register', node.impl.register);
     if (node.impl.params && Object.keys(node.impl.params).length > 0)
       add('params', stringify(node.impl.params, { lineWidth: 0 }).trimEnd());
+    if (node.impl.keywords && Object.keys(node.impl.keywords).length > 0)
+      add('keywords', stringify(node.impl.keywords, { lineWidth: 0 }).trimEnd());
   }
   if (node.undo?.ref) add('undo', `${node.undo.kind}: ${node.undo.ref}`);
   // Data and settings.

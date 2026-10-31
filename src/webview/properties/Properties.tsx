@@ -1,10 +1,11 @@
 // Node properties page over the canvas (M5, mockup 11): General, Implementation, Inputs and
 // outputs, Ports and Execution. The binding is staged on the Implementation tab and written by
 // "Save binding" as one command (one undo step); the other tabs edit like the inspector does.
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { registerName } from '../../core/engine/binding';
 import { SLUG } from '../../core/flow/ids';
+import { keywordProblem } from '../../core/flow/keywords';
 import { buildModel } from '../../core/flow/model';
 import type { FlowNode, NodeSettings } from '../../core/flow/types';
 import { run } from '../actions';
@@ -15,6 +16,7 @@ import { Lifecycle, PortRow, TypeFields, updatePatch } from '../panels/Inspector
 import { type PropTab, useUi } from '../store';
 import { levelTrail, levelView } from '../viewModel';
 import { Implementation } from './Implementation';
+import { YamlField } from './YamlField';
 
 const TABS: { tab: PropTab; label: string }[] = [
   { tab: 'general', label: 'General' },
@@ -330,6 +332,52 @@ function Execution({ node }: { node: FlowNode }) {
           </div>
         );
       })}
+      <TaskKeywords node={node} />
+    </div>
+  );
+}
+
+/**
+ * Ansible task keywords on the binding (AFD-26): when, loop, ignore_errors and the like, written on
+ * the generated task as they are. What the flow models itself is refused with where it goes.
+ */
+function TaskKeywords({ node }: { node: FlowNode }) {
+  const id = useId();
+  const impl = node.impl;
+  if (!impl?.ref) return null;
+  if (impl.kind === 'playbook')
+    return (
+      <p className="muted">
+        Task keywords do not apply to a playbook binding (import_playbook takes none).
+      </p>
+    );
+  return (
+    <div className="afd-field">
+      <label htmlFor={id}>
+        Task keywords ·{' '}
+        <span className="muted">
+          YAML map written on the generated task: when, loop, ignore_errors, changed_when,
+          delegate_to, run_once, no_log...
+        </span>
+      </label>
+      <YamlField
+        // Remount when the file changes underneath (undo, another editor).
+        key={JSON.stringify(impl.keywords ?? null)}
+        id={id}
+        rows={4}
+        value={impl.keywords}
+        placeholder={`when: version_check.stdout is version("17.9", "<")\nloop: "{{ interfaces }}"`}
+        validate={(v) => {
+          if (v === null || v === undefined) return undefined;
+          if (typeof v !== 'object' || Array.isArray(v)) return 'A map of keyword: value';
+          for (const k of Object.keys(v)) {
+            const problem = keywordProblem(k);
+            if (problem) return problem;
+          }
+          return undefined;
+        }}
+        onChange={(v) => void updatePatch(node.id, { keywords: v ?? null })}
+      />
     </div>
   );
 }

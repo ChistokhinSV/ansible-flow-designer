@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.20.0 — AFD-26
+
+- **Import Ansible playbooks:** **Ansible Flow: Import Ansible Playbooks…**, or right-click a playbook or a folder in the Explorer.
+  - A playbook becomes a new flow at `flows/<key>/<key>.flow.yaml`, one step per task, in the playbook's order.
+  - A folder lists its playbooks with the top-level ones selected (those no other playbook imports, like `site.yml`); each becomes its own flow.
+  - Several plays and `import_playbook` become subflows; a later play on other hosts runs there; facts are gathered where the play gathered them.
+  - Blocks with rescue and always become a subflow whose failures lead to the rescue steps, with the always steps after both paths. A role is a step bound to the role; a role whose `main.yml` only includes task files is a subflow with one step per file. `include_tasks` files become subflows. Handlers become steps that run when a notifying step changed something.
+  - Registered variables, `set_fact`, `vars_files` and what roles set become outputs, and the steps that read them get inputs. Play vars and prompts become flow inputs; vault values and prompted secrets are imported by name only, never copied.
+  - Template and copy sources are rewritten so the generated playbooks find them.
+  - Failures the playbook does not handle stay open on the banner, as Ansible stops those hosts too. _Show notes_ lists what has no one-to-one form.
+  - Checked by running a fictional repository's `site.yml` and its imported flow side by side in ansible-core 2.19, 2.20 and 2.21: the same files on every host, and the same hosts failed.
+- **Import from AWX** (was _Import AWX Workflow…_) also lists **job templates**: the limit is where the flow runs, the survey and extra vars are inputs, the credential and EE are settings.
+  - A job template node, in a workflow or on its own, whose playbook is in this repository becomes a subflow of that playbook's steps, with the node's extra vars, become and timeout on each step.
+  - A playbook that is not here stays one draft playbook step; the notes name the project and its SCM URL. A playbook the designer generated stays one step.
+- **Task keywords:** a binding can carry Ansible task keywords (`impl.keywords`): `when`, `loop`, `ignore_errors`, `changed_when`, `failed_when`, `delegate_to`, `run_once`, `no_log`, `become_user`, `environment` and more.
+  - Edited on the Execution tab as YAML; written on the generated task as is (a role keeps `when` and `loop` and applies the rest to its tasks).
+  - Variables in them are checked like parameters. Keywords the flow models itself (register, tags, become, timeout, retries, until, notify, block) are refused with where they go instead.
+  - Node cards show "when" / "loop"; the AI tools, `flow_describe` and the draw.io details carry them.
+
 ## 0.19.0 — AFD-25
 
 - **Export as draw.io:** _Export as draw.io…_ in the designer's "…" menu, **Ansible Flow: Export as draw.io Diagram…**, or right-click a `*.flow.yaml` in the Explorer.

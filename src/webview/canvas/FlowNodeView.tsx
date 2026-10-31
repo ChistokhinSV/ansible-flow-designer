@@ -16,6 +16,7 @@ import {
 } from '@xyflow/react';
 import { Fragment, type MouseEvent, memo, useEffect, useMemo, useRef } from 'react';
 import { NODE_TYPE_LABEL } from '../../core/export/details';
+import { keywordHint } from '../../core/flow/keywords';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
@@ -325,7 +326,9 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
         <CodeLines node={node} />
       </>
     );
-  const sub = [TYPE_LABEL[node.type], status, node.handler].filter(Boolean).join(' · ');
+  const sub = [TYPE_LABEL[node.type], status, node.handler, keywordHint(node.impl)]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <>
       {head}

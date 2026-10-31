@@ -47,6 +47,32 @@ for dicts. Required and already-set parameters come first.
 **Save binding** writes the binding, the inputs and outputs it added, and the status `implemented`
 in one undo step. Renaming an input later rewrites the parameters that read it.
 
+## Task keywords
+
+The **Execution** tab has **Task keywords**: a YAML map written on the generated task as is, for
+what a playbook task would say. Examples: `when`, `loop` (or `with_items`), `ignore_errors`,
+`changed_when`, `failed_when`, `delegate_to`, `run_once`, `no_log`, `become_user`, `environment`.
+Imported playbooks keep their tasks' keywords here.
+
+```yaml
+when: version_check.stdout is version('17.9', '<')
+loop: "{{ uplinks }}"
+```
+
+- **Hosts a condition skips**, and hosts whose failure `ignore_errors` lets pass, leave through
+  `ok_hosts`.
+- **Variables are checked like parameters:** a keyword that reads a variable no input gives is a
+  problem. `when`, `changed_when` and `failed_when` are tests without braces. Loop variables and
+  the keywords' own `vars` count as known.
+- **What the flow models itself** is refused, with where it goes instead:
+  - `register` is _Register result as_;
+  - `tags`, `become`, `timeout`, `retries`, `delay` and `until` are the settings above;
+  - `notify` becomes a handler step with `when: <register> is changed`;
+  - `block` and `rescue` become subflows and failure paths.
+- **A role step** keeps `when` and `loop` on the role and applies the rest to every task in it;
+  role variables belong in its parameters.
+- **A playbook step** takes no keywords.
+
 ## Playbook bindings
 
 A step bound to a playbook imports it with `afd_hosts` set to the hosts that arrive. Its plays

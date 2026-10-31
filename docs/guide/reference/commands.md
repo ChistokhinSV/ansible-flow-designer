@@ -5,13 +5,14 @@ on a flow use the one open in the designer. Back to the [guide](../README.md).
 
 ## Getting started
 
-| Command                                        | Does                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------ |
-| `afd.openWalkthrough` · Get Started            | opens the "Design your first Ansible flow" walkthrough             |
-| `afd.openGuide` · Open User Guide              | opens this guide in the Markdown preview                           |
-| `afd.openSample` · Open Sample Flow…           | copies a sample flow into the workspace and opens it               |
-| `afd.newFlow` · New Flow…                      | creates `flows/<key>/<key>.flow.yaml` with a start and a done node |
-| `afd.importAwxWorkflow` · Import AWX Workflow… | turns an AWX workflow (from AWX or an export file) into a new flow |
+| Command                                           | Does                                                                                                                         |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `afd.openWalkthrough` · Get Started               | opens the "Design your first Ansible flow" walkthrough                                                                       |
+| `afd.openGuide` · Open User Guide                 | opens this guide in the Markdown preview                                                                                     |
+| `afd.openSample` · Open Sample Flow…              | copies a sample flow into the workspace and opens it                                                                         |
+| `afd.newFlow` · New Flow…                         | creates `flows/<key>/<key>.flow.yaml` with a start and a done node                                                           |
+| `afd.importPlaybooks` · Import Ansible Playbooks… | turns a playbook, or the playbooks of a folder, into new flows, one step per task (also on the Explorer's right-click)       |
+| `afd.importAwxWorkflow` · Import from AWX…        | turns an AWX workflow or job template (from AWX or an export file) into a new flow; playbooks in the repository become steps |
 
 ## Designing
 

@@ -6,6 +6,7 @@ import type { Path } from '../yaml/parse';
 import { idGaps, withIds } from './completeIds';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { exprRefs, refsIn } from './jinja';
+import { keywordReads } from './keywords';
 import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
@@ -53,9 +54,9 @@ export function validateFlow(
   const checked = gaps.length > 0 ? withIds(doc) : doc;
   const model = buildModel(checked);
   const findings: Finding[] = schemaIssues.map((i) => ({
-    code: 'schema',
+    code: i.code ?? 'schema',
     severity: 'error',
-    message: `Schema: ${i.message}`,
+    message: i.code ? i.message : `Schema: ${i.message}`,
     path: pointerToPath(i.pointer),
   }));
   const add = (f: Finding) => findings.push(f);
@@ -377,7 +378,7 @@ export const MAGIC_VARS =
 /** Module parameters Ansible evaluates as bare expressions, by module short name. */
 const BARE_PARAMS: Record<string, readonly string[]> = { assert: ['that'], debug: ['var'] };
 
-function bareParams(impl: NonNullable<FlowNode['impl']>): unknown[] {
+export function bareParams(impl: NonNullable<FlowNode['impl']>): unknown[] {
   if (impl.kind !== 'module') return [];
   const short = impl.ref.replace(/^ansible\.(builtin|legacy)\./, '');
   return (BARE_PARAMS[short] ?? []).map((k) => impl.params?.[k]).filter((v) => v !== undefined);
@@ -424,22 +425,54 @@ function checkBindingVars(
   flowInputs: Set<string>,
   add: (f: Finding) => void,
 ): void {
-  if (!node.impl?.params) return;
+  const impl = node.impl;
+  if (!impl) return;
   const inputs = new Set(Object.keys(node.inputs ?? {}));
-  const read = new Set([...refsIn(node.impl.params), ...exprRefs(bareParams(node.impl))]);
-  for (const name of read) {
-    if (inputs.has(name) || MAGIC_VARS.test(name)) continue;
-    const flow = flowInputs.has(name);
+  // Task keywords read inputs too (AFD-26); loop variables and task vars are their own names, and
+  // changed_when / failed_when may read the step's result.
+  const kw = keywordReads(impl);
+  const known = new Set([...kw.own, ...(impl.kind === 'module' ? [registerName(node)] : [])]);
+  const reads: [Set<string>, Path][] = [
+    [
+      new Set([...refsIn(impl.params ?? {}), ...exprRefs(bareParams(impl))]),
+      [...path, 'impl', 'params'],
+    ],
+    [new Set([...kw.templated, ...kw.bare]), [...path, 'impl', 'keywords']],
+  ];
+  const reported = new Set<string>();
+  for (const [read, where] of reads)
+    for (const name of read) {
+      if (inputs.has(name) || known.has(name) || MAGIC_VARS.test(name) || reported.has(name))
+        continue;
+      reported.add(name);
+      const flow = flowInputs.has(name);
+      add({
+        code: 'binding-unknown-var',
+        severity: flow ? 'info' : 'warning',
+        message: flow
+          ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
+          : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
+        path: where,
+        node: node.id,
+      });
+    }
+  const keywords = impl.keywords && typeof impl.keywords === 'object' ? impl.keywords : undefined;
+  if (keywords && Object.keys(keywords).length > 0 && impl.kind === 'playbook')
     add({
-      code: 'binding-unknown-var',
-      severity: flow ? 'info' : 'warning',
-      message: flow
-        ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
-        : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
-      path: [...path, 'impl', 'params'],
+      code: 'keyword-ignored',
+      severity: 'warning',
+      message: `${label(node)} runs a playbook: task keywords cannot apply to import_playbook, so they are ignored`,
+      path: [...path, 'impl', 'keywords'],
       node: node.id,
     });
-  }
+  else if (keywords?.vars !== undefined && impl.kind === 'role')
+    add({
+      code: 'keyword-ignored',
+      severity: 'warning',
+      message: `${label(node)} runs a role: role variables belong in params, so keywords.vars is ignored`,
+      path: [...path, 'impl', 'keywords', 'vars'],
+      node: node.id,
+    });
 }
 
 /** Decision conditions and `until` read node inputs too (AFD-21); `until` also the step's result. */

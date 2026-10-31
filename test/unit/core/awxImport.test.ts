@@ -211,7 +211,7 @@ describe('AWX workflow → flow', () => {
       settings: { timeout: '30m' },
     });
     expect(result.notes).toContain(
-      '"report": hello_world.yml (project Demo Project) is not in this repository: draft; its play cannot load until the playbook is added or the binding changes.',
+      '"report": hello_world.yml (project Demo Project) is not in this repository: draft; its play cannot load until the playbook is added or the binding changes. With the project checked out here, import again to get its steps.',
     );
   });
 

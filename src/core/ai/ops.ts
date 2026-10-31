@@ -73,6 +73,7 @@ export type Op =
       join_mode?: JoinMode | null;
       branches?: number | null;
       settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
+      keywords?: Record<string, unknown> | null;
     }
   | { op: 'delete'; nodes?: string[]; wires?: string[] }
   | { op: 'connect'; from: string; to: string }

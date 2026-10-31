@@ -1,23 +1,31 @@
-// Import AWX Workflow (M9, D-31, ADR-0015): a workflow job template from the AWX API or an
-// `awx export` file becomes a new flow at flows/<key>/<key>.flow.yaml, laid out top-down with ELK
-// at every level, and opens in the designer. A one-time copy: AWX is only read.
+// Import from AWX (M9 D-31 ADR-0015, AFD-26): a workflow or job template from the AWX API or an
+// `awx export` file becomes a new flow at flows/<key>/<key>.flow.yaml, and opens in the designer.
+// Job templates whose playbook is in the repository become subflows of the playbook's steps; a
+// workflow is laid out top-down with ELK at every level. A one-time copy: AWX is only read.
 import * as vscode from 'vscode';
 import { flowText, type ImportResult, importWorkflow } from '../../core/awx/import';
 import {
   type AwxExport,
-  exportWorkflows,
+  exportTemplates,
+  jobTemplateFromApi,
+  jobTemplateFromExport,
   playbooksOf,
   type WorkflowSource,
   workflowFromApi,
   workflowFromExport,
 } from '../../core/awx/workflow';
-import { type IdFactory, SLUG, slugify } from '../../core/flow/ids';
+import { type IdFactory, SLUG } from '../../core/flow/ids';
+import type { PlaybookForm } from '../../core/import/source';
+import { readPlaybook } from '../../core/import/source';
 import { layoutAll } from '../autoLayout';
+import { askKey, exists, flowDir, pickFolder, workspaceSource } from '../import/common';
 import { awxClient } from './awxRun';
 
+export type TemplateKind = 'workflow' | 'job';
+
 export type ImportSource =
-  | { kind: 'awx'; name?: string }
-  | { kind: 'file'; path?: string; name?: string };
+  | { kind: 'awx'; name?: string; template?: TemplateKind }
+  | { kind: 'file'; path?: string; name?: string; template?: TemplateKind };
 
 /** What tests pass instead of picking (every field optional: a missing one is asked for). */
 export interface ImportRequest {
@@ -35,49 +43,75 @@ export interface ImportOutcome {
 
 const cancelled = (): ImportOutcome => ({ notes: [], error: 'Cancelled' });
 
-async function exists(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
+interface Picked {
+  src: WorkflowSource;
+  template: TemplateKind;
+  id?: number;
 }
 
-async function pickFolder(given?: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined> {
-  if (given) return vscode.workspace.getWorkspaceFolder(given);
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  return folders.length > 1
-    ? vscode.window.showWorkspaceFolderPick({ placeHolder: 'Repository for the imported flow' })
-    : folders[0];
+type Choice = vscode.QuickPickItem & { template?: TemplateKind; name?: string; id?: number };
+
+/** One list, workflows first, with a separator per kind. */
+function choices(
+  workflows: { name: string; description?: string; id?: number }[],
+  jobs: { name: string; description?: string; id?: number }[],
+): Choice[] {
+  const group = (label: string, list: typeof workflows, template: TemplateKind): Choice[] =>
+    list.length
+      ? [
+          { label, kind: vscode.QuickPickItemKind.Separator },
+          ...list.map((t) => ({
+            label: t.name,
+            description: t.description,
+            template,
+            name: t.name,
+            id: t.id,
+          })),
+        ]
+      : [];
+  return [
+    ...group('Workflow templates', workflows, 'workflow'),
+    ...group('Job templates', jobs, 'job'),
+  ];
 }
 
 async function fromAwx(
   folder: vscode.WorkspaceFolder,
   secrets: vscode.SecretStorage,
-  name?: string,
-): Promise<{ src: WorkflowSource; id: number } | string> {
+  from: Extract<ImportSource, { kind: 'awx' }>,
+): Promise<Picked | string> {
   const client = await awxClient(folder.uri, secrets);
   if (typeof client === 'string') return client;
-  const list = await client.list<{ id: number; name: string; description?: string }>(
-    'workflow_job_templates',
-  );
-  if (list.length === 0) return `AWX at ${client.base} has no workflow job templates`;
-  const chosen = name
-    ? list.find((w) => w.name === name)
-    : (
-        await vscode.window.showQuickPick(
-          list.map((w) => ({ label: w.name, description: w.description, w })),
-          { title: 'Import AWX Workflow', placeHolder: `Workflow job template in ${client.base}` },
-        )
-      )?.w;
-  if (!chosen) return name ? `AWX has no workflow job template "${name}"` : 'Cancelled';
-  return { src: await workflowFromApi(client, chosen.id), id: chosen.id };
+  type Row = { id: number; name: string; description?: string };
+  const workflows = from.template === 'job' ? [] : await client.list<Row>('workflow_job_templates');
+  const jobs = from.template === 'workflow' ? [] : await client.list<Row>('job_templates');
+  if (!workflows.length && !jobs.length) return `AWX at ${client.base} has no templates`;
+  let chosen: Choice | undefined;
+  if (from.name) {
+    const w = workflows.find((t) => t.name === from.name);
+    const j = jobs.find((t) => t.name === from.name);
+    chosen = w
+      ? { label: w.name, template: 'workflow', id: w.id }
+      : j
+        ? { label: j.name, template: 'job', id: j.id }
+        : undefined;
+    if (!chosen) return `AWX has no template "${from.name}"`;
+  } else {
+    chosen = await vscode.window.showQuickPick(choices(workflows, jobs), {
+      title: 'Import from AWX',
+      placeHolder: `Workflow or job template in ${client.base}`,
+    });
+    if (!chosen?.id) return 'Cancelled';
+  }
+  const id = chosen.id as number;
+  return chosen.template === 'job'
+    ? { src: await jobTemplateFromApi(client, id), template: 'job', id }
+    : { src: await workflowFromApi(client, id), template: 'workflow', id };
 }
 
-async function fromFile(path?: string, name?: string): Promise<WorkflowSource | string> {
-  const uri = path
-    ? vscode.Uri.file(path)
+async function fromFile(from: Extract<ImportSource, { kind: 'file' }>): Promise<Picked | string> {
+  const uri = from.path
+    ? vscode.Uri.file(from.path)
     : (
         await vscode.window.showOpenDialog({
           title: 'AWX export file (awx export --workflow_job_templates --job_templates)',
@@ -92,19 +126,38 @@ async function fromFile(path?: string, name?: string): Promise<WorkflowSource | 
   } catch (e) {
     return `Cannot read ${uri.fsPath} as JSON: ${(e as Error).message}`;
   }
-  const names = exportWorkflows(data);
+  const names = exportTemplates(data);
   if (typeof names === 'string') return names;
-  const chosen =
-    name ??
-    (names.length === 1
-      ? names[0]
-      : await vscode.window.showQuickPick(names, {
-          title: 'Import AWX Workflow',
-          placeHolder: 'Workflow job template in the export file',
-        }));
-  if (!chosen) return 'Cancelled';
-  if (!names.includes(chosen)) return `The export file has no workflow "${chosen}"`;
-  return workflowFromExport(data as AwxExport, chosen);
+  let template = from.template;
+  let name = from.name;
+  if (name && !template)
+    template = names.workflows.includes(name)
+      ? 'workflow'
+      : names.jobs.includes(name)
+        ? 'job'
+        : undefined;
+  if (!name) {
+    const all = choices(
+      names.workflows.map((n) => ({ name: n })),
+      names.jobs.map((n) => ({ name: n })),
+    ).filter((c) => !template || c.template === template);
+    const real = all.filter((c) => c.template);
+    const pick =
+      real.length === 1
+        ? real[0]
+        : await vscode.window.showQuickPick(all, {
+            title: 'Import from AWX',
+            placeHolder: 'Workflow or job template in the export file',
+          });
+    if (!pick?.name) return 'Cancelled';
+    name = pick.name;
+    template = pick.template;
+  }
+  const list = template === 'job' ? names.jobs : names.workflows;
+  if (!template || !list.includes(name)) return `The export file has no template "${name}"`;
+  return template === 'job'
+    ? { src: jobTemplateFromExport(data as AwxExport, name), template }
+    : { src: workflowFromExport(data as AwxExport, name), template };
 }
 
 export async function importAwxWorkflow(
@@ -120,7 +173,7 @@ export async function importAwxWorkflow(
       [
         {
           label: 'From AWX',
-          description: 'the workflow job templates of afd.awx.url',
+          description: 'the workflow and job templates of afd.awx.url',
           from: 'awx',
         },
         {
@@ -129,58 +182,51 @@ export async function importAwxWorkflow(
           from: 'file',
         },
       ] as const,
-      { title: 'Import AWX Workflow' },
+      { title: 'Import from AWX' },
     );
     if (!pick) return cancelled();
     source = pick.from === 'awx' ? { kind: 'awx' } : { kind: 'file' };
   }
   const from = source;
 
-  let src: WorkflowSource;
-  let sourceId: number | undefined;
+  let picked: Picked;
   try {
-    const got =
-      from.kind === 'awx'
-        ? await fromAwx(folder, secrets, from.name)
-        : await fromFile(from.path, from.name);
+    const got = from.kind === 'awx' ? await fromAwx(folder, secrets, from) : await fromFile(from);
     if (typeof got === 'string') return { notes: [], error: got };
-    if ('src' in got) {
-      src = got.src;
-      sourceId = got.id;
-    } else src = got;
+    picked = got;
   } catch (e) {
     return { notes: [], error: (e as Error).message };
   }
+  const { src } = picked;
 
-  const dir = (key: string) => vscode.Uri.joinPath(folder.uri, 'flows', key);
   let key = request.key;
   if (!key) {
-    key = await vscode.window.showInputBox({
-      title: `Import "${src.name}"`,
-      prompt: 'Flow key (the folder under flows/)',
-      value: slugify(src.name, 'imported'),
-      validateInput: async (v) =>
-        !SLUG.test(v)
-          ? 'Lowercase letters, digits and dashes'
-          : (await exists(dir(v)))
-            ? `flows/${v} already exists`
-            : undefined,
-    });
+    key = await askKey(folder, `Import "${src.name}"`, src.name);
     if (!key) return cancelled();
   }
   if (!SLUG.test(key)) return { notes: [], error: `"${key}" is not a flow key` };
-  const uri = vscode.Uri.joinPath(dir(key), `${key}.flow.yaml`);
-  if (await exists(dir(key))) return { notes: [], error: `flows/${key} already exists` };
+  const uri = vscode.Uri.joinPath(flowDir(folder, key), `${key}.flow.yaml`);
+  if (await exists(flowDir(folder, key)))
+    return { notes: [], error: `flows/${key} already exists` };
 
+  // Playbooks in the repository: present ones bind, readable ones expand into steps (AFD-26).
+  const io = workspaceSource(folder);
   const present = new Set<string>();
-  for (const ref of playbooksOf(src))
-    if (await exists(vscode.Uri.joinPath(folder.uri, ...ref.replace(/^\.?\//, '').split('/'))))
-      present.add(ref);
+  const playbooks = new Map<string, PlaybookForm>();
+  for (const ref of playbooksOf(src)) {
+    const path = ref.replace(/^\.?\//, '');
+    if (!(await exists(vscode.Uri.joinPath(folder.uri, ...path.split('/'))))) continue;
+    present.add(ref);
+    const read = await readPlaybook(io, path);
+    if (read.playbook?.plays.length) playbooks.set(ref, read.playbook);
+  }
   const result = importWorkflow(src, {
     key,
     newId,
-    sourceId,
+    sourceId: picked.id,
     hasPlaybook: (ref) => present.has(ref),
+    playbooks,
+    kind: picked.template === 'job' ? 'awx_job_template' : 'awx_workflow',
   });
   await layoutAll(result.doc);
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(flowText(result.doc)));

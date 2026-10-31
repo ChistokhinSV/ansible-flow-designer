@@ -36,6 +36,17 @@ function placeOf(node: FlowNode, layout: ShownLayout | undefined): string {
   return auto ? `auto ${auto.x},${auto.y}` : '';
 }
 
+/** Task keywords (AFD-26), each value on one line and cut short. */
+function keywordsText(node: FlowNode): string {
+  const kw = Object.entries(node.impl?.keywords ?? {});
+  if (!kw.length) return '';
+  const short = (v: unknown) => {
+    const s = (typeof v === 'string' ? v : JSON.stringify(v)).replaceAll(/\s+/g, ' ');
+    return s.length > 60 ? `${s.slice(0, 59)}…` : s;
+  };
+  return `keywords: ${kw.map(([k, v]) => `${k}=${short(v)}`).join(', ')}`;
+}
+
 function nodeLine(node: FlowNode, layout?: ShownLayout): string {
   const extra = portsFor(node)
     .map((p) => p.name)
@@ -55,6 +66,7 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
     (node.impl.register || node.settings?.retries || node.settings?.until)
       ? `register: ${registerName(node)}`
       : '',
+    keywordsText(node),
     fields(node.inputs) ? `inputs: ${fields(node.inputs)}` : '',
     fields(node.outputs) ? `outputs: ${fields(node.outputs, node)}` : '',
     placeOf(node, layout),

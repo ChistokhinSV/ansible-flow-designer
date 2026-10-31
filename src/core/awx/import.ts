@@ -7,6 +7,7 @@
 // - convergence "all" → a join (all) in front of the node; "any" → several wires into `in`;
 // - a failure no edge handles stays open: AWX fails the workflow there too.
 // Values that are encrypted or look secret are imported by name only.
+import { duration } from '../engine/util';
 import { type IdFactory, slugify, uniqueKey } from '../flow/ids';
 import type {
   BoundaryExit,
@@ -19,6 +20,10 @@ import type {
   NodeSettings,
   Ulid,
 } from '../flow/types';
+import { flatPlays, importPlaybook } from '../import/playbook';
+import type { ImportResult } from '../import/result';
+import { cleanVars, isSecret } from '../import/secrets';
+import type { PlaybookForm } from '../import/source';
 import { renderBlock, type YamlValue } from '../yaml/render';
 import type { SurveyQuestion, WorkflowNodeSource, WorkflowSource } from './workflow';
 
@@ -29,17 +34,26 @@ export interface ImportOptions {
   hasPlaybook(ref: string): boolean;
   /** AWX id of the source workflow; left out for an export file. */
   sourceId?: number;
+  /**
+   * Playbooks read from the repository, by ref (AFD-26): a job node whose playbook is here becomes
+   * a subflow of its steps instead of one playbook step.
+   */
+  playbooks?: Map<string, PlaybookForm>;
+  /** What the flow records it was imported from (default: an AWX workflow). */
+  kind?: 'awx_workflow' | 'awx_job_template';
 }
 
-export interface ImportResult {
-  doc: FlowDocument;
-  /** What did not map one to one, as sentences for the user. */
-  notes: string[];
-  counts: { steps: number; implemented: number; drafts: number };
+/**
+ * Whether a playbook can be expanded into steps: not one the designer generated (it targets
+ * `afd_hosts` and routes hosts itself), so it stays a playbook step.
+ */
+export function expandable(ref: string, book: PlaybookForm): boolean {
+  if (/^\.?\/?flows\/[^/]+\/generated\//.test(ref)) return false;
+  return !flatPlays(book).some((p) => p.hosts.includes('afd_hosts'));
 }
 
-const ENCRYPTED = '$encrypted$';
-const SECRET = /pass(word|wd)?|secret|token|api_?key|private_?key|vault/i;
+export type { ImportResult };
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const KIND_LABEL: Record<string, string> = {
@@ -48,13 +62,7 @@ const KIND_LABEL: Record<string, string> = {
   system_job: 'AWX system job',
 };
 
-/** `1h30m`, `15m`, `45s`: the duration format settings and the Timing lens read. */
-export function duration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${h ? `${h}h` : ''}${m ? `${m}m` : ''}${s ? `${s}s` : ''}` || '0s';
-}
+export { duration };
 
 function typeOf(v: unknown): ContractType {
   if (typeof v === 'string') return 'string';
@@ -80,6 +88,7 @@ const uniq = (xs: string[]) => [...new Set(xs)];
 class Importer {
   readonly notes: string[] = [];
   private readonly hidden = new Set<string>();
+  private readonly playbookInputs: Contract = {};
   private steps = 0;
   private implemented = 0;
   private drafts = 0;
@@ -89,6 +98,8 @@ class Importer {
   run(src: WorkflowSource): ImportResult {
     const level = this.level(src, true);
     const inputs = this.inputs(src);
+    // Variables of expanded playbooks join the flow inputs; AWX extra vars and surveys win.
+    for (const [k, f] of Object.entries(this.playbookInputs)) if (!(k in inputs)) inputs[k] = f;
     const doc: FlowDocument = {
       schema_version: 1,
       flow: {
@@ -98,9 +109,12 @@ class Importer {
         version: 1,
         ...(src.description ? { goal: src.description } : {}),
         imported_from: {
-          kind: 'awx_workflow',
+          kind: this.opts.kind ?? 'awx_workflow',
           template: src.name,
           ...(this.opts.sourceId !== undefined ? { id: this.opts.sourceId } : {}),
+          ...(this.opts.kind === 'awx_job_template' && src.nodes[0]?.job?.playbook
+            ? { path: src.nodes[0].job.playbook }
+            : {}),
         },
         inputs,
       },
@@ -120,13 +134,7 @@ class Importer {
 
   /** Copy without encrypted or secret-looking entries (their names go to the notes). */
   private clean(m: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-    if (!m) return undefined;
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(m)) {
-      if (SECRET.test(k) || JSON.stringify(v ?? null).includes(ENCRYPTED)) this.hidden.add(k);
-      else out[k] = v;
-    }
-    return Object.keys(out).length ? out : undefined;
+    return cleanVars(m, this.hidden);
   }
 
   private inputs(src: WorkflowSource): Contract {
@@ -163,10 +171,7 @@ class Importer {
     let value = q.default;
     if (q.type === 'multiselect' && typeof value === 'string')
       value = value.split('\n').filter(Boolean);
-    const secret =
-      q.type === 'password' ||
-      SECRET.test(q.variable) ||
-      JSON.stringify(value ?? null).includes(ENCRYPTED);
+    const secret = q.type === 'password' || isSecret(q.variable, value);
     if (secret) {
       if (value !== undefined && value !== '') this.hidden.add(q.variable);
     } else if (value !== undefined && value !== '' && !(Array.isArray(value) && !value.length))
@@ -352,6 +357,10 @@ class Importer {
       }
       return node;
     }
+    const book =
+      n.kind === 'job' && n.job?.playbook ? this.opts.playbooks?.get(n.job.playbook) : undefined;
+    if (book && n.job?.playbook && expandable(n.job.playbook, book))
+      return this.expand(n, book, { id, key, title, label });
     this.steps++;
     if (n.kind !== 'job') {
       this.drafts++;
@@ -383,7 +392,7 @@ class Importer {
       if (this.opts.hasPlaybook(jt.playbook)) node.status = 'implemented';
       else
         this.notes.push(
-          `${label}: ${jt.playbook}${jt.project ? ` (project ${jt.project})` : ''} is not in this repository: draft; its play cannot load until the playbook is added or the binding changes.`,
+          `${label}: ${jt.playbook}${jt.project ? ` (project ${jt.project}${jt.scmUrl ? `, ${jt.scmUrl}` : ''})` : ''} is not in this repository: draft; its play cannot load until the playbook is added or the binding changes. With the project checked out here, import again to get its steps.`,
         );
     }
     if (node.status === 'implemented') this.implemented++;
@@ -391,6 +400,86 @@ class Importer {
     const settings = this.settings(n);
     if (settings) node.settings = settings;
     return node;
+  }
+
+  /**
+   * A job template node as a subflow of its playbook's steps (AFD-26): the playbook imported as is,
+   * its start and ends replaced by the subflow's entry and exits. The node's credential, EE, limit
+   * and tags stay on the subflow; become, timeout and the node's extra vars reach every step.
+   */
+  private expand(
+    n: WorkflowNodeSource,
+    book: PlaybookForm,
+    at: { id: Ulid; key: string; title: string; label: string },
+  ): FlowNode {
+    const sub = importPlaybook(book, {
+      key: this.opts.key,
+      newId: this.opts.newId,
+      generatedDir: `flows/${this.opts.key}/generated`,
+    });
+    const doc = sub.doc;
+    const ends = new Map(
+      doc.nodes.filter((x) => x.type === 'start' || x.type === 'end').map((x) => [x.id, x]),
+    );
+    const start = doc.nodes.find((x) => x.type === 'start');
+    const entry = doc.edges.find((e) => e.from.node === start?.id)?.to.node;
+    const outputs: Record<string, BoundaryExit[]> = {};
+    for (const e of doc.edges) {
+      const end = ends.get(e.to.node);
+      if (!end || ends.has(e.from.node)) continue;
+      const failed = end.outcome === 'failed';
+      const exit = failed ? 'failed_hosts' : 'ok_hosts';
+      outputs[exit] = [
+        ...(outputs[exit] ?? []),
+        { ...e.from, ...(failed && end.intent ? { reason: end.intent } : {}) },
+      ];
+    }
+    const nodes = doc.nodes.filter((x) => !ends.has(x.id));
+    const edges = doc.edges.filter((e) => !ends.has(e.from.node) && !ends.has(e.to.node));
+    const jt = n.job;
+    const extra = this.clean(n.extraData);
+    const visit = (list: FlowNode[]) => {
+      for (const x of list) {
+        if (x.subflow?.nodes) visit(x.subflow.nodes);
+        if (x.type !== 'task') continue;
+        const s: NodeSettings = { ...x.settings };
+        if (jt?.become) s.become = true;
+        if (jt?.timeout && !s.timeout) s.timeout = duration(jt.timeout);
+        if (Object.keys(s).length) x.settings = s;
+        // The node's extra vars outrank everything in AWX: task vars (role vars for roles).
+        if (extra && x.impl?.kind === 'role') x.impl.params = { ...x.impl.params, ...extra };
+        else if (extra && x.impl)
+          x.impl.keywords = {
+            ...x.impl.keywords,
+            vars: { ...(x.impl.keywords?.vars as Record<string, unknown> | undefined), ...extra },
+          };
+      }
+    };
+    visit(nodes);
+    for (const [k, f] of Object.entries(doc.flow.inputs ?? {}))
+      if (!f.targets && !(k in this.playbookInputs)) this.playbookInputs[k] = f;
+    this.notes.push(...sub.notes.map((note) => `${at.label} (${jt?.playbook}): ${note}`));
+    this.steps += sub.counts.steps;
+    this.implemented += sub.counts.implemented;
+    this.drafts += sub.counts.drafts;
+    const { timeout: _t, become: _b, ...settings } = this.settings(n) ?? {};
+    return {
+      id: at.id,
+      key: at.key,
+      type: 'subflow',
+      title: at.title,
+      intent: n.description ?? jt?.description ?? `Runs ${jt?.playbook} (job template ${at.title})`,
+      status: sub.counts.drafts === 0 ? 'implemented' : 'draft',
+      ...(Object.keys(settings).length ? { settings } : {}),
+      subflow: {
+        nodes,
+        edges,
+        boundary: {
+          ...(entry ? { in: entry } : {}),
+          ...(Object.keys(outputs).length ? { outputs } : {}),
+        },
+      },
+    };
   }
 
   private settings(n: WorkflowNodeSource): NodeSettings | undefined {

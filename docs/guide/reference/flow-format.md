@@ -131,6 +131,7 @@ What the node runs: an Ansible module, a role or a playbook. null or absent: the
 - `collection_version` (string): Collection version the binding was made against.
 - `params` (object): Module parameters or role variables. Jinja may reference inputs by name.
 - `register` (string): Variable that keeps the task result; outputs read it with from: impl.register.
+- `keywords` (object): Ansible task keywords written on the generated task as they are (module and role bindings). Jinja may reference inputs by name; when, changed_when and failed_when are Jinja tests without braces. What the flow models itself is set there instead: register (impl.register), tags, become, timeout, retries, delay and until (settings), handlers (steps with when: <register> is changed), block and rescue (subflows and failure paths).
 
 ### Decision (decisions[])
 

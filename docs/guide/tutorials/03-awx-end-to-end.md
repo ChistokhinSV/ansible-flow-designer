@@ -66,11 +66,11 @@ naming it.
 
 ## 6. Import an existing AWX workflow
 
-Command Palette → **Ansible Flow: Import AWX Workflow…**
+Command Palette → **Ansible Flow: Import from AWX…**
 
 1. Choose **From AWX** (uses your URL and token), or **From an export file…** (made with
    `awx export --workflow_job_templates --job_templates > awx-export.json`).
-2. Pick the workflow and the new flow's key.
+2. Pick the workflow (job templates are listed too) and the new flow's key.
 
 The new flow opens, laid out top-down at every level. The flow description says where it came
 from; **Show notes** lists what did not map one to one.
@@ -94,4 +94,4 @@ The import is a one-time copy: AWX is only read.
 - Existing AWX workflows can be imported as flows.
 
 **Next:** [Tutorial 4: with an AI assistant](04-ai-assistant.md). Reference:
-[AWX](../how-to/awx.md), [import](../how-to/import-awx.md).
+[AWX](../how-to/awx.md), [import](../how-to/import.md).

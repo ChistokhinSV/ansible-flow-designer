@@ -96,3 +96,35 @@ Nothing is decrypted, and no value reaches the file, logs or messages.
 - A playbook binding routes only `ok_hosts` (ADR-0011). Hosts that fail inside an imported job template's playbook stop there until the node is rebound to a module or role.
 - Since AFD-14, a node limit imported as `inventory_target` is applied: the node's playbook runs on that pattern, and the arriving hosts leave together (ADR-0009).
 - Re-import does not merge. Keeping a flow in step with a changing AWX workflow needs a new import and a diff.
+
+## Amendment: job templates and playbook steps (AFD-26, 2026-10-31)
+
+Context: a job template node bound its playbook as one step, which routes hosts only when the
+playbook targets `{{ afd_hosts }}`. Teams also wanted to import job templates on their own
+(ADR-0021).
+
+Decisions (product owner, 2026-10-31):
+1. Job templates import.
+2. Workflow import expands playbooks of the repository into subflows.
+3. A playbook not in the repository stays a draft playbook step, and the note names the project
+   and its SCM URL.
+
+Design:
+- **Command:** _Import from AWX…_ (same ID, `afd.importAwxWorkflow`) lists workflow and job
+  templates, from the API or an export file (`exportTemplates`).
+- **A job template is a workflow of one job node** (`jobTemplateFromApi` / `jobTemplateFromExport`
+  in `core/awx/workflow.ts`), so the survey, extra vars and settings code is shared:
+  - its limit is the flow's targets default (not a node target);
+  - `imported_from` is `{kind: awx_job_template, template, id, path}`;
+  - the project's SCM URL is read without credentials (`safeUrl`).
+- **Expansion** (`Importer.expand`) applies to a job node whose playbook was read from the
+  repository and is expandable (not under `flows/*/generated/`, no play on `afd_hosts`):
+  - it becomes a subflow: the playbook imported as is, its start and ends turned into the
+    subflow's entry and exits;
+  - credential, EE, limit (as `inventory_target`) and tags stay on the subflow;
+  - become and timeout go onto each step;
+  - node extra data becomes each step's `keywords.vars` (role params for role steps), since AWX
+    extra vars outrank everything;
+  - the playbook's variables join the flow inputs, and AWX extra vars and surveys win;
+  - the counts are the playbook's steps.
+- The M9 fixtures bind the generated `awx-e2e` playbook, so the golden import is unchanged.

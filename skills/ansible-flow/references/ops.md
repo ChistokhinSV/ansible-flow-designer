@@ -49,6 +49,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `join_mode` (all | any | null): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer | null): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
 - `settings` (object): Settings to change; a null value removes that setting.
+- `keywords` (object | null): Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.
 
 ```json
 {"op":"update_node","node":"check-ntp","status":"specified"}
@@ -275,6 +276,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | Code | Meaning | Fix |
 | --- | --- | --- |
 | schema | The file breaks the flow schema (a field of the wrong type or an unknown field). | Correct the field named in the message; see the format reference. |
+| keyword-reserved | A task keyword in impl.keywords that the flow models itself (register, tags, become, timeout, retries, until, notify, block) or that is no task keyword. | Move it where the message says (impl.register, settings, a handler step, a subflow), or remove it. |
+| keyword-ignored | Task keywords that cannot apply: on a playbook binding, or vars on a role binding (role variables belong in params). | Remove them, or bind a module or role; move role variables to params. |
 | missing-id | Written by hand: a node, wire or the flow has no ID, or a reference names a node by key. | Run Complete IDs (designer banner or quick fix, or flow_complete_ids). Never invent IDs. |
 | unknown-key | A reference names a key no node has (or several nodes have). | Use an existing key; inside subflows keys are per level. |
 | duplicate-id | Two items share an ID. | Remove the id of the copy and run Complete IDs. |

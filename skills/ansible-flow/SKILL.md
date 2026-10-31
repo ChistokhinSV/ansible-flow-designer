@@ -73,7 +73,8 @@ the ports a node has). Correct that op and send the whole batch again.
   regenerate code. Positions change only through the layout ops (see Layout).
 - Bindings (`bind`): use fully qualified names (`ansible.builtin.command`, `cisco.ios.ios_config`)
   that exist; ask the user when unsure. Without a binding a node runs as a TODO stub, which is fine
-  while designing.
+  while designing. Task keywords go in `impl.keywords` (`when`, `loop`, `ignore_errors`,
+  `delegate_to`, …); register, tags, become, timeout, retries and until have their own fields.
 - Use fictional sample values in examples (192.0.2.0/24, example.net); never put secrets in a
   flow. Credentials are AWX credential names (`settings.credential`).
 

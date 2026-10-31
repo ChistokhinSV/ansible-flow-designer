@@ -3,6 +3,7 @@
 // shape data; ports at rest are small child shapes the wires attach to, so moving a node in draw.io
 // keeps its wires. A subflow node links to its page and each subflow page links back to its parent.
 
+import { keywordHint } from '../flow/keywords';
 import type { FramePortView, PortView } from '../flow/levelView';
 import { buildModel, ROOT } from '../flow/model';
 import type { PortTone } from '../flow/ports';
@@ -52,7 +53,9 @@ export function nodeLook(node: FlowNode) {
     [fill, stroke] = [FILL['fill-failed-end'], TONE.failed];
   const status = node.status ?? 'draft';
   const dot = status === 'specified' ? TONE.approval : status === 'draft' ? undefined : TONE.ok;
-  const sub = [NODE_TYPE_LABEL[node.type], status, node.handler].filter(Boolean).join(' · ');
+  const sub = [NODE_TYPE_LABEL[node.type], status, node.handler, keywordHint(node.impl)]
+    .filter(Boolean)
+    .join(' · ');
   return { fill, stroke, width, dashed, pill, double: node.type === 'subflow', dot, sub };
 }
 

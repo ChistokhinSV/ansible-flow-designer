@@ -1,0 +1,9 @@
+argument_specs:
+  main:
+    short_description: Push the NTP and AAA baseline
+    options:
+      ntp_servers:
+        type: list
+        elements: str
+        required: true
+        description: NTP servers, in order of preference.

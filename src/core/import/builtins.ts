@@ -1,0 +1,87 @@
+// The ansible.builtin modules (ansible-core 2.19-2.21), so an import binds `copy` as
+// ansible.builtin.copy without the catalog. Generated plays have no `collections:` keyword.
+export const BUILTIN_MODULES: ReadonlySet<string> = new Set([
+  'add_host',
+  'apt',
+  'apt_key',
+  'apt_repository',
+  'assemble',
+  'assert',
+  'async_status',
+  'blockinfile',
+  'command',
+  'copy',
+  'cron',
+  'deb822_repository',
+  'debconf',
+  'debug',
+  'dnf',
+  'dnf5',
+  'dpkg_selections',
+  'expect',
+  'fail',
+  'fetch',
+  'file',
+  'find',
+  'gather_facts',
+  'get_url',
+  'getent',
+  'git',
+  'group',
+  'group_by',
+  'hostname',
+  'import_playbook',
+  'import_role',
+  'import_tasks',
+  'include_role',
+  'include_tasks',
+  'include_vars',
+  'iptables',
+  'known_hosts',
+  'lineinfile',
+  'meta',
+  'mount_facts',
+  'package',
+  'package_facts',
+  'pause',
+  'ping',
+  'pip',
+  'raw',
+  'reboot',
+  'replace',
+  'rpm_key',
+  'script',
+  'service',
+  'service_facts',
+  'set_fact',
+  'set_stats',
+  'setup',
+  'shell',
+  'slurp',
+  'stat',
+  'subversion',
+  'systemd',
+  'systemd_service',
+  'sysvinit',
+  'tempfile',
+  'template',
+  'unarchive',
+  'uri',
+  'user',
+  'validate_argument_spec',
+  'wait_for',
+  'wait_for_connection',
+  'yum_repository',
+]);
+
+/** `copy`, `ansible.legacy.copy` → `copy`; anything else as written. */
+export function shortName(module: string): string {
+  return module.replace(/^ansible\.(builtin|legacy)\./, '');
+}
+
+/** ansible.builtin.<name> for a builtin module, an FQCN as written, else undefined. */
+export function builtinFqcn(module: string): string | undefined {
+  const short = shortName(module);
+  if (BUILTIN_MODULES.has(short)) return `ansible.builtin.${short}`;
+  return module.split('.').length >= 3 ? module : undefined;
+}

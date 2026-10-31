@@ -15,6 +15,8 @@ export type WorkflowNodeKind =
 export interface JobTemplateInfo {
   playbook?: string;
   project?: string;
+  /** The project's SCM URL without credentials, to tell where a missing playbook lives (AFD-26). */
+  scmUrl?: string;
   description?: string;
   limit?: string;
   /** Seconds; 0 is no timeout. */
@@ -127,6 +129,11 @@ interface ApiNode {
 }
 
 interface ApiJobTemplate {
+  id?: number;
+  name?: string;
+  project?: number | null;
+  extra_vars?: unknown;
+  survey_enabled?: boolean;
   playbook?: string;
   description?: string;
   limit?: string;
@@ -273,19 +280,25 @@ interface ExportWorkflow {
 interface ExportJobTemplate {
   name: string;
   description?: string;
+  extra_vars?: unknown;
+  survey_enabled?: boolean;
   playbook?: string;
   limit?: string;
   timeout?: number;
   become_enabled?: boolean;
   project?: ExportRef | null;
   execution_environment?: ExportRef | null;
-  related?: { credentials?: { name: string; credential_type?: { kind?: string } }[] };
+  related?: {
+    credentials?: { name: string; credential_type?: { kind?: string } }[];
+    survey_spec?: { spec?: SurveyQuestion[] };
+  };
 }
 
 /** What `awx export --workflow_job_templates --job_templates` writes (awxkit). */
 export interface AwxExport {
   workflow_job_templates?: ExportWorkflow[];
   job_templates?: ExportJobTemplate[];
+  projects?: { name: string; scm_url?: string }[];
 }
 
 const EXPORT_KIND: Record<string, WorkflowNodeKind> = {
@@ -390,4 +403,127 @@ export function playbooksOf(src: WorkflowSource): string[] {
   };
   walk(src);
   return [...out];
+}
+
+// ---- job templates (AFD-26) ----------------------------------------------------------------------
+
+/** An SCM URL without user and password, safe to show in a note. */
+export function safeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^@/]*@/i, '$1');
+}
+
+/**
+ * A job template as an import source: a workflow of one job node. The template's limit is where the
+ * flow runs (its targets), not a node target; its survey and extra vars become flow inputs.
+ */
+function jobSource(
+  name: string,
+  id: number | undefined,
+  description: string | undefined,
+  job: JobTemplateInfo,
+  extraVars: Record<string, unknown> | undefined,
+  survey: SurveyQuestion[] | undefined,
+): WorkflowSource {
+  const { limit, ...rest } = job;
+  return {
+    name,
+    ...(id !== undefined ? { id } : {}),
+    description,
+    extraVars,
+    limit,
+    survey,
+    nodes: [
+      {
+        identifier: name,
+        kind: 'job',
+        name,
+        description,
+        job: rest,
+        converge: false,
+        success: [],
+        failure: [],
+        always: [],
+      },
+    ],
+  };
+}
+
+/** A job template read through the AWX API, with its survey and its project's SCM URL. */
+export async function jobTemplateFromApi(reader: AwxReader, id: number): Promise<WorkflowSource> {
+  const t = await reader.get<ApiJobTemplate>(`/api/v2/job_templates/${id}/`);
+  const survey = t.survey_enabled
+    ? (await reader.get<{ spec?: SurveyQuestion[] }>(`/api/v2/job_templates/${id}/survey_spec/`))
+        .spec
+    : undefined;
+  const project =
+    typeof t.project === 'number'
+      ? await reader
+          .get<{ scm_url?: string }>(`/api/v2/projects/${t.project}/`)
+          .catch(() => undefined)
+      : undefined;
+  return jobSource(
+    t.name ?? `Job template ${id}`,
+    id,
+    text(t.description),
+    {
+      playbook: text(t.playbook),
+      project: t.summary_fields?.project?.name,
+      scmUrl: safeUrl(project?.scm_url),
+      description: text(t.description),
+      limit: text(t.limit),
+      timeout: t.timeout,
+      become: t.become_enabled,
+      executionEnvironment: t.summary_fields?.execution_environment?.name,
+      credentials: (t.summary_fields?.credentials ?? []).map((c) => ({
+        name: c.name,
+        kind: c.kind,
+      })),
+    },
+    varsOf(t.extra_vars),
+    survey,
+  );
+}
+
+/** One job template of an export file. */
+export function jobTemplateFromExport(data: AwxExport, name: string): WorkflowSource {
+  const t = data.job_templates?.find((j) => j.name === name);
+  if (!t) throw new Error(`The export file has no job template "${name}"`);
+  const project = data.projects?.find((p) => p.name === t.project?.name);
+  return jobSource(
+    t.name,
+    undefined,
+    text(t.description),
+    {
+      playbook: text(t.playbook),
+      project: t.project?.name,
+      scmUrl: safeUrl(project?.scm_url),
+      description: text(t.description),
+      limit: text(t.limit),
+      timeout: t.timeout,
+      become: t.become_enabled,
+      executionEnvironment: t.execution_environment?.name,
+      credentials: (t.related?.credentials ?? []).map((c) => ({
+        name: c.name,
+        kind: c.credential_type?.kind,
+      })),
+    },
+    varsOf(t.extra_vars),
+    t.survey_enabled ? t.related?.survey_spec?.spec : undefined,
+  );
+}
+
+/** The workflow and job template names in an export file, or why the data is not one. */
+export function exportTemplates(data: unknown): { workflows: string[]; jobs: string[] } | string {
+  const d = data as AwxExport | undefined;
+  if (
+    !d ||
+    typeof d !== 'object' ||
+    (!Array.isArray(d.workflow_job_templates) && !Array.isArray(d.job_templates))
+  )
+    return 'Not an "awx export" file: it has no workflow_job_templates or job_templates';
+  const names = (list?: { name?: unknown }[]) =>
+    (list ?? []).map((x) => x?.name).filter((n): n is string => typeof n === 'string');
+  const out = { workflows: names(d.workflow_job_templates), jobs: names(d.job_templates) };
+  return out.workflows.length + out.jobs.length ? out : 'The export file has no templates';
 }

@@ -132,8 +132,10 @@ The rest of this page is the complete feature reference.
   - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
   - _Mark expected_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
 - **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show the status dot and two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open subflow, Properties and Peek code.
-- **AWX workflow import (M9, ADR-0015):** _Import AWX Workflow…_ turns a workflow job template, read from AWX or from an `awx export` file, into a new flow laid out top-down at every level. It is a one-time copy: AWX is only read, and the flow description shows where it came from.
-  - Job template nodes become tasks bound to the template's playbook: implemented when the playbook is in this repository, otherwise draft. Node limit, tags, extra data, the machine credential, EE, become and timeout carry over.
+- **Playbook import (AFD-26, ADR-0021):** _Import Ansible Playbooks…_ (Command Palette, or right-click a playbook or folder) turns a playbook, or the playbooks of a folder, into new flows: one step per task, in order, a faithful copy (checked by running both side by side). Plays and imported playbooks become subflows, blocks with rescue/always a subflow with its failure path, roles steps bound to the role (split roles a subflow, one step per task file), handlers steps that run when a notifier changed something. Registered and loaded variables are wired as inputs and outputs; vault values and prompted secrets are imported by name only. _Show notes_ lists what has no one-to-one form.
+- **Task keywords (AFD-26):** a binding carries Ansible task keywords (`when`, `loop`, `ignore_errors`, `delegate_to`, …) on the Execution tab, written on the generated task as is and checked like parameters.
+- **AWX import (M9, ADR-0015; AFD-26):** _Import from AWX…_ turns a workflow or job template, read from AWX or from an `awx export` file, into a new flow laid out top-down at every level. It is a one-time copy: AWX is only read, and the flow description shows where it came from.
+  - A job template node whose playbook is in this repository becomes a subflow of the playbook's steps; otherwise it is a draft task bound to the playbook, and the notes name the project. Node limit, tags, extra data, the machine credential, EE, become and timeout carry over. A job template on its own imports the same way, its limit as the flow's hosts.
   - Nested workflows become subflows; approvals stay approvals, with their timeout; project and inventory syncs become draft tasks.
   - `success` goes to `ok_hosts`, `failure` to `failed_hosts`, and `always` to both, because AWX counts it as a failure handler. Several children get a parallel node, several roots start in parallel, and convergence "all" gets a join.
   - A failure with no AWX path stays open, so the banner shows what AWX would fail on.
@@ -190,7 +192,8 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 ## Usage
 
 - **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node. Or create an empty `*.flow.yaml` file anywhere: it opens in the designer with _Create a flow here_, which writes the same start (named after the file) in one undo step. A `*.flow.yaml` that does not parse shows why, with _Open as text_.
-- **Import from AWX:** Command Palette → _Ansible Flow: Import AWX Workflow…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick the workflow and the flow key; the new flow opens, and _Show notes_ lists what did not map one to one.
+- **Import playbooks:** Command Palette → _Ansible Flow: Import Ansible Playbooks…_, or right-click a playbook or a folder in the Explorer. A folder lists its playbooks (top-level ones selected); each becomes `flows/<key>/<key>.flow.yaml`. The first opens, and _Show notes_ lists what did not map one to one.
+- **Import from AWX:** Command Palette → _Ansible Flow: Import from AWX…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick a workflow or job template and the flow key; the new flow opens, and _Show notes_ lists what did not map one to one.
 - **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
 - **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.
 - **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
@@ -376,33 +379,35 @@ The extension teaches AI assistants the flow format and gives them tools that ed
 
 ## Repository
 
-| Path                             | What                                                                                                                                   |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `ansible-flow-designer-handoff/` | Design bundle (product docs 01–08, mockups, original schema and examples). Reference only, never edited.                               |
-| `schema/flow.schema.json`        | Canonical flow document schema (v1 plus additive fields, ADR-0004).                                                                    |
-| `examples/`                      | Example flows, byte-identical copies of the handoff examples; `generated/` holds their golden generated code.                          |
-| `src/core/`                      | Pure TypeScript: YAML edit engine, flow model, validation, commands, port menus, failure patterns, host⇄webview protocol.              |
-| `src/core/engine/`               | Option A code generation (ADR-0009), generated-file checksums, the inspector's play preview.                                           |
-| `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                |
-| `src/core/drift/`                | Code sync and drift: scan types, `computeDrift` (D-29 kinds and actions), role stubs and argument specs (M6).                          |
-| `src/core/awx/`                  | AWX API types, AWX job events → `afd_events` lines (M7); workflow import sources and the mapping to a flow (M9).                       |
-| `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                          |
-| `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                               |
-| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import AWX Workflow (M9), approval workflows (AFD-11).  |
-| `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                         |
-| `src/core/ai/`                   | AI tool core: key references, the op language, flow descriptions, tool specs and handlers, the generated reference (AFD-19).           |
-| `src/mcp/`                       | The MCP server for terminal agents (`dist/mcp.js`) and its file-system IO (AFD-19).                                                    |
-| `src/extension/ai/`              | Copilot tools, Complete IDs quick fix, Set Up / Remove AI Assistants (skill copies, MCP registrations, launcher) (AFD-19).             |
-| `skills/`, `instructions/`       | The `ansible-flow` skill (`references/` generated by `just gen-ai`) and Copilot instructions for `*.flow.yaml` (AFD-19).               |
-| `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                              |
-| `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                 |
-| `src/extension/catalog/`         | SQLite FTS5 catalog index, its build worker, the catalog service, catalog-backed binding checks (M5).                                  |
-| `src/extension/`                 | Extension host: custom editor, sessions, diagnostics, version bump, auto-layout, codegen on save, probe client, runs, audit, test API. |
-| `probe/`                         | Python probe (`afd_probe`, stdlib only) and the `afd_events` callback; pytest contract tests (uv).                                     |
-| `docker/afd-ee.Dockerfile`       | Minimal execution environment image for tests and runs; `afd-awx-ee.Dockerfile` adds ansible-runner for AWX (M7).                      |
-| `src/webview/`                   | React + React Flow canvas and panels; `harness/` is a dev-only page with a fake host.                                                  |
-| `test/`                          | Vitest unit/component tests, VS Code integration and perf tests, fixtures.                                                             |
-| `docs/adr/`, `docs/spikes/`      | Architecture decisions; the M3 Option A spike (playbooks and results).                                                                 |
+| Path                             | What                                                                                                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ansible-flow-designer-handoff/` | Design bundle (product docs 01–08, mockups, original schema and examples). Reference only, never edited.                                      |
+| `schema/flow.schema.json`        | Canonical flow document schema (v1 plus additive fields, ADR-0004).                                                                           |
+| `examples/`                      | Example flows, byte-identical copies of the handoff examples; `generated/` holds their golden generated code.                                 |
+| `src/core/`                      | Pure TypeScript: YAML edit engine, flow model, validation, commands, port menus, failure patterns, host⇄webview protocol.                     |
+| `src/core/engine/`               | Option A code generation (ADR-0009), generated-file checksums, the inspector's play preview.                                                  |
+| `src/core/run/`                  | Environment resolution, probe and run command lines, run-event summary.                                                                       |
+| `src/core/drift/`                | Code sync and drift: scan types, `computeDrift` (D-29 kinds and actions), role stubs and argument specs (M6).                                 |
+| `src/core/awx/`                  | AWX API types, AWX job events → `afd_events` lines (M7); workflow and job template import sources and the mapping to a flow (M9, AFD-26).     |
+| `src/core/import/`               | Playbook import (AFD-26): the Ansible source reader (playbooks, task files, roles, vault kept opaque), the as-is mapper, shared secret rules. |
+| `src/extension/import/`          | Import commands' shared helpers (key, workspace files, notes) and _Import Ansible Playbooks…_ (AFD-26).                                       |
+| `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                                 |
+| `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                                      |
+| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import from AWX (M9, AFD-26), approval workflows (AFD-11).     |
+| `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                                |
+| `src/core/ai/`                   | AI tool core: key references, the op language, flow descriptions, tool specs and handlers, the generated reference (AFD-19).                  |
+| `src/mcp/`                       | The MCP server for terminal agents (`dist/mcp.js`) and its file-system IO (AFD-19).                                                           |
+| `src/extension/ai/`              | Copilot tools, Complete IDs quick fix, Set Up / Remove AI Assistants (skill copies, MCP registrations, launcher) (AFD-19).                    |
+| `skills/`, `instructions/`       | The `ansible-flow` skill (`references/` generated by `just gen-ai`) and Copilot instructions for `*.flow.yaml` (AFD-19).                      |
+| `src/core/catalog/`              | Catalog types, search ranking, repository context, the binding draft (form, checklist, `@` choices) (M5).                                     |
+| `src/extension/sync/`            | Re-sync (probe compile, roles, Git state, catalog returns) and the drift actions that write code (M6).                                        |
+| `src/extension/catalog/`         | SQLite FTS5 catalog index, its build worker, the catalog service, catalog-backed binding checks (M5).                                         |
+| `src/extension/`                 | Extension host: custom editor, sessions, diagnostics, version bump, auto-layout, codegen on save, probe client, runs, audit, test API.        |
+| `probe/`                         | Python probe (`afd_probe`, stdlib only) and the `afd_events` callback; pytest contract tests (uv).                                            |
+| `docker/afd-ee.Dockerfile`       | Minimal execution environment image for tests and runs; `afd-awx-ee.Dockerfile` adds ansible-runner for AWX (M7).                             |
+| `src/webview/`                   | React + React Flow canvas and panels; `harness/` is a dev-only page with a fake host.                                                         |
+| `test/`                          | Vitest unit/component tests, VS Code integration and perf tests, fixtures.                                                                    |
+| `docs/adr/`, `docs/spikes/`      | Architecture decisions; the M3 Option A spike (playbooks and results).                                                                        |
 
 ## Development
 

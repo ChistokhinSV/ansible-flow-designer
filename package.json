@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -49,8 +49,13 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.importPlaybooks",
+        "title": "Import Ansible Playbooks…",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.importAwxWorkflow",
-        "title": "Import AWX Workflow…",
+        "title": "Import from AWX…",
         "category": "Ansible Flow"
       },
       {
@@ -247,6 +252,11 @@
           "command": "afd.exportImage",
           "when": "resourceFilename =~ /\\.flow\\.yaml$/",
           "group": "7_afd_export@2"
+        },
+        {
+          "command": "afd.importPlaybooks",
+          "when": "explorerResourceIsFolder || resourceExtname =~ /^\\.ya?ml$/ && !(resourceFilename =~ /\\.flow\\.yaml$/)",
+          "group": "7_afd_import@1"
         }
       ]
     },
@@ -773,6 +783,98 @@
                           "register": {
                             "type": "string",
                             "description": "Variable that keeps the task result; outputs read it with from: impl.register."
+                          },
+                          "keywords": {
+                            "type": "object",
+                            "description": "Ansible task keywords written on the generated task as they are (module and role bindings). Jinja may reference inputs by name; when, changed_when and failed_when are Jinja tests without braces. What the flow models itself is set there instead: register (impl.register), tags, become, timeout, retries, delay and until (settings), handlers (steps with when: <register> is changed), block and rescue (subflows and failure paths).",
+                            "properties": {
+                              "when": {
+                                "description": "Jinja test without braces (or a list, all must hold): hosts for which it is false skip the task and leave through ok_hosts."
+                              },
+                              "changed_when": {
+                                "description": "Jinja test without braces that decides whether the result counts as changed; may read the registered result."
+                              },
+                              "failed_when": {
+                                "description": "Jinja test without braces that decides whether the task failed; may read the registered result."
+                              },
+                              "loop": {
+                                "description": "List to run the task over, usually Jinja (\"{{ interfaces }}\"); each item is item (or loop_control.loop_var)."
+                              },
+                              "loop_control": {
+                                "type": "object",
+                                "description": "Loop options: loop_var, index_var, label, pause, extended."
+                              },
+                              "ignore_errors": {
+                                "description": "true: a failure is ignored and the host leaves through ok_hosts instead of failed_hosts."
+                              },
+                              "delegate_to": {
+                                "description": "Run the task on this host instead (e.g. localhost), on behalf of each arriving host."
+                              },
+                              "delegate_facts": {
+                                "description": "With delegate_to: facts go to the delegated host."
+                              },
+                              "run_once": {
+                                "description": "Run the task once for the batch, on the first host; the result applies to every host."
+                              },
+                              "no_log": {
+                                "description": "Hide the task result in the log (use for secrets)."
+                              },
+                              "check_mode": {
+                                "description": "true: always run in check mode; false: run for real even in check mode."
+                              },
+                              "diff": {
+                                "description": "Show or hide the diff of changes for this task."
+                              },
+                              "environment": {
+                                "description": "Environment variables for the task (a map, or Jinja)."
+                              },
+                              "become_user": {
+                                "description": "User to become (with settings.become)."
+                              },
+                              "become_method": {
+                                "description": "Privilege escalation method (sudo, su, enable, ...)."
+                              },
+                              "become_flags": {
+                                "description": "Extra flags for the become method."
+                              },
+                              "become_exe": {
+                                "description": "Executable for the become method."
+                              },
+                              "connection": {
+                                "description": "Connection plugin for this task (local, network_cli, ...)."
+                              },
+                              "remote_user": {
+                                "description": "User to log in as."
+                              },
+                              "port": {
+                                "description": "Port to connect to."
+                              },
+                              "throttle": {
+                                "description": "Most hosts running this task at the same time."
+                              },
+                              "async": {
+                                "description": "Run in the background for at most this many seconds."
+                              },
+                              "poll": {
+                                "description": "Seconds between status checks of an async task (0: do not wait)."
+                              },
+                              "vars": {
+                                "type": "object",
+                                "description": "Task variables; for a role binding, put role variables in params instead."
+                              },
+                              "module_defaults": {
+                                "description": "Default parameters for modules run by this task."
+                              },
+                              "debugger": {
+                                "description": "When to start the task debugger (always, never, on_failed, ...)."
+                              }
+                            },
+                            "patternProperties": {
+                              "^with_[a-z_]+$": {
+                                "description": "A with_<lookup> loop (with_items, with_dict, ...): prefer loop."
+                              }
+                            },
+                            "additionalProperties": false
                           }
                         },
                         "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
@@ -984,6 +1086,101 @@
                           }
                         },
                         "description": "Settings to change; a null value removes that setting."
+                      },
+                      "keywords": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "description": "Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.",
+                        "properties": {
+                          "when": {
+                            "description": "Jinja test without braces (or a list, all must hold): hosts for which it is false skip the task and leave through ok_hosts."
+                          },
+                          "changed_when": {
+                            "description": "Jinja test without braces that decides whether the result counts as changed; may read the registered result."
+                          },
+                          "failed_when": {
+                            "description": "Jinja test without braces that decides whether the task failed; may read the registered result."
+                          },
+                          "loop": {
+                            "description": "List to run the task over, usually Jinja (\"{{ interfaces }}\"); each item is item (or loop_control.loop_var)."
+                          },
+                          "loop_control": {
+                            "type": "object",
+                            "description": "Loop options: loop_var, index_var, label, pause, extended."
+                          },
+                          "ignore_errors": {
+                            "description": "true: a failure is ignored and the host leaves through ok_hosts instead of failed_hosts."
+                          },
+                          "delegate_to": {
+                            "description": "Run the task on this host instead (e.g. localhost), on behalf of each arriving host."
+                          },
+                          "delegate_facts": {
+                            "description": "With delegate_to: facts go to the delegated host."
+                          },
+                          "run_once": {
+                            "description": "Run the task once for the batch, on the first host; the result applies to every host."
+                          },
+                          "no_log": {
+                            "description": "Hide the task result in the log (use for secrets)."
+                          },
+                          "check_mode": {
+                            "description": "true: always run in check mode; false: run for real even in check mode."
+                          },
+                          "diff": {
+                            "description": "Show or hide the diff of changes for this task."
+                          },
+                          "environment": {
+                            "description": "Environment variables for the task (a map, or Jinja)."
+                          },
+                          "become_user": {
+                            "description": "User to become (with settings.become)."
+                          },
+                          "become_method": {
+                            "description": "Privilege escalation method (sudo, su, enable, ...)."
+                          },
+                          "become_flags": {
+                            "description": "Extra flags for the become method."
+                          },
+                          "become_exe": {
+                            "description": "Executable for the become method."
+                          },
+                          "connection": {
+                            "description": "Connection plugin for this task (local, network_cli, ...)."
+                          },
+                          "remote_user": {
+                            "description": "User to log in as."
+                          },
+                          "port": {
+                            "description": "Port to connect to."
+                          },
+                          "throttle": {
+                            "description": "Most hosts running this task at the same time."
+                          },
+                          "async": {
+                            "description": "Run in the background for at most this many seconds."
+                          },
+                          "poll": {
+                            "description": "Seconds between status checks of an async task (0: do not wait)."
+                          },
+                          "vars": {
+                            "type": "object",
+                            "description": "Task variables; for a role binding, put role variables in params instead."
+                          },
+                          "module_defaults": {
+                            "description": "Default parameters for modules run by this task."
+                          },
+                          "debugger": {
+                            "description": "When to start the task debugger (always, never, on_failed, ...)."
+                          }
+                        },
+                        "patternProperties": {
+                          "^with_[a-z_]+$": {
+                            "description": "A with_<lookup> loop (with_items, with_dict, ...): prefer loop."
+                          }
+                        },
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -1550,6 +1747,98 @@
                           "register": {
                             "type": "string",
                             "description": "Variable that keeps the task result; outputs read it with from: impl.register."
+                          },
+                          "keywords": {
+                            "type": "object",
+                            "description": "Ansible task keywords written on the generated task as they are (module and role bindings). Jinja may reference inputs by name; when, changed_when and failed_when are Jinja tests without braces. What the flow models itself is set there instead: register (impl.register), tags, become, timeout, retries, delay and until (settings), handlers (steps with when: <register> is changed), block and rescue (subflows and failure paths).",
+                            "properties": {
+                              "when": {
+                                "description": "Jinja test without braces (or a list, all must hold): hosts for which it is false skip the task and leave through ok_hosts."
+                              },
+                              "changed_when": {
+                                "description": "Jinja test without braces that decides whether the result counts as changed; may read the registered result."
+                              },
+                              "failed_when": {
+                                "description": "Jinja test without braces that decides whether the task failed; may read the registered result."
+                              },
+                              "loop": {
+                                "description": "List to run the task over, usually Jinja (\"{{ interfaces }}\"); each item is item (or loop_control.loop_var)."
+                              },
+                              "loop_control": {
+                                "type": "object",
+                                "description": "Loop options: loop_var, index_var, label, pause, extended."
+                              },
+                              "ignore_errors": {
+                                "description": "true: a failure is ignored and the host leaves through ok_hosts instead of failed_hosts."
+                              },
+                              "delegate_to": {
+                                "description": "Run the task on this host instead (e.g. localhost), on behalf of each arriving host."
+                              },
+                              "delegate_facts": {
+                                "description": "With delegate_to: facts go to the delegated host."
+                              },
+                              "run_once": {
+                                "description": "Run the task once for the batch, on the first host; the result applies to every host."
+                              },
+                              "no_log": {
+                                "description": "Hide the task result in the log (use for secrets)."
+                              },
+                              "check_mode": {
+                                "description": "true: always run in check mode; false: run for real even in check mode."
+                              },
+                              "diff": {
+                                "description": "Show or hide the diff of changes for this task."
+                              },
+                              "environment": {
+                                "description": "Environment variables for the task (a map, or Jinja)."
+                              },
+                              "become_user": {
+                                "description": "User to become (with settings.become)."
+                              },
+                              "become_method": {
+                                "description": "Privilege escalation method (sudo, su, enable, ...)."
+                              },
+                              "become_flags": {
+                                "description": "Extra flags for the become method."
+                              },
+                              "become_exe": {
+                                "description": "Executable for the become method."
+                              },
+                              "connection": {
+                                "description": "Connection plugin for this task (local, network_cli, ...)."
+                              },
+                              "remote_user": {
+                                "description": "User to log in as."
+                              },
+                              "port": {
+                                "description": "Port to connect to."
+                              },
+                              "throttle": {
+                                "description": "Most hosts running this task at the same time."
+                              },
+                              "async": {
+                                "description": "Run in the background for at most this many seconds."
+                              },
+                              "poll": {
+                                "description": "Seconds between status checks of an async task (0: do not wait)."
+                              },
+                              "vars": {
+                                "type": "object",
+                                "description": "Task variables; for a role binding, put role variables in params instead."
+                              },
+                              "module_defaults": {
+                                "description": "Default parameters for modules run by this task."
+                              },
+                              "debugger": {
+                                "description": "When to start the task debugger (always, never, on_failed, ...)."
+                              }
+                            },
+                            "patternProperties": {
+                              "^with_[a-z_]+$": {
+                                "description": "A with_<lookup> loop (with_items, with_dict, ...): prefer loop."
+                              }
+                            },
+                            "additionalProperties": false
                           }
                         },
                         "description": "The binding; null removes it."
@@ -1782,8 +2071,8 @@
         "steps": [
           {
             "id": "open",
-            "title": "Open a sample or start a new flow",
-            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
+            "title": "Open a sample, start a new flow, or import playbooks",
+            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, start from scratch with a start and a done node, or turn playbooks you already have into flows, one step per task.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\n[Import Ansible Playbooks](command:afd.importPlaybooks)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/canvas-light.png",
@@ -1795,7 +2084,8 @@
             },
             "completionEvents": [
               "onCommand:afd.openSample",
-              "onCommand:afd.newFlow"
+              "onCommand:afd.newFlow",
+              "onCommand:afd.importPlaybooks"
             ]
           },
           {
@@ -2015,8 +2305,8 @@
           },
           {
             "id": "import",
-            "title": "Import an existing AWX workflow",
-            "description": "Turn a workflow job template you already have into a flow, laid out top-down, from AWX or from an `awx export` file.\n[Import AWX Workflow](command:afd.importAwxWorkflow)\n[How-to: import an AWX workflow](command:afd.openGuide?%5B%22how-to%2Fimport-awx.md%22%5D)",
+            "title": "Import an existing AWX workflow or job template",
+            "description": "Turn a workflow or job template you already have into a flow, from AWX or from an `awx export` file. Playbooks of this repository become steps.\n[Import from AWX](command:afd.importAwxWorkflow)\n[How-to: import playbooks and AWX templates](command:afd.openGuide?%5B%22how-to%2Fimport.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/awx-import-light.png",

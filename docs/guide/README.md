@@ -49,7 +49,7 @@ playbooks are generated from it.
 - [Runs and environments](how-to/runs-and-environments.md)
 - [Approvals](how-to/approvals.md)
 - [AWX](how-to/awx.md)
-- [Import an AWX workflow](how-to/import-awx.md)
+- [Import playbooks and AWX templates](how-to/import.md)
 
 **AI and setup**
 - [AI assistants](how-to/ai-assistants.md)

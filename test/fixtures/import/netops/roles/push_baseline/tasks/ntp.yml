@@ -1,0 +1,5 @@
+- name: Write the NTP servers
+  ansible.builtin.copy:
+    content: "{% for s in ntp_servers %}ntp server {{ s }}\n{% endfor %}"
+    dest: "{{ out_dir }}/{{ inventory_hostname }}/ntp.cfg"
+    mode: "0644"

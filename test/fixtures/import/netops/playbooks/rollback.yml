@@ -1,0 +1,8 @@
+# Not imported by site.yml: run on its own after a failed change.
+- name: Roll back the baseline
+  hosts: edge
+  gather_facts: false
+  tasks:
+    - name: Restore the backup
+      ansible.builtin.debug:
+        msg: "restore {{ inventory_hostname }} from its last backup"

@@ -10,6 +10,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'The file breaks the flow schema (a field of the wrong type or an unknown field).',
     fix: 'Correct the field named in the message; see the format reference.',
   },
+  'keyword-reserved': {
+    meaning:
+      'A task keyword in impl.keywords that the flow models itself (register, tags, become, timeout, retries, until, notify, block) or that is no task keyword.',
+    fix: 'Move it where the message says (impl.register, settings, a handler step, a subflow), or remove it.',
+  },
+  'keyword-ignored': {
+    meaning:
+      'Task keywords that cannot apply: on a playbook binding, or vars on a role binding (role variables belong in params).',
+    fix: 'Remove them, or bind a module or role; move role variables to params.',
+  },
   'missing-id': {
     meaning:
       'Written by hand: a node, wire or the flow has no ID, or a reference names a node by key.',

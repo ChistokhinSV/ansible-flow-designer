@@ -183,3 +183,48 @@ describe('properties page: Implementation', () => {
     });
   });
 });
+
+describe('properties page: Execution (AFD-26)', () => {
+  function openExecution(key: string) {
+    const id = nodeOf(key).id;
+    act(() => useUi.getState().openProperties(id, 'execution'));
+    render(<Properties node={id} />);
+    return id;
+  }
+
+  it('edits task keywords as YAML and refuses what the flow models itself', () => {
+    const id = openExecution('set-boot-variable');
+    const box = screen.getByLabelText(/Task keywords/) as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'tags: [x]' } });
+    fireEvent.blur(box);
+    expect(screen.getByText('tags is modelled by the flow: use settings.tags')).toBeTruthy();
+    expect(commands()).toEqual([]);
+    fireEvent.change(box, {
+      target: { value: 'when: ansible_network_os == "ios"\nrun_once: true' },
+    });
+    fireEvent.blur(box);
+    expect(commands()).toEqual([
+      {
+        kind: 'updateNode',
+        id,
+        patch: { keywords: { when: 'ansible_network_os == "ios"', run_once: true } },
+      },
+    ]);
+  });
+
+  it('says a playbook binding takes no keywords, and shows nothing for an unbound node', () => {
+    const bound = doc.nodes.find((n) => n.impl?.kind === 'playbook');
+    if (bound) {
+      openExecution(bound.key);
+      expect(screen.getByText(/do not apply to a playbook binding/)).toBeTruthy();
+      cleanup();
+    }
+    const unbound = [...buildModel(doc).nodes.values()].find(
+      (n) => n.node.type === 'task' && !n.node.impl,
+    )?.node;
+    if (unbound) {
+      openExecution(unbound.key);
+      expect(screen.queryByLabelText(/Task keywords/)).toBeNull();
+    }
+  });
+});

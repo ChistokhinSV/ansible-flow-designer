@@ -1,6 +1,7 @@
 // Right panel with nothing selected (04 §1): flow identity, goal, typed inputs, owner, runtime,
 // maintenance window (Timing lens, M8) and readiness counters.
 import { SLUG } from '../../core/flow/ids';
+import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
 import { useUi } from '../store';
 import { bannerCount, readiness, STATUS_ORDER } from '../viewModel';
@@ -52,10 +53,7 @@ export function FlowDescription() {
         }
       />
       {flow.imported_from && (
-        <ReadOnly
-          label="Imported from"
-          value={`AWX workflow "${flow.imported_from.template}"${flow.imported_from.id !== undefined ? ` (id ${flow.imported_from.id})` : ''}`}
-        />
+        <ReadOnly label="Imported from" value={importedFromText(flow.imported_from)} />
       )}
       <CommitField
         label="Maintenance window"
@@ -89,4 +87,17 @@ export function FlowDescription() {
       </section>
     </div>
   );
+}
+
+const IMPORT_KIND: Record<string, string> = {
+  awx_workflow: 'AWX workflow',
+  awx_job_template: 'AWX job template',
+  playbook: 'Playbook',
+};
+
+function importedFromText(from: NonNullable<FlowHeader['imported_from']>): string {
+  const what = from.template ? `"${from.template}"` : (from.path ?? '');
+  const id = from.id !== undefined ? ` (id ${from.id})` : '';
+  const path = from.template && from.path ? ` · ${from.path}` : '';
+  return `${IMPORT_KIND[from.kind] ?? from.kind} ${what}${id}${path}`.trim();
 }

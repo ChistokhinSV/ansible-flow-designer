@@ -28,6 +28,14 @@ export function durationSeconds(text: string | number | undefined): number | und
   return parts.reduce((sum, p) => sum + Number(p[1]) * (UNIT[p[2] as string] ?? 0), 0) || undefined;
 }
 
+/** `1h30m`, `15m`, `45s`: the duration format settings and the Timing lens read. */
+export function duration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h ? `${h}h` : ''}${m ? `${m}m` : ''}${s ? `${s}s` : ''}` || '0s';
+}
+
 /** Ansible group names: lowercase letters, digits and underscores. */
 export function groupPart(key: string): string {
   return key.toLowerCase().replaceAll(/[^a-z0-9_]/g, '_');

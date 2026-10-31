@@ -2,6 +2,7 @@
 // Option A emits, the play vars that pass upstream outputs in as node inputs, and set_fact
 // placeholders that let an unbound node's outputs flow through a skeleton run.
 import { liftOf, resolveFrom } from '../flow/dataRefs';
+import { ROLE_TASK_KEYWORDS, WITH } from '../flow/keywords';
 import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
 import { groupPart } from './util';
@@ -33,15 +34,25 @@ function oneLine(text: string): string {
 /** The module task or include_role of a bound node (without Option A's routing around it). */
 export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number): OutMap {
   const tag = `node_${node.id}`;
+  const keywords = Object.entries(impl.keywords ?? {});
   if (impl.kind === 'role') {
     const options: OutMap = { name: impl.ref };
     const roleVars: OutMap = {};
     for (const [k, v] of Object.entries(impl.params ?? {}))
       (INCLUDE_OPTIONS.has(k) ? options : roleVars)[k] = v as Out;
-    options.apply = { tags: flow([tag]), timeout };
+    // Task keywords (AFD-26): conditions and loops stay on include_role; the rest reach every task
+    // of the role through apply, as a static roles: entry would. Role variables live in params.
+    const onTask: OutMap = {};
+    const applied: OutMap = {};
+    for (const [k, v] of keywords) {
+      if (k === 'vars') continue;
+      (ROLE_TASK_KEYWORDS.has(k) || WITH.test(k) ? onTask : applied)[k] = v as Out;
+    }
+    options.apply = { tags: flow([tag]), timeout, ...applied };
     return {
       name: `[${node.key}] Apply role`,
       'ansible.builtin.include_role': options,
+      ...onTask,
       vars: Object.keys(roleVars).length > 0 ? roleVars : undefined,
     };
   }
@@ -52,6 +63,7 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number)
   return {
     name: `[${node.key}] ${oneLine(node.title)}`,
     [impl.ref]: (impl.params ?? {}) as Out,
+    ...(Object.fromEntries(keywords) as OutMap),
     register: reg,
     ignore_unreachable: true,
     timeout,

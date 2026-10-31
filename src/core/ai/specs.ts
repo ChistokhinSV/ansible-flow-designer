@@ -153,6 +153,11 @@ export const OP_SPECS: OpSpec[] = [
         ),
         description: 'Settings to change; a null value removes that setting.',
       },
+      keywords: nullable({
+        ...((IMPL as { properties: Record<string, Json> }).properties.keywords as Json),
+        description:
+          'Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.',
+      }),
     },
     required: ['node'],
     example: { op: 'update_node', node: 'check-ntp', status: 'specified' },

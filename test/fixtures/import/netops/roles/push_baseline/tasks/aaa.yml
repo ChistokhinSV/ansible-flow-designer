@@ -1,0 +1,5 @@
+- name: Write the AAA settings
+  ansible.builtin.template:
+    src: aaa.j2
+    dest: "{{ out_dir }}/{{ inventory_hostname }}/aaa.cfg"
+    mode: "0644"

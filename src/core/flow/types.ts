@@ -48,6 +48,8 @@ export interface ImplBinding {
   collection_version?: string;
   params?: Record<string, unknown>;
   register?: string;
+  /** Ansible task keywords written on the generated task as they are (AFD-26): when, loop, ... */
+  keywords?: Record<string, unknown>;
 }
 
 export interface NodeSettings {
@@ -137,8 +139,13 @@ export interface FlowHeader {
   goal?: string;
   owner?: string;
   runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string };
-  /** Where an imported flow came from (M9): a one-time copy, kept for reference only. */
-  imported_from?: { kind: 'awx_workflow'; template: string; id?: number };
+  /** Where an imported flow came from (M9, AFD-26): a one-time copy, kept for reference only. */
+  imported_from?: {
+    kind: 'awx_workflow' | 'awx_job_template' | 'playbook';
+    template?: string;
+    id?: number;
+    path?: string;
+  };
   /** Longest time the flow may take (`4h`, `2h30m`), checked by the Timing lens (M8). */
   maintenance_window?: string;
   inputs?: Contract;
