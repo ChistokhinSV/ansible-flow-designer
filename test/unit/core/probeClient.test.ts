@@ -55,6 +55,23 @@ describe('probe client (AFD-32)', () => {
     expect(coreSupported('2.18.9')).toBe(false);
   });
 
+  it('cancels a queued call quietly and a running one by restarting for the rest (AFD-39)', async () => {
+    const probe = fake();
+    const first = await probe.call<{ pid: number }>('pid');
+    const running = new AbortController();
+    const queued = new AbortController();
+    const hung = probe.call('hang', {}, 5_000, running.signal);
+    const waiting = probe.call('echo', {}, 5_000, queued.signal);
+    const after = probe.call<{ pid: number }>('pid', {}, 5_000);
+    queued.abort();
+    await expect(waiting).rejects.toThrow('Cancelled');
+    await new Promise((r) => setTimeout(r, 100));
+    running.abort();
+    await expect(hung).rejects.toThrow('Cancelled');
+    expect((await after).pid).not.toBe(first.pid);
+    await expect(probe.call('echo', {}, 1_000, AbortSignal.abort())).rejects.toThrow('Cancelled');
+  });
+
   it('fails every waiting call when it is stopped', async () => {
     const probe = fake();
     const running = probe.call('sleep', { ms: 1_000 }, 5_000);

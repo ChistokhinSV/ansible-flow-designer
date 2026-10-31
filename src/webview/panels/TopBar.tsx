@@ -119,6 +119,16 @@ export function TopBar() {
           </button>
         ) : null}
         <RunStatus run={run} />
+        {running ? (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => send({ type: 'stopRun' })}
+            title="Stop the run: end the local run, or cancel the job in AWX"
+          >
+            <span className="codicon codicon-debug-stop" aria-hidden="true" /> Stop
+          </button>
+        ) : null}
         {mode === 'design' ? <DesignActions running={running} /> : null}
         {mode === 'run' ? (
           <button

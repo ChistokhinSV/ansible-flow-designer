@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.5 — AFD-39
+
+- **Stop a run** (improvement program, wave 2): while a run goes, the top bar shows **Stop**, and the Command Palette has **Ansible Flow: Stop Run**. A local run's terminal task ends and the run shows as stopped (not failed); an AWX job or workflow is cancelled in AWX and followed until AWX reports it canceled.
+- **Check Generated Code** runs with a progress notification you can cancel; a cancelled probe call leaves the queue, or restarts the probe for the calls behind it when it was running.
+- Every timeout the extension uses is in one module (`src/node/timeouts.ts`).
+
 ## 0.24.4 — AFD-38
 
 - **Flow sessions** (improvement program, wave 2):

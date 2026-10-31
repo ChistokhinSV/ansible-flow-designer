@@ -12,11 +12,13 @@ import type { RunErrorCode, RunView } from '../../core/protocol';
 import { runProcess, splitInputs } from '../../core/run/command';
 import { summarizeRun } from '../../core/run/events';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
+import { TIMEOUTS } from '../../node/timeouts';
 import { environmentFor, type ProbeManager, UNTRUSTED } from '../env/environment';
 import { CANCELLED } from '../errors';
 import { appendAudit } from './audit';
 import { collectInputs, targetsOf } from './inputs';
 import { auditHeader, prepareRun, stamp } from './prepare';
+import { runStarted } from './stop';
 
 export interface RunOptions {
   mode: 'check' | 'real';
@@ -142,14 +144,22 @@ export async function runFlow(
   if ('error' in probe) return fail(probe.error);
   let facts: InventoryFacts;
   try {
-    facts = await probe.client.call<InventoryFacts>('inventory', { inventory, targets }, 120_000);
+    facts = await probe.client.call<InventoryFacts>(
+      'inventory',
+      { inventory, targets },
+      TIMEOUTS.probeInventory,
+    );
   } catch (e) {
     return fail(`The Ansible environment (${probe.label}) did not answer: ${(e as Error).message}`);
   }
   if (facts.count === 0)
     return fail(`None of the targets (${targets.join(', ')}) is in the inventory`);
   const uses = await targetFacts(doc, inputs, (pattern) =>
-    probe.client.call<InventoryFacts>('inventory', { inventory, targets: [pattern] }, 120_000),
+    probe.client.call<InventoryFacts>(
+      'inventory',
+      { inventory, targets: [pattern] },
+      TIMEOUTS.probeInventory,
+    ),
   );
   const prod = [
     ...new Set([...facts.prod_groups, ...facts.prod_hosts, ...uses.flatMap((u) => u.prod)]),
@@ -264,23 +274,40 @@ export async function runFlow(
     clear: true,
   };
   const t0 = Date.now();
+  // Stop Run (AFD-39) terminates the task; the run then ends as stopped, not as an error.
+  let stopped = false;
+  let registration: vscode.Disposable | undefined;
   const rc = await new Promise<number | undefined>((resolve) => {
     let execution: vscode.TaskExecution | undefined;
+    // A terminated task may end without a process exit event: either event ends the run.
     const sub = vscode.tasks.onDidEndTaskProcess((e) => {
       if (e.execution !== execution) return;
       sub.dispose();
+      ended.dispose();
       resolve(e.exitCode);
+    });
+    const ended = vscode.tasks.onDidEndTask((e) => {
+      if (e.execution !== execution || !stopped) return;
+      sub.dispose();
+      ended.dispose();
+      resolve(undefined);
     });
     void vscode.tasks.executeTask(task).then(
       (x) => {
         execution = x;
+        registration = runStarted(document.uri, async () => {
+          stopped = true;
+          x.terminate();
+        });
       },
       () => {
         sub.dispose();
+        ended.dispose();
         resolve(undefined);
       },
     );
   });
+  registration?.dispose();
 
   await dropVars(runDir.fsPath).catch(() => undefined);
   let text = '';
@@ -292,16 +319,18 @@ export async function runFlow(
   const summary = summarizeRun(text, generated.result.routes);
   const done: RunView = {
     ...running,
-    state: rc === undefined ? 'error' : 'done',
+    state: rc === undefined || stopped ? 'error' : 'done',
     finishedAt: new Date().toISOString(),
     rc,
     summary,
-    error:
-      rc === undefined
+    error: stopped
+      ? 'Stopped by the user'
+      : rc === undefined
         ? 'The run could not be started'
         : text
           ? undefined
           : 'The run produced no events',
+    ...(stopped ? { errorCode: 'cancelled' as const } : {}),
   };
   await appendAudit(deps.storage, {
     event: 'finish',

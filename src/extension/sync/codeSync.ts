@@ -8,12 +8,11 @@ import type { CodeScan, CompiledPlaybook, CompiledRole } from '../../core/drift/
 import { buildModel } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RoleInfo } from '../../core/protocol';
+import { TIMEOUTS } from '../../node/timeouts';
 import type { CatalogService } from '../catalog/catalogService';
 import { generatedDir } from '../codegen';
 import type { ProbeManager } from '../env/environment';
 import { gitState } from '../gitHead';
-
-const COMPILE_TIMEOUT = 180_000;
 
 export interface SyncDeps {
   probes: ProbeManager;
@@ -63,9 +62,9 @@ export async function scanFlow(
   }>(
     'compile',
     { playbooks: [generated, ...playbooks], roles: [...roles.values()] },
-    COMPILE_TIMEOUT,
+    TIMEOUTS.probeCompile,
   );
-  const roleInfo = await probe.client.call<RoleInfo[]>('roles', {}, COMPILE_TIMEOUT);
+  const roleInfo = await probe.client.call<RoleInfo[]>('roles', {}, TIMEOUTS.probeCompile);
   const [book, ...books] = compiled.playbooks;
 
   const bound = new Set([...roles.values()].map((r) => r.name));

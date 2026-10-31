@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.24.4",
+  "version": "0.24.5",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -90,6 +90,12 @@
         "title": "Run for Real…",
         "category": "Ansible Flow",
         "icon": "$(debug-alt)"
+      },
+      {
+        "command": "afd.stopRun",
+        "title": "Stop Run",
+        "category": "Ansible Flow",
+        "icon": "$(debug-stop)"
       },
       {
         "command": "afd.syntaxCheck",
@@ -259,6 +265,10 @@
         {
           "command": "afd.catalog.rebuild",
           "when": "isWorkspaceTrusted"
+        },
+        {
+          "command": "afd.stopRun",
+          "when": "afd.running"
         }
       ],
       "explorer/context": [

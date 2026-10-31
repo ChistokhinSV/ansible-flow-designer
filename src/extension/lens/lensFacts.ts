@@ -8,6 +8,7 @@ import { targetsInput } from '../../core/lens/common';
 import { inventoryPatterns } from '../../core/lens/inventory';
 import { parseRequirements } from '../../core/lens/requirements';
 import type { CodeFacts, CodeNodeFacts, InventoryFacts } from '../../core/lens/types';
+import { TIMEOUTS } from '../../node/timeouts';
 import type { CatalogService } from '../catalog/catalogService';
 import type { ProbeManager } from '../env/environment';
 import { inputsKey, parseInput } from '../run/inputs';
@@ -56,7 +57,7 @@ export async function readInventory(
   const facts = await probe.client.call<InventoryFacts>(
     'inventory_lens',
     { inventory, targets, patterns: inventoryPatterns(doc, targets, code) },
-    120_000,
+    TIMEOUTS.probeInventory,
   );
   return { facts, inventory };
 }

@@ -37,14 +37,15 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 
 ## Code and runs
 
-| Command                                           | Does                                                  |
-| ------------------------------------------------- | ----------------------------------------------------- |
-| `afd.generate` · Generate Playbook                | writes `generated/` now                               |
-| `afd.syntaxCheck` · Check Generated Code (Syntax) | `ansible-playbook --syntax-check` in your environment |
-| `afd.runSkeleton` · Run as Skeleton (Check Mode)  | generates the code and runs it in check mode          |
-| `afd.runReal` · Run for Real…                     | runs it for real, after a confirmation                |
-| `afd.showAudit` · Show Run Audit Log              | the local log of every launch (no input values)       |
-| `afd.catalog.rebuild` · Rebuild Module Catalog    | reads the environment's collection docs again         |
+| Command                                           | Does                                                                                                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `afd.generate` · Generate Playbook                | writes `generated/` now                                                                                                                   |
+| `afd.syntaxCheck` · Check Generated Code (Syntax) | `ansible-playbook --syntax-check` in your environment                                                                                     |
+| `afd.runSkeleton` · Run as Skeleton (Check Mode)  | generates the code and runs it in check mode                                                                                              |
+| `afd.runReal` · Run for Real…                     | runs it for real, after a confirmation                                                                                                    |
+| `afd.stopRun` · Stop Run                          | stops the run going: ends the local run, or cancels the job or workflow in AWX (also the **Stop** button in the top bar while a run goes) |
+| `afd.showAudit` · Show Run Audit Log              | the local log of every launch (no input values)                                                                                           |
+| `afd.catalog.rebuild` · Rebuild Module Catalog    | reads the environment's collection docs again                                                                                             |
 
 ## AWX
 

@@ -18,11 +18,8 @@ import { buildModel } from '../../core/flow/model';
 import type { FlowDocument, Ulid } from '../../core/flow/types';
 import type { AwxApproval, AwxRunInfo } from '../../core/protocol';
 import { type RunSummary, summarizeRun } from '../../core/run/events';
+import { TIMEOUTS } from '../timeouts';
 import { type AwxClient, StoppedFollowing } from './client';
-
-const POLL_MS = 2000;
-/** Events are stored after a job ends; give them this long to arrive. */
-const EVENTS_GRACE_MS = 20_000;
 
 export const workflowName = (doc: FlowDocument) => `AFD · ${doc.flow.key}`;
 export const segmentTemplateName = (doc: FlowDocument, segment: string) =>
@@ -142,6 +139,8 @@ export interface WorkflowWatch {
   sha?: string;
   /** Asked before each poll: a reason to stop following (the workflow keeps running in AWX). */
   stop?: () => 'cancelled' | 'timeout' | undefined;
+  /** The workflow job started (AFD-39: Stop Run cancels it). */
+  launched?: (workflowJobId: number) => void;
 }
 
 /** Launches the workflow with the inputs and follows it until it and its jobs' events are done. */
@@ -155,6 +154,7 @@ export async function runWorkflow(
     `/api/v2/workflow_job_templates/${templateId}/launch/`,
     { extra_vars: inputs },
   );
+  watch.launched?.(launched.workflow_job);
   const plays = playNodes(doc);
   const gates = new Map(
     watch.segments.filter((s) => s.gate).map((s) => [gateId(s.name), s.gate as Ulid]),
@@ -169,7 +169,7 @@ export async function runWorkflow(
   }
   const jobs = new Map<number, Tracked>();
   const settledJob = (j: Tracked) =>
-    !!j.complete || (j.ended !== undefined && Date.now() - j.ended > EVENTS_GRACE_MS);
+    !!j.complete || (j.ended !== undefined && Date.now() - j.ended > TIMEOUTS.awxEventsGrace);
   const approvals: Record<Ulid, AwxApproval> = {};
   let workflow = await awx.get<AwxWorkflowJob>(`/api/v2/workflow_jobs/${launched.workflow_job}/`);
   let ended: number | undefined;
@@ -194,7 +194,7 @@ export async function runWorkflow(
   };
 
   for (;;) {
-    await new Promise((r) => setTimeout(r, POLL_MS));
+    await new Promise((r) => setTimeout(r, TIMEOUTS.awxPoll));
     const why = watch.stop?.();
     if (why)
       throw new StoppedFollowing('workflow', workflow.id, state().info.url, why === 'timeout');
@@ -244,7 +244,8 @@ export async function runWorkflow(
     }
     if (FINISHED.has(workflow.status)) ended ??= Date.now();
     const settled = [...jobs.values()].every(settledJob);
-    if (ended !== undefined && (settled || Date.now() - ended > EVENTS_GRACE_MS)) return state();
+    if (ended !== undefined && (settled || Date.now() - ended > TIMEOUTS.awxEventsGrace))
+      return state();
     if (changed) watch.update(state());
   }
 }

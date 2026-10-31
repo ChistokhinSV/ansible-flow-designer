@@ -8,6 +8,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import * as readline from 'node:readline';
 import { CONTAINER, type ProcessSpec } from '../../core/run/command';
+import { TIMEOUTS } from '../timeouts';
 
 export interface ProbeReady {
   kind: 'ready';
@@ -26,8 +27,10 @@ export class ProbeError extends Error {
   }
 }
 
-const READY_TIMEOUT = 180_000; // first start may pull the image
 const STDERR_LINES = 200;
+/** A call cancelled by its caller (AFD-39). */
+export const CANCELLED_CALL = 'Cancelled';
+
 /** The oldest ansible-core the probe and the generated code support (ADR-0005). */
 export const MIN_CORE = [2, 19] as const;
 
@@ -84,7 +87,7 @@ export class ProbeClient {
       const timer = setTimeout(() => {
         reject(new Error(`The Ansible probe did not start in time\n${this.stderrTail()}`));
         this.stopProcess(proc, new Error('The Ansible probe did not start in time'));
-      }, READY_TIMEOUT);
+      }, TIMEOUTS.probeReady);
       readline
         .createInterface({ input: proc.stdout as NodeJS.ReadableStream })
         .on('line', (line) => {
@@ -144,18 +147,46 @@ export class ProbeClient {
     return this.ready;
   }
 
-  call<T>(method: string, params: Record<string, unknown> = {}, timeoutMs = 60_000): Promise<T> {
+  /**
+   * Queues a call. `signal` cancels it (AFD-39): a queued call leaves the queue; a running one
+   * fails and the probe restarts for the calls behind it, as after a timeout.
+   */
+  call<T>(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs: number = TIMEOUTS.probeCall,
+    signal?: AbortSignal,
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({
+      if (signal?.aborted) return reject(new Error(CANCELLED_CALL));
+      const pending: Pending = {
         id: this.next++,
         method,
         params,
         timeoutMs,
         resolve: resolve as (v: unknown) => void,
         reject,
-      });
+      };
+      signal?.addEventListener('abort', () => this.cancel(pending), { once: true });
+      this.queue.push(pending);
       this.pump();
     });
+  }
+
+  private cancel(p: Pending): void {
+    const queued = this.queue.indexOf(p);
+    if (queued >= 0) {
+      this.queue.splice(queued, 1);
+      p.reject(new Error(CANCELLED_CALL));
+      return;
+    }
+    if (this.inflight !== p) return;
+    this.inflight = undefined;
+    clearTimeout(p.timer);
+    this.log(`probe: "${p.method}" was cancelled; restarting it for the next call`);
+    p.reject(new Error(CANCELLED_CALL));
+    if (this.proc) this.stopProcess(this.proc, new Error(CANCELLED_CALL));
+    this.pump();
   }
 
   /** Sends the next queued call when none is running; its timeout starts now. */

@@ -118,6 +118,48 @@ describe('M3 acceptance: code generation', () => {
     assert.deepEqual(run.summary?.outcome, {});
   }).timeout(300_000);
 
+  it('AFD-39: Stop Run ends a local run as stopped, not failed', async () => {
+    const original = readFileSync(EDGE.fsPath, 'utf8');
+    try {
+      const doc = await openDesigner(EDGE);
+      const api = await testApi();
+      // A step that really waits, even in check mode, so there is a run to stop.
+      const precheck = docOf(doc.getText()).nodes.find((n) => n.key === 'precheck')?.id as string;
+      const bound = await api.run(EDGE, {
+        kind: 'setBinding',
+        id: precheck,
+        impl: {
+          kind: 'module',
+          ref: 'ansible.builtin.command',
+          params: { cmd: 'sleep 90' },
+          keywords: { check_mode: false },
+        },
+      });
+      assert.ok(bound.ok, bound.error);
+      const running = api.runFlow(EDGE, {
+        mode: 'check',
+        inputs: { devices: ['sw-edge-01'], site: 'lab' },
+      });
+      let done: Awaited<typeof running> | undefined;
+      void running.then((r) => {
+        done = r;
+      });
+      const t0 = Date.now();
+      while (!done && Date.now() - t0 < 200_000) {
+        await new Promise((r) => setTimeout(r, 1_000));
+        await vscode.commands.executeCommand('afd.stopRun', EDGE);
+      }
+      const run = await withTimeout(running, 30_000, 'stopped run');
+      assert.equal(run.state, 'error', JSON.stringify(run));
+      assert.equal(run.errorCode, 'cancelled');
+      assert.equal(run.error, 'Stopped by the user');
+      assert.ok(Date.now() - t0 < 90_000, 'stopped before the step ended by itself');
+    } finally {
+      writeFileSync(EDGE.fsPath, original);
+      await vscode.commands.executeCommand('workbench.action.files.revert');
+    }
+  }).timeout(300_000);
+
   it('a real run is confirmed, audited, and the audit holds no input values', async () => {
     await openDesigner(EDGE);
     const api = await testApi();

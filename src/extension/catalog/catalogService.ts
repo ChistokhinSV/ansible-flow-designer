@@ -19,10 +19,10 @@ import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../co
 import { CatalogIndex, INDEX_SCHEMA } from '../../node/catalog/catalogIndex';
 import type { BuildJob, BuildResult } from '../../node/catalog/catalogWorker';
 import type { ProbeClient } from '../../node/env/probeClient';
+import { TIMEOUTS } from '../../node/timeouts';
 import type { ProbeManager } from '../env/environment';
 
 /** A first dump of a big EE takes about half a minute; slow disks and Podman machines more. */
-const DUMP_TIMEOUT = 15 * 60_000;
 const CONTEXT_TTL = 30_000;
 /** Indexes kept on disk for other environments; the oldest go first. */
 const KEEP_INDEXES = 6;
@@ -153,7 +153,7 @@ export class CatalogService implements vscode.Disposable {
     };
     step('Reading plugin docs from the environment…');
     const call = () =>
-      probe.client.call<Manifest>('catalog', { cache: probe.cache, jobs: 8 }, DUMP_TIMEOUT);
+      probe.client.call<Manifest>('catalog', { cache: probe.cache, jobs: 8 }, TIMEOUTS.catalogDump);
     let manifest = await call();
     const cache = cacheDir(this.deps.storage);
     if (rebuild) {
@@ -304,7 +304,7 @@ export class CatalogService implements vscode.Disposable {
   async roles(folder: vscode.WorkspaceFolder): Promise<RoleInfo[]> {
     const probe = this.deps.probes.forFolder(folder.uri);
     if ('error' in probe) throw new Error(probe.error);
-    return probe.client.call<RoleInfo[]>('roles', {}, 120_000);
+    return probe.client.call<RoleInfo[]>('roles', {}, TIMEOUTS.probeRoles);
   }
 
   async playbooks(folder: vscode.WorkspaceFolder): Promise<PlaybookInfo[]> {

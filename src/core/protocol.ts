@@ -204,6 +204,8 @@ export type WebviewMessage =
   | { type: 'sync' }
   /** Launch the flow's AWX job template (M7). */
   | { type: 'launchAwx' }
+  /** AFD-39: stop the run going (terminal task or AWX job). */
+  | { type: 'stopRun' }
   /** Opens a repository file at a line (drift "Open code"). */
   | { type: 'openCode'; path: string; line?: number }
   /** Drift actions the host carries out (stubs, specs, re-sync), answered by `ack`. */

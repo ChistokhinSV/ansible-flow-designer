@@ -44,6 +44,8 @@ when it ends.
 
 ## After a run
 
+- While a run goes, **Stop** in the top bar (or **Ansible Flow: Stop Run**) ends it; the run shows as
+  stopped, not failed.
 - The top bar shows hosts, failures and the exit code; **Show terminal** brings the output back.
 - Switch to **Run**: nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
   Select a node or a wire to list the hosts and why they failed.

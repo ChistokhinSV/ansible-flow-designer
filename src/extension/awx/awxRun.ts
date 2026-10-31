@@ -17,18 +17,15 @@ import type { RunErrorCode, RunView } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
 import { runWorkflow, setupWorkflow } from '../../node/awx/awxWorkflow';
 import { AwxClient, followLimit, StoppedFollowing } from '../../node/awx/client';
+import { TIMEOUTS } from '../../node/timeouts';
 import { generatedDir } from '../codegen';
 import { CANCELLED } from '../errors';
 import { gitState } from '../gitHead';
 import { appendAudit } from '../run/audit';
 import { collectInputs, targetsOf } from '../run/inputs';
 import { auditHeader, prepareRun, stamp } from '../run/prepare';
+import { runStarted } from '../run/stop';
 import { relativeTo } from '../sync/codeSync';
-
-const POLL_MS = 2000;
-/** Events are stored after the job ends; give them this long to arrive. */
-const EVENTS_GRACE_MS = 20_000;
-const PROJECT_SYNC_MS = 180_000;
 
 /**
  * Follows a launched job or workflow under a cancellable notification (AFD-29). Cancelling, or the
@@ -182,10 +179,10 @@ async function missingPlaybooks(
 async function waitForProject(awx: AwxClient, project: number): Promise<string> {
   const update = await awx.post<{ id: number }>(`/api/v2/projects/${project}/update/`, {});
   const t0 = Date.now();
-  while (Date.now() - t0 < PROJECT_SYNC_MS) {
+  while (Date.now() - t0 < TIMEOUTS.awxProjectSync) {
     const u = await awx.get<{ status: string }>(`/api/v2/project_updates/${update.id}/`);
     if (['successful', 'failed', 'error', 'canceled'].includes(u.status)) return u.status;
-    await new Promise((r) => setTimeout(r, POLL_MS));
+    await new Promise((r) => setTimeout(r, TIMEOUTS.awxPoll));
   }
   return 'timeout';
 }
@@ -416,6 +413,8 @@ export async function launchInAwx(
     };
     deps.report({ ...base, state: 'running' });
     const routes = generated.result.routes;
+    // Stop Run (AFD-39) cancels the workflow in AWX; following then ends with it.
+    let stopping: vscode.Disposable | undefined;
     let end: Awaited<ReturnType<typeof runWorkflow>>;
     try {
       end = await following(`Following AWX workflow ${name}`, (stop) =>
@@ -427,6 +426,9 @@ export async function launchInAwx(
             routes,
             sha: git?.sha,
             stop,
+            launched: (workflowJob) => {
+              stopping = runStarted(document.uri, () => awx.cancelWorkflow(workflowJob));
+            },
             update: (s) =>
               deps.report({ ...base, state: 'running', awx: s.info, summary: s.summary }),
           },
@@ -435,11 +437,13 @@ export async function launchInAwx(
         ),
       );
     } catch (e) {
+      stopping?.dispose();
       if (e instanceof StoppedFollowing) offerCancel(awx, e);
       const run: RunView = { ...base, state: 'error', error: (e as Error).message };
       deps.report(run);
       return run;
     }
+    stopping?.dispose();
     const failedRun = end.workflow.status === 'error' || end.workflow.status === 'canceled';
     const final: RunView = {
       ...base,
@@ -474,6 +478,8 @@ export async function launchInAwx(
   } catch (e) {
     return fail((e as Error).message);
   }
+  // Stop Run (AFD-39) cancels the job in AWX; following then ends with it as canceled.
+  const stopping = runStarted(document.uri, () => awx.cancel(job.id));
   const audit = {
     run: id,
     ...(await auditHeader(document, doc)),
@@ -520,7 +526,7 @@ export async function launchInAwx(
   const stopped = await following(`Following AWX job ${job.id}`, async (stop) => {
     let ended: number | undefined;
     for (;;) {
-      await new Promise((r) => setTimeout(r, POLL_MS));
+      await new Promise((r) => setTimeout(r, TIMEOUTS.awxPoll));
       const why = stop();
       if (why) return new StoppedFollowing('job', job.id, awx.jobUrl(job.id), why === 'timeout');
       try {
@@ -531,7 +537,7 @@ export async function launchInAwx(
         if (finished) ended ??= Date.now();
         const complete = (job as AwxJob & { event_processing_finished?: boolean })
           .event_processing_finished;
-        if (finished && (complete || Date.now() - (ended ?? 0) > EVENTS_GRACE_MS)) return;
+        if (finished && (complete || Date.now() - (ended ?? 0) > TIMEOUTS.awxEventsGrace)) return;
         if (fresh.length > 0) deps.report(view('running'));
       } catch (e) {
         // A dropped tunnel or a restarting AWX: keep the last state and say why.
@@ -539,6 +545,7 @@ export async function launchInAwx(
       }
     }
   });
+  stopping.dispose();
   if (stopped) {
     if (stopped instanceof StoppedFollowing) offerCancel(awx, stopped);
     const run = { ...view('error'), error: stopped.message };

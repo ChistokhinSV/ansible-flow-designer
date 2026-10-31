@@ -30,6 +30,9 @@ not find the playbooks, the setup stops and names them.
 - warns when AWX would run another commit than your HEAD (unpushed or uncommitted changes);
 - launches with the inputs as extra vars and follows the job's events until it ends.
 
+**Stop** in the top bar (or **Ansible Flow: Stop Run**) cancels the job or workflow in AWX; the
+run panel follows it until AWX reports it canceled.
+
 While it follows the job, a notification shows **Following AWX job …** with a **Cancel** button.
 Cancelling, or 12 hours without the job ending, stops following only: the job keeps running in
 AWX, and a message offers **Cancel It in AWX** or **Open in AWX**. AWX keeps a job's extra vars in

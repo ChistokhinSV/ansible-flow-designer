@@ -11,8 +11,8 @@ import type {
   AwxPage,
   TemplateSpec,
 } from '../../core/awx/types';
+import { TIMEOUTS } from '../timeouts';
 
-const TIMEOUT = 30_000;
 const PAGE = 200;
 
 export class AwxError extends Error {
@@ -86,7 +86,7 @@ export class AwxClient {
               ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
               : {}),
           },
-          timeout: this.options.timeoutMs ?? TIMEOUT,
+          timeout: this.options.timeoutMs ?? TIMEOUTS.awxRequest,
           ...(url.protocol === 'https:'
             ? { rejectUnauthorized: this.options.verifyTls !== false }
             : {}),

@@ -8,6 +8,7 @@ import { isCancelled, showOutcomeError } from '../errors';
 import type { Host } from '../host';
 import { auditUri } from '../run/audit';
 import { type RunOptions, runFlow } from '../run/runner';
+import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 
 export function registerRunCommands(host: Host): vscode.Disposable[] {
@@ -23,12 +24,38 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand('afd.runSkeleton', (uri?: vscode.Uri) => run('check', uri)),
     vscode.commands.registerCommand('afd.runReal', (uri?: vscode.Uri) => run('real', uri)),
+    vscode.commands.registerCommand('afd.stopRun', async (uri?: vscode.Uri) => {
+      const outcome = await stopRun(host.targetUri(uri));
+      if (outcome === 'none') void vscode.window.showInformationMessage('No run is going.');
+      else if (outcome === 'which')
+        void vscode.window.showInformationMessage(
+          'Several flows are running: open the one to stop, then Stop Run.',
+        );
+    }),
     vscode.commands.registerCommand('afd.syntaxCheck', async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return;
-      const outcome = await syntaxCheck(doc, host.deps.schema, host.probes, host.codeDiagnostics);
+      // A cancellable progress (AFD-39): the check can take minutes in a cold environment.
+      const outcome = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Checking the generated code in the environment',
+          cancellable: true,
+        },
+        (_progress, token) => {
+          const abort = new AbortController();
+          token.onCancellationRequested(() => abort.abort());
+          return syntaxCheck(
+            doc,
+            host.deps.schema,
+            host.probes,
+            host.codeDiagnostics,
+            abort.signal,
+          );
+        },
+      );
       if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
-      else void vscode.window.showErrorMessage(outcome.message);
+      else if (!isCancelled(outcome.message)) void vscode.window.showErrorMessage(outcome.message);
     }),
     vscode.commands.registerCommand('afd.showAudit', async () => {
       try {

@@ -2,7 +2,9 @@
 // must exist there, 07 §5). Errors become diagnostics on the generated files.
 import * as vscode from 'vscode';
 import type { SchemaValidator } from '../../core/flow/schema';
+import { TIMEOUTS } from '../../node/timeouts';
 import type { ProbeManager } from '../env/environment';
+import { CANCELLED } from '../errors';
 import { prepareRun } from './prepare';
 
 export interface SyntaxOutcome {
@@ -23,6 +25,8 @@ export async function syntaxCheck(
   schema: SchemaValidator,
   probes: ProbeManager,
   diagnostics: vscode.DiagnosticCollection,
+  /** Cancels the check (AFD-39: the progress notification's Cancel). */
+  signal?: AbortSignal,
 ): Promise<SyntaxOutcome> {
   const prepared = await prepareRun(doc, schema);
   if (!prepared.ok) return { ok: false, message: prepared.error, errors: [] };
@@ -47,9 +51,11 @@ export async function syntaxCheck(
     result = await probe.client.call<ProbeSyntax>(
       'syntax_check',
       { playbook, inventory, extra_vars: placeholders },
-      180_000,
+      TIMEOUTS.probeCompile,
+      signal,
     );
   } catch (e) {
+    if (signal?.aborted) return { ok: false, message: CANCELLED, errors: [] };
     return { ok: false, message: `${probe.label}: ${(e as Error).message}`, errors: [] };
   }
 

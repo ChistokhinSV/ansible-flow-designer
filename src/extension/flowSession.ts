@@ -29,6 +29,7 @@ import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, layoutLevel, shownLayout } from '../node/autoLayout';
 import { checkBindings } from '../node/catalog/bindingCheck';
+import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
@@ -41,9 +42,6 @@ import { SyncController } from './session/syncController';
 import type { SyncDeps } from './sync/codeSync';
 import { openCode } from './sync/driftActions';
 import { markTour } from './tour';
-
-/** How long typing in a text editor settles before the designer catches up (AFD-38). */
-const TYPING_SETTLES_MS = 150;
 
 /** Decision 15: say which tested nodes are implemented again, since their design changed. */
 export function announceImplementedAgain(
@@ -271,7 +269,7 @@ export class FlowSession implements vscode.Disposable {
       void this.refresh();
       return;
     }
-    this.changeTimer = setTimeout(() => void this.refresh(), TYPING_SETTLES_MS);
+    this.changeTimer = setTimeout(() => void this.refresh(), TIMEOUTS.typingSettles);
   }
 
   openLens(lens: LensId | null, refresh = false): Promise<void> {
@@ -398,6 +396,9 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand('afd.awx.launch', this.uri);
+        break;
+      case 'stopRun':
+        await vscode.commands.executeCommand('afd.stopRun', this.uri);
         break;
       case 'generate':
         await vscode.commands.executeCommand('afd.generate', this.uri);
@@ -638,7 +639,7 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Resolves once a designer panel of this flow has loaded (AFD-25: PNG export opens one). */
-  whenReady(timeoutMs = 30_000): Promise<void> {
+  whenReady(timeoutMs: number = TIMEOUTS.designerReady): Promise<void> {
     if (this.readyPanels.size > 0) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('the designer did not open')), timeoutMs);
@@ -658,7 +659,7 @@ export class FlowSession implements vscode.Disposable {
     if (!panel) throw new Error('the designer is not open');
     const r = await this.pngs.request(
       (reqId) => this.post(panel, { type: 'renderPng', reqId, svg, width, height }),
-      60_000,
+      TIMEOUTS.designerPng,
       'drawing the PNG',
     );
     if (!r.data) throw new Error(r.error ?? 'drawing the PNG failed');
@@ -671,7 +672,7 @@ export class FlowSession implements vscode.Disposable {
     if (!panel) return Promise.reject(new Error('no panel'));
     return this.inspects.request(
       (reqId) => this.post(panel, { type: 'inspect', reqId }),
-      10_000,
+      TIMEOUTS.designerInspect,
       'inspect',
     );
   }
