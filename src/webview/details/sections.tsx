@@ -416,7 +416,10 @@ export function ExecutionSection({
           <h3>{group}</h3>
           {EXECUTION_SETTINGS.filter(
             (s) =>
-              s.group === group && (s.format ?? 1) <= format && format <= (s.formatMax ?? format),
+              s.group === group &&
+              (s.format ?? 1) <= format &&
+              format <= (s.formatMax ?? format) &&
+              (!s.types || s.types.includes(node.type)),
           ).map((s) => {
             const value = settings[s.key];
             if (s.kind === 'bool')

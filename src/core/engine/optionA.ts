@@ -19,6 +19,7 @@ import { portAccepted } from '../flow/decisions';
 import { privilegeOf } from '../flow/inherit';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
+import { rollingObstacles } from '../flow/rolling';
 import { planSegments, type Segment } from '../flow/segments';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
@@ -413,7 +414,104 @@ class Generator {
     for (const p of portsFor(node)) if (p.direction === 'out') this.target(ctx, node, p.name);
     // A segment imports the level file the whole-flow build writes.
     if (this.segment) return true;
-    return this.level({ level, path, file, entry: hosts.join(':'), parent: { node, ctx } });
+    const inner: LevelCtx = { level, path, file, entry: hosts.join(':'), parent: { node, ctx } };
+    const rolling = node.settings?.rolling;
+    if (rolling === undefined) return this.level(inner);
+    const obstacles = rollingObstacles(this.model, node).map((o) => `${o.node.title}: ${o.why}`);
+    for (const n of level.nodes)
+      if (n && this.overrides.has(n.id) && !obstacles.some((o) => o.startsWith(`${n.title}:`)))
+        obstacles.push(`${n.title}: it runs on an inventory_target, in plays of its own`);
+    if (obstacles.length === 0) return this.rollingLevel(inner, rolling);
+    this.finding(
+      'rolling-unsupported',
+      'error',
+      `"${node.title}" cannot roll (${obstacles.join('; ')}): its steps run play by play`,
+      this.model.nodes.get(node.id)?.path ?? [],
+      node.id,
+    );
+    return this.level(inner);
+  }
+
+  /**
+   * A rolling subflow's level (AFD-55): one play with `serial`, so each batch of hosts goes through
+   * every step before the next batch starts. Each step is a block for the hosts that arrived at it
+   * (its routing groups, as the play-per-step level uses), with the vars, tags and privilege its
+   * own play would have; its routing, rescue and captures are the same tasks.
+   */
+  private rollingLevel(ctx: LevelCtx, batch: string | number): boolean {
+    const sub = ctx.parent?.node as FlowNode;
+    const nodes = ctx.level.nodes.filter((n): n is FlowNode => !!n && typeof n === 'object');
+    const ids = new Set(nodes.map((n) => n.id));
+    const edges = ctx.level.edges.filter(
+      (e): e is Edge => !!e?.from && !!e.to && ids.has(e.from.node) && ids.has(e.to.node),
+    );
+    const order = topoOrder(nodes, edges);
+    if (!order) {
+      this.finding(
+        'codegen-cycle',
+        'error',
+        `The level [${sub.key}] has a cycle; plays need an order`,
+        [],
+      );
+      return false;
+    }
+    const blocks: Out[] = [];
+    for (const node of order) {
+      this.order++;
+      if (node.type === 'start') continue;
+      if (node.type === 'end') {
+        this.endNode(ctx, node, edges);
+        continue;
+      }
+      const hosts = this.sources(ctx, node, edges);
+      if (hosts.length === 0) {
+        this.finding(
+          'codegen-no-input',
+          'warning',
+          `Nothing leads to "${node.title}": no play is generated for it`,
+          this.model.nodes.get(node.id)?.path ?? [],
+          node.id,
+        );
+        continue;
+      }
+      const play = this.play(ctx, node, hosts, edges);
+      // Every host of the play enters at the entry; the others arrive through their groups.
+      const groups = hosts.filter((h) => h !== ctx.entry);
+      blocks.push({
+        name: play.name,
+        block: play.tasks,
+        vars: play.vars,
+        become: play.become,
+        become_user: play.become_user,
+        tags: play.tags,
+        when: hosts.includes(ctx.entry)
+          ? undefined
+          : `inventory_hostname in (${groups.map((g) => `groups['${g}'] | default([])`).join(' + ')})`,
+      });
+    }
+    this.files.push({
+      ctx,
+      chunks: [
+        {
+          node: sub.id,
+          lines: writeBlock(
+            [
+              {
+                name: `[${sub.key}] ${oneLine(sub.title)}: rolling, ${batch} at a time`,
+                hosts: ctx.entry,
+                gather_facts: false,
+                serial: batch,
+                tags: flow([`node_${sub.id}`]),
+                vars: { flow_node_id: sub.id },
+                tasks: blocks,
+              },
+            ],
+            0,
+          ),
+        },
+      ],
+    });
+    return true;
   }
 
   private endNode(ctx: LevelCtx, node: FlowNode, edges: Edge[]): void {

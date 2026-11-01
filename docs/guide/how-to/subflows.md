@@ -66,7 +66,28 @@ Details in [data between steps](data-between-steps.md).
 A missing entry, outer ports no inner step feeds, inner outcomes that lead nowhere, exits that
 refer to steps outside, and subflow outputs nothing inside sets.
 
+## Rolling subflows
+
+By default each step of a subflow runs on every arriving host before the next step starts. For a
+rolling change (upgrade a few switches at a time, each fully, then the next few), set **Rolling
+batch** on the subflow (Execution › Targeting): a number of hosts, or a percentage like `25%`.
+
+```yaml
+settings:
+  rolling: 2 # 2 hosts at a time through every step inside
+```
+
+The subflow's steps then run in one play with `serial: 2`: a batch goes through all of them, the
+hosts take the same ports as without rolling, and then the next batch starts. The level shows a
+`rolling, 2 at a time` chip.
+
+Every step must fit in one play: tasks (bound to a module or a role, or not bound yet), decisions
+and end nodes. A nested subflow, an approval, a parallel or join, a playbook binding, an
+`inventory_target`, or a step's own `serial` or `max_fail_percentage` needs plays of its own: the
+validator reports `rolling-unsupported` on that step, and the code runs the steps play by play.
+`serial` on the subflow node itself batches nothing inside; use **Rolling batch**.
+
 ## Generated code
 
 Each subflow level is its own playbook, `generated/<flow key>.<subflow key>.yml`, imported where
-the subflow node sits. See [generated code](code-generation.md).
+the subflow node sits; a rolling subflow's level is one play. See [generated code](code-generation.md).

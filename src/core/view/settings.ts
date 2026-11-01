@@ -1,7 +1,7 @@
 // The node settings the properties page edits (Execution tab), and how typed text becomes a
 // setting value (AFD-34: out of the component, shared and tested). Settings the flow models as
 // fields; other task keywords live in impl.keywords (AFD-26).
-import type { NodeSettings } from '../flow/types';
+import type { NodeSettings, NodeType } from '../flow/types';
 
 export type SettingKey = keyof NodeSettings;
 
@@ -19,6 +19,8 @@ export interface SettingField {
   format?: number;
   /** The last flow format that has it on a node (AFD-52: credential and EE moved to the flow). */
   formatMax?: number;
+  /** Only on these node types (default: every type the Execution tab shows). */
+  types?: readonly NodeType[];
 }
 
 export const EXECUTION_SETTINGS: readonly SettingField[] = [
@@ -56,6 +58,14 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     label: 'Serial',
     kind: 'text',
     help: 'Hosts per batch: a number or a percentage',
+  },
+  {
+    key: 'rolling',
+    group: 'Targeting',
+    label: 'Rolling batch',
+    kind: 'text',
+    help: 'Hosts per batch through every step inside, one batch after another: a number or a percentage',
+    types: ['subflow'],
   },
   {
     key: 'max_fail_percentage',
@@ -106,9 +116,11 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
 
 /** Why typed text is not a valid value for the field, or undefined. */
 export function settingProblem(field: SettingField, text: string): string | undefined {
-  return field.kind === 'int' && text.trim() && !/^[0-9]+$/.test(text.trim())
-    ? 'A whole number'
-    : undefined;
+  const t = text.trim();
+  if (field.kind === 'int' && t && !/^[0-9]+$/.test(t)) return 'A whole number';
+  if (field.key === 'rolling' && t && !/^[1-9][0-9]*%?$/.test(t))
+    return 'A number of hosts, or a percentage like 25%';
+  return undefined;
 }
 
 /** The setting value for typed text: null clears it; serial takes a plain number as a number. */
@@ -121,7 +133,7 @@ export function settingValue(field: SettingField, text: string): unknown {
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean);
-  return /^[0-9]+$/.test(t) && field.key === 'serial' ? Number(t) : t;
+  return /^[0-9]+$/.test(t) && (field.key === 'serial' || field.key === 'rolling') ? Number(t) : t;
 }
 
 /** A setting value as the text its field shows. */

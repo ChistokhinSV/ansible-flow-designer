@@ -6,6 +6,7 @@ import { nodeSize } from '../core/flow/geometry';
 import type { LevelView } from '../core/flow/levelView';
 import { modelOf, ROOT } from '../core/flow/model';
 import type { OpenPort } from '../core/flow/openPorts';
+import { rollingObstacles } from '../core/flow/rolling';
 import type { FlowDocument, FlowNode, NodeStatus, Position, Ulid } from '../core/flow/types';
 
 // The level projection lives in core (AFD-25: the exports draw from it too).
@@ -153,6 +154,13 @@ export function inheritedContext(
     // Format 2 passes become (and whom) to the steps inside (AFD-52); serial stays per node.
     if (s.become)
       add('become', s.become_user ? `become ${s.become_user}` : 'become', formatOf(doc) >= 2);
+    // A rolling subflow batches its own level only (AFD-55): the steps of a nested one cannot roll.
+    if (s.rolling !== undefined && id === levelId)
+      add(
+        'rolling',
+        `rolling, ${s.rolling} at a time`,
+        rollingObstacles(model, entry.node).length === 0,
+      );
     id = entry.level;
   }
   return chips;

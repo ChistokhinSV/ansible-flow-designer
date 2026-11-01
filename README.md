@@ -76,7 +76,7 @@ The rest of this page is the complete feature reference.
   - Outputs read outside become subflow outputs, and those references are rewritten.
   - It works inside subflows too.
 - **Subflows (M4, ADR-0010):** double-click a subflow (or press Enter, or use _Open Subflow_) to open its inner steps.
-  - The view shows a _Back_ button, a breadcrumb and chips for the context it inherits (inventory target, credential, EE, become, serial).
+  - The view shows a _Back_ button, a breadcrumb and chips for the context it inherits (inventory target, become, and `rolling, N at a time` for a rolling subflow: its steps run in batches, one batch through all of them before the next, AFD-55).
   - A dashed **boundary frame** carries the subflow's ports: `in` on top, outcomes below, problems on the right.
   - Drag from the frame's `in` to a step to make it the entry. Drag from an inner port to a frame port to make it an exit; an optional port is enabled on the subflow when needed.
   - Select an exit wire to give it a reason (shown on the wire, e.g. _SSH timeout_) or remove it.

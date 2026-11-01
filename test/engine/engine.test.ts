@@ -121,6 +121,16 @@ const privileged = (subflow: string, user: string) => (text: string) => {
   ).text;
 };
 
+/** AFD-55: the subflow rolls, `batch` hosts at a time through every step inside. */
+const rolled = (subflow: string, batch: number | string) => (text: string) => {
+  const ctx = { newId: createIdFactory() };
+  const id = [...buildModel(parse(text) as FlowDocument).nodes.values()].find(
+    (n) => n.node.key === subflow,
+  )?.node.id as string;
+  return planCommand(text, { kind: 'updateNode', id, patch: { settings: { rolling: batch } } }, ctx)
+    .text;
+};
+
 const OS_CHECK_VARS = {
   devices: EDGE_HOSTS,
   ansible_net_version: '15.2',
@@ -303,6 +313,47 @@ const SCENARIOS: Scenario[] = [
         ports: ['prepare.ok_hosts', 'stage.unreachable', 'handle.ok_hosts'],
         outcome: '[failed] Failed',
       },
+    },
+  },
+  // AFD-55: the same flow with its subflow rolling 2 at a time routes every host the same way, and
+  // each batch finishes the subflow before the next one starts it.
+  {
+    name: 'rolling subflow: same routing, one batch through every step before the next',
+    flow: LEVELS,
+    transform: rolled('stage', 2),
+    vars: {
+      devices: LAB,
+      afd_simulate: { 'stage/prepare': { failed: ['h02'] }, gate: { failed: ['h03', 'h04'] } },
+    },
+    rc: 2,
+    expect: {
+      ...Object.fromEntries(
+        ['h01', 'h05', 'h06'].map((h) => [
+          h,
+          { ports: ['prepare.ok_hosts', 'stage.ok_hosts', 'gate.ok_hosts'] },
+        ]),
+      ),
+      h02: { ports: ['stage.failed_hosts', 'handle.ok_hosts'], outcome: '[failed] Failed' },
+      h03: {
+        ports: ['prepare.ok_hosts', 'stage.ok_hosts', 'gate.failed_hosts'],
+        outcome: '[gate] failed_hosts is open',
+      },
+      h04: {
+        ports: ['prepare.ok_hosts', 'stage.ok_hosts', 'gate.failed_hosts'],
+        outcome: '[gate] failed_hosts is open',
+      },
+      h07: {
+        ports: ['prepare.ok_hosts', 'stage.unreachable', 'handle.ok_hosts'],
+        outcome: '[failed] Failed',
+      },
+    },
+    also: (run) => {
+      const at = (task: string, host: string) =>
+        run.events.findIndex((e) => e.host === host && String(e.task).startsWith(task));
+      expect(at('[connect]', 'h01')).toBeGreaterThan(-1);
+      expect(at('[connect]', 'h01')).toBeLessThan(at('[prepare]', 'h03'));
+      expect(at('[connect]', 'h04')).toBeLessThan(at('[prepare]', 'h05'));
+      expect(at('[connect]', 'h06')).toBeLessThan(at('[prepare]', 'h07'));
     },
   },
   {

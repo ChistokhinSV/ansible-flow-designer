@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.0 — AFD-55
+
+- **Rolling subflows**: set **Rolling batch** on a subflow (a number, or a percentage like `25%`) and its hosts go through every step inside in batches, one batch after another: the steps run in one play with `serial`, and every host takes the same ports as before. A step that needs plays of its own (a nested subflow, an approval, a parallel or join, a playbook binding, an inventory_target, or its own serial or max_fail_percentage) is reported (`rolling-unsupported`) and the steps then run play by play. The level shows a `rolling, N at a time` chip.
+
 ## 0.33.0 — AFD-54
 
 - **The undo and cancelled ports are gone**: they were never built (nothing ran an undo port, and a cancelled job routes no host). They are no longer offered; a flow that has one shows it with the warning `legacy-port`, and Upgrade Flow Format removes them with their wires. A node's `undo` binding stays.

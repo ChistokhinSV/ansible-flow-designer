@@ -130,6 +130,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Format 2: a node is tested but has no `tested` record (a run, or a reason).',
     fix: 'Mark Tested… with a reason, or run the flow; else set the status it has.',
   },
+  'rolling-unsupported': {
+    meaning:
+      'A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow.',
+    fix: 'Move that step out of the subflow, or remove rolling: without it the steps run play by play.',
+  },
   'legacy-port': {
     meaning:
       'A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host.',

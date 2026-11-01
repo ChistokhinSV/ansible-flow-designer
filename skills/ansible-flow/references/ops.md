@@ -336,6 +336,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
 | tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
+| rolling-unsupported | A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow. | Move that step out of the subflow, or remove rolling: without it the steps run play by play. |
 | legacy-port | A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host. | Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps. |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |

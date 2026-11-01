@@ -132,3 +132,28 @@ named `[<key>] keep output <output>`.
 - Code sync does not count a capture task as the step's own `set_fact` (`CAPTURE_TASK`).
 - Both formats: the flow file does not change. Engine test: two runs of a role setting `version`,
   read by one assert, on 2.19, 2.20 and 2.21.
+
+## Amendment (AFD-55, 2026-11-01): rolling subflows
+
+`settings.rolling` (a number or a percentage) on a subflow compiles its level into one play with
+`serial`, so each batch of hosts goes through every step before the next batch starts: the rolling
+upgrade the play-per-step level cannot express (`serial` on a node batches only its own play).
+
+- **The play:** `[<key>] <title>: rolling, <batch> at a time`, hosts the subflow's arriving
+  pattern, tagged with the subflow node. Each step is a block named and tagged like its play would
+  be, with that play's vars (inputs, `flow_node_id`, `afd_sim`) and privilege, and
+  `when: inventory_hostname in (groups[...])` over the groups that route hosts to it (none for the
+  entry step, where every host of the play arrives). The step's own tasks are unchanged: block,
+  rescue, `group_by` routing, captures. Groups persist across batches, so the levels after it read
+  the same groups, and every host takes the same ports as without rolling.
+- **What fits** (`core/flow/rolling.ts`, shared with the validator): start, end, decision, and tasks
+  bound to a module or a role or not bound yet. A nested subflow with steps, an approval, a
+  parallel or join, a playbook binding, an `inventory_target` (the step's, the subflow's or an
+  enclosing one's), and a step's own `serial` or `max_fail_percentage` need plays of their own:
+  `rolling-unsupported` (error), and the engine generates the level play by play. On a node that
+  is not a subflow, rolling is a warning.
+- **Not covered:** a failure share that stops the remaining batches (rescued hosts never count as
+  failed for Ansible's own `max_fail_percentage`), and Ansible handlers inside the play.
+- Engine contract: routing-levels with its subflow rolling 2 at a time routes every host the same
+  way as play by play, and each batch finishes the subflow before the next starts it (2.19, 2.20,
+  2.21).

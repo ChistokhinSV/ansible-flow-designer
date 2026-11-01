@@ -63,6 +63,7 @@ How the node runs (play keywords).
 
 - `max_fail_percentage` (number): Fail the whole node when more than this share of hosts fail.
 - `serial` (string | integer): Batch size or percentage for rolling execution.
+- `rolling` (string | integer): Subflows: hosts per batch (a number, or a percentage like 25%) through every step inside, one batch after another. The steps run in one play with this serial; a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage) stops it (rolling-unsupported).
 - `timeout` (string): Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port.
 - `retries` (integer): Retries before a host fails (module steps). Without until, a step stops retrying on its first success.
 - `delay` (integer): Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls.

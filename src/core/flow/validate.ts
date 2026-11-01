@@ -13,6 +13,7 @@ import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, LEGACY_PORTS, portDirection, portsFor } from './ports';
+import { rollingObstacles } from './rolling';
 import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
 import { hasStatus, runtimeKind, statusFor } from './status';
@@ -282,6 +283,26 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         path: [...path, 'settings'],
         node: node.id,
       });
+    // AFD-55: a rolling subflow's steps run in one play; some steps need plays of their own.
+    if (node.settings?.rolling !== undefined) {
+      if (node.type !== 'subflow')
+        add({
+          code: 'rolling-unsupported',
+          severity: 'warning',
+          message: `${label(node)}: rolling batches the steps inside a subflow; on a ${node.type} it does nothing (use serial)`,
+          path: [...path, 'settings', 'rolling'],
+          node: node.id,
+        });
+      else
+        for (const o of rollingObstacles(model, node))
+          add({
+            code: 'rolling-unsupported',
+            severity: 'error',
+            message: `${label(node)} cannot roll: ${label(o.node)}: ${o.why}. Its steps run play by play`,
+            path: [...path, 'settings', 'rolling'],
+            node: o.node.id,
+          });
+    }
     // Format 2 (AFD-52): `handler` is called purpose, so it is not read as an Ansible handler.
     if (v2 && node.handler !== undefined)
       add({

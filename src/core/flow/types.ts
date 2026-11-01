@@ -55,6 +55,11 @@ export interface ImplBinding {
 export interface NodeSettings {
   max_fail_percentage?: number;
   serial?: string | number;
+  /**
+   * Subflows (AFD-55): hosts per batch through every step inside, one batch after another (a
+   * number or a percentage); the steps run in one play with this serial.
+   */
+  rolling?: string | number;
   timeout?: string;
   retries?: number;
   /** Seconds between tries (Ansible `delay`, default 5). */
