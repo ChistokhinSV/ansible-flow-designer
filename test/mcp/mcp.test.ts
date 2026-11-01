@@ -112,6 +112,43 @@ describe('MCP server', () => {
     expect((parse(disk()) as FlowDocument).flow.version).toBe(4);
   });
 
+  it('wave 4: a format 1 file explains the upgrade, is upgraded by an op and edited in format 2', async () => {
+    const refused = await call('flow_edit', {
+      ops: [
+        {
+          op: 'accept',
+          at: 'validate',
+          finding: 'check:binding-unknown-var',
+          reason: 'Set in group_vars',
+        },
+      ],
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toMatch(/Upgrade Flow Format|upgrade_format/);
+    const up = await call('flow_edit', { ops: [{ op: 'upgrade_format' }] });
+    expect(up.isError).toBe(false);
+    expect((parse(disk()) as FlowDocument).schema_version).toBe(2);
+    // Format 2 edits: a pattern writes purpose, Retry sets retries on the step, a warning is accepted.
+    const r = await call('flow_edit', {
+      ops: [
+        { op: 'apply_pattern', at: 'check-ntp.failed_hosts', pattern: 'notify-stop' },
+        {
+          op: 'update_node',
+          node: 'push-baseline',
+          settings: { become: true, become_user: 'netops' },
+        },
+      ],
+    });
+    expect(r.isError).toBe(false);
+    const doc = parse(disk()) as FlowDocument;
+    const notify = doc.nodes.find((n) => n.title === 'Notify on-call' || n.purpose === 'notify');
+    expect(notify?.purpose).toBe('notify');
+    expect(notify?.handler).toBeUndefined();
+    expect(doc.nodes.find((n) => n.key === 'push-baseline')?.settings?.become_user).toBe('netops');
+    const described = await call('flow_describe', {});
+    expect(described.text).toContain('purpose: notify');
+  });
+
   it('generated files edited by hand are kept', async () => {
     const file = join(repo, 'flows/edge-baseline/generated/edge-baseline.yml');
     writeFileSync(file, `${readFileSync(file, 'utf8')}\n# my tweak\n`);
