@@ -40,7 +40,8 @@ project, the setup stops and names them: push first, and sync the project in AWX
 
 ## 4. Launch and follow the run
 
-Run **Launch in AWX**: from the top bar in Code or Run mode, or the Command Palette.
+Run **Launch in AWX**: under the arrow of **Run as Skeleton** in the top bar, or the Command
+Palette.
 
 1. Enter the flow inputs (remembered per flow).
 2. The confirmation names the targets and the commit AWX will run. If that is not your HEAD

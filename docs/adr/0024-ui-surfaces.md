@@ -71,3 +71,19 @@ that subflow (`context`).
   - `updateNode` refuses `status: tested`, as the AI ops already did; a passing run still marks nodes through `setStatuses`.
   - Setting another status, or the drop-back after a design change (`implementedAgain`), removes the record in the same edit.
   - AFD-50 replaces the record with the v2 `tested` record and AFD-51 with the unified `accepted` decision.
+
+## Amendment: modes and lenses (AFD-45, 2026-11-01)
+
+- **One toolbar in every mode:** Run ▾ (Run as Skeleton up front; Run for Real… and Launch in AWX in its menu), Stop, Generate Code, Export ▾ (draw.io, image), "…" (Tidy Up, Open in Text Editor, Check Flow, Keyboard Shortcuts, User Guide).
+  - What cannot run now stays in place with `aria-disabled` and a tooltip that says why: no run going, a run going, `N` errors before Generate Code, a read-only graph for Tidy Up. A `disabled` button shows no tooltip.
+  - Code mode's **Re-sync from Git** moved to the top of its Design vs code panel.
+- **Code mode reads the graph** like Run mode:
+  - no dragging, wiring, port menus, deleting, cutting, pasting or nudging (`canEdit` is Design only);
+  - node menus offer Details… and **Binding…**, and the Details are read-only except the Binding tab;
+  - drift actions still change the design, since that is what they are for.
+- **The palette** (and its legend) shows in Design only; in Code and Run modes the left column folds to nothing.
+- **A lens is an overlay with a tab:**
+  - It no longer replaces the palette or the mode's panel.
+  - With a lens on, the right panel has two tabs: the mode's panel (the flow, a node's Details, the drift or run panel) and **Lens: X** with the lens's browser and findings (`lensTab`).
+  - Turning a lens on opens its tab; selecting a node or a wire shows the panel; the tabs switch back and forth.
+  - `rightPanelFor` no longer knows lenses.

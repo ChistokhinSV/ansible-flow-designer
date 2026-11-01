@@ -131,7 +131,22 @@ export function DriftPanel() {
   const ignored = drift?.items.filter((i) => i.ignored) ?? [];
   return (
     <div className="afd-panel-body" data-drift-panel>
-      <h2 className="afd-panel-title">Design vs code</h2>
+      <div className="afd-panel-head">
+        <h2 className="afd-panel-title">Design vs code</h2>
+        {/* Code mode's own action lives with its panel; the toolbar is the same in every mode (AFD-45). */}
+        <button
+          type="button"
+          disabled={sync.state === 'syncing'}
+          onClick={() => send({ type: 'sync' })}
+          title="Compile the generated code and the bound roles and playbooks in the environment, and compare them with the design"
+        >
+          <span
+            className={`codicon ${sync.state === 'syncing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-sync'}`}
+            aria-hidden="true"
+          />{' '}
+          {sync.state === 'syncing' ? 'Syncing…' : 'Re-sync from Git'}
+        </button>
+      </div>
       <SyncSource />
       {!drift && sync.state !== 'syncing' ? (
         <p className="muted">

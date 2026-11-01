@@ -11,10 +11,12 @@ time: the top of the flow, or the inside of one subflow.
   - the breadcrumb;
   - the mode toggle: **Design**, **Code** (design vs code) and **Run** (the last run);
   - the **Lens** dropdown;
-  - the mode's main action: **Run as Skeleton**, with **Run for Real…** under its chevron;
-  - a "…" menu with _Tidy Up_, _Open in Text Editor_, _Export as draw.io Diagram…_, _Export as
-    Image…_, _Check Flow_, _Keyboard Shortcuts_ and _User Guide_.
-- **Palette** (left): node types and failure patterns, and a legend of port and wire styles.
+  - the same actions in every mode: **Run as Skeleton** (with **Run for Real…** and **Launch in
+    AWX** under its arrow), **Stop**, **Generate Code**, **Export** ▾, and a "…" menu with _Tidy
+    Up_, _Open in Text Editor_, _Check Flow_, _Keyboard Shortcuts_ and _User Guide_. What cannot
+    run now is greyed out; its tooltip says why.
+- **Palette** (left, Design mode): node types and failure patterns, and a legend of port and wire
+  styles. Code and Run modes read the graph, so the palette folds away there.
 - **Canvas** (middle): nodes, ports and wires.
 - **Right panel:** the flow (name, goal, owner, maintenance window, inputs, readiness) when nothing
   is selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs,

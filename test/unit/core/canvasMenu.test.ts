@@ -86,13 +86,13 @@ describe('canvas menu', () => {
     expect(start).toContain('Copy');
   });
 
-  it('Run mode only reads; Implementation edits but has no Rename or Extract', () => {
+  it('Run and Code modes read the graph; Code keeps the binding (AFD-45)', () => {
     const { id, menu } = setup(EDGE);
     const run = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'run' }));
     expect(run).toEqual(['Details…', '—', 'Copy', '—', 'Open in Text Editor', 'Peek Code']);
-    const impl = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'code' }));
-    expect(impl).not.toContain('Rename');
-    expect(impl).toContain('Delete');
+    const code = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'code' }));
+    expect(code).toContain('Binding…');
+    for (const edit of ['Rename', 'Cut', 'Duplicate', 'Delete']) expect(code).not.toContain(edit);
     const group = { kind: 'nodes' as const, ids: [id('precheck'), id('validate')] };
     expect(labels(menu(group, { mode: 'code' }))).not.toContain('Extract into Subflow…');
     expect(labels(menu(group, { mode: 'run' }))).toEqual(['Copy']);
@@ -132,7 +132,7 @@ describe('canvas menu', () => {
       port: 'ok_hosts',
     };
     expect(labels(menu(exit))).toEqual(['Edit Reason…', 'Remove Exit']);
-    expect(labels(menu(exit, { mode: 'code' }))).toEqual(['Remove Exit']);
+    expect(labels(menu(exit, { mode: 'code' }))).not.toContain('Remove Exit');
     const stale = menu({ kind: 'node', id: id('precheck') }, { stale: true });
     const del = find(stale, 'Delete');
     expect(del?.type === 'item' && del.disabled).toBe('Fix the YAML errors first');

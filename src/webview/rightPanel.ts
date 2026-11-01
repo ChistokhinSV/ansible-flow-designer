@@ -1,13 +1,12 @@
 // Which panel the right side shows (AFD-35): one pure rule, tested as a table, instead of a nested
-// conditional in App. A lens with nothing selected shows its findings. A selected node shows its
-// Details in every mode (AFD-43; Code and Run add their tab); otherwise Code and Run modes show
-// their own panels, and Design the selection, a boundary wire, the open subflow, or the flow.
+// conditional in App. A selected node shows its Details in every mode (AFD-43; Code and Run add
+// their tab); otherwise Code and Run modes show their own panels, and Design the selection, a
+// boundary wire, the open subflow, or the flow. A lens has a tab of its own beside it (AFD-45).
 import { ROOT } from '../core/flow/model';
 import type { LensId } from '../core/lens/types';
 import type { Mode, Selection } from './store';
 
 export type RightPanel =
-  | { kind: 'lens' }
   | { kind: 'drift' }
   | { kind: 'wireRun'; edge: string }
   | { kind: 'run' }
@@ -25,7 +24,6 @@ export function rightPanelFor(s: {
   level: string;
 }): RightPanel {
   const { node, edge, nodes } = s.selection;
-  if (s.lens && !node && !edge && !nodes) return { kind: 'lens' };
   if (node) return { kind: 'details', id: node };
   if (s.mode === 'code') return { kind: 'drift' };
   if (s.mode === 'run') {
@@ -42,8 +40,6 @@ export function rightPanelFor(s: {
 /** The accessible name of the right side for each panel. */
 export function rightPanelLabel(panel: RightPanel): string {
   switch (panel.kind) {
-    case 'lens':
-      return 'Lens findings';
     case 'drift':
       return 'Design vs code';
     case 'wireRun':

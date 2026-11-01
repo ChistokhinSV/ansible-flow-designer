@@ -56,8 +56,8 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
   const along = `${Math.round(port.offset * 100)}%`;
   const style = port.side === 'top' || port.side === 'bottom' ? { left: along } : { top: along };
   const isOutput = port.direction === 'out';
-  // Run mode shows results; wiring and port menus belong to Design.
-  const locked = useUi((s) => s.mode === 'run');
+  // Code and Run modes read the graph; wiring and port menus belong to Design (AFD-45).
+  const locked = useUi((s) => s.mode !== 'design');
   const onClick = (e: MouseEvent<HTMLDivElement>) => {
     // While picking a target, the click belongs to the node (FlowCanvas onNodeClick).
     if (useUi.getState().pick || locked) return;

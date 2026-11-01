@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.0 — AFD-45
+
+- **The same toolbar in every mode** (improvement program, wave 3): **Run as Skeleton** (with **Run for Real…** and **Launch in AWX** under its arrow), **Stop**, **Generate Code**, **Export** ▾ and "…". What cannot run now is greyed out, and its tooltip says why. **Re-sync from Git** is at the top of Code mode's panel.
+- **Code mode reads the graph**, like Run mode: no moving, wiring or deleting there; bindings stay editable (Details › Binding, the node menu's **Binding…**, the drift actions). The palette shows in Design mode only.
+- **A lens no longer takes over:** the palette stays, and the right panel gets a **Lens** tab beside the panel you had; selecting a node shows its Details, and the Lens tab is one click away.
+
 ## 0.26.1 — AFD-44
 
 - **Details content** (improvement program, wave 3):

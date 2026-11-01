@@ -35,21 +35,57 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('top bar', () => {
-  it('Design: Run as Skeleton up front, Run for real in its menu, the rest under "…"', () => {
+  it('one toolbar in every mode: Run, Stop, Generate Code, Export, "…" (AFD-45)', () => {
+    const bar = () =>
+      [...document.querySelectorAll('.afd-actions > button, .afd-actions > .afd-split > button')]
+        .map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim())
+        .filter(Boolean);
+    const seen: string[][] = [];
+    for (const mode of ['design', 'code', 'run'] as const) {
+      act(() => useUi.getState().setMode(mode));
+      render(<TopBar />);
+      seen.push(bar() as string[]);
+      cleanup();
+    }
+    expect(seen[0]).toEqual([
+      'Run as Skeleton',
+      'More run options',
+      'Stop',
+      'Generate Code',
+      'Export',
+      'More actions',
+    ]);
+    expect(seen[1]).toEqual(seen[0]);
+    expect(seen[2]).toEqual(seen[0]);
+  });
+
+  it('runs, exports and the "…" menu; what cannot run says why', () => {
+    act(() => useUi.getState().setMode('design'));
     render(<TopBar />);
-    for (const gone of ['Tidy Up', 'Text', 'Check Flow', 'Run for real'])
-      expect(screen.queryByRole('button', { name: gone })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Run as Skeleton/ }));
     expect(posted).toEqual([{ type: 'run', mode: 'check' }]);
     fireEvent.click(screen.getByRole('button', { name: 'More run options' }));
+    expect(items()).toEqual(['Run for Real…', 'Launch in AWX']);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run for Real…' }));
     expect(posted.at(-1)).toEqual({ type: 'run', mode: 'real' });
+    // Stop is in place but unavailable with no run going.
+    const stop = screen.getByRole('button', { name: /Stop/ });
+    expect(stop.getAttribute('aria-disabled')).toBe('true');
+    expect(stop.getAttribute('title')).toBe('No run is going');
+    posted.length = 0;
+    fireEvent.click(stop);
+    expect(posted).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: /Generate Code/ }));
+    expect(posted).toEqual([{ type: 'generate' }]);
+    // AFD-25: exports run on the host; images cover the open level.
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(items()).toEqual(['Export as draw.io Diagram…', 'Export as Image…']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export as Image…' }));
+    expect(posted.at(-1)).toEqual({ type: 'export', format: 'image', level: 'root' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     expect(items()).toEqual([
       'Tidy Up',
       'Open in Text Editor',
-      'Export as draw.io Diagram…',
-      'Export as Image…',
       'Check Flow',
       'Keyboard Shortcuts',
       'User Guide',
@@ -63,27 +99,16 @@ describe('top bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'User Guide' }));
     expect(posted.at(-1)).toEqual({ type: 'openGuide' });
-    // AFD-25: exports run on the host; images cover the open level.
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Export as Image…' }));
-    expect(posted.at(-1)).toEqual({ type: 'export', format: 'image', level: 'root' });
   });
 
-  it('Code: Check Flow in "…" too (AFD-41); the menu button toggles', () => {
+  it('Code mode: Tidy Up says the graph is read-only; the menu button toggles', () => {
     act(() => useUi.getState().setMode('code'));
     render(<TopBar />);
     const more = screen.getByRole('button', { name: 'More actions' });
     fireEvent.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
-    expect(items()).toEqual([
-      'Tidy Up',
-      'Open in Text Editor',
-      'Export as draw.io Diagram…',
-      'Export as Image…',
-      'Check Flow',
-      'Keyboard Shortcuts',
-      'User Guide',
-    ]);
+    const tidy = screen.getByRole('menuitem', { name: /Tidy Up/ });
+    expect(tidy.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();
   });

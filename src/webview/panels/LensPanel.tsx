@@ -50,7 +50,7 @@ export function LensBrowser() {
   if (!view || !lens) return null;
   const inventory = lens === 'inventory' || lens === 'access';
   return (
-    <aside className="afd-left afd-lens-browser" aria-label={`${labelOf(lens)} lens`}>
+    <section className="afd-panel-body afd-lens-browser" aria-label={`${labelOf(lens)} lens`}>
       <h2 className="afd-panel-title">{labelOf(lens)}</h2>
       {inventory ? (
         <div className="afd-lens-source">
@@ -83,7 +83,7 @@ export function LensBrowser() {
           )}
         </section>
       ))}
-    </aside>
+    </section>
   );
 }
 

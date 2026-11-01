@@ -25,7 +25,7 @@ not find the playbooks, the setup stops and names them.
 
 ## Launch
 
-**Launch in AWX** (top bar in Code and Run modes, or the Command Palette):
+**Launch in AWX** (under the arrow of **Run as Skeleton** in the top bar, or the Command Palette):
 - asks for the flow inputs, then confirms the targets and the commit;
 - warns when AWX would run another commit than your HEAD (unpushed or uncommitted changes);
 - launches with the inputs as extra vars and follows the job's events until it ends.

@@ -30,6 +30,9 @@ export function TopBar() {
   const chips = doc ? inheritedContext(doc, level) : [];
   const run = useUi((s) => s.run);
   const running = run?.state === 'running';
+  const errors = useUi(
+    (s) => s.snapshot?.findings.filter((f) => f.severity === 'error').length ?? 0,
+  );
   const mode = useUi((s) => s.mode);
   const sync = useUi((s) => s.sync);
   const lens = useUi((s) => s.lens);
@@ -104,49 +107,40 @@ export function TopBar() {
       </fieldset>
       <LensPick lens={lens} pick={pickLens} />
       <div className="afd-actions">
-        {mode === 'code' ? (
-          <button
-            type="button"
-            disabled={sync.state === 'syncing'}
-            onClick={() => send({ type: 'sync' })}
-            title="Compile the generated code and the bound roles and playbooks in the environment, and compare them with the design"
-          >
-            <span
-              className={`codicon ${sync.state === 'syncing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-sync'}`}
-              aria-hidden="true"
-            />{' '}
-            {sync.state === 'syncing' ? 'Syncing…' : 'Re-sync from Git'}
-          </button>
-        ) : null}
         <RunStatus run={run} />
-        {running ? (
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => send({ type: 'stopRun' })}
-            title="Stop the run: end the local run, or cancel the job in AWX"
-          >
-            <span className="codicon codicon-debug-stop" aria-hidden="true" /> Stop
-          </button>
-        ) : null}
-        {mode === 'design' ? <DesignActions running={running} /> : null}
-        {mode === 'run' ? (
-          <button
-            type="button"
-            className="secondary"
-            disabled={running}
-            onClick={() => send({ type: 'run', mode: 'check' })}
-            title="Generate the code and run it in check mode in the local Ansible environment"
-          >
-            <span className="codicon codicon-play" aria-hidden="true" /> Run as Skeleton
-          </button>
-        ) : null}
-        {mode !== 'design' ? <LaunchAwx running={running} /> : null}
+        <RunActions running={running} />
+        <ActionButton
+          icon="debug-stop"
+          label="Stop"
+          title="Stop the run: end the local run, or cancel the job or workflow in AWX"
+          unavailable={running ? undefined : 'No run is going'}
+          onClick={() => send({ type: 'stopRun' })}
+        />
+        <ActionButton
+          icon="file-code"
+          label="Generate Code"
+          title="Write the playbooks in generated/ now"
+          unavailable={
+            errors > 0
+              ? `Fix the ${errors} error${errors === 1 ? '' : 's'} first (see Problems)`
+              : undefined
+          }
+          onClick={() => send({ type: 'generate' })}
+        />
+        <MenuButton
+          label="Export"
+          className="secondary"
+          title="Export the flow as a diagram"
+          items={() => exportActions(level)}
+        >
+          <span className="codicon codicon-export" aria-hidden="true" /> Export{' '}
+          <span className="codicon codicon-chevron-down" aria-hidden="true" />
+        </MenuButton>
         <MenuButton
           label="More actions"
           className="secondary icon"
           title="More actions"
-          items={() => moreActions(level)}
+          items={() => moreActions(mode, level)}
         >
           <span className="codicon codicon-ellipsis" aria-hidden="true" />
         </MenuButton>
@@ -209,14 +203,24 @@ function LensPick({
   );
 }
 
+/** What the graph cannot do in a mode, or undefined in Design (AFD-45). */
+export function readOnlyReason(mode: Mode): string | undefined {
+  return mode === 'run'
+    ? 'Run mode only reads: switch to Design to change the flow'
+    : mode === 'code'
+      ? 'The graph is read-only in Code mode (bindings stay editable): switch to Design'
+      : undefined;
+}
+
 /** Actions used now and then: in the "…" menu instead of on the bar. */
-function moreActions(level: string): UiMenuEntry[] {
+function moreActions(mode: Mode, level: string): UiMenuEntry[] {
   return [
     {
       type: 'item',
       label: 'Tidy Up',
       icon: 'layout',
       title: 'Lay out the whole level again',
+      disabled: readOnlyReason(mode),
       onSelect: () => send({ type: 'tidyUp', level }),
     },
     {
@@ -225,20 +229,6 @@ function moreActions(level: string): UiMenuEntry[] {
       icon: 'go-to-file',
       title: 'Open the flow file in the text editor',
       onSelect: () => send({ type: 'openText' }),
-    },
-    {
-      type: 'item',
-      label: 'Export as draw.io Diagram…',
-      icon: 'export',
-      title: 'Every level as a page of a draw.io diagram, with the node details as shape data',
-      onSelect: () => send({ type: 'export', format: 'drawio', level }),
-    },
-    {
-      type: 'item',
-      label: 'Export as Image…',
-      icon: 'file-media',
-      title: 'This level as an SVG or PNG image that draw.io also opens as a diagram',
-      onSelect: () => send({ type: 'export', format: 'image', level }),
     },
     {
       type: 'item',
@@ -265,15 +255,67 @@ function moreActions(level: string): UiMenuEntry[] {
   ];
 }
 
-/** Design mode's primary action (04 §1): run as skeleton; running for real is in its menu. */
-function DesignActions({ running }: { running: boolean }) {
+function exportActions(level: string): UiMenuEntry[] {
+  return [
+    {
+      type: 'item',
+      label: 'Export as draw.io Diagram…',
+      icon: 'export',
+      title: 'Every level as a page of a draw.io diagram, with the node details as shape data',
+      onSelect: () => send({ type: 'export', format: 'drawio', level }),
+    },
+    {
+      type: 'item',
+      label: 'Export as Image…',
+      icon: 'file-media',
+      title: 'This level as an SVG or PNG image that draw.io also opens as a diagram',
+      onSelect: () => send({ type: 'export', format: 'image', level }),
+    },
+  ];
+}
+
+/**
+ * A toolbar button that stays in place when it cannot run (AFD-45): aria-disabled keeps its
+ * tooltip, which says why (a disabled button shows none).
+ */
+function ActionButton({
+  icon,
+  label,
+  title,
+  unavailable,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  title: string;
+  unavailable?: string;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      className="secondary"
+      aria-disabled={unavailable ? true : undefined}
+      title={unavailable ?? title}
+      onClick={() => !unavailable && onClick()}
+    >
+      <span className={`codicon codicon-${icon}`} aria-hidden="true" /> {label}
+    </button>
+  );
+}
+
+/** Run ▾ in every mode (AFD-45): a skeleton run up front; a real run and AWX in its menu. */
+function RunActions({ running }: { running: boolean }) {
+  const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <div className="afd-split">
       <button
         type="button"
-        disabled={running}
-        onClick={() => send({ type: 'run', mode: 'check' })}
-        title="Generate the playbook and run it in check mode in the Ansible environment"
+        aria-disabled={busy ? true : undefined}
+        onClick={() => !busy && send({ type: 'run', mode: 'check' })}
+        title={
+          busy ?? 'Generate the code and run it in check mode in the local Ansible environment'
+        }
       >
         <span
           className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-play'}`}
@@ -284,38 +326,29 @@ function DesignActions({ running }: { running: boolean }) {
       <MenuButton
         label="More run options"
         title="More run options"
-        disabled={running}
         items={() => [
           {
             type: 'item',
             label: 'Run for Real…',
             icon: 'debug-alt',
             title: 'Run for real (not check mode), after a confirmation naming inventory and hosts',
+            disabled: busy,
             onSelect: () => send({ type: 'run', mode: 'real' }),
+          },
+          {
+            type: 'item',
+            label: 'Launch in AWX',
+            icon: 'rocket',
+            title:
+              "Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events",
+            disabled: busy,
+            onSelect: () => send({ type: 'launchAwx' }),
           },
         ]}
       >
         <span className="codicon codicon-chevron-down" aria-hidden="true" />
       </MenuButton>
     </div>
-  );
-}
-
-/** Implementation and Run modes (04 §1): run the flow's AWX job template. */
-function LaunchAwx({ running }: { running: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={running}
-      onClick={() => send({ type: 'launchAwx' })}
-      title="Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events"
-    >
-      <span
-        className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-rocket'}`}
-        aria-hidden="true"
-      />{' '}
-      {running ? 'Running…' : 'Launch in AWX'}
-    </button>
   );
 }
 

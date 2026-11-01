@@ -107,7 +107,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const paneWidth = useStore((s) => s.width);
   const paneHeight = useStore((s) => s.height);
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
-  const runMode = useUi((s) => s.mode === 'run');
+  // Code and Run modes show the graph read-only (AFD-45); Run mode also labels wires with hosts.
+  const readOnly = useUi((s) => s.mode !== 'design');
   // Written by hand without IDs (AFD-19): shown, not edited, until Complete IDs.
   const handWritten = useUi((s) => !!s.snapshot?.idGaps);
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
@@ -210,9 +211,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
         },
         selected: selection.edge === e.id,
-        deletable: !runMode,
+        deletable: !readOnly,
       })),
-    [view.edges, selection.edge, ran, runMode, hostsOn, lensWires, dataLens, shows],
+    [view.edges, selection.edge, ran, readOnly, hostsOn, lensWires, dataLens, shows],
   );
   const dataEdges = useMemo<Edge[]>(() => {
     if (!dataLens || !dataWires) return [];
@@ -320,7 +321,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   useEffect(() => () => clearTimeout(nudge.current), []);
   const onNudge = useCallback(
     (e: ReactKeyboardEvent) => {
-      if (!e.key.startsWith('Arrow') || e.altKey || e.ctrlKey || e.metaKey || runMode) return;
+      if (!e.key.startsWith('Arrow') || e.altKey || e.ctrlKey || e.metaKey || readOnly) return;
       if (!(e.target as Element).closest?.('.react-flow__node, .react-flow__nodesselection'))
         return;
       clearTimeout(nudge.current);
@@ -329,7 +330,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         500,
       );
     },
-    [saveMoves, runMode],
+    [saveMoves, readOnly],
   );
 
   const onConnect = useCallback(
@@ -539,7 +540,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           return;
         }
         const port = (e.target as Element).closest?.<HTMLElement>('[data-port]')?.dataset.port;
-        if (port && !runMode) {
+        if (port && !readOnly) {
           e.preventDefault();
           openPortMenu({ ref: { node: n.id, port }, x: e.clientX, y: e.clientY });
           return;
@@ -605,8 +606,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
       }}
       isValidConnection={(c) => c.source !== c.target}
-      nodesConnectable={!runMode && !handWritten}
-      nodesDraggable={!runMode && !handWritten}
+      nodesConnectable={!readOnly && !handWritten}
+      nodesDraggable={!readOnly && !handWritten}
       // Delete and Backspace are the designer's (keyboard.ts): the selection in one command.
       deleteKeyCode={null}
       onlyRenderVisibleElements={cull && !testMode}

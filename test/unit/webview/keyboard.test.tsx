@@ -99,7 +99,7 @@ afterEach(() => {
 });
 
 describe('keyboard', () => {
-  it('Delete takes three selected nodes in one command; Run mode deletes nothing', () => {
+  it('Delete takes three selected nodes in one command; Run and Code modes delete nothing', () => {
     canvas();
     const three = [id('validate'), id('rollback'), id('backup-config')];
     act(() => useUi.getState().select({ nodes: three }));
@@ -111,12 +111,15 @@ describe('keyboard', () => {
     expect(cmd.kind).toBe('deleteNodes');
     expect([...cmd.ids].sort()).toEqual([...three].sort());
     posted.length = 0;
-    act(() => useUi.getState().setMode('run'));
-    act(() => useUi.getState().select({ nodes: three }));
-    act(() => {
-      fireEvent.keyDown(document.body, { key: 'Delete' });
-    });
-    expect(commands()).toEqual([]);
+    for (const mode of ['run', 'code'] as const) {
+      act(() => useUi.getState().setMode(mode));
+      act(() => useUi.getState().select({ nodes: three }));
+      act(() => {
+        fireEvent.keyDown(document.body, { key: 'Delete' });
+      });
+      expect(commands()).toEqual([]);
+    }
+    act(() => useUi.getState().setMode('design'));
   });
 
   it('cut: the YAML on the clipboard and one deleteNodes', () => {

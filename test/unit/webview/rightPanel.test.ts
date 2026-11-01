@@ -16,7 +16,8 @@ describe('right panel', () => {
       'Selected nodes',
     ],
     [{ selection: { edge: 'entry:S' } }, { kind: 'boundary', edge: 'entry:S' }, 'Subflow boundary'],
-    [{ lens: 'data' }, { kind: 'lens' }, 'Lens findings'],
+    // A lens has its own tab beside the panel (AFD-45): the panel stays the mode's.
+    [{ lens: 'data' }, { kind: 'flow' }, 'Flow description'],
     [{ lens: 'data', selection: { node: 'A' } }, { kind: 'details', id: 'A' }, 'Details'],
     [{ mode: 'code' }, { kind: 'drift' }, 'Design vs code'],
     // A node shows its Details in every mode; Code and Run add their tab (AFD-43).
@@ -81,5 +82,21 @@ describe('the side panel (AFD-43)', () => {
     ui.setExpanded(true);
     expect(useUi.getState()).toMatchObject({ panelWidth: 400, expanded: true });
     ui.setExpanded(false);
+  });
+});
+
+describe('the lens tab (AFD-45)', () => {
+  it('a lens opens on its tab; selecting shows the panel; the tab is a click away', () => {
+    const ui = useUi.getState();
+    ui.select({});
+    ui.setLens('data');
+    expect(useUi.getState().lensTab).toBe(true);
+    ui.select({ node: 'A' });
+    expect(useUi.getState().lensTab).toBe(false);
+    ui.showLensTab(true);
+    expect(useUi.getState().lensTab).toBe(true);
+    ui.setLens(null);
+    expect(useUi.getState().lensTab).toBe(false);
+    ui.select({});
   });
 });

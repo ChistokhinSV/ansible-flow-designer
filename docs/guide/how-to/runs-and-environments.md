@@ -31,7 +31,7 @@ modules support it.
 
 ## Run for real
 
-**Run for Real…** (under the chevron of _Run as Skeleton_) first shows a confirmation with:
+**Run for Real…** (under the arrow of _Run as Skeleton_) first shows a confirmation with:
 - the inventory (`afd.run.inventory`, else `ansible.cfg`'s default);
 - how many hosts match the targets, and hosts missing from the inventory;
 - groups whose names look like production.

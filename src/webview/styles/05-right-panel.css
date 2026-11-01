@@ -126,3 +126,12 @@
   font-size: var(--afd-fs-11);
   padding: 0 6px;
 }
+
+/* A panel's title with its own action on the right (Code mode's Re-sync, AFD-45). */
+.afd-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}

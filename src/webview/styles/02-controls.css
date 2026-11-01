@@ -157,3 +157,9 @@ textarea {
   overflow-x: auto;
   max-height: 320px;
 }
+
+/* Unavailable but in place, with its tooltip saying why (AFD-45: aria-disabled, not disabled). */
+button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

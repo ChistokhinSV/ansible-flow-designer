@@ -162,6 +162,8 @@ interface UiState {
   ignore: IgnoreTarget | null;
   /** The lens across the canvas (D-18, M8), independent of mode. */
   lens: LensId | null;
+  /** The right panel shows the lens's tab (its browser and findings) rather than the mode's panel. */
+  lensTab: boolean;
   lensFacts: LensFacts;
   /** The active lens for the current document, facts and run (computed, never stored). */
   lensView: LensView | null;
@@ -206,6 +208,8 @@ interface UiState {
   setSync(sync: SyncState): void;
   setIgnore(target: IgnoreTarget | null): void;
   setLens(lens: LensId | null): void;
+  /** Which tab the right panel shows while a lens is on (AFD-45). */
+  showLensTab(on: boolean): void;
   /** Merges facts from the host (each message carries the kinds it updates). */
   setLensFacts(facts: LensFacts): void;
   setHighlight(nodes: Ulid[] | null): void;
@@ -260,6 +264,7 @@ export const useUi = create<UiState>((set, get) => ({
   drift: null,
   ignore: null,
   lens: null,
+  lensTab: false,
   lensFacts: {},
   lensView: null,
   highlight: null,
@@ -311,7 +316,9 @@ export const useUi = create<UiState>((set, get) => ({
     const pending = get().pendingBinding;
     if (pending && selection.node !== pending)
       return void set({ leave: { kind: 'select', selection } });
-    set({ selection });
+    // Selecting shows what was selected: the mode's panel, not the lens's tab.
+    const chosen = !!(selection.node || selection.nodes?.length || selection.edge);
+    set({ selection, ...(chosen ? { lensTab: false } : {}) });
   },
   openQuickAdd: (quickAdd) => set({ quickAdd }),
   openPortMenu: (portMenu) => set({ portMenu, ...closing('portMenu') }),
@@ -335,10 +342,13 @@ export const useUi = create<UiState>((set, get) => ({
   setLens(lens) {
     set({
       lens,
+      // A lens opens on its tab; the mode's panel stays one click away (AFD-45).
+      lensTab: lens !== null,
       highlight: null,
       lensView: lensOf(get().snapshot, lens, get().lensFacts, get().run),
     });
   },
+  showLensTab: (lensTab) => set({ lensTab }),
   setLensFacts(facts) {
     const lensFacts = { ...get().lensFacts, ...facts };
     set({ lensFacts, lensView: lensOf(get().snapshot, get().lens, lensFacts, get().run) });

@@ -23,8 +23,8 @@ outputs but run no code yet.
 
 ## 2. See the data
 
-Top bar → **Lens** → **Data**. Dotted wires show where each step's inputs come from. The left panel
-lists the flow inputs and every output with who reads it.
+Top bar → **Lens** → **Data**. Dotted wires show where each step's inputs come from. The **Lens**
+tab on the right lists the flow inputs and every output with who reads it.
 
 ![The data lens](../images/data-lens-light.png)
 
@@ -111,7 +111,7 @@ is an input of the step. Without **Until**, retries stop at the first success. S
 ## 6. Compare the design with the code
 
 Bind the remaining steps the same way, or bind some to roles (**Role** in the Find column) that you
-already have. Then switch the top bar to **Code** and click **Re-sync from Git**. The
+already have. Then switch the top bar to **Code** and click **Re-sync from Git** in the panel. The
 extension compiles the generated playbook and every bound role and playbook in your environment.
 Then it lists what differs, with an action on both sides.
 

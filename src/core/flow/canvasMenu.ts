@@ -120,7 +120,7 @@ function portItems(model: FlowModel, ref: PortRef, kinds?: PortMenuItem['kind'][
 function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const node = model.nodes.get(id)?.node;
   if (!node) return [];
-  const edit = ctx.mode !== 'run';
+  const edit = ctx.mode === 'design';
   const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const ends = node.type === 'start' || node.type === 'end';
   const open: CanvasMenuEntry[] = [];
@@ -134,7 +134,8 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
     );
   if (node.type === 'task' || node.type === 'subflow') {
     open.push(item('Details…', { do: 'properties', node: id }, { icon: 'settings-gear' }));
-    if (edit && !node.impl)
+    // Binding stays editable in Code mode, where the graph is read-only (AFD-45).
+    if (ctx.mode !== 'run')
       open.push(
         item(
           'Binding…',
@@ -209,7 +210,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
 
 function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const nodes = ids.map((id) => model.nodes.get(id)?.node).filter((n) => !!n);
-  const edit = ctx.mode !== 'run';
+  const edit = ctx.mode === 'design';
   const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const clip: CanvasMenuEntry[] = [];
   if (edit) clip.push(item('Cut', { do: 'cut', nodes: ids }, { shortcut: 'cut', ...lock }));
@@ -243,7 +244,7 @@ function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): Canva
 }
 
 function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
-  const edit = ctx.mode !== 'run';
+  const edit = ctx.mode === 'design';
   const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const add = edit
     ? [
@@ -266,7 +267,7 @@ export function canvasMenu(
   target: CanvasTarget,
   ctx: CanvasMenuContext,
 ): CanvasMenuEntry[] {
-  const edit = ctx.mode !== 'run' && !ctx.stale;
+  const edit = ctx.mode === 'design' && !ctx.stale;
   switch (target.kind) {
     case 'node':
       return nodeMenu(model, target.id, ctx);

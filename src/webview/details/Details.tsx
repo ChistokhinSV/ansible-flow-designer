@@ -92,7 +92,8 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   // AFD-44: the node's problems at the top, each opening its tab; fields show theirs inline.
   const problems = nodeProblems(snapshot.findings, id, entry.path);
   const tabsWithProblems = new Set<string>(problems.map((p) => p.tab));
-  const readOnly = !editable || mode === 'run';
+  // Design edits everything; Code mode only the binding (AFD-45); Run mode reads.
+  const readOnly = !editable || mode === 'run' || (mode === 'code' && tab !== 'binding');
 
   const save = async (): Promise<boolean> => {
     setSaving(true);

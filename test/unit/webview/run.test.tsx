@@ -153,7 +153,9 @@ describe('Run mode', () => {
   it('the top bar enables Run mode and launches in AWX', () => {
     render(<TopBar />);
     expect(screen.getByRole('button', { name: 'Run' })).toHaveProperty('disabled', false);
-    fireEvent.click(screen.getByRole('button', { name: /Launch in AWX/ }));
+    // AFD-45: AWX is in the Run menu, the same in every mode.
+    fireEvent.click(screen.getByRole('button', { name: 'More run options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Launch in AWX' }));
     expect(posted).toContainEqual({ type: 'launchAwx' });
     expect(screen.getByRole('button', { name: /AWX #31/ })).toBeTruthy();
   });

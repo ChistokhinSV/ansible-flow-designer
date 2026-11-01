@@ -1,8 +1,10 @@
 # Lenses
 
-A lens looks at the whole flow from one angle. It fills the node chips, adds a list on the left and
-findings on the right. Pick one in the top bar's **Lens** dropdown; ✕ clears it. Lenses work in
-every mode and never edit the flow. Hover a row to highlight its nodes.
+A lens looks at the whole flow from one angle. It fills the node chips and opens a **Lens** tab in
+the right panel, with its list and its findings; the panel you had (the flow, a node's Details, the
+mode's panel) stays in the tab beside it, and selecting a node switches to it. Pick a lens in the top
+bar's **Lens** dropdown; ✕ clears it. Lenses work in every mode and never edit the flow. Hover a row
+to highlight its nodes.
 
 ![The inventory lens](../images/inventory-lens-light.png)
 

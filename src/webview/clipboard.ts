@@ -40,8 +40,10 @@ export function setPastePlace(place: () => Position | undefined): void {
 export async function pasteText(text: string, spot?: Position): Promise<Ulid[]> {
   const ui = useUi.getState();
   if (!ui.snapshot?.doc) return [];
-  if (ui.mode === 'run') {
-    ui.setError('Run mode is read-only: switch to Design to paste');
+  if (ui.mode !== 'design') {
+    ui.setError(
+      `The graph is read-only in ${ui.mode === 'run' ? 'Run' : 'Code'} mode: switch to Design to paste`,
+    );
     return [];
   }
   const at = spot ?? placeOf();
@@ -101,8 +103,8 @@ export function installClipboard(deleteNodes: (nodes: Ulid[]) => void): () => vo
     if (!copied) return;
     e.clipboardData.setData('text/plain', copied.text);
     e.preventDefault();
-    if (useUi.getState().mode === 'run')
-      useUi.getState().setError('Run mode is read-only: copied, not cut');
+    if (useUi.getState().mode !== 'design')
+      useUi.getState().setError('The graph is read-only outside Design mode: copied, not cut');
     else deleteNodes(nodes);
   };
   const onPaste = (e: ClipboardEvent) => {

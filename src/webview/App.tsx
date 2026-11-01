@@ -1,5 +1,6 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
+import { LENSES } from '../core/lens/types';
 import { loadState, onHostMessage, saveState, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
@@ -120,8 +121,6 @@ function useHost() {
 /** The right side's panel (AFD-35: chosen by `rightPanelFor`). */
 function RightPanelView({ panel }: { panel: RightPanel }) {
   switch (panel.kind) {
-    case 'lens':
-      return <LensPanel />;
     case 'drift':
       return <DriftPanel />;
     case 'wireRun':
@@ -202,6 +201,36 @@ function PanelResizer() {
   );
 }
 
+/** With a lens on, the right panel has two tabs: the mode's panel and the lens (AFD-45). */
+function RightTabs({ label, lensTab }: { label: string; lensTab: boolean }) {
+  const lens = useUi((s) => s.lens);
+  const findings = useUi((s) => s.lensView?.findings.length ?? 0);
+  const show = useUi((s) => s.showLensTab);
+  const name = LENSES.find((l) => l.id === lens)?.label ?? lens;
+  return (
+    <div className="afd-props-tabs afd-right-tabs" role="tablist" aria-label="Side panel">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={!lensTab}
+        className={lensTab ? '' : 'active'}
+        onClick={() => show(false)}
+      >
+        {label}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={lensTab}
+        className={lensTab ? 'active' : ''}
+        onClick={() => show(true)}
+      >
+        Lens: {name} {findings ? <span className="afd-chip">{findings}</span> : null}
+      </button>
+    </div>
+  );
+}
+
 export function App() {
   useThemeTokens();
   useHost();
@@ -213,6 +242,7 @@ export function App() {
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
   const panelWidth = useUi((s) => s.panelWidth);
+  const lensTab = useUi((s) => s.lens !== null && s.lensTab);
   const expanded = useUi((s) => s.expanded);
   usePanelState();
   const mode = useUi((s) => s.mode);
@@ -240,19 +270,29 @@ export function App() {
         style={
           {
             '--afd-right-width': expanded ? 'min(1100px, 80vw)' : `${panelWidth}px`,
+            // Code and Run modes read the graph: no palette to add nodes from (AFD-45).
+            ...(mode === 'design' ? {} : { '--afd-left-width': '0px' }),
           } as CSSProperties
         }
       >
         <TopBar />
-        {lens ? <LensBrowser /> : <Palette />}
+        {mode === 'design' ? <Palette /> : null}
         <main className="afd-center">
           <Banner />
           <PickBar />
           <FlowCanvas />
         </main>
-        <aside className="afd-right" aria-label={rightPanelLabel(panel)}>
+        <aside className="afd-right" aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}>
           <PanelResizer />
-          <RightPanelView panel={panel} />
+          {lens ? <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} /> : null}
+          {lensTab ? (
+            <>
+              <LensBrowser />
+              <LensPanel />
+            </>
+          ) : (
+            <RightPanelView panel={panel} />
+          )}
         </aside>
         <QuickAdd />
         <DecisionDialog />

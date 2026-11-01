@@ -16,10 +16,13 @@ export function selectedNodes(): Ulid[] {
   return selection.nodes ?? (selection.node ? [selection.node] : []);
 }
 
-/** Edits are possible: not in Run mode, the text parses, and no IDs are missing (AFD-19). */
+/**
+ * The graph can be edited: Design mode (Code and Run show it read-only, AFD-45), the text parses,
+ * and no IDs are missing (AFD-19).
+ */
 export function canEdit(): boolean {
   const { mode, snapshot } = useUi.getState();
-  return mode !== 'run' && !!snapshot?.doc && !snapshot.stale && !snapshot.idGaps;
+  return mode === 'design' && !!snapshot?.doc && !snapshot.stale && !snapshot.idGaps;
 }
 
 /**

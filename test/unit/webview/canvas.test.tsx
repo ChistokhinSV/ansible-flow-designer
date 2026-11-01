@@ -336,7 +336,10 @@ describe('generated code and runs (M3)', () => {
         startedAt: '2026-10-29T08:00:00Z',
       }),
     );
-    expect(screen.getByRole('button', { name: /Running/ })).toHaveProperty('disabled', true);
+    // In place while a run goes, saying why (AFD-45).
+    const busy = screen.getByRole('button', { name: /Running/ });
+    expect(busy.getAttribute('aria-disabled')).toBe('true');
+    expect(busy.getAttribute('title')).toBe('A run is going: stop it first');
     act(() =>
       useUi.getState().setRun({
         id: 'r2',
