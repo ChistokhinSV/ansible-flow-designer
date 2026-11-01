@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.31.0 — AFD-52 (unreleased parts)
+## 0.31.0 — AFD-52
 
 - **Privilege reaches the steps of a subflow** (format 2): become and its user, set on a subflow, apply to the generated plays of the steps inside; the nearest setting wins and a step can turn it off. The level chips say so. **Become user** is a setting (Execution › Privilege), no longer a task keyword; Upgrade Flow Format moves it and lists the subflows whose become now applies inside. Format 1 flows generate what they always did.
 - The **serial** chip on subflow levels is gone: serial batches the hosts of a node's own play, nothing inside.
