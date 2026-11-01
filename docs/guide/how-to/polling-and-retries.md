@@ -3,11 +3,11 @@
 Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details
 (the tab groups settings as Targeting, Privilege, Timing and Tags):
 
-| You want                                                          | Set                                                  |
-| ----------------------------------------------------------------- | ---------------------------------------------------- |
-| try again when the module fails (a flaky API)                     | **Retries**                                          |
-| ask again and again until a state is reached (a device rebooting) | **Retries**, **Until** and **Delay**                 |
-| run the step again later for the failed hosts, then continue      | the **Retry with Backoff** pattern on `failed_hosts` |
+| You want                                                          | Set                                  |
+| ----------------------------------------------------------------- | ------------------------------------ |
+| try again when the module fails (a flaky API)                     | **Retries**                          |
+| ask again and again until a state is reached (a device rebooting) | **Retries**, **Until** and **Delay** |
+| the same, from the port menu of `failed_hosts`                    | the **Retry** pattern                |
 
 ![Retries, Until and Delay](../images/properties-until-light.png)
 
@@ -40,7 +40,11 @@ fails (`failed_hosts`) when it never does.
 - **Timeout** (Execution tab) limits one attempt. With the optional `timeout` port enabled, hosts
   that time out leave through it.
 
-## Retry with Backoff (pattern)
+## Retry (pattern)
 
-The pattern adds a retry step after `failed_hosts`. It runs the work again for those hosts and
-rejoins the happy path, so the flow shows the retry as a step of its own.
+**Retry** on `failed_hosts` (or `timeout`) sets **Retries** 3 and **Delay** 10 s on the step
+itself, keeping any value it has already: the generated task tries again, so the flow does what
+the code does. Hosts that still fail after the last try leave by the same port, which stays open
+until you handle it. It adds no node. Ansible retries a module task only, so the pattern is not
+offered on a role, a playbook, a subflow or `unreachable`. Flows from before 0.31 may hold a
+"Retry …" step with purpose `retry`; it is a step like any other.

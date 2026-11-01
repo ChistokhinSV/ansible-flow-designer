@@ -35,13 +35,6 @@ const pattern = (id: PatternId, label = PATTERNS[id].label): PortMenuItem => ({
   pattern: id,
 });
 
-/** Labels per port kind (mockup 07). */
-const RETRY_LABEL: Record<string, string> = {
-  failed_hosts: 'Retry with Backoff',
-  unreachable: 'Retry Later',
-  timeout: 'Retry',
-};
-
 function failSuggestions(model: FlowModel, node: FlowNode, port: string, level: string) {
   const items: PortMenuItem[] = [];
   const fits = (id: PatternId) => patternFits(id, node, port);
@@ -56,7 +49,7 @@ function failSuggestions(model: FlowModel, node: FlowNode, port: string, level: 
       pattern('notify-stop', port === 'rejected' ? 'Notify requester and stop' : undefined),
     );
   if (fits('exclude')) items.push(pattern('exclude'));
-  if (fits('retry')) items.push(pattern('retry', RETRY_LABEL[port]));
+  if (fits('retry')) items.push(pattern('retry'));
   if (fits('escalate')) items.push(pattern('escalate'));
   if (fits('stop')) items.push(pattern('stop'));
   return items;

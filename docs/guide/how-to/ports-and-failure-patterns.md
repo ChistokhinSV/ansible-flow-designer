@@ -34,7 +34,7 @@ Click a port.
 ![The port menu](../images/port-menu-light.png)
 
 - **An open fail port** offers suggestions for its kind. `failed_hosts`: Rollback, Notify on-call
-  and stop, Exclude and Report, Retry with Backoff, Stop flow, Connect to Another Node…, Leave open
+  and stop, Exclude and Report, Retry, Stop flow, Connect to Another Node…, Leave open
   on purpose…. `unreachable` never offers Rollback: an unreachable host cannot be rolled back.
 - **A wired port** offers Insert Node on This Wire, Rewire to Another Node… and Disconnect.
 - **An optional port** that is off shows, dotted, when you hover or select the node. Its menu
@@ -43,14 +43,14 @@ Click a port.
 
 ## Failure patterns
 
-A pattern adds a handler node and the wires around it, in one undo step:
+A pattern adds a handler node and the wires around it, in one undo step (Retry adds no node):
 
 | Pattern                       | Adds                                       | Ends at         |
 | ----------------------------- | ------------------------------------------ | --------------- |
 | Rollback from Backup          | a Rollback handler (one per level, reused) | `failed`        |
 | Notify On-Call and Stop       | a notify handler                           | `stopped`       |
 | Exclude and Report            | an exclude handler                         | `excluded`      |
-| Retry with Backoff            | a retry step that rejoins the happy path   | (the next step) |
+| Retry (module steps)          | retries 3, delay 10 s on the step itself   | (the same port) |
 | Stop flow                     | nothing but the wire                       | `stopped`       |
 | Escalate Approval (approvals) | a second approval                          | `stopped`       |
 

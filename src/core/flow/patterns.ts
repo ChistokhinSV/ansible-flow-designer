@@ -6,7 +6,7 @@
 
 import { purposeOf } from './format';
 import type { Level } from './model';
-import type { FlowNode, HandlerKind, NodeSettings, NodeType } from './types';
+import type { FlowNode, HandlerKind, ImplBinding, NodeSettings, NodeType } from './types';
 
 export const PATTERN_IDS = [
   'rollback',
@@ -28,6 +28,8 @@ export interface PatternSpec {
   accepts: readonly string[];
   /** Only for these source node types (default: any). */
   types?: readonly NodeType[];
+  /** Only for steps bound this way, or not bound yet (default: any binding). */
+  bindings?: readonly ImplBinding['kind'][];
   /** Offered in the palette's failure pattern group. */
   palette: boolean;
 }
@@ -47,12 +49,16 @@ export const PATTERNS: Record<PatternId, PatternSpec> = {
     accepts: ['failed_hosts', 'unreachable', 'timeout', 'rejected'],
     palette: true,
   },
+  // AFD-52: the step's own task tries again (settings.retries), so the code does what the flow
+  // shows. Ansible retries a module task; a role, a playbook, a subflow or an unreachable host
+  // cannot be retried that way, so the pattern is not offered there.
   retry: {
     id: 'retry',
-    label: 'Retry with Backoff',
-    hint: 'Run the step again for these hosts, then rejoin the happy path',
-    accepts: ['failed_hosts', 'unreachable', 'timeout'],
-    types: ['task', 'subflow'],
+    label: 'Retry',
+    hint: 'Try the step again, up to 3 more times 10 s apart, before hosts leave by this port',
+    accepts: ['failed_hosts', 'timeout'],
+    types: ['task'],
+    bindings: ['module'],
     palette: true,
   },
   exclude: {
@@ -94,9 +100,14 @@ export const PATTERNS: Record<PatternId, PatternSpec> = {
 };
 
 /** True if the pattern can be attached to this port of this node. */
-export function patternFits(id: PatternId, node: Pick<FlowNode, 'type'>, port: string): boolean {
+export function patternFits(
+  id: PatternId,
+  node: Pick<FlowNode, 'type' | 'impl'>,
+  port: string,
+): boolean {
   const spec = PATTERNS[id];
   if (spec.types && !spec.types.includes(node.type)) return false;
+  if (spec.bindings && node.impl && !spec.bindings.includes(node.impl.kind)) return false;
   return (
     spec.accepts.includes(port) ||
     (spec.accepts.includes('ok_hosts') && /^branch_[0-9]+$/.test(port))
@@ -128,6 +139,8 @@ export interface Recipe {
   end?: EndRecipe;
   /** Wire this port of the handler to where the source node's `sourcePort` leads. */
   rejoin?: { port: string; sourcePort: string };
+  /** Settings the source step gets instead of a new node; those it has already stay. */
+  source?: NodeSettings;
 }
 
 // An end is reused only by key: a stop or a failed rollback must not land in "Rolled back" or
@@ -194,16 +207,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         },
       };
     case 'retry':
-      return {
-        node: {
-          type: 'task',
-          title: `Retry ${source.title}`,
-          purpose: 'retry',
-          intent: `Run ${source.title} again for the ${port} hosts, with backoff between attempts`,
-          settings: { retries: 3 },
-        },
-        rejoin: { port: 'ok_hosts', sourcePort: 'ok_hosts' },
-      };
+      return { source: { retries: 3, delay: 10 } };
     case 'stop':
       return {
         end: { ...FAILED_END, title: 'Stopped', prefer: ['stopped', 'failed'], from: ['source'] },

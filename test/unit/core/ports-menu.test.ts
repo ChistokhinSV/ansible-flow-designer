@@ -5,7 +5,7 @@ import { CommandError, type FlowCommand, planCommand } from '../../../src/core/f
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
-import { PATTERN_IDS } from '../../../src/core/flow/patterns';
+import { PATTERN_IDS, patternFits } from '../../../src/core/flow/patterns';
 import { patternTarget, portMenu } from '../../../src/core/flow/portMenu';
 import { legalPorts, portsFor } from '../../../src/core/flow/ports';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
@@ -145,21 +145,48 @@ describe('failure patterns (D-16): one edit, existing IDs kept', () => {
     );
   });
 
-  it('retry rejoins the happy path; its own failed_hosts stays open', () => {
+  it('retry sets retries on the step itself; its failed_hosts stays open (AFD-52)', () => {
+    const before = docOf(EDGE).nodes.length;
     const r = apply(EDGE, {
       kind: 'applyPattern',
       pattern: 'retry',
       from: { node: id(EDGE, 'validate'), port: 'failed_hosts' },
     });
-    const retry = docOf(r.text).nodes.find((n) => n.id === r.created);
-    expect(retry).toMatchObject({
-      title: 'Retry Validate',
-      handler: 'retry',
-      settings: { retries: 3 },
-    });
-    const out = docOf(r.text).edges.filter((e) => e.from.node === r.created);
-    expect(out.map((e) => [e.from.port, keyOf(r.text, e.to.node)])).toEqual([['ok_hosts', 'done']]);
+    expect(r.created).toBeUndefined();
+    expect(docOf(r.text).nodes).toHaveLength(before);
+    const validate = docOf(r.text).nodes.find((n) => n.key === 'validate');
+    expect(validate?.settings).toMatchObject({ retries: 3, delay: 10 });
+    expect(r.notes).toContain(
+      'retry: validate tries again up to 3 times, 10 s apart; hosts that still fail leave by failed_hosts',
+    );
     expect(openCount(r.text)).toBe(openCount(EDGE));
+    // Settings the step has already stay.
+    const set = apply(EDGE, {
+      kind: 'updateNode',
+      id: id(EDGE, 'validate'),
+      patch: { settings: { retries: 5 } },
+    }).text;
+    const again = apply(set, {
+      kind: 'applyPattern',
+      pattern: 'retry',
+      from: { node: id(set, 'validate'), port: 'failed_hosts' },
+    });
+    expect(docOf(again.text).nodes.find((n) => n.key === 'validate')?.settings).toMatchObject({
+      retries: 5,
+      delay: 10,
+    });
+  });
+
+  it('retry fits module steps only: not a role, a subflow, or unreachable hosts', () => {
+    expect(patternFits('retry', { type: 'task' }, 'failed_hosts')).toBe(true);
+    expect(
+      patternFits('retry', { type: 'task', impl: { kind: 'module', ref: 'x.y.z' } }, 'timeout'),
+    ).toBe(true);
+    expect(
+      patternFits('retry', { type: 'task', impl: { kind: 'role', ref: 'r' } }, 'failed_hosts'),
+    ).toBe(false);
+    expect(patternFits('retry', { type: 'subflow' }, 'failed_hosts')).toBe(false);
+    expect(patternFits('retry', { type: 'task' }, 'unreachable')).toBe(false);
   });
 
   it('exclude reuses an `excluded` end only, never another failed end', () => {
@@ -384,7 +411,7 @@ describe('port menu (04 §3, mockup 07)', () => {
       'Rollback (existing)',
       'Notify On-Call and Stop',
       'Exclude and Report',
-      'Retry with Backoff',
+      'Retry',
       'Stop Flow',
       'Connect to Another Node…',
       'Accept with Reason…',

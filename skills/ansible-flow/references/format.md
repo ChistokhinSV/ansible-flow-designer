@@ -206,7 +206,7 @@ Fail ports (failed_hosts, unreachable, timeout, rejected) must be handled: wired
 | --- | --- | --- | --- |
 | rollback | Rollback from Backup: Undo the completed nodes for the failed hosts only (reuses the Rollback of this level) | failed_hosts | any |
 | notify-stop | Notify On-Call and Stop: Open a ticket, page on-call, end these hosts as stopped | failed_hosts, unreachable, timeout, rejected | any |
-| retry | Retry with Backoff: Run the step again for these hosts, then rejoin the happy path | failed_hosts, unreachable, timeout | task, subflow |
+| retry | Retry: Try the step again, up to 3 more times 10 s apart, before hosts leave by this port | failed_hosts, timeout | task |
 | exclude | Exclude and Report: Take these hosts out of the run and list them in the report | failed_hosts, unreachable | any |
 | stop | Stop Flow: End these hosts with a failed outcome | failed_hosts, unreachable, timeout, rejected | any |
 | done | Connect to Done: End these hosts with a success outcome | ok_hosts, unchanged, approved, true, false | any |

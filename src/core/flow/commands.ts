@@ -691,6 +691,22 @@ function applyPattern(
     addEdge(tx, ctx, cmd.from, { node: recipe.reuse.id, port: 'in' });
     return undefined;
   }
+  // Retry adds no step (AFD-52): the source's own task tries again, and the hosts that still fail
+  // leave by the same port, which stays open until something handles them.
+  if (recipe.source) {
+    const have = source.node.settings ?? {};
+    const add = Object.fromEntries(
+      Object.entries(recipe.source).filter(([k]) => have[k as keyof NodeSettings] === undefined),
+    );
+    setPositions(tx, cmd.freeze ?? {});
+    if (Object.keys(add).length > 0)
+      updateNode(tx, { kind: 'updateNode', id: source.node.id, patch: { settings: add } });
+    const s = { ...recipe.source, ...have };
+    notes.push(
+      `${cmd.pattern}: ${source.node.key} tries again up to ${s.retries} times, ${s.delay ?? 5} s apart; hosts that still fail leave by ${cmd.from.port}`,
+    );
+    return undefined;
+  }
   // Every new node and edge is computed against this one state and written in one batch.
   const taken = levelKeys(level);
   const nodes: Record<string, YamlValue>[] = [];
