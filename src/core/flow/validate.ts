@@ -289,6 +289,15 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         path: [...path, 'settings'],
         node: node.id,
       });
+    // Format 2 (AFD-52): `handler` is called purpose, so it is not read as an Ansible handler.
+    if (v2 && node.handler !== undefined)
+      add({
+        code: 'renamed-field',
+        severity: 'warning',
+        message: `${label(node)}: handler is called purpose in format 2`,
+        path: [...path, 'handler'],
+        node: node.id,
+      });
     // Format 2 (AFD-52): become_user is a setting, which a subflow passes to its steps.
     if (v2 && node.impl?.keywords && 'become_user' in node.impl.keywords)
       add({

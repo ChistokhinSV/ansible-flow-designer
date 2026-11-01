@@ -94,3 +94,13 @@ Format 2 is where the status follows the content (product-owner decision 10 and 
   release.
 - **The upgrade step** rewrites each old decision in place (after the status step has moved the
   tested-by-hand ones onto their nodes) and says how many in the banner.
+
+## Amendment (AFD-52, 2026-11-01): `handler` is called `purpose`
+
+A node's `handler` (rollback, notify, retry, exclude) marks what it is for in failure handling; it
+runs in the play like any step, so the name, which reads like an Ansible handler, misled. Format 2
+calls it `purpose`. Readers take either (`purposeOf`), writers use the document's name
+(`purposeKey`): the patterns, Add Node, the Details field and the AI ops (which still take
+`handler` for one release). The upgrade step renames the key in place, and the node's design
+fingerprint treats both names as one, so a run recorded in format 1 still proposes `tested`.
+Format 2 warns about a `handler` left in a node (`renamed-field`).

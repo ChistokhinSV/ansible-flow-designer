@@ -17,7 +17,7 @@ import {
   findAccepted,
   portAccepted,
 } from './decisions';
-import { NODE_ORDER, requireFormat } from './format';
+import { NODE_ORDER, purposeKey, requireFormat } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
@@ -58,7 +58,7 @@ export type FlowCommand =
       key?: string;
       intent?: string;
       ports?: string[];
-      handler?: HandlerKind;
+      purpose?: HandlerKind;
       outcome?: 'success' | 'failed';
       inputs?: Record<string, ContractField>;
       /** Bound from the start (M6 "Add to subflow": a role task file becomes a step). */
@@ -183,7 +183,7 @@ export interface NodePatch {
   status?: NodeStatus | null;
   condition?: string | null;
   outcome?: 'success' | 'failed' | null;
-  handler?: HandlerKind | null;
+  purpose?: HandlerKind | null;
   join_mode?: JoinMode | null;
   branches?: number | null;
   /** Merged into `settings`; null removes a setting. */
@@ -494,7 +494,7 @@ interface NodeSpec {
   key?: string;
   intent?: string;
   ports?: string[];
-  handler?: HandlerKind;
+  purpose?: HandlerKind;
   outcome?: 'success' | 'failed';
   inputs?: Record<string, ContractField>;
   settings?: NodeSettings;
@@ -506,6 +506,8 @@ function nodeItem(
   ctx: CommandContext,
   spec: NodeSpec,
   taken: Set<string>,
+  /** The document's name for what the node is for (AFD-52). */
+  purpose: 'purpose' | 'handler' = 'handler',
 ): { id: Ulid; item: Record<string, YamlValue> } {
   const key = spec.key ?? uniqueKey(slugify(spec.title), taken);
   if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
@@ -517,7 +519,7 @@ function nodeItem(
   if (spec.type !== 'start' && spec.type !== 'end') node.status = 'draft';
   if (spec.intent) node.intent = spec.intent;
   if (spec.type === 'end') node.outcome = spec.outcome ?? 'success';
-  if (spec.handler) node.handler = spec.handler;
+  if (spec.purpose) node[purpose] = spec.purpose;
   const optional = optionalPortNames(spec.type);
   const ports = (spec.ports ?? []).filter((p) => optional.includes(p));
   if (ports.length > 0) node.ports = ports;
@@ -542,7 +544,7 @@ function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): U
   const st = state(tx);
   if (!spec.parent) {
     const level = levelOf(st, ROOT);
-    const { id, item } = nodeItem(ctx, spec, levelKeys(level));
+    const { id, item } = nodeItem(ctx, spec, levelKeys(level), purposeKey(st.doc));
     tx.apply((f) => insertItem(f, level.nodesPath, 'end', item));
     return id;
   }
@@ -550,7 +552,12 @@ function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): U
   const { node, path } = nodeAt(st, parent);
   if (node.type !== 'subflow') throw new CommandError('bad-type', `${node.title} is not a subflow`);
   const level = st.model.levels.get(parent);
-  const { id, item } = nodeItem(ctx, spec, level ? levelKeys(level) : new Set());
+  const { id, item } = nodeItem(
+    ctx,
+    spec,
+    level ? levelKeys(level) : new Set(),
+    purposeKey(st.doc),
+  );
   const base = [...path, 'subflow'];
   const entry = !node.subflow?.nodes?.length && !node.subflow?.boundary?.in;
   if (!node.subflow) {
@@ -691,7 +698,7 @@ function applyPattern(
   const positions: Record<Ulid, Position> = { ...cmd.freeze };
   let handler: Ulid | undefined;
   if (recipe.node) {
-    const created = nodeItem(ctx, recipe.node, taken);
+    const created = nodeItem(ctx, recipe.node, taken, purposeKey(st.doc));
     nodes.push(created.item);
     handler = created.id;
     if (cmd.position) positions[handler] = cmd.position;
@@ -857,8 +864,15 @@ function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'upda
   // `tested` by hand takes a reason (markTested, AFD-44); another status drops that record.
   if (patch.status === 'tested')
     throw new CommandError('needs-reason', 'Say why it counts as tested');
-  for (const k of ['intent', 'condition', 'outcome', 'handler', 'join_mode', 'branches'] as const) {
+  for (const k of ['intent', 'condition', 'outcome', 'join_mode', 'branches'] as const) {
     setField(tx, path, k, patch[k] as YamlValue | undefined, NODE_ORDER);
+  }
+  // Format 1 calls it handler (AFD-52); a format 1 name left in a format 2 node goes with the edit.
+  if (patch.purpose !== undefined) {
+    const key = purposeKey(state(tx).doc);
+    setField(tx, path, key, patch.purpose as YamlValue, NODE_ORDER);
+    if (key === 'purpose' && state(tx).model.nodes.get(cmd.id)?.node.handler !== undefined)
+      setField(tx, path, 'handler', null, NODE_ORDER);
   }
   // Format 2: the status follows what the node has (AFD-50); the one status to set by hand is the
   // one its content gives, which clears `tested` (Clear Tested). Format 1 sets what it is told.

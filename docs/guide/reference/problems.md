@@ -33,6 +33,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
 | setting-on-flow | Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow. | Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask. |
 | keyword-is-setting | Format 2: a task keyword the flow now models as a setting (become_user). | Set it in Execution › Privilege instead; on a subflow it applies to the steps inside. |
+| renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
 | tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
 | undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |

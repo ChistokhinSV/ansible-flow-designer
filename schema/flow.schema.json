@@ -683,7 +683,16 @@
             "retry",
             "exclude"
           ],
-          "description": "Marks a failure handler node (what kind of handling it does)"
+          "description": "Format 1 name of purpose. Marks a failure handler node (what kind of handling it does)"
+        },
+        "purpose": {
+          "enum": [
+            "rollback",
+            "notify",
+            "retry",
+            "exclude"
+          ],
+          "description": "Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it."
         },
         "settings": {
           "type": "object",

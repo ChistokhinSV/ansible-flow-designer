@@ -1,6 +1,6 @@
 // What a flow file looks like, apart from what it says (AFD-49, AFD-50): its format version and
 // the order of the keys a writer puts into a node. Shared by the commands and the upgrade steps.
-import type { FlowDocument } from './types';
+import type { FlowDocument, HandlerKind } from './types';
 
 /** The format new flows are written in, and what Upgrade Flow Format leads to. */
 export const CURRENT_FORMAT = 2;
@@ -44,6 +44,7 @@ export const NODE_ORDER = [
   'condition',
   'outcome',
   'handler',
+  'purpose',
   'join_mode',
   'branches',
   'ports',
@@ -58,4 +59,21 @@ export const NODE_ORDER = [
 /** The keys that come after `key` in a node, for an insert that keeps NODE_ORDER. */
 export function keysAfter(key: (typeof NODE_ORDER)[number]): string[] {
   return NODE_ORDER.slice(NODE_ORDER.indexOf(key) + 1);
+}
+
+/**
+ * What a node is for in failure handling, in either format (AFD-52): format 2 calls it `purpose`,
+ * format 1 `handler`, a name that reads like an Ansible handler.
+ */
+export function purposeOf(
+  node: { purpose?: HandlerKind; handler?: HandlerKind } | undefined,
+): HandlerKind | undefined {
+  return node?.purpose ?? node?.handler;
+}
+
+/** The key a writer uses for it in this document's format. */
+export function purposeKey(
+  doc: Pick<FlowDocument, 'schema_version'> | undefined,
+): 'purpose' | 'handler' {
+  return formatOf(doc) >= 2 ? 'purpose' : 'handler';
 }

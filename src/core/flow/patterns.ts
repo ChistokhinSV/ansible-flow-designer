@@ -3,6 +3,8 @@
 // end node (reused when the level has one with a key the pattern names, AFD-21) and back to the
 // happy path. The command
 // layer turns a recipe into one WorkspaceEdit; code templates per pattern arrive with M3 codegen.
+
+import { purposeOf } from './format';
 import type { Level } from './model';
 import type { FlowNode, HandlerKind, NodeSettings, NodeType } from './types';
 
@@ -105,7 +107,7 @@ export interface NodeRecipe {
   type: NodeType;
   title: string;
   intent?: string;
-  handler?: HandlerKind;
+  purpose?: HandlerKind;
   settings?: NodeSettings;
 }
 
@@ -132,9 +134,12 @@ export interface Recipe {
 // "Not approved" just because that end also has outcome failed (AFD-21).
 const FAILED_END = { outcome: 'failed' } as const;
 
-/** A rollback handler: marked `handler: rollback`, or keyed `rollback` as in flows predating the marker. */
+/**
+ * A rollback handler: marked `purpose: rollback` (format 1 `handler: rollback`), or keyed
+ * `rollback` as in flows predating the marker.
+ */
 export function isRollback(node: FlowNode | undefined): boolean {
-  return node?.type === 'task' && (node.handler === 'rollback' || node.key === 'rollback');
+  return node?.type === 'task' && (purposeOf(node) === 'rollback' || node.key === 'rollback');
 }
 
 /** Rollback handler of a level (D-11: one per level walks the undo chain). */
@@ -152,7 +157,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         node: {
           type: 'task',
           title: 'Rollback',
-          handler: 'rollback',
+          purpose: 'rollback',
           intent: 'Run the undo of completed nodes in reverse order, failed hosts only',
         },
         end: { ...FAILED_END, title: 'Failed', prefer: ['failed'], from: ['ok_hosts'] },
@@ -163,7 +168,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         node: {
           type: 'task',
           title: port === 'rejected' ? 'Notify requester' : 'Notify on-call',
-          handler: 'notify',
+          purpose: 'notify',
           intent: `Open a ticket and notify ${port === 'rejected' ? 'the requester' : 'on-call'} with the hosts from ${what}`,
         },
         end: {
@@ -178,7 +183,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         node: {
           type: 'task',
           title: 'Exclude and Report',
-          handler: 'exclude',
+          purpose: 'exclude',
           intent: `Take the hosts from ${what} out of this run and list them in the run report`,
         },
         end: {
@@ -193,7 +198,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         node: {
           type: 'task',
           title: `Retry ${source.title}`,
-          handler: 'retry',
+          purpose: 'retry',
           intent: `Run ${source.title} again for the ${port} hosts, with backoff between attempts`,
           settings: { retries: 3 },
         },
@@ -227,7 +232,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
         node: {
           type: 'task',
           title: 'Send run report',
-          handler: 'notify',
+          purpose: 'notify',
           intent: `Send the per-host results of ${source.title}`,
         },
       };

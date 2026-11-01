@@ -4,6 +4,7 @@
 import { stringify } from 'yaml';
 import { keyPath } from '../ai/refs';
 import { acceptedAll } from '../flow/decisions';
+import { purposeOf } from '../flow/format';
 import type { FlowModel } from '../flow/model';
 import { modelOf } from '../flow/model';
 import type { OpenPort } from '../flow/openPorts';
@@ -57,7 +58,7 @@ export function nodeDetails(node: FlowNode, ctx: NodeContext): Detail[] {
   add('type', node.type);
   if (node.type !== 'start' && node.type !== 'end') add('status', node.status ?? 'draft');
   add('intent', node.intent);
-  add('handler', node.handler);
+  add('purpose', purposeOf(node));
   add('outcome', node.outcome);
   add('condition', node.condition);
   if (node.type === 'parallel') add('branches', node.branches);

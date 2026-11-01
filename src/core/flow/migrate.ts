@@ -3,7 +3,7 @@
 // runs only when someone asks for it (Upgrade Flow Format, the `upgrade_format` op), as one YAML
 // transaction, so it is one edit and one undo step and the bytes outside the changed nodes stay.
 // Each step takes a file from one version to the next; tickets that change the format add theirs.
-import { deleteKey, removeItem, setIn } from '../yaml/ops';
+import { deleteKey, removeItem, renameKey, setIn } from '../yaml/ops';
 import type { YamlTransaction } from '../yaml/transaction';
 import { awxLift } from './awxSettings';
 import { acceptedAll, upgradedItem } from './decisions';
@@ -278,8 +278,37 @@ const awxStep: MigrationStep = {
   },
 };
 
+/**
+ * AFD-52: `handler` reads like an Ansible handler, which the node is not (it runs in the play like
+ * any step); format 2 calls it `purpose`. The key is renamed in place, so the line keeps its spot.
+ */
+const purposeStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const count = [...walkNodes(doc.nodes)].filter((n) => n.handler !== undefined).length;
+    return count ? [`handler is called purpose (${count} node${count === 1 ? '' : 's'})`] : [];
+  },
+  apply(tx) {
+    const doc = tx.current.doc.toJS() as FlowDocument;
+    const model = buildModel(doc);
+    for (const n of walkNodes(doc.nodes)) {
+      if (n.handler === undefined) continue;
+      const path = model.nodes.get(n.id)?.path;
+      if (!path) continue;
+      if (n.purpose === undefined) tx.apply((f) => renameKey(f, path, 'handler', 'purpose'));
+      else tx.apply((f) => deleteKey(f, path, 'handler'));
+    }
+  },
+};
+
 /** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-52, -54). */
-export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep, privilegeStep, awxStep];
+export const STEPS: readonly MigrationStep[] = [
+  statusStep,
+  decisionStep,
+  privilegeStep,
+  awxStep,
+  purposeStep,
+];
 
 /**
  * Brings the document in `tx` to `CURRENT_FORMAT`, step by step. Throws when it is already current

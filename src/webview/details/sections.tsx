@@ -3,7 +3,7 @@
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
 import { useId } from 'react';
 import { registerName } from '../../core/flow/dataNames';
-import { formatOf } from '../../core/flow/format';
+import { formatOf, purposeOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
 import { keywordProblem } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
@@ -281,11 +281,11 @@ export function TypeFields({
     case 'subflow':
       return (
         <div className="afd-field">
-          <label htmlFor="afd-handler">Failure handler role</label>
+          <label htmlFor="afd-purpose">Purpose in failure handling</label>
           <select
-            id="afd-handler"
-            value={node.handler ?? ''}
-            onChange={(e) => patch({ handler: e.target.value || null })}
+            id="afd-purpose"
+            value={purposeOf(node) ?? ''}
+            onChange={(e) => patch({ purpose: e.target.value || null })}
           >
             {HANDLERS.map((h) => (
               <option key={h} value={h}>

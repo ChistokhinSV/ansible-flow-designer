@@ -254,7 +254,7 @@ nodes:
   type: subflow
   title: Rollback
   status: specified
-  handler: rollback
+  purpose: rollback
   intent: Restore the backup taken before the upgrade, for the failed hosts only.
   inputs:
     backup_file:
@@ -285,14 +285,14 @@ nodes:
   type: task
   title: Exclude and report
   status: draft
-  handler: exclude
+  purpose: exclude
   intent: Take hosts that failed the pre-checks or the backup out of the run and list them in the report.
 - id: 01M67T3CFKMVBF5BVBNRBM9F9W
   key: notify
   type: task
   title: Notify on-call
   status: draft
-  handler: notify
+  purpose: notify
   intent: The rollback failed; open a ticket and page on-call.
 - id: 01M67T3CFKMVBF5BVBNRBM9F9X
   key: done

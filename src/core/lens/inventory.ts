@@ -2,6 +2,8 @@
 // that is. Generated plays run on the hosts that arrive (ADR-0004), except where a node declares
 // `settings.inventory_target`: its work then runs on that target instead (AFD-14). The `hosts:` of
 // an imported playbook are shown as declared too.
+
+import { purposeOf } from '../flow/format';
 import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import { runtimeKind } from '../flow/status';
@@ -209,7 +211,7 @@ export function inventoryLens(
         });
     const from = incoming(model, node.id);
     const onFailPath = from.length > 0 && from.every((i) => isFailPort(i.port));
-    if (f.outside === 0 || !(node.handler || onFailPath)) continue;
+    if (f.outside === 0 || !(purposeOf(node) || onFailPath)) continue;
     broad.add(node.id);
     const ports = [...new Set(from.map((i) => i.port))].join(', ') || 'its wires';
     findings.push({

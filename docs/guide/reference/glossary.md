@@ -15,25 +15,26 @@ the Command Palette and these pages are checked against the **Not** column. Back
 
 ## The flow
 
-| Term            | Meaning                                                                                                      | Not                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------ | --------------------- |
-| flow            | the diagram in a `*.flow.yaml` file, and the automation it describes                                         |                       |
-| node            | a box on the canvas: start, end, task, subflow, decision, approval, parallel or join                         | `New node`            |
-| step            | a node that runs something: a task, an approval, or a subflow                                                |                       |
-| port            | where a wire starts or ends on a node; hosts leave a node through one of its output ports                    |                       |
-| wire            | a connection from an output port to the `in` port of the next node: the hosts that left by the port go there |                       |
-| open port       | a fail-type port without a wire: its hosts fail in the outcome, and the banner counts it                     |                       |
-| open on purpose | an open port accepted with a reason: its hosts stop in the outcome, and the banner no longer counts it       |                       |
-| level           | what the canvas shows at a time: the top level, or the inside of one subflow                                 |                       |
-| subflow         | a node that holds its own level; hosts enter through its entry and leave through its ports                   |                       |
-| entry, exit     | where hosts enter a subflow's inside, and the inner port that leaves through one of the subflow's ports      |                       |
-| binding         | what a step runs: a module, a role or a playbook, with its parameters                                        | `Bind implementation` |
-| status          | how far a node is: draft, specified, implemented, tested                                                     |                       |
-| problem         | something the design check found, in the banner and the Problems panel                                       |                       |
-| finding         | something a lens found, in the lens's panel                                                                  |                       |
-| lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code) with chips on the nodes and findings      |                       |
-| drift           | a difference between the design and the code it runs, shown in Code mode                                     |                       |
-| format          | the version of the file's layout (`schema_version`): 2 for new flows; **Upgrade Flow Format** moves a 1 to 2 |                       |
+| Term            | Meaning                                                                                                                                | Not                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| flow            | the diagram in a `*.flow.yaml` file, and the automation it describes                                                                   |                        |
+| node            | a box on the canvas: start, end, task, subflow, decision, approval, parallel or join                                                   | `New node`             |
+| step            | a node that runs something: a task, an approval, or a subflow                                                                          |                        |
+| port            | where a wire starts or ends on a node; hosts leave a node through one of its output ports                                              |                        |
+| wire            | a connection from an output port to the `in` port of the next node: the hosts that left by the port go there                           |                        |
+| open port       | a fail-type port without a wire: its hosts fail in the outcome, and the banner counts it                                               |                        |
+| open on purpose | an open port accepted with a reason: its hosts stop in the outcome, and the banner no longer counts it                                 |                        |
+| level           | what the canvas shows at a time: the top level, or the inside of one subflow                                                           |                        |
+| subflow         | a node that holds its own level; hosts enter through its entry and leave through its ports                                             |                        |
+| entry, exit     | where hosts enter a subflow's inside, and the inner port that leaves through one of the subflow's ports                                |                        |
+| binding         | what a step runs: a module, a role or a playbook, with its parameters                                                                  | `Bind implementation`  |
+| status          | how far a node is: draft, specified, implemented, tested                                                                               |                        |
+| purpose         | what a step is for in failure handling: rollback, notify, retry or exclude (format 1 calls it `handler`; it is not an Ansible handler) | `Failure handler role` |
+| problem         | something the design check found, in the banner and the Problems panel                                                                 |                        |
+| finding         | something a lens found, in the lens's panel                                                                                            |                        |
+| lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code) with chips on the nodes and findings                                |                        |
+| drift           | a difference between the design and the code it runs, shown in Code mode                                                               |                        |
+| format          | the version of the file's layout (`schema_version`): 2 for new flows; **Upgrade Flow Format** moves a 1 to 2                           |                        |
 
 ## Modes and panels
 

@@ -630,14 +630,14 @@
                         },
                         "description": "Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task)."
                       },
-                      "handler": {
+                      "purpose": {
                         "enum": [
                           "rollback",
                           "notify",
                           "retry",
                           "exclude"
                         ],
-                        "description": "Marks a failure handler node (what kind of handling it does)"
+                        "description": "Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it."
                       },
                       "outcome": {
                         "enum": [
@@ -1026,7 +1026,7 @@
                         ],
                         "description": "End nodes"
                       },
-                      "handler": {
+                      "purpose": {
                         "enum": [
                           "rollback",
                           "notify",
@@ -1034,7 +1034,7 @@
                           "exclude",
                           null
                         ],
-                        "description": "Marks a failure handler node (what kind of handling it does)"
+                        "description": "Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it."
                       },
                       "join_mode": {
                         "enum": [

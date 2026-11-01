@@ -120,6 +120,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Format 2: a task keyword the flow now models as a setting (become_user).',
     fix: 'Set it in Execution › Privilege instead; on a subflow it applies to the steps inside.',
   },
+  'renamed-field': {
+    meaning:
+      'Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler).',
+    fix: 'Rename the key to purpose, or pick the purpose again in Details › General.',
+  },
   'status-out-of-step': {
     meaning:
       'Format 2: the stored status is not the one the node’s content gives (a hand edit of the file).',

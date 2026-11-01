@@ -122,7 +122,10 @@ export interface FlowNode {
   settings?: NodeSettings;
   join_mode?: JoinMode;
   branches?: number;
+  /** Format 1 name of `purpose`, which reads like an Ansible handler (AFD-52). */
   handler?: HandlerKind;
+  /** Format 2: what the node is for when it handles failures (rollback, notify, retry, exclude). */
+  purpose?: HandlerKind;
   subflow?: SubflowBody;
 }
 

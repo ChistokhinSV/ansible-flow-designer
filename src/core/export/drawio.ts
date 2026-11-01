@@ -4,6 +4,7 @@
 // keeps its wires. A subflow node links to its page and each subflow page links back to its parent.
 
 import { portAccepted } from '../flow/decisions';
+import { purposeOf } from '../flow/format';
 import { keywordHint } from '../flow/keywords';
 import type { FramePortView, PortView } from '../flow/levelView';
 import { buildModel, ROOT } from '../flow/model';
@@ -47,14 +48,14 @@ export function nodeLook(node: FlowNode) {
   if (node.type === 'subflow') dashed = false;
   if (node.type === 'decision') [fill, stroke] = [FILL['fill-decision'], TONE.decision];
   if (node.type === 'approval') [fill, stroke] = [FILL['fill-approval'], TONE.approval];
-  if (node.handler) [fill, stroke] = [FILL['fill-handler'], TONE.unreachable];
+  if (purposeOf(node)) [fill, stroke] = [FILL['fill-handler'], TONE.unreachable];
   const pill = node.type === 'start' || node.type === 'end';
   if (pill) dashed = false;
   if (node.type === 'end' && node.outcome === 'failed')
     [fill, stroke] = [FILL['fill-failed-end'], TONE.failed];
   const status = node.status ?? 'draft';
   const dot = status === 'specified' ? TONE.approval : status === 'draft' ? undefined : TONE.ok;
-  const sub = [NODE_TYPE_LABEL[node.type], status, node.handler, keywordHint(node.impl)]
+  const sub = [NODE_TYPE_LABEL[node.type], status, purposeOf(node), keywordHint(node.impl)]
     .filter(Boolean)
     .join(' · ');
   return { fill, stroke, width, dashed, pill, double: node.type === 'subflow', dot, sub };

@@ -49,6 +49,8 @@ export type Op =
       failed_to?: string;
       intent?: string;
       ports?: string[];
+      purpose?: HandlerKind;
+      /** Format 1 name of purpose, kept for one release. */
       handler?: HandlerKind;
       outcome?: 'success' | 'failed';
       condition?: string;
@@ -69,6 +71,8 @@ export type Op =
       status?: NodeStatus;
       condition?: string | null;
       outcome?: 'success' | 'failed' | null;
+      purpose?: HandlerKind | null;
+      /** Format 1 name of purpose, kept for one release. */
       handler?: HandlerKind | null;
       join_mode?: JoinMode | null;
       branches?: number | null;
@@ -359,7 +363,7 @@ async function commandsOf(
         key,
         ...(op.intent ? { intent: op.intent } : {}),
         ...(op.ports ? { ports: op.ports } : {}),
-        ...(op.handler ? { handler: op.handler } : {}),
+        ...((op.purpose ?? op.handler) ? { purpose: op.purpose ?? op.handler } : {}),
         ...(op.outcome ? { outcome: op.outcome } : {}),
         ...(op.inputs ? { inputs: op.inputs } : {}),
         ...(op.impl ? { impl: op.impl } : {}),
@@ -373,7 +377,8 @@ async function commandsOf(
       const node = resolveNode(st.model, op.node);
       if (op.status === 'tested')
         throw new RefError('Only a passing run sets tested; set implemented at most');
-      const { op: _op, node: _node, ...patch } = op;
+      const { op: _op, node: _node, handler, ...patch } = op;
+      if (handler !== undefined && patch.purpose === undefined) patch.purpose = handler;
       return [{ kind: 'updateNode', id: node.id, patch }];
     }
     case 'delete': {

@@ -4,6 +4,7 @@ import { registerName } from '../flow/dataNames';
 import { liftOf } from '../flow/dataRefs';
 import { acceptedAll } from '../flow/decisions';
 import { FINDING_CODES } from '../flow/findingCodes';
+import { purposeOf } from '../flow/format';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
 import { defaultPortNames, portsFor } from '../flow/ports';
@@ -57,7 +58,7 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
     node.intent ? `intent: ${node.intent}` : '',
     node.condition ? `condition: ${node.condition}` : '',
     node.outcome ? `outcome: ${node.outcome}` : '',
-    node.handler ? `handler: ${node.handler}` : '',
+    purposeOf(node) ? `purpose: ${purposeOf(node)}` : '',
     node.type === 'parallel' && node.branches ? `branches: ${node.branches}` : '',
     node.join_mode ? `join: ${node.join_mode}` : '',
     extra.length ? `ports +${extra.join(' +')}` : '',

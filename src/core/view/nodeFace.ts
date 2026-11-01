@@ -1,6 +1,7 @@
 // What the canvas writes on nodes and wires at rest (AFD-42): the sub-line under a node's title,
 // and which wires carry their port name without being hovered or selected.
 import { NODE_TYPE_LABEL } from '../export/details';
+import { purposeOf } from '../flow/format';
 import { keywordHint } from '../flow/keywords';
 import type { FlowNode } from '../flow/types';
 
@@ -19,5 +20,5 @@ export function labelledAtRest(port: string): boolean {
 export function subLine(node: FlowNode): string {
   if (node.type === 'decision') return node.condition ? `if ${node.condition}` : 'Decision';
   const what = node.impl?.ref ?? NODE_TYPE_LABEL[node.type];
-  return [what, node.handler, keywordHint(node.impl)].filter(Boolean).join(' · ');
+  return [what, purposeOf(node), keywordHint(node.impl)].filter(Boolean).join(' · ');
 }

@@ -23,6 +23,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { purposeOf } from '../../core/flow/format';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
@@ -329,7 +330,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     'afd-node',
     `type-${node.type}`,
     `status-${node.status ?? 'draft'}`,
-    node.handler ? 'handler' : '',
+    purposeOf(node) ? 'handler' : '',
     node.type === 'end' && node.outcome === 'failed' ? 'outcome-failed' : '',
     selected ? 'selected' : '',
     active ? 'active' : '',

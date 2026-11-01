@@ -19,7 +19,7 @@ Add a node. after continues from an output port: a free port is wired to the new
 - `failed_to` (string): Wire the new node's failed_hosts to this node.
 - `intent` (string): What the node should do, in a sentence. Skeleton runs print it.
 - `ports` (list of in | ok_hosts | failed_hosts | unreachable | unchanged | always | cancelled | timeout | undo | true | false | approved | rejected | join | string): Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task).
-- `handler` (rollback | notify | retry | exclude): Marks a failure handler node (what kind of handling it does)
+- `purpose` (rollback | notify | retry | exclude): Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it.
 - `outcome` (success | failed): End nodes: success or failed.
 - `condition` (string): Decision nodes: Jinja expression evaluated per host.
 - `branches` (integer): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
@@ -45,7 +45,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `status` (draft | specified | implemented): Format 2: the status follows the node (inputs or outputs make it specified, a binding implemented); set here only the status the node already has, which clears tested. Format 1: draft, specified or implemented by hand. tested comes from a passing run only.
 - `condition` (string | null): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed | null): End nodes
-- `handler` (rollback | notify | retry | exclude | null): Marks a failure handler node (what kind of handling it does)
+- `purpose` (rollback | notify | retry | exclude | null): Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it.
 - `join_mode` (all | any | null): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer | null): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
 - `settings` (object): Settings to change; a null value removes that setting.
@@ -334,6 +334,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
 | setting-on-flow | Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow. | Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask. |
 | keyword-is-setting | Format 2: a task keyword the flow now models as a setting (become_user). | Set it in Execution › Privilege instead; on a subflow it applies to the steps inside. |
+| renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
 | tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
 | undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |

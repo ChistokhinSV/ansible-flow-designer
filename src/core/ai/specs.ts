@@ -107,7 +107,7 @@ export const OP_SPECS: OpSpec[] = [
       failed_to: { ...NODE, description: "Wire the new node's failed_hosts to this node." },
       intent: field('intent'),
       ports: field('ports'),
-      handler: field('handler'),
+      purpose: field('purpose'),
       outcome: field('outcome', 'End nodes: success or failed.'),
       condition: field('condition', 'Decision nodes: Jinja expression evaluated per host.'),
       branches: field('branches'),
@@ -144,7 +144,7 @@ export const OP_SPECS: OpSpec[] = [
       },
       condition: nullable(field('condition')),
       outcome: nullable(field('outcome')),
-      handler: nullable(field('handler')),
+      purpose: nullable(field('purpose')),
       join_mode: nullable(field('join_mode')),
       branches: nullable(field('branches')),
       settings: {

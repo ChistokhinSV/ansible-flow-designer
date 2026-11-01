@@ -58,10 +58,13 @@ export function versionBump(current: unknown, base: unknown): number | undefined
 
 /**
  * A node's design: its entry without its status and the evidence for it (AFD-50), inner nodes
- * included and positions left out.
+ * included and positions left out. Format 1 `handler` is the same design as `purpose` (AFD-52),
+ * so a run recorded before Upgrade Flow Format still matches.
  */
 function nodeDesign(node: FlowNode): unknown {
-  const { status: _status, tested: _tested, subflow, ...rest } = node;
+  const { status: _status, tested: _tested, handler, subflow, ...own } = node;
+  const rest =
+    handler !== undefined && own.purpose === undefined ? { ...own, purpose: handler } : own;
   if (!subflow || typeof subflow !== 'object') return rest;
   const { layout: _layout, nodes, ...body } = subflow;
   return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };
