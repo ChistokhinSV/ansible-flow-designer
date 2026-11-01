@@ -571,6 +571,7 @@ export class FlowSession implements vscode.Disposable {
       (input.kind === 'setDecision' ||
         input.kind === 'ignoreDrift' ||
         input.kind === 'acceptFinding' ||
+        input.kind === 'acceptCheck' ||
         input.kind === 'markTested') &&
       !input.by
         ? { ...input, by: await authorName(this.uri) }

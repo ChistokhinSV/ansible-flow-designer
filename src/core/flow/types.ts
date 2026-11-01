@@ -144,6 +144,20 @@ export type Decision =
       item?: never;
       reason?: string;
       by?: string;
+    }
+  /**
+   * Format 2 (AFD-51): the one kind. `finding` says what is accepted: `port:<port>`,
+   * `drift:<item>`, `lens:<finding id>` or `check:<code>[:<subject>]` (core/flow/decisions.ts).
+   */
+  | {
+      kind: 'accepted';
+      finding: string;
+      node?: Ulid;
+      port?: never;
+      item?: never;
+      reason?: string;
+      by?: string;
+      at?: string;
     };
 
 export interface FlowHeader {

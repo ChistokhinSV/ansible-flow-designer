@@ -136,13 +136,14 @@ What the node runs: an Ansible module, a role or a playbook. null or absent: the
 
 One decision. kind decides which fields it needs.
 
-- `node` (nodeRef): The node the decision is about (open_on_purpose, drift_ignored).
+- `node` (nodeRef): The node the decision is about (open_on_purpose, drift_ignored; accepted except some lens findings).
 - `port` (string): open_on_purpose: the fail port left open on purpose.
-- `kind` (open_on_purpose | drift_ignored | finding_accepted, required): open_on_purpose: a fail port stays unwired on purpose (hosts stop there); drift_ignored: design and code differ on purpose; finding_accepted: a lens finding is expected.
+- `kind` (open_on_purpose | drift_ignored | finding_accepted | accepted, required): Format 2: accepted, with finding saying what (port:<port>, drift:<item>, lens:<finding id>, check:<code>[:<subject>]). Format 1: open_on_purpose (a fail port stays unwired on purpose; hosts stop there), drift_ignored (design and code differ on purpose), finding_accepted (a lens finding is expected).
 - `item` (string): drift_ignored: the drift item kept as it is
-- `finding` (string): finding_accepted: the lens finding kept as expected
+- `finding` (string): accepted: what is accepted (port:, drift:, lens: or check:); finding_accepted: the lens finding kept as expected
 - `reason` (string): Why. Required in practice: the designer asks for it.
 - `by` (string): Who decided (Git user name). Tools fill it in.
+- `at` (string): When (a date), when the writer knows it.
 
 ### A small flow written by hand
 

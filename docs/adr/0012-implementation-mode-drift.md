@@ -79,3 +79,8 @@ Code-side actions:
 - Uncovered task files are judged against `main` as the role's own entry. A role whose `main` includes every file shows the others as drift until a step covers them or the item is ignored.
 - Undo of Generate stub is VS Code's multi-file undo: it may ask before deleting the created files.
 - M7 (Run mode) reuses the matching (node tags) for run events.
+
+## Amendment (AFD-51, 2026-11-01): format 2 decisions
+
+In a format 2 flow an ignored drift item is an `accepted` decision with `finding: drift:<item>`
+(ADR-0025). Drift reads both formats through `core/flow/decisions.ts`.

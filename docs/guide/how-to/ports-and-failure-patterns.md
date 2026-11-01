@@ -69,12 +69,14 @@ Choose **Accept with Reason…** and give the reason. The flow records it with y
 
 ```yaml
 decisions:
-  - node: check-ntp
-    port: failed_hosts
-    kind: open_on_purpose
+  - kind: accepted
+    node: check-ntp
+    finding: port:failed_hosts
     reason: Read-only check; failing the run is enough
     by: Jane Example
 ```
+
+(In a format 1 flow the same decision reads `kind: open_on_purpose` with `port: failed_hosts`.)
 
 The warning goes away. The hosts still fail at the end of the run, with your reason in the
 message. Wiring the port later removes the decision in the same edit.

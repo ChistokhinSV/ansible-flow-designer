@@ -5,6 +5,7 @@ import { fedByBubbling, levelTaken, untaken } from './bubbling';
 import { idGaps, withIds } from './completeIds';
 import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
+import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { exprRefs, refsIn } from './jinja';
 import { keywordReads } from './keywords';
 import { formatOf } from './migrate';
@@ -15,7 +16,7 @@ import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
 import { hasStatus, runtimeKind, statusFor } from './status';
-import type { Decision, FlowDocument, FlowNode, PortRef, Ulid } from './types';
+import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -27,6 +28,9 @@ export interface Finding {
   node?: Ulid;
   port?: string;
   edge?: Ulid;
+  /** What the finding is about when a node can have several (a variable name): with the code and
+   * the node, what an accepted problem names (AFD-51). */
+  subject?: string;
 }
 
 export function pointerToPath(pointer: string): Path {
@@ -102,7 +106,16 @@ export function validateFlow(
       });
     }
   }
-  return { model, findings };
+  // AFD-51: warnings accepted with a reason (format 2) stay out of the problems.
+  const checks = acceptedAll(checked).filter((a) => a.area === 'check');
+  const kept = checks.length
+    ? findings.filter(
+        (f) =>
+          f.severity !== 'warning' ||
+          !checks.some((a) => a.node === f.node && a.what === checkWhat(f.code, f.subject)),
+      )
+    : findings;
+  return { model, findings: kept };
 }
 
 function checkIdentity(model: FlowModel, add: (f: Finding) => void): void {
@@ -494,6 +507,7 @@ function checkBindingVars(
           : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
         path: where,
         node: node.id,
+        subject: name,
       });
     }
   const keywords = impl.keywords && typeof impl.keywords === 'object' ? impl.keywords : undefined;
@@ -933,105 +947,82 @@ function checkUnreachableRollback(model: FlowModel, add: (f: Finding) => void): 
   }
 }
 
-function checkDriftIgnore(
-  model: FlowModel,
-  d: Extract<Decision, { kind: 'drift_ignored' }>,
-  i: number,
-  add: (f: Finding) => void,
-): void {
-  const entry = model.nodes.get(d.node);
-  if (!entry) {
-    add({
-      code: 'stale-decision',
-      severity: 'warning',
-      message: `Ignored drift item refers to a node that does not exist: ${d.node}`,
-      path: ['decisions', i],
-    });
-  } else if (!d.reason?.trim()) {
-    add({
-      code: 'decision-no-reason',
-      severity: 'warning',
-      message: `Ignored drift item for ${label(entry.node)} has no reason`,
-      path: ['decisions', i],
-      node: d.node,
-    });
-  }
-}
-
+/**
+ * Decisions in either format (AFD-51): each names something that exists and says why. Ports also
+ * get the AFD-15 checks (a fail port, one decision, not wired).
+ */
 function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
   const seen = new Set<string>();
   (model.doc.decisions ?? []).forEach((d, i) => {
-    if (!d) return;
-    if (d.kind === 'drift_ignored') {
-      checkDriftIgnore(model, d, i, add);
-      return;
-    }
-    if (d.kind === 'finding_accepted') {
-      if (d.node && !model.nodes.has(d.node))
-        add({
-          code: 'stale-decision',
-          severity: 'warning',
-          message: `Accepted finding ${d.finding} refers to a node that does not exist: ${d.node}`,
-          path: ['decisions', i],
-        });
-      else if (!d.reason?.trim())
-        add({
-          code: 'decision-no-reason',
-          severity: 'warning',
-          message: `Accepted finding ${d.finding} has no reason`,
-          path: ['decisions', i],
-          node: d.node,
-        });
-      return;
-    }
-    const entry = model.nodes.get(d.node);
-    if (!entry || !portsFor(entry.node).some((p) => p.name === d.port)) {
+    const a = acceptedOf(d, i);
+    if (!a) return;
+    const path: Path = ['decisions', i];
+    const entry = a.node ? model.nodes.get(a.node) : undefined;
+    const what =
+      a.area === 'port'
+        ? 'Open-on-purpose decision'
+        : a.area === 'drift'
+          ? 'Ignored drift item'
+          : a.area === 'lens'
+            ? `Accepted finding ${a.what}`
+            : `Accepted problem ${a.what}`;
+    if (a.node && !entry) {
       add({
         code: 'stale-decision',
         severity: 'warning',
-        message: `Decision refers to a port that does not exist: ${d.node} · ${d.port}`,
-        path: ['decisions', i],
+        message: `${what} refers to a node that does not exist: ${a.node}`,
+        path,
       });
       return;
     }
-    const id = `${d.node}|${d.port}`;
-    if (seen.has(id)) {
-      add({
-        code: 'duplicate-decision',
-        severity: 'warning',
-        message: `${label(entry.node)} · ${d.port} has more than one decision`,
-        path: ['decisions', i],
-        node: d.node,
-      });
+    if (a.area === 'port') {
+      if (!entry || !portsFor(entry.node).some((p) => p.name === a.what)) {
+        add({
+          code: 'stale-decision',
+          severity: 'warning',
+          message: `Decision refers to a port that does not exist: ${a.node} · ${a.what}`,
+          path,
+        });
+        return;
+      }
+      const id = `${a.node}|${a.what}`;
+      if (seen.has(id))
+        add({
+          code: 'duplicate-decision',
+          severity: 'warning',
+          message: `${label(entry.node)} · ${a.what} has more than one decision`,
+          path,
+          node: a.node,
+        });
+      seen.add(id);
+      if (!isFailPort(a.what))
+        add({
+          code: 'decision-not-fail',
+          severity: 'info',
+          message: `${label(entry.node)} · ${a.what} is not a fail port; open on purpose has no effect`,
+          path,
+          node: a.node,
+        });
+      const edges = model.levels.get(entry.level)?.edges ?? [];
+      if (edges.some((e) => e?.from?.node === a.node && e.from.port === a.what))
+        add({
+          code: 'decision-on-connected',
+          severity: 'info',
+          message: `${label(entry.node)} · ${a.what} is wired; its open-on-purpose decision has no effect`,
+          path,
+          node: a.node,
+        });
     }
-    seen.add(id);
-    if (!isFailPort(d.port)) {
-      add({
-        code: 'decision-not-fail',
-        severity: 'info',
-        message: `${label(entry.node)} · ${d.port} is not a fail port; open on purpose has no effect`,
-        path: ['decisions', i],
-        node: d.node,
-      });
-    }
-    if (!d.reason?.trim()) {
+    if (!a.reason?.trim())
       add({
         code: 'decision-no-reason',
         severity: 'warning',
-        message: `Open-on-purpose decision for ${label(entry.node)} · ${d.port} has no reason`,
-        path: ['decisions', i],
-        node: d.node,
+        message:
+          a.area === 'port' && entry
+            ? `Open-on-purpose decision for ${label(entry.node)} · ${a.what} has no reason`
+            : `${what}${entry ? ` for ${label(entry.node)}` : ''} has no reason`,
+        path,
+        ...(a.node ? { node: a.node } : {}),
       });
-    }
-    const edges = model.levels.get(entry.level)?.edges ?? [];
-    if (edges.some((e) => e?.from?.node === d.node && e.from.port === d.port)) {
-      add({
-        code: 'decision-on-connected',
-        severity: 'info',
-        message: `${label(entry.node)} · ${d.port} is wired; its open-on-purpose decision has no effect`,
-        path: ['decisions', i],
-        node: d.node,
-      });
-    }
   });
 }

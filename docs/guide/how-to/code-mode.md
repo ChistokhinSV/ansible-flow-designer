@@ -36,7 +36,8 @@ The **Design vs code** panel lists the nodes matched by ID and the drift items:
 | design without code | an unbound node                                                    | _Generate Stub_ (a role with a TODO task, output facts and argument specs from the node's inputs; bound in the same edit), _Bind Role_ |
 | notes               | roles without argument specs, dynamic includes                     | _Write argument_specs_                                                                                                                 |
 
-**Accept with Reason…** asks for a reason and records it in the flow with your Git user (`drift_ignored`).
+**Accept with Reason…** asks for a reason and records it in the flow with your Git user (an
+`accepted` decision with `finding: drift:<item>`; `drift_ignored` in a format 1 flow).
 Ignored items stay listed, with _Reopen_.
 
 Select a node for its Details: the **Code** tab shows what it runs and its drift, the **Binding**

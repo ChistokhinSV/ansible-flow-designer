@@ -1,6 +1,7 @@
 // One entry point for the webview: the active lens's view with accepted findings marked, and the
 // summary card rows of semantic zoom (D-19), which draw on every lens's facts.
 import { durationSeconds } from '../engine/util';
+import { acceptedAll } from '../flow/decisions';
 import { modelOf } from '../flow/model';
 import type { FlowDocument, FlowNode } from '../flow/types';
 import type { RunView } from '../protocol';
@@ -30,9 +31,9 @@ export function lensView(
             ? accessLens(doc, facts.inventory, facts.code)
             : timingLens(doc, facts.timing);
   const accepted = new Map(
-    (doc.decisions ?? [])
-      .filter((d) => d?.kind === 'finding_accepted')
-      .map((d) => [d.finding, { reason: d.reason ?? '', by: d.by }]),
+    acceptedAll(doc)
+      .filter((a) => a.area === 'lens')
+      .map((a) => [a.what, { reason: a.reason ?? '', by: a.by }]),
   );
   const rank = (f: LensView['findings'][number]) =>
     (f.accepted ? 2 : 0) + (f.severity === 'warning' ? 0 : 1);

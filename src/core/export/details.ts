@@ -3,6 +3,7 @@
 // settings, problems and ports. Values are plain text; several entries go on separate lines.
 import { stringify } from 'yaml';
 import { keyPath } from '../ai/refs';
+import { acceptedAll } from '../flow/decisions';
 import type { FlowModel } from '../flow/model';
 import { modelOf } from '../flow/model';
 import type { OpenPort } from '../flow/openPorts';
@@ -111,9 +112,9 @@ export function nodeDetails(node: FlowNode, ctx: NodeContext): Detail[] {
   );
   add(
     'open_on_purpose',
-    (ctx.model.doc.decisions ?? [])
-      .filter((d) => d?.kind === 'open_on_purpose' && d.node === node.id)
-      .map((d) => `${d.port}: ${d.reason ?? '(no reason)'}`)
+    acceptedAll(ctx.model.doc)
+      .filter((a) => a.area === 'port' && a.node === node.id)
+      .map((a) => `${a.what}: ${a.reason ?? '(no reason)'}`)
       .join('\n'),
   );
   add(

@@ -181,8 +181,8 @@ layout:
     x: 720
     y: 412
 decisions:
-- node: 01JBNPZX45HY43KWJRP1XPA7Z3
-  port: failed_hosts
-  kind: open_on_purpose
+- kind: accepted
+  node: 01JBNPZX45HY43KWJRP1XPA7Z3
+  finding: port:failed_hosts
   reason: Fails before any change; stopping is safe
   by: '[USER]'

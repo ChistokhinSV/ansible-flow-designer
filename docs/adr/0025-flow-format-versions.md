@@ -72,3 +72,25 @@ Format 2 is where the status follows the content (product-owner decision 10 and 
   in the banner before anyone upgrades.
 - **Checks:** `status-out-of-step` (info) for a hand-written status that disagrees with the content,
   `tested-without-record` (warning), and `runtime-kind` for a kind still written in format 2.
+
+## Amendment: one kind of decision (AFD-51, 2026-11-01)
+
+- **One record.** Format 2 writes every decision as `{kind: accepted, node, finding, reason, by}`,
+  where `finding` names what is accepted: `port:<port>` (open on purpose), `drift:<item>`,
+  `lens:<finding id>`, or `check:<code>[:<subject>]` for a validator warning. The node stays in
+  its own field, so Complete IDs resolves keys in hand-written files as before.
+- **One reader.** `core/flow/decisions.ts` (`acceptedOf`, `acceptedAll`, `findAccepted`,
+  `portAccepted`) reads both formats; the open-ports rule and bubbling, the engine's comments, drift,
+  lenses, exports, the clipboard and the AI description all read through it, so the generated
+  code is the same before and after the upgrade. Writers go through `decisionItem`, in the
+  document's format; a pasted port decision takes the target's format.
+- **Accepting a warning** (format 2 only; `requireFormat` explains the upgrade on format 1):
+  `acceptCheck {node, code, subject?}` / `clearCheckAccept`. Findings carry an optional `subject`
+  (the variable `binding-unknown-var` is about), and `validateFlow` drops warnings someone
+  accepted. Entry points: Accept… in the Details problems list, the Problems panel's quick fix
+  (`afd.flow.acceptProblem`), and the AI op `accept` with `finding: check:…`. Open fail ports keep
+  their own decision.
+- **AI:** `accept` / `unaccept` cover all four; `leave_open` and `reopen` stay as aliases for one
+  release.
+- **The upgrade step** rewrites each old decision in place (after the status step has moved the
+  tested-by-hand ones onto their nodes) and says how many in the banner.

@@ -55,7 +55,10 @@ from the flow schema. The schema is registered for `*.flow.yaml`.
 
 - Do not edit `flow.version`, `layout` or files in `generated/`. The designer bumps the version on
   save (once per commit) and regenerates the code.
-- Every fail port needs a wire or a `decisions:` entry with a reason.
+- Every fail port needs a wire or a `decisions:` entry with a reason. In format 2 every decision
+  is `kind: accepted`, with the `node` and what it accepts in `finding`: `port:failed_hosts`,
+  `drift:<item>`, `lens:<finding id>`, or `check:<code>[:<subject>]` for a warning kept as it is
+  (e.g. `check:binding-unknown-var:ntp_servers` for a variable set in `group_vars`).
 - In format 2 the designer keeps `status` in line with what each node has; write what you like,
   the next edit of the node sets it again (a hand-written mismatch shows as a note in Problems).
   `status: tested` needs a `tested:` record on the node: `run`, `flow_version` and `commit` from a

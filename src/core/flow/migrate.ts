@@ -5,6 +5,7 @@
 // Each step takes a file from one version to the next; tickets that change the format add theirs.
 import { deleteKey, removeItem, setIn } from '../yaml/ops';
 import type { YamlTransaction } from '../yaml/transaction';
+import { acceptedAll, upgradedItem } from './decisions';
 import { CURRENT_FORMAT, FormatError, formatOf, keysAfter } from './format';
 import { buildModel } from './model';
 import { contentStatus, hasStatus, lowest } from './status';
@@ -137,8 +138,36 @@ const statusStep: MigrationStep = {
   },
 };
 
-/** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-51, -52, -54). */
-export const STEPS: readonly MigrationStep[] = [statusStep];
+/**
+ * AFD-51: open_on_purpose, drift_ignored and finding_accepted become `accepted` decisions keyed
+ * by what they accept. Runs after the status step, which takes the tested-by-hand ones away.
+ */
+const decisionStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const old = acceptedAll(doc).filter(
+      (a) => (doc.decisions?.[a.index] as { kind?: string } | undefined)?.kind !== 'accepted',
+    );
+    // The status step moves the tested-by-hand ones onto their nodes first.
+    const n = old.filter((a) => !(a.area === 'lens' && a.what.startsWith('status:tested|'))).length;
+    return n ? [`${n} decision${n === 1 ? '' : 's'} become one kind: accepted`] : [];
+  },
+  apply(tx) {
+    const doc = tx.current.doc.toJS() as FlowDocument;
+    const ops = acceptedAll(doc)
+      .filter(
+        (a) => (doc.decisions?.[a.index] as { kind?: string } | undefined)?.kind !== 'accepted',
+      )
+      .map(
+        (a) => (f: Parameters<typeof setIn>[0]) =>
+          setIn(f, ['decisions', a.index], upgradedItem(a)),
+      );
+    tx.applyAll(ops);
+  },
+};
+
+/** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-52, -54). */
+export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep];
 
 /**
  * Brings the document in `tx` to `CURRENT_FORMAT`, step by step. Throws when it is already current

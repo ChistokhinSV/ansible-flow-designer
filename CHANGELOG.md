@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.0 — AFD-51
+
+- **Keep a warning with a reason** (format 2): **Accept…** next to it in the node's Details, or **Accept with Reason…** in the Problems panel; the flow records why and the warning stops showing for that node (and that variable). The import's `binding-unknown-var` for variables from `group_vars` no longer nags.
+- **One kind of decision** in format 2: open ports, drift items, lens findings and warnings are all `kind: accepted`, keyed by what they accept (`port:`, `drift:`, `lens:`, `check:`). Upgrade Flow Format converts the format 1 kinds; nothing else about them changes.
+- AI tools: `accept` and `unaccept` for all four; `leave_open` and `reopen` still work for one release.
+
 ## 0.29.0 — AFD-50
 
 - **Status follows the content** (format 2): a binding makes a step implemented, inputs or outputs specified; a decision is implemented by its condition, an approval, parallel or join as it is; a subflow is as far as its least finished step. Every writer gets the same statuses: the designer, the AI tools and MCP. The Lifecycle in the Details shows the status, with **Mark Tested…** and **Clear Tested**; the node menu has the same two.

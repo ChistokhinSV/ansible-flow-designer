@@ -224,12 +224,16 @@ export function AcceptDialog() {
       submit="Accept"
       target={target}
       record={(reason) =>
-        run({ kind: 'acceptFinding', finding: target.id, node: target.node, reason })
+        target.check && target.node
+          ? run({ kind: 'acceptCheck', node: target.node, ...target.check, reason })
+          : run({ kind: 'acceptFinding', finding: target.id, node: target.node, reason })
       }
       close={() => close(null)}
     >
-      <strong>{target.title}</strong>. The finding stays visible as expected; the decision is
-      recorded in the flow with your Git user name.
+      <strong>{target.title}</strong>.{' '}
+      {target.check
+        ? 'The problem stops showing for this node; the decision is recorded in the flow with your Git user name.'
+        : 'The finding stays visible as expected; the decision is recorded in the flow with your Git user name.'}
     </ReasonDialog>
   );
 }

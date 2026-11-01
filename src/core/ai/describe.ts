@@ -2,6 +2,7 @@
 // open fail ports and the problems. IDs never appear.
 import { registerName } from '../flow/dataNames';
 import { liftOf } from '../flow/dataRefs';
+import { acceptedAll } from '../flow/decisions';
 import { FINDING_CODES } from '../flow/findingCodes';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
@@ -128,7 +129,7 @@ export function describeFlow(
     ...(layout ? [`Layout: ${LAYOUT_RULES}`] : []),
   ];
   const open = openFailPorts(model);
-  const decided = (doc.decisions ?? []).filter((d) => d?.kind === 'open_on_purpose' && d.node);
+  const decided = acceptedAll(doc).filter((a) => a.area === 'port' && a.node);
   for (const lv of model.levels.values()) {
     if (level && level !== 'all' && lv.id !== level) continue;
     const parent = lv.parent ? model.nodes.get(lv.parent)?.node : undefined;
@@ -158,7 +159,7 @@ export function describeFlow(
     const kept = decided.filter((d) => model.nodes.get(d.node as string)?.level === lv.id);
     if (kept.length)
       out.push(
-        `  left open on purpose: ${kept.map((d) => `${keyPath(model, d.node as string)}.${d.port} (${d.reason ?? 'no reason'})`).join(', ')}`,
+        `  left open on purpose: ${kept.map((d) => `${keyPath(model, d.node as string)}.${d.what} (${d.reason ?? 'no reason'})`).join(', ')}`,
       );
   }
   out.push(

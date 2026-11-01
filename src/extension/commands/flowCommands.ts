@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { slugify } from '../../core/flow/ids';
 import { CURRENT_FORMAT } from '../../core/flow/migrate';
 import { newFlowText } from '../../core/flow/template';
+import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
 import type { Host } from '../host';
@@ -48,6 +49,53 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       { pattern: '**/*.flow.yaml' },
       new CompleteIdsActions(),
       { providedCodeActionKinds: CompleteIdsActions.kinds },
+    ),
+    vscode.languages.registerCodeActionsProvider(
+      { pattern: '**/*.flow.yaml' },
+      new AcceptProblemActions(),
+      { providedCodeActionKinds: AcceptProblemActions.kinds },
+    ),
+    vscode.commands.registerCommand(
+      CMD.acceptProblem,
+      async (uri: vscode.Uri, code: string, message: string, reason?: string) => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        const session = host.sessionFor(doc);
+        // The diagnostic carries only its code and words; the session knows the node and subject.
+        const found = (await session.snapshot()).findings.find(
+          (f) => f.code === code && f.message === message,
+        );
+        if (!found?.node) {
+          void vscode.window.showErrorMessage('That problem is no longer in the flow');
+          return undefined;
+        }
+        const why =
+          reason ??
+          (await vscode.window.showInputBox({
+            title: 'Accept with Reason',
+            prompt: message,
+            placeHolder: 'Why it stays as it is (recorded in the flow with your Git user name)',
+            validateInput: (v) => (v.trim() ? undefined : 'Say why'),
+          }));
+        if (!why) return undefined;
+        const outcome = await session.runCommand({
+          kind: 'acceptCheck',
+          node: found.node,
+          code,
+          ...(found.subject ? { subject: found.subject } : {}),
+          reason: why,
+        });
+        if (!outcome.ok) {
+          const upgrade = 'Upgrade Flow Format';
+          const offer = /Upgrade Flow Format/.test(outcome.error ?? '') ? [upgrade] : [];
+          const pick = await vscode.window.showErrorMessage(
+            outcome.error ?? 'The problem was not accepted',
+            ...offer,
+          );
+          if (pick === upgrade) await vscode.commands.executeCommand(CMD.upgradeFormat, doc.uri);
+        }
+        return outcome;
+      },
     ),
     vscode.commands.registerCommand(CMD.copyNodes, () => host.activeSession()?.copyNodes()),
     vscode.commands.registerCommand(CMD.pasteNodes, () => host.activeSession()?.pasteNodes()),

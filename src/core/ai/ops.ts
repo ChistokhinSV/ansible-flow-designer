@@ -82,6 +82,8 @@ export type Op =
   | { op: 'enable_port' | 'disable_port'; node: string; port: string }
   | { op: 'leave_open'; at: string; reason: string }
   | { op: 'reopen'; at: string }
+  | { op: 'accept'; at: string; finding?: string; reason: string }
+  | { op: 'unaccept'; at: string; finding?: string }
   | { op: 'apply_pattern'; at: string; pattern: PatternId; end?: string; position?: Place }
   | {
       op: 'set_io';
@@ -419,6 +421,52 @@ async function commandsOf(
           ...(by ? { by } : {}),
         },
       ];
+    }
+    case 'accept':
+    case 'unaccept': {
+      // AFD-51: one op for every decision. No finding (or port:): `at` is a fail port.
+      const finding = op.finding?.trim() ?? '';
+      const area = finding.slice(0, Math.max(0, finding.indexOf(':')));
+      const what = finding.slice(finding.indexOf(':') + 1);
+      const accept = op.op === 'accept';
+      if (accept && !op.reason?.trim()) throw new RefError('Accepting needs a reason');
+      const by = accept ? await ctx.author?.() : undefined;
+      const who = by ? { by } : {};
+      if (!finding || area === 'port') {
+        const at = accept ? outputPort(st, op.at) : resolvePort(st.model, op.at);
+        if (area === 'port' && what !== at.port)
+          throw new RefError(`finding ${finding} names another port than ${op.at}`);
+        return accept
+          ? [{ kind: 'setDecision', node: at.node.id, port: at.port, reason: op.reason, ...who }]
+          : [{ kind: 'clearDecision', node: at.node.id, port: at.port }];
+      }
+      const node = resolveNode(st.model, op.at);
+      if (area === 'check') {
+        const [code, ...rest] = what.split(':');
+        const subject = rest.join(':') || undefined;
+        if (!code) throw new RefError('Name the check: check:<code>[:<subject>]');
+        return accept
+          ? [
+              {
+                kind: 'acceptCheck',
+                node: node.id,
+                code,
+                ...(subject ? { subject } : {}),
+                reason: op.reason,
+                ...who,
+              },
+            ]
+          : [{ kind: 'clearCheckAccept', node: node.id, code, ...(subject ? { subject } : {}) }];
+      }
+      if (area === 'drift')
+        return accept
+          ? [{ kind: 'ignoreDrift', node: node.id, item: what, reason: op.reason, ...who }]
+          : [{ kind: 'clearDriftIgnore', node: node.id, item: what }];
+      if (area === 'lens')
+        return accept
+          ? [{ kind: 'acceptFinding', finding: what, node: node.id, reason: op.reason, ...who }]
+          : [{ kind: 'clearFindingAccept', finding: what }];
+      throw new RefError(`finding must start with port:, check:, drift: or lens: (got ${finding})`);
     }
     case 'reopen': {
       const at = resolvePort(st.model, op.at);

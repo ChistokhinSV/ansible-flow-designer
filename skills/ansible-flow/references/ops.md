@@ -120,9 +120,32 @@ Disable an optional port; its wire is removed.
 {"op":"disable_port","node":"push-config","port":"unreachable"}
 ```
 
+### accept
+
+Accept something as it is, with a reason recorded in the flow: a fail port left unwired on purpose (at: the port), a warning from the problems (finding: check:<code>[:<subject>], at: the node; needs flow format 2), a drift item (drift:<item>) or a lens finding (lens:<id>).
+
+- `at` (string, required): The fail port (node.port) when accepting a port; else the node.
+- `finding` (string): What is accepted: omit (or port:<port>) for a port; check:<code>[:<subject>] for a problem, e.g. check:binding-unknown-var:ntp_servers; drift:<item>; lens:<finding id>.
+- `reason` (string, required): Why it stays as it is (shown in reviews).
+
+```json
+{"op":"accept","at":"check-ntp","finding":"check:binding-unknown-var:ntp_servers","reason":"Set in group_vars/edge.yml"}
+```
+
+### unaccept
+
+Take back an accept (the same at and finding).
+
+- `at` (string, required): The port (node.port), or the node.
+- `finding` (string): As given to accept; omit for a port.
+
+```json
+{"op":"unaccept","at":"check-ntp.failed_hosts"}
+```
+
 ### leave_open
 
-Leave a fail port unwired on purpose, with a reason: its hosts fail the run and the open-port warning goes away.
+Same as accept on a port (kept for one release): leave a fail port unwired on purpose, with a reason; its hosts fail the run and the open-port warning goes away.
 
 - `at` (string, required): The fail port, e.g. check-ntp.failed_hosts.
 - `reason` (string, required): Why the port stays open (shown in reviews).
@@ -133,7 +156,7 @@ Leave a fail port unwired on purpose, with a reason: its hosts fail the run and 
 
 ### reopen
 
-Remove a leave_open decision.
+Same as unaccept on a port (kept for one release): remove a leave_open decision.
 
 - `at` (string, required): node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts.
 

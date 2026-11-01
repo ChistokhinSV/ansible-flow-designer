@@ -1,6 +1,8 @@
 // Design vs code (M6, D-29, 05 "Code to design"): matches generated plays to nodes by their
 // `node_<ULID>` tag (D-28), compares bindings with the code they run, and lists drift both ways.
 // Nothing here resolves anything: every item carries a design-side and a code-side action.
+
+import { acceptedAll } from '../flow/decisions';
 import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import type { ContractField, ContractType, FlowDocument, FlowNode, Ulid } from '../flow/types';
@@ -127,9 +129,8 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
   const model = modelOf(doc);
   const items: DriftItem[] = [];
   const ignored = new Map<string, { reason?: string; by?: string }>();
-  for (const d of doc.decisions ?? [])
-    if (d?.kind === 'drift_ignored')
-      ignored.set(`${d.node}|${d.item}`, { reason: d.reason, by: d.by });
+  for (const a of acceptedAll(doc))
+    if (a.area === 'drift') ignored.set(`${a.node}|${a.what}`, { reason: a.reason, by: a.by });
 
   const add = (item: DriftItem) => {
     const mark = item.node ? ignored.get(`${item.node}|${item.id}`) : undefined;

@@ -7,6 +7,8 @@ export const CMD = {
   checkFlow: 'afd.flow.check',
   completeIds: 'afd.flow.completeIds',
   upgradeFormat: 'afd.flow.upgradeFormat',
+  /** The Problems panel's quick fix on a warning (AFD-51); not in the Command Palette. */
+  acceptProblem: 'afd.flow.acceptProblem',
   openInTextEditor: 'afd.flow.openInTextEditor',
   generateCode: 'afd.code.generate',
   tidyUp: 'afd.canvas.tidyUp',

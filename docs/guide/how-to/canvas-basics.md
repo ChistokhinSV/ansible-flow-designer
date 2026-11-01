@@ -31,6 +31,14 @@ time: the top of the flow, or the inside of one subflow.
 - A level with only Start and End shows a card to begin: **Add a Step** (between Start and End), or
   a flow from playbooks, an AWX workflow or a sample.
 
+## Keep a warning as it is
+
+Some warnings are known and fine: a binding reads a variable that `group_vars` sets, for example.
+In a format 2 flow, **Accept…** next to the warning in the node's Details, or **Accept with
+Reason…** on it in the Problems panel, asks why and records it in the flow (with your Git user
+name); the warning stops showing for that node and that variable. Remove the decision from
+`decisions:` to see it again. A format 1 flow offers Upgrade Flow Format first.
+
 ## Find a node
 
 **Ctrl+F** (or "…" › _Find Node…_, or right-click the canvas) opens a box at the top right of the

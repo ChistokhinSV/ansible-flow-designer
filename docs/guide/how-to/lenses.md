@@ -18,5 +18,6 @@ to highlight its nodes.
 - **Inventory** and **Access** read your inventory through your Ansible environment when you open
   them. **Set targets…** chooses the flow targets (remembered for runs too).
 - A finding's button fixes it where it can. **Accept with Reason…** keeps it, with a reason recorded in
-  the flow (`finding_accepted`); **Reopen** removes that.
+  the flow (an `accepted` decision with `finding: lens:<id>`; `finding_accepted` in a format 1 flow);
+  **Reopen** removes that.
 - Set the maintenance window in the flow panel (e.g. `4h` or `2h30m`).

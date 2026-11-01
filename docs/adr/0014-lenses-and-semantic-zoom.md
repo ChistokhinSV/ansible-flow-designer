@@ -97,3 +97,8 @@ Improvement program wave 3. The AFD-33 baseline opened large levels at zoom 0.5�
 - every title on screen at the opening zoom is 13.5–14 px;
 - firewall-upgrade's top level opens at 1.0 (was 0.63), the imported "Edge baseline" play at 1.0 (was 0.5);
 - labelled wires at rest went from 88 to 24 (−73%).
+
+## Amendment (AFD-51, 2026-11-01): format 2 decisions
+
+In a format 2 flow an accepted lens finding is an `accepted` decision with
+`finding: lens:<finding id>` (ADR-0025). Lenses read both formats through `core/flow/decisions.ts`.

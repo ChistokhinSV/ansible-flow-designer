@@ -3,6 +3,7 @@
 // shape data; ports at rest are small child shapes the wires attach to, so moving a node in draw.io
 // keeps its wires. A subflow node links to its page and each subflow page links back to its parent.
 
+import { portAccepted } from '../flow/decisions';
 import { keywordHint } from '../flow/keywords';
 import type { FramePortView, PortView } from '../flow/levelView';
 import { buildModel, ROOT } from '../flow/model';
@@ -341,11 +342,7 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
     for (const p of v.ports) {
       if (!p.rest) continue;
       const reason =
-        p.state === 'open-purpose'
-          ? (src.doc.decisions ?? []).find(
-              (d) => d?.kind === 'open_on_purpose' && d.node === n.id && d.port === p.name,
-            )?.reason
-          : undefined;
+        p.state === 'open-purpose' ? portAccepted(src.doc, n.id, p.name)?.reason : undefined;
       const id = portCell(out, n.id, p, portLook(p), 10, p.state, reason, p.state !== 'connected');
       ports.set(id, { id, side: p.side });
     }

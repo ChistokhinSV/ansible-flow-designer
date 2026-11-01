@@ -136,7 +136,7 @@
         "properties": {
           "node": {
             "$ref": "#/$defs/nodeRef",
-            "description": "The node the decision is about (open_on_purpose, drift_ignored)."
+            "description": "The node the decision is about (open_on_purpose, drift_ignored; accepted except some lens findings)."
           },
           "port": {
             "type": "string",
@@ -146,9 +146,10 @@
             "enum": [
               "open_on_purpose",
               "drift_ignored",
-              "finding_accepted"
+              "finding_accepted",
+              "accepted"
             ],
-            "description": "open_on_purpose: a fail port stays unwired on purpose (hosts stop there); drift_ignored: design and code differ on purpose; finding_accepted: a lens finding is expected."
+            "description": "Format 2: accepted, with finding saying what (port:<port>, drift:<item>, lens:<finding id>, check:<code>[:<subject>]). Format 1: open_on_purpose (a fail port stays unwired on purpose; hosts stop there), drift_ignored (design and code differ on purpose), finding_accepted (a lens finding is expected)."
           },
           "item": {
             "type": "string",
@@ -158,7 +159,7 @@
           "finding": {
             "type": "string",
             "minLength": 1,
-            "description": "finding_accepted: the lens finding kept as expected"
+            "description": "accepted: what is accepted (port:, drift:, lens: or check:); finding_accepted: the lens finding kept as expected"
           },
           "reason": {
             "type": "string",
@@ -167,6 +168,10 @@
           "by": {
             "type": "string",
             "description": "Who decided (Git user name). Tools fill it in."
+          },
+          "at": {
+            "type": "string",
+            "description": "When (a date), when the writer knows it."
           }
         },
         "allOf": [
@@ -174,7 +179,10 @@
             "if": {
               "properties": {
                 "kind": {
-                  "const": "finding_accepted"
+                  "enum": [
+                    "finding_accepted",
+                    "accepted"
+                  ]
                 }
               }
             },
@@ -215,6 +223,22 @@
               "required": [
                 "port"
               ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "accepted"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "finding": {
+                  "pattern": "^(port|drift|lens|check):.+"
+                }
+              }
             }
           }
         ],

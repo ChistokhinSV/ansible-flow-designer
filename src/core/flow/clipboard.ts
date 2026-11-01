@@ -4,6 +4,7 @@
 import { parse } from 'yaml';
 import { renderBlock, type YamlValue } from '../yaml/render';
 import { withIds } from './completeIds';
+import { acceptedOf } from './decisions';
 import { buildModel } from './model';
 import {
   type Decision,
@@ -47,9 +48,11 @@ export function copyNodes(
   const layout = Object.fromEntries(
     Object.entries({ ...shown, ...doc.layout }).filter(([id]) => all.has(id)),
   );
-  const decisions = (doc.decisions ?? []).filter(
-    (d) => d?.kind === 'open_on_purpose' && all.has(d.node),
-  );
+  // The ports left open on purpose, in either format (AFD-51).
+  const decisions = (doc.decisions ?? []).filter((d, i) => {
+    const a = acceptedOf(d, i);
+    return a?.area === 'port' && !!a.node && all.has(a.node);
+  });
   const value: Record<string, unknown> = { nodes };
   if (edges.length > 0) value.edges = edges;
   if (Object.keys(layout).length > 0) value.layout = layout;

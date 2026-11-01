@@ -8,7 +8,16 @@ import { YamlTransaction } from '../yaml/transaction';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
 import { enclosing } from './dataRefs';
-import { NODE_ORDER } from './format';
+import {
+  acceptedAll,
+  acceptedOf,
+  checkWhat,
+  type DecisionArea,
+  decisionItem,
+  findAccepted,
+  portAccepted,
+} from './decisions';
+import { NODE_ORDER, requireFormat } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
@@ -125,6 +134,12 @@ export type FlowCommand =
   /** M8: keep a lens finding as expected, with a reason; the host adds `by`. */
   | { kind: 'acceptFinding'; finding: string; node?: Ulid; reason: string; by?: string }
   | { kind: 'clearFindingAccept'; finding: string }
+  /**
+   * AFD-51 (format 2): a validator warning kept as it is, with a reason; the host adds `by`. The
+   * warning stops showing for that node (and subject, e.g. the variable a binding reads).
+   */
+  | { kind: 'acceptCheck'; node: Ulid; code: string; subject?: string; reason: string; by?: string }
+  | { kind: 'clearCheckAccept'; node: Ulid; code: string; subject?: string }
   /**
    * Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. Format 2
    * records the run on each node (AFD-50).
@@ -428,9 +443,9 @@ function addEdge(tx: YamlTransaction, ctx: CommandContext, from: PortRef, to: Po
 
 function decisionRemovalOps(st: State, node: Ulid, port: string): Op[] {
   const decisions = st.doc.decisions ?? [];
-  const idx = decisions
-    .map((d, i) => (d?.node === node && d.port === port ? i : -1))
-    .filter((i) => i >= 0);
+  const idx = acceptedAll(st.doc)
+    .filter((a) => a.area === 'port' && a.node === node && a.what === port)
+    .map((a) => a.index);
   if (idx.length === 0) return [];
   if (idx.length === decisions.length) return [(f) => deleteKey(f, [], 'decisions')];
   return idx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i));
@@ -742,7 +757,7 @@ function setDecision(
   const reason = cmd.reason.trim();
   if (!reason) throw new CommandError('no-reason', 'Say why the port stays open');
   const decisions = st.doc.decisions ?? [];
-  const index = decisions.findIndex((d) => d?.node === cmd.node && d.port === cmd.port);
+  const index = portAccepted(st.doc, cmd.node, cmd.port)?.index ?? -1;
   if (index >= 0) {
     const base: Path = ['decisions', index];
     const old = decisions[index];
@@ -753,15 +768,50 @@ function setDecision(
     tx.applyAll(ops);
     return;
   }
-  const item: Record<string, YamlValue> = {
-    node: cmd.node,
-    port: cmd.port,
-    kind: 'open_on_purpose',
-    reason,
-  };
-  if (cmd.by) item.by = cmd.by;
-  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
+  addDecision(tx, decisionItem(st.doc, 'port', cmd.port, cmd.node, reason, cmd.by));
+}
+
+/** A decision item at the end of `decisions` (AFD-51: in the document's format). */
+function addDecision(tx: YamlTransaction, item: Record<string, YamlValue>): void {
+  if (state(tx).doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
   else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
+}
+
+/** Removes the decisions at these indexes of `decisions` (the key itself when none is left). */
+function removeDecisions(tx: YamlTransaction, idx: readonly number[]): void {
+  const count = state(tx).doc.decisions?.length ?? 0;
+  if (idx.length === 0) return;
+  if (idx.length === count) tx.apply((f) => deleteKey(f, [], 'decisions'));
+  else
+    tx.applyAll(
+      [...idx].sort((a, b) => b - a).map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)),
+    );
+}
+
+/**
+ * The same decision again updates its reason and author (AFD-51: any area, either format), else a
+ * new one is added.
+ */
+function recordDecision(
+  tx: YamlTransaction,
+  area: DecisionArea,
+  what: string,
+  node: Ulid | undefined,
+  reason: string,
+  by: string | undefined,
+): void {
+  const st = state(tx);
+  const index = findAccepted(st.doc, area, what, node)?.index ?? -1;
+  if (index >= 0) {
+    const base: Path = ['decisions', index];
+    const ops: ((f: YamlFile) => OpResult)[] = [
+      (f) => setIn(f, [...base, 'reason'], reason, { before: ['by'] }),
+    ];
+    if (by) ops.push((f) => setIn(f, [...base, 'by'], by));
+    tx.applyAll(ops);
+    return;
+  }
+  addDecision(tx, decisionItem(st.doc, area, what, node, reason, by));
 }
 
 function renameKey(tx: YamlTransaction, id: Ulid, newKey: string): void {
@@ -1022,28 +1072,7 @@ function ignoreDrift(
   const reason = cmd.reason.trim();
   if (!reason) throw new CommandError('no-reason', 'Say why the code and the design may differ');
   if (!cmd.item.trim()) throw new CommandError('bad-item', 'No drift item');
-  const decisions = st.doc.decisions ?? [];
-  const index = decisions.findIndex(
-    (d) => d?.kind === 'drift_ignored' && d.node === cmd.node && d.item === cmd.item,
-  );
-  if (index >= 0) {
-    const base: Path = ['decisions', index];
-    const ops: ((f: YamlFile) => OpResult)[] = [
-      (f) => setIn(f, [...base, 'reason'], reason, { before: ['by'] }),
-    ];
-    if (cmd.by) ops.push((f) => setIn(f, [...base, 'by'], cmd.by as string));
-    tx.applyAll(ops);
-    return;
-  }
-  const item: Record<string, YamlValue> = {
-    node: cmd.node,
-    kind: 'drift_ignored',
-    item: cmd.item,
-    reason,
-  };
-  if (cmd.by) item.by = cmd.by;
-  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
-  else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
+  recordDecision(tx, 'drift', cmd.item, cmd.node, reason, cmd.by);
 }
 
 /**
@@ -1293,10 +1322,8 @@ function acceptFinding(
   const reason = cmd.reason.trim();
   if (!reason) throw new CommandError('no-reason', 'Say why this is expected');
   if (!cmd.finding.trim()) throw new CommandError('bad-finding', 'No finding');
-  const decisions = st.doc.decisions ?? [];
-  const index = decisions.findIndex(
-    (d) => d?.kind === 'finding_accepted' && d.finding === cmd.finding,
-  );
+  // A lens finding is keyed by its id alone (the node may go with it, for Complete IDs).
+  const index = findAccepted(st.doc, 'lens', cmd.finding)?.index ?? -1;
   if (index >= 0) {
     const base: Path = ['decisions', index];
     const ops: ((f: YamlFile) => OpResult)[] = [
@@ -1306,12 +1333,17 @@ function acceptFinding(
     tx.applyAll(ops);
     return;
   }
-  const item: Record<string, YamlValue> = { kind: 'finding_accepted', finding: cmd.finding };
-  if (cmd.node) item.node = cmd.node;
-  item.reason = reason;
-  if (cmd.by) item.by = cmd.by;
-  if (st.doc.decisions) tx.apply((f) => insertItem(f, ['decisions'], 'end', item));
-  else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
+  addDecision(tx, decisionItem(st.doc, 'lens', cmd.finding, cmd.node, reason, cmd.by));
+}
+
+/** AFD-51: a validator warning accepted with a reason (format 2). */
+function acceptCheck(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'acceptCheck' }>) {
+  const st = state(tx);
+  formatGuard(() => requireFormat(st.doc, 2, 'Accepting a problem'));
+  const { node } = nodeAt(st, cmd.node);
+  const reason = cmd.reason.trim();
+  if (!reason) throw new CommandError('no-reason', `Say why ${node.title} may keep this`);
+  recordDecision(tx, 'check', checkWhat(cmd.code, cmd.subject), cmd.node, reason, cmd.by);
 }
 
 /** The record of a node marked tested by hand (AFD-44). */
@@ -1369,13 +1401,12 @@ function dropTestedRecords(tx: YamlTransaction, ids: readonly Ulid[]): void {
 }
 
 function clearFindingAccept(tx: YamlTransaction, finding: string): void {
-  const decisions = state(tx).doc.decisions ?? [];
-  const idx = decisions
-    .map((d, i) => (d?.kind === 'finding_accepted' && d.finding === finding ? i : -1))
-    .filter((i) => i >= 0);
-  if (idx.length === 0) return;
-  if (idx.length === decisions.length) tx.apply((f) => deleteKey(f, [], 'decisions'));
-  else tx.applyAll(removeIndexes(['decisions'], idx, decisions.length));
+  removeDecisions(
+    tx,
+    acceptedAll(state(tx).doc)
+      .filter((a) => a.area === 'lens' && a.what === finding)
+      .map((a) => a.index),
+  );
 }
 
 function setBoundaryIn(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'setBoundaryIn' }>) {
@@ -1799,9 +1830,13 @@ function pasteNodes(
       from: { node: ids.get(e.from.node) as Ulid, port: e.from.port },
       to: { node: ids.get(e.to.node) as Ulid, port: e.to.port },
     }));
-  const decisions = clip.decisions
-    .filter((d) => d?.kind === 'open_on_purpose' && ids.has(d.node ?? ''))
-    .map((d) => ({ ...d, node: ids.get(d.node ?? '') as Ulid }));
+  // Ports left open on purpose come along, written in this file's format (AFD-51).
+  const target = state(tx).doc;
+  const decisions = clip.decisions.flatMap((d, i) => {
+    const a = acceptedOf(d, i);
+    if (a?.area !== 'port' || !a.node || !ids.has(a.node)) return [];
+    return [decisionItem(target, 'port', a.what, ids.get(a.node) as Ulid, a.reason ?? '', a.by)];
+  });
 
   // Positions: the group keeps its shape around `position`; inner levels keep theirs.
   const positions: Record<Ulid, Position> = {};
@@ -1909,6 +1944,8 @@ const NO_DESIGN = new Set<FlowCommand['kind']>([
   'clearDriftIgnore',
   'acceptFinding',
   'clearFindingAccept',
+  'acceptCheck',
+  'clearCheckAccept',
   'markTested',
 ]);
 
@@ -2022,16 +2059,25 @@ export function planCommand(
     case 'ignoreDrift':
       ignoreDrift(tx, cmd);
       break;
-    case 'clearDriftIgnore': {
-      const decisions = state(tx).doc.decisions ?? [];
-      const idx = decisions
-        .map((d, i) =>
-          d?.kind === 'drift_ignored' && d.node === cmd.node && d.item === cmd.item ? i : -1,
-        )
-        .filter((i) => i >= 0);
-      if (idx.length === decisions.length && idx.length > 0)
-        tx.apply((f) => deleteKey(f, [], 'decisions'));
-      else tx.applyAll(idx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
+    case 'clearDriftIgnore':
+      removeDecisions(
+        tx,
+        acceptedAll(state(tx).doc)
+          .filter((a) => a.area === 'drift' && a.node === cmd.node && a.what === cmd.item)
+          .map((a) => a.index),
+      );
+      break;
+    case 'acceptCheck':
+      acceptCheck(tx, cmd);
+      break;
+    case 'clearCheckAccept': {
+      const what = checkWhat(cmd.code, cmd.subject);
+      removeDecisions(
+        tx,
+        acceptedAll(state(tx).doc)
+          .filter((a) => a.area === 'check' && a.node === cmd.node && a.what === what)
+          .map((a) => a.index),
+      );
       break;
     }
     case 'updateFlow':

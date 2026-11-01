@@ -219,9 +219,43 @@ export const OP_SPECS: OpSpec[] = [
     example: { op: 'disable_port', node: 'push-config', port: 'unreachable' },
   },
   {
+    op: 'accept',
+    summary:
+      'Accept something as it is, with a reason recorded in the flow: a fail port left unwired on purpose (at: the port), a warning from the problems (finding: check:<code>[:<subject>], at: the node; needs flow format 2), a drift item (drift:<item>) or a lens finding (lens:<id>).',
+    properties: {
+      at: {
+        type: 'string',
+        description: 'The fail port (node.port) when accepting a port; else the node.',
+      },
+      finding: {
+        type: 'string',
+        description:
+          'What is accepted: omit (or port:<port>) for a port; check:<code>[:<subject>] for a problem, e.g. check:binding-unknown-var:ntp_servers; drift:<item>; lens:<finding id>.',
+      },
+      reason: { type: 'string', description: 'Why it stays as it is (shown in reviews).' },
+    },
+    required: ['at', 'reason'],
+    example: {
+      op: 'accept',
+      at: 'check-ntp',
+      finding: 'check:binding-unknown-var:ntp_servers',
+      reason: 'Set in group_vars/edge.yml',
+    },
+  },
+  {
+    op: 'unaccept',
+    summary: 'Take back an accept (the same at and finding).',
+    properties: {
+      at: { type: 'string', description: 'The port (node.port), or the node.' },
+      finding: { type: 'string', description: 'As given to accept; omit for a port.' },
+    },
+    required: ['at'],
+    example: { op: 'unaccept', at: 'check-ntp.failed_hosts' },
+  },
+  {
     op: 'leave_open',
     summary:
-      'Leave a fail port unwired on purpose, with a reason: its hosts fail the run and the open-port warning goes away.',
+      'Same as accept on a port (kept for one release): leave a fail port unwired on purpose, with a reason; its hosts fail the run and the open-port warning goes away.',
     properties: {
       at: { ...OUT, description: 'The fail port, e.g. check-ntp.failed_hosts.' },
       reason: { type: 'string', description: 'Why the port stays open (shown in reviews).' },
@@ -235,7 +269,7 @@ export const OP_SPECS: OpSpec[] = [
   },
   {
     op: 'reopen',
-    summary: 'Remove a leave_open decision.',
+    summary: 'Same as unaccept on a port (kept for one release): remove a leave_open decision.',
     properties: { at: PORT },
     required: ['at'],
     example: { op: 'reopen', at: 'check-ntp.failed_hosts' },

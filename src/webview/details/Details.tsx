@@ -4,6 +4,7 @@
 // Discard, and leaving it unsaved (another node, Escape, another level or mode) asks first.
 import { useEffect, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
+import { formatOf } from '../../core/flow/format';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems } from '../../core/view/nodeProblems';
 import { run } from '../actions';
@@ -92,6 +93,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const play = snapshot.plays?.[id];
   // AFD-44: the node's problems at the top, each opening its tab; fields show theirs inline.
   const problems = nodeProblems(snapshot.findings, id, entry.path);
+  // Accepting a problem is a format 2 decision (AFD-51); open ports have their own (Accept with
+  // Reason… on the port).
+  const canAccept = editable && !!snapshot.doc && formatOf(snapshot.doc) >= 2;
   const tabsWithProblems = new Set<string>(problems.map((p) => p.tab));
   // Design edits everything; Code mode only the binding (AFD-45); Run mode reads.
   const readOnly = !editable || mode === 'run' || (mode === 'code' && tab !== 'binding');
@@ -206,6 +210,28 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
                 />{' '}
                 {p.finding.message}
               </button>
+              {canAccept &&
+              p.finding.severity === 'warning' &&
+              p.finding.code !== 'open-fail-port' ? (
+                <button
+                  type="button"
+                  className="link afd-accept-problem"
+                  title="Keep it as it is, with a reason"
+                  onClick={() =>
+                    useUi.getState().setAccept({
+                      id: `${p.finding.code}|${p.finding.subject ?? ''}`,
+                      node: id,
+                      title: p.finding.message,
+                      check: {
+                        code: p.finding.code,
+                        ...(p.finding.subject ? { subject: p.finding.subject } : {}),
+                      },
+                    })
+                  }
+                >
+                  Accept…
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

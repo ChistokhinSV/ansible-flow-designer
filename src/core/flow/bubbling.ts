@@ -2,6 +2,8 @@
 // (no wire, no boundary exit) leaves through the enclosing subflow's port of the same name when the
 // subflow has that port; otherwise it is open. One rule for the open-port banner, the generated
 // routing, the subflow frame, the boundary check and Extract into Subflow (AFD-40).
+
+import { acceptedAll } from './decisions';
 import { isFailPort, portsFor } from './ports';
 import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
@@ -79,8 +81,8 @@ export function unreachableBubbles(parent: FlowNode | undefined): boolean {
 /** `node|port` of every port left open on purpose (D-15). */
 export function openOnPurpose(doc: FlowDocument): Set<string> {
   return new Set(
-    (doc.decisions ?? [])
-      .filter((d) => d?.kind === 'open_on_purpose')
-      .map((d) => portKey(d.node, d.port)),
+    acceptedAll(doc)
+      .filter((a) => a.area === 'port' && a.node)
+      .map((a) => portKey(a.node as string, a.what)),
   );
 }

@@ -120,6 +120,8 @@ export interface AcceptTarget {
   id: string;
   node?: Ulid;
   title: string;
+  /** A problem from the design check (AFD-51, format 2) rather than a lens finding. */
+  check?: { code: string; subject?: string };
 }
 
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */

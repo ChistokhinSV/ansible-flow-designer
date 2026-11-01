@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -1379,7 +1379,56 @@
                   },
                   {
                     "type": "object",
-                    "description": "Leave a fail port unwired on purpose, with a reason: its hosts fail the run and the open-port warning goes away.",
+                    "description": "Accept something as it is, with a reason recorded in the flow: a fail port left unwired on purpose (at: the port), a warning from the problems (finding: check:<code>[:<subject>], at: the node; needs flow format 2), a drift item (drift:<item>) or a lens finding (lens:<id>).",
+                    "properties": {
+                      "op": {
+                        "const": "accept"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "The fail port (node.port) when accepting a port; else the node."
+                      },
+                      "finding": {
+                        "type": "string",
+                        "description": "What is accepted: omit (or port:<port>) for a port; check:<code>[:<subject>] for a problem, e.g. check:binding-unknown-var:ntp_servers; drift:<item>; lens:<finding id>."
+                      },
+                      "reason": {
+                        "type": "string",
+                        "description": "Why it stays as it is (shown in reviews)."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "at",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Take back an accept (the same at and finding).",
+                    "properties": {
+                      "op": {
+                        "const": "unaccept"
+                      },
+                      "at": {
+                        "type": "string",
+                        "description": "The port (node.port), or the node."
+                      },
+                      "finding": {
+                        "type": "string",
+                        "description": "As given to accept; omit for a port."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Same as accept on a port (kept for one release): leave a fail port unwired on purpose, with a reason; its hosts fail the run and the open-port warning goes away.",
                     "properties": {
                       "op": {
                         "const": "leave_open"
@@ -1402,7 +1451,7 @@
                   },
                   {
                     "type": "object",
-                    "description": "Remove a leave_open decision.",
+                    "description": "Same as unaccept on a port (kept for one release): remove a leave_open decision.",
                     "properties": {
                       "op": {
                         "const": "reopen"

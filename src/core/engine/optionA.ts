@@ -9,6 +9,7 @@ import {
   unreachableBubbles,
 } from '../flow/bubbling';
 import { groupPart, outputVar, registerName } from '../flow/dataNames';
+import { portAccepted } from '../flow/decisions';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import { planSegments, type Segment } from '../flow/segments';
@@ -291,9 +292,7 @@ class Generator {
   }
 
   private openPort(node: FlowNode, port: string, group: string): void {
-    const decision = (this.doc.decisions ?? []).find(
-      (d) => d?.node === node.id && d.port === port && d.kind === 'open_on_purpose',
-    );
+    const decision = portAccepted(this.doc, node.id, port);
     const where = `[${node.key}] ${node.title}`;
     this.outcome.push({
       order: this.order,
@@ -838,9 +837,7 @@ class Generator {
       return owner ? [comment(`${port} leaves this level as [${owner.key}] ${r?.port}`)] : [];
     }
     if (this.taken(ctx).wired.has(portKey(node.id, port))) return [];
-    const decided = (this.doc.decisions ?? []).some(
-      (d) => d?.node === node.id && d.port === port && d.kind === 'open_on_purpose',
-    );
+    const decided = !!portAccepted(this.doc, node.id, port);
     return [
       comment(
         decided

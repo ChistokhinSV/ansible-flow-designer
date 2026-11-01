@@ -11,8 +11,10 @@ import { CURRENT_FORMAT } from '../../../src/core/flow/migrate';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
+import { Details } from '../../../src/webview/details/Details';
 import { Lifecycle } from '../../../src/webview/details/sections';
 import { FormatBanner } from '../../../src/webview/panels/Banner';
+import { AcceptDialog } from '../../../src/webview/panels/LensPanel';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -100,5 +102,59 @@ describe('the lifecycle in format 2 (AFD-50)', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Clear Tested' }));
     expect(set).toEqual(['implemented']);
+  });
+});
+
+describe('accepting a problem in format 2 (AFD-51)', () => {
+  it('a warning in the Details has Accept…, which records an accepted problem', () => {
+    const text = planCommand(
+      readFileSync(join(__dirname, '../../../examples/edge-baseline.flow.yaml'), 'utf8'),
+      { kind: 'upgradeFormat' },
+      { newId: createIdFactory() },
+    ).text;
+    const doc = parse(text) as FlowDocument;
+    const node = doc.nodes.find((n) => n.key === 'precheck') as FlowNode;
+    const warning = {
+      code: 'binding-unknown-var',
+      severity: 'warning' as const,
+      message: 'Pre-checks reads "ntp_servers", which is not an input of this node',
+      path: ['nodes', 1, 'impl', 'params'],
+      node: node.id,
+      subject: 'ntp_servers',
+    };
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: Date.now(),
+        doc,
+        stale: false,
+        findings: [warning],
+        openPorts: openFailPorts(buildModel(doc)),
+        autoPositions: {},
+      }),
+    );
+    useUi.setState({ accept: null, mode: 'design' });
+    render(
+      <>
+        <Details id={node.id} />
+        <AcceptDialog />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Accept…' }));
+    fireEvent.change(screen.getByRole('textbox', { name: /Reason/ }), {
+      target: { value: 'Set in group_vars/edge.yml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(posted).toContainEqual(
+      expect.objectContaining({
+        type: 'command',
+        command: {
+          kind: 'acceptCheck',
+          node: node.id,
+          code: 'binding-unknown-var',
+          subject: 'ntp_servers',
+          reason: 'Set in group_vars/edge.yml',
+        },
+      }),
+    );
   });
 });
