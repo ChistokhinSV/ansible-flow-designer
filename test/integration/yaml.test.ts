@@ -40,7 +40,7 @@ describe('AFD-5: the YAML extension validates flows with the flow schema', () =>
       const line = doc.getText().split('\n').indexOf('schema_version: 1');
       assert.ok(line >= 0);
       const edit = new vscode.WorkspaceEdit();
-      edit.replace(uri, new vscode.Range(line, 0, line, 17), 'schema_version: 2');
+      edit.replace(uri, new vscode.Range(line, 0, line, 17), 'schema_version: 3');
       await vscode.workspace.applyEdit(edit);
       await withTimeout(
         yamlSettles(uri, (d) => d.length > 0),

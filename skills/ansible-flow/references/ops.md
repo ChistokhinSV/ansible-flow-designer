@@ -261,6 +261,15 @@ Drop stored positions so the canvas places these nodes automatically again (posi
 {"op":"unplace","level":"top"}
 ```
 
+### upgrade_format
+
+Move a format 1 flow to the current format (2). Nothing in the design changes; an op that needs format 2 says so. Run it alone, or first in a batch.
+
+
+```json
+{"op":"upgrade_format"}
+```
+
 ### tidy_up
 
 Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.

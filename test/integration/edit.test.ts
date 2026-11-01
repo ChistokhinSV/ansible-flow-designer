@@ -58,4 +58,21 @@ describe('AFD-18 acceptance: one undo step per edit', () => {
     await vscode.commands.executeCommand('undo');
     assert.equal(doc.getText(), before);
   });
+
+  it('Upgrade Flow Format: nothing written on open, one edit, one undo back to the same bytes (AFD-49)', async () => {
+    const doc = await openDesigner(EDGE);
+    const before = doc.getText();
+    assert.match(before, /^schema_version: 1$/m);
+    assert.ok(!doc.isDirty, 'opening a format 1 flow writes nothing');
+    const version = doc.version;
+    const outcome = await vscode.commands.executeCommand<{ ok: boolean; error?: string }>(
+      'afd.flow.upgradeFormat',
+      EDGE,
+    );
+    assert.ok(outcome?.ok, outcome?.error);
+    assert.equal(doc.version, version + 1, 'one edit');
+    assert.equal(doc.getText(), before.replace(/^schema_version: 1$/m, 'schema_version: 2'));
+    await vscode.commands.executeCommand('undo');
+    assert.equal(doc.getText(), before);
+  });
 });

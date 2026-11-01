@@ -1,7 +1,10 @@
 // Open fail port banner (D-15): count of open fail-type ports not marked open on purpose. "Show"
 // selects the affected nodes one by one; dismissing hides it until the count changes. A flow
 // written by hand without IDs (AFD-19) shows Complete IDs here first: the canvas edits after it.
+import { CURRENT_FORMAT, formatOf, upgradeNotes } from '../../core/flow/migrate';
+import { run } from '../actions';
 import { send } from '../bus';
+import { useEditable } from '../editActions';
 import { useUi } from '../store';
 import { bannerCount } from '../viewModel';
 
@@ -66,6 +69,49 @@ export function Banner() {
         Show
       </button>
       <button type="button" className="icon" aria-label="Dismiss" onClick={() => dismiss(count)}>
+        <span className="codicon codicon-close" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A format 1 flow (AFD-49): what Upgrade Flow Format would change, and the button. Shown while the
+ * flow can be edited; closing it hides it for this panel. Nothing is upgraded without asking.
+ */
+export function FormatBanner() {
+  const doc = useUi((s) => s.snapshot?.doc);
+  const dismissed = useUi((s) => s.formatDismissed);
+  const editable = useEditable();
+  if (!doc || dismissed || !editable || formatOf(doc) >= CURRENT_FORMAT) return null;
+  const notes = upgradeNotes(doc);
+  const upgrade = async () => {
+    const ack = await run({ kind: 'upgradeFormat' });
+    if (ack.ok)
+      useUi
+        .getState()
+        .notify('success', `Upgraded to flow format ${CURRENT_FORMAT}. Undo reverts it.`);
+  };
+  return (
+    <div className="afd-banner info" role="status" data-format-banner={formatOf(doc)}>
+      <span className="codicon codicon-arrow-circle-up" aria-hidden="true" />
+      <span>
+        <strong>Flow format {formatOf(doc)}.</strong>{' '}
+        {notes.length
+          ? `Upgrading changes: ${notes.join('; ')}.`
+          : `Format ${CURRENT_FORMAT} is what newer features use; the design stays as it is.`}{' '}
+        One undo step reverts it.
+      </span>
+      <button type="button" onClick={() => void upgrade()}>
+        Upgrade Flow Format
+      </button>
+      <button
+        type="button"
+        className="icon"
+        aria-label="Hide the format message"
+        title="Hide"
+        onClick={() => useUi.setState({ formatDismissed: true })}
+      >
         <span className="codicon codicon-close" aria-hidden="true" />
       </button>
     </div>

@@ -43,7 +43,7 @@ function section(title: string, s: Json): string[] {
 
 const props = (s: Json, name: string) => (s.properties as Record<string, Json>)[name] as Json;
 
-const EXAMPLE = `schema_version: 1
+const EXAMPLE = `schema_version: 2
 flow:
   key: ntp-baseline
   name: NTP baseline

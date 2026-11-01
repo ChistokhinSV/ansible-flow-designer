@@ -7,6 +7,7 @@ export const CMD = {
   newFlow: 'afd.flow.new',
   checkFlow: 'afd.flow.check',
   completeIds: 'afd.flow.completeIds',
+  upgradeFormat: 'afd.flow.upgradeFormat',
   openInTextEditor: 'afd.flow.openInTextEditor',
   generateCode: 'afd.code.generate',
   tidyUp: 'afd.canvas.tidyUp',

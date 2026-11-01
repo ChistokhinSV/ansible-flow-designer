@@ -152,7 +152,8 @@ export interface FlowHeader {
 }
 
 export interface FlowDocument {
-  schema_version: 1;
+  /** 1 or 2; Upgrade Flow Format moves a 1 to 2 (AFD-49, ADR-0025). */
+  schema_version: 1 | 2;
   flow: FlowHeader;
   nodes: FlowNode[];
   edges: Edge[];

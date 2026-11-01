@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.27.3",
+  "version": "0.28.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -110,6 +110,11 @@
       {
         "command": "afd.flow.completeIds",
         "title": "Complete IDs",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flow.upgradeFormat",
+        "title": "Upgrade Flow Format",
         "category": "Ansible Flow"
       },
       {
@@ -243,6 +248,10 @@
         },
         {
           "command": "afd.flow.completeIds",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.flow.upgradeFormat",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {
@@ -1963,6 +1972,19 @@
                       "level": {
                         "type": "string",
                         "description": "top, all, or a subflow key: every node there."
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Move a format 1 flow to the current format (2). Nothing in the design changes; an op that needs format 2 says so. Run it alone, or first in a batch.",
+                    "properties": {
+                      "op": {
+                        "const": "upgrade_format"
                       }
                     },
                     "required": [

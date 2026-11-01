@@ -25,6 +25,7 @@ the [guide](../README.md).
 | `afd.edit.copy` · Copy Nodes                      | copies the selected nodes as YAML                                                                                             |
 | `afd.edit.paste` · Paste Nodes                    | pastes nodes on the open level                                                                                                |
 | `afd.flow.completeIds` · Complete IDs             | adds the IDs a hand-written flow lacks, in one edit                                                                           |
+| `afd.flow.upgradeFormat` · Upgrade Flow Format    | moves a format 1 flow to format 2, in one edit (one undo step); nothing in the design changes                                 |
 
 ## Export
 

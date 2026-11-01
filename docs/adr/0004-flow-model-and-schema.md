@@ -46,3 +46,8 @@ Fail-type ports (counted by the open-port banner): `failed_hosts`, `unreachable`
 - An unwired success port warns at every level: `success-port-unwired` on the top level, `inner-exit-unmapped` inside subflows (its text corrected).
 - Level chips: only `inventory_target` is inherited by inner steps; become, serial, credential and EE on a subflow show as "not applied" until the generator applies them (AFD-52).
 - The implicit `unreachable` failing of module steps without the port is not counted on the banner (it would list almost every step); the ports guide explains it.
+
+## Amendment (AFD-49, 2026-11-01): format 2
+
+`schema_version` 2 joins 1: format changes that are not additive go into format 2, and a format 1
+file moves to it only through the explicit Upgrade Flow Format. See ADR-0025.

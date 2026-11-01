@@ -106,7 +106,8 @@ export type Op =
   | { op: 'move'; nodes: Record<string, Place> }
   | { op: 'unplace'; nodes?: string[]; level?: string }
   | { op: 'bind'; node: string; impl: ImplBinding | null }
-  | { op: 'tidy_up'; level?: string };
+  | { op: 'tidy_up'; level?: string }
+  | { op: 'upgrade_format' };
 
 export class OpError extends Error {
   constructor(
@@ -542,6 +543,8 @@ async function commandsOf(
       }
       return [{ kind: 'unplaceNodes', ids }];
     }
+    case 'upgrade_format':
+      return [{ kind: 'upgradeFormat' }];
     case 'tidy_up': {
       if (!ctx.layout) throw new RefError('tidy_up is not available here');
       const which = op.level ?? 'top';

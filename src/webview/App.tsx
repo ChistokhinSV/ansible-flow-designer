@@ -10,7 +10,7 @@ import { onTabListKeys } from './focus';
 import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
 import { CanvasContextMenu } from './menu/CanvasContextMenu';
-import { Banner } from './panels/Banner';
+import { Banner, FormatBanner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
 import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
@@ -313,6 +313,7 @@ export function App() {
         {mode === 'design' ? <Palette /> : null}
         <main className="afd-center">
           <Banner />
+          <FormatBanner />
           <PickBar />
           <FlowCanvas />
           <Toasts />

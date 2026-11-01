@@ -2,6 +2,7 @@
 // an import writes. The AWX and playbook importers build with it. IDs are made as nodes and wires
 // are, so they sort in the order the importer made them (D-06).
 import { type IdFactory, uniqueKey } from './ids';
+import { CURRENT_FORMAT } from './migrate';
 import type { Contract, Edge, FlowDocument, FlowHeader, FlowNode, PortRef, Ulid } from './types';
 
 export class LevelBuilder {
@@ -47,11 +48,11 @@ export interface ImportedMeta {
   inputs: Contract;
 }
 
-/** The document of an imported flow: schema 1, flow version 1, the top level built. */
+/** The document of an imported flow: the current format, flow version 1, the top level built. */
 export function importedFlow(id: Ulid, meta: ImportedMeta, top: LevelBuilder): FlowDocument {
   const { key, name, goal, imported_from, inputs } = meta;
   return {
-    schema_version: 1,
+    schema_version: CURRENT_FORMAT,
     flow: { id, key, name, version: 1, ...(goal ? { goal } : {}), imported_from, inputs },
     nodes: top.nodes,
     edges: top.edges,

@@ -7,7 +7,7 @@ renames never break anything. You do not have to write them: name nodes by **key
 ## Write a flow by key
 
 ```yaml
-schema_version: 1
+schema_version: 2
 flow:
   key: ntp-check
   name: NTP check
@@ -25,6 +25,9 @@ edges:
     to: { node: done, port: in }
 ```
 
+- `schema_version` is the file's format: 2 for new flows. A flow in format 1 still opens and
+  runs; **Upgrade Flow Format** (the banner over the canvas, or the Command Palette) moves it to 2
+  in one edit, and one undo reverts it. Nothing is upgraded without asking.
 - Keys are lowercase letters, digits and dashes, unique on their level.
 - Wires, subflow entries and exits, decisions and layout may name nodes by key.
 - The [flow file format](../reference/flow-format.md) lists every field.

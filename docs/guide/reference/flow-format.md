@@ -12,7 +12,7 @@ A flow is one YAML file named `<key>.flow.yaml`. The top level has one start nod
 
 ### Top level
 
-- `schema_version` (1, required): Format version of this file; always 1.
+- `schema_version` (1 | 2, required): Format version of this file: 2 for new flows; a 1 stays readable, and Upgrade Flow Format (or the upgrade_format op) moves it to 2 in one undo step.
 - `flow` (object, required): The flow itself: identity, version, goal and the inputs a run asks for.
 - `nodes` (list of node, required): Nodes of the top level, in any order. Subflow nodes hold their own inner level under subflow.
 - `edges` (list of edge, required): Wires of the top level: an output port of one node to an input port of another node on the same level. One wire per output port.
@@ -148,7 +148,7 @@ One decision. kind decides which fields it needs.
 ### A small flow written by hand
 
 ```yaml
-schema_version: 1
+schema_version: 2
 flow:
   key: ntp-baseline
   name: NTP baseline

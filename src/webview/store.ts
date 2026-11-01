@@ -152,6 +152,8 @@ interface UiState {
   decide: PortRef | null;
   /** Banner hidden by the user for this count of open ports. */
   bannerDismissedAt: number | null;
+  /** The format banner was closed in this panel (AFD-49). */
+  formatDismissed: boolean;
   /** Positions dragged locally and not yet confirmed by a snapshot. */
   optimistic: Record<Ulid, Position>;
   /** Messages over the canvas, oldest first (AFD-46). */
@@ -284,6 +286,7 @@ export const useUi = create<UiState>((set, get) => ({
   pickAt: null,
   decide: null,
   bannerDismissedAt: null,
+  formatDismissed: false,
   optimistic: {},
   toasts: [],
   saving: false,

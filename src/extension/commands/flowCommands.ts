@@ -2,6 +2,7 @@
 // Nodes, Open in Text Editor (Check Flow is with the run commands, AFD-41). Each works on the flow the user means (Host.resolveTargetFlow).
 import * as vscode from 'vscode';
 import { slugify } from '../../core/flow/ids';
+import { CURRENT_FORMAT } from '../../core/flow/migrate';
 import { newFlowText } from '../../core/flow/template';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
@@ -20,6 +21,18 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       },
     ),
     vscode.commands.registerCommand(CMD.newFlow, () => newFlow(host)),
+    // Upgrade Flow Format (AFD-49): the flow to the current format, as one undo step.
+    vscode.commands.registerCommand(CMD.upgradeFormat, async (uri?: vscode.Uri) => {
+      const doc = await host.resolveTargetFlow(uri);
+      if (!doc) return undefined;
+      const outcome = await host.sessionFor(doc).runCommand({ kind: 'upgradeFormat' });
+      if (outcome.ok)
+        void vscode.window.showInformationMessage(
+          `Upgraded to flow format ${CURRENT_FORMAT}. Undo reverts it; save to keep it.`,
+        );
+      else void vscode.window.showErrorMessage(outcome.error ?? 'The flow was not upgraded');
+      return outcome;
+    }),
     vscode.commands.registerCommand(CMD.tidyUp, async () => {
       const outcome = await host.activeSession()?.tidyUp();
       if (outcome && !outcome.ok)

@@ -52,7 +52,8 @@ describe('AFD-16 acceptance: a *.flow.yaml that is not a flow', () => {
     const uri = file('commented.flow.yaml', '# Owner: netops\n');
     const doc = await openDesigner(uri);
     assert.ok((await api.initFlow(uri)).ok);
-    assert.ok(doc.getText().startsWith('# Owner: netops\nschema_version: 1\n'));
+    // New flows are written in the current format (AFD-49).
+    assert.ok(doc.getText().startsWith('# Owner: netops\nschema_version: 2\n'));
   });
 
   it('with content: reported, and Create a flow here is refused', async () => {

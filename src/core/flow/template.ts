@@ -2,11 +2,12 @@
 // the canvas lays the flow out until the first move or Tidy up writes them (AFD-23).
 import { renderBlock, renderScalar } from '../yaml/render';
 import type { IdFactory } from './ids';
+import { CURRENT_FORMAT } from './migrate';
 
 export function newFlowText(name: string, key: string, newId: IdFactory): string {
   const [flowId, start, end, edge] = [newId(), newId(), newId(), newId()];
   const header = [
-    'schema_version: 1',
+    `schema_version: ${CURRENT_FORMAT}`,
     'flow:',
     `  id: ${flowId}`,
     `  key: ${key}`,

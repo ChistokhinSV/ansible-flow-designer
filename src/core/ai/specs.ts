@@ -389,6 +389,14 @@ export const OP_SPECS: OpSpec[] = [
     example: { op: 'unplace', level: 'top' },
   },
   {
+    op: 'upgrade_format',
+    summary:
+      'Move a format 1 flow to the current format (2). Nothing in the design changes; an op that needs format 2 says so. Run it alone, or first in a batch.',
+    properties: {},
+    required: [],
+    example: { op: 'upgrade_format' },
+  },
+  {
     op: 'tidy_up',
     summary:
       'Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.',

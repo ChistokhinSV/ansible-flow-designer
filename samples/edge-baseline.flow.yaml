@@ -1,5 +1,5 @@
 # Example flow document. IDs are sample ULIDs. Values in [BRACKETS] are placeholders.
-schema_version: 1
+schema_version: 2
 flow:
   id: 01JBM9S346Q3D25VT4F5V37E3S
   key: edge-baseline

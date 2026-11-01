@@ -11,8 +11,8 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 1,
-      "description": "Format version of this file; always 1."
+      "enum": [1, 2],
+      "description": "Format version of this file: 2 for new flows; a 1 stays readable, and Upgrade Flow Format (or the upgrade_format op) moves it to 2 in one undo step."
     },
     "flow": {
       "type": "object",

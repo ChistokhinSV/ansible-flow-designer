@@ -496,9 +496,13 @@ if (params.has('shots')) bar.style.display = 'none';
 setTheme(params.get('theme') ?? 'light');
 (window as unknown as { afdText: () => string }).afdText = () => text;
 
-await import('../main');
 // The webview store, so the browser pane can set what a pointer cannot (a group selection).
-(window as unknown as { afdUi: unknown }).afdUi = (await import('../store')).useUi;
+const { useUi } = await import('../store');
+(window as unknown as { afdUi: unknown }).afdUi = useUi;
+// The guide's screenshots show what they are about, not the format banner of the format 1
+// examples (AFD-49); closed before the first render, so the opening view is the same.
+if (params.has('shots')) useUi.setState({ formatDismissed: true });
+await import('../main');
 // Model builds, for the UX baseline's builds-per-snapshot metric (AFD-33).
 (window as unknown as { afdModelStats: unknown }).afdModelStats = (
   await import('../../core/flow/model')

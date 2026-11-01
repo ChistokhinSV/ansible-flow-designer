@@ -11,6 +11,7 @@ import { enclosing } from './dataRefs';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
+import { CURRENT_FORMAT, FormatError, migrate } from './migrate';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
@@ -129,6 +130,8 @@ export type FlowCommand =
    * `finding_accepted` record `status:tested|<node>` until AFD-50 gives runs and hands one record.
    */
   | { kind: 'markTested'; id: Ulid; reason: string; by?: string }
+  /** Upgrade Flow Format (AFD-49): the file to the current format, one undo step. */
+  | { kind: 'upgradeFormat' }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
   | {
       kind: 'pasteNodes';
@@ -200,6 +203,16 @@ export class CommandError extends Error {
   ) {
     super(message);
     this.name = 'CommandError';
+  }
+}
+
+/** A format refusal (newer file, already current, needs an upgrade) as the command's error. */
+export function formatGuard<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (err) {
+    if (err instanceof FormatError) throw new CommandError(err.code, err.message);
+    throw err;
   }
 }
 
@@ -1828,6 +1841,8 @@ export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): voi
 
 /** Commands that cannot change a node's design (positions, statuses, drift decisions). */
 const NO_DESIGN = new Set<FlowCommand['kind']>([
+  // The format, not the design: no node goes back to implemented over it.
+  'upgradeFormat',
   'moveNodes',
   'tidyUp',
   'unplaceNodes',
@@ -1927,6 +1942,10 @@ export function planCommand(
       break;
     case 'markTested':
       markTested(tx, cmd);
+      break;
+    case 'upgradeFormat':
+      formatGuard(() => migrate(tx));
+      notes.push(`Upgraded to flow format ${CURRENT_FORMAT}; one undo step reverts it`);
       break;
     case 'ignoreDrift':
       ignoreDrift(tx, cmd);

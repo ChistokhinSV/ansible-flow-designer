@@ -1,7 +1,7 @@
 # Sample flow (Ansible Flow Designer): a firewall firmware upgrade with pre-checks, a backup, an
 # approval, polling until the device is back, post-checks and rollback. Steps are drafts: a skeleton
 # run works anywhere, and the tutorials bind them (docs/guide/tutorials/02-design-to-production.md).
-schema_version: 1
+schema_version: 2
 flow:
   id: 01M67T3CFH6SVM3YWJRWKZG530
   key: firewall-upgrade

@@ -33,6 +33,7 @@ the Command Palette and these pages are checked against the **Not** column. Back
 | finding         | something a lens found, in the lens's panel                                                                  |                       |
 | lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code) with chips on the nodes and findings      |                       |
 | drift           | a difference between the design and the code it runs, shown in Code mode                                     |                       |
+| format          | the version of the file's layout (`schema_version`): 2 for new flows; **Upgrade Flow Format** moves a 1 to 2 |                       |
 
 ## Modes and panels
 
