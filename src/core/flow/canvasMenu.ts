@@ -29,7 +29,10 @@ export type ShortcutId =
   | 'delete'
   | 'up'
   | 'menu'
-  | 'help';
+  | 'help'
+  | 'addNode'
+  | 'selectAll'
+  | 'fit';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -133,7 +136,17 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
       ),
     );
   if (node.type === 'task' || node.type === 'subflow') {
-    open.push(item('Details…', { do: 'properties', node: id }, { icon: 'settings-gear' }));
+    open.push(
+      item(
+        'Details…',
+        { do: 'properties', node: id },
+        // Enter opens a subflow; on any other node it moves into the Details (AFD-47).
+        {
+          icon: 'settings-gear',
+          ...(node.type === 'subflow' ? {} : { shortcut: 'open' as const }),
+        },
+      ),
+    );
     // Binding stays editable in Code mode, where the graph is read-only (AFD-45).
     if (ctx.mode !== 'run')
       open.push(
@@ -179,7 +192,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
       item(
         'Add Next Node…',
         { do: 'addNext', from: { node: id, port: next } },
-        { icon: 'add', ...lock },
+        { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
 
@@ -249,12 +262,14 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const add = edit
     ? [
         item('Paste Here', { do: 'paste' }, { icon: 'clippy', shortcut: 'paste', ...lock }),
-        item('Add Node Here…', { do: 'addNode' }, { icon: 'add', ...lock }),
+        item('Add Node Here…', { do: 'addNode' }, { icon: 'add', shortcut: 'addNode', ...lock }),
       ]
     : [];
-  const view: CanvasMenuEntry[] = [item('Select All', { do: 'selectAll' }, { icon: 'selection' })];
+  const view: CanvasMenuEntry[] = [
+    item('Select All', { do: 'selectAll' }, { icon: 'selection', shortcut: 'selectAll' }),
+  ];
   if (edit) view.push(item('Tidy Up', { do: 'tidyUp' }, { icon: 'layout', ...lock }));
-  view.push(item('Fit View', { do: 'fitView' }, { icon: 'screen-full' }));
+  view.push(item('Fit View', { do: 'fitView' }, { icon: 'screen-full', shortcut: 'fit' }));
   const nav =
     ctx.level !== ROOT
       ? [item('Up to Parent', { do: 'upLevel' }, { icon: 'arrow-up', shortcut: 'up' })]

@@ -70,7 +70,9 @@ export function Palette() {
         ))}
       </ul>
       <h2>Failure patterns</h2>
-      <p className="afd-palette-hint muted">Drop onto an open fail port</p>
+      <p className="afd-palette-hint muted" id="afd-pattern-hint">
+        Drop onto an open fail port, or select a node and click
+      </p>
       <ul className="afd-palette">
         {PALETTE_PATTERNS.map((p) => (
           <li key={p.id}>
@@ -79,6 +81,8 @@ export function Palette() {
               draggable={!locked}
               disabled={locked}
               data-pattern={p.id}
+              // What a pattern needs, read with its name (AFD-47), not only in the tooltip.
+              aria-describedby="afd-pattern-hint"
               onDragStart={(e) => {
                 e.dataTransfer.setData(PATTERN_MIME, p.id);
                 e.dataTransfer.effectAllowed = 'copy';

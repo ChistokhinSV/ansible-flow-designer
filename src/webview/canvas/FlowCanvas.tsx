@@ -39,11 +39,12 @@ import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { FULL_FIT, readableViewport } from '../../core/view/fit';
 import { labelledAtRest } from '../../core/view/nodeFace';
+import { pickCandidates, stepPick } from '../../core/view/pick';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
 import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { boundaryWire, upLevel } from '../editActions';
-import { useLevelView } from '../hooks';
+import { useLevelView, useModel } from '../hooks';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -61,6 +62,14 @@ interface SavedState {
   viewports?: Record<string, Viewport>;
 }
 
+/** What a screen reader says for a node (AFD-47): type, title, status and open fail ports. */
+function nodeName({ node, ports }: NodeView): string {
+  const status = node.type === 'start' || node.type === 'end' ? '' : `, ${node.status ?? 'draft'}`;
+  const open = ports.filter((p) => p.state === 'open-fail').length;
+  const ports_ = open ? `, ${open} open fail port${open === 1 ? '' : 's'}` : '';
+  return `${TYPE_LABEL[node.type]} ${node.title}${status}${ports_}`;
+}
+
 function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
   return {
     id: view.node.id,
@@ -69,7 +78,7 @@ function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
     width: view.width,
     height: view.height,
     data: { view },
-    ariaLabel: `${TYPE_LABEL[view.node.type]} ${view.node.title}`,
+    ariaLabel: nodeName(view),
     selected,
     deletable: true,
   };
@@ -103,7 +112,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (id: string, port: string) => labelledAtRest(port) || id === hoverEdge || id === selection.edge,
     [hoverEdge, selection.edge],
   );
-  const { screenToFlowPosition, setViewport } = useReactFlow();
+  const { screenToFlowPosition, setViewport, fitView, getViewport, setCenter } = useReactFlow();
+  const model = useModel();
+  const pickAt = useUi((s) => (s.pick ? s.pickAt : null));
   const paneWidth = useStore((s) => s.width);
   const paneHeight = useStore((s) => s.height);
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
@@ -473,19 +484,91 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     );
   }, [nodes, paneWidth, paneHeight, setViewport]);
 
-  // Enter on a selected subflow opens it (04 §8), unless a field has the focus.
+  // Keys that need the level's geometry (AFD-47), unless a field, menu or dialog has the focus:
+  // Enter opens a selected subflow (04 §8) or moves into a node's Details, Shift+1 fits the level.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' || e.defaultPrevented) return;
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return;
-      const { selection: sel, snapshot: snap } = useUi.getState();
-      const n = view.nodes.find((v) => v.node.id === sel.node)?.node;
-      if (n?.type === 'subflow' && snap) setLevel(n.id);
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const n = view.nodes.find((v) => v.node.id === useUi.getState().selection.node)?.node;
+        if (!n) return;
+        e.preventDefault();
+        if (n.type === 'subflow') setLevel(n.id);
+        // After the panel shows the node: its open tab takes the focus, Tab goes on to the fields.
+        else
+          setTimeout(() =>
+            document
+              .querySelector<HTMLElement>(
+                '[role="tablist"][aria-label="Details"] [aria-selected="true"]',
+              )
+              ?.focus(),
+          );
+      } else if (e.shiftKey && e.code === 'Digit1') {
+        e.preventDefault();
+        void fitView(FULL_FIT);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view.nodes, setLevel]);
+  }, [view.nodes, setLevel, fitView]);
+
+  // Picking a node with the keyboard (AFD-47): Tab or the arrow keys walk the nodes the pick can
+  // choose, Enter or Space wires the one shown. Captured before React Flow, which would otherwise
+  // move a focused node with the arrows. Fields, menus and dialogs keep their keys.
+  const candidates = useMemo(() => {
+    const pick = useUi.getState().pick;
+    return picking && pick && model
+      ? pickCandidates(model, view.nodes, { mode: pick.mode, node: pick.ref.node })
+      : [];
+  }, [picking, model, view.nodes]);
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.closest(
+          'input, textarea, select, [contenteditable="true"], [role="menu"], [role="dialog"]',
+        )
+      )
+        return;
+      const ui = useUi.getState();
+      const back = (e.key === 'Tab' && e.shiftKey) || e.key === 'ArrowUp' || e.key === 'ArrowLeft';
+      const on =
+        (e.key === 'Tab' && !e.shiftKey) || e.key === 'ArrowDown' || e.key === 'ArrowRight';
+      if (back || on) {
+        const next = stepPick(candidates, ui.pickAt, back ? -1 : 1);
+        if (!next) return;
+        e.preventDefault();
+        e.stopPropagation();
+        ui.setPickAt(next);
+      } else if ((e.key === 'Enter' || e.key === ' ') && ui.pickAt) {
+        e.preventDefault();
+        e.stopPropagation();
+        void completePick(ui.pickAt);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [picking, candidates]);
+  // The node a keyboard pick shows comes into view when it is outside.
+  useEffect(() => {
+    const v = pickAt ? view.nodes.find((n) => n.node.id === pickAt) : undefined;
+    if (!v || paneWidth <= 0) return;
+    const { x, y, zoom } = getViewport();
+    const left = v.position.x * zoom + x;
+    const top = v.position.y * zoom + y;
+    if (
+      left >= 0 &&
+      top >= 0 &&
+      left + v.width * zoom <= paneWidth &&
+      top + v.height * zoom <= paneHeight
+    )
+      return;
+    void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, { zoom });
+  }, [pickAt, view.nodes, paneWidth, paneHeight, getViewport, setCenter]);
 
   return (
     <ReactFlow<CanvasNode>

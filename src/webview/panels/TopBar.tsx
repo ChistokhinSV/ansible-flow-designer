@@ -9,6 +9,7 @@ import { ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
+import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
@@ -34,17 +35,11 @@ export function TopBar() {
     (s) => s.snapshot?.findings.filter((f) => f.severity === 'error').length ?? 0,
   );
   const mode = useUi((s) => s.mode);
-  const sync = useUi((s) => s.sync);
   const lens = useUi((s) => s.lens);
   const setLens = useUi((s) => s.setLens);
   const pickLens = (id: (typeof LENSES)[number]['id'] | null) => {
     setLens(id);
     send({ type: 'lens', lens: id });
-  };
-  const choose = (id: Mode) => {
-    useUi.getState().setMode(id);
-    // The first visit compiles the code; later ones show the last scan (Re-sync refreshes it).
-    if (id === 'code' && sync.state === 'idle') send({ type: 'sync' });
   };
   return (
     <header className="afd-topbar">
@@ -98,7 +93,7 @@ export function TopBar() {
             className={m.id === mode ? 'active' : ''}
             aria-pressed={m.id === mode}
             disabled={!!m.soon}
-            onClick={() => choose(m.id)}
+            onClick={() => chooseMode(m.id)}
             title={m.soon ? `${m.label} mode arrives in ${m.soon}` : undefined}
           >
             {m.label}

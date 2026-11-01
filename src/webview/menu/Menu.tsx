@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useReturnFocus } from '../focus';
 
 export type UiMenuEntry =
   | {
@@ -70,8 +71,9 @@ export function Menu(props: MenuProps) {
     null,
   );
   const hover = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // Where focus was when the menu opened: it goes back there when the menu closes.
-  const [returnTo] = useState(() => (onBack ? null : document.activeElement));
+  // Where focus was when the menu opened gets it back when the menu closes (a submenu's item does
+  // that itself).
+  useReturnFocus(!onBack);
 
   // Keep the menu inside the window: open to the left or upwards when there is no room.
   useLayoutEffect(() => {
@@ -89,16 +91,7 @@ export function Menu(props: MenuProps) {
     if (placed) enabledItems(box.current)[0]?.focus();
   }, [placed]);
 
-  // Only while nothing else took the focus: an item that opened a dialog keeps it on the dialog.
-  useEffect(
-    () => () => {
-      clearTimeout(hover.current);
-      const back = returnTo as HTMLElement | null;
-      const idle = document.activeElement === document.body || !document.activeElement;
-      if (idle && back?.isConnected && typeof back.focus === 'function') back.focus();
-    },
-    [returnTo],
-  );
+  useEffect(() => () => clearTimeout(hover.current), []);
 
   useEffect(() => {
     if (onBack) return;

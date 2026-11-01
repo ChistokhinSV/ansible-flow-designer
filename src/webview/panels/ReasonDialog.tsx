@@ -3,6 +3,7 @@
 // required; Escape closes only this dialog, so a page behind it (Properties) stays open.
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import type { Ack } from '../bus';
+import { useDialogFocus } from '../focus';
 
 export interface ReasonDialogProps {
   /** Prefix of the element ids (`<id>-title`, `<id>-reason`). */
@@ -33,6 +34,8 @@ export function ReasonDialog({
 }: ReasonDialogProps) {
   const [reason, setReason] = useState('');
   const field = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<HTMLFormElement>(null);
+  const trap = useDialogFocus(box);
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the dialog opens for a target; later snapshots must not reset what is being typed
   useEffect(() => {
     setReason(initial ?? '');
@@ -49,12 +52,14 @@ export function ReasonDialog({
   return (
     <div className="afd-modal-backdrop">
       <form
+        ref={box}
         className="afd-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
         onSubmit={onSubmit}
         onKeyDown={(e) => {
+          trap(e);
           if (e.key !== 'Escape') return;
           e.stopPropagation();
           close();

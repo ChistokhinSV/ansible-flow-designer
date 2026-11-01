@@ -2,7 +2,7 @@
 // Tabs: General, Binding (task and subflow), Inputs and outputs, Ports, Execution; Code and Run
 // modes add theirs first. Fields save as you go. The binding is staged: a bar offers Save and
 // Discard, and leaving it unsaved (another node, Escape, another level or mode) asks first.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems } from '../../core/view/nodeProblems';
@@ -12,6 +12,7 @@ import { StatusIcon } from '../canvas/StatusIcon';
 import { copySelection } from '../clipboard';
 import { TYPE_LABEL } from '../constants';
 import { deleteSelection, useEditable } from '../editActions';
+import { onTabListKeys, useDialogFocus } from '../focus';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
 import { NodeRunPanel } from '../panels/RunPanel';
@@ -209,7 +210,7 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           ))}
         </ul>
       ) : null}
-      <div className="afd-props-tabs" role="tablist" aria-label="Details">
+      <div className="afd-props-tabs" role="tablist" aria-label="Details" onKeyDown={onTabListKeys}>
         {tabs.map((t) => (
           <button
             key={t}
@@ -217,6 +218,8 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             role="tab"
             id={`afd-tab-${t}`}
             aria-selected={tab === t}
+            // One tab stop for the list; the arrow keys move between tabs (AFD-47).
+            tabIndex={tab === t ? 0 : -1}
             aria-controls="afd-details-panel"
             className={tab === t ? 'active' : ''}
             onClick={() => setTab(t)}
@@ -256,51 +259,68 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
         )}
       </div>
       {leave && dirty ? (
-        <div className="afd-modal-backdrop">
-          <div
-            className="afd-modal"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="afd-leave-title"
-            data-leave-binding
-          >
-            <h2 id="afd-leave-title">Discard the binding change?</h2>
-            <p className="muted">
-              The binding of "{node.title}" has a change that is not saved yet. Leaving now drops
-              it.
-            </p>
-            <div className="afd-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
-                autoFocus
-                onClick={() => useUi.getState().resolveLeave('stay')}
-              >
-                Keep Editing
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                data-leave-discard
-                onClick={() => {
-                  discard();
-                  useUi.getState().resolveLeave('go');
-                }}
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void save().then((ok) => ok && useUi.getState().resolveLeave('go'))}
-              >
-                Save Binding
-              </button>
-            </div>
-          </div>
-        </div>
+        <LeaveDialog title={node.title} saving={saving} save={save} discard={discard} />
       ) : null}
+    </div>
+  );
+}
+
+/** Leaving with a staged binding asks first (AFD-43); the safe choice has the focus. */
+function LeaveDialog(props: {
+  title: string;
+  saving: boolean;
+  save(): Promise<boolean>;
+  discard(): void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const trap = useDialogFocus(box);
+  return (
+    <div className="afd-modal-backdrop">
+      <div
+        ref={box}
+        className="afd-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="afd-leave-title"
+        data-leave-binding
+        onKeyDown={trap}
+      >
+        <h2 id="afd-leave-title">Discard the binding change?</h2>
+        <p className="muted">
+          The binding of "{props.title}" has a change that is not saved yet. Leaving now drops it.
+        </p>
+        <div className="afd-modal-actions">
+          <button
+            type="button"
+            className="secondary"
+            // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
+            autoFocus
+            onClick={() => useUi.getState().resolveLeave('stay')}
+          >
+            Keep Editing
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            data-leave-discard
+            onClick={() => {
+              props.discard();
+              useUi.getState().resolveLeave('go');
+            }}
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            disabled={props.saving}
+            onClick={() =>
+              void props.save().then((ok) => ok && useUi.getState().resolveLeave('go'))
+            }
+          >
+            Save Binding
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

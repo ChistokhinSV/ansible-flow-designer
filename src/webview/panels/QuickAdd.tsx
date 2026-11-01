@@ -8,6 +8,7 @@ import { optionalPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { run } from '../actions';
 import { TYPE_LABEL } from '../constants';
+import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
 import { levelView, unplacedPositions } from '../viewModel';
 
@@ -22,6 +23,12 @@ const INSERTABLE: readonly NodeType[] = [
 ];
 
 export function QuickAdd() {
+  const open = useUi((s) => s.quickAdd !== null);
+  return open ? <QuickAddDialog /> : null;
+}
+
+/** Mounted while open, so its focus goes back to what opened it (AFD-47). */
+function QuickAddDialog() {
   const quick = useUi((s) => s.quickAdd);
   const snapshot = useUi((s) => s.snapshot);
   const close = useUi((s) => s.openQuickAdd);
@@ -33,6 +40,8 @@ export function QuickAdd() {
   const [inputs, setInputs] = useState<string[]>([]);
   const [wireRollback, setWireRollback] = useState(true);
   const titleRef = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLFormElement>(null);
+  const trap = useDialogFocus(box);
 
   useEffect(() => {
     if (!quick) return;
@@ -100,12 +109,14 @@ export function QuickAdd() {
   return (
     <div className="afd-modal-backdrop">
       <form
+        ref={box}
         className="afd-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="afd-qa-title"
         onSubmit={submit}
         onKeyDown={(e) => {
+          trap(e);
           // Only this dialog closes: the page behind it (Properties) stays open.
           if (e.key !== 'Escape') return;
           e.stopPropagation();

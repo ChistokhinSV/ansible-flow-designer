@@ -33,6 +33,11 @@ export function setPastePlace(place: () => Position | undefined): void {
   placeOf = place;
 }
 
+/** Where something added from the keyboard lands: the same place a paste would (AFD-47). */
+export function canvasPlace(): Position | undefined {
+  return placeOf();
+}
+
 /**
  * Pastes on the open level and selects what was pasted; a repeat at one spot steps aside. `spot`
  * (the context menu's place on the canvas) wins over where the pointer is.

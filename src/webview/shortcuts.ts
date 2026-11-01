@@ -12,7 +12,17 @@ const MOD = IS_MAC ? '⌘' : 'Ctrl+';
 type FlowKey = 'runSkeleton' | 'stopRun' | 'generate' | 'tidyUp' | 'check';
 
 export interface Shortcut {
-  id: ShortcutId | 'undo' | 'nudge' | 'select' | 'escape' | FlowKey;
+  id:
+    | ShortcutId
+    | 'undo'
+    | 'redo'
+    | 'nudge'
+    | 'select'
+    | 'escape'
+    | 'modes'
+    | 'ports'
+    | 'pick'
+    | FlowKey;
   keys: string;
   label: string;
   group: 'Edit' | 'Move around' | 'Canvas' | 'Flow';
@@ -26,7 +36,19 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'delete', keys: 'Delete', label: 'Delete the selection, in one undo step', group: 'Edit' },
   { id: 'rename', keys: 'F2', label: 'Rename the selected node', group: 'Edit' },
   { id: 'undo', keys: `${MOD}Z`, label: 'Undo (VS Code keeps one step per change)', group: 'Edit' },
-  { id: 'open', keys: 'Enter', label: 'Open the selected subflow', group: 'Move around' },
+  { id: 'redo', keys: IS_MAC ? '⇧⌘Z' : 'Ctrl+Y', label: 'Redo', group: 'Edit' },
+  {
+    id: 'addNode',
+    keys: 'N',
+    label: 'Add a node: after the selected one, else at the pointer',
+    group: 'Edit',
+  },
+  {
+    id: 'open',
+    keys: 'Enter',
+    label: "Open the selected subflow, or go to the node's Details",
+    group: 'Move around',
+  },
   {
     id: 'up',
     keys: IS_MAC ? '⌥↑' : 'Alt+↑',
@@ -37,6 +59,24 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: 'menu',
     keys: 'Shift+F10',
     label: 'Menu for the selection, or the canvas',
+    group: 'Move around',
+  },
+  {
+    id: 'ports',
+    keys: 'Tab, Enter',
+    label: "The selected node's ports; Enter opens a port's menu",
+    group: 'Move around',
+  },
+  {
+    id: 'pick',
+    keys: 'Tab or arrows, Enter',
+    label: 'While connecting: show a node, then wire it',
+    group: 'Move around',
+  },
+  {
+    id: 'modes',
+    keys: IS_MAC ? '⌥1, ⌥2, ⌥3' : 'Alt+1, Alt+2, Alt+3',
+    label: 'Design, Code or Run mode',
     group: 'Move around',
   },
   {
@@ -51,6 +91,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
     label: 'Select several nodes',
     group: 'Canvas',
   },
+  { id: 'selectAll', keys: `${MOD}A`, label: 'Select every node of the level', group: 'Canvas' },
+  { id: 'fit', keys: 'Shift+1', label: 'Fit the whole level in view', group: 'Canvas' },
   {
     id: 'escape',
     keys: 'Esc',

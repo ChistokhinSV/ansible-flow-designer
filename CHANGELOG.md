@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.2 — AFD-47
+
+- **Keyboard and accessibility** (improvement program, wave 3):
+  - **Ports by keyboard:** on the selected node, Tab reaches its ports; Enter or Space opens a port's menu.
+  - **Pick a node by keyboard:** while connecting, Tab or the arrow keys show a node (dashed outline, named in the bar above the canvas) and Enter wires it.
+  - **New keys:** N adds a node (after the selected one, else at the pointer), Enter goes into a node's Details (a subflow still opens), Ctrl+A selects the level, Shift+1 fits it, Alt+1/2/3 switch modes. The cheat sheet lists Redo too.
+  - **Focus:** every dialog takes the focus, keeps Tab inside and gives the focus back (also when opened from a menu). The arrow keys switch the Details tabs.
+  - **Names:** a node is read as its type, title, status and open fail ports; the failure patterns say what they need on screen, not only in a tooltip.
+
 ## 0.27.1 — AFD-46
 
 - **Feedback** (improvement program, wave 3):

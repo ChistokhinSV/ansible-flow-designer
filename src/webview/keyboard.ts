@@ -2,10 +2,23 @@
 // every key a webview gets (from the window, after us), so keys handled here stop propagating;
 // Ctrl/Cmd+C, X, V, Z and Y are never stopped, since VS Code turns them into copy, cut, paste and
 // undo for the page. Typing in a field and keys inside menus and dialogs (`nokey`) are left alone.
-import { canEdit, deleteSelection, duplicate, rename, selectedNodes, upLevel } from './editActions';
+import { modelOf } from '../core/flow/model';
+import { freeOutput } from '../core/flow/portMenu';
+import { chooseMode } from './actions';
+import { canvasPlace } from './clipboard';
+import {
+  canEdit,
+  deleteSelection,
+  duplicate,
+  rename,
+  selectAll,
+  selectedNodes,
+  upLevel,
+} from './editActions';
 import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
+import { runPortItem } from './portActions';
 import { IS_MAC } from './shortcuts';
-import { useUi } from './store';
+import { type Mode, useUi } from './store';
 
 const FIELD = 'input, textarea, select, [contenteditable="true"]';
 
@@ -45,6 +58,24 @@ function keyboardMenu(): void {
     });
   } else {
     ui.openContextMenu({ target: { kind: 'pane' }, x: middle.x, y: middle.y });
+  }
+}
+
+const MODE_KEYS: Record<string, Mode> = { Digit1: 'design', Digit2: 'code', Digit3: 'run' };
+
+/** N (AFD-47): the next node after the selected one, else a node where a paste would land. */
+function addNode(): void {
+  const ui = useUi.getState();
+  const doc = ui.snapshot?.doc;
+  if (!doc || !canEdit()) return;
+  const ids = selectedNodes();
+  const one = ids.length === 1 ? ids[0] : undefined;
+  const port = one ? freeOutput(modelOf(doc), one) : undefined;
+  if (one && port)
+    void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, { node: one, port });
+  else {
+    const position = canvasPlace();
+    ui.openQuickAdd({ type: 'task', ...(position ? { position } : {}) });
   }
 }
 
@@ -90,6 +121,19 @@ export function installKeyboard(): () => void {
     } else if (e.key === '?' && !mod && !e.altKey) {
       consume();
       ui.showCheatSheet(true);
+    } else if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
+      // Every node of the level when the canvas (or nothing) has the focus; text in a panel keeps
+      // the browser's own Select All.
+      if (target && target !== document.body && !target.closest?.('.react-flow')) return;
+      consume();
+      selectAll();
+    } else if (e.key.toLowerCase() === 'n' && !mod && !e.altKey && !e.shiftKey) {
+      if (!canEdit()) return;
+      consume();
+      addNode();
+    } else if (e.altKey && !mod && !e.shiftKey && MODE_KEYS[e.code]) {
+      consume();
+      chooseMode(MODE_KEYS[e.code] as Mode);
     }
   };
   // The Menu key or Shift+F10 with the focus on the page itself: our menu, not VS Code's. On a

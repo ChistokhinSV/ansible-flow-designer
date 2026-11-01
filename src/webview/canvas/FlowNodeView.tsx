@@ -14,7 +14,15 @@ import {
   useStore,
   useUpdateNodeInternals,
 } from '@xyflow/react';
-import { Fragment, type MouseEvent, memo, useEffect, useMemo, useRef } from 'react';
+import {
+  Fragment,
+  type KeyboardEvent,
+  type MouseEvent,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
@@ -51,18 +59,36 @@ export function menuAnchor(el: Element, side: PortSide): { x: number; y: number 
   return { x: r.right + 8, y: r.top - 8 };
 }
 
-function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
+/**
+ * A port. On the selected node its ports are tab stops (AFD-47): Enter or Space opens the port's
+ * menu, as a click does; on other nodes they stay out of the Tab order, so Tab walks nodes.
+ */
+function PortHandle({
+  nodeId,
+  port,
+  focusable,
+}: {
+  nodeId: string;
+  port: PortView;
+  focusable: boolean;
+}) {
   const openPortMenu = useUi((s) => s.openPortMenu);
   const along = `${Math.round(port.offset * 100)}%`;
   const style = port.side === 'top' || port.side === 'bottom' ? { left: along } : { top: along };
   const isOutput = port.direction === 'out';
   // Code and Run modes read the graph; wiring and port menus belong to Design (AFD-45).
   const locked = useUi((s) => s.mode !== 'design');
-  const onClick = (e: MouseEvent<HTMLDivElement>) => {
+  const open = (el: HTMLDivElement) => {
     // While picking a target, the click belongs to the node (FlowCanvas onNodeClick).
     if (useUi.getState().pick || locked) return;
-    const at = menuAnchor(e.currentTarget, port.side);
-    openPortMenu({ ref: { node: nodeId, port: port.name }, ...at });
+    openPortMenu({ ref: { node: nodeId, port: port.name }, ...menuAnchor(el, port.side) });
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    // Not the node's own Enter (select, Details) nor React Flow's.
+    e.preventDefault();
+    e.stopPropagation();
+    open(e.currentTarget);
   };
   return (
     <Handle
@@ -89,7 +115,12 @@ function PortHandle({ nodeId, port }: { nodeId: string; port: PortView }) {
       data-rest={port.rest ? 'true' : undefined}
       title={`${port.name} · ${STATE_LABEL[port.state]} · click for options`}
       aria-label={`Port ${port.name}, ${STATE_LABEL[port.state]}`}
-      onClick={onClick}
+      role="button"
+      aria-haspopup={locked ? undefined : 'menu'}
+      aria-disabled={locked || undefined}
+      tabIndex={focusable && !locked ? 0 : -1}
+      onClick={(e: MouseEvent<HTMLDivElement>) => open(e.currentTarget)}
+      onKeyDown={onKeyDown}
     >
       <span className="afd-port-label" aria-hidden="true">
         {port.name}
@@ -288,6 +319,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   );
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
+  // The node a keyboard pick would choose (AFD-47).
+  const pickAt = useUi((s) => s.pick !== null && s.pickAt === node.id);
   const runMode = useUi((s) => s.mode === 'run');
   const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
   const classes = [
@@ -300,6 +333,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     node.type === 'end' && node.outcome === 'failed' ? 'outcome-failed' : '',
     selected ? 'selected' : '',
     active ? 'active' : '',
+    pickAt ? 'afd-pick-at' : '',
     lit,
   ]
     .filter(Boolean)
@@ -310,7 +344,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       {/* Hover margin around the node and its port labels (D-14 detail). */}
       <div className="afd-hover-zone" aria-hidden="true" />
       {ports.map((p) => (
-        <PortHandle key={p.name} nodeId={node.id} port={p} />
+        <PortHandle key={p.name} nodeId={node.id} port={p} focusable={selected || active} />
       ))}
       {dataLens ? (
         <>

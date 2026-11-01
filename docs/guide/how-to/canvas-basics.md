@@ -83,20 +83,39 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 
 ![The keyboard shortcuts sheet](../images/cheat-sheet-light.png)
 
-| Keys                     | Action                                               |
-| ------------------------ | ---------------------------------------------------- |
-| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                               |
-| Ctrl+D                   | Duplicate the selection                              |
-| Delete / Backspace       | Delete the selection                                 |
-| F2                       | Rename (the Title in the Details)                    |
-| Enter / Alt+↑            | Open the selected subflow / back to the parent level |
-| Arrow keys               | Nudge the focused node                               |
-| Esc                      | Close the menu or dialog; else clear the selection   |
-| Shift+F10                | Context menu for the selection                       |
-| Ctrl+F5 / Shift+F5       | Run as Skeleton / Stop Run                           |
-| Ctrl+Shift+B             | Generate Code                                        |
-| Shift+Alt+F              | Tidy Up                                              |
-| F7                       | Check Flow                                           |
+| Keys                     | Action                                                  |
+| ------------------------ | ------------------------------------------------------- |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                                  |
+| Ctrl+D                   | Duplicate the selection                                 |
+| Delete / Backspace       | Delete the selection                                    |
+| F2                       | Rename (the Title in the Details)                       |
+| N                        | Add a node: after the selected one, else at the pointer |
+| Ctrl+Z / Ctrl+Y          | Undo / Redo                                             |
+| Enter                    | Open the selected subflow, or go to the node's Details  |
+| Alt+↑                    | Back to the parent level                                |
+| Alt+1 / Alt+2 / Alt+3    | Design / Code / Run mode                                |
+| Ctrl+A                   | Select every node of the level                          |
+| Shift+1                  | Fit the whole level in view                             |
+| Arrow keys               | Nudge the focused node                                  |
+| Esc                      | Close the menu or dialog; else clear the selection      |
+| Shift+F10                | Context menu for the selection                          |
+| Ctrl+F5 / Shift+F5       | Run as Skeleton / Stop Run                              |
+| Ctrl+Shift+B             | Generate Code                                           |
+| Shift+Alt+F              | Tidy Up                                                 |
+| F7                       | Check Flow                                              |
+
+While the designer has the focus, Alt+1 to Alt+3 switch its modes instead of VS Code's editor tabs.
+
+### With the keyboard only
+
+- **Tab** walks the nodes of the level; the focused node is selected with Enter or Space.
+- On the selected node, **Tab** goes on to its ports. **Enter** opens a port's menu, as a click
+  does; the arrow keys and Enter choose in it.
+- **Connect to Another Node…** and the other "pick a node" actions: **Tab** or the arrow keys show
+  a node (dashed outline; the bar above the canvas names it), **Enter** wires it, **Esc** cancels.
+- **Enter** on a selected node moves into its Details; the arrow keys switch the Details tabs and
+  Tab goes on to the fields.
+- Dialogs take the focus, keep Tab inside, and give the focus back where it was when they close.
 
 The last four are VS Code keybindings, active while the designer has focus: change them in VS
 Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).

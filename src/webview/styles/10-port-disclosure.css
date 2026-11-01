@@ -102,3 +102,16 @@ body.afd-dragging-pattern .afd-port.state-open-fail {
 .afd-picking .react-flow__node {
   cursor: crosshair;
 }
+
+/* The node Enter would wire to while picking with the keyboard (AFD-47). */
+.afd-node.afd-pick-at {
+  outline: 2px dashed var(--afd-focus);
+  outline-offset: 4px;
+}
+
+/* A port reached with Tab (AFD-47): a ring as wide as the port's own size, outside it. */
+.react-flow__handle.afd-port:focus-visible {
+  outline: 2px solid var(--afd-focus);
+  outline-offset: 2px;
+  z-index: 2;
+}

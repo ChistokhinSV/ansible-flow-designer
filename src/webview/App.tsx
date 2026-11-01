@@ -6,6 +6,7 @@ import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
 import { Details } from './details/Details';
 import { deleteSelection } from './editActions';
+import { onTabListKeys } from './focus';
 import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
 import { CanvasContextMenu } from './menu/CanvasContextMenu';
@@ -213,11 +214,17 @@ function RightTabs({ label, lensTab }: { label: string; lensTab: boolean }) {
   const show = useUi((s) => s.showLensTab);
   const name = LENSES.find((l) => l.id === lens)?.label ?? lens;
   return (
-    <div className="afd-props-tabs afd-right-tabs" role="tablist" aria-label="Side panel">
+    <div
+      className="afd-props-tabs afd-right-tabs"
+      role="tablist"
+      aria-label="Side panel"
+      onKeyDown={onTabListKeys}
+    >
       <button
         type="button"
         role="tab"
         aria-selected={!lensTab}
+        tabIndex={lensTab ? -1 : 0}
         className={lensTab ? '' : 'active'}
         onClick={() => show(false)}
       >
@@ -227,6 +234,7 @@ function RightTabs({ label, lensTab }: { label: string; lensTab: boolean }) {
         type="button"
         role="tab"
         aria-selected={lensTab}
+        tabIndex={lensTab ? 0 : -1}
         className={lensTab ? 'active' : ''}
         onClick={() => show(true)}
       >

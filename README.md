@@ -48,6 +48,7 @@ The rest of this page is the complete feature reference.
   - Code mode offers the same edits as Design (except Rename and Extract, whose panels are Design's). Run mode only reads.
   - Shift+F10 or the Menu key opens the menu for the selection.
 - **Keyboard shortcuts (AFD-18):** press `?` for the list (also in the top bar's "…" menu). Ctrl stands for ⌘ on macOS.
+- **Keyboard only (AFD-47):** Tab walks the nodes and, on the selected node, its ports (Enter opens a port's menu); _Connect to Another Node…_ takes a node with Tab or the arrows and Enter; N adds a node, Enter goes into the Details, Ctrl+A selects the level, Shift+1 fits it, Alt+1/2/3 switch modes. Dialogs keep the focus and give it back.
 
   | Keys                     | Action                                                    |
   | ------------------------ | --------------------------------------------------------- |

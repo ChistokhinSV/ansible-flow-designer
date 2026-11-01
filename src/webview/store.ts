@@ -140,6 +140,8 @@ interface UiState {
   /** The keyboard shortcuts sheet (`?`). */
   cheatSheet: boolean;
   pick: PickState | null;
+  /** The node Enter would choose while picking with the keyboard (AFD-47). */
+  pickAt: Ulid | null;
   /** Port whose open-on-purpose reason is being entered. */
   decide: PortRef | null;
   /** Banner hidden by the user for this count of open ports. */
@@ -195,6 +197,7 @@ interface UiState {
   requestFocus(field: FocusRequest['field']): void;
   showCheatSheet(on: boolean): void;
   setPick(p: PickState | null): void;
+  setPickAt(id: Ulid | null): void;
   setDecide(p: PortRef | null): void;
   dismissBanner(count: number | null): void;
   setOptimistic(p: Record<Ulid, Position>): void;
@@ -261,6 +264,7 @@ export const useUi = create<UiState>((set, get) => ({
   focusRequest: null,
   cheatSheet: false,
   pick: null,
+  pickAt: null,
   decide: null,
   bannerDismissedAt: null,
   optimistic: {},
@@ -346,7 +350,8 @@ export const useUi = create<UiState>((set, get) => ({
   },
   requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
   showCheatSheet: (cheatSheet) => set({ cheatSheet, ...closing('cheatSheet') }),
-  setPick: (pick) => set({ pick, ...closing('pick') }),
+  setPick: (pick) => set({ pick, pickAt: null, ...closing('pick') }),
+  setPickAt: (pickAt) => set({ pickAt }),
   setDecide: (decide) => set({ decide, ...closing('decide') }),
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),

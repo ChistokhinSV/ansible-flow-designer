@@ -1,5 +1,7 @@
 // The keyboard shortcuts (AFD-18), opened with `?` or from the top bar's "…" menu. The table is
 // the one the menus show their hints from.
+import { useRef } from 'react';
+import { useDialogFocus } from '../focus';
 import { SHORTCUTS } from '../shortcuts';
 import { useUi } from '../store';
 
@@ -7,16 +9,23 @@ const GROUPS = ['Edit', 'Move around', 'Canvas', 'Flow'] as const;
 
 export function CheatSheet() {
   const open = useUi((s) => s.cheatSheet);
+  return open ? <Sheet /> : null;
+}
+
+function Sheet() {
   const show = useUi((s) => s.showCheatSheet);
-  if (!open) return null;
+  const box = useRef<HTMLDivElement>(null);
+  const trap = useDialogFocus(box);
   return (
     <div className="afd-modal-backdrop nokey">
       <div
+        ref={box}
         className="afd-modal afd-cheatsheet"
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard Shortcuts"
         onKeyDown={(e) => {
+          trap(e);
           if (e.key === 'Escape') {
             e.stopPropagation();
             show(false);
