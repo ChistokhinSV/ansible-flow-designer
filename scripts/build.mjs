@@ -16,7 +16,8 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 const MCP_BUDGET = 1088 * 1024;
 // AFD-37: the extension host bundle (activation loads it in every window) and the webview, which
 // loads with each designer. Measured at 0.24.x: 697 KB and 963 KB; the budgets leave room for a wave.
-const EXTENSION_BUDGET = 768 * 1024;
+// At 765 KB after wave 5, the product owner raised the host's to 832 KB (AFD-63).
+const EXTENSION_BUDGET = 832 * 1024;
 const WEBVIEW_BUDGET = 1088 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */

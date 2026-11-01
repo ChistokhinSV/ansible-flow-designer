@@ -60,3 +60,7 @@ A pure refactor: generated code, routes, plays, findings, open ports, level and 
 - **Data names** (`core/flow/dataNames.ts`): `groupPart`, `registerName`, `outputVar`; approval segments moved to `core/flow/segments.ts`. The validator no longer imports the engine, and Biome refuses `../engine` imports in `src/core/flow`.
 - **Engine choice** (`core/engine/engines.ts`): `engineFor(doc)` (Option A, ADR-0003) replaces the 7 direct `optionA.generate` calls outside tests.
 - **Not done:** the playbook import's own lift (one output name per variable, type `any`) stays: it matches how outputs compile today (one host fact per name) and changes with per-node capture (AFD-53).
+
+## Amendment: extension.js budget (AFD-63, 2026-11-02)
+
+After wave 5 (0.39.1), `extension.js` was 765 KB of its 768 KB budget, so the next host feature would fail the production build. The product owner raised the budget to 832 KB, as was done for `mcp.js`, rather than moving host code into a lazy chunk. The other budgets stay: `mcp.js` 1,088 KB (966 KB now), webview `index.js` 1,088 KB (1,020 KB).
