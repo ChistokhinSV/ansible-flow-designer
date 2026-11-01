@@ -76,12 +76,17 @@ export function renderInline(v: YamlValue, hint?: QuoteHint): string | undefined
   return undefined;
 }
 
-/** Flow style for re-rendering an existing non-empty flow collection (`[a, b]`, `{x: 1}`). */
-export function renderFlow(v: YamlValue): string {
-  if (isPlainValue(v)) return renderScalar(v);
-  if (Array.isArray(v)) return `[${v.map(renderFlow).join(', ')}]`;
+/** Inside a flow collection a plain scalar also ends at `,` and brackets, so those get quotes. */
+function flowSafe(rendered: string): string {
+  return isPlainSafe(rendered) && /[,[\]{}]/.test(rendered) ? single(rendered) : rendered;
+}
+
+/** Flow style for a value inside a flow collection (`[a, b]`, `{x: 1}`). */
+export function renderFlow(v: YamlValue, hint?: QuoteHint): string {
+  if (isPlainValue(v)) return flowSafe(renderScalar(v, hint));
+  if (Array.isArray(v)) return `[${v.map((x) => renderFlow(x)).join(', ')}]`;
   return `{${Object.entries(v)
-    .map(([k, x]) => `${renderKey(k)}: ${renderFlow(x)}`)
+    .map(([k, x]) => `${flowSafe(renderKey(k))}: ${renderFlow(x)}`)
     .join(', ')}}`;
 }
 

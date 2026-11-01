@@ -91,6 +91,12 @@ function replaceAt(file: YamlFile, loc: Located, value: YamlValue): OpResult {
   const parent = loc.parent;
 
   if (parent?.flow) {
+    // Only the value's own text changes: the collection keeps its spacing, and edits of other
+    // values in it (Complete IDs makes several in one batch) stay disjoint.
+    if (old?.range && old.range[0] < old.range[1]) {
+      const newText = renderFlow(value, quoteHint(old));
+      return ok([{ start: old.range[0], end: old.range[1], newText }]);
+    }
     const js = parent.toJSON() as YamlValue;
     if (Array.isArray(js)) js[parent.items.indexOf(old as never)] = value;
     else if (loc.pair)
@@ -177,6 +183,29 @@ export function setIn(
   return insertPair(file, parent, last, value, opts.before ?? []);
 }
 
+/**
+ * Writes `pair` into the text of a flow map `{...}`: before the anchor key, else after the last
+ * pair. Undefined where it cannot place it (a `? key` pair or a comment in the way, or a map
+ * without braces inside a sequence); the caller re-renders the map instead.
+ */
+function flowPairAt(
+  text: string,
+  map: YAMLMap,
+  anchorKey: Node | undefined,
+  pair: string,
+): TextEdit | undefined {
+  if (!map.range || text[map.range[0]] !== '{') return undefined;
+  if (anchorKey?.range) {
+    const at = anchorKey.range[0];
+    if (!/[{,]\s*$/.test(text.slice(map.range[0], at))) return undefined;
+    return { start: at, end: at, newText: `${pair}, ` };
+  }
+  const last = map.items.at(-1) as Pair<Node | null, Node | null> | undefined;
+  const end = Math.max(last?.key?.range?.[1] ?? 0, last?.value?.range?.[1] ?? 0);
+  if (!/^\s*[,}]/.test(text.slice(end, map.range[1]))) return undefined;
+  return { start: end, end, newText: `, ${pair}` };
+}
+
 function insertPair(
   file: YamlFile,
   loc: Located,
@@ -191,8 +220,12 @@ function insertPair(
   if (loc.ancestors.some(hasAnchor) || hasAnchor(map)) {
     return fail('unsupported', 'edit touches YAML anchors or aliases');
   }
+  const anchor = before.map((k) => findPair(map, k)).find((p) => p !== undefined);
+  const anchorKey = anchor?.key as Node | undefined;
   if (map.flow) {
     if (map.items.length === 0) return replaceAt(file, loc, { [key]: value });
+    const edit = flowPairAt(file.text, map, anchorKey, `${renderFlow(key)}: ${renderFlow(value)}`);
+    if (edit) return ok([edit]);
     return rerenderFlow(map, { ...(map.toJSON() as Record<string, YamlValue>), [key]: value });
   }
   const { text, style } = file;
@@ -201,8 +234,6 @@ function insertPair(
   const col = column(text, first.range[0]);
   const lines = renderBlock({ [key]: value }, col, style);
 
-  const anchor = before.map((k) => findPair(map, k)).find((p) => p !== undefined);
-  const anchorKey = anchor?.key as Node | undefined;
   if (anchorKey?.range) {
     const ls = lineStart(text, anchorKey.range[0]);
     if (text.slice(ls, anchorKey.range[0]).trim() === '') {

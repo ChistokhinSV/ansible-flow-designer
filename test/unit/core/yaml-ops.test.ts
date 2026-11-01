@@ -84,10 +84,29 @@ describe('setIn', () => {
     expect(map).toContain('empty_map:\n  k: 1\nempty_seq: []');
   });
 
-  it('re-renders non-empty flow collections in flow style', () => {
+  it('writes into non-empty flow collections in flow style', () => {
     const text = yamlFixture('styles.yaml');
     expect(run(text, (f) => setIn(f, ['a', 'z'], 3))).toContain('a: {x: 1, y: 2, z: 3}\n');
     expect(run(text, (f) => insertItem(f, ['b'], 1, 'mid'))).toContain('b: [one, mid, two]\n');
+  });
+
+  it('edits a flow map in place: its spacing stays, edits inside it stay disjoint', () => {
+    const src = 'e: { from: { node: a, port: ok }, to: {node: b} }\n';
+    expect(run(src, (f) => setIn(f, ['e', 'id'], 'W', { before: ['from'] }))).toBe(
+      'e: { id: W, from: { node: a, port: ok }, to: {node: b} }\n',
+    );
+    expect(run(src, (f) => setIn(f, ['e', 'id'], 'W'))).toBe(
+      'e: { from: { node: a, port: ok }, to: {node: b}, id: W }\n',
+    );
+    expect(run(src, (f) => setIn(f, ['e', 'from', 'node'], 'N'))).toBe(
+      'e: { from: { node: N, port: ok }, to: {node: b} }\n',
+    );
+    expect(run("e: {k: 'a'}\n", (f) => setIn(f, ['e', 'k'], 'b'))).toBe("e: {k: 'b'}\n");
+    // A plain scalar ends at a comma inside a flow collection.
+    expect(run('e: {k: a}\n', (f) => setIn(f, ['e', 'k'], 'x, y'))).toBe("e: {k: 'x, y'}\n");
+    expect(run('e: {k: a}\n', (f) => setIn(f, ['e', 'm'], '{v}'))).toBe("e: {k: a, m: '{v}'}\n");
+    // A map without braces in a sequence is re-rendered, so the new pair stays in it.
+    expect(run('s: [a: 1]\n', (f) => setIn(f, ['s', 0, 'b'], 2))).toBe('s: [{a: 1, b: 2}]\n');
   });
 
   it('writes CRLF and the detected indentation in a CRLF, 4-space file', () => {

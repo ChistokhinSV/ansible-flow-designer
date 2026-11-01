@@ -94,6 +94,70 @@ describe('a flow written by hand', () => {
     expect(applyEdits(text, diffEdits(text, r.text))).toBe(r.text);
   });
 
+  it('wires written as flow mappings: IDs go into the text, the spacing stays', () => {
+    // An `id:` added to a flow mapping used to re-render it whole, over the edits of its node keys.
+    const text = [
+      '# Wires by key, written as flow mappings',
+      'schema_version: 1',
+      'flow:',
+      '  key: wires',
+      '  name: Wires',
+      '  version: 1',
+      'nodes:',
+      '- {key: start, type: start, title: Start}',
+      '- key: work',
+      '  type: task',
+      '  title: Work',
+      '- key: done',
+      '  type: end',
+      '  title: Done',
+      '  outcome: success',
+      'edges:',
+      '  # spaced',
+      '  - { from: { node: start, port: ok_hosts }, to: { node: work, port: in } }',
+      '  # compact',
+      '  - {from: {node: work, port: ok_hosts}, to: {node: done, port: in}}',
+      '  # block wire, flow-style ends',
+      '  - from: { node: work, port: failed_hosts }',
+      '    to: {node: done, port: in}',
+      '',
+    ].join('\n');
+    let n = 0;
+    const r = completeIds(text, () => `01J${String(++n).padStart(23, '0')}`);
+    const id = (i: number) => `01J${String(i).padStart(23, '0')}`;
+    // Minted in order: the flow, the nodes, the wires.
+    const [F, START, WORK, DONE, W1, W2, W3] = [1, 2, 3, 4, 5, 6, 7].map(id);
+    expect(r.text).toBe(
+      text
+        .replace('flow:\n', `flow:\n  id: ${F}\n`)
+        .replace('{key: start,', `{id: ${START}, key: start,`)
+        .replace('- key: work', `- id: ${WORK}\n  key: work`)
+        .replace('- key: done', `- id: ${DONE}\n  key: done`)
+        .replace(
+          '  - { from: { node: start, port: ok_hosts }, to: { node: work, port: in } }',
+          `  - { id: ${W1}, from: { node: ${START}, port: ok_hosts }, to: { node: ${WORK}, port: in } }`,
+        )
+        .replace(
+          '  - {from: {node: work, port: ok_hosts}, to: {node: done, port: in}}',
+          `  - {id: ${W2}, from: {node: ${WORK}, port: ok_hosts}, to: {node: ${DONE}, port: in}}`,
+        )
+        .replace(
+          '  - from: { node: work, port: failed_hosts }\n    to: {node: done, port: in}',
+          `  - id: ${W3}\n    from: { node: ${WORK}, port: failed_hosts }\n    to: {node: ${DONE}, port: in}`,
+        ),
+    );
+    expect(r.filled).toEqual({ nodes: 3, wires: 3, refs: 6 });
+    const doc = parse(r.text) as FlowDocument;
+    expect(idGaps(doc)).toEqual([]);
+    expect(schema(doc)).toEqual([]);
+    expect(doc.edges.map((e) => [e.id, e.from.node, e.to.node])).toEqual([
+      [W1, START, WORK],
+      [W2, WORK, DONE],
+      [W3, WORK, DONE],
+    ]);
+    expect(completeIds(r.text, createIdFactory()).text).toBe(r.text);
+  });
+
   it('a snippet written by hand pastes with its wires', () => {
     const clip = parseClip(
       'nodes:\n- {key: a, type: task, title: A}\n- {key: b, type: task, title: B}\nedges:\n- from: {node: a, port: ok_hosts}\n  to: {node: b, port: in}\n',

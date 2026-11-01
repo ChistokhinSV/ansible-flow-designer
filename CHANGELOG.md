@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.34.1 — AFD-56
+
+- **Complete IDs handles wires written as one flow mapping**, such as `- {from: {node: a, port: ok_hosts}, to: {node: b, port: in}}`.
+  - It used to fail with "overlapping edits". This affected the quick fix, the AI and MCP tools, and paste.
+  - Edits to a flow mapping are now written in place, so its spacing stays as written.
+  - A value containing a comma or a bracket is quoted inside a flow mapping. It used to be read back as two keys.
+
 ## 0.34.0 — AFD-55
 
 - **Rolling subflows**: set **Rolling batch** on a subflow (a number, or a percentage like `25%`) and its hosts go through every step inside in batches, one batch after another: the steps run in one play with `serial`, and every host takes the same ports as before. A step that needs plays of its own (a nested subflow, an approval, a parallel or join, a playbook binding, an inventory_target, or its own serial or max_fail_percentage) is reported (`rolling-unsupported`) and the steps then run play by play. The level shows a `rolling, N at a time` chip.
