@@ -63,6 +63,48 @@ const SHOTS = {
     walk: true,
     act: async (page) => ui(page, 'setLevel', await idOf(page, 'precheck')),
   },
+  // AFD-60: os-upgrade's Upgrade OS subflow inserted in edge-baseline as a shared copy, wired before
+  // Done; its level. The source is upgraded to format 2 first, as the extension does (AFD-62).
+  'shared-subflow': {
+    flow: 'os-upgrade',
+    act: async (page) => {
+      const command = (reqId, c) => host(page, { type: 'command', reqId, command: c });
+      await command(910, { kind: 'upgradeFormat' });
+      await settle(page, 1500);
+      const source = await page.evaluate(() =>
+        window.afdUi.getState().snapshot.doc.nodes.find((n) => n.key === 'upgrade-os'),
+      );
+      const version = await page.evaluate(() => window.afdUi.getState().snapshot.doc.flow.version);
+      await openFlow(page, 'edge-baseline');
+      await command(911, { kind: 'upgradeFormat' });
+      await command(912, {
+        kind: 'addReference',
+        from: '../os-upgrade/os-upgrade.flow.yaml#upgrade-os',
+        version,
+        source,
+      });
+      // The harness lays the new level out before it sends the snapshot.
+      await settle(page, 2500);
+      const copy = await idOf(page, 'upgrade-os');
+      const done = await idOf(page, 'done');
+      const wire = await page.evaluate(
+        (d) =>
+          window.afdUi
+            .getState()
+            .snapshot.doc.edges.find((e) => e.to.node === d && e.from.port === 'ok_hosts').id,
+        done,
+      );
+      await command(913, { kind: 'rewire', edge: wire, to: { node: copy, port: 'in' } });
+      await command(914, {
+        kind: 'connect',
+        from: { node: copy, port: 'ok_hosts' },
+        to: { node: done, port: 'in' },
+      });
+      await settle(page, 1500);
+      await ui(page, 'setLevel', copy);
+      await settle(page, 600);
+    },
+  },
   'extract-selection': {
     flow: 'edge-baseline',
     act: async (page) => {

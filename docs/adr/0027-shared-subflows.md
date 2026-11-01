@@ -37,3 +37,9 @@ decision, 2026-11-01: pinned by flow version).
 - Steps inside an updated copy start untested in the flow that took the update.
 - Not covered: pinning by Git commit, sources outside the workspace, AI tool ops for shared subflows
   (agents edit the source flow and the designer offers Update).
+
+## Amendment: format 1 sources (AFD-62, 2026-11-01)
+
+Found while capturing the wave 5 report: a subflow copied from a format 1 flow (the `os-upgrade` example) brought format 1 content into the format 2 target, such as the `undo` port (`legacy-port`). The copy's level takes no edits, and Update copied the same content again, so the warning could not be cleared from the target.
+- `sharedSource` (`src/node/sharedRefs.ts`) reads a format 1 source through the same migration as Upgrade Flow Format (`planCommand(text, {kind: 'upgradeFormat'})`) in memory, cached by modification time with the file. The file is not written. The copy and the version check use the upgraded document; the version is the source's own.
+- A format 1 source that cannot be upgraded (for example a newer format, or missing IDs) is a `shared-source` error that says to run Upgrade Flow Format on it.

@@ -105,12 +105,17 @@ here, pinned to that flow's version (format 2):
 ```
 
 - Its level shows **shared from … · edit it there** and takes no edits: change the source flow.
+
+  ![The level of a shared subflow: where it comes from, and no edits here](../images/shared-subflow-light.png)
+
 - When the source flow has a newer version, the copy shows a problem with **Update Shared Subflow**:
   it copies the subflow again (its steps start untested: they have not run here). Saving the source
   is enough for open flows to notice.
 - A copy changed here anyway (by hand or by an agent) is flagged (`shared-edited`); **Unlink Shared
   Subflow** makes it this flow's own, to edit here.
 - A source that is gone (the file or the subflow) is an error, with Unlink as the way out.
+- A source flow still in format 1 is copied as format 2: Insert and Update upgrade it in memory, the
+  way **Upgrade Flow Format** would, and leave its file as it is.
 
 The flows of a folder such as `flows/shared/` become a pattern library: real flows, tested like any
 other, whose subflows the others reuse.

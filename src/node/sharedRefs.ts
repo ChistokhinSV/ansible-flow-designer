@@ -4,6 +4,9 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { parse } from 'yaml';
+import { planCommand } from '../core/flow/commands';
+import { formatOf } from '../core/flow/format';
+import { createIdFactory } from '../core/flow/ids';
 import { modelOf } from '../core/flow/model';
 import { parseRefFrom, subflowsOf } from '../core/flow/refs';
 import type { FlowDocument, FlowNode } from '../core/flow/types';
@@ -18,6 +21,17 @@ export interface SharedSource {
 
 const cache = new Map<string, { mtime: number; doc?: FlowDocument; error?: string }>();
 
+/**
+ * Copies go into format 2 flows only, so a format 1 source is upgraded in memory first (AFD-62):
+ * its legacy ports, `handler` and the like would otherwise land in a level the target cannot edit.
+ * The file is left as it is.
+ */
+function format2(text: string, doc: FlowDocument): FlowDocument {
+  if (formatOf(doc) >= 2) return doc;
+  const upgraded = planCommand(text, { kind: 'upgradeFormat' }, { newId: createIdFactory() });
+  return parse(upgraded.text) as FlowDocument;
+}
+
 function readFlow(file: string): { doc?: FlowDocument; error?: string } {
   let mtime: number;
   try {
@@ -29,8 +43,18 @@ function readFlow(file: string): { doc?: FlowDocument; error?: string } {
   if (hit && hit.mtime === mtime) return hit;
   let entry: { mtime: number; doc?: FlowDocument; error?: string };
   try {
-    const doc = parse(readFileSync(file, 'utf8')) as FlowDocument;
-    entry = doc?.flow ? { mtime, doc } : { mtime, error: 'not a flow' };
+    const text = readFileSync(file, 'utf8');
+    const doc = parse(text) as FlowDocument;
+    if (!doc?.flow) entry = { mtime, error: 'not a flow' };
+    else
+      try {
+        entry = { mtime, doc: format2(text, doc) };
+      } catch (e) {
+        entry = {
+          mtime,
+          error: `format 1, and it cannot be upgraded here (${(e as Error).message}): run Upgrade Flow Format on it`,
+        };
+      }
   } catch (e) {
     entry = { mtime, error: `does not parse: ${(e as Error).message}` };
   }

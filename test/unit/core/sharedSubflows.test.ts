@@ -1,6 +1,9 @@
 // AFD-60: a subflow copied from another flow, pinned to that flow's version: Add copies it with new
 // IDs and its key, Update brings a newer version, Unlink makes it this flow's own, and an edit
 // here is named.
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { optionA } from '../../../src/core/engine/optionA';
@@ -11,6 +14,7 @@ import { refDesign, sharedAround, subflowsOf } from '../../../src/core/flow/refs
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
+import { sharedSource } from '../../../src/node/sharedRefs';
 import { readExample } from './helpers';
 
 const ctx = { newId: createIdFactory() };
@@ -76,6 +80,32 @@ describe('shared subflows (AFD-60)', () => {
     const unlinked = run(edited, { kind: 'unlinkReference', id: copy.id }).text;
     expect(node(unlinked, 'upgrade-os').ref).toBeUndefined();
     expect(validateFlow(doc(unlinked)).findings.map((f) => f.code)).not.toContain('shared-edited');
+  });
+
+  it('a format 1 source is copied as format 2: no legacy ports land in the read-only level (AFD-62)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'afd62-'));
+    try {
+      mkdirSync(join(dir, 'os-upgrade'));
+      mkdirSync(join(dir, 'edge'));
+      writeFileSync(
+        join(dir, 'os-upgrade', 'os-upgrade.flow.yaml'),
+        readExample('os-upgrade.flow.yaml'),
+      );
+      const src = sharedSource(join(dir, 'edge', 'edge.flow.yaml'), FROM);
+      expect(src.version).toBe(Number(SOURCE.flow.version));
+      expect(upgradeOs.ports).toContain('undo');
+      const r = run(TARGET, {
+        kind: 'addReference',
+        from: FROM,
+        version: 3,
+        source: src.node as FlowNode,
+      });
+      const copy = node(r.text, 'upgrade-os');
+      expect(copy.ports ?? []).not.toContain('undo');
+      expect(validateFlow(doc(r.text)).findings.map((f) => f.code)).not.toContain('legacy-port');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('needs format 2 and a free key', () => {

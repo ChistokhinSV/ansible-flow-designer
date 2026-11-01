@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.1 — AFD-62
+
+- **A shared subflow copied from a format 1 flow is copied as format 2**: the source is upgraded in memory first (the file is left as it is), so its legacy ports and field names no longer land in the copy, where they showed warnings that could not be cleared.
+
 ## 0.39.0 — AFD-61
 
 - **Re-import from Source**: a flow imported as is from a playbook takes the playbook's later changes and keeps yours. A step the playbook changed and you did not takes the playbook's version; a step both changed is a conflict that keeps yours unless you pick it; new tasks become steps after the task before them; a step whose task is gone stays, with the warning `import-gone`. A list previews the merge, then it applies as one edit. Imported steps now record their task (`origin`); flows imported earlier need a new import first.
