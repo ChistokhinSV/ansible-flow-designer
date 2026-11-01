@@ -111,6 +111,10 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A status claims more than the node has (e.g. implemented without impl).',
     fix: 'Lower the status, or add what it needs (contract for specified, impl for implemented).',
   },
+  'keyword-is-setting': {
+    meaning: 'Format 2: a task keyword the flow now models as a setting (become_user).',
+    fix: 'Set it in Execution › Privilege instead; on a subflow it applies to the steps inside.',
+  },
   'status-out-of-step': {
     meaning:
       'Format 2: the stored status is not the one the node’s content gives (a hand edit of the file).',

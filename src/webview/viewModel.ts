@@ -1,5 +1,7 @@
 // What the canvas panels derive from a snapshot besides the level projection: placement helpers,
 // readiness, breadcrumbs, inherited settings. No React here, so it is testable.
+
+import { formatOf } from '../core/flow/format';
 import { nodeSize } from '../core/flow/geometry';
 import type { LevelView } from '../core/flow/levelView';
 import { modelOf, ROOT } from '../core/flow/model';
@@ -147,8 +149,9 @@ export function inheritedContext(
     if (s.inventory_target) add('inventory', `inherits ${s.inventory_target}`, true);
     if (s.credential) add('credential', s.credential, false);
     if (s.execution_environment) add('ee', `EE ${s.execution_environment}`, false);
-    if (s.become) add('become', 'become', false);
-    if (s.serial !== undefined) add('serial', `serial ${s.serial}`, false);
+    // Format 2 passes become (and whom) to the steps inside (AFD-52); serial stays per node.
+    if (s.become)
+      add('become', s.become_user ? `become ${s.become_user}` : 'become', formatOf(doc) >= 2);
     id = entry.level;
   }
   return chips;

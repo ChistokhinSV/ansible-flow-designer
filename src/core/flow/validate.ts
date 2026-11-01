@@ -280,6 +280,15 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
       });
     }
     const hasInner = (node.subflow?.nodes?.length ?? 0) > 0;
+    // Format 2 (AFD-52): become_user is a setting, which a subflow passes to its steps.
+    if (v2 && node.impl?.keywords && 'become_user' in node.impl.keywords)
+      add({
+        code: 'keyword-is-setting',
+        severity: 'warning',
+        message: `${label(node)}: become_user is a setting in format 2 (Execution › Privilege)`,
+        path: [...path, 'impl', 'keywords', 'become_user'],
+        node: node.id,
+      });
     // Format 2 (AFD-50): the status is the one the content gives; a hand edit can still disagree.
     if (v2 && hasStatus(node)) {
       const have = node.status ?? 'draft';

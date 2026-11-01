@@ -707,7 +707,11 @@
             },
             "become": {
               "type": "boolean",
-              "description": "Run with privilege escalation."
+              "description": "Run with privilege escalation. Format 2: set on a subflow, it applies to the steps inside (the nearest setting wins)."
+            },
+            "become_user": {
+              "type": "string",
+              "description": "Format 2: whom to become (Ansible become_user); set on a subflow, it applies inside. Format 1 writes it as a task keyword."
             },
             "credential": {
               "type": "string",

@@ -62,6 +62,8 @@ export interface NodeSettings {
   /** Jinja test without braces: retry until it holds; reads the registered result (AFD-21). */
   until?: string;
   become?: boolean;
+  /** Format 2 (AFD-52): whom to become; format 1 writes it as a task keyword. */
+  become_user?: string;
   credential?: string;
   execution_environment?: string;
   inventory_target?: string;

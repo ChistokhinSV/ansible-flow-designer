@@ -113,3 +113,14 @@ What it does:
 ## Consequences
 
 Inner levels are first-class: every M1–M3 action works inside them, generated code follows boundary edits (ADR-0009 already compiles levels), and the Problems panel explains broken boundaries. Inherited-context chips show the subflow chain's settings (inventory target, credential, EE, become, serial); host counts per group need the Inventory lens (M8).
+
+## Amendment (AFD-52, 2026-11-01): privilege inside a subflow
+
+In a format 2 flow `become` and `become_user` set on a subflow apply to the plays of the steps
+inside, the nearest setting winning (a step's own `become: false` turns it off).
+`core/flow/inherit.ts` (`privilegeOf`) is the one rule the engine, the level chips and the Details
+use. `become_user` is a setting (Execution › Privilege), no longer a task keyword (format 2 warns
+`keyword-is-setting`); the upgrade moves it and lists the subflows whose become now reaches their
+steps. Format 1 generates what it always did. `serial` stays per node, and its chip, which
+suggested otherwise, is gone. The engine images run without sudo, so the engine suite checks the
+plays' syntax on 2.19, 2.20 and 2.21 rather than a real escalation.

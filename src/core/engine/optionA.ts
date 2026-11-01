@@ -10,6 +10,7 @@ import {
 } from '../flow/bubbling';
 import { groupPart, outputVar, registerName } from '../flow/dataNames';
 import { portAccepted } from '../flow/decisions';
+import { privilegeOf } from '../flow/inherit';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import { planSegments, type Segment } from '../flow/segments';
@@ -81,6 +82,14 @@ class Generator {
   ) {
     this.model = buildModel(doc);
     this.overrides = effectiveTargets(this.model);
+  }
+
+  /** become and become_user for a node's play (AFD-52: inherited from subflows in format 2). */
+  private privilege(node: FlowNode): { become?: true; become_user?: string } {
+    const p = privilegeOf(this.model, node);
+    return p.become
+      ? { become: true, ...(p.become_user ? { become_user: p.become_user } : {}) }
+      : {};
   }
 
   run(): GenerateResult {
@@ -543,7 +552,7 @@ class Generator {
         hosts: target,
         gather_facts: false,
         serial: settings.serial,
-        become: settings.become ? true : undefined,
+        ...this.privilege(node),
         tags: flow([tag, ...(settings.tags ?? [])]),
         vars,
         tasks: [
@@ -722,7 +731,7 @@ class Generator {
       hosts: hosts.join(':'),
       gather_facts: false,
       serial: settings.serial,
-      become: settings.become ? true : undefined,
+      ...this.privilege(node),
       tags: flow([tag, ...(settings.tags ?? [])]),
       vars,
       tasks,

@@ -166,8 +166,69 @@ const decisionStep: MigrationStep = {
   },
 };
 
+/** Steps inside a subflow that do not set become themselves, so they inherit its setting. */
+function inheritors(node: FlowNode): number {
+  return (node.subflow?.nodes ?? []).reduce(
+    (n, inner) =>
+      !inner || !hasStatus(inner)
+        ? n
+        : inner.type === 'subflow'
+          ? n + (inner.settings?.become === undefined ? 1 + inheritors(inner) : 0)
+          : n + (inner.settings?.become === undefined ? 1 : 0),
+    0,
+  );
+}
+
+/**
+ * AFD-52: become_user moves from task keywords to the Privilege settings, and from now on
+ * become (and whom) set on a subflow applies to its steps: the notes say where that changes
+ * the generated plays before anyone upgrades.
+ */
+const privilegeStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const notes: string[] = [];
+    const nodes = [...walkNodes(doc.nodes)];
+    const moved = nodes.filter((n) => n.impl?.keywords && 'become_user' in n.impl.keywords).length;
+    if (moved)
+      notes.push(
+        `become_user moves from task keywords to the Privilege settings (${moved} node${moved === 1 ? '' : 's'})`,
+      );
+    for (const n of nodes) {
+      const count = n.type === 'subflow' && n.settings?.become ? inheritors(n) : 0;
+      if (count)
+        notes.push(
+          `become on ${n.title} now applies to its ${count} step${count === 1 ? '' : 's'}`,
+        );
+    }
+    return notes;
+  },
+  apply(tx) {
+    const doc = tx.current.doc.toJS() as FlowDocument;
+    for (const n of walkNodes(doc.nodes)) {
+      const user = n.impl?.keywords?.become_user;
+      if (user === undefined) continue;
+      const path = buildModel(tx.current.doc.toJS() as FlowDocument).nodes.get(n.id)?.path;
+      if (!path) continue;
+      if (n.settings) tx.apply((f) => setIn(f, [...path, 'settings', 'become_user'], String(user)));
+      else
+        tx.apply((f) =>
+          setIn(
+            f,
+            [...path, 'settings'],
+            { become_user: String(user) },
+            { before: keysAfter('settings') },
+          ),
+        );
+      const left = Object.keys(n.impl?.keywords ?? {}).filter((k) => k !== 'become_user');
+      if (left.length) tx.apply((f) => deleteKey(f, [...path, 'impl', 'keywords'], 'become_user'));
+      else tx.apply((f) => deleteKey(f, [...path, 'impl'], 'keywords'));
+    }
+  },
+};
+
 /** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-52, -54). */
-export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep];
+export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep, privilegeStep];
 
 /**
  * Brings the document in `tx` to `CURRENT_FORMAT`, step by step. Throws when it is already current

@@ -15,6 +15,8 @@ export interface SettingField {
   kind: 'text' | 'int' | 'bool' | 'list';
   help: string;
   group: SettingGroup;
+  /** The flow format that has the setting (AFD-52); older formats do not show it. */
+  format?: number;
 }
 
 export const EXECUTION_SETTINGS: readonly SettingField[] = [
@@ -65,7 +67,15 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     group: 'Privilege',
     label: 'Become',
     kind: 'bool',
-    help: 'Run with privilege escalation',
+    help: 'Run with privilege escalation; on a subflow, the steps inside too (format 2)',
+  },
+  {
+    key: 'become_user',
+    group: 'Privilege',
+    label: 'Become user',
+    kind: 'text',
+    help: 'Whom to become (default root); on a subflow, the steps inside too',
+    format: 2,
   },
   {
     key: 'tags',

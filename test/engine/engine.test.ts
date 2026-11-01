@@ -106,6 +106,20 @@ const extracted = (keys: string[], title: string) => (text: string) => {
     .text;
 };
 
+/** AFD-52: the flow in format 2, with become (and whom) on a subflow for its steps. */
+const privileged = (subflow: string, user: string) => (text: string) => {
+  const ctx = { newId: createIdFactory() };
+  const v2 = planCommand(text, { kind: 'upgradeFormat' }, ctx).text;
+  const id = [...buildModel(parse(v2) as FlowDocument).nodes.values()].find(
+    (n) => n.node.key === subflow,
+  )?.node.id as string;
+  return planCommand(
+    v2,
+    { kind: 'updateNode', id, patch: { settings: { become: true, become_user: user } } },
+    ctx,
+  ).text;
+};
+
 const OS_CHECK_VARS = {
   devices: EDGE_HOSTS,
   ansible_net_version: '15.2',
@@ -560,6 +574,15 @@ const SCENARIOS: Scenario[] = [
             e.task === '[approve] afd_approvals outcome',
         ),
       ).toBe(true),
+  },
+  {
+    name: 'format 2: become and become_user on a subflow reach the plays of its steps',
+    flow: OS,
+    transform: privileged('upgrade-os', 'netops'),
+    syntaxOnly: true,
+    vars: { devices: LAB },
+    rc: 0,
+    root: '../../content',
   },
   ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,

@@ -117,7 +117,7 @@ describe('top bar', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('AFD-31: level chips say which subflow settings the steps inside really get', () => {
+  it('AFD-31, AFD-52: level chips say which subflow settings the steps inside really get', () => {
     const changed = parse(
       readFileSync(join(__dirname, '../../../examples/os-upgrade.flow.yaml'), 'utf8'),
     ) as FlowDocument;
@@ -142,10 +142,28 @@ describe('top bar', () => {
       c.textContent,
       c.dataset.applied,
     ]);
+    // Format 1: become stays on the subflow's own play; serial is per node, so no chip (AFD-52).
     expect(chips).toEqual([
       ['inherits controllers', 'true'],
       ['become · not applied', 'false'],
-      ['serial 2 · not applied', 'false'],
     ]);
+    // Format 2: become (and whom) reaches the steps inside.
+    sub.settings = { become: true, become_user: 'netops' };
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: 3,
+        doc: { ...changed, schema_version: 2 },
+        stale: false,
+        findings: [],
+        openPorts: openFailPorts(buildModel(changed)),
+        autoPositions: {},
+      }),
+    );
+    expect(
+      [...document.querySelectorAll<HTMLElement>('.afd-context')].map((c) => [
+        c.textContent,
+        c.dataset.applied,
+      ]),
+    ).toEqual([['become netops', 'true']]);
   });
 });

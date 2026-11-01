@@ -31,6 +31,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
+| keyword-is-setting | Format 2: a task keyword the flow now models as a setting (become_user). | Set it in Execution › Privilege instead; on a subflow it applies to the steps inside. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
 | tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
 | undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |

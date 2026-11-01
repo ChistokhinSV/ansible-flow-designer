@@ -66,7 +66,8 @@ How the node runs (play keywords).
 - `retries` (integer): Retries before a host fails (module steps). Without until, a step stops retrying on its first success.
 - `delay` (integer): Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls.
 - `until` (string): Poll until this holds: a Jinja test without braces, e.g. wait_ha_result.json.results | length == 2. It reads the step's registered result (impl.register, else <key with _ for ->_result) and its inputs. Module steps only; retries sets the attempts.
-- `become` (boolean): Run with privilege escalation.
+- `become` (boolean): Run with privilege escalation. Format 2: set on a subflow, it applies to the steps inside (the nearest setting wins).
+- `become_user` (string): Format 2: whom to become (Ansible become_user); set on a subflow, it applies inside. Format 1 writes it as a task keyword.
 - `credential` (string): AWX credential name (AWX runs only).
 - `execution_environment` (string): AWX execution environment name.
 - `inventory_target` (string): Run the node's work on this host pattern instead of the arriving hosts (they leave together afterwards).
