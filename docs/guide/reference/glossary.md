@@ -27,6 +27,7 @@ the Command Palette and these pages are checked against the **Not** column. Back
 | level           | what the canvas shows at a time: the top level, or the inside of one subflow                                                           |                        |
 | subflow         | a node that holds its own level; hosts enter through its entry and leave through its ports                                             |                        |
 | rolling subflow | a subflow whose hosts go through all its steps in batches (Rolling batch), one batch after another                                     |                        |
+| shared subflow  | a subflow copied from another flow, pinned to that flow's version: edited in the source, brought here with Update                      |                        |
 | entry, exit     | where hosts enter a subflow's inside, and the inner port that leaves through one of the subflow's ports                                |                        |
 | binding         | what a step runs: a module, a role or a playbook, with its parameters                                                                  | `Bind implementation`  |
 | status          | how far a node is: draft, specified, implemented, tested                                                                               |                        |

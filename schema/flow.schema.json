@@ -649,6 +649,28 @@
           "$ref": "#/$defs/impl",
           "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
         },
+        "ref": {
+          "type": "object",
+          "required": ["from", "version", "design"],
+          "additionalProperties": false,
+          "description": "Format 2: this subflow is a copy of a subflow in another flow (a shared subflow). Edit the source flow, then Update; Unlink makes the copy this flow's own.",
+          "properties": {
+            "from": {
+              "type": "string",
+              "pattern": "^.+#.+$",
+              "description": "<flow file, relative to this flow's folder>#<subflow key path in it>"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The source flow's version the copy was made from."
+            },
+            "design": {
+              "type": "string",
+              "description": "Fingerprint of the copy as it was made: a different one means it was changed here."
+            }
+          }
+        },
         "undo": {
           "$ref": "#/$defs/impl",
           "description": "What reverses the node: the Rollback pattern binds this node's undo step to it."

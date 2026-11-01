@@ -20,5 +20,6 @@ export function labelledAtRest(port: string): boolean {
 export function subLine(node: FlowNode): string {
   if (node.type === 'decision') return node.condition ? `if ${node.condition}` : 'Decision';
   const what = node.impl?.ref ?? NODE_TYPE_LABEL[node.type];
-  return [what, purposeOf(node), keywordHint(node.impl)].filter(Boolean).join(' · ');
+  const shared = node.ref ? `shared v${node.ref.version}` : undefined;
+  return [what, shared, purposeOf(node), keywordHint(node.impl)].filter(Boolean).join(' · ');
 }

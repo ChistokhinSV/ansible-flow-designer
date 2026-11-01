@@ -113,6 +113,9 @@ export function runCanvasAction(
     case 'addNode':
       ui.openQuickAdd({ type: 'task', ...(menu.at ? { position: menu.at } : {}) });
       return;
+    case 'insertShared':
+      send({ type: 'insertShared', level: ui.level, ...(menu.at ? { at: menu.at } : {}) });
+      return;
     case 'selectAll':
       selectAll();
       return;

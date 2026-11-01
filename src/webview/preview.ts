@@ -111,7 +111,11 @@ export function previewOf(doc: FlowDocument, id: Ulid, run?: RunView | null): Pr
       type: n.type,
       status: n.status,
       entry: boundary?.in === n.id,
-      badges: [...(n.impl?.ref ? [n.impl.kind] : []), ...settingBadges(n.settings)],
+      badges: [
+        ...(n.impl?.ref ? [n.impl.kind] : []),
+        ...(n.ref ? [`shared v${n.ref.version}`] : []),
+        ...settingBadges(n.settings),
+      ],
       exits: exits.get(n.id) ?? [],
       run: runText(run, n.id),
     }),

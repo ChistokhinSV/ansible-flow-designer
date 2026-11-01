@@ -154,6 +154,13 @@ export function inheritedContext(
     // Format 2 passes become (and whom) to the steps inside (AFD-52); serial stays per node.
     if (s.become)
       add('become', s.become_user ? `become ${s.become_user}` : 'become', formatOf(doc) >= 2);
+    // A shared subflow (AFD-60): its steps are edited in the source flow.
+    if (entry.node.ref)
+      add(
+        'shared',
+        `shared from ${entry.node.ref.from} v${entry.node.ref.version} · edit it there`,
+        true,
+      );
     // A rolling subflow batches its own level only (AFD-55): the steps of a nested one cannot roll.
     if (s.rolling !== undefined && id === levelId)
       add(

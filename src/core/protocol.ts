@@ -223,6 +223,8 @@ export type WebviewMessage =
   | { type: 'driftAction'; reqId: number; action: DriftAction }
   /** A lens was picked (M8): the host gathers its facts; `refresh` reads the inventory again. */
   | { type: 'lens'; lens: LensId | null; refresh?: boolean }
+  /** Canvas menu › Insert Shared Subflow… (AFD-60): the host picks the subflow. */
+  | { type: 'insertShared'; level: string; at?: Position }
   /** Run ▾ › Run Scenarios (AFD-58): the flow's scenario tests in the run environment. */
   | { type: 'runScenarios' }
   /** The Changes lens's base picker (AFD-57): HEAD, a branch or a commit. */

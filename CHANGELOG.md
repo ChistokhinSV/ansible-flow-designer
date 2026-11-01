@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.0 — AFD-60
+
+- **Shared subflows**: **Insert Shared Subflow…** copies a subflow of another flow in the workspace, pinned to that flow's version (format 2). The copy's level is edited in its source; when the source has a newer version, **Update Shared Subflow** brings it (a quick fix, and saving the source is enough for open flows to notice). A copy changed here is flagged; **Unlink Shared Subflow** makes it the flow's own.
+- Changes lens: the list of branches comes from the Git extension's newer API.
+
 ## 0.37.0 — AFD-59
 
 - **AWX surveys from the flow inputs**: Set Up AWX Template writes the template's survey, so a launch in AWX asks for what the flow needs (host lists as comma-separated text, text, whole numbers, secrets as passwords; booleans, lists and mappings stay extra variables). A survey changed in AWX is kept unless you choose Replace Survey; ours follows the inputs.

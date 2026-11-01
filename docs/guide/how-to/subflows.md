@@ -87,6 +87,34 @@ and end nodes. A nested subflow, an approval, a parallel or join, a playbook bin
 validator reports `rolling-unsupported` on that step, and the code runs the steps play by play.
 `serial` on the subflow node itself batches nothing inside; use **Rolling batch**.
 
+## Shared subflows
+
+A subflow written once can be used in other flows: **Insert Shared Subflow…** (the canvas menu, or the
+Command Palette) lists the subflows of every other flow in the workspace and copies the one you pick
+here, pinned to that flow's version (format 2):
+
+```yaml
+- key: backup
+  type: subflow
+  title: Backup
+  ref:
+    from: ../shared/backup.flow.yaml#backup # the file, relative to this flow, and the subflow
+    version: 3 # the source flow's version the copy was made from
+    design: 6c1f0a2e # a fingerprint of the copy as it was made
+  subflow: ... # the copy itself: the code, runs and reviews need nothing else
+```
+
+- Its level shows **shared from … · edit it there** and takes no edits: change the source flow.
+- When the source flow has a newer version, the copy shows a problem with **Update Shared Subflow**:
+  it copies the subflow again (its steps start untested: they have not run here). Saving the source
+  is enough for open flows to notice.
+- A copy changed here anyway (by hand or by an agent) is flagged (`shared-edited`); **Unlink Shared
+  Subflow** makes it this flow's own, to edit here.
+- A source that is gone (the file or the subflow) is an error, with Unlink as the way out.
+
+The flows of a folder such as `flows/shared/` become a pattern library: real flows, tested like any
+other, whose subflows the others reuse.
+
 ## Generated code
 
 Each subflow level is its own playbook, `generated/<flow key>.<subflow key>.yml`, imported where

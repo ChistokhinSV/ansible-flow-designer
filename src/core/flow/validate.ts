@@ -13,6 +13,7 @@ import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, LEGACY_PORTS, portDirection, portsFor } from './ports';
+import { refDesign } from './refs';
 import { rollingObstacles } from './rolling';
 import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
@@ -281,6 +282,23 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         severity: 'warning',
         message: `${label(node)}: credential and execution environment belong to the flow in format 2 (its runtime)`,
         path: [...path, 'settings'],
+        node: node.id,
+      });
+    // AFD-60: a shared subflow is a copy; edits belong in its source flow.
+    if (node.ref && refDesign(node) !== node.ref.design)
+      add({
+        code: 'shared-edited',
+        severity: 'warning',
+        message: `${label(node)} was changed here since version ${node.ref.version} of ${node.ref.from}: Update brings the source back over these edits, Unlink keeps them as this flow's own`,
+        path: [...path, 'subflow'],
+        node: node.id,
+      });
+    if (node.ref && !v2)
+      add({
+        code: 'shared-edited',
+        severity: 'warning',
+        message: `${label(node)}: shared subflows are format 2; Upgrade Flow Format`,
+        path: [...path, 'ref'],
         node: node.id,
       });
     // AFD-55: a rolling subflow's steps run in one play; some steps need plays of their own.

@@ -26,6 +26,9 @@ the [guide](../README.md).
 | `afd.edit.paste` · Paste Nodes                    | pastes nodes on the open level                                                                                                |
 | `afd.flow.completeIds` · Complete IDs             | adds the IDs a hand-written flow lacks, in one edit                                                                           |
 | `afd.flow.upgradeFormat` · Upgrade Flow Format    | moves a format 1 flow to format 2, in one edit (one undo step); nothing in the design changes                                 |
+| `afd.flow.insertShared` · Insert Shared Subflow…  | copies a subflow of another flow in the workspace here, pinned to that flow's version (format 2; also in the canvas menu)     |
+| `afd.flow.updateShared` · Update Shared Subflow   | copies a shared subflow again from the newer version of its source (a quick fix on its problem)                               |
+| `afd.flow.unlinkShared` · Unlink Shared Subflow   | makes a shared subflow this flow's own, to edit here (a quick fix on its problem)                                             |
 
 ## Export
 

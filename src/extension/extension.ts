@@ -13,6 +13,7 @@ import { registerExport } from './export';
 import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { watchScenarioFiles } from './run/scenarios';
+import { watchSharedSources } from './sharedSubflows';
 import { type AfdTestApi, createTestApi } from './testApi';
 
 export { VIEW_TYPE } from './host';
@@ -97,6 +98,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     ...registerFlowCommands(host),
     ...registerRunCommands(host),
     watchScenarioFiles(),
+    watchSharedSources(host),
     ...registerImportCommands(host),
   );
   for (const doc of vscode.workspace.textDocuments)

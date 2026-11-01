@@ -161,6 +161,7 @@ describe('canvas context menu', () => {
     expect(items()).toEqual([
       'Paste Here',
       'Add Node Here…',
+      'Insert Shared Subflow…',
       'Select All',
       'Tidy Up',
       'Fit View',

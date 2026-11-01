@@ -25,6 +25,8 @@ interface GitRepository {
   getCommit(ref: string): Promise<{ hash: string; commitDate?: Date; authorDate?: Date }>;
   status(): Promise<void>;
   log(options?: { maxEntries?: number; path?: string }): Promise<GitCommit[]>;
+  /** Newer Git extensions: `state.refs` is deprecated in favour of this. */
+  getRefs?(query?: Record<string, unknown>): Promise<{ type: number; name?: string }[]>;
 }
 interface GitCommit {
   hash: string;
@@ -77,7 +79,8 @@ export async function fileVersions(
   if (!repo) return [];
   const head = repo.state.HEAD;
   const out = [{ ref: 'HEAD', label: `HEAD${head?.name ? ` (${head.name})` : ''}` }];
-  for (const r of repo.state.refs ?? [])
+  const refs = repo.getRefs ? await repo.getRefs({}).catch(() => []) : (repo.state.refs ?? []);
+  for (const r of refs)
     if (r.type === 0 && r.name && r.name !== head?.name)
       out.push({ ref: r.name, label: `branch ${r.name}` });
   try {

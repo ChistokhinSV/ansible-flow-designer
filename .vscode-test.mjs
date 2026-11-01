@@ -105,6 +105,7 @@ export default defineConfig([
       'out/test/integration/help.test.js',
       'out/test/integration/export.test.js',
       'out/test/integration/scenarios.test.js',
+      'out/test/integration/shared.test.js',
     ],
   },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
@@ -145,6 +146,7 @@ export default defineConfig([
   { ...common, label: 'export', files: 'out/test/integration/export.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   { ...common, label: 'scenarios', files: 'out/test/integration/scenarios.test.js' },
+  { ...common, label: 'shared', files: 'out/test/integration/shared.test.js' },
   // AFD-5: with the Red Hat YAML extension (so no --disable-extensions); opt-in, needs the network.
   {
     ...common,

@@ -130,6 +130,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Format 2: a node is tested but has no `tested` record (a run, or a reason).',
     fix: 'Mark Tested… with a reason, or run the flow; else set the status it has.',
   },
+  'shared-edited': {
+    meaning:
+      "A shared subflow (a copy of another flow's subflow, AFD-60) was changed here, so it no longer matches the version it was copied from; or it sits in a format 1 flow.",
+    fix: "Edit the source flow and Update, or Unlink to make the copy this flow's own.",
+  },
+  'shared-source': {
+    meaning:
+      "A shared subflow's source is missing (the file or the subflow key), or has a newer version than the copy.",
+    fix: 'Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone.',
+  },
   'rolling-unsupported': {
     meaning:
       'A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow.',

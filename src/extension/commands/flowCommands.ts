@@ -8,6 +8,7 @@ import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
 import type { Host } from '../host';
+import { insertShared, SharedSubflowActions, unlinkShared, updateShared } from '../sharedSubflows';
 import { CMD } from './ids';
 
 export function registerFlowCommands(host: Host): vscode.Disposable[] {
@@ -54,6 +55,23 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       { pattern: '**/*.flow.yaml' },
       new AcceptProblemActions(),
       { providedCodeActionKinds: AcceptProblemActions.kinds },
+    ),
+    // Shared subflows (AFD-60).
+    vscode.languages.registerCodeActionsProvider(
+      { pattern: '**/*.flow.yaml' },
+      new SharedSubflowActions(),
+      { providedCodeActionKinds: SharedSubflowActions.kinds },
+    ),
+    vscode.commands.registerCommand(
+      CMD.insertShared,
+      (uri?: vscode.Uri, where?: Parameters<typeof insertShared>[2]) =>
+        insertShared(host, uri, where),
+    ),
+    vscode.commands.registerCommand(CMD.updateShared, (uri: vscode.Uri, target) =>
+      updateShared(host, uri, target),
+    ),
+    vscode.commands.registerCommand(CMD.unlinkShared, (uri: vscode.Uri, target) =>
+      unlinkShared(host, uri, target),
     ),
     vscode.commands.registerCommand(
       CMD.acceptProblem,

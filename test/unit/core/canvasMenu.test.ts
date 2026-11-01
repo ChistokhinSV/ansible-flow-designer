@@ -144,6 +144,7 @@ describe('canvas menu', () => {
     expect(labels(menu({ kind: 'pane' }))).toEqual([
       'Paste Here',
       'Add Node Here…',
+      'Insert Shared Subflow…',
       '—',
       'Select All',
       'Tidy Up',

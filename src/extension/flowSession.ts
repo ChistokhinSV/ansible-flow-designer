@@ -8,7 +8,7 @@ import { CommandError, type FlowCommand, planCommand } from '../core/flow/comman
 import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow } from '../core/flow/document';
 import { type IdFactory, slugify } from '../core/flow/ids';
-import { buildModel, ROOT } from '../core/flow/model';
+import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
@@ -30,6 +30,7 @@ import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, type LayoutDirection, layoutLevel, shownLayout } from '../node/autoLayout';
 import { checkBindings } from '../node/catalog/bindingCheck';
+import { sharedFindings } from '../node/sharedRefs';
 import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
@@ -201,6 +202,8 @@ export class FlowSession implements vscode.Disposable {
         ...validated.findings,
         ...(preview?.findings ?? []),
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
+        // Shared subflows against their sources (AFD-60).
+        ...sharedFindings(this.uri.fsPath, parsed.doc),
       ];
       // Problems first, while this text is still the document's: the layout below takes a while,
       // and a later build may finish before it (AFD-38).
@@ -254,6 +257,19 @@ export class FlowSession implements vscode.Disposable {
     if (this.layoutCache.size > 20) this.layoutCache.clear();
     this.layoutCache.set(key, positions);
     return positions;
+  }
+
+  /** Whether the flow has shared subflows, whose sources live in other files (AFD-60). */
+  get sharesSubflows(): boolean {
+    const doc = this.built?.parsed.doc;
+    return !!doc && [...modelOf(doc).nodes.values()].some((e) => !!e.node.ref);
+  }
+
+  /** Builds again for the same text: a file it depends on changed (a shared subflow's source). */
+  async recheck(): Promise<void> {
+    this.built = undefined;
+    this.building = undefined;
+    await this.refresh();
   }
 
   /** Rebuilds after a document change and pushes the snapshot to every panel. */
@@ -352,6 +368,12 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'runScenarios':
         void vscode.commands.executeCommand(CMD.runScenarios, this.uri);
+        break;
+      case 'insertShared':
+        void vscode.commands.executeCommand(CMD.insertShared, this.uri, {
+          level: m.level,
+          ...(m.at ? { position: m.at } : {}),
+        });
         break;
       case 'sync':
         void this.sync();

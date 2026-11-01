@@ -78,6 +78,16 @@ export interface NodeSettings {
 export type HandlerKind = 'rollback' | 'notify' | 'retry' | 'exclude';
 export type JoinMode = 'all' | 'any';
 
+/**
+ * A subflow copied from another flow (AFD-60): where from (`<path>#<key path>`, the path relative to
+ * this flow's folder), that flow's version, and the fingerprint of the copy as it was made.
+ */
+export interface SubflowRef {
+  from: string;
+  version: number;
+  design: string;
+}
+
 export interface SubflowBody {
   nodes?: FlowNode[];
   edges?: Edge[];
@@ -131,6 +141,8 @@ export interface FlowNode {
   handler?: HandlerKind;
   /** Format 2: what the node is for when it handles failures (rollback, notify, retry, exclude). */
   purpose?: HandlerKind;
+  /** Format 2: this subflow is a copy of one in another flow (AFD-60). */
+  ref?: SubflowRef;
   subflow?: SubflowBody;
 }
 

@@ -32,6 +32,7 @@ import {
   portDirection,
   portsFor,
 } from './ports';
+import { copySubflow, parseRefFrom, refFor } from './refs';
 import { nodeDesigns, testedDropBack } from './semantic';
 import { canMarkTested, contentStatus, hasStatus, statusAfterBinding, statusFor } from './status';
 import type {
@@ -164,6 +165,22 @@ export type FlowCommand =
   | { kind: 'markTested'; id: Ulid; reason: string; by?: string; at?: string }
   /** Upgrade Flow Format (AFD-49): the file to the current format, one undo step. */
   | { kind: 'upgradeFormat' }
+  /**
+   * AFD-60, format 2: a copy of another flow's subflow (`source`, read by the host) on a level,
+   * pinned to that flow's `version`; it keeps its source's key.
+   */
+  | {
+      kind: 'addReference';
+      parent?: Ulid;
+      from: string;
+      version: number;
+      source: FlowNode;
+      position?: Position;
+    }
+  /** AFD-60: the copy again from a newer version of its source (steps inside start untested). */
+  | { kind: 'updateReference'; id: Ulid; version: number; source: FlowNode }
+  /** AFD-60: the copy becomes this flow's own subflow, to edit here. */
+  | { kind: 'unlinkReference'; id: Ulid }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
   | {
       kind: 'pasteNodes';
@@ -1812,6 +1829,56 @@ function extractSubflow(
   return { id, rewritten: [...new Set(rewrites.map((r) => r.node))] };
 }
 
+// ---- shared subflows (AFD-60) -------------------------------------------------------------
+
+/** The copy's fields, in node order, and its reference: what Add and Update write. */
+function writeCopy(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  id: Ulid,
+  from: string,
+  version: number,
+  source: FlowNode,
+): void {
+  if (source.type !== 'subflow' || !source.subflow?.nodes?.length)
+    throw new CommandError('bad-type', `${source.title} is not a subflow with steps`);
+  const copy = copySubflow(source, ctx.newId);
+  const { path } = nodeAt(state(tx), id);
+  for (const k of ['intent', 'purpose', 'ports', 'inputs', 'outputs', 'settings'] as const)
+    setField(tx, path, k, (copy[k] ?? null) as YamlValue, NODE_ORDER);
+  setField(tx, path, 'ref', refFor(from, version, copy) as unknown as YamlValue, NODE_ORDER);
+  setField(tx, path, 'subflow', copy.subflow as unknown as YamlValue, NODE_ORDER);
+}
+
+function addReference(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'addReference' }>,
+): Ulid {
+  requireFormat(state(tx).doc, 2, 'A shared subflow');
+  if (!parseRefFrom(cmd.from))
+    throw new CommandError('bad-ref', `"${cmd.from}" is not <flow file>#<subflow key>`);
+  const id = insertNode(tx, ctx, {
+    parent: cmd.parent,
+    type: 'subflow',
+    title: cmd.source.title,
+    key: cmd.source.key,
+  });
+  writeCopy(tx, ctx, id, cmd.from, cmd.version, cmd.source);
+  if (cmd.position) setPositions(tx, { [id]: cmd.position });
+  return id;
+}
+
+function updateReference(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'updateReference' }>,
+): void {
+  const { node } = nodeAt(state(tx), cmd.id);
+  if (!node.ref) throw new CommandError('not-shared', `${node.title} is not a shared subflow`);
+  writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source);
+}
+
 // ---- paste nodes (AFD-17) ------------------------------------------------------------------
 
 /**
@@ -2173,6 +2240,18 @@ export function planCommand(
       pasted = pasteNodes(tx, ctx, cmd);
       created = pasted[0];
       break;
+    case 'addReference':
+      created = addReference(tx, ctx, cmd);
+      break;
+    case 'updateReference':
+      updateReference(tx, ctx, cmd);
+      break;
+    case 'unlinkReference': {
+      const { node, path } = nodeAt(state(tx), cmd.id);
+      if (!node.ref) throw new CommandError('not-shared', `${node.title} is not a shared subflow`);
+      setField(tx, path, 'ref', null, NODE_ORDER);
+      break;
+    }
     case 'extractSubflow': {
       const r = extractSubflow(tx, ctx, cmd);
       created = r.id;

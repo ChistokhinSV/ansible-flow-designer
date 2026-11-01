@@ -56,6 +56,8 @@ export type CanvasAction =
   /** At the menu's own spot. */
   | { do: 'paste' }
   | { do: 'addNode' }
+  /** AFD-60: a subflow of another flow, copied here. */
+  | { do: 'insertShared' }
   | { do: 'selectAll' }
   | { do: 'tidyUp' }
   | { do: 'fitView' }
@@ -286,6 +288,7 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
     ? [
         item('Paste Here', { do: 'paste' }, { icon: 'clippy', shortcut: 'paste', ...lock }),
         item('Add Node Here…', { do: 'addNode' }, { icon: 'add', shortcut: 'addNode', ...lock }),
+        item('Insert Shared Subflow…', { do: 'insertShared' }, { icon: 'references', ...lock }),
       ]
     : [];
   const view: CanvasMenuEntry[] = [

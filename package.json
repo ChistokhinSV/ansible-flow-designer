@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -96,6 +96,21 @@
         "title": "Stop Run",
         "category": "Ansible Flow",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "afd.flow.insertShared",
+        "title": "Insert Shared Subflow…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flow.updateShared",
+        "title": "Update Shared Subflow",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flow.unlinkShared",
+        "title": "Unlink Shared Subflow",
+        "category": "Ansible Flow"
       },
       {
         "command": "afd.run.scenarios",
@@ -280,6 +295,18 @@
         {
           "command": "afd.run.stop",
           "when": "afd.running"
+        },
+        {
+          "command": "afd.flow.insertShared",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.flow.updateShared",
+          "when": "false"
+        },
+        {
+          "command": "afd.flow.unlinkShared",
+          "when": "false"
         },
         {
           "command": "afd.run.scenarios",

@@ -36,6 +36,7 @@ import {
 import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
+import { sharedAround } from '../../core/flow/refs';
 import type { NodeType, Position } from '../../core/flow/types';
 import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
@@ -147,7 +148,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const paneHeight = useStore((s) => s.height);
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
   // Code and Run modes show the graph read-only (AFD-45); Run mode also labels wires with hosts.
-  const readOnly = useUi((s) => s.mode !== 'design');
+  // A shared subflow's level (AFD-60) is edited in its source flow.
+  const readOnly = useUi(
+    (s) => s.mode !== 'design' || (!!s.snapshot?.doc && !!sharedAround(s.snapshot.doc, s.level)),
+  );
   // Written by hand without IDs (AFD-19): shown, not edited, until Complete IDs.
   const handWritten = useUi((s) => !!s.snapshot?.idGaps);
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));

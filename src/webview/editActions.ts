@@ -3,6 +3,7 @@
 import type { CanvasTarget } from '../core/flow/canvasMenu';
 import { copyNodes } from '../core/flow/clipboard';
 import { modelOf, ROOT } from '../core/flow/model';
+import { sharedAround } from '../core/flow/refs';
 import type { Ulid } from '../core/flow/types';
 import { run } from './actions';
 import type { Ack } from './bus';
@@ -21,8 +22,15 @@ export function selectedNodes(): Ulid[] {
  * and no IDs are missing (AFD-19).
  */
 export function canEdit(): boolean {
-  const { mode, snapshot } = useUi.getState();
-  return mode === 'design' && !!snapshot?.doc && !snapshot.stale && !snapshot.idGaps;
+  const { mode, snapshot, level } = useUi.getState();
+  return (
+    mode === 'design' &&
+    !!snapshot?.doc &&
+    !snapshot.stale &&
+    !snapshot.idGaps &&
+    // AFD-60: a shared subflow is edited in its source flow.
+    !sharedAround(snapshot.doc, level)
+  );
 }
 
 /**
@@ -30,7 +38,13 @@ export function canEdit(): boolean {
  * read-only otherwise, instead of accepting input the host then refuses (AFD-30).
  */
 export function useEditable(): boolean {
-  return useUi((s) => !!s.snapshot?.doc && !s.snapshot.stale && !s.snapshot.idGaps);
+  return useUi(
+    (s) =>
+      !!s.snapshot?.doc &&
+      !s.snapshot.stale &&
+      !s.snapshot.idGaps &&
+      !sharedAround(s.snapshot.doc, s.level),
+  );
 }
 
 /** The boundary wires of an open subflow (`entry:…`, `exit:…`, see viewModel) as menu targets. */
