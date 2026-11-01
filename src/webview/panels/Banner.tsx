@@ -1,7 +1,6 @@
 // Open fail port banner (D-15): count of open fail-type ports not marked open on purpose. "Show"
 // selects the affected nodes one by one; dismissing hides it until the count changes. A flow
 // written by hand without IDs (AFD-19) shows Complete IDs here first: the canvas edits after it.
-import { useReactFlow } from '@xyflow/react';
 import { send } from '../bus';
 import { useUi } from '../store';
 import { bannerCount } from '../viewModel';
@@ -13,10 +12,7 @@ export function Banner() {
   const snapshot = useUi((s) => s.snapshot);
   const dismissedAt = useUi((s) => s.bannerDismissedAt);
   const dismiss = useUi((s) => s.dismissBanner);
-  const select = useUi((s) => s.select);
   const reveal = useUi((s) => s.reveal);
-  const level = useUi((s) => s.level);
-  const { getNode, setCenter } = useReactFlow();
   if (!snapshot) return null;
   if (snapshot.stale) {
     return (
@@ -55,18 +51,7 @@ export function Banner() {
   const show = () => {
     const open = snapshot.openPorts[cursor % snapshot.openPorts.length];
     cursor++;
-    if (!open) return;
-    if (open.level !== level) {
-      reveal(open.node);
-      return;
-    }
-    select({ node: open.node });
-    const n = getNode(open.node);
-    if (n)
-      void setCenter(n.position.x + (n.width ?? 0) / 2, n.position.y + (n.height ?? 0) / 2, {
-        duration: 200,
-        zoom: 1,
-      });
+    if (open) reveal(open.node);
   };
   return (
     <div className="afd-banner warning" role="status" data-banner-count={count}>

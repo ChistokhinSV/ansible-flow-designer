@@ -158,7 +158,14 @@ describe('canvas context menu', () => {
       fireEvent.contextMenu(pane, { clientX: 300, clientY: 200 });
     });
     const at = useUi.getState().contextMenu?.at as { x: number; y: number };
-    expect(items()).toEqual(['Paste Here', 'Add Node Here…', 'Select All', 'Tidy Up', 'Fit View']);
+    expect(items()).toEqual([
+      'Paste Here',
+      'Add Node Here…',
+      'Select All',
+      'Tidy Up',
+      'Fit View',
+      'Find Node…',
+    ]);
     act(() => screen.getByRole('menuitem', { name: 'Paste Here' }).click());
     expect(sent('requestPaste')).toEqual([{ type: 'requestPaste', at }]);
     // The host answers with the text and the same spot (App passes both to pasteText).

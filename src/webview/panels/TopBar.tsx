@@ -13,6 +13,7 @@ import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
+import { keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
 
@@ -208,6 +209,27 @@ export function readOnlyReason(mode: Mode): string | undefined {
 }
 
 /** Actions used now and then: in the "…" menu instead of on the bar. */
+/** Fold the palette and the side panel away for room, and back (AFD-48). */
+function panelActions(mode: Mode): UiMenuEntry[] {
+  const ui = useUi.getState();
+  const panel: UiMenuEntry = {
+    type: 'item',
+    label: ui.panelCollapsed ? 'Show Side Panel' : 'Hide Side Panel',
+    icon: 'layout-sidebar-right',
+    onSelect: () => ui.setPanelCollapsed(!ui.panelCollapsed),
+  };
+  if (mode !== 'design') return [panel];
+  return [
+    {
+      type: 'item',
+      label: ui.paletteCollapsed ? 'Expand Palette' : 'Collapse Palette',
+      icon: 'layout-sidebar-left',
+      onSelect: () => ui.setPaletteCollapsed(!ui.paletteCollapsed),
+    },
+    panel,
+  ];
+}
+
 function moreActions(mode: Mode, level: string): UiMenuEntry[] {
   return [
     {
@@ -232,6 +254,16 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       title: 'Check the design, then the generated code in the Ansible environment',
       onSelect: () => send({ type: 'validate' }),
     },
+    {
+      type: 'item',
+      label: 'Find Node…',
+      icon: 'search',
+      shortcut: keysOf('find'),
+      title: 'Find a node on any level by title, key or binding',
+      onSelect: () => useUi.getState().openFind(true),
+    },
+    { type: 'separator' },
+    ...panelActions(mode),
     { type: 'separator' },
     {
       type: 'item',

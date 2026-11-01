@@ -122,6 +122,9 @@ export function runCanvasAction(
     case 'fitView':
       fitView();
       return;
+    case 'find':
+      ui.openFind(true);
+      return;
     case 'upLevel':
       upLevel();
       return;

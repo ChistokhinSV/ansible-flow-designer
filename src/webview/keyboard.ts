@@ -2,10 +2,7 @@
 // every key a webview gets (from the window, after us), so keys handled here stop propagating;
 // Ctrl/Cmd+C, X, V, Z and Y are never stopped, since VS Code turns them into copy, cut, paste and
 // undo for the page. Typing in a field and keys inside menus and dialogs (`nokey`) are left alone.
-import { modelOf } from '../core/flow/model';
-import { freeOutput } from '../core/flow/portMenu';
 import { chooseMode } from './actions';
-import { canvasPlace } from './clipboard';
 import {
   canEdit,
   deleteSelection,
@@ -16,7 +13,7 @@ import {
   upLevel,
 } from './editActions';
 import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
-import { runPortItem } from './portActions';
+import { addNode } from './portActions';
 import { IS_MAC } from './shortcuts';
 import { type Mode, useUi } from './store';
 
@@ -63,31 +60,23 @@ function keyboardMenu(): void {
 
 const MODE_KEYS: Record<string, Mode> = { Digit1: 'design', Digit2: 'code', Digit3: 'run' };
 
-/** N (AFD-47): the next node after the selected one, else a node where a paste would land. */
-function addNode(): void {
-  const ui = useUi.getState();
-  const doc = ui.snapshot?.doc;
-  if (!doc || !canEdit()) return;
-  const ids = selectedNodes();
-  const one = ids.length === 1 ? ids[0] : undefined;
-  const port = one ? freeOutput(modelOf(doc), one) : undefined;
-  if (one && port)
-    void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, { node: one, port });
-  else {
-    const position = canvasPlace();
-    ui.openQuickAdd({ type: 'task', ...(position ? { position } : {}) });
-  }
-}
-
 export function installKeyboard(): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return;
     const target = e.target as Element | null;
-    if (target?.closest?.(FIELD)) return;
     const consume = () => {
       e.preventDefault();
       e.stopPropagation();
     };
+    // Find (AFD-48) from anywhere in the designer, a field included: VS Code's own Find has
+    // nothing to search in the page.
+    const modKey = IS_MAC ? e.metaKey : e.ctrlKey;
+    if (modKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') {
+      consume();
+      useUi.getState().openFind(true);
+      return;
+    }
+    if (target?.closest?.(FIELD)) return;
     if (e.key === 'Escape') {
       if (closeInnermost()) consume();
       return;

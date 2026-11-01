@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.3 — AFD-48
+
+- **Navigation and onboarding** (improvement program, wave 3):
+  - **Find a node:** Ctrl+F (also in "…" and the canvas menu) searches every level by title, key or binding; each result says which subflows it is in. The arrows and Enter open one where it is, and the box stays open for the next.
+  - **Failed steps:** with nothing selected, Run mode's panel lists the steps where hosts failed, on every level; click one to open it.
+  - **Room for the canvas:** the palette folds to icons, and its legend opens from **? Legend**; the side panel folds to a strip (double-click or Enter on its edge, or "…" › _Hide Side Panel_). Both are remembered.
+  - **An empty flow says how to begin:** a card under Start and End offers **Add a Step** (between them), **Import Ansible Playbooks…**, **Import AWX Workflow or Job Template…** and **Open Sample Flow…**.
+  - Shown nodes come to the middle of the view, also on another level (find, failed steps, the open-ports banner's Show).
+
 ## 0.27.2 — AFD-47
 
 - **Keyboard and accessibility** (improvement program, wave 3):

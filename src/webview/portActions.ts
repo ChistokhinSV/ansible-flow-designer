@@ -5,6 +5,7 @@ import type { PatternId } from '../core/flow/patterns';
 import { freeOutput, type PortMenuItem, patternTarget } from '../core/flow/portMenu';
 import type { PortRef, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
+import { canvasPlace } from './clipboard';
 import { useUi } from './store';
 import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel';
 
@@ -118,5 +119,24 @@ export async function completePick(target: Ulid): Promise<void> {
       await run({ kind: 'connect', from: { node: target, port }, to: pick.ref });
       return;
     }
+  }
+}
+
+/**
+ * Add a node from the keyboard (N, AFD-47) or the empty-level card (AFD-48): Add Next Node after
+ * `from` (else the one selected node) where it has a free output, else Add Node where a paste
+ * would land.
+ */
+export function addNode(from?: Ulid): void {
+  const ui = useUi.getState();
+  const doc = ui.snapshot?.doc;
+  if (!doc) return;
+  const one = from ?? ui.selection.node;
+  const port = one ? freeOutput(modelOf(doc), one) : undefined;
+  if (one && port)
+    void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, { node: one, port });
+  else {
+    const position = canvasPlace();
+    ui.openQuickAdd({ type: 'task', ...(position ? { position } : {}) });
   }
 }

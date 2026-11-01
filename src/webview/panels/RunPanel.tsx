@@ -14,6 +14,7 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
+import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
@@ -87,6 +88,56 @@ function Proposal({ run }: { run: RunView }) {
   );
 }
 
+/**
+ * The steps where hosts failed, on every level (AFD-48): each shows its node, opening the subflow
+ * it is in, so a failure deep in the flow is one click or Enter away.
+ */
+function FailedSteps() {
+  const runNodes = useUi((s) => s.runNodes);
+  const doc = useUi((s) => s.snapshot?.doc);
+  if (!runNodes || !doc) return null;
+  const model = modelOf(doc);
+  const failed = Object.entries(runNodes)
+    .filter(([id, r]) => r.failed > 0 && model.nodes.get(id)?.node.type !== 'subflow')
+    .map(([id, r]) => {
+      const entry = model.nodes.get(id);
+      return {
+        id,
+        r,
+        title: entry?.node.title ?? id,
+        trail: entry ? trailOf(model, entry.level) : [],
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.trail.join('/').localeCompare(b.trail.join('/')) || a.title.localeCompare(b.title),
+    );
+  if (failed.length === 0) return null;
+  return (
+    <section className="afd-section" data-failed-steps={failed.length}>
+      <h3>Failed steps</h3>
+      <ul className="afd-run-hosts">
+        {failed.map(({ id, r, title, trail }) => (
+          <li key={id}>
+            <button
+              type="button"
+              className="link"
+              data-failed-step={id}
+              onClick={() => useUi.getState().reveal(id)}
+            >
+              {title}
+            </button>{' '}
+            <span className="muted">
+              {trail.length ? `${trail.join(' › ')} · ` : ''}
+              {r.failed} of {r.hosts} host{r.hosts === 1 ? '' : 's'} failed
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function RunPanel() {
   const run = useUi((s) => s.run);
   const doc = useUi((s) => s.snapshot?.doc);
@@ -148,6 +199,7 @@ export function RunPanel() {
         </p>
       ) : null}
       <OpenRun run={run} />
+      <FailedSteps />
       {run.awx?.segments?.length ? (
         <section className="afd-section" data-run-segments={run.awx.segments.length}>
           <h3>Segments</h3>

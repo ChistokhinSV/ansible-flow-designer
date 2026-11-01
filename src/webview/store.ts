@@ -139,6 +139,12 @@ interface UiState {
   focusRequest: FocusRequest | null;
   /** The keyboard shortcuts sheet (`?`). */
   cheatSheet: boolean;
+  /** The find bar (AFD-48): what is typed in it, and a count that moves the focus back into it. */
+  find: boolean;
+  findQuery: string;
+  findNonce: number;
+  /** A node to bring into view once its level shows (find, the failed steps, Show). */
+  centerOn: Ulid | null;
   pick: PickState | null;
   /** The node Enter would choose while picking with the keyboard (AFD-47). */
   pickAt: Ulid | null;
@@ -169,6 +175,9 @@ interface UiState {
   /** The side panel: its width, and expanded for the catalog docs. */
   panelWidth: number;
   expanded: boolean;
+  /** The palette shows icons only; the side panel folds to a strip (AFD-48). */
+  paletteCollapsed: boolean;
+  panelCollapsed: boolean;
   /** The environment's module catalog (M5). */
   catalog: CatalogStatus;
   mode: Mode;
@@ -223,6 +232,10 @@ interface UiState {
   resolveLeave(choice: 'go' | 'stay'): void;
   setPanelWidth(width: number): void;
   setExpanded(on: boolean): void;
+  setPaletteCollapsed(on: boolean): void;
+  setPanelCollapsed(on: boolean): void;
+  openFind(open: boolean): void;
+  setFindQuery(query: string): void;
   setCatalog(status: CatalogStatus): void;
   setMode(mode: Mode): void;
   setSync(sync: SyncState): void;
@@ -263,6 +276,10 @@ export const useUi = create<UiState>((set, get) => ({
   contextMenu: null,
   focusRequest: null,
   cheatSheet: false,
+  find: false,
+  findQuery: '',
+  findNonce: 0,
+  centerOn: null,
   pick: null,
   pickAt: null,
   decide: null,
@@ -280,6 +297,8 @@ export const useUi = create<UiState>((set, get) => ({
   leave: null,
   panelWidth: PANEL_WIDTH.initial,
   expanded: false,
+  paletteCollapsed: false,
+  panelCollapsed: false,
   catalog: { state: 'idle' },
   mode: 'design',
   sync: { state: 'idle' },
@@ -452,6 +471,13 @@ export const useUi = create<UiState>((set, get) => ({
   setPanelWidth: (width) =>
     set({ panelWidth: Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, width))) }),
   setExpanded: (expanded) => set({ expanded }),
+  setPaletteCollapsed: (paletteCollapsed) => set({ paletteCollapsed }),
+  setPanelCollapsed: (panelCollapsed) => set({ panelCollapsed }),
+  openFind: (open) =>
+    set(
+      open ? { find: true, findNonce: get().findNonce + 1, ...closing('find') } : { find: false },
+    ),
+  setFindQuery: (findQuery) => set({ findQuery }),
   setMode(mode) {
     if (mode === get().mode) return;
     if (get().pendingBinding) return void set({ leave: { kind: 'mode', mode } });
@@ -479,6 +505,6 @@ export const useUi = create<UiState>((set, get) => ({
     const entry = doc ? modelOf(doc).nodes.get(node) : undefined;
     if (!entry) return;
     get().setLevel(entry.level);
-    set({ selection: { node } });
+    set({ selection: { node }, centerOn: node });
   },
 }));

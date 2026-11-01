@@ -48,7 +48,8 @@ when it ends.
   stopped, not failed.
 - The top bar shows hosts, failures and the exit code; **Show terminal** brings the output back.
 - Switch to **Run**: nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
-  Select a node or a wire to list the hosts and why they failed.
+  Select a node or a wire to list the hosts and why they failed. With nothing selected, the panel
+  lists the **Failed steps** of every level; click one to open it where it is.
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which
   flow version, which targets, without input values. It rotates at 1 MB and keeps two older files;
   each flow keeps the event logs of its last 30 runs (`afd.runs.keep`).

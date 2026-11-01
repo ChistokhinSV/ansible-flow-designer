@@ -16,10 +16,12 @@ import {
   MarkerType,
   MiniMap,
   type NodeChange,
+  Panel,
   ReactFlow,
   useReactFlow,
   useStore,
   type Viewport,
+  ViewportPortal,
 } from '@xyflow/react';
 import {
   type DragEvent,
@@ -37,7 +39,7 @@ import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
-import { FULL_FIT, readableViewport } from '../../core/view/fit';
+import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
 import { labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import { command, loadState, saveState } from '../bus';
@@ -45,6 +47,8 @@ import { setPastePlace } from '../clipboard';
 import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { boundaryWire, upLevel } from '../editActions';
 import { useLevelView, useModel } from '../hooks';
+import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
+import { FindBar } from '../panels/FindBar';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -113,6 +117,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [hoverEdge, selection.edge],
   );
   const { screenToFlowPosition, setViewport, fitView, getViewport, setCenter } = useReactFlow();
+  const centerOn = useUi((s) => s.centerOn);
   const model = useModel();
   const pickAt = useUi((s) => (s.pick ? s.pickAt : null));
   const paneWidth = useStore((s) => s.width);
@@ -133,6 +138,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const contentBounds = useMemo(
     () => (view.nodes.length ? getNodesBounds(view.nodes.map((v) => toRfNode(v, false))) : null),
     [view.nodes],
+  );
+  // A level with only Start and End shows how to begin, under them (AFD-48).
+  const empty = useEmptyLevel();
+  const cardAt = useMemo(
+    () => (empty ? belowNodes(contentBounds ?? { x: 0, y: 0, width: 0, height: 0 }) : null),
+    [empty, contentBounds],
   );
   const partly = useStore((s) => {
     if (!contentBounds || s.width <= 0) return false;
@@ -477,12 +488,25 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     );
     void setViewport(
       readableViewport(
-        getNodesBounds(nodes),
+        // An empty level opens with its card in view too (AFD-48).
+        cardAt ? union(getNodesBounds(nodes), cardAt) : getNodesBounds(nodes),
         { width: paneWidth, height: paneHeight },
         top ? top.position.x + (top.width ?? 0) / 2 : undefined,
       ),
     );
-  }, [nodes, paneWidth, paneHeight, setViewport]);
+  }, [nodes, paneWidth, paneHeight, setViewport, cardAt]);
+
+  // A node shown from elsewhere (find, the failed steps, the banner's Show; AFD-48) comes to the
+  // middle once its level is drawn, after the opening fit, at 100% or closer.
+  useEffect(() => {
+    if (!centerOn || paneWidth <= 0 || paneHeight <= 0) return;
+    const v = view.nodes.find((n) => n.node.id === centerOn);
+    if (!v) return;
+    useUi.setState({ centerOn: null });
+    void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, {
+      zoom: Math.max(getViewport().zoom, 1),
+    });
+  }, [centerOn, view.nodes, paneWidth, paneHeight, setCenter, getViewport]);
 
   // Keys that need the level's geometry (AFD-47), unless a field, menu or dialog has the focus:
   // Enter opens a selected subflow (04 §8) or moves into a node's Details, Shift+1 fits the level.
@@ -701,6 +725,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       proOptions={{ hideAttribution: true }}
     >
       <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+      <Panel position="top-right">
+        <FindBar />
+      </Panel>
+      {cardAt ? (
+        <ViewportPortal>
+          <EmptyLevel at={cardAt} />
+        </ViewportPortal>
+      ) : null}
       <Controls showInteractive={false} position="bottom-right" />
       {partly ? (
         <MiniMap

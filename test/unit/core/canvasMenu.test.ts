@@ -148,10 +148,15 @@ describe('canvas menu', () => {
       'Select All',
       'Tidy Up',
       'Fit View',
+      'Find Node…',
     ]);
     const inner = labels(menu({ kind: 'pane' }, { level: id('upgrade-os') }));
     expect(inner.at(-1)).toBe('Up to Parent');
-    expect(labels(menu({ kind: 'pane' }, { mode: 'run' }))).toEqual(['Select All', 'Fit View']);
+    expect(labels(menu({ kind: 'pane' }, { mode: 'run' }))).toEqual([
+      'Select All',
+      'Fit View',
+      'Find Node…',
+    ]);
   });
 });
 

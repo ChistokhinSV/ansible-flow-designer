@@ -148,6 +148,8 @@ function RightPanelView({ panel }: { panel: RightPanel }) {
 interface PanelState {
   panelWidth?: number;
   expanded?: boolean;
+  paletteCollapsed?: boolean;
+  panelCollapsed?: boolean;
 }
 
 /** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
@@ -156,9 +158,23 @@ function usePanelState() {
     const saved = loadState<PanelState>();
     if (typeof saved.panelWidth === 'number') useUi.getState().setPanelWidth(saved.panelWidth);
     if (saved.expanded) useUi.getState().setExpanded(true);
+    if (saved.paletteCollapsed) useUi.getState().setPaletteCollapsed(true);
+    if (saved.panelCollapsed) useUi.getState().setPanelCollapsed(true);
     return useUi.subscribe((s, before) => {
-      if (s.panelWidth === before.panelWidth && s.expanded === before.expanded) return;
-      saveState({ ...loadState(), panelWidth: s.panelWidth, expanded: s.expanded });
+      if (
+        s.panelWidth === before.panelWidth &&
+        s.expanded === before.expanded &&
+        s.paletteCollapsed === before.paletteCollapsed &&
+        s.panelCollapsed === before.panelCollapsed
+      )
+        return;
+      saveState({
+        ...loadState(),
+        panelWidth: s.panelWidth,
+        expanded: s.expanded,
+        paletteCollapsed: s.paletteCollapsed,
+        panelCollapsed: s.panelCollapsed,
+      });
     });
   }, []);
 }
@@ -186,9 +202,12 @@ function PanelResizer() {
         const step = e.shiftKey ? 64 : 16;
         if (e.key === 'ArrowLeft') set(width + step);
         else if (e.key === 'ArrowRight') set(width - step);
+        // The window splitter pattern: Enter folds the panel away (AFD-48).
+        else if (e.key === 'Enter') useUi.getState().setPanelCollapsed(true);
         else return;
         e.preventDefault();
       }}
+      onDoubleClick={() => useUi.getState().setPanelCollapsed(true)}
       onPointerDown={(e) => {
         e.preventDefault();
         const start = e.clientX;
@@ -255,6 +274,8 @@ export function App() {
   const panelWidth = useUi((s) => s.panelWidth);
   const lensTab = useUi((s) => s.lens !== null && s.lensTab);
   const expanded = useUi((s) => s.expanded);
+  const panelCollapsed = useUi((s) => s.panelCollapsed);
+  const paletteCollapsed = useUi((s) => s.paletteCollapsed);
   usePanelState();
   const mode = useUi((s) => s.mode);
   const lens = useUi((s) => s.lens);
@@ -274,9 +295,17 @@ export function App() {
         className="afd-shell"
         style={
           {
-            '--afd-right-width': expanded ? 'min(1100px, 80vw)' : `${panelWidth}px`,
+            '--afd-right-width': panelCollapsed
+              ? 'var(--afd-collapsed-width)'
+              : expanded
+                ? 'min(1100px, 80vw)'
+                : `${panelWidth}px`,
             // Code and Run modes read the graph: no palette to add nodes from (AFD-45).
-            ...(mode === 'design' ? {} : { '--afd-left-width': '0px' }),
+            ...(mode !== 'design'
+              ? { '--afd-left-width': '0px' }
+              : paletteCollapsed
+                ? { '--afd-left-width': 'var(--afd-collapsed-width)' }
+                : {}),
           } as CSSProperties
         }
       >
@@ -288,18 +317,32 @@ export function App() {
           <FlowCanvas />
           <Toasts />
         </main>
-        <aside className="afd-right" aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}>
-          <PanelResizer />
-          {lens ? <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} /> : null}
-          {lensTab ? (
-            <>
-              <LensBrowser />
-              <LensPanel />
-            </>
-          ) : (
-            <RightPanelView panel={panel} />
-          )}
-        </aside>
+        {panelCollapsed ? (
+          <aside className="afd-right collapsed" aria-label="Side panel, hidden">
+            <button
+              type="button"
+              className="icon"
+              aria-label="Show Side Panel"
+              title="Show the side panel"
+              onClick={() => useUi.getState().setPanelCollapsed(false)}
+            >
+              <span className="codicon codicon-layout-sidebar-right" aria-hidden="true" />
+            </button>
+          </aside>
+        ) : (
+          <aside className="afd-right" aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}>
+            <PanelResizer />
+            {lens ? <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} /> : null}
+            {lensTab ? (
+              <>
+                <LensBrowser />
+                <LensPanel />
+              </>
+            ) : (
+              <RightPanelView panel={panel} />
+            )}
+          </aside>
+        )}
         <QuickAdd />
         <DecisionDialog />
         <IgnoreDialog />

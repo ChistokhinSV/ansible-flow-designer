@@ -1,7 +1,10 @@
 // Left panel in Design mode (04 §1): node palette, failure patterns (D-16) and legend. A node type
 // click adds a node near the middle of the view; dragging adds it where it is dropped. A pattern
 // is dragged onto an open fail port (or a node), or clicked to resolve the selected node.
+// AFD-48: the palette folds to its icons, and the legend opens from a "?" button instead of
+// filling the column.
 import { useReactFlow } from '@xyflow/react';
+import { useEffect, useRef, useState } from 'react';
 import { PATTERNS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType } from '../../core/flow/types';
 import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
@@ -34,6 +37,7 @@ export function Palette() {
   const openQuickAdd = useUi((s) => s.openQuickAdd);
   // Run mode is read-only (AFD-18): the palette shows what exists but adds nothing.
   const locked = useUi((s) => s.mode === 'run');
+  const collapsed = useUi((s) => s.paletteCollapsed);
   const { screenToFlowPosition } = useReactFlow();
   const addCentered = (type: NodeType) => {
     const canvas = document.querySelector('.react-flow')?.getBoundingClientRect();
@@ -45,9 +49,27 @@ export function Palette() {
       : undefined;
     openQuickAdd({ type, position });
   };
+  // Folded, a button is its icon: the name is its label and tooltip.
+  const named = (label: string, hint: string) =>
+    collapsed ? { 'aria-label': label, title: `${label}: ${hint}` } : { title: hint };
   return (
-    <aside className="afd-left" aria-label="Palette">
-      <h2>Nodes</h2>
+    <aside className={`afd-left${collapsed ? ' collapsed' : ''}`} aria-label="Palette">
+      <div className="afd-palette-head">
+        {collapsed ? null : <h2>Nodes</h2>}
+        <button
+          type="button"
+          className="icon"
+          aria-label={collapsed ? 'Expand Palette' : 'Collapse Palette'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Show the names' : 'Icons only, for a wider canvas'}
+          onClick={() => useUi.getState().setPaletteCollapsed(!collapsed)}
+        >
+          <span
+            className={`codicon codicon-chevron-${collapsed ? 'right' : 'left'}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
       {locked ? <p className="afd-palette-hint muted">Run mode is read-only</p> : null}
       <ul className="afd-palette">
         {ITEMS.map((item) => (
@@ -61,16 +83,19 @@ export function Palette() {
                 e.dataTransfer.effectAllowed = 'copy';
               }}
               onClick={() => addCentered(item.type)}
-              title={item.hint}
+              {...named(TYPE_LABEL[item.type], item.hint)}
             >
               <span className={`codicon codicon-${item.icon}`} aria-hidden="true" />
-              {TYPE_LABEL[item.type]}
+              {collapsed ? null : TYPE_LABEL[item.type]}
             </button>
           </li>
         ))}
       </ul>
-      <h2>Failure patterns</h2>
-      <p className="afd-palette-hint muted" id="afd-pattern-hint">
+      {collapsed ? null : <h2>Failure patterns</h2>}
+      <p
+        className={`afd-palette-hint muted${collapsed ? ' afd-sr-only' : ''}`}
+        id="afd-pattern-hint"
+      >
         Drop onto an open fail port, or select a node and click
       </p>
       <ul className="afd-palette">
@@ -95,40 +120,99 @@ export function Palette() {
                 else
                   useUi.getState().setError('Select a node first, or drag the pattern onto a port');
               }}
-              title={`${p.hint}. Accepts: ${p.accepts.join(', ')}`}
+              {...named(p.label, `${p.hint}. Accepts: ${p.accepts.join(', ')}`)}
             >
               <span
                 className={`codicon codicon-${PATTERN_ICON[p.id] ?? 'symbol-event'}`}
                 aria-hidden="true"
               />
-              {p.label}
+              {collapsed ? null : p.label}
             </button>
           </li>
         ))}
       </ul>
-      <h2>Legend</h2>
-      <ul className="afd-legend">
-        <li>
-          <span className="afd-swatch port state-connected tone-ok" /> Connected port
-        </li>
-        <li>
-          <span className="afd-swatch port state-open-fail tone-failed" /> Open fail port (wire it
-          or accept it)
-        </li>
-        <li>
-          <span className="afd-swatch port state-open-purpose tone-failed" /> Open on purpose
-        </li>
-        <li>
-          <span className="afd-swatch port state-open tone-ok optional" /> Optional port, shown on
-          hover
-        </li>
-        <li>
-          <span className="afd-swatch wire" /> Normal outcome
-        </li>
-        <li>
-          <span className="afd-swatch wire problem" /> Problem path
-        </li>
-      </ul>
+      <Legend collapsed={collapsed} />
     </aside>
+  );
+}
+
+/** The port and wire styles, on demand: a "?" button and a popover beside the palette. */
+function Legend({ collapsed }: { collapsed: boolean }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    box.current?.focus();
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !button.current?.contains(t)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open]);
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  return (
+    <div className="afd-legend-wrap">
+      <button
+        ref={button}
+        type="button"
+        className="secondary afd-legend-button"
+        aria-expanded={open}
+        aria-controls="afd-legend"
+        aria-label="Legend"
+        title="What the port and wire styles mean"
+        onClick={() => (open ? close() : setOpen(true))}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape' || !open) return;
+          e.stopPropagation();
+          close();
+        }}
+      >
+        <span className="codicon codicon-question" aria-hidden="true" />
+        {collapsed ? null : ' Legend'}
+      </button>
+      {open ? (
+        <div
+          ref={box}
+          id="afd-legend"
+          className="afd-legend-popover"
+          role="dialog"
+          aria-label="Legend"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            close();
+          }}
+        >
+          <ul className="afd-legend">
+            <li>
+              <span className="afd-swatch port state-connected tone-ok" /> Connected port
+            </li>
+            <li>
+              <span className="afd-swatch port state-open-fail tone-failed" /> Open fail port (wire
+              it or accept it)
+            </li>
+            <li>
+              <span className="afd-swatch port state-open-purpose tone-failed" /> Open on purpose
+            </li>
+            <li>
+              <span className="afd-swatch port state-open tone-ok optional" /> Optional port, shown
+              on hover
+            </li>
+            <li>
+              <span className="afd-swatch wire" /> Normal outcome
+            </li>
+            <li>
+              <span className="afd-swatch wire problem" /> Problem path
+            </li>
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }

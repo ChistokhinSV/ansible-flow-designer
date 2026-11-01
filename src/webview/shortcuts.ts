@@ -61,6 +61,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     label: 'Menu for the selection, or the canvas',
     group: 'Move around',
   },
+  { id: 'find', keys: `${MOD}F`, label: 'Find a node on any level', group: 'Move around' },
   {
     id: 'ports',
     keys: 'Tab, Enter',

@@ -36,6 +36,8 @@ body {
   --afd-space-4: 12px;
   --afd-space-5: 16px;
   --afd-left-width: 184px;
+  /* A folded palette or side panel (AFD-48). */
+  --afd-collapsed-width: 40px;
   --afd-right-width: 320px;
   --xy-background-color: var(--afd-bg);
   --xy-background-pattern-color: var(--vscode-editorLineNumber-foreground, #c4c4c4);

@@ -87,6 +87,10 @@ describe('top bar', () => {
       'Tidy Up',
       'Open in Text Editor',
       'Check Flow',
+      'Find Node…',
+      // The palette and the side panel fold away for room (AFD-48).
+      'Collapse Palette',
+      'Hide Side Panel',
       'Keyboard Shortcuts',
       'User Guide',
     ]);

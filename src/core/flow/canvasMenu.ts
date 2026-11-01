@@ -32,7 +32,8 @@ export type ShortcutId =
   | 'help'
   | 'addNode'
   | 'selectAll'
-  | 'fit';
+  | 'fit'
+  | 'find';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -45,6 +46,7 @@ export type CanvasAction =
   | { do: 'extract'; nodes: Ulid[] }
   | { do: 'showInText'; node: Ulid }
   | { do: 'peekCode'; node: Ulid }
+  | { do: 'find' }
   | { do: 'removeEntry'; subflow: Ulid }
   | { do: 'removeExit'; subflow: Ulid; from: PortRef; port: string }
   | { do: 'editReason'; edge: string }
@@ -270,6 +272,7 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
   ];
   if (edit) view.push(item('Tidy Up', { do: 'tidyUp' }, { icon: 'layout', ...lock }));
   view.push(item('Fit View', { do: 'fitView' }, { icon: 'screen-full', shortcut: 'fit' }));
+  view.push(item('Find Node…', { do: 'find' }, { icon: 'search', shortcut: 'find' }));
   const nav =
     ctx.level !== ROOT
       ? [item('Up to Parent', { do: 'upLevel' }, { icon: 'arrow-up', shortcut: 'up' })]

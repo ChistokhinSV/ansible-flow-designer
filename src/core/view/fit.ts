@@ -60,3 +60,27 @@ export function readableViewport(
   const rightmost = pane.width - FIT_MARGIN - (bounds.x + w) * zoom;
   return { zoom, x: Math.min(leftmost, Math.max(rightmost, centred)), y };
 }
+
+/** The empty-level card's room on the canvas, in flow units (AFD-48). */
+export const EMPTY_CARD = { width: 440, height: 240 };
+
+/** Where the card goes: under the level's nodes, centred on them, so it hides none of them. */
+export function belowNodes(bounds: Rect, size = EMPTY_CARD, gap = 32): Rect {
+  return {
+    x: bounds.x + bounds.width / 2 - size.width / 2,
+    y: bounds.y + bounds.height + gap,
+    ...size,
+  };
+}
+
+/** The smallest rectangle around both. */
+export function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+}

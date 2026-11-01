@@ -13,7 +13,8 @@ export type Overlay =
   | 'accept'
   | 'testedReason'
   | 'cheatSheet'
-  | 'preview';
+  | 'preview'
+  | 'find';
 
 /** The closed value of each overlay field. */
 export const CLOSED = {
@@ -27,6 +28,7 @@ export const CLOSED = {
   testedReason: null,
   cheatSheet: false,
   preview: null,
+  find: false,
 } as const satisfies Record<Overlay, null | false>;
 
 /** Opening (or changing) one of these closes the overlays listed. */
@@ -41,6 +43,8 @@ export const CLOSES: Record<Overlay | 'level' | 'mode' | 'details', readonly Ove
   testedReason: ['contextMenu', 'portMenu'],
   cheatSheet: ['contextMenu'],
   preview: [],
+  /** The find bar stays open across levels and modes: it is how one moves between them (AFD-48). */
+  find: ['contextMenu', 'portMenu'],
   /** A node's Details opened from a menu, a lens fix or a drift action (AFD-43). */
   details: ['preview', 'portMenu', 'contextMenu', 'quickAdd'],
   /** Another level: what was open belongs to the level being left. */
@@ -70,6 +74,7 @@ export const ESCAPE_ORDER: readonly Overlay[] = [
   'ignore',
   'accept',
   'testedReason',
+  'find',
   'pick',
 ];
 

@@ -13,10 +13,11 @@ time: the top of the flow, or the inside of one subflow.
   - the **Lens** dropdown;
   - the same actions in every mode: **Run as Skeleton** (with **Run for Real…** and **Launch in
     AWX** under its arrow), **Stop**, **Generate Code**, **Export** ▾, and a "…" menu with _Tidy
-    Up_, _Open in Text Editor_, _Check Flow_, _Keyboard Shortcuts_ and _User Guide_. What cannot
-    run now is greyed out; its tooltip says why.
-- **Palette** (left, Design mode): node types and failure patterns, and a legend of port and wire
-  styles. Code and Run modes read the graph, so the palette folds away there.
+    Up_, _Open in Text Editor_, _Check Flow_, _Find Node…_, the panel switches, _Keyboard
+    Shortcuts_ and _User Guide_. What cannot run now is greyed out; its tooltip says why.
+- **Palette** (left, Design mode): node types and failure patterns; **? Legend** shows what the port
+  and wire styles mean. The arrow at its top folds it to icons for a wider canvas. Code and Run
+  modes read the graph, so the palette folds away there.
 - **Canvas** (middle): nodes, ports and wires.
 - **Messages** (bottom of the canvas): what **Generate Code**, **Check Flow**, **Tidy Up**, copy and
   paste came to. They close by themselves (errors stay longer); × closes one now. **Saving…** shows
@@ -25,7 +26,18 @@ time: the top of the flow, or the inside of one subflow.
   is selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs,
   Ports, Execution; Code and Run modes add theirs); or the selection panel for several nodes. Drag
   its left edge to resize it (or focus the edge and use the arrow keys); **Expand** in the Details
-  widens it for the catalog docs.
+  widens it for the catalog docs. Double-click the edge (or press Enter on it), or "…" › _Hide Side
+  Panel_, to fold it to a strip; its button brings it back.
+- A level with only Start and End shows a card to begin: **Add a Step** (between Start and End), or
+  a flow from playbooks, an AWX workflow or a sample.
+
+## Find a node
+
+**Ctrl+F** (or "…" › _Find Node…_, or right-click the canvas) opens a box at the top right of the
+canvas. It searches every level by title, key or binding (a module, role or playbook); each result
+says which subflows it is in. The arrow keys move through the results and **Enter** shows one,
+opening its subflow; the box stays open for the next one. **Esc** closes it and leaves the node
+selected.
 
 ## Nodes
 
@@ -95,6 +107,7 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Alt+↑                    | Back to the parent level                                |
 | Alt+1 / Alt+2 / Alt+3    | Design / Code / Run mode                                |
 | Ctrl+A                   | Select every node of the level                          |
+| Ctrl+F                   | Find a node on any level                                |
 | Shift+1                  | Fit the whole level in view                             |
 | Arrow keys               | Nudge the focused node                                  |
 | Esc                      | Close the menu or dialog; else clear the selection      |

@@ -1,0 +1,141 @@
+/* ---------- navigation and onboarding (AFD-48) ---------- */
+
+/* Find: over the canvas's top right corner, above the nodes and the minimap. */
+.afd-find {
+  display: block;
+  width: 340px;
+  max-width: calc(100vw - var(--afd-left-width) - var(--afd-right-width) - 32px);
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  color: var(--vscode-editorWidget-foreground, var(--afd-fg));
+  border: 1px solid var(--vscode-editorWidget-border, var(--afd-border));
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  font-size: var(--afd-fs-12);
+}
+
+.afd-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 8px;
+}
+
+.afd-find-row .afd-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.afd-find-count {
+  white-space: nowrap;
+}
+
+.afd-find-results {
+  max-height: 280px;
+  overflow: auto;
+  border-top: 1px solid var(--afd-border);
+}
+
+.afd-find-results [role="option"] {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.afd-find-results [role="option"]:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+}
+
+.afd-find-results [role="option"].active {
+  background: var(--vscode-list-activeSelectionBackground, rgba(0, 95, 184, 0.2));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+  outline: 1px solid var(--afd-focus);
+  outline-offset: -1px;
+}
+
+.afd-find-title {
+  font-weight: 600;
+}
+
+/* A level with only Start and End: the card under them, in the canvas's coordinates. */
+.afd-empty-level {
+  position: absolute;
+  pointer-events: all;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  background: var(--afd-panel);
+  border: 1px solid var(--afd-border);
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
+  text-align: center;
+}
+
+.afd-empty-level h2 {
+  margin-top: 0;
+}
+
+.afd-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* The palette folded to its icons. */
+.afd-palette-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.afd-left.collapsed {
+  padding: 8px 4px;
+  overflow: visible;
+}
+
+.afd-left.collapsed .afd-palette-head {
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.afd-left.collapsed .afd-palette button {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+/* The legend opens beside the palette, over the canvas. */
+.afd-legend-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+
+.afd-left.collapsed .afd-legend-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.afd-legend-popover {
+  position: absolute;
+  left: calc(100% + 12px);
+  bottom: 0;
+  width: 240px;
+  padding: 8px 10px;
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  border: 1px solid var(--vscode-editorWidget-border, var(--afd-border));
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  z-index: 60;
+}
+
+/* The side panel folded to a strip with its Show button. */
+.afd-right.collapsed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  overflow: hidden;
+}
+
+/* The key hint on the primary button takes the button's text colour. */
+.afd-empty-actions kbd {
+  margin-left: 8px;
+  color: inherit;
+  opacity: 0.85;
+}

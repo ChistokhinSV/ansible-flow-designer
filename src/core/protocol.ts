@@ -198,6 +198,8 @@ export type WebviewMessage =
   | { type: 'validate' }
   /** AFD-22: a page of the user guide (docs/guide), README.md when none. */
   | { type: 'openGuide'; page?: string }
+  /** The empty-flow card (AFD-48): an import or a sample instead of the first step. */
+  | { type: 'startFrom'; what: 'playbooks' | 'awx' | 'sample' }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
   | { type: 'generate' }
