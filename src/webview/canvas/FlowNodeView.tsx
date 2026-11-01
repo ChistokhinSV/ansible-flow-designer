@@ -15,16 +15,17 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react';
 import { Fragment, type MouseEvent, memo, useEffect, useMemo, useRef } from 'react';
-import { keywordHint } from '../../core/flow/keywords';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
+import { subLine } from '../../core/view/nodeFace';
 import { send } from '../bus';
 import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
+import { StatusIcon } from './StatusIcon';
 
 export type FlowNodeData = { view: NodeView };
 export type FlowRFNode = Node<FlowNodeData, 'flow'>;
@@ -41,6 +42,8 @@ const farSelector = (s: ReactFlowState) => s.transform[2] < 0.45;
 export const NEAR_ZOOM = 1.4;
 const nearSelector = (s: ReactFlowState) => s.transform[2] >= NEAR_ZOOM;
 const isWork = (n: FlowNode) => n.type !== 'start' && n.type !== 'end';
+/** Fork and merge nodes are drawn as bars with their title only (AFD-42). */
+const BAR: ReadonlySet<string> = new Set(['parallel', 'join']);
 
 /** Window point next to a port where its menu opens. */
 export function menuAnchor(el: Element, side: PortSide): { x: number; y: number } {
@@ -215,7 +218,7 @@ function SummaryCard({ node }: { node: FlowNode }) {
     // nodrag/nopan: the card is clickable without moving the node or the view.
     <div className="afd-summary-card nodrag nopan" data-summary-card={node.id}>
       <div className="afd-summary-head">
-        <span className={`afd-dot status-${status}`} aria-hidden="true" />
+        <StatusIcon status={status} />
         <strong>{node.title}</strong>
         <span className="muted">
           {TYPE_LABEL[node.type]} · {status}
@@ -251,18 +254,18 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
   const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
   const lens = useUi((s) => s.lens);
-  if (node.type === 'start' || node.type === 'end') {
+  if (node.type === 'start' || node.type === 'end' || BAR.has(node.type)) {
     return (
       <>
         <span className="afd-node-title">{node.title}</span>
-        <LensChips id={node.id} />
+        {BAR.has(node.type) ? null : <LensChips id={node.id} />}
       </>
     );
   }
   const status = node.status ?? 'draft';
   const head = (
     <div className="afd-node-head">
-      <span className={`afd-dot status-${status}`} aria-hidden="true" />
+      <StatusIcon status={status} />
       <span className="afd-node-title">{node.title}</span>
     </div>
   );
@@ -296,20 +299,13 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
         <CodeLines node={node} />
       </>
     );
-  const sub = [TYPE_LABEL[node.type], status, node.handler, keywordHint(node.impl)]
-    .filter(Boolean)
-    .join(' · ');
+  const sub = subLine(node);
   return (
     <>
       {head}
-      <div className="afd-node-sub">{sub}</div>
-      {node.impl?.ref ? (
-        <div className="afd-chips">
-          <span className="afd-chip mono" title={node.impl.ref}>
-            {node.impl.ref}
-          </span>
-        </div>
-      ) : null}
+      <div className={`afd-node-sub${node.impl?.ref || node.condition ? ' mono' : ''}`} title={sub}>
+        {sub}
+      </div>
     </>
   );
 });

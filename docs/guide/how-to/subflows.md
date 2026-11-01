@@ -6,7 +6,7 @@ phase.
 
 ## Open, navigate, go back
 
-- Double-click a subflow, press **Enter**, or use **Open subflow** (node menu, inspector, summary
+- Double-click a subflow, press **Enter**, or use **Open Subflow** (node menu, inspector, summary
   card).
 - **Back**, the breadcrumb, or **Alt+↑** returns to the parent level.
 - With nothing selected, the right panel describes the subflow you are in (its title, intent,
@@ -38,7 +38,7 @@ parent level.
 ## Extract steps into a subflow
 
 1. Select several connected steps: Ctrl+click, or Shift+drag a box.
-2. **Extract into subflow** in the right panel (or the selection's right-click menu), and give it a
+2. **Extract into Subflow** in the right panel (or the selection's right-click menu), and give it a
    title.
 
 ![Two steps selected for extraction](../images/extract-selection-light.png)

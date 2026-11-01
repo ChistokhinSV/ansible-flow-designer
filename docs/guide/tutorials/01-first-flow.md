@@ -32,7 +32,7 @@ What you see:
 Hosts travel along wires. To put a step between Start and Done:
 
 1. Click the wire's source port, the small square under **Start** (`ok_hosts`).
-2. Choose **Insert node on this wire**.
+2. Choose **Insert Node on This Wire**.
 3. In Quick add, keep **Task**, type `Check NTP` and press Enter.
 
 ![Quick add inserting a task on the wire](../images/quick-add-light.png)
@@ -61,8 +61,8 @@ Handle the three ports:
 
 | Step             | Port           | Choose                                                      | Why                                                   |
 | ---------------- | -------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
-| Check NTP        | `failed_hosts` | **Exclude and report**                                      | a read-only check: take those hosts out and list them |
-| Push NTP servers | `failed_hosts` | **Notify on-call and stop**                                 | the change failed: someone must look                  |
+| Check NTP        | `failed_hosts` | **Exclude and Report**                                      | a read-only check: take those hosts out and list them |
+| Push NTP servers | `failed_hosts` | **Notify On-Call and Stop**                                 | the change failed: someone must look                  |
 | Verify sync      | `failed_hosts` | **Accept with Reason…**, reason "Verification only reports" | the run should fail for them, and that is expected    |
 
 Each choice is **one undo step** (Ctrl+Z). A pattern adds a handler node and an end node, or
@@ -75,10 +75,10 @@ and your Git user name in the flow. The banner is gone when every fail port is h
 Keep the top level readable: "push" and "verify" are one phase.
 
 1. Click **Verify sync**, then Ctrl+click **Push NTP servers**.
-2. In the right panel, under **Extract into subflow**, type the title `Apply baseline` and click
-   **Extract into subflow**.
+2. In the right panel, under **Extract into Subflow**, type the title `Apply baseline` and click
+   **Extract into Subflow**.
 
-![Two selected steps and Extract into subflow](../images/extract-selection-light.png)
+![Two selected steps and Extract into Subflow](../images/extract-selection-light.png)
 
 The two steps move into a new **subflow** node, with their IDs and in one undo step. Wires that
 left them become the subflow's exits: hosts that fail in _Push NTP servers_ now leave through the

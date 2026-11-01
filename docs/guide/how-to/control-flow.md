@@ -34,7 +34,7 @@ An approval lets a person decide: `approved`, `rejected`, and optionally `timeou
   ([approvals](approvals.md)).
 - **In local runs** they approve by themselves, unless you choose another outcome with
   `afd_approvals`.
-- **Escalate approval** (a pattern on `rejected` or `timeout`) adds a second approver.
+- **Escalate Approval** (a pattern on `rejected` or `timeout`) adds a second approver.
 
 ## End
 

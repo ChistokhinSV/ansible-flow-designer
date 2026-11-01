@@ -22,25 +22,42 @@
   gap: 2px;
 }
 
-/* Lifecycle (04 §2): draft = dashed gray, specified = light purple, implemented = light green. */
-.afd-node.status-draft {
-  border-style: dashed;
+/*
+ * Status (AFD-42): one cue, a stripe on the left and the icon in the head. Fills belong to the run
+ * and lens overlays; the border tells the type.
+ */
+.afd-node {
+  --afd-status-color: var(--afd-neutral);
+  padding-left: 14px;
 }
 
-.afd-node.status-specified {
-  background: var(--afd-fill-specified);
-  border-color: var(--afd-approval);
+.afd-node::before {
+  content: "";
+  position: absolute;
+  left: -1.5px;
+  top: -1.5px;
+  bottom: -1.5px;
+  width: 5px;
+  border-radius: 6px 0 0 6px;
+  background: var(--afd-status-color);
 }
 
-.afd-node.status-implemented {
-  background: var(--afd-fill-implemented);
-  border-color: var(--afd-ok);
+.afd-node.status-specified,
+.afd-status-icon.status-specified {
+  --afd-status-color: var(--afd-approval);
 }
 
-.afd-node.status-tested {
-  background: var(--afd-fill-tested);
-  border-color: var(--afd-ok);
-  border-width: 2px;
+.afd-node.status-implemented,
+.afd-node.status-tested,
+.afd-status-icon.status-implemented,
+.afd-status-icon.status-tested {
+  --afd-status-color: var(--afd-ok);
+}
+
+.afd-status-icon {
+  flex: none;
+  font-size: var(--afd-fs-14);
+  color: var(--afd-status-color, var(--afd-neutral));
 }
 
 /* Type shapes. */
@@ -49,18 +66,56 @@
   border-width: 4px;
 }
 
+/* A choice: the head is a band in the decision (or approval) colour. */
+.afd-node.type-decision,
+.afd-node.type-approval {
+  justify-content: flex-start;
+  padding-top: 0;
+}
+
 .afd-node.type-decision {
-  background: var(--afd-fill-decision);
   border-color: var(--afd-decision);
 }
 
 .afd-node.type-approval {
-  background: var(--afd-fill-approval);
   border-color: var(--afd-approval);
 }
 
+.afd-node.type-decision .afd-node-head,
+.afd-node.type-approval .afd-node-head {
+  margin: 0 -10px 4px -14px;
+  padding: 5px 10px 5px 14px;
+  border-radius: 5px 5px 0 0;
+}
+
+.afd-node.type-decision .afd-node-head {
+  background: var(--afd-fill-decision);
+}
+
+.afd-node.type-approval .afd-node-head {
+  background: var(--afd-fill-approval);
+}
+
+/* Fork and merge: a bar the branches leave from or meet at (AFD-42). */
+.afd-node.type-parallel,
+.afd-node.type-join {
+  padding: 0 10px;
+  border-radius: 4px;
+  border-color: var(--afd-fg);
+  background: var(--afd-fg);
+  color: var(--afd-bg);
+  align-items: center;
+}
+
+.afd-node.type-parallel::before,
+.afd-node.type-join::before,
+.afd-node.type-start::before,
+.afd-node.type-end::before,
+.afd-node.run-mode::before {
+  display: none;
+}
+
 .afd-node.handler {
-  background: var(--afd-fill-handler);
   border-color: var(--afd-unreachable);
 }
 
@@ -70,11 +125,12 @@
   border-style: solid;
   align-items: center;
   font-weight: 600;
+  padding-left: 10px;
 }
 
 .afd-node.type-end.outcome-failed {
-  background: var(--afd-fill-failed-end);
   border-color: var(--afd-failed);
+  border-width: 2px;
 }
 
 .afd-node.selected {
@@ -110,21 +166,15 @@
   min-width: 0;
 }
 
-.afd-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-  border: 1.5px solid var(--afd-neutral);
+/* The minimap of a large level (AFD-42): the editor's widget colours, a frame, nothing opaque. */
+.react-flow {
+  --afd-minimap-bg: var(--vscode-editorWidget-background, var(--afd-bg));
+  --afd-minimap-mask: rgba(128, 128, 128, 0.18);
+  --afd-minimap-node: var(--afd-neutral);
 }
 
-.afd-dot.status-specified {
-  background: var(--afd-approval);
-  border-color: var(--afd-approval);
-}
-
-.afd-dot.status-implemented,
-.afd-dot.status-tested {
-  background: var(--afd-ok);
-  border-color: var(--afd-ok);
+.react-flow__minimap.afd-minimap {
+  border: 1px solid var(--vscode-widget-border, var(--afd-neutral));
+  border-radius: 4px;
+  opacity: 0.92;
 }

@@ -16,7 +16,7 @@
    (each state also has its own shape or text), and focus uses the system highlight. */
 @media (forced-colors: active) {
   .afd-port,
-  .afd-dot,
+  .afd-node::before,
   .afd-swatch {
     forced-color-adjust: none;
   }

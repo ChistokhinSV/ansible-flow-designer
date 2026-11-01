@@ -17,15 +17,15 @@ The rest of this page is the complete feature reference.
 ## What the designer does
 
 - `*.flow.yaml` opens in the **Ansible Flow Designer** custom editor; _Open in Text Editor_ (editor title bar) shows the YAML. Both views edit the same document, so save, dirty state, undo/redo, Git diff and hot exit are VS Code's own.
-- **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel, join, start, end) and lifecycle status (draft, specified, implemented, tested); ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths; far zoom shows titles only.
+- **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel and join as fork and merge bars, start, end), with their status (draft, specified, implemented, tested) as a stripe and an icon, and the module or role they run under the title; ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths, labelled when they leave the normal path (AFD-42); far zoom shows titles only. A level opens readable (titles at least 11 px): whole when it fits, else fitted to its width at the top, with a minimap while part of it is out of view. `afd.canvas.direction` (TB or LR) sets the auto-layout direction.
 - **Editing:** drag to move, drag from a port to another node to wire it, release on empty canvas to add a node there (Quick add), Delete/Backspace to remove (a whole selection is one undo step), palette click or drag to add. The inspector edits title, key, intent, status, contract (inputs and outputs), optional ports and type-specific fields. The flow panel edits name, key, goal, owner and flow inputs and shows readiness counters.
 - **Every canvas action is one minimal text edit** made by the extension host with a byte-preserving YAML engine: comments, quoting and formatting outside the edited lines never change, and one Ctrl+Z undoes one action.
 - **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner. The schema is also registered with the Red Hat YAML extension for `*.flow.yaml` (`contributes.yamlValidation`), so _Open in Text Editor_ gets completion and validation from it, and SchemaStore's unrelated Estuary Flow schema, which claims the same file pattern, no longer applies.
 - **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy Up_. New flows start without positions; nodes added without one (by an AI agent, say) go where the auto-layout puts them next to the placed nodes (AFD-23).
 - **`flow.version`** is bumped once per commit on save when the semantic content changed (compared with Git HEAD), never for layout-only changes.
 - **Ports appear when needed (M2):** at rest a node shows only wired ports, open fail ports (amber) and ports left open on purpose (gray). Hovering or selecting a node shows every port its type supports, with names; dragging a wire shows every input.
-- **Port menus (M2):** click any port. An open port offers suggestions for its kind, for example `failed_hosts`: Rollback (existing), Notify on-call and stop, Exclude and report, Retry with backoff, Stop flow, Leave open on purpose. `unreachable` never offers Rollback. A wired port offers Insert node on this wire, Rewire to another node and Disconnect. The inspector lists every port with the same menu and quick fixes for open fail ports.
-- **Failure patterns (M2):** drag Rollback from backup, Notify on-call and stop, Retry with backoff or Exclude and report from the palette onto an open fail port (or a node), or click one with a node selected. The handler node, its end node (reused only when the level has one with the pattern's key, such as `stopped`, `failed` or `excluded`; otherwise a new one, AFD-21) and all wires are created in one undo step.
+- **Port menus (M2):** click any port. An open port offers suggestions for its kind, for example `failed_hosts`: Rollback (existing), Notify On-Call and Stop, Exclude and Report, Retry with Backoff, Stop flow, Leave open on purpose. `unreachable` never offers Rollback. A wired port offers Insert Node on This Wire, Rewire to Another Node and Disconnect. The inspector lists every port with the same menu and quick fixes for open fail ports.
+- **Failure patterns (M2):** drag Rollback from Backup, Notify On-Call and Stop, Retry with Backoff or Exclude and Report from the palette onto an open fail port (or a node), or click one with a node selected. The handler node, its end node (reused only when the level has one with the pattern's key, such as `stopped`, `failed` or `excluded`; otherwise a new one, AFD-21) and all wires are created in one undo step.
 - **Open on purpose (M2):** a reason is required; the decision records your Git user name in the flow's `decisions:` block and silences the warning. Wiring the port later removes the decision in the same edit.
 - **Generated code (M3, ADR-0009):** saving a flow without errors writes `generated/<flow-key>.yml` next to it, plus `generated/<flow-key>.<subflow-key>.yml` per subflow level.
   - Plays come in graph order. Each one is named `[key] Title` and tagged `node_<ULID>`.
@@ -41,10 +41,10 @@ The rest of this page is the complete feature reference.
   - **Restricted Mode (AFD-29):** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync) and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
 - **Syntax check (M3):** _Check Flow_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Right-click menu (AFD-18):** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
-  - **Node:** Open subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify on-call and stop, Accept with Reason…), Add next node…, Cut, Copy, Duplicate, Open in Text Editor, Peek code, Delete.
-  - **Group** (also a right-click on the Shift+drag selection box): Cut, Copy, Duplicate, Extract into subflow…, Delete.
-  - **Wire:** Insert node on this wire, Rewire to another node…, Disconnect. Entry and exit wires of a subflow: Remove entry, Edit reason…, Remove exit.
-  - **Port:** the port menu. **Empty canvas:** Paste here, Add Node Here…, Select all, Tidy Up, Fit view, Up to parent.
+  - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify On-Call and Stop, Accept with Reason…), Add Next Node…, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+  - **Group** (also a right-click on the Shift+drag selection box): Cut, Copy, Duplicate, Extract into Subflow…, Delete.
+  - **Wire:** Insert Node on This Wire, Rewire to Another Node…, Disconnect. Entry and exit wires of a subflow: Remove Entry, Edit Reason…, Remove Exit.
+  - **Port:** the port menu. **Empty canvas:** Paste Here, Add Node Here…, Select All, Tidy Up, Fit View, Up to Parent.
   - Code mode offers the same edits as Design (except Rename and Extract, whose panels are Design's). Run mode only reads.
   - Shift+F10 or the Menu key opens the menu for the selection.
 - **Keyboard shortcuts (AFD-18):** press `?` for the list (also in the top bar's "…" menu). Ctrl stands for ⌘ on macOS.
@@ -65,16 +65,16 @@ The rest of this page is the complete feature reference.
   - **Images:** SVG, or PNG at twice the size, of the open level, the top level or every level. They are always light, and they embed the draw.io diagram (`.drawio.svg`, `.drawio.png`).
   - The flow stays the source: export again after a change ([how-to](docs/guide/how-to/export.md)).
 - **Copy and paste nodes (AFD-17):** select one or more nodes and press Ctrl+C (Cmd+C), or use _Copy_ in the inspector or the selection panel, or _Ansible Flow: Copy Nodes_. The clipboard holds plain YAML: the nodes with their inner levels, the wires between them, their layout and their open-on-purpose decisions. Press Ctrl+V on any flow canvas (or _Ansible Flow: Paste Nodes_) to paste them on the open level, at the pointer, in one undo step. Or paste the text into any text file and keep it as a snippet.
-  - In the right-click menu, _Copy_ takes the node you right-clicked (a selected group stays selected), and _Paste here_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
+  - In the right-click menu, _Copy_ takes the node you right-clicked (a selected group stays selected), and _Paste Here_ puts the nodes where you right-clicked. From the Edit menu or the palette, they go to your last click on the canvas.
   - Every pasted node, inner node and wire gets a new ID. A key the level already has gets `-2`, `-3`, …, and `from:` references between the pasted nodes follow it. References to nodes that were not copied stay as written.
   - Status `tested` becomes `implemented`: the copy has not run here. Wires to nodes that were not copied are dropped. Start nodes are not pasted.
   - Pasted into a subflow without inner steps, the first pasted node becomes its entry.
   - A snippet written by hand pastes too: one node, a list of nodes, or a `nodes:` mapping, for example `- {type: task, title: Check NTP}`.
-- **Extract into subflow (AFD-7):** Ctrl/Cmd+click or Shift+drag several connected nodes, then _Extract into subflow_ in the right panel. The nodes and the wires between them move into a new subflow with their IDs, in one undo step.
+- **Extract into Subflow (AFD-7):** Ctrl/Cmd+click or Shift+drag several connected nodes, then _Extract into Subflow_ in the right panel. The nodes and the wires between them move into a new subflow with their IDs, in one undo step.
   - Wires in must reach one node; wires out leave through the subflow's ports.
   - Outputs read outside become subflow outputs, and those references are rewritten.
   - It works inside subflows too.
-- **Subflows (M4, ADR-0010):** double-click a subflow (or press Enter, or use _Open subflow_) to open its inner steps.
+- **Subflows (M4, ADR-0010):** double-click a subflow (or press Enter, or use _Open Subflow_) to open its inner steps.
   - The view shows a _Back_ button, a breadcrumb and chips for the context it inherits (inventory target, credential, EE, become, serial).
   - A dashed **boundary frame** carries the subflow's ports: `in` on top, outcomes below, problems on the right.
   - Drag from the frame's `in` to a step to make it the entry. Drag from an inner port to a frame port to make it an exit; an optional port is enabled on the subflow when needed.
@@ -84,7 +84,7 @@ The rest of this page is the complete feature reference.
   - The validator reports a missing entry, outer ports no inner step feeds, and inner outcomes that lead nowhere.
 - **Preview card (M4, D-22):** pause about 400 ms on a subflow or a bound node.
   - The card shows its binding and status, the inner steps in order with their exits and last-run results, the undo binding and the settings.
-  - _Peek code_ opens the generated play; _Open subflow_ drills in.
+  - _Peek Code_ opens the generated play; _Open Subflow_ drills in.
 - **Node details and binding (M5, ADR-0011):** the gear in the inspector (or _Bind Module, Role or Playbook…_) opens the Details page over the canvas with the tabs General, Binding, Inputs and outputs, Ports and Execution.
   - **Find:** Module, Role or Playbook. Module search runs over the environment's catalog, starting from the node's intent. Results are ranked by the words, ansible.builtin, the collections the repository uses and the inventory's platform (`ansible_network_os`), and carry badges: in EE, check mode, diff, read-only, other platform (dimmed), deprecated. Roles come from `roles_path` with their `meta/argument_specs.yml`; playbooks from the repository.
   - **Understand:** the module's docs as text, its parameter table, the returns (click one to make it a node output) and an example; a role's entry points and argument spec; a playbook's plays and the hosts they target.
@@ -132,7 +132,7 @@ The rest of this page is the complete feature reference.
   - **Access** shows credentials, the inventory's connection user, become and vaulted variables (by name and file:line, never the value). Findings: a credential unlike the one its neighbours share, become alone, node credentials outside AWX.
   - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
   - _Accept with Reason…_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
-- **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show the status dot and two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open subflow, Properties and Peek code.
+- **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show their status and what they run, or a lens's two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open Subflow, Details and Peek Code.
 - **Playbook import (AFD-26, ADR-0021):** _Import Ansible Playbooks…_ (Command Palette, or right-click a playbook or folder) turns a playbook, or the playbooks of a folder, into new flows: one step per task, in order, a faithful copy (checked by running both side by side). Plays and imported playbooks become subflows, blocks with rescue/always a subflow with its failure path, roles steps bound to the role (split roles a subflow, one step per task file), handlers steps that run when a notifier changed something. Registered and loaded variables are wired as inputs and outputs; vault values and prompted secrets are imported by name only. _Show notes_ lists what has no one-to-one form.
 - **AI-assisted import (AFD-27):** both import commands offer _With an AI assistant_: the agent designs the flow by intent (subflows by purpose, the same modules and parameters). The command opens Copilot Chat with a ready prompt, or puts it on the clipboard for Claude Code, Codex and others. Agents read the source with `source_outline` (structure, and per task the binding to copy) and can make an exact copy with `flow_import`. For AWX, the extension writes a sanitized export (secrets by name only) for the agent; the token stays in VS Code.
 - **Task keywords (AFD-26):** a binding carries Ansible task keywords (`when`, `loop`, `ignore_errors`, `delegate_to`, …) on the Execution tab, written on the generated task as is and checked like parameters.
@@ -239,7 +239,7 @@ edges:
     to: { node: 01JC5Z8V2B3N4M5P6Q7R8S9T0X, port: in }
 ```
 
-Opened in the designer, `push-ntp` shows an amber `failed_hosts` port and the banner says _1 open fail port_. Click the port and pick _Notify on-call and stop_, and the flow gains (one undo step):
+Opened in the designer, `push-ntp` shows an amber `failed_hosts` port and the banner says _1 open fail port_. Click the port and pick _Notify On-Call and Stop_, and the flow gains (one undo step):
 
 ```yaml
 - id: 01JC5Z9A1B2C3D4E5F6G7H8J9K
@@ -438,7 +438,7 @@ just install
 | `just awx-lab --fixtures`        | Also the M9 import fixture workflows; `--record-import f` records their API answers  |
 | `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
 | `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
-| `just test-extract [version]`    | Extract into subflow inside VS Code (AFD-7)                                          |
+| `just test-extract [version]`    | Extract into Subflow inside VS Code (AFD-7)                                          |
 | `just test-clipboard [version]`  | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards  |
 | `just test-edit [version]`       | One undo step per selection edit inside VS Code (AFD-18)                             |
 | `just test-ai [version]`         | AI assistants inside VS Code: Complete IDs, Copilot tools, setup (AFD-19)            |

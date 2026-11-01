@@ -27,7 +27,7 @@ import type {
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
-import { autoPositions, layoutLevel, shownLayout } from '../node/autoLayout';
+import { autoPositions, type LayoutDirection, layoutLevel, shownLayout } from '../node/autoLayout';
 import { checkBindings } from '../node/catalog/bindingCheck';
 import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
@@ -238,13 +238,15 @@ export class FlowSession implements vscode.Disposable {
     level: Parameters<typeof autoPositions>[0],
     layout: Parameters<typeof autoPositions>[1],
   ): Promise<Record<Ulid, Position>> {
+    const direction = layoutDirection();
     const key = JSON.stringify([
+      direction,
       level.nodes.map((n) => [n?.id, n?.type, layout?.[n?.id ?? ''] ?? null]),
       level.edges.map((e) => [e?.from?.node, e?.to?.node]),
     ]);
     const hit = this.layoutCache.get(key);
     if (hit) return hit;
-    const positions = await autoPositions(level, layout);
+    const positions = await autoPositions(level, layout, direction);
     if (this.layoutCache.size > 20) this.layoutCache.clear();
     this.layoutCache.set(key, positions);
     return positions;
@@ -585,7 +587,10 @@ export class FlowSession implements vscode.Disposable {
     if (!snapshot.doc) return { ok: false, error: 'The document does not parse' };
     const level = buildModel(snapshot.doc).levels.get(levelId);
     if (!level) return { ok: false, error: 'No such level' };
-    return this.runCommand({ kind: 'tidyUp', positions: await layoutLevel(level) });
+    return this.runCommand({
+      kind: 'tidyUp',
+      positions: await layoutLevel(level, layoutDirection()),
+    });
   }
 
   /** D-22 "Peek code": the node's play in its generated file; a subflow opens its level file. */
@@ -788,4 +793,11 @@ export class FlowSession implements vscode.Disposable {
 /** No YAML content yet: whitespace or comments only. */
 function isEmptyFile(file: YamlFile): boolean {
   return file.errors.length === 0 && (file.doc.toJS() ?? null) === null;
+}
+
+/** The user's layout direction for unplaced nodes and Tidy Up; never written to the flow (AFD-42). */
+function layoutDirection(): LayoutDirection {
+  return vscode.workspace.getConfiguration('afd.canvas').get<LayoutDirection>('direction') === 'LR'
+    ? 'LR'
+    : 'TB';
 }

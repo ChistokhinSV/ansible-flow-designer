@@ -8,6 +8,7 @@ import {
   canvasMenu,
 } from '../../core/flow/canvasMenu';
 import { type FlowModel, modelOf } from '../../core/flow/model';
+import { FULL_FIT } from '../../core/view/fit';
 import { run } from '../actions';
 import { send } from '../bus';
 import { copySelection } from '../clipboard';
@@ -65,7 +66,7 @@ export function runCanvasAction(
       void runPortItem(action.item, action.ref);
       return;
     case 'addNext':
-      void runPortItem({ kind: 'quickAdd', label: 'Add next node' }, action.from);
+      void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, action.from);
       return;
     case 'cut':
       void cutNodes(action.nodes);
@@ -143,7 +144,7 @@ export function CanvasContextMenu() {
     hasPlay: (id) => !!snapshot.plays?.[id],
   });
   if (entries.length === 0) return null;
-  const fitView = () => void flow.fitView({ padding: 0.15, maxZoom: 1.1 });
+  const fitView = () => void flow.fitView(FULL_FIT);
   const toUi = (e: CanvasMenuEntry): UiMenuEntry => {
     if (e.type === 'separator') return e;
     if (e.type === 'submenu') return { ...e, items: e.items.map(toUi) };

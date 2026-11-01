@@ -69,7 +69,7 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
         </button>
       </section>
       <section className="afd-section">
-        <h3>Extract into subflow</h3>
+        <h3>Extract into Subflow</h3>
         <p className="muted">
           The nodes and the wires between them move into a new subflow, with their IDs. Wires into
           the selection must reach one node; wires out leave through the subflow's ports.

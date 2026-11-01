@@ -6,7 +6,7 @@ Two different needs, set on the step's **Execution** tab (Details page):
 | ----------------------------------------------------------------- | ---------------------------------------------------- |
 | try again when the module fails (a flaky API)                     | **Retries**                                          |
 | ask again and again until a state is reached (a device rebooting) | **Retries**, **Until** and **Delay**                 |
-| run the step again later for the failed hosts, then continue      | the **Retry with backoff** pattern on `failed_hosts` |
+| run the step again later for the failed hosts, then continue      | the **Retry with Backoff** pattern on `failed_hosts` |
 
 ![Retries, Until and Delay](../images/properties-until-light.png)
 
@@ -39,7 +39,7 @@ fails (`failed_hosts`) when it never does.
 - **Timeout** (Execution tab) limits one attempt. With the optional `timeout` port enabled, hosts
   that time out leave through it.
 
-## Retry with backoff (pattern)
+## Retry with Backoff (pattern)
 
 The pattern adds a retry step after `failed_hosts`. It runs the work again for those hosts and
 rejoins the happy path, so the flow shows the retry as a step of its own.

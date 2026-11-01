@@ -12,9 +12,11 @@ function elk(): Promise<InstanceType<typeof ELK>> {
   return engine;
 }
 
+/** Top to bottom (the default) or left to right: the user setting `afd.canvas.direction` (AFD-42). */
+export type LayoutDirection = 'TB' | 'LR';
+
 const OPTIONS = {
   'elk.algorithm': 'layered',
-  'elk.direction': 'DOWN',
   'elk.layered.spacing.nodeNodeBetweenLayers': '56',
   'elk.spacing.nodeNode': '48',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
@@ -22,12 +24,15 @@ const OPTIONS = {
 };
 
 /** Positions for every node of a level. */
-export async function layoutLevel(level: Level): Promise<Record<Ulid, Position>> {
+export async function layoutLevel(
+  level: Level,
+  direction: LayoutDirection = 'TB',
+): Promise<Record<Ulid, Position>> {
   const nodes = level.nodes.filter((n) => n?.id);
   const ids = new Set(nodes.map((n) => n.id));
   const graph = await (await elk()).layout({
     id: level.id,
-    layoutOptions: OPTIONS,
+    layoutOptions: { ...OPTIONS, 'elk.direction': direction === 'LR' ? 'RIGHT' : 'DOWN' },
     children: nodes.map((n) => ({ id: n.id, ...nodeSize(n.type) })),
     edges: level.edges
       .filter((e) => e && ids.has(e.from?.node) && ids.has(e.to?.node))
@@ -59,6 +64,7 @@ export async function layoutAll(doc: FlowDocument): Promise<void> {
 export async function autoPositions(
   level: Level,
   layout: Layout | undefined,
+  direction: LayoutDirection = 'TB',
 ): Promise<Record<Ulid, Position>> {
   const placed = new Map<Ulid, Position>();
   for (const n of level.nodes) {
@@ -67,7 +73,7 @@ export async function autoPositions(
   }
   const missing = level.nodes.filter((n) => n?.id && !placed.has(n.id));
   if (missing.length === 0) return {};
-  const elkAt = await layoutLevel(level);
+  const elkAt = await layoutLevel(level, direction);
   if (placed.size === 0) return elkAt;
 
   const out: Record<Ulid, Position> = {};

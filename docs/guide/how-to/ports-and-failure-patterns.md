@@ -34,11 +34,11 @@ Click a port.
 ![The port menu](../images/port-menu-light.png)
 
 - **An open fail port** offers suggestions for its kind. `failed_hosts`: Rollback, Notify on-call
-  and stop, Exclude and report, Retry with backoff, Stop flow, Connect to another node…, Leave open
+  and stop, Exclude and Report, Retry with Backoff, Stop flow, Connect to Another Node…, Leave open
   on purpose…. `unreachable` never offers Rollback: an unreachable host cannot be rolled back.
-- **A wired port** offers Insert node on this wire, Rewire to another node… and Disconnect.
+- **A wired port** offers Insert Node on This Wire, Rewire to Another Node… and Disconnect.
 - **An optional port** that is off shows, dotted, when you hover or select the node. Its menu
-  starts with **Enable port**; dragging a wire from it enables it too. The inspector lists every
+  starts with **Enable Port**; dragging a wire from it enables it too. The inspector lists every
   port with the same menu.
 
 ## Failure patterns
@@ -47,12 +47,12 @@ A pattern adds a handler node and the wires around it, in one undo step:
 
 | Pattern                       | Adds                                       | Ends at         |
 | ----------------------------- | ------------------------------------------ | --------------- |
-| Rollback from backup          | a Rollback handler (one per level, reused) | `failed`        |
-| Notify on-call and stop       | a notify handler                           | `stopped`       |
-| Exclude and report            | an exclude handler                         | `excluded`      |
-| Retry with backoff            | a retry step that rejoins the happy path   | (the next step) |
+| Rollback from Backup          | a Rollback handler (one per level, reused) | `failed`        |
+| Notify On-Call and Stop       | a notify handler                           | `stopped`       |
+| Exclude and Report            | an exclude handler                         | `excluded`      |
+| Retry with Backoff            | a retry step that rejoins the happy path   | (the next step) |
 | Stop flow                     | nothing but the wire                       | `stopped`       |
-| Escalate approval (approvals) | a second approval                          | `stopped`       |
+| Escalate Approval (approvals) | a second approval                          | `stopped`       |
 
 You can also drag a pattern from the palette onto an open fail port or a node.
 

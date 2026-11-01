@@ -39,7 +39,7 @@ A node's **status** is shown by its dot: draft, specified (has inputs or outputs
   - click or drag a type from the palette;
   - drag from a port and release on empty canvas (Quick add);
   - right-click the canvas → **Add Node Here…**;
-  - or a port's **Insert node on this wire**.
+  - or a port's **Insert Node on This Wire**.
 
   ![Quick add](../images/quick-add-light.png)
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
@@ -59,11 +59,11 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 
 ![The node menu](../images/context-menu-light.png)
 
-- **Node:** Open subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
-  fail port, Add next node…, Cut, Copy, Duplicate, Open in Text Editor, Peek code, Delete.
-- **Selection:** Cut, Copy, Duplicate, Extract into subflow…, Delete.
-- **Wire:** Insert node on this wire, Rewire to another node…, Disconnect.
-- **Empty canvas:** Paste here, Add Node Here…, Select all, Tidy Up, Fit view, Up to parent.
+- **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
+  fail port, Add Next Node…, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Delete.
+- **Wire:** Insert Node on This Wire, Rewire to Another Node…, Disconnect.
+- **Empty canvas:** Paste Here, Add Node Here…, Select All, Tidy Up, Fit View, Up to Parent.
 
 Shift+F10 or the Menu key opens it for the selection. Run mode only reads.
 
@@ -91,11 +91,28 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 The last four are VS Code keybindings, active while the designer has focus: change them in VS
 Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 
+## Nodes and wires
+
+- **Status:** a stripe on the node's left and an icon before its title: an empty circle for draft, a
+  filled one for specified, a check for implemented, a seal for tested.
+- **Under the title:** the module or role the node runs, or its kind while nothing is bound; a
+  decision shows its condition.
+- **Shapes:** subflows have a double border; decisions and approvals a coloured header; parallel
+  and join are bars the branches leave from and meet at.
+- **Wire labels:** a wire that leaves by a failure, a branch, a decision's answer, a timeout,
+  `always` or `unchanged` is labelled with its port; the normal path is not. Hover or select a wire
+  to see its port.
+
 ## Zoom
 
-Zoomed out, nodes show titles only. At normal zoom they show the status and two chips; from 1.4×,
-summary rows. Select a node for a summary card. Pause on a subflow or a bound node for a preview of
-what is inside.
+A level opens readable. When it fits at a zoom where titles are at least 11 px, you see all of it
+(at 100% at most); otherwise it fits its width, starting at the top, and the minimap at the bottom
+left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
+whole level. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for a
+summary card. Pause on a subflow or a bound node for a preview of what is inside.
+
+New nodes without a position, and **Tidy Up**, follow the setting `afd.canvas.direction`: top to
+bottom (`TB`, the default) or left to right (`LR`). It is yours, not the flow's.
 
 ## Text and the designer
 

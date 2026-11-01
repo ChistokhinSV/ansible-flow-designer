@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.25.0",
+  "version": "0.25.1",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -288,6 +288,19 @@
           "default": true,
           "scope": "resource",
           "markdownDescription": "Write generated code to `generated/` next to the flow whenever a flow without errors is saved. Files edited by hand are never overwritten without asking."
+        },
+        "afd.canvas.direction": {
+          "type": "string",
+          "enum": [
+            "TB",
+            "LR"
+          ],
+          "default": "TB",
+          "enumDescriptions": [
+            "Top to bottom",
+            "Left to right"
+          ],
+          "markdownDescription": "Direction of the automatic layout: where nodes without a stored position appear, and how **Tidy Up** lays out a level. A setting of yours, never written to the flow file."
         },
         "afd.environment.kind": {
           "type": "string",
@@ -2207,7 +2220,7 @@
           {
             "id": "add-steps",
             "title": "Add steps",
-            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add Node Here…**. To put a step between two nodes, click the wire's port and choose **Insert node on this wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.help.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
+            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add Node Here…**. To put a step between two nodes, click the wire's port and choose **Insert Node on This Wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.help.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/quick-add-light.png",
@@ -2241,7 +2254,7 @@
           {
             "id": "subflow",
             "title": "Go top-down with subflows",
-            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into subflow**.\n[How-to: subflows](command:afd.help.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
+            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into Subflow**.\n[How-to: subflows](command:afd.help.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/subflow-level-light.png",

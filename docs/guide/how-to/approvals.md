@@ -38,5 +38,5 @@ ansible-playbook -i inventories/lab/hosts.yml generated/firewall-upgrade.yml -e 
 
 ## Patterns for approvals
 
-On `rejected` or `timeout`: **Stop flow**, **Notify on-call and stop** (it notifies the
-requester), or **Escalate approval** (a second approver whose `approved` rejoins the flow).
+On `rejected` or `timeout`: **Stop flow**, **Notify On-Call and Stop** (it notifies the
+requester), or **Escalate Approval** (a second approver whose `approved` rejoins the flow).

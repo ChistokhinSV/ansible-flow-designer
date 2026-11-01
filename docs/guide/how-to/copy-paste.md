@@ -18,7 +18,7 @@ The clipboard holds:
 ## Paste
 
 Press **Ctrl+V** on any flow's canvas, or run **Ansible Flow: Paste Nodes**. The nodes land on the
-open level, at the pointer, in one undo step. _Paste here_ in the right-click menu puts them where
+open level, at the pointer, in one undo step. _Paste Here_ in the right-click menu puts them where
 you clicked.
 
 - Every pasted node, inner node and wire gets a new ID.

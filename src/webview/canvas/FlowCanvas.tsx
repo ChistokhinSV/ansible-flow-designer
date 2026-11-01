@@ -12,10 +12,13 @@ import {
   type Edge,
   type EdgeChange,
   type FinalConnectionState,
+  getNodesBounds,
   MarkerType,
+  MiniMap,
   type NodeChange,
   ReactFlow,
   useReactFlow,
+  useStore,
   type Viewport,
 } from '@xyflow/react';
 import {
@@ -34,6 +37,8 @@ import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
+import { FULL_FIT, readableViewport } from '../../core/view/fit';
+import { labelledAtRest } from '../../core/view/nodeFace';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
 import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
@@ -70,7 +75,11 @@ function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
   };
 }
 
-/** `cull` skips off-screen nodes (07 §6); tests turn it off since jsdom has no layout. */
+/**
+ * `cull` skips off-screen nodes (07 §6); tests turn it off since jsdom has no layout. In test mode
+ * (VS Code's integration tests, the harness) every node is drawn: levels now open at a readable
+ * zoom with part of a large level off screen (AFD-42), and the checks read every node and port.
+ */
 const hostCount = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
 
 export function FlowCanvas({ cull = true }: { cull?: boolean }) {
@@ -88,7 +97,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const level = useUi((s) => s.level);
   const setLevel = useUi((s) => s.setLevel);
   const [connecting, setConnecting] = useState(false);
-  const { screenToFlowPosition } = useReactFlow();
+  const testMode = useUi((s) => s.testMode);
+  const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+  const shows = useCallback(
+    (id: string, port: string) => labelledAtRest(port) || id === hoverEdge || id === selection.edge,
+    [hoverEdge, selection.edge],
+  );
+  const { screenToFlowPosition, setViewport } = useReactFlow();
+  const paneWidth = useStore((s) => s.width);
+  const paneHeight = useStore((s) => s.height);
   // Run mode (04 §10): wires show how many hosts took them; the graph is read-only there.
   const runMode = useUi((s) => s.mode === 'run');
   // Written by hand without IDs (AFD-19): shown, not edited, until Complete IDs.
@@ -100,6 +117,23 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const dataLens = useUi((s) => s.lens === 'data');
 
   const view = useLevelView();
+  // AFD-42: the minimap shows while part of the level is out of view.
+  const contentBounds = useMemo(
+    () => (view.nodes.length ? getNodesBounds(view.nodes.map((v) => toRfNode(v, false))) : null),
+    [view.nodes],
+  );
+  const partly = useStore((s) => {
+    if (!contentBounds || s.width <= 0) return false;
+    const [x, y, zoom] = s.transform;
+    const left = contentBounds.x * zoom + x;
+    const top = contentBounds.y * zoom + y;
+    return (
+      left < 0 ||
+      top < 0 ||
+      left + contentBounds.width * zoom > s.width ||
+      top + contentBounds.height * zoom > s.height
+    );
+  });
   const boundary = useMemo(
     () => (snapshot ? boundaryView(snapshot, view, level) : undefined),
     [snapshot, view, level],
@@ -165,7 +199,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'smoothstep',
-        label: ran ? hostCount(hostsOn(ran, e).length) : (lensWires?.[e.id] ?? e.sourcePort),
+        label: ran
+          ? hostCount(hostsOn(ran, e).length)
+          : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
         className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
           ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
         }${dataLens ? ' lens-control' : ''}`,
@@ -176,7 +212,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selected: selection.edge === e.id,
         deletable: !runMode,
       })),
-    [view.edges, selection.edge, ran, runMode, hostsOn, lensWires, dataLens],
+    [view.edges, selection.edge, ran, runMode, hostsOn, lensWires, dataLens, shows],
   );
   const dataEdges = useMemo<Edge[]>(() => {
     if (!dataLens || !dataWires) return [];
@@ -210,7 +246,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'smoothstep',
-        label: e.label,
+        label:
+          e.kind === 'exit' && (e.exit?.reason || labelledAtRest(e.exit?.port ?? 'ok_hosts'))
+            ? e.label
+            : shows(e.id, 'in')
+              ? e.label
+              : undefined,
         className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -220,7 +261,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         deletable: true,
       })),
     ],
-    [edges, dataEdges, boundary, selection.edge],
+    [edges, dataEdges, boundary, selection.edge, shows],
   );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one
@@ -411,6 +452,26 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const saved = useMemo(() => loadState<SavedState>(), []);
   const savedViewport = saved.viewports?.[level] ?? (level === ROOT ? saved.viewport : undefined);
 
+  // AFD-42: a level opens readable (core/view/fit), once, when its nodes and the measured pane are
+  // known; a viewport the user left there wins. Fit View and the zoom controls still show all.
+  const opened = useRef(!!savedViewport);
+  useEffect(() => {
+    if (opened.current || nodes.length === 0 || paneWidth <= 0 || paneHeight <= 0) return;
+    opened.current = true;
+    const flowNodes = nodes.filter((n) => n.type === 'flow');
+    const top = flowNodes.reduce<CanvasNode | undefined>(
+      (a, n) => (!a || n.position.y < a.position.y ? n : a),
+      undefined,
+    );
+    void setViewport(
+      readableViewport(
+        getNodesBounds(nodes),
+        { width: paneWidth, height: paneHeight },
+        top ? top.position.x + (top.width ?? 0) / 2 : undefined,
+      ),
+    );
+  }, [nodes, paneWidth, paneHeight, setViewport]);
+
   // Enter on a selected subflow opens it (04 §8), unless a field has the focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -441,6 +502,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           select({});
         }
       }}
+      onEdgeMouseEnter={(_e, edge) => setHoverEdge(edge.id)}
+      onEdgeMouseLeave={() => setHoverEdge(null)}
       onNodeDragStop={onNodeDragStop}
       onConnect={onConnect}
       onConnectStart={() => {
@@ -546,16 +609,30 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       nodesDraggable={!runMode && !handWritten}
       // Delete and Backspace are the designer's (keyboard.ts): the selection in one command.
       deleteKeyCode={null}
-      onlyRenderVisibleElements={cull}
+      onlyRenderVisibleElements={cull && !testMode}
       defaultViewport={savedViewport}
-      fitView={!savedViewport}
-      fitViewOptions={{ padding: 0.15, maxZoom: 1.1 }}
+      fitViewOptions={FULL_FIT}
       minZoom={0.2}
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
     >
       <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
       <Controls showInteractive={false} position="bottom-right" />
+      {partly ? (
+        <MiniMap
+          position="bottom-left"
+          pannable
+          zoomable
+          ariaLabel="Mini map of the level"
+          className="afd-minimap"
+          style={{ width: 160, height: 110 }}
+          bgColor="var(--afd-minimap-bg)"
+          maskColor="var(--afd-minimap-mask)"
+          nodeColor={(n) => (n.type === 'boundary' ? 'transparent' : 'var(--afd-minimap-node)')}
+          nodeStrokeColor={(n) => (n.type === 'boundary' ? 'var(--afd-neutral)' : 'transparent')}
+          nodeBorderRadius={4}
+        />
+      ) : null}
     </ReactFlow>
   );
 }

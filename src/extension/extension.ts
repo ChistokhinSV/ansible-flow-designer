@@ -86,6 +86,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         // The loaded catalog describes the old environment (AFD-32).
         host.catalog.environmentChanged();
       }
+      // Unplaced nodes follow the layout direction at once (AFD-42).
+      if (e.affectsConfiguration('afd.canvas.direction'))
+        for (const s of host.sessions.values()) void s.refresh();
     }),
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       supportsMultipleEditorsPerDocument: true,

@@ -3,6 +3,7 @@
 import { SLUG } from '../../core/flow/ids';
 import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
+import { StatusIcon } from '../canvas/StatusIcon';
 import { useEditable } from '../editActions';
 import { useUi } from '../store';
 import { bannerCount, readiness, STATUS_ORDER } from '../viewModel';
@@ -77,7 +78,7 @@ export function FlowDescription() {
         <ul className="afd-readiness">
           {STATUS_ORDER.map((s) => (
             <li key={s}>
-              <span className={`afd-dot status-${s}`} aria-hidden="true" />
+              <StatusIcon status={s} label={false} />
               {s}
               <strong>{ready.counts[s]}</strong>
             </li>

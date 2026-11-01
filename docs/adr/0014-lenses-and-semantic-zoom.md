@@ -75,3 +75,25 @@ Docker Desktop stays off while GNS3 runs, so Docker-backed suites run on the GNS
 - The history holds only runs started from VS Code; jobs started elsewhere in AWX do not count.
 - `inventory_target` was informational until AFD-14; codegen now runs the node's work on it (ADR-0009).
 - The slowest-path estimate assumes every host may take any port and that branches run one after another (decision 16). It errs on the long side.
+
+## Amendment: canvas readability (AFD-42, 2026-11-01)
+
+Improvement program wave 3. The AFD-33 baseline opened large levels at zoom 0.5–0.63, so titles were 6–8 px on screen, and labelled every wire with its port name (88 labels on 88 wires over the four measured flows).
+
+- **Type:** node titles 14 px, sub-lines 12 px (`--afd-font-node-title`, `--afd-font-node-sub`).
+- **Opening view** (`core/view/fit.ts`, `readableViewport`): a level that fits whole at zoom 0.8 or more (titles ≥ 11 px) opens whole, at 100% at most. Otherwise it fits its width, aligned to the top, never below 0.8. A level wider than that centres its top node, without showing empty space past either edge. It runs once, after React Flow has measured the pane; a viewport the user left on the level wins. **Fit View** and the zoom controls still show the whole level (`FULL_FIT`, at 100% at most).
+- **Wire labels** (`core/view/nodeFace.ts`, `labelledAtRest`): wires leaving by `ok_hosts`, `approved` (and entries) have no label at rest; every other port (failures, branches, decisions, timeout, `always`, `unchanged`) keeps its label. Hovering or selecting a wire shows its label. Run mode keeps host counts and lenses keep their wire labels.
+- **Status, once:** a stripe on the node's left and an icon in its head (`StatusIcon`: circle for draft, filled circle for specified, check for implemented, verified for tested); the readiness list uses the same icons. No status fills or dashed draft borders: fills belong to run and lens overlays, borders to types (subflow double, decision, approval, handler). In Run mode the run bar replaces the stripe.
+- **Sub-line** (`subLine`): the bound module or role (monospace), else the kind of node; a decision shows its condition; handler and keyword hints follow.
+- **Shapes:** parallel and join are fork and merge bars 36 px high (`BAR_HEIGHT` in `core/flow/geometry.ts`, also used by ELK); decision and approval have a header band in their colour.
+- **Minimap** (React Flow's `MiniMap`, bottom left, pannable and zoomable) while part of the level is out of view.
+- **Test mode** (VS Code's integration tests and the harness) draws every node: with part of a large level now off screen at the opening zoom, culling (`onlyRenderVisibleElements`) would hide nodes the structural checks read. Production keeps culling.
+- **Direction:** the user setting `afd.canvas.direction` (`TB`, `LR`) drives ELK for unplaced nodes and Tidy Up (`layoutLevel`/`autoPositions` take the direction); it is never written to the flow. MCP and the AI tools lay out top to bottom.
+- **Not done:**
+  - **Near zoom:** `NEAR_ZOOM` stays 1.4, not 1.0. Levels now open at up to 100%, so 1.0 would put every small level in the summary-row view, and three rows do not fit the 76 px node at the new type sizes. The sub-line carries the module, which was the reason to show detail sooner.
+  - **Exports:** draw.io and SVG/PNG keep the status fills of ADR-0020 until they are brought in line.
+
+**Measured** (`just ux-baseline`, 1280×800):
+- every title on screen at the opening zoom is 13.5–14 px;
+- firewall-upgrade's top level opens at 1.0 (was 0.63), the imported "Edge baseline" play at 1.0 (was 0.5);
+- labelled wires at rest went from 88 to 24 (−73%).

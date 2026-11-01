@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.25.1 — AFD-42
+
+- **A readable canvas** (improvement program, wave 3):
+  - **Levels open readable:** whole when titles stay at least 11 px on screen (at 100% at most), else fitted to their width from the top, with a **minimap** while part of the level is out of view. Fit View still shows everything. The firewall sample's top level now opens at 100% instead of 63%.
+  - **Bigger type:** node titles 14 px, the line under them 12 px.
+  - **Fewer labels:** wires on the normal path (`ok_hosts`, `approved`) have no label at rest; failures, branches, decisions, timeouts, `always` and `unchanged` keep theirs. Hover or select a wire to see its port. Over the sample flows, 73% fewer labels.
+  - **Status once:** a stripe and an icon instead of a fill colour and a dashed border; the readiness list uses the same icons.
+  - **The module under the title:** the bound module or role, else the kind of node; a decision shows its condition.
+  - **Shapes:** parallel and join are fork and merge bars; decisions and approvals have a coloured header.
+- **`afd.canvas.direction`** (TB or LR): the direction of the automatic layout for unplaced nodes and Tidy Up, a setting of yours that is never written to the flow.
+
 ## 0.25.0 — AFD-41
 
 - **One word per thing** (improvement program, wave 3): a [glossary](docs/guide/reference/glossary.md) fixes the words the designer, the Command Palette and the guide use, and a test keeps them so.
