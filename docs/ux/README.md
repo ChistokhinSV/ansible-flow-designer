@@ -14,7 +14,12 @@ Nothing here ships in the extension.
   nothing else changed. Its screenshots matched `baseline/` byte for byte except the Data lens shots
   (a few anti-aliased pixels on the dotted data wires, which also differ between two runs), so
   they are not kept.
-- `a11y-checklist.md`: the accessibility checks for each surface, with the baseline result.
+- `wave3/`: after the UI redesign (0.27.3, AFD-41..48): the same screenshot matrix and metrics, and
+  `tasks.md` with the eight tasks counted again. Every node readable where it opens (62 of 62, was
+  50; smallest title 13.2 px, was 6.2), wire labels at rest 24 (was 88, −73%), no overlapping
+  labels (was 2), two labels on a node (was 3), every task doable with the keyboard only.
+- `a11y-checklist.md`: the accessibility checks for each surface, with the baseline and wave 3
+  results.
 
 Regenerate with `just ux-baseline <label>` (the harness in the installed Edge, fixed clock). After
 a UI change, write a new label (for example `just ux-baseline wave3`) and compare it with
