@@ -11,7 +11,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import type { CatalogRequest, HostMessage, Snapshot } from '../../../src/core/protocol';
-import { Properties } from '../../../src/webview/properties/Properties';
+import { Details } from '../../../src/webview/details/Details';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -90,7 +90,9 @@ beforeEach(() => {
   answered = 0;
   useUi.setState({
     snapshot: null,
-    properties: null,
+    detailsTab: 'general',
+    pendingBinding: null,
+    leave: null,
     catalog: { state: 'ready', environment: 'docker: afd-ee:2.19', platforms: ['cisco.ios'] },
   });
   act(() => useUi.getState().setSnapshot(snapshotOf(doc)));
@@ -99,16 +101,18 @@ afterEach(cleanup);
 
 function open(key: string) {
   const id = nodeOf(key).id;
-  act(() => useUi.getState().openProperties(id, 'binding'));
-  render(<Properties node={id} />);
+  act(() => useUi.getState().openDetails(id, 'binding'));
+  render(<Details id={id} />);
   return id;
 }
 
-describe('properties page: Implementation', () => {
+describe('Details: Binding (AFD-43)', () => {
   it('shows the bound module, its docs and the configured parameters with input chips', async () => {
     open('set-boot-variable');
     await answer(catalog);
-    expect(screen.getByRole('dialog', { name: /Set boot variable/ })).toBeTruthy();
+    // AFD-43: the Details panel, docked, on the Binding tab.
+    expect(screen.getByRole('heading', { name: 'Set boot variable' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Binding' }).getAttribute('aria-selected')).toBe('true');
     const understand = screen.getByRole('region', { name: 'Understand' });
     expect(within(understand).getByText('cisco.ios.ios_config', { selector: 'h3' })).toBeTruthy();
     expect(within(understand).getByText(/cisco.ios 9.0.3/)).toBeTruthy();
@@ -119,8 +123,8 @@ describe('properties page: Implementation', () => {
     expect(configure.querySelector('[data-binding-preview]')?.textContent).toContain(
       'save_when: modified',
     );
-    // Nothing changed yet: nothing to save.
-    expect((screen.getByText('Save binding') as HTMLButtonElement).disabled).toBe(true);
+    // Nothing changed yet: nothing to save, no pending bar.
+    expect(screen.queryByText('Save Binding')).toBeNull();
   });
 
   it('stages edits and saves them as one setBinding command', async () => {
@@ -134,7 +138,7 @@ describe('properties page: Implementation', () => {
         name: 'backup_path',
       }),
     );
-    fireEvent.click(screen.getByText('Save binding'));
+    fireEvent.click(screen.getByText('Save Binding'));
     const sent = commands();
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({
@@ -170,7 +174,7 @@ describe('properties page: Implementation', () => {
     );
     fireEvent.mouseDown(within(configure).getByRole('option', { name: /flow.target_image/ }));
     expect(within(configure).getByText('Required parameters set')).toBeTruthy();
-    fireEvent.click(screen.getByText('Save binding'));
+    fireEvent.click(screen.getByText('Save Binding'));
     expect(commands()[0]).toMatchObject({
       kind: 'setBinding',
       id,
@@ -184,11 +188,11 @@ describe('properties page: Implementation', () => {
   });
 });
 
-describe('properties page: Execution (AFD-26)', () => {
+describe('Details: Execution (AFD-26)', () => {
   function openExecution(key: string) {
     const id = nodeOf(key).id;
-    act(() => useUi.getState().openProperties(id, 'execution'));
-    render(<Properties node={id} />);
+    act(() => useUi.getState().openDetails(id, 'execution'));
+    render(<Details id={id} />);
     return id;
   }
 

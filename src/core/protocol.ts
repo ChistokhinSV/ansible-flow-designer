@@ -158,9 +158,9 @@ export type HostMessage =
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number }
   | { type: 'catalogStatus'; status: CatalogStatus }
-  /** Opens a node's properties page (tests and commands). */
+  /** Shows a node's Details on a tab (tests and commands, AFD-43). */
   | {
-      type: 'openProperties';
+      type: 'openDetails';
       node: Ulid;
       tab?: 'general' | 'binding' | 'io' | 'ports' | 'execution';
     }

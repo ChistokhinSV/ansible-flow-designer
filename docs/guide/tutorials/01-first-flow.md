@@ -22,7 +22,7 @@ What you see:
 - the **palette** on the left (node types and failure patterns);
 - the **canvas** in the middle;
 - the **flow panel** on the right (name, goal, inputs) when nothing is selected, or the
-  **inspector** of the selected node.
+  **Details** of the selected node.
 
 > The file is plain YAML. **Open in Text Editor** in the top bar's "…" menu opens it next to the
 > designer; both edit the same document, so undo, save and Git work as usual.
@@ -39,7 +39,7 @@ Hosts travel along wires. To put a step between Start and Done:
 
 Add two more steps the same way, each on the wire after the previous one: `Push NTP servers` and
 `Verify sync`. New nodes go next to where they belong; **Tidy Up** in the top bar's "…" menu lays
-out the whole level again. Select a step to give it an **intent** in the inspector, one sentence on what it
+out the whole level again. Select a step to give it an **intent** in its Details, one sentence on what it
 does. The skeleton run prints it, and AI assistants and catalog searches use it.
 
 Other ways to add a node: click or drag a type from the palette; drag from a port and release on
@@ -93,10 +93,10 @@ Run **Check Flow** (top bar "…" menu). The Problems panel lists what is left, 
 fix. Then save (Ctrl+S).
 
 Saving a flow without errors writes the playbooks next to it: `generated/ntp-baseline.yml` and
-`generated/ntp-baseline.apply-baseline.yml` for the subflow level. Select a node: the inspector
-shows its generated play.
+`generated/ntp-baseline.apply-baseline.yml` for the subflow level. Select a node and use **Peek
+Code** (`</>` in its Details, or the node menu) to see its play in the generated file.
 
-![The inspector with the generated play](../images/inspector-light.png)
+![A node's Details](../images/details-light.png)
 
 > Do not edit files in `generated/`: they are rewritten from the flow. If you edit one anyway,
 > the extension asks before overwriting it. See [generated code](../how-to/code-generation.md).

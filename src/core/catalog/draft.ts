@@ -81,11 +81,14 @@ export function stagedNode(node: FlowNode, d: BindingDraft): FlowNode {
 }
 
 export function isDirty(node: FlowNode, d: BindingDraft): boolean {
+  // Against the draft the node loads as, not the node itself: loading fills in what the file leaves
+  // out (the register name), so an untouched draft is never a change (AFD-43, the leave guard).
+  const was = stagedNode(node, draftOf(node));
   const staged = stagedNode(node, d);
   return (
-    JSON.stringify(staged.impl ?? null) !== JSON.stringify(node.impl ?? null) ||
-    JSON.stringify(staged.inputs ?? null) !== JSON.stringify(node.inputs ?? null) ||
-    JSON.stringify(staged.outputs ?? null) !== JSON.stringify(node.outputs ?? null)
+    JSON.stringify(staged.impl ?? null) !== JSON.stringify(was.impl ?? null) ||
+    JSON.stringify(staged.inputs ?? null) !== JSON.stringify(was.inputs ?? null) ||
+    JSON.stringify(staged.outputs ?? null) !== JSON.stringify(was.outputs ?? null)
   );
 }
 

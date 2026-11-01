@@ -55,7 +55,9 @@ beforeEach(() => {
     sync: { state: 'idle' },
     drift: null,
     ignore: null,
-    properties: null,
+    detailsTab: 'general',
+    pendingBinding: null,
+    leave: null,
     mode: 'code',
     run: null,
   });
@@ -120,10 +122,10 @@ describe('Design vs code panel', () => {
     });
     await ackAll();
     fireEvent.click(within(card(`unbound:${idOf('rollback')}`)).getByText('Bind Role'));
-    expect(useUi.getState().properties).toEqual({
-      node: idOf('rollback'),
-      tab: 'binding',
-      bindKind: 'role',
+    expect(useUi.getState()).toMatchObject({
+      selection: { node: idOf('rollback') },
+      detailsTab: 'binding',
+      bindKind: { node: idOf('rollback'), kind: 'role' },
     });
   });
 

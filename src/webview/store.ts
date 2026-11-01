@@ -67,8 +67,22 @@ let openTimer: ReturnType<typeof setTimeout> | undefined;
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
 let onCard = false;
 
-/** Tabs of the node properties page (mockup 11). */
-export type PropTab = 'general' | 'binding' | 'io' | 'ports' | 'execution';
+/** Tabs of the Details panel (AFD-43); Code and Run modes add their own first. */
+export type PropTab = 'general' | 'binding' | 'io' | 'ports' | 'execution' | 'code' | 'run';
+
+/**
+ * What the user asked for while a staged binding was not saved (AFD-43): it happens once they
+ * choose to save or discard the binding, and not if they keep editing.
+ */
+export type Leave =
+  | { kind: 'select'; selection: Selection }
+  | { kind: 'level'; level: string }
+  | { kind: 'mode'; mode: Mode }
+  | { kind: 'reveal'; node: Ulid }
+  | { kind: 'details'; node: Ulid; tab: PropTab; bindKind?: BindKind };
+
+/** The side panel's width when not expanded, in px (AFD-43). */
+export const PANEL_WIDTH = { min: 260, initial: 340, max: 720 };
 
 /**
  * Design edits the graph; Implementation shows it against the code (M6, mockup 04); Run shows what
@@ -129,8 +143,16 @@ interface UiState {
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
   level: string;
   preview: PreviewState | null;
-  /** The node properties page over the canvas (M5), with its open tab and a kind to bind. */
-  properties: { node: Ulid; tab: PropTab; bindKind?: BindKind } | null;
+  /** The Details panel's tab, kept from node to node (AFD-43). */
+  detailsTab: PropTab;
+  /** A kind to bind first (drift "Bind role"), for one node. */
+  bindKind: { node: Ulid; kind: BindKind } | null;
+  /** The node whose staged binding is not saved: leaving it asks first. */
+  pendingBinding: Ulid | null;
+  leave: Leave | null;
+  /** The side panel: its width, and expanded for the catalog docs. */
+  panelWidth: number;
+  expanded: boolean;
   /** The environment's module catalog (M5). */
   catalog: CatalogStatus;
   mode: Mode;
@@ -169,8 +191,14 @@ interface UiState {
   hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
   /** Pointer on the card keeps it open. */
   holdPreview(on: boolean): void;
-  openProperties(node: Ulid, tab?: PropTab, bindKind?: BindKind): void;
-  closeProperties(): void;
+  /** Selects a node and shows a tab of its Details. */
+  openDetails(node: Ulid, tab?: PropTab, bindKind?: BindKind): void;
+  setDetailsTab(tab: PropTab): void;
+  setPendingBinding(node: Ulid | null): void;
+  /** `go` does what was asked (the binding was saved or discarded); `stay` keeps editing. */
+  resolveLeave(choice: 'go' | 'stay'): void;
+  setPanelWidth(width: number): void;
+  setExpanded(on: boolean): void;
   setCatalog(status: CatalogStatus): void;
   setMode(mode: Mode): void;
   setSync(sync: SyncState): void;
@@ -217,7 +245,12 @@ export const useUi = create<UiState>((set, get) => ({
   runNodes: null,
   level: ROOT,
   preview: null,
-  properties: null,
+  detailsTab: 'general',
+  bindKind: null,
+  pendingBinding: null,
+  leave: null,
+  panelWidth: PANEL_WIDTH.initial,
+  expanded: false,
   catalog: { state: 'idle' },
   mode: 'design',
   sync: { state: 'idle' },
@@ -264,14 +297,18 @@ export const useUi = create<UiState>((set, get) => ({
       ...(lost ? { contextMenu: null } : {}),
       ...(gone(get().pick?.ref) ? { pick: null } : {}),
       ...(get().preview && !ids.has(get().preview?.node ?? '') ? { preview: null } : {}),
-      ...(get().properties && !ids.has(get().properties?.node ?? '') ? { properties: null } : {}),
       drift: driftOf(snapshot, get().sync.scan),
       runNodes: runOf(snapshot, get().run),
       lensView: lensOf(snapshot, get().lens, get().lensFacts, get().run),
     });
   },
   setTestMode: (testMode) => set({ testMode }),
-  select: (selection) => set({ selection }),
+  select(selection) {
+    const pending = get().pendingBinding;
+    if (pending && selection.node !== pending)
+      return void set({ leave: { kind: 'select', selection } });
+    set({ selection });
+  },
   openQuickAdd: (quickAdd) => set({ quickAdd }),
   openPortMenu: (portMenu) => set({ portMenu, ...closing('portMenu') }),
   openContextMenu: (contextMenu) => {
@@ -306,6 +343,7 @@ export const useUi = create<UiState>((set, get) => ({
   setAccept: (accept) => set({ accept }),
   setLevel(level) {
     if (level === get().level) return;
+    if (get().pendingBinding) return void set({ leave: { kind: 'level', level } });
     clearTimeout(openTimer);
     set({ level, selection: {}, ...closing('level') });
   },
@@ -338,20 +376,57 @@ export const useUi = create<UiState>((set, get) => ({
     if (on) clearTimeout(closeTimer);
     else get().hoverNode(null);
   },
-  openProperties(node, tab = 'general', bindKind) {
+  openDetails(node, tab = 'general', bindKind) {
     clearTimeout(openTimer);
-    set({ properties: { node, tab, bindKind }, ...closing('properties') });
+    const pending = get().pendingBinding;
+    if (pending && pending !== node)
+      return void set({ leave: { kind: 'details', node, tab, bindKind } });
+    set({
+      selection: { node },
+      detailsTab: tab,
+      bindKind: bindKind ? { node, kind: bindKind } : null,
+      ...closing('details'),
+    });
   },
+  setDetailsTab: (detailsTab) => set({ detailsTab }),
+  setPendingBinding: (pendingBinding) => set({ pendingBinding }),
+  resolveLeave(choice) {
+    const leave = get().leave;
+    set({ leave: null });
+    if (!leave || choice === 'stay') return;
+    set({ pendingBinding: null });
+    if (leave.kind === 'select') get().select(leave.selection);
+    else if (leave.kind === 'level') get().setLevel(leave.level);
+    else if (leave.kind === 'mode') get().setMode(leave.mode);
+    else if (leave.kind === 'reveal') get().reveal(leave.node);
+    else get().openDetails(leave.node, leave.tab, leave.bindKind);
+  },
+  setPanelWidth: (width) =>
+    set({ panelWidth: Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, width))) }),
+  setExpanded: (expanded) => set({ expanded }),
   setMode(mode) {
-    set({ mode, ...closing('mode') });
+    if (mode === get().mode) return;
+    if (get().pendingBinding) return void set({ leave: { kind: 'mode', mode } });
+    // Code and Run modes open their own tab of the Details; Design leaves theirs.
+    const tab = get().detailsTab;
+    const detailsTab =
+      mode === 'code'
+        ? 'code'
+        : mode === 'run'
+          ? 'run'
+          : tab === 'code' || tab === 'run'
+            ? 'general'
+            : tab;
+    set({ mode, detailsTab, ...closing('mode') });
   },
   setSync(sync) {
     set({ sync, drift: driftOf(get().snapshot, sync.scan) });
   },
   setIgnore: (ignore) => set({ ignore }),
-  closeProperties: () => set({ properties: null }),
   setCatalog: (catalog) => set({ catalog }),
   reveal(node) {
+    const pending = get().pendingBinding;
+    if (pending && pending !== node) return void set({ leave: { kind: 'reveal', node } });
     const doc = get().snapshot?.doc;
     const entry = doc ? modelOf(doc).nodes.get(node) : undefined;
     if (!entry) return;

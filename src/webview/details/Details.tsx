@@ -1,0 +1,274 @@
+// A node's Details (AFD-43): one docked panel instead of the inspector plus a page over the canvas.
+// Tabs: General, Binding (task and subflow), Inputs and outputs, Ports, Execution; Code and Run
+// modes add theirs first. Fields save as you go. The binding is staged: a bar offers Save and
+// Discard, and leaving it unsaved (another node, Escape, another level or mode) asks first.
+import { useEffect, useState } from 'react';
+import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
+import type { FlowNode } from '../../core/flow/types';
+import { run } from '../actions';
+import { send } from '../bus';
+import { StatusIcon } from '../canvas/StatusIcon';
+import { copySelection } from '../clipboard';
+import { TYPE_LABEL } from '../constants';
+import { deleteSelection, useEditable } from '../editActions';
+import { useModel, useNode } from '../hooks';
+import { NodeCodePanel } from '../panels/DriftPanel';
+import { NodeRunPanel } from '../panels/RunPanel';
+import { Implementation } from '../properties/Implementation';
+import { keysOf } from '../shortcuts';
+import { type Mode, type PropTab, useUi } from '../store';
+import { ExecutionSection, GeneralSection, IoSection, PortsSection } from './sections';
+
+const LABEL: Record<PropTab, string> = {
+  code: 'Code',
+  run: 'Run',
+  general: 'General',
+  binding: 'Binding',
+  io: 'Inputs and outputs',
+  ports: 'Ports',
+  execution: 'Execution',
+};
+
+/** The tabs a node has in a mode: the mode's own first, then the design ones it supports. */
+export function detailsTabs(node: FlowNode, mode: Mode): PropTab[] {
+  const bindable = node.type === 'task' || node.type === 'subflow';
+  const designable = node.type !== 'start' && node.type !== 'end';
+  const design: PropTab[] = ['general'];
+  if (bindable) design.push('binding');
+  if (designable) design.push('io');
+  design.push('ports');
+  if (designable) design.push('execution');
+  if (mode === 'code') return ['code', ...design];
+  if (mode === 'run') return ['run', ...design];
+  return design;
+}
+
+export function Details({ id, context }: { id: string; context?: boolean }) {
+  const snapshot = useUi((s) => s.snapshot);
+  const mode = useUi((s) => s.mode);
+  const wanted = useUi((s) => s.detailsTab);
+  const setTab = useUi((s) => s.setDetailsTab);
+  const expanded = useUi((s) => s.expanded);
+  const leave = useUi((s) => s.leave);
+  const bindKind = useUi((s) => (s.bindKind?.node === id ? s.bindKind.kind : undefined));
+  const editable = useEditable();
+  const model = useModel();
+  const entry = useNode(id);
+  const node = entry?.node;
+  // Drift "Bind role" opens on the kind it names when nothing is bound yet.
+  const [draft, setDraft] = useState(() =>
+    node ? { ...draftOf(node), ...(bindKind && !node.impl ? { kind: bindKind } : {}) } : undefined,
+  );
+  const [saving, setSaving] = useState(false);
+  // After a save the document is the truth again: restage from the first snapshot past the save
+  // (the ack can arrive before it).
+  const version = snapshot?.docVersion ?? 0;
+  const [restageAfter, setRestageAfter] = useState<number | null>(null);
+  useEffect(() => {
+    if (restageAfter !== null && version > restageAfter && node) {
+      setDraft(draftOf(node));
+      setRestageAfter(null);
+    }
+  }, [restageAfter, version, node]);
+
+  const bindable = node?.type === 'task' || node?.type === 'subflow';
+  const dirty = !!node && !!draft && bindable && isDirty(node, draft);
+  // The store holds back selection, level and mode changes while this binding is unsaved.
+  useEffect(() => {
+    useUi.getState().setPendingBinding(dirty ? id : null);
+  }, [dirty, id]);
+  useEffect(
+    () => () => {
+      if (useUi.getState().pendingBinding === id) useUi.getState().setPendingBinding(null);
+    },
+    [id],
+  );
+
+  if (!snapshot?.doc || !model || !entry || !node || !draft) return null;
+  const tabs = detailsTabs(node, mode);
+  const tab = tabs.includes(wanted) ? wanted : (tabs[0] as PropTab);
+  const play = snapshot.plays?.[id];
+  const readOnly = !editable || mode === 'run';
+
+  const save = async (): Promise<boolean> => {
+    setSaving(true);
+    const before = version;
+    const ack = await run(bindingCommand(node, draft));
+    setSaving(false);
+    if (ack.ok) setRestageAfter(before);
+    return ack.ok;
+  };
+  const discard = () => setDraft(draftOf(node));
+
+  return (
+    <div className="afd-details" data-details={id} data-inspector={id}>
+      <header className="afd-details-head">
+        <div className="afd-details-name">
+          <StatusIcon status={node.status ?? 'draft'} />
+          <h2>{node.title}</h2>
+        </div>
+        <div className="afd-details-bar">
+          <span className="afd-chip">
+            {TYPE_LABEL[node.type]} · {node.status ?? 'draft'}
+          </span>
+          <div className="afd-details-actions">
+            {play ? (
+              <button
+                type="button"
+                className="icon"
+                title="Peek Code: the node's play in its generated file"
+                aria-label="Peek Code"
+                onClick={() => send({ type: 'peekCode', node: id })}
+              >
+                <span className="codicon codicon-code" aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="icon"
+              title="Open in Text Editor"
+              aria-label="Open in Text Editor"
+              onClick={() => send({ type: 'openText', path: entry.path })}
+            >
+              <span className="codicon codicon-go-to-file" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon"
+              title={`Copy (${keysOf('copy')}): paste on a flow (${keysOf('paste')}) or in a text file`}
+              aria-label="Copy node"
+              onClick={() => copySelection()}
+            >
+              <span className="codicon codicon-copy" aria-hidden="true" />
+            </button>
+            {mode !== 'run' ? (
+              <button
+                type="button"
+                className="icon"
+                title="Delete node"
+                aria-label="Delete node"
+                disabled={!editable}
+                onClick={() => void deleteSelection([id])}
+              >
+                <span className="codicon codicon-trash" aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="icon"
+              title={expanded ? 'Narrow the panel again' : 'Widen the panel (for the catalog docs)'}
+              aria-label={expanded ? 'Collapse the panel' : 'Expand the panel'}
+              aria-pressed={expanded}
+              onClick={() => useUi.getState().setExpanded(!expanded)}
+            >
+              <span
+                className={`codicon codicon-${expanded ? 'screen-normal' : 'screen-full'}`}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </div>
+      </header>
+      {dirty ? (
+        <div className="afd-pending" role="status" data-pending-binding={id}>
+          <span>The binding is not saved.</span>
+          <button type="button" className="secondary" onClick={discard}>
+            Discard
+          </button>
+          <button type="button" disabled={saving} onClick={() => void save()} data-save-binding>
+            Save Binding
+          </button>
+        </div>
+      ) : null}
+      <div className="afd-props-tabs" role="tablist" aria-label="Details">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            id={`afd-tab-${t}`}
+            aria-selected={tab === t}
+            aria-controls="afd-details-panel"
+            className={tab === t ? 'active' : ''}
+            onClick={() => setTab(t)}
+          >
+            {LABEL[t]}
+            {t === 'binding' && dirty ? <span className="afd-dirty" title="Not saved" /> : null}
+          </button>
+        ))}
+      </div>
+      <div
+        className="afd-details-body"
+        role="tabpanel"
+        id="afd-details-panel"
+        aria-labelledby={`afd-tab-${tab}`}
+      >
+        {tab === 'code' ? (
+          <NodeCodePanel id={id} />
+        ) : tab === 'run' ? (
+          <NodeRunPanel id={id} />
+        ) : (
+          <fieldset className="afd-editable" disabled={readOnly}>
+            {tab === 'binding' ? (
+              <Implementation node={node} model={model} draft={draft} setDraft={setDraft} />
+            ) : tab === 'io' ? (
+              <IoSection node={node} />
+            ) : tab === 'ports' ? (
+              <PortsSection id={id} />
+            ) : tab === 'execution' ? (
+              <ExecutionSection node={node} />
+            ) : (
+              <GeneralSection node={node} context={context} />
+            )}
+          </fieldset>
+        )}
+      </div>
+      {leave && dirty ? (
+        <div className="afd-modal-backdrop">
+          <div
+            className="afd-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="afd-leave-title"
+            data-leave-binding
+          >
+            <h2 id="afd-leave-title">Discard the binding change?</h2>
+            <p className="muted">
+              The binding of "{node.title}" has a change that is not saved yet. Leaving now drops
+              it.
+            </p>
+            <div className="afd-modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
+                autoFocus
+                onClick={() => useUi.getState().resolveLeave('stay')}
+              >
+                Keep Editing
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                data-leave-discard
+                onClick={() => {
+                  discard();
+                  useUi.getState().resolveLeave('go');
+                }}
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save().then((ok) => ok && useUi.getState().resolveLeave('go'))}
+              >
+                Save Binding
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

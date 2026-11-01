@@ -3,7 +3,7 @@
 // and an open subflow level describes that subflow.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { CollectionFile } from '../../../src/core/catalog/types';
@@ -14,10 +14,10 @@ import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import type { CatalogRequest, RunView, Snapshot } from '../../../src/core/protocol';
 import { runVerdict } from '../../../src/core/run/view';
 import { App } from '../../../src/webview/App';
+import { Details } from '../../../src/webview/details/Details';
+import { installKeyboard } from '../../../src/webview/keyboard';
 import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
-import { Inspector } from '../../../src/webview/panels/Inspector';
 import { PickBar } from '../../../src/webview/panels/PickBar';
-import { Properties } from '../../../src/webview/properties/Properties';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -81,7 +81,9 @@ beforeEach(() => {
   posted.length = 0;
   useUi.setState({
     snapshot: null,
-    properties: null,
+    detailsTab: 'general',
+    pendingBinding: null,
+    leave: null,
     pick: null,
     decide: null,
     level: ROOT,
@@ -93,55 +95,84 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('Escape (AFD-30)', () => {
-  it('asks before a staged binding is dropped; Keep editing and Discard do what they say', async () => {
-    act(() => useUi.getState().openProperties(task.id, 'binding'));
-    render(<Properties node={task.id} />);
-    // Stage a change on the Implementation tab, once the module's docs arrived: a register name.
+describe('a staged binding is never dropped silently (AFD-30, AFD-43)', () => {
+  let offKeyboard: () => void = () => undefined;
+  beforeEach(() => {
+    offKeyboard = installKeyboard();
+  });
+  afterEach(() => offKeyboard());
+  const other = () => useUi.getState().snapshot?.doc?.nodes.find((n) => n.id !== task.id && n.id);
+
+  it('Escape and another node ask first; Keep Editing and Discard do what they say', async () => {
+    act(() => useUi.getState().openDetails(task.id, 'binding'));
+    render(<Details id={task.id} />);
+    // Stage a change on the Binding tab, once the module's docs arrived: a register name.
     await answerCatalog();
     const register = screen.getByLabelText(/Register result as/) as HTMLInputElement;
     fireEvent.change(register, { target: { value: 'changed_result' } });
-    expect(screen.getByText('Save binding').hasAttribute('disabled')).toBe(false);
+    expect(screen.getByText('The binding is not saved.')).toBeTruthy();
+    expect(useUi.getState().pendingBinding).toBe(task.id);
 
-    fireEvent.keyDown(window, { key: 'Escape' });
+    // Escape would clear the selection: it asks instead.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.getByRole('alertdialog', { name: 'Discard the binding change?' })).toBeTruthy();
-    expect(useUi.getState().properties).not.toBeNull();
-    // Escape again (or Keep editing) goes back to the page, with the change kept.
-    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useUi.getState().selection).toEqual({ node: task.id });
+    // Escape again (or Keep Editing) goes back to the panel, with the change kept.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect((screen.getByLabelText(/Register result as/) as HTMLInputElement).value).toBe(
       'changed_result',
     );
-    fireEvent.keyDown(window, { key: 'Escape' });
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
-    expect(useUi.getState().properties).toBeNull();
+    // Another node asks too; Discard then selects it.
+    const next = other()?.id as string;
+    act(() => useUi.getState().select({ node: next }));
+    expect(useUi.getState().selection).toEqual({ node: task.id });
+    const dialog = screen.getByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
+    expect(useUi.getState().selection).toEqual({ node: next });
+    expect(useUi.getState().pendingBinding).toBeNull();
     expect(commands()).toEqual([]);
   });
 
-  it('closes a page without changes at once', () => {
-    act(() => useUi.getState().openProperties(task.id, 'general'));
-    render(<Properties node={task.id} />);
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(useUi.getState().properties).toBeNull();
+  it('another level and another mode ask first as well', async () => {
+    act(() => useUi.getState().openDetails(task.id, 'binding'));
+    render(<Details id={task.id} />);
+    await answerCatalog();
+    fireEvent.change(screen.getByLabelText(/Register result as/), {
+      target: { value: 'changed_result' },
+    });
+    act(() => useUi.getState().setMode('run'));
+    expect(useUi.getState().mode).toBe('design');
+    expect(useUi.getState().leave).toEqual({ kind: 'mode', mode: 'run' });
+    fireEvent.click(screen.getByRole('button', { name: 'Keep Editing' }));
+    act(() => useUi.getState().setLevel(task.id));
+    expect(useUi.getState().leave).toEqual({ kind: 'level', level: task.id });
   });
 
-  it('reverts a field without committing it, and leaves the page open', () => {
-    act(() => useUi.getState().openProperties(task.id, 'general'));
-    render(<Properties node={task.id} />);
+  it('without a staged binding, Escape clears the selection at once', () => {
+    act(() => useUi.getState().openDetails(task.id, 'general'));
+    render(<Details id={task.id} />);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(useUi.getState().selection).toEqual({});
+  });
+
+  it('Escape in a field reverts it without committing, and keeps the node selected', () => {
+    act(() => useUi.getState().openDetails(task.id, 'general'));
+    render(<Details id={task.id} />);
     const title = screen.getByLabelText('Title') as HTMLInputElement;
     title.focus();
     fireEvent.change(title, { target: { value: 'Something else' } });
     fireEvent.keyDown(title, { key: 'Escape' });
     expect(title.value).toBe(task.title);
     expect(commands()).toEqual([]);
-    expect(useUi.getState().properties).not.toBeNull();
+    expect(useUi.getState().selection).toEqual({ node: task.id });
   });
 });
 
 describe('read-only panels (AFD-30)', () => {
   it('disables the fields while the text does not parse, and enables them again', () => {
     act(() => useUi.getState().setSnapshot(snapshotOf({ stale: true })));
-    render(<Inspector id={task.id} />);
+    render(<Details id={task.id} />);
     // A field is disabled through its fieldset.
     const locked = () => !!screen.getByLabelText('Title').closest('fieldset')?.disabled;
     expect(locked()).toBe(true);
@@ -152,8 +183,8 @@ describe('read-only panels (AFD-30)', () => {
     expect(locked()).toBe(false);
   });
 
-  it('deletes from the inspector through the selection delete (one deleteNodes)', () => {
-    render(<Inspector id={task.id} />);
+  it('deletes from the Details through the selection delete (one deleteNodes)', () => {
+    render(<Details id={task.id} />);
     fireEvent.click(screen.getByRole('button', { name: 'Delete node' }));
     expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [task.id], edges: [] }]);
   });
@@ -177,7 +208,7 @@ describe('inner steps and levels (AFD-30)', () => {
     render(<App />);
     expect(screen.getByRole('complementary', { name: 'Flow description' })).toBeTruthy();
     act(() => useUi.getState().setLevel(subflow.id));
-    const panel = screen.getByRole('complementary', { name: 'Subflow description' });
+    const panel = screen.getByRole('complementary', { name: 'Subflow details' });
     expect(panel.querySelector(`[data-level-context="${subflow.id}"]`)).toBeTruthy();
     expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe(subflow.title);
   });

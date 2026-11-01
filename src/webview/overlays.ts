@@ -1,6 +1,6 @@
 // What is open over the canvas, as one declared policy (AFD-35) instead of resets spread over the
 // store's setters and the keyboard handler. Overlays stack on purpose in places (a reason dialog
-// over the properties page, the pick bar while the canvas stays usable), so the store keeps one
+// over the Details panel, the pick bar while the canvas stays usable), so the store keeps one
 // field per overlay and this table says which ones each opening closes.
 
 export type Overlay =
@@ -12,8 +12,7 @@ export type Overlay =
   | 'ignore'
   | 'accept'
   | 'cheatSheet'
-  | 'preview'
-  | 'properties';
+  | 'preview';
 
 /** The closed value of each overlay field. */
 export const CLOSED = {
@@ -26,11 +25,10 @@ export const CLOSED = {
   accept: null,
   cheatSheet: false,
   preview: null,
-  properties: null,
 } as const satisfies Record<Overlay, null | false>;
 
 /** Opening (or changing) one of these closes the overlays listed. */
-export const CLOSES: Record<Overlay | 'level' | 'mode', readonly Overlay[]> = {
+export const CLOSES: Record<Overlay | 'level' | 'mode' | 'details', readonly Overlay[]> = {
   quickAdd: [],
   portMenu: ['contextMenu'],
   contextMenu: ['portMenu', 'preview'],
@@ -40,7 +38,8 @@ export const CLOSES: Record<Overlay | 'level' | 'mode', readonly Overlay[]> = {
   accept: [],
   cheatSheet: ['contextMenu'],
   preview: [],
-  properties: ['preview', 'portMenu', 'contextMenu', 'quickAdd'],
+  /** A node's Details opened from a menu, a lens fix or a drift action (AFD-43). */
+  details: ['preview', 'portMenu', 'contextMenu', 'quickAdd'],
   /** Another level: what was open belongs to the level being left. */
   level: ['portMenu', 'contextMenu', 'pick', 'quickAdd', 'decide', 'preview'],
   mode: ['portMenu', 'contextMenu', 'pick', 'quickAdd', 'preview'],
@@ -56,8 +55,8 @@ export const HOLDS_POINTER: readonly Overlay[] = [
 ];
 
 /**
- * What Escape closes, innermost first. The properties page is not here: it closes itself, since
- * it may ask about an unsaved binding (AFD-30).
+ * What Escape closes, innermost first; after them it clears the selection, which asks first while a
+ * binding is staged (AFD-30, AFD-43).
  */
 export const ESCAPE_ORDER: readonly Overlay[] = [
   'contextMenu',

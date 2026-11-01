@@ -36,13 +36,13 @@ the Command Palette and these pages are checked against the **Not** column. Back
 
 ## Modes and panels
 
-| Term        | Meaning                                                                             | Not                              |
-| ----------- | ----------------------------------------------------------------------------------- | -------------------------------- |
-| Design mode | drawing the flow: nodes, wires, ports, subflows                                     |                                  |
-| Code mode   | what each step runs and how it stands against the code (drift)                      | `Implementation mode`            |
-| Run mode    | the last run on the canvas, read-only                                               |                                  |
-| Details     | the panel that edits a node: General, Binding, Inputs and outputs, Ports, Execution | `Properties…`, `Open properties` |
-| Binding tab | the Details tab that sets the binding                                               | `Implementation tab`             |
+| Term        | Meaning                                                                                                                               | Not                                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Design mode | drawing the flow: nodes, wires, ports, subflows                                                                                       |                                                                                                               |
+| Code mode   | what each step runs and how it stands against the code (drift)                                                                        | `Implementation mode`                                                                                         |
+| Run mode    | the last run on the canvas, read-only                                                                                                 |                                                                                                               |
+| Details     | the docked panel that edits the selected node: General, Binding, Inputs and outputs, Ports, Execution (Code and Run modes add theirs) | `Properties…`, `Open properties`, `inspector`, `Inspector`, `properties page`, `Details page`, `summary card` |
+| Binding tab | the Details tab that sets the binding                                                                                                 | `Implementation tab`                                                                                          |
 
 ## Actions
 

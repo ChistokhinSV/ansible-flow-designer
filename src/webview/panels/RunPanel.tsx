@@ -196,6 +196,7 @@ export function RunPanel() {
   );
 }
 
+/** The Run tab of a node's Details (AFD-43): each host, the port it left by, its result. */
 export function NodeRunPanel({ id }: { id: Ulid }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
@@ -219,8 +220,6 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
         : nodeHosts(s, id);
   return (
     <div className="afd-panel-body" data-node-run={id}>
-      <h2 className="afd-panel-title">{node.title}</h2>
-      <p className="mono muted">{node.key}</p>
       {!s ? (
         <p className="muted">No run yet.</p>
       ) : r?.state === 'idle' ? (

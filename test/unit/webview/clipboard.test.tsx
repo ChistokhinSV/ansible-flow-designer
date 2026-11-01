@@ -16,7 +16,7 @@ import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { installClipboard, setPastePlace } from '../../../src/webview/clipboard';
-import { Inspector } from '../../../src/webview/panels/Inspector';
+import { Details } from '../../../src/webview/details/Details';
 import { SelectionPanel } from '../../../src/webview/panels/SelectionPanel';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
@@ -112,7 +112,7 @@ describe('copy', () => {
 
   it('the Copy buttons send the text to the host, which writes the clipboard', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
-    render(<Inspector id={id('validate')} />);
+    render(<Details id={id('validate')} />);
     fireEvent.click(screen.getByRole('button', { name: 'Copy node' }));
     cleanup();
     render(<SelectionPanel ids={[id('precheck'), id('validate')]} />);

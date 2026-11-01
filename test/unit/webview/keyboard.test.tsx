@@ -14,10 +14,10 @@ import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { installClipboard } from '../../../src/webview/clipboard';
+import { Details } from '../../../src/webview/details/Details';
 import { deleteSelection } from '../../../src/webview/editActions';
 import { installKeyboard } from '../../../src/webview/keyboard';
 import { CheatSheet } from '../../../src/webview/panels/CheatSheet';
-import { Inspector } from '../../../src/webview/panels/Inspector';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -81,7 +81,9 @@ beforeEach(() => {
     portMenu: null,
     quickAdd: null,
     pick: null,
-    properties: null,
+    detailsTab: 'general',
+    pendingBinding: null,
+    leave: null,
     cheatSheet: false,
     focusRequest: null,
     mode: 'design',
@@ -134,7 +136,7 @@ describe('keyboard', () => {
 
   it('F2 puts the cursor in the inspector Title, text selected', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
-    render(<Inspector id={id('validate')} />);
+    render(<Details id={id('validate')} />);
     act(() => {
       fireEvent.keyDown(document.body, { key: 'F2' });
     });
@@ -156,11 +158,8 @@ describe('keyboard', () => {
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(useUi.getState().selection).toEqual({ node: id('validate') });
     input.remove();
-    // The properties page closes itself; the selection behind it stays.
-    act(() => useUi.getState().openProperties(id('validate')));
-    fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(useUi.getState().selection).toEqual({ node: id('validate') });
-    act(() => useUi.getState().closeProperties());
+    // The Details panel is docked (AFD-43): Escape clears the selection it shows.
+    act(() => useUi.getState().openDetails(id('validate')));
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUi.getState().selection).toEqual({});
   });

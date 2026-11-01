@@ -70,7 +70,7 @@ const SHOTS = {
       await ui(page, 'select', { nodes });
     },
   },
-  inspector: {
+  details: {
     flow: 'firewall-upgrade',
     walk: true,
     act: async (page) => ui(page, 'select', { node: await idOf(page, 'approve') }),
@@ -79,14 +79,16 @@ const SHOTS = {
     flow: 'firewall-upgrade',
     act: async (page) => {
       await ui(page, 'setLevel', await idOf(page, 'rollback'));
-      await ui(page, 'openProperties', await idOf(page, 'rollback/restore'), 'io');
+      await ui(page, 'openDetails', await idOf(page, 'rollback/restore'), 'io');
     },
   },
   'properties-binding': {
     flow: 'firewall-upgrade',
     act: async (page) => {
       await ui(page, 'setLevel', await idOf(page, 'upgrade'));
-      await ui(page, 'openProperties', await idOf(page, 'upgrade/wait-up'), 'binding');
+      await ui(page, 'openDetails', await idOf(page, 'upgrade/wait-up'), 'binding');
+      // Expanded, the Binding tab lays out find, docs and configure side by side (AFD-43).
+      await ui(page, 'setExpanded', true);
       await settle(page);
       const search = page.locator('[data-catalog-search]').first();
       await search.fill('wait for port');
@@ -99,7 +101,7 @@ const SHOTS = {
     flow: 'firewall-upgrade',
     act: async (page) => {
       await ui(page, 'setLevel', await idOf(page, 'upgrade'));
-      await ui(page, 'openProperties', await idOf(page, 'upgrade/wait-up'), 'execution');
+      await ui(page, 'openDetails', await idOf(page, 'upgrade/wait-up'), 'execution');
     },
   },
   'data-lens': {
@@ -156,7 +158,7 @@ const SHOTS = {
       await ui(page, 'setLevel', await idOf(page, 'baseline/edge-baseline/push-the-baseline'));
       await ui(
         page,
-        'openProperties',
+        'openDetails',
         await idOf(page, 'baseline/edge-baseline/push-the-baseline/configure-the-uplinks'),
         'execution',
       );

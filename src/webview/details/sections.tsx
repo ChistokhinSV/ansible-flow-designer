@@ -1,198 +1,69 @@
-// Node inspector (04 §5, mockup 03): identity, lifecycle stepper with the next requirement,
-// contract, every port of the type with its state and resolution actions (the same items as the
-// canvas port menu), the implementation with the play it generates (ADR-0009), and what the last
-// skeleton run sent through each port.
+// The sections of a node's Details (AFD-43): General (identity, lifecycle, what the type adds, the
+// last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
+// save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
+import { useId } from 'react';
+import { registerName } from '../../core/flow/dataNames';
 import { SLUG } from '../../core/flow/ids';
+import { keywordProblem } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
+import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
 import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
+import {
+  EXECUTION_SETTINGS,
+  type SettingKey,
+  settingProblem,
+  settingText,
+  settingValue,
+} from '../../core/view/settings';
 import { run } from '../actions';
-import { send } from '../bus';
-import { copySelection } from '../clipboard';
-import { STATE_LABEL, TYPE_LABEL } from '../constants';
-import { deleteSelection, useEditable } from '../editActions';
-import { useModel, useNode } from '../hooks';
+import { STATE_LABEL } from '../constants';
+import { ContractEditor } from '../panels/ContractEditor';
+import { CommitField, ReadOnly } from '../panels/fields';
 import { runPortItem } from '../portActions';
-import { keysOf } from '../shortcuts';
+import { YamlField } from '../properties/YamlField';
 import { useUi } from '../store';
 import type { PortView } from '../viewModel';
-import { levelView, nextRequirement, STATUS_ORDER, skeletonStub } from '../viewModel';
-import { ContractEditor } from './ContractEditor';
-import { CommitField, ReadOnly } from './fields';
+import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
 
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
 
-/**
- * A node's inspector; `context` when it describes the subflow whose level is open and nothing is
- * selected (AFD-30). Fields are read-only while the flow text cannot take edits.
- */
-export function Inspector({ id, context }: { id: string; context?: boolean }) {
-  const snapshot = useUi((s) => s.snapshot);
-  const editable = useEditable();
-  const model = useModel();
-  const entry = useNode(id);
-  if (!snapshot?.doc || !model || !entry) return null;
-  const node = entry.node;
-  const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
-  const patch = (p: Parameters<typeof updatePatch>[1]) => void updatePatch(id, p);
-  const titleOf = (nid: string) => model.nodes.get(nid)?.node.title ?? nid;
-  const edges = model.levels.get(entry.level)?.edges ?? [];
-  const decisions = snapshot.doc.decisions ?? [];
+/** Identity, lifecycle and what the node's type adds; `context` when its level is the open one. */
+export function GeneralSection({ node, context }: { node: FlowNode; context?: boolean }) {
+  const patch = (p: Record<string, unknown>) => void updatePatch(node.id, p);
   const designable = node.type !== 'start' && node.type !== 'end';
-  const play = snapshot.plays?.[id];
-
   return (
-    <div className="afd-panel-body" data-inspector={id}>
-      <div className="afd-inspector-head">
-        <span className="afd-chip">{TYPE_LABEL[node.type]}</span>
-        <button
-          type="button"
-          className="icon"
-          title="Properties"
-          aria-label="Open Details"
-          onClick={() => useUi.getState().openProperties(id)}
-        >
-          <span className="codicon codicon-settings-gear" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon"
-          title="Open in Text Editor"
-          aria-label="Open in Text Editor"
-          onClick={() => send({ type: 'openText', path: entry.path })}
-        >
-          <span className="codicon codicon-go-to-file" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon"
-          title={`Copy (${keysOf('copy')}): paste on a flow (${keysOf('paste')}) or in a text file`}
-          aria-label="Copy node"
-          onClick={() => copySelection()}
-        >
-          <span className="codicon codicon-copy" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="icon"
-          title="Delete node"
-          aria-label="Delete node"
-          onClick={() => void deleteSelection([id])}
-        >
-          <span className="codicon codicon-trash" aria-hidden="true" />
-        </button>
-      </div>
+    <div className="afd-details-page">
       {context ? (
-        <p className="muted" data-level-context={id}>
+        <p className="muted" data-level-context={node.id}>
           You are inside this subflow. Select a step to edit it; the subflow itself is described
           here.
         </p>
       ) : null}
-      <fieldset className="afd-editable" disabled={!editable}>
+      <CommitField
+        label="Title"
+        focusKey="title"
+        value={node.title}
+        onCommit={(v) => patch({ title: v })}
+        validate={(v) => (v.trim() ? undefined : 'Required')}
+      />
+      <CommitField
+        label="Key"
+        value={node.key}
+        mono
+        onCommit={(v) => patch({ key: v })}
+        validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
+      />
+      {designable ? (
         <CommitField
-          label="Title"
-          focusKey="title"
-          value={node.title}
-          onCommit={(v) => patch({ title: v })}
-          validate={(v) => (v.trim() ? undefined : 'Required')}
+          label="Intent"
+          value={node.intent ?? ''}
+          multiline
+          onCommit={(v) => patch({ intent: v.trim() ? v : null })}
         />
-
-        <section className="afd-section">
-          <h3>Identity</h3>
-          <ReadOnly label="ID (fixed)" value={node.id} mono />
-          <CommitField
-            label="Key"
-            value={node.key}
-            mono
-            onCommit={(v) => patch({ key: v })}
-            validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
-          />
-          {designable ? (
-            <CommitField
-              label="Intent"
-              value={node.intent ?? ''}
-              multiline
-              onCommit={(v) => patch({ intent: v.trim() ? v : null })}
-            />
-          ) : null}
-        </section>
-
-        {designable ? <Lifecycle node={node} onSet={(status) => patch({ status })} /> : null}
-        <TypeFields node={node} patch={patch} />
-
-        {designable ? (
-          <>
-            <ContractEditor
-              title="Inputs"
-              target={id}
-              side="inputs"
-              contract={node.inputs}
-              withFrom
-            />
-            <ContractEditor
-              title="Outputs"
-              target={id}
-              side="outputs"
-              contract={node.outputs}
-              withFrom
-            />
-          </>
-        ) : null}
-
-        <section className="afd-section">
-          <h3>Ports</h3>
-          <ul className="afd-ports">
-            {view?.ports.map((p) => (
-              <PortRow
-                key={p.name}
-                model={model}
-                node={id}
-                port={p}
-                target={titleOf(
-                  edges.find((e) => e?.from?.node === id && e.from.port === p.name)?.to.node ?? '',
-                )}
-                reason={decisions.find((d) => d?.node === id && d.port === p.name)?.reason}
-              />
-            ))}
-          </ul>
-        </section>
-
-        {designable ? (
-          <section className="afd-section">
-            <h3>Binding</h3>
-            {node.impl ? (
-              <p>
-                <span className="afd-chip">{node.impl.kind}</span>{' '}
-                <span className="mono">{node.impl.ref}</span>
-                {node.impl.collection_version ? (
-                  <span className="muted"> {node.impl.collection_version}</span>
-                ) : null}
-              </p>
-            ) : (
-              <p className="muted">
-                Not bound: as a walking skeleton this node runs a TODO message.
-              </p>
-            )}
-            <details className="afd-generated" open={!node.impl}>
-              <summary>Generated play</summary>
-              <pre className="afd-code" data-generated-play={id}>
-                {play ??
-                  (node.type === 'task' || node.type === 'subflow'
-                    ? skeletonStub(node)
-                    : 'Fix the errors in this flow to see the generated code')}
-              </pre>
-            </details>
-            <button
-              type="button"
-              data-bind={id}
-              onClick={() => useUi.getState().openProperties(id, 'binding')}
-            >
-              <span className="codicon codicon-plug" aria-hidden="true" />
-              {node.impl ? 'Change Binding…' : 'Bind Module, Role or Playbook…'}
-            </button>
-          </section>
-        ) : null}
-      </fieldset>
+      ) : null}
+      {designable ? <Lifecycle node={node} onSet={(status) => patch({ status })} /> : null}
+      <TypeFields node={node} patch={patch} />
       {node.type === 'subflow' && !context ? (
         <section className="afd-section">
           <h3>Inner steps</h3>
@@ -201,12 +72,35 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
               ? `${node.subflow.nodes.length} step(s) inside.`
               : 'No inner steps yet: open it and add the first one.'}
           </p>
-          <button type="button" onClick={() => useUi.getState().setLevel(id)}>
+          <button type="button" onClick={() => useUi.getState().setLevel(node.id)}>
             <span className="codicon codicon-arrow-right" aria-hidden="true" /> Open Subflow
           </button>
         </section>
       ) : null}
-      <LastRun id={id} />
+      <ReadOnly label="ID (fixed)" value={node.id} mono />
+      <LastRun id={node.id} />
+    </div>
+  );
+}
+
+/** Inputs and outputs, with where each input comes from. */
+export function IoSection({ node }: { node: FlowNode }) {
+  return (
+    <div className="afd-details-page">
+      <ContractEditor
+        title="Inputs"
+        target={node.id}
+        side="inputs"
+        contract={node.inputs}
+        withFrom
+      />
+      <ContractEditor
+        title="Outputs"
+        target={node.id}
+        side="outputs"
+        contract={node.outputs}
+        withFrom
+      />
     </div>
   );
 }
@@ -411,5 +305,117 @@ export function PortRow({
         </span>
       ) : null}
     </li>
+  );
+}
+
+export function PortsSection({ id }: { id: string }) {
+  const snapshot = useUi((s) => s.snapshot);
+  if (!snapshot?.doc) return null;
+  const model = modelOf(snapshot.doc);
+  const entry = model.nodes.get(id);
+  if (!entry) return null;
+  const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
+  const edges = model.levels.get(entry.level)?.edges ?? [];
+  const decisions = snapshot.doc.decisions ?? [];
+  return (
+    <div className="afd-details-page">
+      <ul className="afd-ports">
+        {view?.ports.map((p) => (
+          <PortRow
+            key={p.name}
+            model={model}
+            node={id}
+            port={p}
+            target={
+              model.nodes.get(
+                edges.find((e) => e?.from?.node === id && e.from.port === p.name)?.to.node ?? '',
+              )?.node.title ?? ''
+            }
+            reason={decisions.find((d) => d?.node === id && d.port === p.name)?.reason}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function ExecutionSection({ node }: { node: FlowNode }) {
+  const set = (key: SettingKey, value: unknown) =>
+    void updatePatch(node.id, { settings: { [key]: value } });
+  const settings = node.settings ?? {};
+  return (
+    <div className="afd-details-page">
+      {EXECUTION_SETTINGS.map((s) => {
+        const value = settings[s.key];
+        if (s.kind === 'bool')
+          return (
+            <label key={s.key} className="afd-check">
+              <input
+                type="checkbox"
+                checked={value === true}
+                onChange={(e) => set(s.key, e.target.checked ? true : null)}
+              />
+              {s.label} <span className="muted">{s.help}</span>
+            </label>
+          );
+        return (
+          <div key={s.key}>
+            <CommitField
+              label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
+              value={settingText(value)}
+              mono
+              validate={(v) => settingProblem(s, v)}
+              onCommit={(v) => set(s.key, settingValue(s, v))}
+            />
+          </div>
+        );
+      })}
+      <TaskKeywords node={node} />
+    </div>
+  );
+}
+
+/**
+ * Ansible task keywords on the binding (AFD-26): when, loop, ignore_errors and the like, written on
+ * the generated task as they are. What the flow models itself is refused with where it goes.
+ */
+function TaskKeywords({ node }: { node: FlowNode }) {
+  const id = useId();
+  const impl = node.impl;
+  if (!impl?.ref) return null;
+  if (impl.kind === 'playbook')
+    return (
+      <p className="muted">
+        Task keywords do not apply to a playbook binding (import_playbook takes none).
+      </p>
+    );
+  return (
+    <div className="afd-field">
+      <label htmlFor={id}>
+        Task keywords ·{' '}
+        <span className="muted">
+          YAML map written on the generated task: when, loop, ignore_errors, changed_when,
+          delegate_to, run_once, no_log...
+        </span>
+      </label>
+      <YamlField
+        // Remount when the file changes underneath (undo, another editor).
+        key={JSON.stringify(impl.keywords ?? null)}
+        id={id}
+        rows={4}
+        value={impl.keywords}
+        placeholder={`when: version_check.stdout is version("17.9", "<")\nloop: "{{ interfaces }}"`}
+        validate={(v) => {
+          if (v === null || v === undefined) return undefined;
+          if (typeof v !== 'object' || Array.isArray(v)) return 'A map of keyword: value';
+          for (const k of Object.keys(v)) {
+            const problem = keywordProblem(k);
+            if (problem) return problem;
+          }
+          return undefined;
+        }}
+        onChange={(v) => void updatePatch(node.id, { keywords: v ?? null })}
+      />
+    </div>
   );
 }

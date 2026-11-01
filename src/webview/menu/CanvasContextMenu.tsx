@@ -54,7 +54,7 @@ export function runCanvasAction(
       ui.setLevel(action.node);
       return;
     case 'properties':
-      ui.openProperties(action.node, action.tab);
+      ui.openDetails(action.node, action.tab);
       return;
     case 'rename':
       rename(action.node);

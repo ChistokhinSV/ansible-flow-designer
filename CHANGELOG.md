@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.0 — AFD-43
+
+- **One Details panel** (improvement program, wave 3): a selected node's Details are docked on the right in every mode, instead of an inspector plus a page over the canvas.
+  - Tabs: General, Binding, Inputs and outputs, Ports, Execution; Code and Run modes add their own tab first. The tab you were on stays when you select another node.
+  - **Fields save as you go.** The binding is staged: a bar says it is not saved, with **Discard** and **Save Binding**, and leaving it (Esc, another node, another level or mode) asks first.
+  - **Resize** the panel by its left edge (or the arrow keys on it); **Expand** widens it so the binding's search, docs and parameters sit side by side. Both are remembered.
+- **Fixed:** a bound task without an explicit register name counted as changed before any edit (Save was enabled at once); an untouched binding is no change now.
+- **Fewer places for the same thing:** the card under a selected node is gone (its facts are in the node's rows from 1.4× zoom); the hover card previews only; generated code is in the Binding tab and **Peek Code** (`</>` in the Details).
+
 ## 0.25.1 — AFD-42
 
 - **A readable canvas** (improvement program, wave 3):

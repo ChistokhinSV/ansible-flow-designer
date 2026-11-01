@@ -1,7 +1,7 @@
 // Hover preview card (D-22, mockup 10): opens after a pause on a subflow or bound node, stays open
-// while the pointer is on the node or the card. Actions: Peek code, Open subflow.
+// while the pointer is on the node or the card; a subflow's card can open it. Generated code is in
+// the Details' Binding tab and Peek Code (AFD-43).
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { send } from '../bus';
 import { previewOf } from '../preview';
 import { useUi } from '../store';
 
@@ -107,16 +107,6 @@ export function PreviewCard() {
         ) : (
           <span />
         )}
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            setPreview(null);
-            send({ type: 'peekCode', node: node.id });
-          }}
-        >
-          Peek Code
-        </button>
         {node.type === 'subflow' ? (
           <button
             type="button"

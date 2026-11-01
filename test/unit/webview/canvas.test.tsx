@@ -12,10 +12,10 @@ import { defaultPortNames, legalPorts } from '../../../src/core/flow/ports';
 import { type FlowDocument, type FlowNode, NODE_TYPES } from '../../../src/core/flow/types';
 import type { Snapshot } from '../../../src/core/protocol';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
+import { Details } from '../../../src/webview/details/Details';
 import { Banner } from '../../../src/webview/panels/Banner';
 import { BoundaryPanel } from '../../../src/webview/panels/BoundaryPanel';
 import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
-import { Inspector } from '../../../src/webview/panels/Inspector';
 import { PortMenu } from '../../../src/webview/panels/PortMenu';
 import { PreviewCard } from '../../../src/webview/panels/PreviewCard';
 import { TopBar } from '../../../src/webview/panels/TopBar';
@@ -289,7 +289,7 @@ describe('port menu and open on purpose (M2)', () => {
 });
 
 describe('generated code and runs (M3)', () => {
-  it('the inspector shows the node play and what the last run sent through each port', () => {
+  it('the Details show what the last run sent through each port; Peek Code opens the play', () => {
     const doc = example('edge-baseline.flow.yaml');
     const node = doc.nodes.find((n) => n.key === 'precheck');
     const preview = codePreview(doc, 'edge-baseline.flow.yaml');
@@ -311,10 +311,11 @@ describe('generated code and runs (M3)', () => {
         },
       }),
     );
-    const { container } = render(<Inspector id={node?.id ?? ''} />);
-    const play = container.querySelector(`[data-generated-play="${node?.id}"]`)?.textContent ?? '';
-    expect(play.startsWith('- name: "[precheck] Pre-checks"')).toBe(true);
-    expect(play).toContain('key: flow_precheck_failed_hosts');
+    const { container } = render(<Details id={node?.id ?? ''} />);
+    // AFD-43: generated code is in two places, the Binding tab's task and Peek Code (the play).
+    posted.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Peek Code' }));
+    expect(posted).toEqual([{ type: 'peekCode', node: node?.id }]);
     const last = container.querySelector(`[data-last-run="${node?.id}"]`);
     expect(last?.textContent).toContain('ok_hosts');
     expect(last?.textContent).toContain('sw-edge-04');
@@ -429,8 +430,8 @@ describe('subflows (M4)', () => {
       const steps = [...document.querySelectorAll('[data-preview-step]')].map((s) => s.textContent);
       expect(steps[0]).toContain('Stage image');
       expect(steps.at(-1)).toContain('→ failed_hosts');
-      fireEvent.click(screen.getByRole('button', { name: 'Peek Code' }));
-      expect(posted).toContainEqual({ type: 'peekCode', node: up });
+      // AFD-43: the card previews; generated code is in the Details and Peek Code.
+      expect(screen.queryByRole('button', { name: 'Peek Code' })).toBeNull();
       expect(hasPreview(OS.nodes.find((n) => n.key === 'notify-on-call') as FlowNode)).toBe(false);
     } finally {
       vi.useRealTimers();

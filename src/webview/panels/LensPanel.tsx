@@ -90,7 +90,7 @@ export function LensBrowser() {
 function Finding({ f }: { f: LensFinding }) {
   const setAccept = useUi((s) => s.setAccept);
   const reveal = useUi((s) => s.reveal);
-  const openProperties = useUi((s) => s.openProperties);
+  const openDetails = useUi((s) => s.openDetails);
   const setError = useUi((s) => s.setError);
   return (
     <li
@@ -141,7 +141,7 @@ function Finding({ f }: { f: LensFinding }) {
                 className="secondary"
                 onClick={() => {
                   reveal(fix.properties);
-                  openProperties(fix.properties);
+                  openDetails(fix.properties);
                 }}
               >
                 {fix.label}

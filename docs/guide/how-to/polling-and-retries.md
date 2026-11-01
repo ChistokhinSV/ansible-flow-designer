@@ -1,6 +1,6 @@
 # Retries and polling
 
-Two different needs, set on the step's **Execution** tab (Details page):
+Two different needs, set on the **Execution** tab of the step's Details:
 
 | You want                                                          | Set                                                  |
 | ----------------------------------------------------------------- | ---------------------------------------------------- |

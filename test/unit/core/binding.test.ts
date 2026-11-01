@@ -1,4 +1,6 @@
 // M5 (AFD-8): binding commands, Jinja chips both ways, and the catalog's repository context.
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { isPlaybook, scanContext } from '../../../src/core/catalog/context';
@@ -67,6 +69,26 @@ describe('Jinja chips', () => {
     expect(renameRef("{{ img }} {{ x.img }} {{ img | default('img') }} img", 'img', 'image')).toBe(
       "{{ image }} {{ x.img }} {{ image | default('img') }} img",
     );
+  });
+});
+
+describe('staged binding (AFD-43)', () => {
+  it('an untouched draft is not a change, for every bound node of every flow file', () => {
+    const root = join(__dirname, '../../..');
+    const files = ['examples', 'samples', 'test/fixtures'].flatMap((d) =>
+      readdirSync(join(root, d), { recursive: true, encoding: 'utf8' })
+        .filter((f) => f.endsWith('.flow.yaml'))
+        .map((f) => join(root, d, f)),
+    );
+    const dirty: string[] = [];
+    for (const file of files) {
+      const doc = parse(readFileSync(file, 'utf8')) as FlowDocument;
+      for (const { node } of buildModel(doc).nodes.values())
+        if ((node.type === 'task' || node.type === 'subflow') && isDirty(node, draftOf(node)))
+          dirty.push(`${file}: ${node.key}`);
+    }
+    expect(files.length).toBeGreaterThan(10);
+    expect(dirty).toEqual([]);
   });
 });
 

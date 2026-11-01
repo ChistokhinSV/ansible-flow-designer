@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.25.1",
+  "version": "0.26.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -2288,15 +2288,15 @@
           {
             "id": "generate",
             "title": "See the generated playbook",
-            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node to see its play in the inspector.\n[Generate Code](command:afd.code.generate)\n[How-to: code generation](command:afd.help.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
+            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node and use Peek Code to see its play.\n[Generate Code](command:afd.code.generate)\n[How-to: code generation](command:afd.help.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
             "media": {
               "image": {
-                "light": "docs/guide/images/inspector-light.png",
-                "dark": "docs/guide/images/inspector-dark.png",
-                "hc": "docs/guide/images/inspector-dark.png",
-                "hcLight": "docs/guide/images/inspector-light.png"
+                "light": "docs/guide/images/details-light.png",
+                "dark": "docs/guide/images/details-dark.png",
+                "hc": "docs/guide/images/details-dark.png",
+                "hcLight": "docs/guide/images/details-light.png"
               },
-              "altText": "The inspector showing a node and its generated play"
+              "altText": "A node selected, with its Details on the right"
             },
             "completionEvents": [
               "onCommand:afd.code.generate"

@@ -1,8 +1,9 @@
 # Bind a step to a module, role or playbook
 
 A step without a binding runs as a TODO message, which is fine while you design. Binding it says
-what it really runs. Select the node and click the gear in the inspector, or right-click → **Binding…**.
-The Details page opens over the canvas, on **Binding**.
+what it really runs. Select the node and open the **Binding** tab of its Details (right panel), or
+right-click → **Binding…**. **Expand** (top right of the Details) widens the panel so the search,
+the docs and the parameters sit side by side.
 
 ![Search, understand, configure](../images/properties-binding-light.png)
 
@@ -44,13 +45,14 @@ for dicts. Required and already-set parameters come first.
   and deprecation.
 - **Generated task** shows the task exactly as the playbook will run it.
 
-**Save binding** writes the binding, the inputs and outputs it added, and the status `implemented`
-in one undo step. Renaming an input later rewrites the parameters that read it. Until you save, the
-change is only on the page: **Esc** with an unsaved change asks whether to keep editing, discard it
-or save it. Esc in a field only reverts that field.
+The binding is staged: while it differs from the file, a bar at the top of the Details says so,
+with **Discard** and **Save Binding**. Saving writes the binding, the inputs and outputs it added,
+and the status `implemented` in one undo step. Renaming an input later rewrites the parameters that
+read it. Leaving an unsaved binding (Esc, another node, another level or mode) asks whether to keep
+editing, discard it or save it. Esc in a field only reverts that field. Every other field of the
+Details saves as you leave it.
 
-While the flow file has YAML errors or missing IDs, the inspector and the Details page are
-read-only; fix the text first (**Open in Text Editor**).
+While the flow file has YAML errors or missing IDs, the Details are read-only; fix the text first (**Open in Text Editor**).
 
 ## Task keywords
 

@@ -5,7 +5,7 @@ file to keep as a snippet.
 
 ## Copy
 
-Select one or more nodes, then press **Ctrl+C**, use **Copy** in the inspector or the selection
+Select one or more nodes, then press **Ctrl+C**, use **Copy** in the Details or the selection
 panel, or run **Ansible Flow: Copy Nodes**. In the right-click menu, _Copy_ takes the node you
 right-clicked.
 

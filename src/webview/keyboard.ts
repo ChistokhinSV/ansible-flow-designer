@@ -14,8 +14,7 @@ function closeInnermost(): boolean {
   const ui = useUi.getState();
   const open = ESCAPE_ORDER.find((o) => isOpen(ui, o));
   if (open) useUi.setState({ [open]: CLOSED[open] });
-  // The properties page closes itself (it may ask about unsaved changes).
-  else if (ui.properties) return false;
+  else if (ui.leave) ui.resolveLeave('stay');
   else if (ui.preview) ui.setPreview(null);
   else if (ui.selection.node || ui.selection.nodes || ui.selection.edge) ui.select({});
   else return false;

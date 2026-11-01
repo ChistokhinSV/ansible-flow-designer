@@ -195,7 +195,7 @@ export function DriftPanel() {
   );
 }
 
-/** A selected node in Implementation mode: what it runs, where, and its drift. */
+/** The Code tab of a node's Details (AFD-43): what it runs, where, and its drift. */
 export function NodeCodePanel({ id }: { id: string }) {
   const drift = useUi((s) => s.drift);
   const doc = useUi((s) => s.snapshot?.doc);
@@ -210,17 +210,7 @@ export function NodeCodePanel({ id }: { id: string }) {
         <button type="button" className="link" onClick={() => select({})}>
           <span className="codicon codicon-arrow-left" aria-hidden="true" /> All drift
         </button>
-        <button
-          type="button"
-          className="icon"
-          title="Details"
-          aria-label="Open Details"
-          onClick={() => useUi.getState().openProperties(id, 'binding')}
-        >
-          <span className="codicon codicon-settings-gear" aria-hidden="true" />
-        </button>
       </div>
-      <h2 className="afd-panel-title">{node.title}</h2>
       {!code ? (
         <p className="muted">Re-sync to see the code this node runs.</p>
       ) : (

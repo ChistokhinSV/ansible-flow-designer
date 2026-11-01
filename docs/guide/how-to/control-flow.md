@@ -18,7 +18,7 @@ condition: fw_version == target_version
 ## Parallel and join
 
 A **parallel** node sends every host down each branch (`branch_1` … `branch_n`; set the number of
-branches in the inspector). A **join** waits for the branches:
+branches in its Details). A **join** waits for the branches:
 - **all** (default): a host continues when every branch it took finished. With the optional
   `failed_hosts` port, hosts that missed a branch go there;
 - **any**: hosts continue as they arrive.

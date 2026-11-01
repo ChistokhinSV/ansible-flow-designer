@@ -11,6 +11,7 @@ import type { FlowCommand } from '../../../src/core/flow/commands';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
+import { summaryRows } from '../../../src/core/lens';
 import type { InventoryFacts } from '../../../src/core/lens/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { AcceptDialog, LensBrowser, LensPanel } from '../../../src/webview/panels/LensPanel';
@@ -197,7 +198,7 @@ describe('Lenses (M8)', () => {
     });
   });
 
-  it('a selected node opens its summary card (D-19)', () => {
+  it('a selected node opens no card over the canvas; its facts stay in the summary rows', () => {
     act(() => {
       useUi
         .getState()
@@ -205,13 +206,13 @@ describe('Lenses (M8)', () => {
       useUi.getState().select({ node: id('upgrade') });
     });
     canvas();
-    const card = document.querySelector(`[data-summary-card="${id('upgrade')}"]`) as HTMLElement;
-    expect(card).toBeTruthy();
-    const rows = [...card.querySelectorAll('dt')].map(
-      (dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent}`,
+    // AFD-43: the selection's Details are docked on the right instead of a card on the canvas.
+    expect(document.querySelector('[data-summary-card]')).toBeNull();
+    const node = doc.nodes.find((n) => n.key === 'upgrade') as FlowDocument['nodes'][number];
+    const rows = summaryRows(doc, node, useUi.getState().lensFacts, null).map(
+      (r) => `${r.label}: ${r.value}`,
     );
     expect(rows).toContain('hosts: edge_switches · 6');
     expect(rows).toContain('credential: netops-admin');
-    expect(card.textContent).toContain('Details');
   });
 });

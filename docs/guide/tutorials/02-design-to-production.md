@@ -43,8 +43,8 @@ How data is written in the flow (details in [data between steps](../how-to/data-
 
 ## 3. Bind a step to a module
 
-Double-click **Pre-checks** to open it, select **Read device status**, and click the gear in the
-inspector. The Details page opens over the canvas. On **Binding**:
+Double-click **Pre-checks** to open it, select **Read device status**, and open the **Binding**
+tab of its Details on the right (**Expand** widens the panel for the docs):
 
 1. **Module** is selected. Search by what the step does, e.g. `http request json`. The first search
    in a folder reads your environment's collection docs (about 30 seconds, then cached).

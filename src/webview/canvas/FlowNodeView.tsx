@@ -1,7 +1,7 @@
 // Node on the canvas: a cheap shell with ports, plus a memoized body (07 §6). Semantic zoom
 // (D-19): below zoom 0.45 the body collapses to the title only ("far"); at default zoom it shows
-// the status dot and at most two chips (the active lens's, M8); from zoom 1.4 the box lists summary
-// rows, and a selected node opens its summary card below it.
+// its status and what it runs (AFD-42), or the active lens's two chips (M8); from zoom 1.4 the box
+// lists summary rows. A selected node's Details are docked on the right (AFD-43), not on the canvas.
 // Ports follow D-14: every port of the type is rendered (so wires can reach them and positions stay
 // fixed), but at rest only connected, open-fail and open-on-purpose ports show; hover, selection,
 // an open port menu or a wire being dragged reveal the rest with labels (CSS in styles/).
@@ -21,8 +21,7 @@ import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { subLine } from '../../core/view/nodeFace';
-import { send } from '../bus';
-import { STATE_LABEL, TYPE_LABEL } from '../constants';
+import { STATE_LABEL } from '../constants';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
 import { StatusIcon } from './StatusIcon';
@@ -41,7 +40,6 @@ const farSelector = (s: ReactFlowState) => s.transform[2] < 0.45;
 /** D-19 "near": from this zoom the node box lists summary rows. */
 export const NEAR_ZOOM = 1.4;
 const nearSelector = (s: ReactFlowState) => s.transform[2] >= NEAR_ZOOM;
-const isWork = (n: FlowNode) => n.type !== 'start' && n.type !== 'end';
 /** Fork and merge nodes are drawn as bars with their title only (AFD-42). */
 const BAR: ReadonlySet<string> = new Set(['parallel', 'join']);
 
@@ -208,48 +206,6 @@ function SummaryRows({
   );
 }
 
-/** D-19 "selected": the compact summary card under the node, with its actions. */
-function SummaryCard({ node }: { node: FlowNode }) {
-  const setLevel = useUi((s) => s.setLevel);
-  const openProperties = useUi((s) => s.openProperties);
-  const hasPlay = useUi((s) => !!s.snapshot?.plays?.[node.id]);
-  const status = node.status ?? 'draft';
-  return (
-    // nodrag/nopan: the card is clickable without moving the node or the view.
-    <div className="afd-summary-card nodrag nopan" data-summary-card={node.id}>
-      <div className="afd-summary-head">
-        <StatusIcon status={status} />
-        <strong>{node.title}</strong>
-        <span className="muted">
-          {TYPE_LABEL[node.type]} · {status}
-        </span>
-      </div>
-      <SummaryRows node={node} className="afd-summary-rows" />
-      <div className="afd-summary-actions">
-        {node.type === 'subflow' ? (
-          <button type="button" className="link" onClick={() => setLevel(node.id)}>
-            Open Subflow
-          </button>
-        ) : null}
-        {node.type === 'task' || node.type === 'subflow' ? (
-          <button type="button" className="link" onClick={() => openProperties(node.id)}>
-            Details
-          </button>
-        ) : null}
-        {hasPlay ? (
-          <button
-            type="button"
-            className="link"
-            onClick={() => send({ type: 'peekCode', node: node.id })}
-          >
-            Peek Code
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: boolean }) {
   const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
@@ -310,11 +266,7 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
   );
 });
 
-export const FlowNodeView = memo(function FlowNodeView({
-  data,
-  selected,
-  dragging,
-}: NodeProps<FlowRFNode>) {
+export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeProps<FlowRFNode>) {
   const far = useStore(farSelector);
   const near = useStore(nearSelector);
   const { node, ports } = data.view;
@@ -337,9 +289,6 @@ export const FlowNodeView = memo(function FlowNodeView({
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
   const runMode = useUi((s) => s.mode === 'run');
-  // A group selection (AFD-7) opens no summary cards: they would cover each other. Nor does an
-  // open menu (AFD-18): the right-click that selects the node shows the menu, not the card.
-  const alone = useUi((s) => !s.selection.nodes && !s.contextMenu && !s.portMenu);
   const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
   const classes = [
     runMode ? 'run-mode' : '',
@@ -389,7 +338,6 @@ export const FlowNodeView = memo(function FlowNodeView({
       ) : (
         <NodeBody node={node} near={near} />
       )}
-      {selected && alone && !far && !dragging && isWork(node) ? <SummaryCard node={node} /> : null}
     </div>
   );
 });

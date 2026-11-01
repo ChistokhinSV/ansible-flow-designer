@@ -1,8 +1,9 @@
 import { ReactFlowProvider } from '@xyflow/react';
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import { onHostMessage, send } from './bus';
+import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
+import { loadState, onHostMessage, saveState, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
+import { Details } from './details/Details';
 import { deleteSelection } from './editActions';
 import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
@@ -11,9 +12,8 @@ import { Banner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
 import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
-import { DriftPanel, IgnoreDialog, NodeCodePanel } from './panels/DriftPanel';
+import { DriftPanel, IgnoreDialog } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
-import { Inspector } from './panels/Inspector';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
 import { NotAFlow } from './panels/NotAFlow';
 import { Palette } from './panels/Palette';
@@ -21,13 +21,12 @@ import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
-import { NodeRunPanel, RunPanel, WireRunPanel } from './panels/RunPanel';
+import { RunPanel, WireRunPanel } from './panels/RunPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
 import { TopBar } from './panels/TopBar';
-import { Properties } from './properties/Properties';
 import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
-import { useUi } from './store';
+import { PANEL_WIDTH, useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
 
 /** Theme tokens follow VS Code's theme class on <body>. */
@@ -72,9 +71,9 @@ function useHost() {
       } else if (m.type === 'clipboard') {
         if (m.action === 'copy') copySelection();
         else void pasteText(m.text, m.at);
-      } else if (m.type === 'openProperties') {
+      } else if (m.type === 'openDetails') {
         ui.reveal(m.node);
-        ui.openProperties(m.node, m.tab);
+        ui.openDetails(m.node, m.tab);
       } else if (m.type === 'inspect') {
         send({
           type: 'inspectResult',
@@ -122,25 +121,84 @@ function RightPanelView({ panel }: { panel: RightPanel }) {
   switch (panel.kind) {
     case 'lens':
       return <LensPanel />;
-    case 'nodeCode':
-      return <NodeCodePanel id={panel.id} />;
     case 'drift':
       return <DriftPanel />;
-    case 'nodeRun':
-      return <NodeRunPanel id={panel.id} />;
     case 'wireRun':
       return <WireRunPanel edge={panel.edge} />;
     case 'run':
       return <RunPanel />;
     case 'selection':
       return <SelectionPanel ids={panel.ids} />;
-    case 'inspector':
-      return <Inspector id={panel.id} context={panel.context} />;
+    case 'details':
+      // Keyed by node: a staged binding belongs to the node it was staged on.
+      return <Details key={panel.id} id={panel.id} context={panel.context} />;
     case 'boundary':
       return <BoundaryPanel edge={panel.edge} />;
     case 'flow':
       return <FlowDescription />;
   }
+}
+
+interface PanelState {
+  panelWidth?: number;
+  expanded?: boolean;
+}
+
+/** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
+function usePanelState() {
+  useEffect(() => {
+    const saved = loadState<PanelState>();
+    if (typeof saved.panelWidth === 'number') useUi.getState().setPanelWidth(saved.panelWidth);
+    if (saved.expanded) useUi.getState().setExpanded(true);
+    return useUi.subscribe((s, before) => {
+      if (s.panelWidth === before.panelWidth && s.expanded === before.expanded) return;
+      saveState({ ...loadState(), panelWidth: s.panelWidth, expanded: s.expanded });
+    });
+  }, []);
+}
+
+/** The side panel's left edge: drag it, or focus it and use the arrow keys (AFD-43). */
+function PanelResizer() {
+  const width = useUi((s) => s.panelWidth);
+  const expanded = useUi((s) => s.expanded);
+  const set = (w: number) => {
+    useUi.getState().setExpanded(false);
+    useUi.getState().setPanelWidth(w);
+  };
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a focusable separator is the ARIA pattern for a splitter
+    <div
+      className="afd-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the side panel"
+      aria-valuemin={PANEL_WIDTH.min}
+      aria-valuemax={PANEL_WIDTH.max}
+      aria-valuenow={width}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 64 : 16;
+        if (e.key === 'ArrowLeft') set(width + step);
+        else if (e.key === 'ArrowRight') set(width - step);
+        else return;
+        e.preventDefault();
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        const start = e.clientX;
+        const from = expanded
+          ? (e.currentTarget.parentElement?.getBoundingClientRect().width ?? width)
+          : width;
+        const move = (m: PointerEvent) => set(from + (start - m.clientX));
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      }}
+    />
+  );
 }
 
 export function App() {
@@ -153,7 +211,9 @@ export function App() {
   const level = useUi((s) => s.level);
   const error = useUi((s) => s.error);
   const setError = useUi((s) => s.setError);
-  const properties = useUi((s) => s.properties);
+  const panelWidth = useUi((s) => s.panelWidth);
+  const expanded = useUi((s) => s.expanded);
+  usePanelState();
   const mode = useUi((s) => s.mode);
   const lens = useUi((s) => s.lens);
   useEffect(() => {
@@ -174,7 +234,14 @@ export function App() {
   return (
     // A fresh React Flow store per level: each level keeps its own viewport (D-23).
     <ReactFlowProvider key={level}>
-      <div className="afd-shell">
+      <div
+        className="afd-shell"
+        style={
+          {
+            '--afd-right-width': expanded ? 'min(1100px, 80vw)' : `${panelWidth}px`,
+          } as CSSProperties
+        }
+      >
         <TopBar />
         {lens ? <LensBrowser /> : <Palette />}
         <main className="afd-center">
@@ -183,6 +250,7 @@ export function App() {
           <FlowCanvas />
         </main>
         <aside className="afd-right" aria-label={rightPanelLabel(panel)}>
+          <PanelResizer />
           <RightPanelView panel={panel} />
         </aside>
         <QuickAdd />
@@ -193,7 +261,6 @@ export function App() {
         <CanvasContextMenu />
         <CheatSheet />
         <PreviewCard />
-        {properties ? <Properties key={properties.node} node={properties.node} /> : null}
         {error ? (
           <div className="afd-toast" role="alert">
             <span className="codicon codicon-error" aria-hidden="true" /> {error}

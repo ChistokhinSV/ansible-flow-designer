@@ -1,46 +1,104 @@
-/* ---------- node properties page (M5, mockup 11) ---------- */
+/* ---------- a node's Details, docked on the right (AFD-43; was the page of M5, mockup 11) ---------- */
 
-.afd-properties {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
+.afd-details {
   display: flex;
   flex-direction: column;
-  background: var(--afd-bg);
-  color: var(--afd-fg);
+  min-height: 100%;
 }
 
-.afd-props-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px 6px;
+.afd-details-head {
+  padding: 10px 12px 4px;
 }
 
-.afd-props-title {
+/* The node's name on its own line (it may wrap), then its type and the actions. */
+.afd-details-name {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 6px;
   min-width: 0;
 }
 
-.afd-props-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1.3em;
+.afd-details-name .afd-status-icon {
+  margin-top: 2px;
 }
 
-.afd-props-actions {
+.afd-details-name h2 {
+  margin: 0;
+  font-size: var(--afd-fs-14);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--afd-fg);
+  overflow-wrap: anywhere;
+}
+
+.afd-details-bar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
+  margin-top: 4px;
+}
+
+.afd-details-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+/* The staged binding: always in view, whatever the tab. */
+.afd-pending {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--vscode-inputValidation-warningBackground, var(--afd-panel));
+  border-block: 1px solid var(--vscode-inputValidation-warningBorder, var(--afd-border));
+}
+
+.afd-pending > span {
+  flex: 1 1 auto;
+}
+
+.afd-details-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.afd-details-page {
+  padding: 10px 12px;
+}
+
+/* The side panel's left edge (AFD-43): drag or arrow keys. */
+.afd-right {
+  position: relative;
+  container-type: inline-size;
+  container-name: afd-right;
+}
+
+.afd-resizer {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+.afd-resizer:hover,
+.afd-resizer:focus-visible {
+  background: var(--afd-focus);
+  outline: none;
 }
 
 .afd-props-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
-  padding: 0 12px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--afd-border);
 }
 
@@ -72,51 +130,35 @@
   margin-left: 4px;
 }
 
-.afd-props-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.afd-props-page {
-  max-width: 720px;
-  padding: 14px 16px;
-}
-
 .afd-impl {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 420px);
-  height: 100%;
-  min-height: 0;
+  grid-template-columns: 1fr;
 }
 
 .afd-impl > section {
-  overflow: auto;
-  padding: 12px 14px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  border-bottom: 1px solid var(--afd-border);
 }
 
-.afd-impl-find {
-  background: var(--afd-panel);
-  border-right: 1px solid var(--afd-border);
-}
-
-.afd-impl-understand {
-  border-right: 1px solid var(--afd-border);
-}
-
-@media (max-width: 900px) {
+/* Expanded (or dragged wide): find, understand and configure side by side, each scrolling. */
+@container afd-right (min-width: 900px) {
   .afd-impl {
-    grid-template-columns: 1fr;
-    height: auto;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(260px, 360px);
+    height: calc(100vh - 140px);
   }
 
   .afd-impl > section {
+    overflow: auto;
+    border-bottom: 0;
+    border-right: 1px solid var(--afd-border);
+  }
+
+  .afd-impl > section:last-child {
     border-right: 0;
-    border-bottom: 1px solid var(--afd-border);
   }
 }
 

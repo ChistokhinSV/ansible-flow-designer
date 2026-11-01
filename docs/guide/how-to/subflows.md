@@ -6,8 +6,8 @@ phase.
 
 ## Open, navigate, go back
 
-- Double-click a subflow, press **Enter**, or use **Open Subflow** (node menu, inspector, summary
-  card).
+- Double-click a subflow, press **Enter**, or use **Open Subflow** (node menu, its Details, its
+  preview card).
 - **Back**, the breadcrumb, or **Alt+↑** returns to the parent level.
 - With nothing selected, the right panel describes the subflow you are in (its title, intent,
   contract and ports), not the whole flow.

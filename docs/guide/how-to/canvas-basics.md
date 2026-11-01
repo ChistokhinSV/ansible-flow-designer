@@ -17,7 +17,10 @@ time: the top of the flow, or the inside of one subflow.
 - **Palette** (left): node types and failure patterns, and a legend of port and wire styles.
 - **Canvas** (middle): nodes, ports and wires.
 - **Right panel:** the flow (name, goal, owner, maintenance window, inputs, readiness) when nothing
-  is selected; the **inspector** of the selected node; or the selection panel for several nodes.
+  is selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs,
+  Ports, Execution; Code and Run modes add theirs); or the selection panel for several nodes. Drag
+  its left edge to resize it (or focus the edge and use the arrow keys); **Expand** in the Details
+  widens it for the catalog docs.
 
 ## Nodes
 
@@ -78,7 +81,7 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                               |
 | Ctrl+D                   | Duplicate the selection                              |
 | Delete / Backspace       | Delete the selection                                 |
-| F2                       | Rename (the inspector's Title)                       |
+| F2                       | Rename (the Title in the Details)                    |
 | Enter / Alt+↑            | Open the selected subflow / back to the parent level |
 | Arrow keys               | Nudge the focused node                               |
 | Esc                      | Close the menu or dialog; else clear the selection   |
@@ -108,8 +111,8 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 A level opens readable. When it fits at a zoom where titles are at least 11 px, you see all of it
 (at 100% at most); otherwise it fits its width, starting at the top, and the minimap at the bottom
 left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
-whole level. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for a
-summary card. Pause on a subflow or a bound node for a preview of what is inside.
+whole level. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for its
+Details on the right. Pause on a subflow or a bound node for a preview of what is inside.
 
 New nodes without a position, and **Tidy Up**, follow the setting `afd.canvas.direction`: top to
 bottom (`TB`, the default) or left to right (`LR`). It is yours, not the flow's.

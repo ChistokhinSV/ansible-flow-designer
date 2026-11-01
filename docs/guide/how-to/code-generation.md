@@ -26,10 +26,11 @@ The flow is the source of truth; the playbooks are generated from it.
   [data between steps](data-between-steps.md)).
 - The header says how the file was made, and how to choose an approval outcome in a local run.
 
-Select a node: the inspector shows its generated play. **Peek Code** (node menu, preview card)
-opens it in the file.
+Generated code shows in two places: the Details' **Binding** tab shows the task as the playbook
+will run it, and **Peek Code** (the node menu, or `</>` in the Details) opens the node's play in
+the generated file.
 
-![A node and its generated play](../images/inspector-light.png)
+![A node selected, with its Details](../images/details-light.png)
 
 ## Do not edit generated files
 
