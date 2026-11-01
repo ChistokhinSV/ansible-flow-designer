@@ -130,11 +130,17 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return;
       const r = await setupTemplate(doc, host.awxDeps(doc.uri));
-      if (r.ok)
+      if (r.ok) {
+        const survey =
+          r.survey === 'written'
+            ? ' Its survey asks for the flow inputs.'
+            : r.survey === 'kept'
+              ? ' Its survey stays as edited in AWX.'
+              : '';
         void vscode.window.showInformationMessage(
-          `AWX job template "${r.template}" is ready; the flow now launches it.`,
+          `AWX job template "${r.template}" is ready; the flow now launches it.${survey}`,
         );
-      else if (!isCancelled(r.error))
+      } else if (!isCancelled(r.error))
         void vscode.window.showErrorMessage(r.error ?? 'Setting up the AWX template failed');
     }),
     vscode.commands.registerCommand(CMD.awxSetToken, async (uri?: vscode.Uri) => {

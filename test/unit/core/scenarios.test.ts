@@ -52,7 +52,7 @@ describe('scenario files (AFD-58)', () => {
   });
 
   it('turns into extra vars and a local-connection inventory', () => {
-    const s = FILE.scenarios[1] as Scenario;
+    const s = FILE.scenarios[2] as Scenario;
     expect(scenarioVars(s)).toEqual({
       devices: ['h01', 'h02', 'h03', 'h04', 'h05'],
       afd_simulate: { 'stage/prepare': { failed: ['h02'] }, gate: { failed: ['h03'] } },

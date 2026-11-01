@@ -50,7 +50,54 @@ describe('M7 acceptance: Run mode with AWX (lab)', function () {
     const api = await testApi();
     assert.match((await api.awxToken(FLOW, 'not-a-real-token')) ?? '', /token/i);
     assert.equal(await api.awxToken(FLOW, token as string), undefined);
-    assert.deepEqual(await api.awxSetup(FLOW, PICKS), { ok: true, template: 'AFD · awx-e2e' });
+    // A survey left edited by an earlier run is replaced: the lab starts from what the flow says.
+    const setup = await api.awxSetup(FLOW, { ...PICKS, survey: 'replace' });
+    assert.equal(setup.ok, true, setup.error);
+    assert.equal(setup.template, 'AFD · awx-e2e');
+    // AFD-59: the survey is ours: written now, or already as the flow's inputs say.
+    assert.ok(setup.survey === 'written' || setup.survey === 'same', setup.survey);
+  });
+
+  it('AFD-59: the survey asks for the flow inputs; one changed in AWX is kept unless replaced', async () => {
+    const api = await testApi();
+    const awx = async <T>(path: string, body?: unknown): Promise<T> => {
+      const r = await fetch(`${url}${path}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      assert.ok(r.ok, `${path}: ${r.status}`);
+      // A survey POST answers 200 with no body.
+      const text = await r.text();
+      return (text ? JSON.parse(text) : undefined) as T;
+    };
+    const jt = (
+      await awx<{ results: { id: number; survey_enabled: boolean }[] }>(
+        `/api/v2/job_templates/?name=${encodeURIComponent('AFD · awx-e2e')}`,
+      )
+    ).results[0];
+    assert.ok(jt?.survey_enabled);
+    type Spec = {
+      description: string;
+      spec: { variable: string; type: string; required: boolean }[];
+    };
+    const spec = await awx<Spec>(`/api/v2/job_templates/${jt.id}/survey_spec/`);
+    assert.deepEqual(
+      spec.spec.map((q) => [q.variable, q.type, q.required]),
+      [['devices', 'text', true]],
+    );
+    // Someone makes devices optional in AWX: Set Up keeps that unless told to replace it.
+    await awx(`/api/v2/job_templates/${jt.id}/survey_spec/`, {
+      ...spec,
+      spec: spec.spec.map((q) => ({ ...q, required: false })),
+    });
+    assert.equal((await api.awxSetup(FLOW, { ...PICKS, survey: 'keep' })).survey, 'kept');
+    const kept = await awx<Spec>(`/api/v2/job_templates/${jt.id}/survey_spec/`);
+    assert.equal(kept.spec[0]?.required, false);
+    assert.equal((await api.awxSetup(FLOW, { ...PICKS, survey: 'replace' })).survey, 'written');
+    const back = await awx<Spec>(`/api/v2/job_templates/${jt.id}/survey_spec/`);
+    assert.equal(back.spec[0]?.required, true);
+    assert.equal((await api.awxSetup(FLOW, PICKS)).survey, 'same');
   });
 
   it('Launch in AWX: the job events show every host on the port the flow designs', async () => {

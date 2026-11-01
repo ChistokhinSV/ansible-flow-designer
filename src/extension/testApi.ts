@@ -56,7 +56,7 @@ export interface AfdTestApi {
   awxSetup(
     uri: vscode.Uri,
     picks: AwxPicks,
-  ): Promise<{ ok: boolean; error?: string; template?: string }>;
+  ): Promise<{ ok: boolean; error?: string; template?: string; survey?: string }>;
   awxLaunch(uri: vscode.Uri, inputs: Record<string, unknown>): Promise<RunView>;
   /** M8: the lens on the flow's panels, the facts its session gathered, the lens targets. */
   setLens(uri: vscode.Uri, lens: LensId | null): void;

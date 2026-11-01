@@ -22,6 +22,11 @@ the canvas. Step by step: [Tutorial 3](../tutorials/03-awx-end-to-end.md).
 3. It writes the name to `flow.runtime`; a format 2 flow also keeps the credentials and the
    execution environment there, by name. One set per template: a format 2 flow has no credential
    or environment on a node (the upgrade moves them to the flow).
+4. It writes the template's **survey** from the flow inputs, so whoever launches the flow in AWX is
+   asked for them: host lists as comma-separated text, text, whole numbers, and secrets as
+   passwords. Booleans, lists and mappings are not asked (a survey would hand them over as text);
+   they stay extra variables. A survey someone changed in AWX is kept unless you choose
+   **Replace Survey**; ours is updated as the inputs change.
 
 AWX runs what its project checks out: commit and push the flow and `generated/` first. If AWX does
 not find the playbooks, the setup stops and names them.
@@ -39,7 +44,9 @@ run panel follows it until AWX reports it canceled.
 While it follows the job, a notification shows **Following AWX job …** with a **Cancel** button.
 Cancelling, or 12 hours without the job ending, stops following only: the job keeps running in
 AWX, and a message offers **Cancel It in AWX** or **Open in AWX**. AWX keeps a job's extra vars in
-its record, so avoid secret flow inputs for AWX launches until surveys keep them masked.
+its record: the survey asks for secret-looking inputs as passwords, which AWX masks when someone
+launches from AWX, but **Launch in AWX** passes the inputs as extra vars, so avoid secret inputs
+there.
 
 ## Follow the run
 

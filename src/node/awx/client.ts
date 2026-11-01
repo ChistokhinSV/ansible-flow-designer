@@ -3,6 +3,7 @@
 // The token only ever travels in the Authorization header: errors never echo request headers.
 import * as http from 'node:http';
 import * as https from 'node:https';
+import type { AwxSurveySpec } from '../../core/awx/survey';
 import type {
   AwxJob,
   AwxJobEvent,
@@ -213,6 +214,18 @@ export class AwxClient {
       if (!current.some((c) => c.id === id))
         await this.post(`/api/v2/job_templates/${jt.id}/credentials/`, { id });
     return jt;
+  }
+
+  /** A template's survey (AFD-59); `kind` is job_templates or workflow_job_templates. */
+  async survey(kind: string, id: number): Promise<Partial<AwxSurveySpec> | undefined> {
+    const spec = await this.get<Partial<AwxSurveySpec>>(`/api/v2/${kind}/${id}/survey_spec/`);
+    return spec && Object.keys(spec).length > 0 ? spec : undefined;
+  }
+
+  /** Writes the survey and turns it on: launches then ask its questions. */
+  async setSurvey(kind: string, id: number, spec: AwxSurveySpec): Promise<void> {
+    await this.post(`/api/v2/${kind}/${id}/survey_spec/`, spec);
+    await this.patch(`/api/v2/${kind}/${id}/`, { survey_enabled: true });
   }
 
   async launch(templateId: number, extraVars: Record<string, unknown>): Promise<AwxJob> {

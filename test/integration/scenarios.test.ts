@@ -37,6 +37,7 @@ describe('AFD-58: scenario tests', () => {
           results?.map((r) => [r.name, r.passed, r.error]),
           [
             ['every host goes through', true, undefined],
+            ['hosts as comma-separated text, as an AWX survey answers', true, undefined],
             ['a failed stage is handled, a failed gate stops the host there', true, undefined],
           ],
         );

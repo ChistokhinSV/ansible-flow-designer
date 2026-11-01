@@ -113,3 +113,21 @@ when they were asked. Node-level `credential` and `execution_environment` (forma
 applied; the upgrade and the AWX import move them to the flow (`core/flow/awxSettings.ts`), keeping
 the first environment and naming the others, and format 2 warns about one left on a node
 (`setting-on-flow`). The Access lens reads the flow's credentials for every node in format 2.
+
+## Amendment (AFD-59, 2026-11-01): surveys from the flow inputs
+
+Set Up AWX Template writes the template's survey (job template or workflow) from the flow inputs,
+in their order (`core/awx/survey.ts`): host lists as text (comma-separated), strings as text,
+integers, secret-looking names as passwords; an empty default is left out (AWX checks defaults
+against the type). Booleans, lists and mappings are not asked: AWX answers a survey with text, and
+`'false'` is true in Jinja; they stay extra variables, which the template accepts at launch. The
+survey's description carries a fingerprint of the questions we wrote: a survey with no questions,
+or ours as we left it, is written; one that already says what we would write is left alone; one
+changed in AWX, or written by hand, is replaced only after asking (product-owner decision). The
+survey is then enabled.
+
+A survey answers a host list as text, so the generated start play reads the targets input as
+`{{ devices if devices is string else devices | join(',') }}`: a list from the run inputs and
+comma-separated text both work. AWX checks launch variables against the survey's types, so Launch in
+AWX sends a host list as that text too (`launchVars`); a step that reads the host list then gets
+text in AWX runs.

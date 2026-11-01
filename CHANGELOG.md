@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.0 — AFD-59
+
+- **AWX surveys from the flow inputs**: Set Up AWX Template writes the template's survey, so a launch in AWX asks for what the flow needs (host lists as comma-separated text, text, whole numbers, secrets as passwords; booleans, lists and mappings stay extra variables). A survey changed in AWX is kept unless you choose Replace Survey; ours follows the inputs.
+- The generated start play takes the targets input as a list or as comma-separated text (what a survey answers).
+
 ## 0.36.0 — AFD-58
 
 - **Scenario tests**: `<flow key>.scenarios.yaml` next to a flow says, per scenario, the inputs, the outcomes to force on chosen hosts and steps, and where each host must end. **Run ▾ › Run Scenarios** runs them with every step as its stub on local hosts (no binding runs) and says which pass; the Problems panel checks the file against the flow. **Copy Scenario Runner to Repository** puts the CI command line into `.afd/afd-scenarios.js` (`--image`, `--junit`, exit 1 on a failure).

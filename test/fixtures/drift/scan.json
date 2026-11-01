@@ -53,7 +53,7 @@
    },
    {
     "name": "[precheck] Pre-checks: route",
-    "hosts": "{{ devices | join(',') }}",
+    "hosts": "{{ devices if devices is string else devices | join(',') }}",
     "tags": [
      "node_01JCR6N0000000000000000002"
     ],

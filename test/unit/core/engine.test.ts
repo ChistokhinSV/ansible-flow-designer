@@ -102,7 +102,8 @@ describe('plays', () => {
       '[rollback] Rollback',
       '[edge-baseline] Outcome',
     ]);
-    expect(plays[0]?.hosts).toBe("{{ devices | join(',') }}");
+    // A list from the inputs, or comma-separated text from an AWX survey (AFD-59).
+    expect(plays[0]?.hosts).toBe("{{ devices if devices is string else devices | join(',') }}");
     expect(plays[4]?.hosts).toBe('flow_push_baseline_failed_hosts');
   });
 

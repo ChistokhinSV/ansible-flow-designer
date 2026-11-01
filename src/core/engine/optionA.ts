@@ -260,7 +260,9 @@ class Generator {
       ]);
       return undefined;
     }
-    return `{{ ${chosen[0]} | join(',') }}`;
+    // A list from the run inputs, or the comma-separated text an AWX survey answers (AFD-59).
+    const name = chosen[0];
+    return `{{ ${name} if ${name} is string else ${name} | join(',') }}`;
   }
 
   /** What takes the ports of the level's steps, once per level. */

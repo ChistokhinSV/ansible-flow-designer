@@ -7,6 +7,12 @@ scenarios:
     expect:
       h01: done
       h02: done
+  - name: hosts as comma-separated text, as an AWX survey answers
+    inputs:
+      devices: h01,h02
+    expect:
+      h01: done
+      h02: done
   - name: a failed stage is handled, a failed gate stops the host there
     inputs:
       devices: [h01, h02, h03, h04, h05]

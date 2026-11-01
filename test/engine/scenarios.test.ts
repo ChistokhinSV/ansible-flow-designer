@@ -50,10 +50,11 @@ describe.each(IMAGES)('scenarios on %s', (image) => {
       });
       expect(results.map((r) => [r.name, r.passed, r.error])).toEqual([
         ['every host goes through', true, undefined],
+        ['hosts as comma-separated text, as an AWX survey answers', true, undefined],
         ['a failed stage is handled, a failed gate stops the host there', true, undefined],
         ['wrong on purpose', false, undefined],
       ]);
-      expect(results[2]?.hosts).toEqual([
+      expect(results[3]?.hosts).toEqual([
         { host: 'h01', expected: 'done', actual: 'gate.failed_hosts' },
       ]);
     } finally {

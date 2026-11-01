@@ -4,6 +4,7 @@
 // The token lives in SecretStorage only.
 import * as vscode from 'vscode';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
+import { launchVars, surveyAction, surveyFor } from '../../core/awx/survey';
 import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../core/awx/types';
 import { engineFor } from '../../core/engine/engines';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
@@ -97,6 +98,8 @@ export interface AwxPicks {
   inventory: string;
   environment?: string;
   credentials?: string[];
+  /** A survey changed in AWX: replace or keep it, without asking (tests). */
+  survey?: 'replace' | 'keep';
 }
 
 export function templateName(doc: FlowDocument): string {
@@ -214,11 +217,46 @@ async function waitForProject(awx: AwxClient, project: number): Promise<string> 
  * and credentials, creates or updates the job template for the generated playbook, and writes
  * its name to flow.runtime (one edit).
  */
+type SurveyOutcome = 'written' | 'same' | 'kept';
+
+/**
+ * The template's survey from the flow inputs (AFD-59): written where there is none or ours is as we
+ * left it; a survey changed in AWX is replaced only when the user says so (`choice` in tests).
+ */
+async function applySurvey(
+  awx: AwxClient,
+  kind: 'job_templates' | 'workflow_job_templates',
+  template: AwxNamed,
+  doc: FlowDocument,
+  choice?: 'replace' | 'keep',
+): Promise<SurveyOutcome> {
+  const wanted = surveyFor(doc);
+  const action = surveyAction(await awx.survey(kind, template.id), wanted);
+  if (action === 'same') return 'same';
+  if (action === 'ask') {
+    const replace = 'Replace Survey';
+    const pick =
+      choice === undefined
+        ? await vscode.window.showWarningMessage(
+            `The survey of ${template.name} was changed in AWX. Replace it with the flow's inputs?`,
+            { modal: true, detail: 'Keep it to leave the questions as they are in AWX.' },
+            replace,
+            'Keep It',
+          )
+        : choice === 'replace'
+          ? replace
+          : undefined;
+    if (pick !== replace) return 'kept';
+  }
+  await awx.setSurvey(kind, template.id, wanted);
+  return 'written';
+}
+
 export async function setupTemplate(
   document: vscode.TextDocument,
   deps: AwxDeps,
   picks?: AwxPicks,
-): Promise<{ ok: boolean; error?: string; template?: string }> {
+): Promise<{ ok: boolean; error?: string; template?: string; survey?: SurveyOutcome }> {
   const doc = parseFlow(document.getText()).doc;
   const folder = vscode.workspace.getWorkspaceFolder(document.uri);
   if (!doc || !folder)
@@ -298,12 +336,22 @@ export async function setupTemplate(
         credentials,
         playbooks,
       });
+      const workflow = await awx.named<AwxNamed>('workflow_job_templates', name);
+      const survey = workflow
+        ? await applySurvey(
+            awx,
+            'workflow_job_templates',
+            workflow,
+            doc,
+            picks ? (picks.survey ?? 'keep') : undefined,
+          )
+        : undefined;
       const runtime = runtimeFor(doc, 'awx_workflow', name, credentials, ee ?? undefined);
       if (JSON.stringify(runtime) !== JSON.stringify(doc.flow.runtime ?? {})) {
         const r = await deps.runCommand({ kind: 'updateFlow', patch: { runtime } });
         if (!r.ok) return { ok: false, error: r.error };
       }
-      return { ok: true, template: name };
+      return { ok: true, template: name, survey };
     }
     const playbook = relativeTo(
       folder.uri,
@@ -312,7 +360,7 @@ export async function setupTemplate(
     const missing = await missingPlaybooks(awx, project, [playbook]);
     if (missing) return { ok: false, error: missing };
     const name = templateName(doc);
-    await awx.upsertTemplate({
+    const jt = await awx.upsertTemplate({
       name,
       description: `Ansible Flow Designer: ${doc.flow.name} (${doc.flow.key}), generated playbook`,
       project: project.id,
@@ -321,12 +369,19 @@ export async function setupTemplate(
       execution_environment: ee?.id,
       credentials: credentials.map((c) => c.id),
     });
+    const survey = await applySurvey(
+      awx,
+      'job_templates',
+      jt,
+      doc,
+      picks ? (picks.survey ?? 'keep') : undefined,
+    );
     const runtime = runtimeFor(doc, 'awx_job', name, credentials, ee ?? undefined);
     if (JSON.stringify(runtime) !== JSON.stringify(doc.flow.runtime ?? {})) {
       const r = await deps.runCommand({ kind: 'updateFlow', patch: { runtime } });
       if (!r.ok) return { ok: false, error: r.error };
     }
-    return { ok: true, template: name };
+    return { ok: true, template: name, survey };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
@@ -463,7 +518,7 @@ export async function launchInAwx(
               deps.report({ ...base, state: 'running', awx: s.info, summary: s.summary }),
           },
           template.id,
-          inputs,
+          launchVars(doc, inputs),
         ),
       );
     } catch (e) {
@@ -504,7 +559,8 @@ export async function launchInAwx(
 
   let job: AwxJob;
   try {
-    job = await awx.launch(template.id, inputs);
+    // A survey takes a host list as text (AFD-59).
+    job = await awx.launch(template.id, launchVars(doc, inputs));
   } catch (e) {
     return fail((e as Error).message);
   }

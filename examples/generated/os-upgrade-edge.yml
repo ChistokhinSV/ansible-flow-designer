@@ -2,10 +2,10 @@
 # Do not edit by hand: change the flow and save it. Option A engine (ADR-0009).
 # Unbound nodes run TODO messages: run with --check until every node is bound.
 # Local runs pass approvals [change-approval] automatically; choose another outcome with -e '{"afd_approvals": {"change-approval": "rejected"}}'.
-# Checksum: 0e3c78fdcf5611
+# Checksum: 15a8e66ed3b6f7
 
 - name: "[pre-checks] Pre-checks"
-  hosts: "{{ devices | join(',') }}"
+  hosts: "{{ devices if devices is string else devices | join(',') }}"
   gather_facts: false
   tags: [node_01JBW6VZSKDENC8SP3804GVA35]
   vars:

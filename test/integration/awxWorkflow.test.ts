@@ -83,7 +83,11 @@ describe('AFD-11 acceptance: AWX workflow with an approval (lab)', function () {
 
   it('Set Up AWX Template creates the segment templates and the workflow', async () => {
     const api = await testApi();
-    assert.deepEqual(await api.awxSetup(FLOW, PICKS), { ok: true, template: WORKFLOW });
+    const setup = await api.awxSetup(FLOW, PICKS);
+    assert.equal(setup.ok, true, setup.error);
+    assert.equal(setup.template, WORKFLOW);
+    // AFD-59: the workflow's survey follows the flow inputs.
+    assert.ok(setup.survey === 'written' || setup.survey === 'same', setup.survey);
     const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === FLOW.toString());
     assert.deepEqual((parse(doc?.getText() ?? '') as FlowDocument).flow.runtime, {
       kind: 'awx_workflow',
