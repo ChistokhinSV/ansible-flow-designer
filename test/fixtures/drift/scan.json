@@ -112,6 +112,26 @@
       "auto": false
      },
      {
+      "name": "[backup-config] keep output backup_ref",
+      "action": "ansible.builtin.set_fact",
+      "tags": [
+       "node_01JCR6N0000000000000000003"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 33
+      },
+      "register": [],
+      "facts": [
+       "afd_backup_config__backup_ref"
+      ],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
       "name": "[backup-config] route ok_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
@@ -119,7 +139,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 33
+       "line": 37
       },
       "register": [],
       "facts": [],
@@ -137,7 +157,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 37
+       "line": 41
       },
       "register": [],
       "facts": [],
@@ -153,8 +173,8 @@
     "name": "[push-ntp] Push NTP",
     "hosts": "flow_backup_config_ok_hosts",
     "tags": [
-     "node_01JCR6N0000000000000000011",
-     "node_01JCR6N0000000000000000004"
+     "node_01JCR6N0000000000000000004",
+     "node_01JCR6N0000000000000000011"
     ],
     "origin": {
      "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -165,8 +185,8 @@
       "name": "[push-ntp] Apply role",
       "action": "ansible.builtin.include_role",
       "tags": [
-       "node_01JCR6N0000000000000000011",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000011"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -184,8 +204,8 @@
       "name": "[push-ntp] route ok_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
-       "node_01JCR6N0000000000000000011",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000011"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -203,8 +223,8 @@
       "name": "[push-ntp] route failed_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
-       "node_01JCR6N0000000000000000011",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000011"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -224,8 +244,8 @@
     "name": "[push-aaa] Push AAA",
     "hosts": "flow_push_baseline__push_ntp_ok_hosts",
     "tags": [
-     "node_01JCR6N0000000000000000012",
-     "node_01JCR6N0000000000000000004"
+     "node_01JCR6N0000000000000000004",
+     "node_01JCR6N0000000000000000012"
     ],
     "origin": {
      "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -236,8 +256,8 @@
       "name": "[push-aaa] Apply role",
       "action": "ansible.builtin.include_role",
       "tags": [
-       "node_01JCR6N0000000000000000012",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000012"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -255,8 +275,8 @@
       "name": "[push-aaa] route ok_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
-       "node_01JCR6N0000000000000000012",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000012"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -274,8 +294,8 @@
       "name": "[push-aaa] route failed_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
-       "node_01JCR6N0000000000000000012",
-       "node_01JCR6N0000000000000000004"
+       "node_01JCR6N0000000000000000004",
+       "node_01JCR6N0000000000000000012"
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.push-baseline.yml",
@@ -299,7 +319,7 @@
     ],
     "origin": {
      "path": "flows/edge-drift/generated/edge-drift.yml",
-     "line": 45
+     "line": 49
     },
     "tasks": [
      {
@@ -310,7 +330,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 54
+       "line": 58
       },
       "register": [],
       "facts": [],
@@ -321,6 +341,26 @@
       "auto": false
      },
      {
+      "name": "[validate] keep output validation_result",
+      "action": "ansible.builtin.set_fact",
+      "tags": [
+       "node_01JCR6N0000000000000000005"
+      ],
+      "origin": {
+       "path": "flows/edge-drift/generated/edge-drift.yml",
+       "line": 63
+      },
+      "register": [],
+      "facts": [
+       "afd_validate__validation_result"
+      ],
+      "stats": [],
+      "role": null,
+      "section": "block",
+      "dynamic": false,
+      "auto": false
+     },
+     {
       "name": "[validate] route ok_hosts",
       "action": "ansible.builtin.group_by",
       "tags": [
@@ -328,7 +368,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 59
+       "line": 67
       },
       "register": [],
       "facts": [],
@@ -346,7 +386,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 63
+       "line": 71
       },
       "register": [],
       "facts": [],
@@ -366,7 +406,7 @@
     ],
     "origin": {
      "path": "flows/edge-drift/generated/edge-drift.yml",
-     "line": 67
+     "line": 75
     },
     "tasks": [
      {
@@ -377,7 +417,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 75
+       "line": 83
       },
       "register": [],
       "facts": [],
@@ -395,7 +435,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 78
+       "line": 86
       },
       "register": [],
       "facts": [],
@@ -413,7 +453,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 82
+       "line": 90
       },
       "register": [],
       "facts": [],
@@ -433,7 +473,7 @@
     ],
     "origin": {
      "path": "flows/edge-drift/generated/edge-drift.yml",
-     "line": 87
+     "line": 95
     },
     "tasks": [
      {
@@ -444,7 +484,7 @@
       ],
       "origin": {
        "path": "flows/edge-drift/generated/edge-drift.yml",
-       "line": 92
+       "line": 100
       },
       "register": [],
       "facts": [],

@@ -1,0 +1,82 @@
+# Engine test flow (AFD-53, written by key): two steps set the same fact `version`; the reader
+# gets each step's own value, not whichever ran last.
+schema_version: 2
+flow:
+  key: same-fact
+  name: Engine test · same fact from two steps
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - key: start
+    type: start
+    title: Start
+  - key: running
+    type: task
+    title: Read the running version
+    status: implemented
+    outputs:
+      version:
+        type: string
+    impl:
+      kind: role
+      ref: netops.version_fact
+      params:
+        release: "17.3"
+  - key: target
+    type: task
+    title: Read the target version
+    status: implemented
+    outputs:
+      version:
+        type: string
+    impl:
+      kind: role
+      ref: netops.version_fact
+      params:
+        release: "17.9"
+  - key: compare
+    type: task
+    title: Compare the versions
+    status: implemented
+    inputs:
+      running:
+        type: string
+        from: running.version
+      target:
+        type: string
+        from: target.version
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - running == '17.3-' ~ inventory_hostname
+          - target == '17.9-' ~ inventory_hostname
+  - key: done
+    type: end
+    title: Done
+    outcome: success
+  - key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - from: {node: start, port: ok_hosts}
+    to: {node: running, port: in}
+  - from: {node: running, port: ok_hosts}
+    to: {node: target, port: in}
+  - from: {node: target, port: ok_hosts}
+    to: {node: compare, port: in}
+  - from: {node: compare, port: ok_hosts}
+    to: {node: done, port: in}
+  - from: {node: running, port: failed_hosts}
+    to: {node: failed, port: in}
+  - from: {node: target, port: failed_hosts}
+    to: {node: failed, port: in}
+  - from: {node: compare, port: failed_hosts}
+    to: {node: failed, port: in}

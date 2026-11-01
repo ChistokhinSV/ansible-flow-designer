@@ -108,3 +108,27 @@ The schema allow-lists the keywords. A keyword the flow models (register, tags, 
 retries, delay, until, notify, block, …) is the error `keyword-reserved`, whose message names
 where it goes. Variables in keywords are checked like params: `when`, `changed_when` and
 `failed_when` are bare tests, and loop variables and the keywords' own `vars` count as known.
+
+## Amendment (AFD-53, 2026-11-01): outputs captured per step
+
+A role, a playbook or a stub sets an output as a fact of the output's own name, and host facts are
+global to the run, so two steps naming an output alike overwrote each other for every later reader.
+Every task step now copies each output that is not its register into a variable of its own right
+after it ran: `set_fact: afd_<key>__<output>: "{{ <output> }}"` with `when: <output> is defined`,
+named `[<key>] keep output <output>`.
+
+- **Where:** inside the step's block after the module, role or stub (only hosts that finished
+  get it, before the ok route); on the target for an `inventory_target` step, whose copy to the
+  arriving hosts reads the captured name; and in the route play after a playbook binding, which
+  cannot sit in a block.
+- **Names** (`capturedVar` in `core/flow/dataNames.ts`): the step's key, with the keys of the
+  enclosing subflows in front only when that key is used on another level too. A step extracted
+  into a subflow keeps its name. `outputVar` returns it, so play vars, lifted subflow outputs and
+  the validator follow.
+- **Registers** stay as they are: a module output `from: impl.register[.path]` reads the register.
+  The register is named by the flow, so a reader of a register that another step also registers,
+  or that a flow input names, is the error `register-collision` (replacing the warning
+  `output-name-collision`, which captured names cannot hit).
+- Code sync does not count a capture task as the step's own `set_fact` (`CAPTURE_TASK`).
+- Both formats: the flow file does not change. Engine test: two runs of a role setting `version`,
+  read by one assert, on 2.19, 2.20 and 2.21.

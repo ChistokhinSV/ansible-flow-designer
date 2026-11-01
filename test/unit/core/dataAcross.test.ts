@@ -48,7 +48,7 @@ describe('data across subflows', () => {
     expect(codes(doc, 'subflow-output-unset')).toEqual([]);
     expect(codes(doc, 'binding-unknown-var')).toEqual([]);
     const backup = entry(doc, 'backup');
-    expect(outputVar(backup.node, 'backup_file')).toBe('store_result.dest');
+    expect(outputVar(backup.model, backup.node, 'backup_file')).toBe('store_result.dest');
     const restore = entry(doc, 'rollback/restore');
     expect(inputVars(restore.model, restore.level, restore.node)).toEqual({
       file: '{{ store_result.dest }}',

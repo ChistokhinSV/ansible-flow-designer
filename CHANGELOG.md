@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.0 — AFD-53
+
+- **Each step keeps its own outputs** in the generated code: a role's, playbook's or stub's output is copied right after the step into `afd_<key>__<output>`, and readers read that copy. Two steps that both set `version` no longer overwrite each other. The flow file does not change (both formats).
+- A register that another step also registers, or that a flow input names, is now the error `register-collision` where it is read (it was the warning `output-name-collision`, which no longer applies to other outputs).
+
 ## 0.31.0 — AFD-52
 
 - **Privilege reaches the steps of a subflow** (format 2): become and its user, set on a subflow, apply to the generated plays of the steps inside; the nearest setting wins and a step can turn it off. The level chips say so. **Become user** is a setting (Execution › Privilege), no longer a task keyword; Upgrade Flow Format moves it and lists the subflows whose become now applies inside. Format 1 flows generate what they always did.

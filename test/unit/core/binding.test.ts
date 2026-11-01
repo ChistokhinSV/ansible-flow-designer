@@ -178,7 +178,7 @@ describe('data passing helpers', () => {
     const doc = docOf(OS);
     const model = buildModel(doc);
     const sbv = nodeOf(OS, 'set-boot-variable');
-    expect(outputVar(sbv, 'boot_result')).toBe('boot_result');
+    expect(outputVar(model, sbv, 'boot_result')).toBe('boot_result');
     const reloadEntry = [...model.nodes.values()].find((e) => e.node.key === 'reload');
     if (!reloadEntry) throw new Error('no reload');
     reloadEntry.node.inputs = {

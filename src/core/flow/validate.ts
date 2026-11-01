@@ -840,17 +840,18 @@ function producerOf(node: FlowNode, output: string, depth = 0): FlowNode {
   return lift && 'inner' in lift ? producerOf(lift.inner, lift.output, depth + 1) : node;
 }
 
-/** The host variables each step's outputs land in (flat facts, or its register), by step. */
+/**
+ * The host variables steps write, by step: every module step's register, and the variables
+ * outputs land in (a register, or the step's own captured variable, AFD-53).
+ */
 function hostVariables(model: FlowModel): Map<string, Set<Ulid>> {
   const vars = new Map<string, Set<Ulid>>();
+  const add = (root: string, id: Ulid) => vars.set(root, (vars.get(root) ?? new Set()).add(id));
   for (const { node } of model.nodes.values()) {
     if (node.type === 'subflow') continue;
-    for (const out of Object.keys(node.outputs ?? {})) {
-      const root = outputVar(node, out).split('.')[0] ?? out;
-      const set = vars.get(root) ?? new Set<Ulid>();
-      set.add(node.id);
-      vars.set(root, set);
-    }
+    if (node.impl?.kind === 'module') add(registerName(node), node.id);
+    for (const out of Object.keys(node.outputs ?? {}))
+      add(outputVar(model, node, out).split('.')[0] ?? out, node.id);
   }
   return vars;
 }
@@ -858,8 +859,9 @@ function hostVariables(model: FlowModel): Map<string, Set<Ulid>> {
 const variablesOf = new WeakMap<FlowModel, Map<string, Set<Ulid>>>();
 
 /**
- * `from: a.result` reads a host variable, not a value scoped to `a` (AFD-31): another step that
- * sets the same variable, or a flow input (an extra var) of that name, changes what it reads.
+ * `from: a.result` reads a host variable (AFD-31). Outputs other than registers are captured into
+ * the step's own variable (AFD-53); a register is named by the flow, so another step registering the
+ * same name, or a flow input (an extra var) of that name, changes what the reader gets: an error.
  */
 function checkCollision(
   model: FlowModel,
@@ -872,7 +874,7 @@ function checkCollision(
   add: (f: Finding) => void,
 ): void {
   const producer = producerOf(target, output);
-  const root = outputVar(target, output).split('.')[0] ?? output;
+  const root = outputVar(model, target, output).split('.')[0] ?? output;
   let vars = variablesOf.get(model);
   if (!vars) {
     vars = hostVariables(model);
@@ -885,9 +887,9 @@ function checkCollision(
   if (others.length === 0 && !flowInput) return;
   const who = [...(flowInput ? [`the flow input ${root}`] : []), ...others].join(', ');
   add({
-    code: 'output-name-collision',
-    severity: 'warning',
-    message: `${label(reader)} inputs.${input}: "${from}" is the host variable ${root}, which ${who} also set${others.length + (flowInput ? 1 : 0) > 1 ? '' : 's'}: it reads ${flowInput ? 'the flow input' : 'whichever ran last'}`,
+    code: 'register-collision',
+    severity: 'error',
+    message: `${label(reader)} inputs.${input}: "${from}" reads the register ${root}, which ${who} also set${others.length + (flowInput ? 1 : 0) > 1 ? '' : 's'}: it reads ${flowInput ? 'the flow input' : 'whichever ran last'}`,
     path,
     node: reader.id,
   });

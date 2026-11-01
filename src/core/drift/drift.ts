@@ -2,6 +2,7 @@
 // `node_<ULID>` tag (D-28), compares bindings with the code they run, and lists drift both ways.
 // Nothing here resolves anything: every item carries a design-side and a code-side action.
 
+import { CAPTURE_TASK } from '../flow/dataNames';
 import { acceptedAll } from '../flow/decisions';
 import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
@@ -99,7 +100,10 @@ function nodeCode(scan: CodeScan, node: FlowNode, plays: CodePlay[], inner: Node
     return { ...base, artifact, tasks: [], dynamic: 0 };
   }
   if (impl.kind === 'module') {
-    const tasks = plays.flatMap((p) => p.tasks).filter((t) => t.action === impl.ref);
+    // A step bound to set_fact is not its own output capture (AFD-53).
+    const tasks = plays
+      .flatMap((p) => p.tasks)
+      .filter((t) => t.action === impl.ref && !CAPTURE_TASK.test(t.name ?? ''));
     return { ...base, artifact: `module: ${impl.ref}`, tasks, dynamic: 0 };
   }
   if (impl.kind === 'role') {

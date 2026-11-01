@@ -66,6 +66,7 @@ const DATA = 'test/fixtures/engine/data-passing.flow.yaml';
 const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
 const ACROSS = 'test/fixtures/engine/data-across.flow.yaml';
+const SAME_FACT = 'test/fixtures/engine/same-fact.flow.yaml';
 /** The ports every host takes in ACROSS up to the approval (AFD-21); exits count as the subflow's. */
 const ACROSS_PORTS = [
   'precheck.ok_hosts',
@@ -583,6 +584,21 @@ const SCENARIOS: Scenario[] = [
     vars: { devices: LAB },
     rc: 0,
     root: '../../content',
+  },
+  // AFD-53: two steps set the same fact; each reader gets the step's own value (the assert fails
+  // when it reads whichever ran last).
+  {
+    name: 'two steps set the same fact: the reader gets each one, captured per step',
+    flow: SAME_FACT,
+    transform: byKey,
+    vars: { devices: ['h01', 'h02'] },
+    rc: 0,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        { ports: ['running.ok_hosts', 'target.ok_hosts', 'compare.ok_hosts'] },
+      ]),
+    ),
   },
   ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,

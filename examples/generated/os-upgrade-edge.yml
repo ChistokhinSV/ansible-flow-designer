@@ -2,7 +2,7 @@
 # Do not edit by hand: change the flow and save it. Option A engine (ADR-0009).
 # Unbound nodes run TODO messages: run with --check until every node is bound.
 # Local runs pass approvals [change-approval] automatically; choose another outcome with -e '{"afd_approvals": {"change-approval": "rejected"}}'.
-# Checksum: 00ab9fe1e81858
+# Checksum: 0e3c78fdcf5611
 
 - name: "[pre-checks] Pre-checks"
   hosts: "{{ devices | join(',') }}"
@@ -73,6 +73,10 @@
         - name: "[backup-config] TODO outputs"
           ansible.builtin.set_fact:
             backup_ref: TODO
+        - name: "[backup-config] keep output backup_ref"
+          ansible.builtin.set_fact:
+            afd_backup_config__backup_ref: "{{ backup_ref }}"
+          when: backup_ref is defined
         - name: "[backup-config] route ok_hosts"
           ansible.builtin.group_by:
             key: flow_backup_config_ok_hosts

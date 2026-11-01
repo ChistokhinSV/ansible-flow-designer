@@ -8,7 +8,13 @@ import {
   portKey,
   unreachableBubbles,
 } from '../flow/bubbling';
-import { groupPart, outputVar, registerName } from '../flow/dataNames';
+import {
+  capturedOutputs,
+  captureTaskName,
+  groupPart,
+  outputVar,
+  registerName,
+} from '../flow/dataNames';
 import { portAccepted } from '../flow/decisions';
 import { privilegeOf } from '../flow/inherit';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
@@ -507,6 +513,7 @@ class Generator {
           vars: { flow_node_id: node.id, afd_arriving: arriving },
           tasks: [
             guard,
+            ...this.captures(node),
             { name: `[${node.key}] target done`, 'ansible.builtin.group_by': { key: done } },
           ],
         },
@@ -558,7 +565,7 @@ class Generator {
         tasks: [
           guard,
           {
-            block: [body, ...extra, finished],
+            block: [body, ...extra, ...this.captures(node), finished],
             rescue: [
               {
                 name: `[${node.key}] target failed`,
@@ -587,7 +594,7 @@ class Generator {
     const outputs = [
       ...new Set(
         Object.keys(node.outputs ?? {})
-          .map((o) => outputVar(node, o).split(/[.[]/)[0] as string)
+          .map((o) => outputVar(this.model, node, o).split(/[.[]/)[0] as string)
           .filter(Boolean),
       ),
     ];
@@ -683,7 +690,10 @@ class Generator {
             hosts: pattern,
             gather_facts: false,
             tags: flow([tag]),
-            tasks: [route(node, 'ok_hosts', this.target(ctx, node, 'ok_hosts'))],
+            tasks: [
+              ...this.captures(node),
+              route(node, 'ok_hosts', this.target(ctx, node, 'ok_hosts')),
+            ],
           },
         ],
         0,
@@ -736,6 +746,19 @@ class Generator {
       vars,
       tasks,
     };
+  }
+
+  /**
+   * A step's outputs that are not its register, copied into its own variables for the hosts that
+   * finished it (AFD-53), so another step setting the same fact cannot change what readers get. An
+   * output the code did not set stays unset, and its reader fails as it would have.
+   */
+  private captures(node: FlowNode): Out[] {
+    return capturedOutputs(this.model, node).map(([out, name]) => ({
+      name: captureTaskName(node.key, out),
+      'ansible.builtin.set_fact': { [name]: `{{ ${out} }}` },
+      when: `${out} is defined`,
+    }));
   }
 
   private taskTasks(ctx: LevelCtx, node: FlowNode): Out[] {
@@ -792,7 +815,7 @@ class Generator {
       ),
       choose(node, failChoices, { group: on('failed_hosts'), port: 'failed_hosts' }),
     ];
-    const block: OutMap = { block: [body, ...extra, okRoute], rescue };
+    const block: OutMap = { block: [body, ...extra, ...this.captures(node), okRoute], rescue };
     if (enabled.has('always')) block.always = [route(node, 'always', on('always'))];
     const tasks: Out[] = [block];
 

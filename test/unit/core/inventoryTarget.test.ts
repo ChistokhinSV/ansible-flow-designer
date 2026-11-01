@@ -62,7 +62,7 @@ describe('inventory_target in Option A', () => {
 
   it('inputs come from the first arriving host; outputs go back from the first finished target host', () => {
     const [, work, route] = of(find(doc, 'announce'));
-    expect(work?.vars?.word).toBe('{{ hostvars[afd_arriving | first].note }}');
+    expect(work?.vars?.word).toBe('{{ hostvars[afd_arriving | first].afd_precheck__note }}');
     const facts = route?.tasks?.find((t) => t['ansible.builtin.set_fact']);
     expect(facts).toMatchObject({
       'ansible.builtin.set_fact': {

@@ -74,20 +74,26 @@ reads.
 | `binding-unknown-var`   | a parameter (or an `assert` `that:`) reads a name that is not an input |
 | `condition-unknown-var` | a decision condition or `until` reads a name that is not an input      |
 | `subflow-output-unset`  | a subflow output that nothing inside sets                              |
-| `output-name-collision` | the output is a host variable another step or a flow input also sets   |
+| `register-collision`    | (error) the register another step registers too, or a flow input name  |
 | `ref-may-be-undefined`  | the producing step does not run (or succeed) for every host that reads |
 
 A flow input read directly is only a note: add it as an input to show the dependency. Full list:
 [problem codes](../reference/problems.md).
 
-### Outputs are host variables
+### Each step keeps its own outputs
 
-An output that is not read from the register (`impl.register`) is a host variable named after the
-output: a role's or `set_fact`'s fact. `from: backup.result` then reads the variable `result`, not
-something private to `backup`. If another step also sets `result`, the reader gets whichever ran
-last, and a flow input called `result` (an extra var) always wins. The designer warns about it
-(`output-name-collision`): rename one output, or register the result and read
-`impl.register.<path>`.
+A role, a playbook or a step not bound yet sets its output as a fact named after the output
+(`result`), which any other step setting `result` would overwrite. So the generated code copies it
+right after the step, for the hosts that finished it, into a variable of the step's own:
+`afd_<key>__<output>` (`afd_backup__result`), with the keys of the subflows around it in front when
+the same key is used on another level. `from: backup.result` reads that copy, so two steps may
+name their outputs alike. An output the code did not set stays unset, and its reader fails as
+before.
+
+An output read from the register (`impl.register`) is the register itself. Its name is the
+step's (`<key>_result` unless you set **Register result as** on the Binding tab), so it is an error
+(`register-collision`) when the reader's register is also registered by another step, or is the
+name of a flow input (an extra var, which always wins): give one step its own register name.
 
 ### Values that may be missing
 

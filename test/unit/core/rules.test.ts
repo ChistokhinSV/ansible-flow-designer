@@ -109,57 +109,60 @@ describe('honest checks (AFD-31)', () => {
     expect(codes(closed.doc, 'success-port-unwired')).toEqual([]);
   });
 
-  it('says when an output is a host variable another step or a flow input also sets', () => {
+  it('a register another step or a flow input also uses is an error; other outputs are captured (AFD-53)', () => {
+    const wires: [string, string, string][] = [
+      ['start', 'ok_hosts', 'a'],
+      ['a', 'ok_hosts', 'b'],
+      ['b', 'ok_hosts', 'c'],
+      ['c', 'ok_hosts', 'done'],
+    ];
+    const reader: Step = { key: 'c', inputs: { x: { type: 'any', from: 'a.result' } } };
+    // The same output name on two steps: each is captured into its own variable.
     const shared = flowOf(
       [
         { key: 'a', outputs: { result: { type: 'any' } } },
         { key: 'b', outputs: { result: { type: 'any' } } },
-        { key: 'c', inputs: { x: { type: 'any', from: 'a.result' } } },
+        reader,
       ],
-      [
-        ['start', 'ok_hosts', 'a'],
-        ['a', 'ok_hosts', 'b'],
-        ['b', 'ok_hosts', 'c'],
-        ['c', 'ok_hosts', 'done'],
-      ],
+      wires,
     );
-    const [hit] = codes(shared.doc, 'output-name-collision');
-    expect(hit?.message).toContain('is the host variable result, which "b" also sets');
-    // An output read from a register is that step's own variable.
+    expect(codes(shared.doc, 'register-collision')).toEqual([]);
+    // Two module steps registering the same name: the reader gets whichever ran last.
+    const ping = (register: string) => ({
+      kind: 'module' as const,
+      ref: 'ansible.builtin.ping',
+      register,
+    });
     const registered = flowOf(
       [
         {
           key: 'a',
-          impl: { kind: 'module', ref: 'ansible.builtin.ping', register: 'a_result' },
+          impl: ping('shared_result'),
           outputs: { result: { type: 'any', from: 'impl.register' } },
         },
-        { key: 'b', outputs: { result: { type: 'any' } } },
-        { key: 'c', inputs: { x: { type: 'any', from: 'a.result' } } },
+        { key: 'b', impl: ping('shared_result') },
+        reader,
       ],
-      [
-        ['start', 'ok_hosts', 'a'],
-        ['a', 'ok_hosts', 'b'],
-        ['b', 'ok_hosts', 'c'],
-        ['c', 'ok_hosts', 'done'],
-      ],
+      wires,
     );
-    expect(codes(registered.doc, 'output-name-collision')).toEqual([]);
-    // A flow input of the same name is an extra var: it always wins.
+    const [hit] = codes(registered.doc, 'register-collision');
+    expect(hit?.severity).toBe('error');
+    expect(hit?.message).toContain('reads the register shared_result, which "b" also sets');
+    // A flow input of the register's name is an extra var: it always wins.
     const input = flowOf(
       [
-        { key: 'a', outputs: { result: { type: 'any' } } },
-        { key: 'c', inputs: { x: { type: 'any', from: 'a.result' } } },
+        {
+          key: 'a',
+          impl: ping('result'),
+          outputs: { result: { type: 'any', from: 'impl.register' } },
+        },
+        { key: 'b' },
+        reader,
       ],
-      [
-        ['start', 'ok_hosts', 'a'],
-        ['a', 'ok_hosts', 'c'],
-        ['c', 'ok_hosts', 'done'],
-      ],
+      wires,
       { result: { type: 'string' } },
     );
-    expect(codes(input.doc, 'output-name-collision')[0]?.message).toContain(
-      'it reads the flow input',
-    );
+    expect(codes(input.doc, 'register-collision')[0]?.message).toContain('it reads the flow input');
   });
 
   it('says when a value may be missing: a path around the step, or hosts that failed in it', () => {

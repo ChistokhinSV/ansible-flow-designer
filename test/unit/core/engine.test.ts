@@ -189,7 +189,7 @@ describe('data passing (M5)', () => {
   const play = (plays: ReturnType<typeof flowWith>, key: string) =>
     plays.find((p) => p.name.startsWith(`[${key}]`));
 
-  it('passes upstream outputs in as play vars and skips same-name references', () => {
+  it('passes upstream outputs in as play vars, from the variable the producer captured (AFD-53)', () => {
     const plays = flowWith((doc) => {
       const validate = doc.nodes.find((n) => n.key === 'validate');
       if (validate)
@@ -198,8 +198,17 @@ describe('data passing (M5)', () => {
           backup_ref: { type: 'string', from: 'backup-config.backup_ref' },
         };
     });
-    expect(play(plays, 'validate')?.vars).toMatchObject({ baseline: '{{ backup_ref }}' });
-    expect(play(plays, 'validate')?.vars).not.toHaveProperty('backup_ref');
+    // A same-name input reads the captured variable too: the bare fact may be another step's.
+    expect(play(plays, 'validate')?.vars).toMatchObject({
+      baseline: '{{ afd_backup_config__backup_ref }}',
+      backup_ref: '{{ afd_backup_config__backup_ref }}',
+    });
+    const block = play(plays, 'backup-config')?.tasks?.[0]?.block ?? [];
+    expect(block).toContainEqual({
+      name: '[backup-config] keep output backup_ref',
+      'ansible.builtin.set_fact': { afd_backup_config__backup_ref: '{{ backup_ref }}' },
+      when: 'backup_ref is defined',
+    });
   });
 
   it('reads a module output from its registered result', () => {

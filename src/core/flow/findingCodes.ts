@@ -158,10 +158,10 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A from: names nothing this node can read.',
     fix: 'Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow.',
   },
-  'output-name-collision': {
+  'register-collision': {
     meaning:
-      'A from: reads an output that is a host variable another step (or a flow input) also sets: the generated code reads whichever ran last, and a flow input always wins.',
-    fix: 'Rename one of the outputs, or register the result (impl.register) and read impl.register.<path>.',
+      'A from: reads a register (impl.register) that another step also registers, or that a flow input also names: the generated code reads whichever ran last, and a flow input always wins.',
+    fix: 'Give one of the steps its own register name (Binding › Register result as), or rename the flow input.',
   },
   'ref-may-be-undefined': {
     meaning:

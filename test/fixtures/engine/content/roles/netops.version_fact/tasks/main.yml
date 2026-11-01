@@ -1,0 +1,5 @@
+# Engine test role (AFD-53): sets the fact `version`, as two different roles naming their result
+# alike would. The flow runs it twice with different values.
+- name: set the version fact
+  ansible.builtin.set_fact:
+    version: "{{ release }}-{{ inventory_hostname }}"

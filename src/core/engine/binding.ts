@@ -100,7 +100,7 @@ export function sourceExpr(
       return { expr: [src.name, ...src.path].join('.'), host: false };
     case 'output':
       return src.name
-        ? { expr: [outputVar(src.node, src.name), ...src.path].join('.'), host: true }
+        ? { expr: [outputVar(model, src.node, src.name), ...src.path].join('.'), host: true }
         : undefined;
     case 'subflowInput': {
       const up = src.field.from?.trim();
@@ -114,7 +114,7 @@ export function sourceExpr(
       // The validator reports it; the code reads the name, as it did before AFD-21.
       const [head, name = '', ...path] = from.split('.');
       if (src.target && name)
-        return { expr: [outputVar(src.target, name), ...path].join('.'), host: true };
+        return { expr: [outputVar(model, src.target, name), ...path].join('.'), host: true };
       return head === 'flow' && name ? { expr: [name, ...path].join('.'), host: false } : undefined;
     }
     default:
