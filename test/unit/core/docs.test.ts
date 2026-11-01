@@ -114,7 +114,8 @@ describe('walkthroughs', () => {
         for (const link of commandLinks(s.description)) {
           expect(contributed.has(link.id) || BUILT_IN.has(link.id), link.id).toBe(true);
           const page = (link.args as string[] | undefined)?.[0] ?? 'README.md';
-          if (link.id === 'afd.openGuide') expect(existsSync(join(GUIDE, page)), page).toBe(true);
+          if (link.id === 'afd.help.openGuide')
+            expect(existsSync(join(GUIDE, page)), page).toBe(true);
         }
       }
   });

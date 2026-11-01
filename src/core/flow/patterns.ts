@@ -33,21 +33,21 @@ export interface PatternSpec {
 export const PATTERNS: Record<PatternId, PatternSpec> = {
   rollback: {
     id: 'rollback',
-    label: 'Rollback from backup',
+    label: 'Rollback from Backup',
     hint: 'Undo the completed nodes for the failed hosts only (reuses the Rollback of this level)',
     accepts: ['failed_hosts'],
     palette: true,
   },
   'notify-stop': {
     id: 'notify-stop',
-    label: 'Notify on-call and stop',
+    label: 'Notify On-Call and Stop',
     hint: 'Open a ticket, page on-call, end these hosts as stopped',
     accepts: ['failed_hosts', 'unreachable', 'timeout', 'rejected'],
     palette: true,
   },
   retry: {
     id: 'retry',
-    label: 'Retry with backoff',
+    label: 'Retry with Backoff',
     hint: 'Run the step again for these hosts, then rejoin the happy path',
     accepts: ['failed_hosts', 'unreachable', 'timeout'],
     types: ['task', 'subflow'],
@@ -55,14 +55,14 @@ export const PATTERNS: Record<PatternId, PatternSpec> = {
   },
   exclude: {
     id: 'exclude',
-    label: 'Exclude and report',
+    label: 'Exclude and Report',
     hint: 'Take these hosts out of the run and list them in the report',
     accepts: ['failed_hosts', 'unreachable'],
     palette: true,
   },
   stop: {
     id: 'stop',
-    label: 'Stop flow',
+    label: 'Stop Flow',
     hint: 'End these hosts with a failed outcome',
     accepts: ['failed_hosts', 'unreachable', 'timeout', 'rejected'],
     palette: false,
@@ -76,7 +76,7 @@ export const PATTERNS: Record<PatternId, PatternSpec> = {
   },
   escalate: {
     id: 'escalate',
-    label: 'Escalate approval',
+    label: 'Escalate Approval',
     hint: 'Ask the next approver; approved hosts rejoin the happy path',
     accepts: ['rejected', 'timeout'],
     types: ['approval'],
@@ -84,7 +84,7 @@ export const PATTERNS: Record<PatternId, PatternSpec> = {
   },
   report: {
     id: 'report',
-    label: 'Send run report',
+    label: 'Send Run Report',
     hint: 'Send per-host results after the step, whatever the outcome',
     accepts: ['always'],
     palette: false,
@@ -177,7 +177,7 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
       return {
         node: {
           type: 'task',
-          title: 'Exclude and report',
+          title: 'Exclude and Report',
           handler: 'exclude',
           intent: `Take the hosts from ${what} out of this run and list them in the run report`,
         },

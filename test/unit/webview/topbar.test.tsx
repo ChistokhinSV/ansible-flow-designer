@@ -35,53 +35,54 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('top bar', () => {
-  it('Design: Run as skeleton up front, Run for real in its menu, the rest under "…"', () => {
+  it('Design: Run as Skeleton up front, Run for real in its menu, the rest under "…"', () => {
     render(<TopBar />);
-    for (const gone of ['Tidy up', 'Text', 'Validate design', 'Run for real'])
+    for (const gone of ['Tidy Up', 'Text', 'Check Flow', 'Run for real'])
       expect(screen.queryByRole('button', { name: gone })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Run as skeleton/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Run as Skeleton/ }));
     expect(posted).toEqual([{ type: 'run', mode: 'check' }]);
     fireEvent.click(screen.getByRole('button', { name: 'More run options' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Run for real…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Run for Real…' }));
     expect(posted.at(-1)).toEqual({ type: 'run', mode: 'real' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     expect(items()).toEqual([
-      'Tidy up',
-      'Show as text',
-      'Export as draw.io…',
-      'Export as image…',
-      'Validate design',
-      'Keyboard shortcuts',
-      'User guide',
+      'Tidy Up',
+      'Open in Text Editor',
+      'Export as draw.io Diagram…',
+      'Export as Image…',
+      'Check Flow',
+      'Keyboard Shortcuts',
+      'User Guide',
     ]);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Tidy up' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Tidy Up' }));
     expect(posted.at(-1)).toEqual({ type: 'tidyUp', level: 'root' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Keyboard shortcuts' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Keyboard Shortcuts' }));
     expect(useUi.getState().cheatSheet).toBe(true);
     // AFD-22: the user guide opens on the host, in the Markdown preview.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'User guide' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'User Guide' }));
     expect(posted.at(-1)).toEqual({ type: 'openGuide' });
     // AFD-25: exports run on the host; images cover the open level.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Export as image…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Export as Image…' }));
     expect(posted.at(-1)).toEqual({ type: 'export', format: 'image', level: 'root' });
   });
 
-  it('Implementation: no Validate design in "…"; the menu button toggles', () => {
-    act(() => useUi.getState().setMode('implementation'));
+  it('Code: Check Flow in "…" too (AFD-41); the menu button toggles', () => {
+    act(() => useUi.getState().setMode('code'));
     render(<TopBar />);
     const more = screen.getByRole('button', { name: 'More actions' });
     fireEvent.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
     expect(items()).toEqual([
-      'Tidy up',
-      'Show as text',
-      'Export as draw.io…',
-      'Export as image…',
-      'Keyboard shortcuts',
-      'User guide',
+      'Tidy Up',
+      'Open in Text Editor',
+      'Export as draw.io Diagram…',
+      'Export as Image…',
+      'Check Flow',
+      'Keyboard Shortcuts',
+      'User Guide',
     ]);
     fireEvent.click(more);
     expect(screen.queryByRole('menu')).toBeNull();

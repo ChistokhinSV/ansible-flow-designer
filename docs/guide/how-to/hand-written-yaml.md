@@ -45,7 +45,7 @@ Paste does the same for snippets ([copy and paste](copy-paste.md)).
 
 ## Edit with the Red Hat YAML extension
 
-With the Red Hat YAML extension installed, **Show as text** gets completion, hovers and validation
+With the Red Hat YAML extension installed, **Open in Text Editor** gets completion, hovers and validation
 from the flow schema. The schema is registered for `*.flow.yaml`.
 
 ## Keep in mind

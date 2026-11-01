@@ -382,12 +382,12 @@ describe('port menu (04 §3, mockup 07)', () => {
   it('open failed_hosts: existing Rollback first, then the patterns, then open on purpose', () => {
     expect(labels(EDGE, 'precheck', 'failed_hosts')).toEqual([
       'Rollback (existing)',
-      'Notify on-call and stop',
-      'Exclude and report',
-      'Retry with backoff',
-      'Stop flow',
-      'Connect to another node…',
-      'Leave open on purpose…',
+      'Notify On-Call and Stop',
+      'Exclude and Report',
+      'Retry with Backoff',
+      'Stop Flow',
+      'Connect to Another Node…',
+      'Accept with Reason…',
     ]);
   });
 
@@ -400,27 +400,27 @@ describe('port menu (04 §3, mockup 07)', () => {
         expect(m.items.some((i) => i.kind === 'pattern' && i.pattern === 'rollback')).toBe(false);
       }
     }
-    expect(labels(EDGE, 'precheck', 'unreachable')?.[0]).toBe('Enable port');
+    expect(labels(EDGE, 'precheck', 'unreachable')?.[0]).toBe('Enable Port');
   });
 
   it('connected output: insert, rewire, disconnect', () => {
     expect(labels(EDGE, 'push-baseline', 'failed_hosts')).toEqual([
-      'Insert node on this wire',
-      'Rewire to another node…',
+      'Insert Node on This Wire',
+      'Rewire to Another Node…',
       'Disconnect',
     ]);
   });
 
   it('decided port: edit reason or reopen; inputs list their wires', () => {
     expect(labels(EDGE, 'backup-config', 'failed_hosts')?.slice(-2)).toEqual([
-      'Edit reason…',
+      'Edit Reason…',
       'Reopen',
     ]);
     expect(labels(EDGE, 'failed', 'in')).toEqual([
-      'Connect from another node…',
+      'Connect from Another Node…',
       'Disconnect from Rollback · ok_hosts',
     ]);
-    expect(labels(OS, 'backup-config', 'undo')).toEqual(['Bind undo task', 'Remove port']);
+    expect(labels(OS, 'backup-config', 'undo')).toEqual(['Bind Undo Task', 'Remove Port']);
   });
 
   it('a dropped pattern targets the first open port it fits', () => {

@@ -24,7 +24,7 @@ What you see:
 - the **flow panel** on the right (name, goal, inputs) when nothing is selected, or the
   **inspector** of the selected node.
 
-> The file is plain YAML. **Show as text** in the top bar's "…" menu opens it next to the
+> The file is plain YAML. **Open in Text Editor** in the top bar's "…" menu opens it next to the
 > designer; both edit the same document, so undo, save and Git work as usual.
 
 ## 2. Add steps on the wire
@@ -38,12 +38,12 @@ Hosts travel along wires. To put a step between Start and Done:
 ![Quick add inserting a task on the wire](../images/quick-add-light.png)
 
 Add two more steps the same way, each on the wire after the previous one: `Push NTP servers` and
-`Verify sync`. New nodes go next to where they belong; **Tidy up** in the top bar's "…" menu lays
+`Verify sync`. New nodes go next to where they belong; **Tidy Up** in the top bar's "…" menu lays
 out the whole level again. Select a step to give it an **intent** in the inspector, one sentence on what it
 does. The skeleton run prints it, and AI assistants and catalog searches use it.
 
 Other ways to add a node: click or drag a type from the palette; drag from a port and release on
-empty canvas; right-click the canvas → **Add node here…**. See
+empty canvas; right-click the canvas → **Add Node Here…**. See
 [canvas basics](../how-to/canvas-basics.md).
 
 ## 3. Handle every failure
@@ -59,11 +59,11 @@ Click an amber port to get the suggestions for it:
 
 Handle the three ports:
 
-| Step             | Port           | Choose                                                         | Why                                                   |
-| ---------------- | -------------- | -------------------------------------------------------------- | ----------------------------------------------------- |
-| Check NTP        | `failed_hosts` | **Exclude and report**                                         | a read-only check: take those hosts out and list them |
-| Push NTP servers | `failed_hosts` | **Notify on-call and stop**                                    | the change failed: someone must look                  |
-| Verify sync      | `failed_hosts` | **Leave open on purpose…**, reason "Verification only reports" | the run should fail for them, and that is expected    |
+| Step             | Port           | Choose                                                      | Why                                                   |
+| ---------------- | -------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
+| Check NTP        | `failed_hosts` | **Exclude and report**                                      | a read-only check: take those hosts out and list them |
+| Push NTP servers | `failed_hosts` | **Notify on-call and stop**                                 | the change failed: someone must look                  |
+| Verify sync      | `failed_hosts` | **Accept with Reason…**, reason "Verification only reports" | the run should fail for them, and that is expected    |
 
 Each choice is **one undo step** (Ctrl+Z). A pattern adds a handler node and an end node, or
 reuses an end node of the same kind on this level. _Leave open on purpose_ records your reason
@@ -89,7 +89,7 @@ it. **Back** (or Alt+↑) returns to the top. See [subflows](../how-to/subflows.
 
 ## 5. Check and save
 
-Run **Validate design** (top bar "…" menu). The Problems panel lists what is left, each with its
+Run **Check Flow** (top bar "…" menu). The Problems panel lists what is left, each with its
 fix. Then save (Ctrl+S).
 
 Saving a flow without errors writes the playbooks next to it: `generated/ntp-baseline.yml` and
@@ -106,7 +106,7 @@ shows its generated play.
 Your steps are not bound to code yet. In a skeleton run each of them prints `TODO: <intent>` and
 succeeds, so you can run the whole flow now.
 
-1. Click **Run as skeleton** in the top bar.
+1. Click **Run as Skeleton** in the top bar.
 2. For `devices`, enter `localhost` (or hosts from your inventory, comma-separated).
 
 The extension generates the code and runs `ansible-playbook --check` in a terminal, in your Ansible

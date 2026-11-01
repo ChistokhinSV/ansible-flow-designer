@@ -9,11 +9,11 @@ time: the top of the flow, or the inside of one subflow.
 
 - **Top bar:**
   - the breadcrumb;
-  - the mode toggle: **Design**, **Implementation** (design vs code) and **Run** (the last run);
+  - the mode toggle: **Design**, **Code** (design vs code) and **Run** (the last run);
   - the **Lens** dropdown;
-  - the mode's main action: **Run as skeleton**, with **Run for real…** under its chevron;
-  - a "…" menu with _Tidy up_, _Show as text_, _Validate design_, _Keyboard shortcuts_ and _User
-    guide_.
+  - the mode's main action: **Run as Skeleton**, with **Run for Real…** under its chevron;
+  - a "…" menu with _Tidy Up_, _Open in Text Editor_, _Export as draw.io Diagram…_, _Export as
+    Image…_, _Check Flow_, _Keyboard Shortcuts_ and _User Guide_.
 - **Palette** (left): node types and failure patterns, and a legend of port and wire styles.
 - **Canvas** (middle): nodes, ports and wires.
 - **Right panel:** the flow (name, goal, owner, maintenance window, inputs, readiness) when nothing
@@ -38,14 +38,14 @@ A node's **status** is shown by its dot: draft, specified (has inputs or outputs
 - **Add:**
   - click or drag a type from the palette;
   - drag from a port and release on empty canvas (Quick add);
-  - right-click the canvas → **Add node here…**;
+  - right-click the canvas → **Add Node Here…**;
   - or a port's **Insert node on this wire**.
 
   ![Quick add](../images/quick-add-light.png)
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
   number of wires in.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
-  **Tidy up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
+  **Tidy Up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
   added) are placed next to their neighbours until you move them.
 - **Delete:** Delete or Backspace. A whole selection is one undo step.
 - **Select several:** Ctrl+click, or Shift+drag a box.
@@ -59,11 +59,11 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 
 ![The node menu](../images/context-menu-light.png)
 
-- **Node:** Open subflow, Properties…, Bind implementation…, Rename, Status ▸, one submenu per open
-  fail port, Add next node…, Cut, Copy, Duplicate, Show in text, Peek code, Delete.
+- **Node:** Open subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
+  fail port, Add next node…, Cut, Copy, Duplicate, Open in Text Editor, Peek code, Delete.
 - **Selection:** Cut, Copy, Duplicate, Extract into subflow…, Delete.
 - **Wire:** Insert node on this wire, Rewire to another node…, Disconnect.
-- **Empty canvas:** Paste here, Add node here…, Select all, Tidy up, Fit view, Up to parent.
+- **Empty canvas:** Paste here, Add Node Here…, Select all, Tidy Up, Fit view, Up to parent.
 
 Shift+F10 or the Menu key opens it for the selection. Run mode only reads.
 
@@ -83,6 +83,13 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Arrow keys               | Nudge the focused node                               |
 | Esc                      | Close the menu or dialog; else clear the selection   |
 | Shift+F10                | Context menu for the selection                       |
+| Ctrl+F5 / Shift+F5       | Run as Skeleton / Stop Run                           |
+| Ctrl+Shift+B             | Generate Code                                        |
+| Shift+Alt+F              | Tidy Up                                              |
+| F7                       | Check Flow                                           |
+
+The last four are VS Code keybindings, active while the designer has focus: change them in VS
+Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 
 ## Zoom
 
@@ -92,7 +99,7 @@ what is inside.
 
 ## Text and the designer
 
-**Show as text** opens the YAML next to the canvas. Both edit the same document, so save, dirty
+**Open in Text Editor** opens the YAML next to the canvas. Both edit the same document, so save, dirty
 state, undo, Git diff and hot exit are VS Code's own. `flow.version` goes up once per commit when
 the design changes (not for layout moves).
 

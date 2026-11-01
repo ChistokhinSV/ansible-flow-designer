@@ -136,7 +136,7 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
     if (!mark) {
       if (item.node)
         item.actions.push({
-          label: 'Ignore…',
+          label: 'Accept with Reason…',
           action: { kind: 'ignore', node: item.node, item: item.id },
         });
       items.push(item);
@@ -147,7 +147,7 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
       ignored: mark,
       actions: [
         {
-          label: 'Stop ignoring',
+          label: 'Reopen',
           action: { kind: 'unignore', node: item.node as Ulid, item: item.id },
         },
       ],
@@ -175,7 +175,7 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
             ...(play.origin
               ? [
                   {
-                    label: 'Open code',
+                    label: 'Open Code',
                     action: { kind: 'openCode', ...play.origin } as DriftAction,
                   },
                 ]
@@ -201,7 +201,7 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
           ? []
           : [
               {
-                label: 'Open code',
+                label: 'Open Code',
                 action: { kind: 'openCode', path: generated.path } as DriftAction,
               },
             ]),
@@ -241,7 +241,7 @@ export function computeDrift(doc: FlowDocument, scan: CodeScan): DriftReport {
         severity: hasIncoming(model, node) ? 'warning' : 'info',
         actions: [
           { label: 'Regenerate', action: { kind: 'regenerate' } },
-          { label: 'Open code', action: { kind: 'openCode', path: generated.path } },
+          { label: 'Open Code', action: { kind: 'openCode', path: generated.path } },
         ],
       });
     checkNode(model, scan, node, code, flowInputs, add);
@@ -277,10 +277,10 @@ function checkNode(
       severity: 'warning',
       actions: [
         {
-          label: 'Generate stub',
+          label: 'Generate Stub',
           action: { kind: 'generateStub', node: id, role: roleName(node.key) },
         },
-        { label: 'Bind role', action: { kind: 'bind', node: id, bindKind: 'role' } },
+        { label: 'Bind Role', action: { kind: 'bind', node: id, bindKind: 'role' } },
       ],
     });
     return;
@@ -309,7 +309,7 @@ function checkNode(
       detail: `${impl.ref} ${code.missing === 'not found' ? 'does not exist' : `does not load: ${code.missing}`}.`,
       severity: 'warning',
       actions: [
-        { label: 'Bind playbook', action: { kind: 'bind', node: id, bindKind: 'playbook' } },
+        { label: 'Bind Playbook', action: { kind: 'bind', node: id, bindKind: 'playbook' } },
       ],
     });
     return;
@@ -326,8 +326,8 @@ function checkNode(
         detail: `Role ${impl.ref} is not in roles_path.`,
         severity: 'warning',
         actions: [
-          { label: 'Create role', action: { kind: 'generateStub', node: id, role: impl.ref } },
-          { label: 'Bind role', action: { kind: 'bind', node: id, bindKind: 'role' } },
+          { label: 'Create Role', action: { kind: 'generateStub', node: id, role: impl.ref } },
+          { label: 'Bind Role', action: { kind: 'bind', node: id, bindKind: 'role' } },
         ],
       });
       return;
@@ -368,7 +368,7 @@ function checkTaskFiles(
       severity: 'warning',
       actions: [
         {
-          label: 'Add to subflow',
+          label: 'Add to Subflow',
           action: { kind: 'addToSubflow', subflow: node.id, role, tasksFrom: file },
         },
       ],
@@ -413,7 +413,7 @@ function checkRoleContract(
         ...(candidates.length === 1
           ? [
               {
-                label: 'Update design',
+                label: 'Update Design',
                 action: {
                   kind: 'renameOutput',
                   node: id,
@@ -429,12 +429,12 @@ function checkRoleContract(
         ...(candidates.length === 0
           ? [
               {
-                label: 'Remove output',
+                label: 'Remove Output',
                 action: { kind: 'removeOutput', node: id, name } as DriftAction,
               },
             ]
           : []),
-        { label: 'Open code', action: { kind: 'openCode', ...(origin ?? { path: tasksFile }) } },
+        { label: 'Open Code', action: { kind: 'openCode', ...(origin ?? { path: tasksFile }) } },
       ],
     });
   }
@@ -451,7 +451,7 @@ function checkRoleContract(
       severity: 'info',
       actions: [
         { label: 'Write argument_specs', action: { kind: 'writeSpecs', node: id } },
-        { label: 'Open code', action: { kind: 'openCode', path: tasksFile } },
+        { label: 'Open Code', action: { kind: 'openCode', path: tasksFile } },
       ],
     });
     return;
@@ -475,8 +475,8 @@ function checkRoleContract(
       detail: `The role requires ${list([name])}; the node has no input ${list([name])}.`,
       severity: 'warning',
       actions: [
-        { label: 'Update design', action: { kind: 'addInput', node: id, name, field } },
-        { label: 'Open code', action: { kind: 'openCode', path: specFile } },
+        { label: 'Update Design', action: { kind: 'addInput', node: id, name, field } },
+        { label: 'Open Code', action: { kind: 'openCode', path: specFile } },
       ],
     });
   }
@@ -491,8 +491,8 @@ function checkRoleContract(
       detail: `${list([name])} is not an argument of ${info.name} (${entry}).`,
       severity: 'info',
       actions: [
-        { label: 'Update design', action: { kind: 'removeInput', node: id, name } },
-        { label: 'Open code', action: { kind: 'openCode', path: specFile } },
+        { label: 'Update Design', action: { kind: 'removeInput', node: id, name } },
+        { label: 'Open Code', action: { kind: 'openCode', path: specFile } },
       ],
     });
   }
@@ -530,7 +530,7 @@ function checkModuleReturns(
           } as DriftAction,
         })),
         ...(code.play
-          ? [{ label: 'Open code', action: { kind: 'openCode', ...code.play } as DriftAction }]
+          ? [{ label: 'Open Code', action: { kind: 'openCode', ...code.play } as DriftAction }]
           : []),
       ],
     });

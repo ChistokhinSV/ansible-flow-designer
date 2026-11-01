@@ -223,7 +223,7 @@ export function inventoryLens(
         d.source === 'inventory_target'
           ? [
               {
-                label: 'Limit to arriving hosts',
+                label: 'Limit to Arriving Hosts',
                 command: {
                   kind: 'updateNode',
                   id: node.id,
@@ -256,7 +256,7 @@ export function inventoryLens(
         nodes,
         fixes: [
           {
-            label: 'Add to flow inputs',
+            label: 'Add to Flow Inputs',
             command: {
               kind: 'setContractField',
               target: 'flow',

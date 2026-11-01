@@ -239,9 +239,9 @@ describe('port menu and open on purpose (M2)', () => {
     const menu = screen.getByRole('menu');
     expect(menu.dataset.portMenu).toBe(`${PRECHECK}|failed_hosts`);
     expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toContain(
-      'Notify on-call and stop',
+      'Notify On-Call and Stop',
     );
-    act(() => screen.getByRole('menuitem', { name: 'Notify on-call and stop' }).click());
+    act(() => screen.getByRole('menuitem', { name: 'Notify On-Call and Stop' }).click());
     expect(commands()).toEqual([
       expect.objectContaining({
         kind: 'applyPattern',
@@ -253,14 +253,14 @@ describe('port menu and open on purpose (M2)', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('"Leave open on purpose" needs a reason, then sends setDecision without an author', () => {
+  it('"Accept with Reason…" needs a reason, then sends setDecision without an author', () => {
     mount();
     act(() =>
       useUi.getState().openPortMenu({ ref: { node: PRECHECK, port: 'failed_hosts' }, x: 0, y: 0 }),
     );
-    act(() => screen.getByRole('menuitem', { name: 'Leave open on purpose…' }).click());
+    act(() => screen.getByRole('menuitem', { name: 'Accept with Reason…' }).click());
     const dialog = screen.getByRole('dialog');
-    const submit = within(dialog).getByRole('button', { name: 'Leave open' });
+    const submit = within(dialog).getByRole('button', { name: 'Accept' });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('Reason (required)'), {
       target: { value: 'Read-only checks' },
@@ -281,8 +281,8 @@ describe('port menu and open on purpose (M2)', () => {
       }),
     );
     expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual([
-      'Insert node on this wire',
-      'Rewire to another node…',
+      'Insert Node on This Wire',
+      'Rewire to Another Node…',
       'Disconnect',
     ]);
   });
@@ -325,7 +325,7 @@ describe('generated code and runs (M3)', () => {
     act(() => useUi.getState().setRun(null));
     render(<TopBar />);
     posted.length = 0;
-    fireEvent.click(screen.getByRole('button', { name: /Run as skeleton/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Run as Skeleton/ }));
     expect(posted).toContainEqual({ type: 'run', mode: 'check' });
     act(() =>
       useUi.getState().setRun({
@@ -429,7 +429,7 @@ describe('subflows (M4)', () => {
       const steps = [...document.querySelectorAll('[data-preview-step]')].map((s) => s.textContent);
       expect(steps[0]).toContain('Stage image');
       expect(steps.at(-1)).toContain('→ failed_hosts');
-      fireEvent.click(screen.getByRole('button', { name: 'Peek code' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Peek Code' }));
       expect(posted).toContainEqual({ type: 'peekCode', node: up });
       expect(hasPreview(OS.nodes.find((n) => n.key === 'notify-on-call') as FlowNode)).toBe(false);
     } finally {

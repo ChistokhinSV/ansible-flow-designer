@@ -213,9 +213,9 @@ export function NodeCodePanel({ id }: { id: string }) {
         <button
           type="button"
           className="icon"
-          title="Properties"
-          aria-label="Open properties"
-          onClick={() => useUi.getState().openProperties(id, 'implementation')}
+          title="Details"
+          aria-label="Open Details"
+          onClick={() => useUi.getState().openProperties(id, 'binding')}
         >
           <span className="codicon codicon-settings-gear" aria-hidden="true" />
         </button>
@@ -304,9 +304,9 @@ export function IgnoreDialog() {
   return (
     <ReasonDialog
       id="afd-ignore"
-      title="Ignore this drift"
+      title="Accept with Reason"
       placeholder="e.g. The role runs it from main"
-      submit="Ignore"
+      submit="Accept"
       target={target}
       record={(reason) =>
         run({ kind: 'ignoreDrift', node: target.node, item: target.item, reason })

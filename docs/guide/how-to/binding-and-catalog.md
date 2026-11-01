@@ -1,8 +1,8 @@
 # Bind a step to a module, role or playbook
 
 A step without a binding runs as a TODO message, which is fine while you design. Binding it says
-what it really runs. Select the node and click the gear in the inspector, or right-click → **Bind
-implementation…**. The properties page opens over the canvas, on **Implementation**.
+what it really runs. Select the node and click the gear in the inspector, or right-click → **Binding…**.
+The Details page opens over the canvas, on **Binding**.
 
 ![Search, understand, configure](../images/properties-binding-light.png)
 
@@ -49,8 +49,8 @@ in one undo step. Renaming an input later rewrites the parameters that read it. 
 change is only on the page: **Esc** with an unsaved change asks whether to keep editing, discard it
 or save it. Esc in a field only reverts that field.
 
-While the flow file has YAML errors or missing IDs, the inspector and the properties page are
-read-only; fix the text first (**Show as text**).
+While the flow file has YAML errors or missing IDs, the inspector and the Details page are
+read-only; fix the text first (**Open in Text Editor**).
 
 ## Task keywords
 
@@ -89,5 +89,5 @@ for a playbook: hosts that fail inside it stop there.
 Ansible gives no per-host "changed" or "unreachable" for a role, so `unchanged` and `unreachable`
 on a role step never fire, and the validator says so. Put such a check in its own module step.
 
-See also: [Implementation mode](implementation-mode.md) for design vs code drift,
+See also: [Code mode](code-mode.md) for design vs code drift,
 [generated code](code-generation.md).

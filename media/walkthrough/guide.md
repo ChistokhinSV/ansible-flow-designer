@@ -13,7 +13,7 @@ Everything the designer does, as short pages. They open in VS Code's Markdown pr
 
 **How-to pages** for one feature each: the canvas and shortcuts, ports and failure patterns,
 subflows, decisions and parallel branches, binding, data between steps, polling, approvals, code
-generation, runs and environments, Implementation mode, lenses, copy and paste, hand-written YAML,
+generation, runs and environments, Code mode, lenses, copy and paste, hand-written YAML,
 AI assistants, AWX, import, settings.
 
 **Reference:** commands, settings, problem codes, the flow file format, troubleshooting.

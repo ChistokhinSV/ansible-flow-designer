@@ -10,6 +10,7 @@ import { embedDiagramInPng } from '../core/export/png';
 import { type ExportSource, levelSuffix, type Scene, scenesOf } from '../core/export/scene';
 import { sceneSvg } from '../core/export/svg';
 import { ROOT } from '../core/flow/model';
+import { CMD } from './commands/ids';
 import type { FlowSession } from './flowSession';
 
 export type ImageFormat = 'svg' | 'png';
@@ -206,10 +207,10 @@ export async function exportImage(
 
 export function registerExport(deps: ExportDeps): vscode.Disposable[] {
   return [
-    vscode.commands.registerCommand('afd.exportDrawio', (uri?: vscode.Uri, opts?: ExportOptions) =>
+    vscode.commands.registerCommand(CMD.exportDrawio, (uri?: vscode.Uri, opts?: ExportOptions) =>
       exportDrawio(deps, uri instanceof vscode.Uri ? uri : undefined, opts),
     ),
-    vscode.commands.registerCommand('afd.exportImage', (uri?: vscode.Uri, opts?: ExportOptions) =>
+    vscode.commands.registerCommand(CMD.exportImage, (uri?: vscode.Uri, opts?: ExportOptions) =>
       exportImage(deps, uri instanceof vscode.Uri ? uri : undefined, opts),
     ),
   ];

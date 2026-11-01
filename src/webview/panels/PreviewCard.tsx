@@ -115,7 +115,7 @@ export function PreviewCard() {
             send({ type: 'peekCode', node: node.id });
           }}
         >
-          Peek code
+          Peek Code
         </button>
         {node.type === 'subflow' ? (
           <button
@@ -125,7 +125,7 @@ export function PreviewCard() {
               setLevel(node.id);
             }}
           >
-            Open subflow
+            Open Subflow
           </button>
         ) : null}
       </footer>

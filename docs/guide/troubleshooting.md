@@ -6,7 +6,7 @@ Back to the [guide](README.md).
 
 - **It opens as text.** Right-click the file → _Open With…_ → **Ansible Flow Designer**. Only files
   named `*.flow.yaml` open in it.
-- **"… is not a flow document yet"** with an error: the YAML does not parse. **Open as text**, fix
+- **"… is not a flow document yet"** with an error: the YAML does not parse. **Open in Text Editor**, fix
   the line it names, and the designer comes back.
 - **An empty `*.flow.yaml`** shows **Create a flow here**, which writes a start and a done node.
 - **"Written by hand" banner:** the file lacks IDs. Click **Complete IDs**
@@ -14,7 +14,7 @@ Back to the [guide](README.md).
 - **Edits are refused with "The document has YAML errors":** fix the YAML in the text editor
   first.
 
-## Runs, the catalog or Implementation mode do not work
+## Runs, the catalog or Code mode do not work
 
 These need an Ansible environment with ansible-core 2.19 or later
 ([runs and environments](how-to/runs-and-environments.md)).
@@ -84,7 +84,7 @@ These need an Ansible environment with ansible-core 2.19 or later
 
 ## Still stuck?
 
-**Validate design** lists every problem with its fix ([problem codes](reference/problems.md)). Runs
+**Check Flow** lists every problem with its fix ([problem codes](reference/problems.md)). Runs
 print to their terminal (**Show terminal** in the run panel). The _Ansible Flow_ output channel
 (View → Output) logs the Ansible probe: when it starts, which ansible-core it found, its warnings
 and timeouts (set the channel's level to Debug for every probe line), and what _Set Up AI

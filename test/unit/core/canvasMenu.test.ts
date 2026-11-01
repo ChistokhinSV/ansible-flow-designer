@@ -51,20 +51,20 @@ describe('canvas menu', () => {
     const { id, menu } = setup(EDGE);
     const entries = menu({ kind: 'node', id: id('precheck') });
     expect(labels(entries)).toEqual([
-      'Properties…',
-      'Bind implementation…',
+      'Details…',
+      'Binding…',
       '—',
       'Rename',
       'Status ▸',
-      'Open port failed_hosts ▸',
-      'Add next node…',
+      'Open Port failed_hosts ▸',
+      'Add Next Node…',
       '—',
       'Cut',
       'Copy',
       'Duplicate',
       '—',
-      'Show in text',
-      'Peek code',
+      'Open in Text Editor',
+      'Peek Code',
       '—',
       'Delete',
     ]);
@@ -72,29 +72,29 @@ describe('canvas menu', () => {
     expect(
       status?.type === 'submenu' && status.items.map((i) => i.type === 'item' && i.checked),
     ).toEqual([true, false, false, false]);
-    const port = find(entries, 'Open port failed_hosts');
+    const port = find(entries, 'Open Port failed_hosts');
     const portLabels = port?.type === 'submenu' ? labels(port.items) : [];
     expect(portLabels.some((l) => l.startsWith('Rollback'))).toBe(true);
-    expect(portLabels).toContain('Leave open on purpose…');
+    expect(portLabels).toContain('Accept with Reason…');
   });
 
   it('a subflow opens first; start has no status, cut or duplicate', () => {
     const { id, menu } = setup(EDGE);
-    expect(labels(menu({ kind: 'node', id: id('push-baseline') }))[0]).toBe('Open subflow');
+    expect(labels(menu({ kind: 'node', id: id('push-baseline') }))[0]).toBe('Open Subflow');
     const start = labels(menu({ kind: 'node', id: id('start') }));
-    for (const l of ['Status ▸', 'Cut', 'Duplicate', 'Properties…']) expect(start).not.toContain(l);
+    for (const l of ['Status ▸', 'Cut', 'Duplicate', 'Details…']) expect(start).not.toContain(l);
     expect(start).toContain('Copy');
   });
 
   it('Run mode only reads; Implementation edits but has no Rename or Extract', () => {
     const { id, menu } = setup(EDGE);
     const run = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'run' }));
-    expect(run).toEqual(['Properties…', '—', 'Copy', '—', 'Show in text', 'Peek code']);
-    const impl = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'implementation' }));
+    expect(run).toEqual(['Details…', '—', 'Copy', '—', 'Open in Text Editor', 'Peek Code']);
+    const impl = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'code' }));
     expect(impl).not.toContain('Rename');
     expect(impl).toContain('Delete');
     const group = { kind: 'nodes' as const, ids: [id('precheck'), id('validate')] };
-    expect(labels(menu(group, { mode: 'implementation' }))).not.toContain('Extract into subflow…');
+    expect(labels(menu(group, { mode: 'code' }))).not.toContain('Extract into Subflow…');
     expect(labels(menu(group, { mode: 'run' }))).toEqual(['Copy']);
   });
 
@@ -106,12 +106,12 @@ describe('canvas menu', () => {
       'Copy',
       'Duplicate',
       '—',
-      'Extract into subflow…',
+      'Extract into Subflow…',
       '—',
       'Delete',
     ]);
     const withStart = menu({ kind: 'nodes', ids: [id('start'), id('precheck')] });
-    const extract = find(withStart, 'Extract into subflow…');
+    const extract = find(withStart, 'Extract into Subflow…');
     expect(extract?.type === 'item' && extract.disabled).toMatch(/Start and end/);
   });
 
@@ -119,11 +119,11 @@ describe('canvas menu', () => {
     const { doc, id, menu } = setup(EDGE);
     const wire = doc.edges.find((e) => e.from.node === id('precheck'))?.id as string;
     expect(labels(menu({ kind: 'edge', id: wire }))).toEqual([
-      'Insert node on this wire',
-      'Rewire to another node…',
+      'Insert Node on This Wire',
+      'Rewire to Another Node…',
       'Disconnect',
     ]);
-    expect(labels(menu({ kind: 'entry', subflow: 'S' }))).toEqual(['Remove entry']);
+    expect(labels(menu({ kind: 'entry', subflow: 'S' }))).toEqual(['Remove Entry']);
     const exit = {
       kind: 'exit' as const,
       subflow: 'S',
@@ -131,27 +131,27 @@ describe('canvas menu', () => {
       from: { node: 'N', port: 'ok_hosts' },
       port: 'ok_hosts',
     };
-    expect(labels(menu(exit))).toEqual(['Edit reason…', 'Remove exit']);
-    expect(labels(menu(exit, { mode: 'implementation' }))).toEqual(['Remove exit']);
+    expect(labels(menu(exit))).toEqual(['Edit Reason…', 'Remove Exit']);
+    expect(labels(menu(exit, { mode: 'code' }))).toEqual(['Remove Exit']);
     const stale = menu({ kind: 'node', id: id('precheck') }, { stale: true });
     const del = find(stale, 'Delete');
     expect(del?.type === 'item' && del.disabled).toBe('Fix the YAML errors first');
-    expect(labels(stale)).not.toContain('Open port failed_hosts ▸');
+    expect(labels(stale)).not.toContain('Open Port failed_hosts ▸');
   });
 
-  it('empty canvas: paste and add here, view items, Up to parent inside a subflow', () => {
+  it('empty canvas: paste and add here, view items, Up to Parent inside a subflow', () => {
     const { id, menu } = setup(OS);
     expect(labels(menu({ kind: 'pane' }))).toEqual([
-      'Paste here',
-      'Add node here…',
+      'Paste Here',
+      'Add Node Here…',
       '—',
-      'Select all',
-      'Tidy up',
-      'Fit view',
+      'Select All',
+      'Tidy Up',
+      'Fit View',
     ]);
     const inner = labels(menu({ kind: 'pane' }, { level: id('upgrade-os') }));
-    expect(inner.at(-1)).toBe('Up to parent');
-    expect(labels(menu({ kind: 'pane' }, { mode: 'run' }))).toEqual(['Select all', 'Fit view']);
+    expect(inner.at(-1)).toBe('Up to Parent');
+    expect(labels(menu({ kind: 'pane' }, { mode: 'run' }))).toEqual(['Select All', 'Fit View']);
   });
 });
 

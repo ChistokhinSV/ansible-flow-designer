@@ -461,7 +461,7 @@ describe('diagnostic ranges', () => {
     expect(EDGE.slice(s3, e3)).toBe('id: 01JBQKFBF5KZNWJ47TAN9ZT24M');
   });
 
-  it('Show in text takes the whole element, in full lines, and nothing after it', () => {
+  it('Open in Text Editor takes the whole element, in full lines, and nothing after it', () => {
     const f = parseYaml(EDGE);
     const [s, e] = elementRangeOf(f, ['nodes', 1]);
     const lines = EDGE.slice(s, e).split('\n');

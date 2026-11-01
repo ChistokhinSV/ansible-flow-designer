@@ -81,7 +81,7 @@ or leave them open on purpose ([ports and failure patterns](../how-to/ports-and-
 Double-click **Push the baseline**, select **Configure the uplinks**, and open its properties (the
 gear).
 
-- **Implementation:** the module `ansible.builtin.copy` with the task's parameters, unchanged.
+- **Binding:** the module `ansible.builtin.copy` with the task's parameters, unchanged.
 - **Inputs and outputs:** `uplinks` comes from `load-baseline-yml.uplinks`, the step that loaded it.
 - **Execution:** **Task keywords** holds `loop: "{{ uplinks }}"`: the task keywords the flow has no
   field for, written on the generated task as they are.
@@ -94,13 +94,13 @@ gear).
 
 ## 5. Check and generate
 
-Choose **Validate design** in the **…** menu: no errors, two warnings (the open fail ports). Then run
-**Ansible Flow: Generate Playbook**. `flows/site/generated/` gets one playbook per level, one play
+Choose **Check Flow** in the **…** menu: no errors, two warnings (the open fail ports). Then run
+**Ansible Flow: Generate Code**. `flows/site/generated/` gets one playbook per level, one play
 per step, as for any flow ([generated code](../how-to/code-generation.md)).
 
 ## 6. Run it
 
-Click **Run as skeleton**. For `devices`, keep `edge`. For `enable_secret`, type anything: secret
+Click **Run as Skeleton**. For `devices`, keep `edge`. For `enable_secret`, type anything: secret
 inputs are typed hidden and never remembered.
 
 The skeleton is `--check`, so nothing is written, except where a task says `check_mode: false`: the

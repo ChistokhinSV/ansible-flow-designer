@@ -155,7 +155,7 @@ describe('Lenses (M8)', () => {
     expect(document.querySelectorAll('.afd-node.lens-dim').length).toBe(0);
   });
 
-  it('a fix is one command; Mark expected asks for a reason, then sends acceptFinding', () => {
+  it('a fix is one command; Accept with Reason… asks for a reason, then sends acceptFinding', () => {
     act(() => {
       useUi.getState().setLens('inventory');
       useUi
@@ -182,14 +182,14 @@ describe('Lenses (M8)', () => {
     ) as HTMLElement;
     fireEvent.click(
       [...spines.querySelectorAll('button')].find(
-        (b) => b.textContent === 'Mark expected',
+        (b) => b.textContent === 'Accept with Reason…',
       ) as HTMLElement,
     );
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Reason (required)'), {
       target: { value: 'Spines drain by design' },
     });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark expected' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Accept' }));
     expect(commands().at(-1)).toEqual({
       kind: 'acceptFinding',
       finding: 'inventory:group-not-input:core_spines',
@@ -212,6 +212,6 @@ describe('Lenses (M8)', () => {
     );
     expect(rows).toContain('hosts: edge_switches · 6');
     expect(rows).toContain('credential: netops-admin');
-    expect(card.textContent).toContain('Properties');
+    expect(card.textContent).toContain('Details');
   });
 });

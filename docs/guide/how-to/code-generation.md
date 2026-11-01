@@ -8,9 +8,9 @@ The flow is the source of truth; the playbooks are generated from it.
   `generated/<flow key>.<subflow key>.yml` for each subflow level (setting `afd.codegen.onSave`).
 - Flows with top-level approvals also get AWX segment playbooks:
   `generated/<flow key>.seg_<segment>.yml`.
-- **Ansible Flow: Generate Playbook** writes them on demand. Files are written only when their
+- **Ansible Flow: Generate Code** writes them on demand. Files are written only when their
   content changed.
-- **Ansible Flow: Check Generated Code (Syntax)** runs `ansible-playbook --syntax-check` in your
+- **Ansible Flow: Check Flow** runs `ansible-playbook --syntax-check` in your
   environment; errors land on the generated files in the Problems panel.
 
 ## What the playbook looks like

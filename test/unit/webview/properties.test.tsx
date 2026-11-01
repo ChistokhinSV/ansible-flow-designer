@@ -99,7 +99,7 @@ afterEach(cleanup);
 
 function open(key: string) {
   const id = nodeOf(key).id;
-  act(() => useUi.getState().openProperties(id, 'implementation'));
+  act(() => useUi.getState().openProperties(id, 'binding'));
   render(<Properties node={id} />);
   return id;
 }

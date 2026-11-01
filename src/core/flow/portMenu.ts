@@ -37,8 +37,8 @@ const pattern = (id: PatternId, label = PATTERNS[id].label): PortMenuItem => ({
 
 /** Labels per port kind (mockup 07). */
 const RETRY_LABEL: Record<string, string> = {
-  failed_hosts: 'Retry with backoff',
-  unreachable: 'Retry later',
+  failed_hosts: 'Retry with Backoff',
+  unreachable: 'Retry Later',
   timeout: 'Retry',
 };
 
@@ -67,24 +67,24 @@ function openOutputSuggestions(node: FlowNode, port: string): PortMenuItem[] {
     case 'unchanged':
       return [
         pattern('done', 'Skip to Done'),
-        { kind: 'pick', label: 'Skip to another node…', mode: 'to' },
+        { kind: 'pick', label: 'Skip to Another Node…', mode: 'to' },
       ];
     case 'always':
       return [
-        { kind: 'quickAdd', label: 'Cleanup task', title: 'Cleanup' },
+        { kind: 'quickAdd', label: 'Cleanup Task', title: 'Cleanup' },
         pattern('report'),
-        { kind: 'pick', label: 'Connect to another node…', mode: 'to' },
+        { kind: 'pick', label: 'Connect to Another Node…', mode: 'to' },
       ];
     case 'cancelled':
       return [
-        { kind: 'quickAdd', label: 'Add next node' },
-        { kind: 'pick', label: 'Connect to another node…', mode: 'to' },
+        { kind: 'quickAdd', label: 'Add Next Node' },
+        { kind: 'pick', label: 'Connect to Another Node…', mode: 'to' },
       ];
     default: {
-      const items: PortMenuItem[] = [{ kind: 'quickAdd', label: 'Add next node' }];
+      const items: PortMenuItem[] = [{ kind: 'quickAdd', label: 'Add Next Node' }];
       if (patternFits('done', node, port))
         items.push(pattern('done', port === 'false' ? 'Skip to Done' : 'Connect to Done'));
-      items.push({ kind: 'pick', label: 'Connect to another node…', mode: 'to' });
+      items.push({ kind: 'pick', label: 'Connect to Another Node…', mode: 'to' });
       return items;
     }
   }
@@ -107,11 +107,11 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
     if (ref.port === 'undo') {
       items.push({
         kind: 'later',
-        label: 'Bind undo task',
+        label: 'Bind Undo Task',
         hint: 'Not supported: wire rollback steps from the failure port instead',
       });
     } else {
-      items.push({ kind: 'pick', label: 'Connect from another node…', mode: 'from' });
+      items.push({ kind: 'pick', label: 'Connect from Another Node…', mode: 'from' });
     }
     for (const e of incoming) {
       const from = model.nodes.get(e.from.node)?.node;
@@ -121,17 +121,17 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
         edge: e.id,
       });
     }
-    if (!legal.enabled) items.unshift({ kind: 'enable', label: 'Enable port' });
+    if (!legal.enabled) items.unshift({ kind: 'enable', label: 'Enable Port' });
     else if (legal.optional && incoming.length === 0)
-      items.push({ kind: 'disable', label: 'Remove port' });
+      items.push({ kind: 'disable', label: 'Remove Port' });
     return { ref, node, enabled: legal.enabled, connected: incoming.length > 0, decided, items };
   }
 
   const out = edges.find((e) => e?.from?.node === ref.node && e.from.port === ref.port);
   if (out) {
     items.push(
-      { kind: 'insert', label: 'Insert node on this wire', edge: out.id },
-      { kind: 'pick', label: 'Rewire to another node…', mode: 'rewire', edge: out.id },
+      { kind: 'insert', label: 'Insert Node on This Wire', edge: out.id },
+      { kind: 'pick', label: 'Rewire to Another Node…', mode: 'rewire', edge: out.id },
       { kind: 'disconnect', label: 'Disconnect', edge: out.id },
     );
     return { ref, node, enabled: true, connected: true, decided, items };
@@ -139,17 +139,17 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
 
   if (isFailPort(ref.port)) {
     items.push(...failSuggestions(model, node, ref.port, level));
-    items.push({ kind: 'pick', label: 'Connect to another node…', mode: 'to' });
+    items.push({ kind: 'pick', label: 'Connect to Another Node…', mode: 'to' });
     if (decided) {
-      items.push({ kind: 'decide', label: 'Edit reason…' }, { kind: 'reopen', label: 'Reopen' });
+      items.push({ kind: 'decide', label: 'Edit Reason…' }, { kind: 'reopen', label: 'Reopen' });
     } else if (legal.enabled) {
-      items.push({ kind: 'decide', label: 'Leave open on purpose…' });
+      items.push({ kind: 'decide', label: 'Accept with Reason…' });
     }
   } else {
     items.push(...openOutputSuggestions(node, ref.port));
   }
-  if (!legal.enabled) items.unshift({ kind: 'enable', label: 'Enable port' });
-  else if (legal.optional && !decided) items.push({ kind: 'disable', label: 'Remove port' });
+  if (!legal.enabled) items.unshift({ kind: 'enable', label: 'Enable Port' });
+  else if (legal.optional && !decided) items.push({ kind: 'disable', label: 'Remove Port' });
   return { ref, node, enabled: legal.enabled, connected: false, decided, items };
 }
 

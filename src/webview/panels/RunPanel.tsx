@@ -48,7 +48,7 @@ function OpenRun({ run }: { run: RunView }) {
         className={`codicon ${run.awx ? 'codicon-link-external' : 'codicon-terminal'}`}
         aria-hidden="true"
       />{' '}
-      {run.awx ? 'Open in AWX' : 'Show terminal'}
+      {run.awx ? 'Open in AWX' : 'Show Terminal'}
     </button>
   );
 }
@@ -80,8 +80,8 @@ function Proposal({ run }: { run: RunView }) {
           })
         }
       >
-        <span className="codicon codicon-verified" aria-hidden="true" /> Mark {ids.length} node
-        {ids.length === 1 ? '' : 's'} tested
+        <span className="codicon codicon-verified" aria-hidden="true" /> Mark {ids.length} Node
+        {ids.length === 1 ? '' : 's'} Tested
       </button>
     </section>
   );

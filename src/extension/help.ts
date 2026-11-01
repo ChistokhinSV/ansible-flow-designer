@@ -3,6 +3,7 @@
 // import (AFD-28).
 import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
+import { CMD } from './commands/ids';
 
 /** The first walkthrough ("Design your first Ansible flow"). */
 const FIRST_WALKTHROUGH = 'afd.firstFlow';
@@ -21,11 +22,11 @@ export function registerHelp(
 ): vscode.Disposable[] {
   const root = context.extensionUri;
   return [
-    vscode.commands.registerCommand('afd.openGuide', async (page?: string) => {
+    vscode.commands.registerCommand(CMD.openGuide, async (page?: string) => {
       const uri = vscode.Uri.joinPath(root, 'docs', 'guide', guidePage(page));
       await vscode.commands.executeCommand('markdown.showPreview', uri);
     }),
-    vscode.commands.registerCommand('afd.openWalkthrough', async () => {
+    vscode.commands.registerCommand(CMD.getStarted, async () => {
       await vscode.commands.executeCommand(
         'workbench.action.openWalkthrough',
         `${context.extension.id}#${FIRST_WALKTHROUGH}`,
@@ -33,7 +34,7 @@ export function registerHelp(
       );
     }),
     // A sample key (tests, links) skips the pick; tests may name the folder sample playbooks go to.
-    vscode.commands.registerCommand('afd.openSample', (key?: string, into?: vscode.Uri) =>
+    vscode.commands.registerCommand(CMD.openSample, (key?: string, into?: vscode.Uri) =>
       openSample(root, openFlow, key, into),
     ),
   ];
@@ -128,7 +129,7 @@ async function copyPlaybooks(sample: PlaybookSample, target: vscode.Uri): Promis
       go,
     )
     .then((p) =>
-      p === go ? vscode.commands.executeCommand('afd.importPlaybooks', target) : undefined,
+      p === go ? vscode.commands.executeCommand(CMD.importPlaybooks, target) : undefined,
     );
 }
 

@@ -28,7 +28,7 @@ describe('AFD-22 acceptance: user help', () => {
   it('Open Sample Flow copies the sample into flows/<key>/ and opens the designer; a second run keeps changes', async () => {
     await testApi();
     const uri = flowUri('firewall-upgrade');
-    await vscode.commands.executeCommand('afd.openSample', 'firewall-upgrade');
+    await vscode.commands.executeCommand('afd.help.openSample', 'firewall-upgrade');
     await until(() => activeTab()?.input instanceof vscode.TabInputCustom, 'designer tab');
     const input = activeTab()?.input as vscode.TabInputCustom;
     assert.equal(input.viewType, VIEW_TYPE);
@@ -39,7 +39,7 @@ describe('AFD-22 acceptance: user help', () => {
     // Changed while following a tutorial: opened as it is.
     const changed = `${copied}# my notes\n`;
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(changed));
-    await vscode.commands.executeCommand('afd.openSample', 'firewall-upgrade');
+    await vscode.commands.executeCommand('afd.help.openSample', 'firewall-upgrade');
     await until(() => activeTab()?.input instanceof vscode.TabInputCustom, 'designer tab again');
     assert.equal(readFileSync(uri.fsPath, 'utf8'), changed);
     await closeAll();
@@ -56,12 +56,16 @@ describe('AFD-22 acceptance: user help', () => {
         () => false,
       );
     // The test repository has its own ansible.cfg: refused, nothing copied.
-    await vscode.commands.executeCommand('afd.openSample', 'playbooks/edge-baseline');
+    await vscode.commands.executeCommand('afd.help.openSample', 'playbooks/edge-baseline');
     assert.equal(await exists(vscode.Uri.joinPath(root, 'site.yml')), false);
     // A free folder gets the whole sample, and site.yml opens.
     const practice = vscode.Uri.joinPath(root, 'practice');
     try {
-      await vscode.commands.executeCommand('afd.openSample', 'playbooks/edge-baseline', practice);
+      await vscode.commands.executeCommand(
+        'afd.help.openSample',
+        'playbooks/edge-baseline',
+        practice,
+      );
       for (const f of [
         'ansible.cfg',
         'inventory.ini',
@@ -94,16 +98,17 @@ describe('AFD-22 acceptance: user help', () => {
   });
 
   it('Open User Guide shows a guide page in the Markdown preview, never a file outside it', async () => {
-    await vscode.commands.executeCommand('afd.openGuide', 'how-to/subflows.md');
+    await vscode.commands.executeCommand('afd.help.openGuide', 'how-to/subflows.md');
     await until(() => /Subflows/i.test(activeTab()?.label ?? ''), 'subflows preview');
     assert.ok(activeTab()?.input instanceof vscode.TabInputWebview, String(activeTab()?.label));
     await closeAll();
+    // The id before 0.25 still runs the command, with its arguments (AFD-41).
     await vscode.commands.executeCommand('afd.openGuide', '../../package.json');
     await until(() => /README/i.test(activeTab()?.label ?? ''), 'index preview');
   });
 
   it('Get Started opens the walkthrough', async () => {
-    await vscode.commands.executeCommand('afd.openWalkthrough');
+    await vscode.commands.executeCommand('afd.help.getStarted');
     await until(() => /Walkthrough|Welcome|Get Started/i.test(activeTab()?.label ?? ''), 'welcome');
   });
 

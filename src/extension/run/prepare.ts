@@ -39,7 +39,7 @@ export async function prepareRun(
   if (!generated.ok || !generated.result)
     return { ok: false, error: generated.error ?? 'Code generation failed' };
   if (options.refuseKept && generated.kept.length > 0)
-    return { ok: false, error: 'Generated code was edited by hand: run "Generate Playbook" first' };
+    return { ok: false, error: 'Generated code was edited by hand: run "Generate Code" first' };
   const doc = parseFlow(document.getText()).doc;
   if (!doc) return { ok: false, error: 'The flow does not parse' };
   return { ok: true, folder, generated: generated as Generated, doc };

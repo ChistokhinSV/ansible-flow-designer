@@ -17,7 +17,7 @@ folder in the Explorer.
   are selected; each one you keep becomes its own flow, with a key from its file name.
 
 The first flow opens in the designer. **Show notes** lists what did not map one to one. The flow
-stores no positions, as a new flow does: the canvas lays every level out, and _Tidy up_ keeps a
+stores no positions, as a new flow does: the canvas lays every level out, and _Tidy Up_ keeps a
 layout.
 
 The result is a faithful copy: one step per task, in the playbook's order. Running the flow does
@@ -74,9 +74,9 @@ left out. Review the flow on the canvas like any change.
 You can also just ask, for example "turn site.yml into a flow, grouped by purpose", or "import
 site.yml as is" (the assistant then uses `flow_import`). See [AI assistants](ai-assistants.md).
 
-## Import from AWX
+## Import an AWX workflow or job template
 
-Command Palette → **Ansible Flow: Import from AWX…**
+Command Palette → **Ansible Flow: Import AWX Workflow or Job Template…**
 - **From AWX:** uses `afd.awx.url` and the stored token ([AWX](awx.md)).
 - **From an export file…:** a file made with
   `awx export --workflow_job_templates --job_templates > awx-export.json`.

@@ -225,12 +225,12 @@ function SummaryCard({ node }: { node: FlowNode }) {
       <div className="afd-summary-actions">
         {node.type === 'subflow' ? (
           <button type="button" className="link" onClick={() => setLevel(node.id)}>
-            Open subflow
+            Open Subflow
           </button>
         ) : null}
         {node.type === 'task' || node.type === 'subflow' ? (
           <button type="button" className="link" onClick={() => openProperties(node.id)}>
-            Properties
+            Details
           </button>
         ) : null}
         {hasPlay ? (
@@ -239,7 +239,7 @@ function SummaryCard({ node }: { node: FlowNode }) {
             className="link"
             onClick={() => send({ type: 'peekCode', node: node.id })}
           >
-            Peek code
+            Peek Code
           </button>
         ) : null}
       </div>
@@ -248,7 +248,7 @@ function SummaryCard({ node }: { node: FlowNode }) {
 }
 
 const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: boolean }) {
-  const implementation = useUi((s) => s.mode === 'implementation');
+  const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
   const lens = useUi((s) => s.lens);
   if (node.type === 'start' || node.type === 'end') {

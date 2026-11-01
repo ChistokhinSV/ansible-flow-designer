@@ -6,7 +6,7 @@ import type { OpenPort } from './openPorts';
 import { freeOutput, type PortMenuItem, portMenu } from './portMenu';
 import { NODE_STATUSES, type NodeStatus, type PortRef, type Ulid } from './types';
 
-export type CanvasMode = 'design' | 'implementation' | 'run';
+export type CanvasMode = 'design' | 'code' | 'run';
 
 export type CanvasTarget =
   | { kind: 'node'; id: Ulid }
@@ -33,7 +33,7 @@ export type ShortcutId =
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
-  | { do: 'properties'; node: Ulid; tab?: 'implementation' }
+  | { do: 'properties'; node: Ulid; tab?: 'binding' }
   | { do: 'rename'; node: Ulid }
   | { do: 'setStatus'; node: Ulid; status: NodeStatus }
   | { do: 'port'; ref: PortRef; item: PortMenuItem }
@@ -127,18 +127,18 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   if (node.type === 'subflow')
     open.push(
       item(
-        'Open subflow',
+        'Open Subflow',
         { do: 'openSubflow', node: id },
         { icon: 'arrow-right', shortcut: 'open' },
       ),
     );
   if (node.type === 'task' || node.type === 'subflow') {
-    open.push(item('Properties…', { do: 'properties', node: id }, { icon: 'settings-gear' }));
+    open.push(item('Details…', { do: 'properties', node: id }, { icon: 'settings-gear' }));
     if (edit && !node.impl)
       open.push(
         item(
-          'Bind implementation…',
-          { do: 'properties', node: id, tab: 'implementation' },
+          'Binding…',
+          { do: 'properties', node: id, tab: 'binding' },
           {
             icon: 'plug',
           },
@@ -168,7 +168,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
     for (const p of ctx.openPorts.filter((o) => o.node === id))
       design.push({
         type: 'submenu',
-        label: `Open port ${p.port}`,
+        label: `Open Port ${p.port}`,
         icon: 'warning',
         items: portItems(model, { node: id, port: p.port }),
       });
@@ -176,7 +176,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   if (next)
     design.push(
       item(
-        'Add next node…',
+        'Add Next Node…',
         { do: 'addNext', from: { node: id, port: next } },
         { icon: 'add', ...lock },
       ),
@@ -197,9 +197,9 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
     );
 
   const code: CanvasMenuEntry[] = [
-    item('Show in text', { do: 'showInText', node: id }, { icon: 'go-to-file' }),
+    item('Open in Text Editor', { do: 'showInText', node: id }, { icon: 'go-to-file' }),
   ];
-  if (ctx.hasPlay(id)) code.push(item('Peek code', { do: 'peekCode', node: id }, { icon: 'code' }));
+  if (ctx.hasPlay(id)) code.push(item('Peek Code', { do: 'peekCode', node: id }, { icon: 'code' }));
 
   const remove = edit
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
@@ -227,7 +227,7 @@ function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): Canva
     const ends = nodes.some((n) => n.type === 'start' || n.type === 'end');
     more.push(
       item(
-        'Extract into subflow…',
+        'Extract into Subflow…',
         { do: 'extract', nodes: ids },
         {
           icon: 'type-hierarchy-sub',
@@ -247,16 +247,16 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
   const add = edit
     ? [
-        item('Paste here', { do: 'paste' }, { icon: 'clippy', shortcut: 'paste', ...lock }),
-        item('Add node here…', { do: 'addNode' }, { icon: 'add', ...lock }),
+        item('Paste Here', { do: 'paste' }, { icon: 'clippy', shortcut: 'paste', ...lock }),
+        item('Add Node Here…', { do: 'addNode' }, { icon: 'add', ...lock }),
       ]
     : [];
-  const view: CanvasMenuEntry[] = [item('Select all', { do: 'selectAll' }, { icon: 'selection' })];
-  if (edit) view.push(item('Tidy up', { do: 'tidyUp' }, { icon: 'layout', ...lock }));
-  view.push(item('Fit view', { do: 'fitView' }, { icon: 'screen-full' }));
+  const view: CanvasMenuEntry[] = [item('Select All', { do: 'selectAll' }, { icon: 'selection' })];
+  if (edit) view.push(item('Tidy Up', { do: 'tidyUp' }, { icon: 'layout', ...lock }));
+  view.push(item('Fit View', { do: 'fitView' }, { icon: 'screen-full' }));
   const nav =
     ctx.level !== ROOT
-      ? [item('Up to parent', { do: 'upLevel' }, { icon: 'arrow-up', shortcut: 'up' })]
+      ? [item('Up to Parent', { do: 'upLevel' }, { icon: 'arrow-up', shortcut: 'up' })]
       : [];
   return groups(add, view, nav);
 }
@@ -282,7 +282,7 @@ export function canvasMenu(
       return edit
         ? [
             item(
-              'Remove entry',
+              'Remove Entry',
               { do: 'removeEntry', subflow: target.subflow },
               { icon: 'debug-disconnect' },
             ),
@@ -292,12 +292,12 @@ export function canvasMenu(
       if (!edit) return paneMenu(ctx);
       const reason =
         ctx.mode === 'design'
-          ? [item('Edit reason…', { do: 'editReason', edge: target.edge }, { icon: 'edit' })]
+          ? [item('Edit Reason…', { do: 'editReason', edge: target.edge }, { icon: 'edit' })]
           : [];
       return [
         ...reason,
         item(
-          'Remove exit',
+          'Remove Exit',
           { do: 'removeExit', subflow: target.subflow, from: target.from, port: target.port },
           { icon: 'debug-disconnect' },
         ),

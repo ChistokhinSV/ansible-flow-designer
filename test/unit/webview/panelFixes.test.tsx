@@ -95,7 +95,7 @@ afterEach(cleanup);
 
 describe('Escape (AFD-30)', () => {
   it('asks before a staged binding is dropped; Keep editing and Discard do what they say', async () => {
-    act(() => useUi.getState().openProperties(task.id, 'implementation'));
+    act(() => useUi.getState().openProperties(task.id, 'binding'));
     render(<Properties node={task.id} />);
     // Stage a change on the Implementation tab, once the module's docs arrived: a register name.
     await answerCatalog();
@@ -146,7 +146,7 @@ describe('read-only panels (AFD-30)', () => {
     const locked = () => !!screen.getByLabelText('Title').closest('fieldset')?.disabled;
     expect(locked()).toBe(true);
     // Leaving the panel through the text stays possible.
-    const text = screen.getByRole('button', { name: 'Show in text' });
+    const text = screen.getByRole('button', { name: 'Open in Text Editor' });
     expect(text.closest('fieldset')).toBeNull();
     act(() => useUi.getState().setSnapshot(snapshotOf({ docVersion: 2 })));
     expect(locked()).toBe(false);

@@ -44,7 +44,7 @@ How data is written in the flow (details in [data between steps](../how-to/data-
 ## 3. Bind a step to a module
 
 Double-click **Pre-checks** to open it, select **Read device status**, and click the gear in the
-inspector. The properties page opens over the canvas. On **Implementation**:
+inspector. The Details page opens over the canvas. On **Binding**:
 
 1. **Module** is selected. Search by what the step does, e.g. `http request json`. The first search
    in a folder reads your environment's collection docs (about 30 seconds, then cached).
@@ -111,21 +111,21 @@ is an input of the step. Without **Until**, retries stop at the first success. S
 ## 6. Compare the design with the code
 
 Bind the remaining steps the same way, or bind some to roles (**Role** in the Find column) that you
-already have. Then switch the top bar to **Implementation** and click **Re-sync from git**. The
+already have. Then switch the top bar to **Code** and click **Re-sync from Git**. The
 extension compiles the generated playbook and every bound role and playbook in your environment.
 Then it lists what differs, with an action on both sides.
 
-![Implementation mode with drift items](../images/implementation-light.png)
+![Code mode with drift items](../images/implementation-light.png)
 
 For example: a role sets outputs the node does not declare (_Update design_), a role task the
 subflow does not show (_Add to subflow_), or a node with no code yet (_Generate stub_ writes a role
-skeleton with the node's inputs and outputs). See [Implementation mode](../how-to/implementation-mode.md).
+skeleton with the node's inputs and outputs). See [Code mode](../how-to/code-mode.md).
 
 ## 7. Run for real
 
 1. Set the inventory once: `afd.run.inventory` in the settings (e.g. `inventories/lab/hosts.yml`),
    or let `ansible.cfg` decide.
-2. Top bar → chevron next to **Run as skeleton** → **Run for real…**
+2. Top bar → chevron next to **Run as Skeleton** → **Run for Real…**
 3. Enter the inputs (`devices`, `target_version`). The confirmation names the inventory, how many
    hosts match, hosts missing from the inventory and production-looking groups.
 4. If your inventory has vault data, the vault password is asked for this run only.
@@ -143,6 +143,6 @@ After a passing real run of this flow version, the run panel offers **Mark N nod
 - Data moves through declared inputs and outputs, also across subflows; the designer checks every
   name a step reads.
 - Polling is `retries` + `until` + `delay`.
-- Implementation mode compares the design with the code, and real runs confirm their targets.
+- Code mode compares the design with the code, and real runs confirm their targets.
 
 **Next:** [Tutorial 3: AWX end to end](03-awx-end-to-end.md).

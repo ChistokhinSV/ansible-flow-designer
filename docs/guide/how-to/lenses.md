@@ -15,6 +15,6 @@ every mode and never edit the flow. Hover a row to highlight its nodes.
 | **Timing**    | serial, timeout and average durations from the last 20 real runs                                                  | the slowest path does not fit `flow.maintenance_window`, a node close to its timeout                                                              |
 - **Inventory** and **Access** read your inventory through your Ansible environment when you open
   them. **Set targets…** chooses the flow targets (remembered for runs too).
-- A finding's button fixes it where it can. **Mark expected** keeps it, with a reason recorded in
+- A finding's button fixes it where it can. **Accept with Reason…** keeps it, with a reason recorded in
   the flow (`finding_accepted`); **Reopen** removes that.
 - Set the maintenance window in the flow panel (e.g. `4h` or `2h30m`).

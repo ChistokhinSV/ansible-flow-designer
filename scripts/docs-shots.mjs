@@ -86,7 +86,7 @@ const SHOTS = {
     flow: 'firewall-upgrade',
     act: async (page) => {
       await ui(page, 'setLevel', await idOf(page, 'upgrade'));
-      await ui(page, 'openProperties', await idOf(page, 'upgrade/wait-up'), 'implementation');
+      await ui(page, 'openProperties', await idOf(page, 'upgrade/wait-up'), 'binding');
       await settle(page);
       const search = page.locator('[data-catalog-search]').first();
       await search.fill('wait for port');
@@ -129,7 +129,7 @@ const SHOTS = {
   implementation: {
     flow: 'edge-drift',
     act: async (page) => {
-      await ui(page, 'setMode', 'implementation');
+      await ui(page, 'setMode', 'code');
       await host(page, { type: 'sync' });
       await settle(page, 900);
     },

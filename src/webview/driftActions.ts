@@ -127,7 +127,7 @@ export async function runDriftAction(action: DriftAction): Promise<Ack | undefin
     case 'unignore':
       return run({ kind: 'clearDriftIgnore', node: action.node, item: action.item });
     case 'bind':
-      ui.openProperties(action.node, 'implementation', action.bindKind);
+      ui.openProperties(action.node, 'binding', action.bindKind);
       return undefined;
     default: {
       const ack = await hostAction(action);

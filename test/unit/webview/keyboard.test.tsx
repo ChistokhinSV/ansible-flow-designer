@@ -180,7 +180,7 @@ describe('keyboard', () => {
     act(() => {
       fireEvent.keyDown(document.body, { key: '?' });
     });
-    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Keyboard Shortcuts' })).toBeTruthy();
     expect(document.querySelector('[data-shortcut="duplicate"]')?.textContent).toContain('Ctrl+D');
     act(() => {
       fireEvent.keyDown(document.body, { key: 'Escape' });

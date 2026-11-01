@@ -1,25 +1,26 @@
-// Commands on a flow (AFD-37): generate, new flow, tidy up, Complete IDs, copy and paste,
-// validate, open as text. Each works on the flow the user means (Host.resolveTargetFlow).
+// Commands on a flow (AFD-37): Generate Code, New Flow, Tidy Up, Complete IDs, Copy and Paste
+// Nodes, Open in Text Editor (Check Flow is with the run commands, AFD-41). Each works on the flow the user means (Host.resolveTargetFlow).
 import * as vscode from 'vscode';
 import { slugify } from '../../core/flow/ids';
 import { newFlowText } from '../../core/flow/template';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { writeCode } from '../documents';
 import type { Host } from '../host';
+import { CMD } from './ids';
 
 export function registerFlowCommands(host: Host): vscode.Disposable[] {
   return [
-    vscode.commands.registerCommand('afd.generate', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.generateCode, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return;
       if (doc.isDirty) await doc.save();
       await writeCode(doc, host.deps, true);
     }),
-    vscode.commands.registerCommand('afd.newFlow', () => newFlow(host)),
-    vscode.commands.registerCommand('afd.tidyUp', async () => {
+    vscode.commands.registerCommand(CMD.newFlow, () => newFlow(host)),
+    vscode.commands.registerCommand(CMD.tidyUp, async () => {
       const outcome = await host.activeSession()?.tidyUp();
       if (outcome && !outcome.ok)
-        void vscode.window.showErrorMessage(outcome.error ?? 'Tidy up failed');
+        void vscode.window.showErrorMessage(outcome.error ?? 'Tidy Up failed');
     }),
     vscode.commands.registerCommand(COMPLETE_IDS, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
@@ -32,13 +33,9 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       new CompleteIdsActions(),
       { providedCodeActionKinds: CompleteIdsActions.kinds },
     ),
-    vscode.commands.registerCommand('afd.copyNodes', () => host.activeSession()?.copyNodes()),
-    vscode.commands.registerCommand('afd.pasteNodes', () => host.activeSession()?.pasteNodes()),
-    vscode.commands.registerCommand('afd.validate', async () => {
-      await host.activeSession()?.refresh();
-      await vscode.commands.executeCommand('workbench.actions.view.problems');
-    }),
-    vscode.commands.registerCommand('afd.openAsText', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.copyNodes, () => host.activeSession()?.copyNodes()),
+    vscode.commands.registerCommand(CMD.pasteNodes, () => host.activeSession()?.pasteNodes()),
+    vscode.commands.registerCommand(CMD.openInTextEditor, async (uri?: vscode.Uri) => {
       const target = host.targetUri(uri);
       if (target) await vscode.commands.executeCommand('vscode.openWith', target, 'default');
     }),

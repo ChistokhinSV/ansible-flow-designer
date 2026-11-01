@@ -2,7 +2,7 @@
 
 A VS Code extension for designing Ansible automation top-down. You sketch a flow as a graph of typed nodes and ports, run it as a walking skeleton, and then bind each node to a module, role or playbook. The flow document (`*.flow.yaml`) stays the source of truth: Ansible code is generated from it, and drift is detected in both directions.
 
-**Status:** v1 is feature complete: design, code generation, runs, Implementation mode, AWX, lenses, import, AI assistants (YouTrack AFD, knowledge base AFD-A-1).
+**Status:** v1 is feature complete: design, code generation, runs, Code mode, AWX, lenses, import, AI assistants (YouTrack AFD, knowledge base AFD-A-1).
 
 ## Learn
 
@@ -16,12 +16,12 @@ The rest of this page is the complete feature reference.
 
 ## What the designer does
 
-- `*.flow.yaml` opens in the **Ansible Flow Designer** custom editor; _Open as Text_ (editor title bar) shows the YAML. Both views edit the same document, so save, dirty state, undo/redo, Git diff and hot exit are VS Code's own.
+- `*.flow.yaml` opens in the **Ansible Flow Designer** custom editor; _Open in Text Editor_ (editor title bar) shows the YAML. Both views edit the same document, so save, dirty state, undo/redo, Git diff and hot exit are VS Code's own.
 - **Canvas (Design mode):** nodes by type (task, subflow, decision, approval, parallel, join, start, end) and lifecycle status (draft, specified, implemented, tested); ports placed by role (control in on top, outcomes at the bottom, problems on the right, undo on the left); wires colored by port, dashed for problem paths; far zoom shows titles only.
 - **Editing:** drag to move, drag from a port to another node to wire it, release on empty canvas to add a node there (Quick add), Delete/Backspace to remove (a whole selection is one undo step), palette click or drag to add. The inspector edits title, key, intent, status, contract (inputs and outputs), optional ports and type-specific fields. The flow panel edits name, key, goal, owner and flow inputs and shows readiness counters.
 - **Every canvas action is one minimal text edit** made by the extension host with a byte-preserving YAML engine: comments, quoting and formatting outside the edited lines never change, and one Ctrl+Z undoes one action.
-- **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner. The schema is also registered with the Red Hat YAML extension for `*.flow.yaml` (`contributes.yamlValidation`), so _Open as Text_ gets completion and validation from it, and SchemaStore's unrelated Estuary Flow schema, which claims the same file pattern, no longer applies.
-- **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy up_. New flows start without positions; nodes added without one (by an AI agent, say) go where the auto-layout puts them next to the placed nodes (AFD-23).
+- **Validation:** JSON Schema (`schema/flow.schema.json`) plus semantic checks (IDs, keys, ports, edges, references, decisions, subflow boundary, status) go to the Problems panel; open fail ports also show in the canvas banner. The schema is also registered with the Red Hat YAML extension for `*.flow.yaml` (`contributes.yamlValidation`), so _Open in Text Editor_ gets completion and validation from it, and SchemaStore's unrelated Estuary Flow schema, which claims the same file pattern, no longer applies.
+- **Layout** lives in one `layout:` block of the flow file. Flows without positions are auto-laid out (ELK) in memory and only written on the first move or _Tidy Up_. New flows start without positions; nodes added without one (by an AI agent, say) go where the auto-layout puts them next to the placed nodes (AFD-23).
 - **`flow.version`** is bumped once per commit on save when the semantic content changed (compared with Git HEAD), never for layout-only changes.
 - **Ports appear when needed (M2):** at rest a node shows only wired ports, open fail ports (amber) and ports left open on purpose (gray). Hovering or selecting a node shows every port its type supports, with names; dragging a wire shows every input.
 - **Port menus (M2):** click any port. An open port offers suggestions for its kind, for example `failed_hosts`: Rollback (existing), Notify on-call and stop, Exclude and report, Retry with backoff, Stop flow, Leave open on purpose. `unreachable` never offers Rollback. A wired port offers Insert node on this wire, Rewire to another node and Disconnect. The inspector lists every port with the same menu and quick fixes for open fail ports.
@@ -33,19 +33,19 @@ The rest of this page is the complete feature reference.
   - Unbound nodes run a `TODO` debug message; role and module bindings run for real.
   - Files are written only when their content changed. A generated file edited by hand is never overwritten without asking.
   - The inspector shows each node's generated play.
-- **Run as skeleton (M3):** the top bar button generates the code, asks for the flow inputs (remembered per flow), and runs `ansible-playbook --check` in a terminal, in your Ansible environment.
+- **Run as Skeleton (M3):** the top bar button generates the code, asks for the flow inputs (remembered per flow), and runs `ansible-playbook --check` in a terminal, in your Ansible environment.
   - An event callback maps the run back to the flow: the top bar shows hosts, failures and the exit code, and the inspector lists the hosts that left each port.
-  - _Run for real…_ first shows a confirmation naming the inventory, host count, hosts missing from the inventory and production-looking groups.
+  - _Run for Real…_ first shows a confirmation naming the inventory, host count, hosts missing from the inventory and production-looking groups.
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only. Secret-looking inputs travel the same way and are never remembered; other input values are deleted when the run ends (AFD-29).
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values. The log rotates at 1 MB; each flow keeps the events of its last runs (`afd.runs.keep`, 30).
   - **Restricted Mode (AFD-29):** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync) and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
-- **Syntax check (M3):** _Check Generated Code (Syntax)_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
+- **Syntax check (M3):** _Check Flow_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Right-click menu (AFD-18):** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
-  - **Node:** Open subflow, Properties…, Bind implementation…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify on-call and stop, Leave open on purpose…), Add next node…, Cut, Copy, Duplicate, Show in text, Peek code, Delete.
+  - **Node:** Open subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify on-call and stop, Accept with Reason…), Add next node…, Cut, Copy, Duplicate, Open in Text Editor, Peek code, Delete.
   - **Group** (also a right-click on the Shift+drag selection box): Cut, Copy, Duplicate, Extract into subflow…, Delete.
   - **Wire:** Insert node on this wire, Rewire to another node…, Disconnect. Entry and exit wires of a subflow: Remove entry, Edit reason…, Remove exit.
-  - **Port:** the port menu. **Empty canvas:** Paste here, Add node here…, Select all, Tidy up, Fit view, Up to parent.
-  - Implementation mode offers the same edits as Design (except Rename and Extract, whose panels are Design's). Run mode only reads.
+  - **Port:** the port menu. **Empty canvas:** Paste here, Add Node Here…, Select all, Tidy Up, Fit view, Up to parent.
+  - Code mode offers the same edits as Design (except Rename and Extract, whose panels are Design's). Run mode only reads.
   - Shift+F10 or the Menu key opens the menu for the selection.
 - **Keyboard shortcuts (AFD-18):** press `?` for the list (also in the top bar's "…" menu). Ctrl stands for ⌘ on macOS.
 
@@ -85,7 +85,7 @@ The rest of this page is the complete feature reference.
 - **Preview card (M4, D-22):** pause about 400 ms on a subflow or a bound node.
   - The card shows its binding and status, the inner steps in order with their exits and last-run results, the undo binding and the settings.
   - _Peek code_ opens the generated play; _Open subflow_ drills in.
-- **Node properties and binding (M5, ADR-0011):** the gear in the inspector (or _Bind module, role or playbook…_) opens a full page over the canvas with the tabs General, Implementation, Inputs and outputs, Ports and Execution.
+- **Node details and binding (M5, ADR-0011):** the gear in the inspector (or _Bind Module, Role or Playbook…_) opens the Details page over the canvas with the tabs General, Binding, Inputs and outputs, Ports and Execution.
   - **Find:** Module, Role or Playbook. Module search runs over the environment's catalog, starting from the node's intent. Results are ranked by the words, ansible.builtin, the collections the repository uses and the inventory's platform (`ansible_network_os`), and carry badges: in EE, check mode, diff, read-only, other platform (dimmed), deprecated. Roles come from `roles_path` with their `meta/argument_specs.yml`; playbooks from the repository.
   - **Understand:** the module's docs as text, its parameter table, the returns (click one to make it a node output) and an example; a role's entry points and argument spec; a playbook's plays and the hosts they target.
   - **Configure:** a form from the argument spec (choices, booleans, one line per list item, YAML for dicts), required and set parameters first. Values are Jinja: `{{ name }}` shows as a purple **input chip**, and typing `@` (or the @ button) offers node inputs, flow inputs, outputs of upstream nodes, the enclosing subflow's inputs, and outputs of steps inside earlier subflows (AFD-21). Choosing one that is not an input yet adds it with its `from:`; a step inside another subflow is lifted to that subflow's outputs in the same edit. Then the register name, a checklist (required parameters, where each variable comes from, check mode support, deprecation) and the generated task.
@@ -98,15 +98,15 @@ The rest of this page is the complete feature reference.
   - renaming a subflow input rewrites the inner reads;
   - the validator checks every name a step reads: parameters, `assert` `that:`, `debug` `var`, decision conditions and `until`. Each warning says where the value could come from.
 - **Polling (AFD-21):** `settings.until` (a Jinja test without braces on the step's registered result) with `settings.retries` and `settings.delay` (seconds) makes a module step poll until a state is reached. Without `until`, retries stop on the first success.
-- **Implementation mode (M6, mockup 04, ADR-0012):** the Implementation toggle in the top bar shows the same graph against the code.
-  - **Re-sync from git** compiles, in your Ansible environment, the flow's generated playbook, every bound role entry point and every bound playbook (`Playbook.load` + `compile`, not regex). It labels them with the branch, the HEAD commit and its time, and counts the uncommitted files of the flow, its roles and playbooks. It runs on the first visit and again after each save.
+- **Code mode (M6, mockup 04, ADR-0012):** the Code toggle in the top bar shows the same graph against the code.
+  - **Re-sync from Git** compiles, in your Ansible environment, the flow's generated playbook, every bound role entry point and every bound playbook (`Playbook.load` + `compile`, not regex). It labels them with the branch, the HEAD commit and its time, and counts the uncommitted files of the flow, its roles and playbooks. It runs on the first visit and again after each save.
   - **Nodes** show what they run (`role: netops_validate`, `module: …`, `playbook: …`) and "N tasks · drift: outputs differ" (or TODO stub, last run, open subflow). Select one to see its tasks with file and line; click to open them.
   - **Design vs code** lists the nodes matched by ID (`node_<ULID>` tags) and the drift items, each with an action on both sides. Nothing is resolved automatically.
     - **Contract mismatch:** outputs the role does not set ("Design expects `validation_result`, code registers `diff_report`": _Update design_ renames the output and its downstream references, _Open code_); required role arguments the node does not pass; module result keys that do not exist.
     - **Code without design:** a role task file the subflow does not cover (_Add to subflow_ adds it as an unwired step, or _Ignore_); generated plays for nodes that are gone.
     - **Design without code:** an unbound node (_Generate stub_ writes `roles/<node_key>/` with a TODO task, output facts and `meta/argument_specs.yml` from the inputs, and binds the node in one edit; or _Bind role_); missing roles and playbooks; nodes without a play.
     - Roles without argument specs and dynamic includes (not expanded) are notes. *Write argument_specs* creates the specs from the node contract.
-    - **Ignore…** asks for a reason and records a `drift_ignored` decision in the flow with your Git user; ignored items stay listed with _Stop ignoring_.
+    - **Ignore…** asks for a reason and records a `drift_ignored` decision in the flow with your Git user; ignored items stay listed with _Reopen_.
 - **Run mode with AWX (M7, ADR-0013):** _Set Up AWX Template_ picks the AWX project, inventory, execution environment and credentials. It creates or updates the job template `AFD · <flow key>` for the generated playbook and writes its name to `flow.runtime`.
   - **Approvals (AFD-11, ADR-0016):** a flow with top-level approvals runs in AWX as a workflow.
     - _Set Up AWX Template_ creates a job template per segment playbook (`generated/<key>.seg_<segment>.yml`, written on save) and the workflow `AFD · <flow key>`: the segments, an approval node at each gate (timeout from `settings.timeout`), and a finish path for when nobody reaches a gate.
@@ -115,7 +115,7 @@ The rest of this page is the complete feature reference.
     - In Run mode the approval node shows waiting, approved, denied or timed out, with a link to decide it in AWX.
     - Approvals inside subflows, or two waiting at once, run only locally and as skeletons (auto-approved); the validator says why.
   - **Local runs (AFD-21)** approve by themselves; the extra var `afd_approvals` takes another outcome per approval, by key path: `-e '{"afd_approvals": {"change-approval": "rejected"}}'`. A value the approval has no port for stops the run with an error. The generated playbook's header names the approvals.
-  - _Launch in AWX_ (Implementation and Run modes, or the Command Palette) asks for the flow inputs and shows a confirmation with the targets and the commit, then launches the template with the inputs as extra vars. It follows the job's events until the job ends.
+  - _Launch in AWX_ (Code and Run modes, or the Command Palette) asks for the flow inputs and shows a confirmation with the targets and the commit, then launches the template with the inputs as extra vars. It follows the job's events until the job ends.
   - AWX runs the commit its project checks out. When that is not your HEAD (unpushed or uncommitted changes) you get a warning.
   - The token is checked against AWX before it is stored, in VS Code's secret storage only.
   - **Run mode** shows the last run (AWX or local) on the same canvas, read-only:
@@ -124,19 +124,19 @@ The rest of this page is the complete feature reference.
     - select a wire to list its hosts, or a node to see each host, the port it left through and why it failed;
     - with nothing selected the run panel shows the job, status, commit, flow version, failed hosts and _Open in AWX_.
   - **Tested:** after a passing real run of the current flow version (exit 0, every failure routed, no failed end), the run panel offers _Mark N nodes tested_ for the implemented nodes it ran: one edit you save. A tested node whose design changes later (anything but its status, position and wires) is implemented again, at once on the canvas or on save after a hand edit, with a message naming it.
-- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as skeleton_, with _Run for real…_ under its chevron; Implementation: _Re-sync from git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy up_, _Show as text_, _Export as draw.io…_, _Export as image…_ (AFD-25), _Validate design_, _Keyboard shortcuts_ and _User guide_ (AFD-22).
+- **Top bar (AFD-18):** the breadcrumb, the mode toggle, one _Lens_ dropdown, the mode's primary action (Design: _Run as Skeleton_, with _Run for Real…_ under its chevron; Code: _Re-sync from Git_ and _Launch in AWX_; Run: both runs), and a "…" menu with _Tidy Up_, _Open in Text Editor_, _Export as draw.io…_, _Export as image…_ (AFD-25), _Check Flow_, _Keyboard shortcuts_ and _User guide_ (AFD-22).
 - **Lenses (M8, ADR-0014):** the top bar's _Lens_ dropdown (None, Inventory, Data, Code, Access, Timing; ✕ clears it) works in every mode. A lens fills the node chips across the flow (two at most) and adds a browser on the left and findings on the right; hovering a row highlights its nodes. A lens never edits the flow.
   - **Inventory** reads the local environment's inventory through the probe when you open the lens. Chips show each node's target and host count; groups a node adds beyond the flow targets show as `+ core_spines · 2`; wires show last-run host counts. _Set targets…_ picks the flow targets, remembered for runs too. Findings: a handler that targets more than it receives (Rollback on `all`), groups that are not flow inputs, patterns that match nothing, production groups.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
   - **Code** shows each binding with its collection version and the execution environment. Findings: not in the environment, removed or deprecated, versions that do not meet `collections/requirements.yml`.
   - **Access** shows credentials, the inventory's connection user, become and vaulted variables (by name and file:line, never the value). Findings: a credential unlike the one its neighbours share, become alone, node credentials outside AWX.
   - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
-  - _Mark expected_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
+  - _Accept with Reason…_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
 - **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show the status dot and two chips. From 1.4× the box lists summary rows. A selected node opens a summary card (hosts, limit, inputs, outputs, binding, credential, limits, duration) with Open subflow, Properties and Peek code.
 - **Playbook import (AFD-26, ADR-0021):** _Import Ansible Playbooks…_ (Command Palette, or right-click a playbook or folder) turns a playbook, or the playbooks of a folder, into new flows: one step per task, in order, a faithful copy (checked by running both side by side). Plays and imported playbooks become subflows, blocks with rescue/always a subflow with its failure path, roles steps bound to the role (split roles a subflow, one step per task file), handlers steps that run when a notifier changed something. Registered and loaded variables are wired as inputs and outputs; vault values and prompted secrets are imported by name only. _Show notes_ lists what has no one-to-one form.
 - **AI-assisted import (AFD-27):** both import commands offer _With an AI assistant_: the agent designs the flow by intent (subflows by purpose, the same modules and parameters). The command opens Copilot Chat with a ready prompt, or puts it on the clipboard for Claude Code, Codex and others. Agents read the source with `source_outline` (structure, and per task the binding to copy) and can make an exact copy with `flow_import`. For AWX, the extension writes a sanitized export (secrets by name only) for the agent; the token stays in VS Code.
 - **Task keywords (AFD-26):** a binding carries Ansible task keywords (`when`, `loop`, `ignore_errors`, `delegate_to`, …) on the Execution tab, written on the generated task as is and checked like parameters.
-- **AWX import (M9, ADR-0015; AFD-26):** _Import from AWX…_ turns a workflow or job template, read from AWX or from an `awx export` file, into a new flow laid out top-down at every level. It is a one-time copy: AWX is only read, and the flow description shows where it came from.
+- **AWX import (M9, ADR-0015; AFD-26):** _Import AWX Workflow or Job Template…_ turns a workflow or job template, read from AWX or from an `awx export` file, into a new flow laid out top-down at every level. It is a one-time copy: AWX is only read, and the flow description shows where it came from.
   - A job template node whose playbook is in this repository becomes a subflow of the playbook's steps; otherwise it is a draft task bound to the playbook, and the notes name the project. Node limit, tags, extra data, the machine credential, EE, become and timeout carry over. A job template on its own imports the same way, its limit as the flow's hosts.
   - Nested workflows become subflows; approvals stay approvals, with their timeout; project and inventory syncs become draft tasks.
   - `success` goes to `ok_hosts`, `failure` to `failed_hosts`, and `always` to both, because AWX counts it as a failure handler. Several children get a parallel node, several roots start in parallel, and convergence "all" gets a join.
@@ -193,15 +193,15 @@ Example `.vscode/settings.json` for a Windows machine with Docker Desktop:
 
 ## Usage
 
-- **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node. Or create an empty `*.flow.yaml` file anywhere: it opens in the designer with _Create a flow here_, which writes the same start (named after the file) in one undo step. A `*.flow.yaml` that does not parse shows why, with _Open as text_.
+- **New flow:** Command Palette → _Ansible Flow: New Flow…_ creates `flows/<key>/<key>.flow.yaml` in the workspace with a start and an end node. Or create an empty `*.flow.yaml` file anywhere: it opens in the designer with _Create a flow here_, which writes the same start (named after the file) in one undo step. A `*.flow.yaml` that does not parse shows why, with _Open in Text Editor_.
 - **Import playbooks:** Command Palette → _Ansible Flow: Import Ansible Playbooks…_, or right-click a playbook or a folder in the Explorer. A folder lists its playbooks (top-level ones selected). Choose _As is_ (each becomes `flows/<key>/<key>.flow.yaml`, one step per task; the first opens, and _Show notes_ lists what did not map one to one) or _With an AI assistant_ (Copilot Chat opens with the prompt, or it is copied for another assistant, which designs the flow by intent).
-- **Import from AWX:** Command Palette → _Ansible Flow: Import from AWX…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick a workflow or job template, the flow key, and _As is_ (the new flow opens; _Show notes_ lists what did not map one to one) or _With an AI assistant_ (a sanitized export goes to `flows/<key>/source/` for the assistant).
-- **Open:** click any `*.flow.yaml` file. _Ansible Flow: Validate Design_, _Tidy Up Layout_ and _Open as Text_ are in the Command Palette and the top bar.
-- **Compare with the code:** switch the top bar to _Implementation_; _Re-sync from git_ refreshes. Each drift item's buttons fix the design or open the code.
-- **Bind:** select a node, then the gear or _Bind module, role or playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
-- **Review with a lens:** pick a lens in the top bar. For Inventory and Access, _Set targets…_ in the left panel enters the flow targets; the refresh button reads the inventory again. Hover a row to see its nodes, use a finding's fix button, or _Mark expected_.
+- **Import an AWX workflow or job template:** Command Palette → _Ansible Flow: Import AWX Workflow or Job Template…_, then _From AWX_ (uses `afd.awx.url` and the stored token) or _From an export file…_ (`awx export --workflow_job_templates --job_templates > awx-export.json`). Pick a workflow or job template, the flow key, and _As is_ (the new flow opens; _Show notes_ lists what did not map one to one) or _With an AI assistant_ (a sanitized export goes to `flows/<key>/source/` for the assistant).
+- **Open:** click any `*.flow.yaml` file. _Ansible Flow: Check Flow_, _Tidy Up_ and _Open in Text Editor_ are in the Command Palette and the top bar.
+- **Compare with the code:** switch the top bar to _Code_; _Re-sync from Git_ refreshes. Each drift item's buttons fix the design or open the code.
+- **Bind:** select a node, then the gear or _Bind Module, Role or Playbook…_ in the inspector. Search, pick, fill in the parameters (`@` inserts inputs), _Save Binding_. _Rebuild Module Catalog_ in the Command Palette re-reads the environment's docs.
+- **Review with a lens:** pick a lens in the top bar. For Inventory and Access, _Set targets…_ in the left panel enters the flow targets; the refresh button reads the inventory again. Hover a row to see its nodes, use a finding's fix button, or _Accept with Reason…_.
 - **Run in AWX:** set `afd.awx.url`, run _Ansible Flow: Set AWX Token_ and _Set Up AWX Template_ once per flow, commit and push, then _Launch in AWX_. Switch the top bar to _Run_ to see the results; select nodes and wires for hosts.
-- **Run:** _Run as skeleton_ in the top bar (or the play button in the editor title bar) runs the flow in check mode. The button next to it runs it for real after a confirmation. Other commands: _Generate Playbook_, _Check Generated Code (Syntax)_, _Show Run Audit Log_.
+- **Run:** _Run as Skeleton_ in the top bar (or the play button in the editor title bar) runs the flow in check mode. The button next to it runs it for real after a confirmation. Other commands: _Generate Code_, _Check Flow_, _Show Run Audit Log_.
 
 A minimal flow document (all values fictional):
 
@@ -256,7 +256,7 @@ Opened in the designer, `push-ntp` shows an amber `failed_hosts` port and the ba
   outcome: failed
 ```
 
-plus three edges (`push-ntp.failed_hosts → notify-on-call`, and its `ok_hosts` and `failed_hosts` to `stopped`). Choosing _Leave open on purpose…_ instead adds:
+plus three edges (`push-ntp.failed_hosts → notify-on-call`, and its `ok_hosts` and `failed_hosts` to `stopped`). Choosing _Accept with Reason…_ instead adds:
 
 ```yaml
 decisions:
@@ -395,7 +395,7 @@ The extension teaches AI assistants the flow format and gives them tools that ed
 | `src/extension/import/`          | Import commands' shared helpers (key, workspace files, notes) and _Import Ansible Playbooks…_ (AFD-26).                                       |
 | `src/core/lens/`                 | The five lenses, semantic zoom summary rows, requirements specs, run history statistics (M8).                                                 |
 | `src/extension/lens/`            | Lens facts: the inventory through the probe, the catalog's view of each binding, requirements pins (M8).                                      |
-| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), Import from AWX (M9, AFD-26), approval workflows (AFD-11).     |
+| `src/extension/awx/`             | AWX client, token, Set Up AWX Template, Launch in AWX with event polling (M7), the AWX import (M9, AFD-26), approval workflows (AFD-11).      |
 | `lab/`                           | GNS3 lab: Git server on ops1, Docker suites on the GNS3 VM, setup notes (`lab/README.md`, M7).                                                |
 | `src/core/ai/`                   | AI tool core: key references, the op language, flow descriptions, tool specs and handlers, the generated reference (AFD-19).                  |
 | `src/mcp/`                       | The MCP server for terminal agents (`dist/mcp.js`) and its file-system IO (AFD-19).                                                           |

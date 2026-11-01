@@ -153,7 +153,7 @@ export type HostMessage =
   /** Opens a level on the canvas: `root` or a subflow node id (M4; tests and commands). */
   | { type: 'openLevel'; level: string }
   /** Switches the canvas mode (tests and commands, M7). */
-  | { type: 'setMode'; mode: 'design' | 'implementation' | 'run' }
+  | { type: 'setMode'; mode: 'design' | 'code' | 'run' }
   | { type: 'config'; testMode: boolean }
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number }
@@ -162,7 +162,7 @@ export type HostMessage =
   | {
       type: 'openProperties';
       node: Ulid;
-      tab?: 'general' | 'implementation' | 'io' | 'ports' | 'execution';
+      tab?: 'general' | 'binding' | 'io' | 'ports' | 'execution';
     }
   | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */

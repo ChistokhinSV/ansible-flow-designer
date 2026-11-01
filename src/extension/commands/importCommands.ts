@@ -5,10 +5,11 @@ import { isCancelled } from '../errors';
 import { type Host, VIEW_TYPE } from '../host';
 import { announceImport } from '../import/common';
 import { importPlaybooks } from '../import/playbookImport';
+import { CMD } from './ids';
 
 export function registerImportCommands(host: Host): vscode.Disposable[] {
   return [
-    vscode.commands.registerCommand('afd.importAwxWorkflow', async () => {
+    vscode.commands.registerCommand(CMD.importAwx, async () => {
       const outcome = await importAwxWorkflow(host.context.secrets, host.deps.newId);
       // With an AI assistant, the prompt went to the chat or the clipboard (AFD-27).
       if (outcome.prompt) return;
@@ -20,7 +21,7 @@ export function registerImportCommands(host: Host): vscode.Disposable[] {
         await vscode.commands.executeCommand('vscode.openWith', outcome.uri, VIEW_TYPE);
       void announceImport({ ...outcome, uris: outcome.uri ? [outcome.uri] : [] });
     }),
-    vscode.commands.registerCommand('afd.importPlaybooks', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.importPlaybooks, async (uri?: vscode.Uri) => {
       const outcome = await importPlaybooks(host.playbookDeps, uri ? { source: uri } : {});
       // With an AI assistant, the prompt went to the chat or the clipboard (AFD-27).
       if (outcome.prompt) return;

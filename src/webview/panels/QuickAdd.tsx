@@ -112,7 +112,7 @@ export function QuickAdd() {
           close(null);
         }}
       >
-        <h2 id="afd-qa-title">Add node</h2>
+        <h2 id="afd-qa-title">Add Node</h2>
         <p className="muted">
           {source && insertEdge ? (
             <>

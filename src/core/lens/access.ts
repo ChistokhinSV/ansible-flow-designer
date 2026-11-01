@@ -111,7 +111,7 @@ export function accessLens(
         nodes: [node.id],
         fixes: [
           {
-            label: 'Remove become',
+            label: 'Remove Become',
             command: { kind: 'updateNode', id: node.id, patch: { settings: { become: null } } },
           },
         ],

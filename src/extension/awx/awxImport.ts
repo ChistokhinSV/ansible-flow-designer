@@ -1,5 +1,6 @@
-// Import from AWX (M9 D-31 ADR-0015, AFD-26): a workflow or job template from the AWX API or an
-// `awx export` file becomes a new flow at flows/<key>/<key>.flow.yaml, and opens in the designer.
+// Import AWX Workflow or Job Template (M9 D-31 ADR-0015, AFD-26): a workflow or job template from
+// the AWX API or an `awx export` file becomes a new flow at flows/<key>/<key>.flow.yaml, and opens
+// in the designer.
 // Job templates whose playbook is in the repository become subflows of the playbook's steps; a
 // workflow is laid out top-down with ELK at every level. A one-time copy: AWX is only read.
 import * as vscode from 'vscode';
@@ -110,7 +111,7 @@ async function fromAwx(
     if (!chosen) return `AWX has no template "${from.name}"`;
   } else {
     chosen = await vscode.window.showQuickPick(choices(workflows, jobs), {
-      title: 'Import from AWX',
+      title: 'Import AWX Workflow or Job Template',
       placeHolder: `Workflow or job template in ${client.base}`,
     });
     if (!chosen?.id) return 'Cancelled';
@@ -158,7 +159,7 @@ async function fromFile(from: Extract<ImportSource, { kind: 'file' }>): Promise<
       real.length === 1
         ? real[0]
         : await vscode.window.showQuickPick(all, {
-            title: 'Import from AWX',
+            title: 'Import AWX Workflow or Job Template',
             placeHolder: 'Workflow or job template in the export file',
           });
     if (!pick?.name) return 'Cancelled';
@@ -194,7 +195,7 @@ export async function importAwxWorkflow(
           from: 'file',
         },
       ] as const,
-      { title: 'Import from AWX' },
+      { title: 'Import AWX Workflow or Job Template' },
     );
     if (!pick) return cancelled();
     source = pick.from === 'awx' ? { kind: 'awx' } : { kind: 'file' };

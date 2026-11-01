@@ -3,7 +3,7 @@
 import { SHORTCUTS } from '../shortcuts';
 import { useUi } from '../store';
 
-const GROUPS = ['Edit', 'Move around', 'Canvas'] as const;
+const GROUPS = ['Edit', 'Move around', 'Canvas', 'Flow'] as const;
 
 export function CheatSheet() {
   const open = useUi((s) => s.cheatSheet);
@@ -15,7 +15,7 @@ export function CheatSheet() {
         className="afd-modal afd-cheatsheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Keyboard shortcuts"
+        aria-label="Keyboard Shortcuts"
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation();
@@ -24,7 +24,7 @@ export function CheatSheet() {
         }}
       >
         <div className="afd-cheatsheet-head">
-          <h2>Keyboard shortcuts</h2>
+          <h2>Keyboard Shortcuts</h2>
           <button
             type="button"
             className="icon"

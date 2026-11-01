@@ -25,7 +25,7 @@ export function NotAFlow({ snapshot }: { snapshot: Snapshot }) {
               <span className="codicon codicon-add" aria-hidden="true" /> Create a flow here
             </button>
             <button type="button" className="secondary" onClick={() => send({ type: 'openText' })}>
-              Open as text
+              Open in Text Editor
             </button>
           </div>
         </>
@@ -36,12 +36,12 @@ export function NotAFlow({ snapshot }: { snapshot: Snapshot }) {
           </p>
           <pre className="afd-not-a-flow-error">{snapshot.parseError}</pre>
           <p className="muted">
-            Fix it as text, or start a new flow with <em>Ansible Flow: New Flow…</em> in the Command
-            Palette.
+            Fix it in the text editor, or start a new flow with <em>Ansible Flow: New Flow…</em> in
+            the Command Palette.
           </p>
           <div className="afd-not-a-flow-actions">
             <button type="button" onClick={() => send({ type: 'openText' })}>
-              Open as text
+              Open in Text Editor
             </button>
           </div>
         </>

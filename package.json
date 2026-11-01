@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.24.6",
+  "version": "0.25.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -59,82 +59,77 @@
     ],
     "commands": [
       {
-        "command": "afd.newFlow",
+        "command": "afd.flow.new",
         "title": "New Flow…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.importPlaybooks",
+        "command": "afd.import.playbooks",
         "title": "Import Ansible Playbooks…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.importAwxWorkflow",
-        "title": "Import from AWX…",
+        "command": "afd.import.awx",
+        "title": "Import AWX Workflow or Job Template…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.generate",
-        "title": "Generate Playbook",
+        "command": "afd.code.generate",
+        "title": "Generate Code",
         "category": "Ansible Flow",
         "icon": "$(file-code)"
       },
       {
-        "command": "afd.runSkeleton",
+        "command": "afd.run.skeleton",
         "title": "Run as Skeleton (Check Mode)",
         "category": "Ansible Flow",
         "icon": "$(play)"
       },
       {
-        "command": "afd.runReal",
+        "command": "afd.run.real",
         "title": "Run for Real…",
         "category": "Ansible Flow",
         "icon": "$(debug-alt)"
       },
       {
-        "command": "afd.stopRun",
+        "command": "afd.run.stop",
         "title": "Stop Run",
         "category": "Ansible Flow",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "afd.syntaxCheck",
-        "title": "Check Generated Code (Syntax)",
+        "command": "afd.flow.check",
+        "title": "Check Flow",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.showAudit",
+        "command": "afd.run.showAudit",
         "title": "Show Run Audit Log",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.completeIds",
+        "command": "afd.flow.completeIds",
         "title": "Complete IDs",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.copyNodes",
+        "command": "afd.edit.copy",
         "title": "Copy Nodes",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.pasteNodes",
+        "command": "afd.edit.paste",
         "title": "Paste Nodes",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.tidyUp",
-        "title": "Tidy Up Layout",
+        "command": "afd.canvas.tidyUp",
+        "title": "Tidy Up",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.validate",
-        "title": "Validate Design",
-        "category": "Ansible Flow"
-      },
-      {
-        "command": "afd.openAsText",
-        "title": "Open as Text",
+        "command": "afd.flow.openInTextEditor",
+        "title": "Open in Text Editor",
         "category": "Ansible Flow",
         "icon": "$(go-to-file)"
       },
@@ -165,37 +160,37 @@
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.setupAi",
-        "title": "Set Up AI Assistants...",
+        "command": "afd.ai.setup",
+        "title": "Set Up AI Assistants…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.removeAi",
-        "title": "Remove AI Assistant Setup...",
+        "command": "afd.ai.remove",
+        "title": "Remove AI Assistant Setup…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.openGuide",
+        "command": "afd.help.openGuide",
         "title": "Open User Guide",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.openWalkthrough",
+        "command": "afd.help.getStarted",
         "title": "Get Started",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.openSample",
+        "command": "afd.help.openSample",
         "title": "Open Sample Flow…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.exportDrawio",
+        "command": "afd.export.drawio",
         "title": "Export as draw.io Diagram…",
         "category": "Ansible Flow"
       },
       {
-        "command": "afd.exportImage",
+        "command": "afd.export.image",
         "title": "Export as Image (SVG, PNG)…",
         "category": "Ansible Flow"
       }
@@ -203,63 +198,59 @@
     "menus": {
       "editor/title": [
         {
-          "command": "afd.runSkeleton",
+          "command": "afd.run.skeleton",
           "when": "activeCustomEditorId == afd.flowEditor",
           "group": "navigation@1"
         },
         {
-          "command": "afd.openAsText",
+          "command": "afd.flow.openInTextEditor",
           "when": "activeCustomEditorId == afd.flowEditor",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "afd.tidyUp",
+          "command": "afd.canvas.tidyUp",
           "when": "activeCustomEditorId == afd.flowEditor"
         },
         {
-          "command": "afd.validate",
-          "when": "activeCustomEditorId == afd.flowEditor"
-        },
-        {
-          "command": "afd.openAsText",
-          "when": "activeCustomEditorId == afd.flowEditor"
-        },
-        {
-          "command": "afd.generate",
+          "command": "afd.flow.check",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {
-          "command": "afd.runSkeleton",
-          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
-        },
-        {
-          "command": "afd.runReal",
-          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
-        },
-        {
-          "command": "afd.syntaxCheck",
-          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
-        },
-        {
-          "command": "afd.copyNodes",
+          "command": "afd.flow.openInTextEditor",
           "when": "activeCustomEditorId == afd.flowEditor"
         },
         {
-          "command": "afd.pasteNodes",
+          "command": "afd.code.generate",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.run.skeleton",
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
+        },
+        {
+          "command": "afd.run.real",
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor)"
+        },
+        {
+          "command": "afd.edit.copy",
           "when": "activeCustomEditorId == afd.flowEditor"
         },
         {
-          "command": "afd.completeIds",
+          "command": "afd.edit.paste",
+          "when": "activeCustomEditorId == afd.flowEditor"
+        },
+        {
+          "command": "afd.flow.completeIds",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {
-          "command": "afd.exportDrawio",
+          "command": "afd.export.drawio",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {
-          "command": "afd.exportImage",
+          "command": "afd.export.image",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {
@@ -267,23 +258,23 @@
           "when": "isWorkspaceTrusted"
         },
         {
-          "command": "afd.stopRun",
+          "command": "afd.run.stop",
           "when": "afd.running"
         }
       ],
       "explorer/context": [
         {
-          "command": "afd.exportDrawio",
+          "command": "afd.export.drawio",
           "when": "resourceFilename =~ /\\.flow\\.yaml$/",
           "group": "7_afd_export@1"
         },
         {
-          "command": "afd.exportImage",
+          "command": "afd.export.image",
           "when": "resourceFilename =~ /\\.flow\\.yaml$/",
           "group": "7_afd_export@2"
         },
         {
-          "command": "afd.importPlaybooks",
+          "command": "afd.import.playbooks",
           "when": "explorerResourceIsFolder || resourceExtname =~ /^\\.ya?ml$/ && !(resourceFilename =~ /\\.flow\\.yaml$/)",
           "group": "7_afd_import@1"
         }
@@ -2181,7 +2172,7 @@
           {
             "id": "open",
             "title": "Open a sample or start a new flow",
-            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.openSample)\n[New Flow](command:afd.newFlow)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
+            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.help.openSample)\n[New Flow](command:afd.flow.new)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.help.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/canvas-light.png",
@@ -2192,14 +2183,14 @@
               "altText": "A firewall upgrade flow on the designer canvas"
             },
             "completionEvents": [
-              "onCommand:afd.openSample",
-              "onCommand:afd.newFlow"
+              "onCommand:afd.help.openSample",
+              "onCommand:afd.flow.new"
             ]
           },
           {
             "id": "import",
             "title": "Or import playbooks you already have",
-            "description": "Right-click a playbook or a folder → **Import Ansible Playbooks…**. **As is** makes one step per task, with blocks, roles and handlers in place; **With an AI assistant** redesigns them by intent.\n[Import Ansible Playbooks](command:afd.importPlaybooks)\nTry it on sample playbooks (in an empty folder): [Copy the sample playbooks](command:afd.openSample?%5B%22playbooks%2Fedge-baseline%22%5D)\n[Tutorial: bring existing playbooks into flows](command:afd.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
+            "description": "Right-click a playbook or a folder → **Import Ansible Playbooks…**. **As is** makes one step per task, with blocks, roles and handlers in place; **With an AI assistant** redesigns them by intent.\n[Import Ansible Playbooks](command:afd.import.playbooks)\nTry it on sample playbooks (in an empty folder): [Copy the sample playbooks](command:afd.help.openSample?%5B%22playbooks%2Fedge-baseline%22%5D)\n[Tutorial: bring existing playbooks into flows](command:afd.help.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/playbook-import-light.png",
@@ -2210,13 +2201,13 @@
               "altText": "A playbook imported as a flow: its block, roles and handler as steps"
             },
             "completionEvents": [
-              "onCommand:afd.importPlaybooks"
+              "onCommand:afd.import.playbooks"
             ]
           },
           {
             "id": "add-steps",
             "title": "Add steps",
-            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add node here…**. To put a step between two nodes, click the wire's port and choose **Insert node on this wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
+            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add Node Here…**. To put a step between two nodes, click the wire's port and choose **Insert node on this wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.help.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/quick-add-light.png",
@@ -2233,7 +2224,7 @@
           {
             "id": "handle-failures",
             "title": "Handle every failure",
-            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or leave it open on purpose with a reason.\n[How-to: ports and failure patterns](command:afd.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
+            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or leave it open on purpose with a reason.\n[How-to: ports and failure patterns](command:afd.help.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/port-menu-light.png",
@@ -2250,7 +2241,7 @@
           {
             "id": "subflow",
             "title": "Go top-down with subflows",
-            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into subflow**.\n[How-to: subflows](command:afd.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
+            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into subflow**.\n[How-to: subflows](command:afd.help.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/subflow-level-light.png",
@@ -2267,7 +2258,7 @@
           {
             "id": "validate",
             "title": "Check the design",
-            "description": "The designer checks the flow as you edit: missing wires, unhandled failures, data a step reads that nothing provides. Problems go to the Problems panel, each with its fix.\n[Validate Design](command:afd.validate)\n[Reference: problem codes](command:afd.openGuide?%5B%22reference%2Fproblems.md%22%5D)",
+            "description": "The designer checks the flow as you edit: missing wires, unhandled failures, data a step reads that nothing provides. Problems go to the Problems panel, each with its fix.\n[Check Flow](command:afd.flow.check)\n[Reference: problem codes](command:afd.help.openGuide?%5B%22reference%2Fproblems.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/open-ports-banner-light.png",
@@ -2278,13 +2269,13 @@
               "altText": "The banner counting open fail ports"
             },
             "completionEvents": [
-              "onCommand:afd.validate"
+              "onCommand:afd.flow.check"
             ]
           },
           {
             "id": "generate",
             "title": "See the generated playbook",
-            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node to see its play in the inspector.\n[Generate Playbook](command:afd.generate)\n[How-to: code generation](command:afd.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
+            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node to see its play in the inspector.\n[Generate Code](command:afd.code.generate)\n[How-to: code generation](command:afd.help.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/inspector-light.png",
@@ -2295,13 +2286,13 @@
               "altText": "The inspector showing a node and its generated play"
             },
             "completionEvents": [
-              "onCommand:afd.generate"
+              "onCommand:afd.code.generate"
             ]
           },
           {
             "id": "skeleton-run",
             "title": "Run it as a walking skeleton",
-            "description": "Steps without code run as TODO messages, so the whole flow runs from the first minute: `ansible-playbook --check` in your Ansible environment (an execution environment image, WSL or a venv). Run mode then shows how many hosts took each wire.\n[Run as Skeleton](command:afd.runSkeleton)\n[How-to: runs and environments](command:afd.openGuide?%5B%22how-to%2Fruns-and-environments.md%22%5D)",
+            "description": "Steps without code run as TODO messages, so the whole flow runs from the first minute: `ansible-playbook --check` in your Ansible environment (an execution environment image, WSL or a venv). Run mode then shows how many hosts took each wire.\n[Run as Skeleton](command:afd.run.skeleton)\n[How-to: runs and environments](command:afd.help.openGuide?%5B%22how-to%2Fruns-and-environments.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/run-mode-light.png",
@@ -2312,18 +2303,18 @@
               "altText": "Run mode with host counts on every wire"
             },
             "completionEvents": [
-              "onCommand:afd.runSkeleton"
+              "onCommand:afd.run.skeleton"
             ]
           },
           {
             "id": "next",
             "title": "Keep going",
-            "description": "Bind steps to modules from your environment's catalog, pass data between them, poll until a device is back, and run for real or in AWX.\n[Open the User Guide](command:afd.openGuide)\n[Tutorial: from design to production](command:afd.openGuide?%5B%22tutorials%2F02-design-to-production.md%22%5D)",
+            "description": "Bind steps to modules from your environment's catalog, pass data between them, poll until a device is back, and run for real or in AWX.\n[Open the User Guide](command:afd.help.openGuide)\n[Tutorial: from design to production](command:afd.help.openGuide?%5B%22tutorials%2F02-design-to-production.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/guide.md"
             },
             "completionEvents": [
-              "onCommand:afd.openGuide"
+              "onCommand:afd.help.openGuide"
             ]
           }
         ]
@@ -2347,18 +2338,18 @@
           {
             "id": "setup",
             "title": "Set up Claude Code, Codex and other agents",
-            "description": "Agents in a terminal or another editor need the skill copied and the flow tools registered once. The extension offers it when it finds them; you can also run it any time.\n[Set Up AI Assistants](command:afd.setupAi)\n[How-to: AI assistants](command:afd.openGuide?%5B%22how-to%2Fai-assistants.md%22%5D)",
+            "description": "Agents in a terminal or another editor need the skill copied and the flow tools registered once. The extension offers it when it finds them; you can also run it any time.\n[Set Up AI Assistants](command:afd.ai.setup)\n[How-to: AI assistants](command:afd.help.openGuide?%5B%22how-to%2Fai-assistants.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/ai-setup.md"
             },
             "completionEvents": [
-              "onCommand:afd.setupAi"
+              "onCommand:afd.ai.setup"
             ]
           },
           {
             "id": "prompt",
             "title": "Ask for a flow",
-            "description": "Say what the automation should achieve, how it is split into phases and what happens to failed hosts. The agent builds the flow with all-or-nothing edits and fixes the problems it causes.\n[Tutorial: build a flow with an AI assistant](command:afd.openGuide?%5B%22tutorials%2F04-ai-assistant.md%22%5D)",
+            "description": "Say what the automation should achieve, how it is split into phases and what happens to failed hosts. The agent builds the flow with all-or-nothing edits and fixes the problems it causes.\n[Tutorial: build a flow with an AI assistant](command:afd.help.openGuide?%5B%22tutorials%2F04-ai-assistant.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/ai-prompts.md"
             }
@@ -2366,23 +2357,23 @@
           {
             "id": "import",
             "title": "Import playbooks with an assistant",
-            "description": "Turn existing playbooks into a flow designed by intent: **Import Ansible Playbooks…** → **With an AI assistant**. Copilot Chat opens with the prompt ready; other assistants get it on the clipboard.\n[Import Ansible Playbooks](command:afd.importPlaybooks)\n[Tutorial: bring existing playbooks into flows](command:afd.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
+            "description": "Turn existing playbooks into a flow designed by intent: **Import Ansible Playbooks…** → **With an AI assistant**. Copilot Chat opens with the prompt ready; other assistants get it on the clipboard.\n[Import Ansible Playbooks](command:afd.import.playbooks)\n[Tutorial: bring existing playbooks into flows](command:afd.help.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/ai-import.md"
             },
             "completionEvents": [
-              "onCommand:afd.importPlaybooks"
+              "onCommand:afd.import.playbooks"
             ]
           },
           {
             "id": "review",
             "title": "Review and fix",
-            "description": "The canvas shows every edit. Check the Problems panel, and ask the agent to fix what is left without changing the logic.\n[Validate Design](command:afd.validate)",
+            "description": "The canvas shows every edit. Check the Problems panel, and ask the agent to fix what is left without changing the logic.\n[Check Flow](command:afd.flow.check)",
             "media": {
               "markdown": "media/walkthrough/ai-review.md"
             },
             "completionEvents": [
-              "onCommand:afd.validate"
+              "onCommand:afd.flow.check"
             ]
           }
         ]
@@ -2406,7 +2397,7 @@
           {
             "id": "template",
             "title": "Set up the template",
-            "description": "Create the job template (or the approval workflow) for the open flow, in the AWX project that holds your repository.\n[Set Up AWX Template](command:afd.awx.setupTemplate)\n[How-to: AWX](command:afd.openGuide?%5B%22how-to%2Fawx.md%22%5D)",
+            "description": "Create the job template (or the approval workflow) for the open flow, in the AWX project that holds your repository.\n[Set Up AWX Template](command:afd.awx.setupTemplate)\n[How-to: AWX](command:afd.help.openGuide?%5B%22how-to%2Fawx.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/awx-template.md"
             },
@@ -2417,7 +2408,7 @@
           {
             "id": "approvals",
             "title": "Approvals become AWX approvals",
-            "description": "Top-level approval nodes split the flow into a workflow with an approval node at each gate. Local runs approve by themselves, or take the outcome you pass in `afd_approvals`.\n[How-to: approvals](command:afd.openGuide?%5B%22how-to%2Fapprovals.md%22%5D)",
+            "description": "Top-level approval nodes split the flow into a workflow with an approval node at each gate. Local runs approve by themselves, or take the outcome you pass in `afd_approvals`.\n[How-to: approvals](command:afd.help.openGuide?%5B%22how-to%2Fapprovals.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/awx-approvals.md"
             }
@@ -2425,7 +2416,7 @@
           {
             "id": "launch",
             "title": "Launch and follow the run",
-            "description": "Launch asks for the flow inputs and confirms the targets and the commit. Run mode shows every node's hosts, failures and times, and offers to mark nodes tested after a passing run.\n[Launch in AWX](command:afd.awx.launch)\n[Tutorial: AWX end to end](command:afd.openGuide?%5B%22tutorials%2F03-awx-end-to-end.md%22%5D)",
+            "description": "Launch asks for the flow inputs and confirms the targets and the commit. Run mode shows every node's hosts, failures and times, and offers to mark nodes tested after a passing run.\n[Launch in AWX](command:afd.awx.launch)\n[Tutorial: AWX end to end](command:afd.help.openGuide?%5B%22tutorials%2F03-awx-end-to-end.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/awx-run-light.png",
@@ -2442,7 +2433,7 @@
           {
             "id": "import",
             "title": "Import an existing AWX workflow or job template",
-            "description": "Turn a workflow or job template you already have into a flow, from AWX or from an `awx export` file. Playbooks of this repository become steps.\n[Import from AWX](command:afd.importAwxWorkflow)\n[How-to: import playbooks and AWX templates](command:afd.openGuide?%5B%22how-to%2Fimport.md%22%5D)",
+            "description": "Turn a workflow or job template you already have into a flow, from AWX or from an `awx export` file. Playbooks of this repository become steps.\n[Import AWX Workflow or Job Template](command:afd.import.awx)\n[How-to: import playbooks and AWX templates](command:afd.help.openGuide?%5B%22how-to%2Fimport.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/awx-import-light.png",
@@ -2453,10 +2444,42 @@
               "altText": "A flow imported from an AWX workflow"
             },
             "completionEvents": [
-              "onCommand:afd.importAwxWorkflow"
+              "onCommand:afd.import.awx"
             ]
           }
         ]
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "afd.run.skeleton",
+        "key": "ctrl+f5",
+        "mac": "ctrl+f5",
+        "when": "activeCustomEditorId == afd.flowEditor && isWorkspaceTrusted && !afd.running"
+      },
+      {
+        "command": "afd.run.stop",
+        "key": "shift+f5",
+        "mac": "shift+f5",
+        "when": "activeCustomEditorId == afd.flowEditor && afd.running"
+      },
+      {
+        "command": "afd.code.generate",
+        "key": "ctrl+shift+b",
+        "mac": "shift+cmd+b",
+        "when": "activeCustomEditorId == afd.flowEditor"
+      },
+      {
+        "command": "afd.canvas.tidyUp",
+        "key": "shift+alt+f",
+        "mac": "shift+alt+f",
+        "when": "activeCustomEditorId == afd.flowEditor"
+      },
+      {
+        "command": "afd.flow.check",
+        "key": "f7",
+        "mac": "f7",
+        "when": "activeCustomEditorId == afd.flowEditor"
       }
     ]
   },

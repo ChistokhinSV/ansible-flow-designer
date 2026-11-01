@@ -17,7 +17,7 @@ import { inheritedContext, levelTrail } from '../viewModel';
 
 const MODES = [
   { id: 'design', label: 'Design' },
-  { id: 'implementation', label: 'Implementation' },
+  { id: 'code', label: 'Code' },
   { id: 'run', label: 'Run' },
 ] as { id: Mode; label: string; soon?: string }[];
 
@@ -41,7 +41,7 @@ export function TopBar() {
   const choose = (id: Mode) => {
     useUi.getState().setMode(id);
     // The first visit compiles the code; later ones show the last scan (Re-sync refreshes it).
-    if (id === 'implementation' && sync.state === 'idle') send({ type: 'sync' });
+    if (id === 'code' && sync.state === 'idle') send({ type: 'sync' });
   };
   return (
     <header className="afd-topbar">
@@ -104,7 +104,7 @@ export function TopBar() {
       </fieldset>
       <LensPick lens={lens} pick={pickLens} />
       <div className="afd-actions">
-        {mode === 'implementation' ? (
+        {mode === 'code' ? (
           <button
             type="button"
             disabled={sync.state === 'syncing'}
@@ -115,7 +115,7 @@ export function TopBar() {
               className={`codicon ${sync.state === 'syncing' ? 'codicon-loading codicon-modifier-spin' : 'codicon-sync'}`}
               aria-hidden="true"
             />{' '}
-            {sync.state === 'syncing' ? 'Syncing…' : 'Re-sync from git'}
+            {sync.state === 'syncing' ? 'Syncing…' : 'Re-sync from Git'}
           </button>
         ) : null}
         <RunStatus run={run} />
@@ -136,9 +136,9 @@ export function TopBar() {
             className="secondary"
             disabled={running}
             onClick={() => send({ type: 'run', mode: 'check' })}
-            title="Generate the playbook and run it in check mode in the local Ansible environment"
+            title="Generate the code and run it in check mode in the local Ansible environment"
           >
-            <span className="codicon codicon-play" aria-hidden="true" /> Run as skeleton
+            <span className="codicon codicon-play" aria-hidden="true" /> Run as Skeleton
           </button>
         ) : null}
         {mode !== 'design' ? <LaunchAwx running={running} /> : null}
@@ -146,7 +146,7 @@ export function TopBar() {
           label="More actions"
           className="secondary icon"
           title="More actions"
-          items={() => moreActions(mode, level)}
+          items={() => moreActions(level)}
         >
           <span className="codicon codicon-ellipsis" aria-hidden="true" />
         </MenuButton>
@@ -210,58 +210,54 @@ function LensPick({
 }
 
 /** Actions used now and then: in the "…" menu instead of on the bar. */
-function moreActions(mode: Mode, level: string): UiMenuEntry[] {
+function moreActions(level: string): UiMenuEntry[] {
   return [
     {
       type: 'item',
-      label: 'Tidy up',
+      label: 'Tidy Up',
       icon: 'layout',
-      title: 'Auto-layout the whole level',
+      title: 'Lay out the whole level again',
       onSelect: () => send({ type: 'tidyUp', level }),
     },
     {
       type: 'item',
-      label: 'Show as text',
+      label: 'Open in Text Editor',
       icon: 'go-to-file',
-      title: 'Open the flow file as text',
+      title: 'Open the flow file in the text editor',
       onSelect: () => send({ type: 'openText' }),
     },
     {
       type: 'item',
-      label: 'Export as draw.io…',
+      label: 'Export as draw.io Diagram…',
       icon: 'export',
       title: 'Every level as a page of a draw.io diagram, with the node details as shape data',
       onSelect: () => send({ type: 'export', format: 'drawio', level }),
     },
     {
       type: 'item',
-      label: 'Export as image…',
+      label: 'Export as Image…',
       icon: 'file-media',
       title: 'This level as an SVG or PNG image that draw.io also opens as a diagram',
       onSelect: () => send({ type: 'export', format: 'image', level }),
     },
-    ...(mode === 'design'
-      ? [
-          {
-            type: 'item' as const,
-            label: 'Validate design',
-            icon: 'check-all',
-            title: 'Check the flow again and show the Problems panel',
-            onSelect: () => send({ type: 'validate' }),
-          },
-        ]
-      : []),
+    {
+      type: 'item',
+      label: 'Check Flow',
+      icon: 'check-all',
+      title: 'Check the design, then the generated code in the Ansible environment',
+      onSelect: () => send({ type: 'validate' }),
+    },
     { type: 'separator' },
     {
       type: 'item',
-      label: 'Keyboard shortcuts',
+      label: 'Keyboard Shortcuts',
       icon: 'keyboard',
       shortcut: '?',
       onSelect: () => useUi.getState().showCheatSheet(true),
     },
     {
       type: 'item',
-      label: 'User guide',
+      label: 'User Guide',
       icon: 'book',
       title: 'Tutorials and how-to pages, in a Markdown preview',
       onSelect: () => send({ type: 'openGuide' }),
@@ -283,7 +279,7 @@ function DesignActions({ running }: { running: boolean }) {
           className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-play'}`}
           aria-hidden="true"
         />{' '}
-        {running ? 'Running…' : 'Run as skeleton'}
+        {running ? 'Running…' : 'Run as Skeleton'}
       </button>
       <MenuButton
         label="More run options"
@@ -292,7 +288,7 @@ function DesignActions({ running }: { running: boolean }) {
         items={() => [
           {
             type: 'item',
-            label: 'Run for real…',
+            label: 'Run for Real…',
             icon: 'debug-alt',
             title: 'Run for real (not check mode), after a confirmation naming inventory and hosts',
             onSelect: () => send({ type: 'run', mode: 'real' }),

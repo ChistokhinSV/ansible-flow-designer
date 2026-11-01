@@ -118,7 +118,7 @@ describe('computeDrift (D-29, mockup 04)', () => {
       label: 'task not in design',
       detail: '`wait_for_convergence` exists in the role but not in the subflow.',
     });
-    expect(item?.actions[0]?.label).toBe('Add to subflow');
+    expect(item?.actions[0]?.label).toBe('Add to Subflow');
     for (const covered of ['ntp', 'aaa', 'main'])
       expect(byId(report.items, 'push-baseline', `task-file:${covered}`)).toBeUndefined();
   });
@@ -133,7 +133,7 @@ describe('computeDrift (D-29, mockup 04)', () => {
       byId(report.items, 'rollback', 'unbound:01JCR6N0000000000000000007')?.actions.map(
         (a) => a.label,
       ),
-    ).toEqual(['Generate stub', 'Bind role', 'Ignore…']);
+    ).toEqual(['Generate Stub', 'Bind Role', 'Accept with Reason…']);
     expect(byId(report.items, 'backup-config', 'no-spec:main')?.actions[0]?.action.kind).toBe(
       'writeSpecs',
     );
@@ -325,7 +325,7 @@ describe('drift commands', () => {
     expect(nodeOf(text, 'validate').inputs?.backup?.from).toBe('backup-config.backup_path');
   });
 
-  it('addNode can bind the new step (Add to subflow)', () => {
+  it('addNode can bind the new step (Add to Subflow)', () => {
     const sub = nodeOf(FLOW, 'push-baseline').id;
     const r = planCommand(
       FLOW,

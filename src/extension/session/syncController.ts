@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import type { CodeScan, DriftAction } from '../../core/drift/types';
 import type { FlowCommand } from '../../core/flow/commands';
 import type { HostMessage, Snapshot } from '../../core/protocol';
+import { CMD } from '../commands/ids';
 import type { CommandOutcome, SessionDeps } from '../flowSession';
 import { scanFlow } from '../sync/codeSync';
 import { generateStub, writeSpecs } from '../sync/driftActions';
@@ -68,7 +69,7 @@ export class SyncController {
         await this.sync();
         return { ok: true };
       case 'regenerate':
-        await vscode.commands.executeCommand('afd.generate', this.uri);
+        await vscode.commands.executeCommand(CMD.generateCode, this.uri);
         outcome = { ok: true };
         break;
       default:

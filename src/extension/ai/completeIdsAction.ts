@@ -1,8 +1,10 @@
 // "Complete IDs" as a quick fix on the text of a flow written by hand (AFD-19): the light bulb on a
-// `missing-id` problem, and the source action for the whole file. Both run afd.completeIds.
+// `missing-id` problem, and the source action for the whole file. Both run Complete IDs.
 import * as vscode from 'vscode';
+import { CMD } from '../commands/ids';
 
-export const COMPLETE_IDS = 'afd.completeIds';
+export const COMPLETE_IDS = CMD.completeIds;
+// The kind stays `source.afd.completeIds` (AFD-19) for editor.codeActionsOnSave settings.
 const SOURCE = vscode.CodeActionKind.Source.append('afd.completeIds');
 
 export class CompleteIdsActions implements vscode.CodeActionProvider {

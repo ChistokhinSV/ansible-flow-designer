@@ -32,7 +32,7 @@ export interface AfdTestApi {
   openLevel(uri: vscode.Uri, level: string): void;
   /** Selects a node on the canvas (opening its level), as a click would. */
   reveal(uri: vscode.Uri, node: string): void;
-  setMode(uri: vscode.Uri, mode: 'design' | 'implementation' | 'run'): void;
+  setMode(uri: vscode.Uri, mode: 'design' | 'code' | 'run'): void;
   rendered(uri: vscode.Uri, version: number): Promise<void>;
   perf(uri: vscode.Uri): PerfEvent[];
   cspViolations(uri: vscode.Uri): string[];

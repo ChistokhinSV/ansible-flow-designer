@@ -56,7 +56,7 @@ refreshed.
 
 ## 4. Have it fix what is left
 
-Run **Validate design** (top bar "…" menu) and ask:
+Run **Check Flow** (top bar "…" menu) and ask:
 
 > Fix the warnings in this flow with the flow tools, without changing what it does.
 

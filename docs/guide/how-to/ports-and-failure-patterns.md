@@ -2,7 +2,7 @@
 
 Hosts leave a node through its **ports**: the ones that succeeded through `ok_hosts`, the ones that
 failed through `failed_hosts`, and so on. Each port is wired to the next node, or left open. Every
-**fail port** needs a decision: a handler, or a reason to leave it open.
+**fail port** needs a handler, or a reason to leave it open (**Accept with Reason…**).
 
 ## Ports per node type
 
@@ -64,7 +64,7 @@ rewire one port to the other end.
 ## Leave open on purpose
 
 Some failures should just fail the run, for example a read-only check during a change window.
-Choose **Leave open on purpose…** and give the reason. The flow records it with your Git user name
+Choose **Accept with Reason…** and give the reason. The flow records it with your Git user name
 (shown here by key; the file stores the node's ID):
 
 ```yaml

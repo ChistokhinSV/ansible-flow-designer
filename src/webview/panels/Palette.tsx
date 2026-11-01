@@ -108,8 +108,8 @@ export function Palette() {
           <span className="afd-swatch port state-connected tone-ok" /> Connected port
         </li>
         <li>
-          <span className="afd-swatch port state-open-fail tone-failed" /> Open fail port (needs a
-          decision)
+          <span className="afd-swatch port state-open-fail tone-failed" /> Open fail port (wire it
+          or accept it)
         </li>
         <li>
           <span className="afd-swatch port state-open-purpose tone-failed" /> Open on purpose

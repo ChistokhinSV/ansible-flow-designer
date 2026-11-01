@@ -45,7 +45,7 @@ playbooks are generated from it.
 - [Data between steps](how-to/data-between-steps.md)
 - [Retries and polling](how-to/polling-and-retries.md)
 - [Generated code](how-to/code-generation.md)
-- [Implementation mode: design vs code](how-to/implementation-mode.md)
+- [Code mode: design vs code](how-to/code-mode.md)
 - [Lenses](how-to/lenses.md)
 
 **Running**

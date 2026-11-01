@@ -144,7 +144,7 @@ describe('Run mode', () => {
     expect(
       document.querySelector<HTMLElement>('[data-tested-proposal]')?.dataset.testedProposal,
     ).toBe('2');
-    fireEvent.click(screen.getByRole('button', { name: /Mark 2 nodes tested/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Mark 2 Nodes Tested/ }));
     expect(commands()).toEqual([
       { kind: 'setStatuses', statuses: { [id('probe')]: 'tested', [id('work')]: 'tested' } },
     ]);

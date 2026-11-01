@@ -49,7 +49,7 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
           type="button"
           className="icon"
           title="Properties"
-          aria-label="Open properties"
+          aria-label="Open Details"
           onClick={() => useUi.getState().openProperties(id)}
         >
           <span className="codicon codicon-settings-gear" aria-hidden="true" />
@@ -57,8 +57,8 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
         <button
           type="button"
           className="icon"
-          title="Show in text"
-          aria-label="Show in text"
+          title="Open in Text Editor"
+          aria-label="Open in Text Editor"
           onClick={() => send({ type: 'openText', path: entry.path })}
         >
           <span className="codicon codicon-go-to-file" aria-hidden="true" />
@@ -159,7 +159,7 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
 
         {designable ? (
           <section className="afd-section">
-            <h3>Implementation</h3>
+            <h3>Binding</h3>
             {node.impl ? (
               <p>
                 <span className="afd-chip">{node.impl.kind}</span>{' '}
@@ -185,10 +185,10 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
             <button
               type="button"
               data-bind={id}
-              onClick={() => useUi.getState().openProperties(id, 'implementation')}
+              onClick={() => useUi.getState().openProperties(id, 'binding')}
             >
               <span className="codicon codicon-plug" aria-hidden="true" />
-              {node.impl ? 'Change binding…' : 'Bind module, role or playbook…'}
+              {node.impl ? 'Change Binding…' : 'Bind Module, Role or Playbook…'}
             </button>
           </section>
         ) : null}
@@ -202,7 +202,7 @@ export function Inspector({ id, context }: { id: string; context?: boolean }) {
               : 'No inner steps yet: open it and add the first one.'}
           </p>
           <button type="button" onClick={() => useUi.getState().setLevel(id)}>
-            <span className="codicon codicon-arrow-right" aria-hidden="true" /> Open subflow
+            <span className="codicon codicon-arrow-right" aria-hidden="true" /> Open Subflow
           </button>
         </section>
       ) : null}
@@ -368,7 +368,7 @@ export function PortRow({
   let text: string = STATE_LABEL[port.state];
   if (wired) text = `→ ${target}`;
   else if (reason) text = `${STATE_LABEL[port.state]}: ${reason}`;
-  else if (port.state === 'open-fail') text = 'open: needs a handler or a decision';
+  else if (port.state === 'open-fail') text = 'open: wire it to a handler, or Accept with Reason…';
   // Mockup 03: the first suggestions inline, plus "Leave open on purpose…".
   const quick =
     port.state === 'open-fail'

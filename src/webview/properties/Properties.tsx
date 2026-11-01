@@ -28,7 +28,7 @@ import { YamlField } from './YamlField';
 
 const TABS: { tab: PropTab; label: string }[] = [
   { tab: 'general', label: 'General' },
-  { tab: 'implementation', label: 'Implementation' },
+  { tab: 'binding', label: 'Binding' },
   { tab: 'io', label: 'Inputs and outputs' },
   { tab: 'ports', label: 'Ports' },
   { tab: 'execution', label: 'Execution' },
@@ -130,7 +130,7 @@ export function Properties({ node: id }: { node: string }) {
         </div>
       </header>
       <div className="afd-props-tabs" role="tablist" aria-label="Properties">
-        {TABS.filter((t) => bindable || t.tab !== 'implementation').map((t) => (
+        {TABS.filter((t) => bindable || t.tab !== 'binding').map((t) => (
           <button
             key={t.tab}
             type="button"
@@ -140,14 +140,14 @@ export function Properties({ node: id }: { node: string }) {
             onClick={() => setTab(t.tab)}
           >
             {t.label}
-            {t.tab === 'implementation' && dirty ? (
+            {t.tab === 'binding' && dirty ? (
               <span className="afd-dirty" title="Unsaved changes" />
             ) : null}
           </button>
         ))}
       </div>
       <fieldset className="afd-editable afd-props-body" role="tabpanel" disabled={!editable}>
-        {tab === 'implementation' && bindable ? (
+        {tab === 'binding' && bindable ? (
           <Implementation node={node} model={model} draft={draft} setDraft={setDraft} />
         ) : tab === 'io' ? (
           <div className="afd-props-page">
@@ -185,7 +185,7 @@ export function Properties({ node: id }: { node: string }) {
           >
             <h2 id="afd-leave-title">Discard the binding change?</h2>
             <p className="muted">
-              The Implementation tab has a change that is not saved yet. Closing now drops it.
+              The Binding tab has a change that is not saved yet. Closing now drops it.
             </p>
             <div className="afd-modal-actions">
               <button

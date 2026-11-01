@@ -1,13 +1,13 @@
-# Implementation mode: design vs code
+# Code mode: design vs code
 
-Switch the top bar to **Implementation** to see the same graph against the code it runs. Nothing
+Switch the top bar to **Code** to see the same graph against the code it runs. Nothing
 is changed for you; every difference comes with actions for both sides.
 
-![Implementation mode](../images/implementation-light.png)
+![Code mode](../images/implementation-light.png)
 
-## Re-sync from git
+## Re-sync from Git
 
-**Re-sync from git** compiles, in your Ansible environment:
+**Re-sync from Git** compiles, in your Ansible environment:
 - the flow's generated playbook;
 - every bound role entry point;
 - every bound playbook.
@@ -34,6 +34,6 @@ The **Design vs code** panel lists the nodes matched by ID and the drift items:
 | notes               | roles without argument specs, dynamic includes                     | _Write argument_specs_                                                                                                                 |
 
 **Ignore…** asks for a reason and records it in the flow with your Git user (`drift_ignored`).
-Ignored items stay listed, with _Stop ignoring_.
+Ignored items stay listed, with _Reopen_.
 
-Implementation mode offers the same canvas edits as Design, and **Launch in AWX**.
+Code mode offers the same canvas edits as Design, and **Launch in AWX**.

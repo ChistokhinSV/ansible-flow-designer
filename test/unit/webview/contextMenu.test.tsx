@@ -86,17 +86,17 @@ describe('canvas context menu', () => {
     expect(shown).toBe(false);
     expect(useUi.getState().selection).toEqual({ node: id('precheck') });
     expect(items()).toEqual([
-      'Properties…',
-      'Bind implementation…',
+      'Details…',
+      'Binding…',
       'Rename',
       'Status',
-      'Open port failed_hosts',
-      'Add next node…',
+      'Open Port failed_hosts',
+      'Add Next Node…',
       'Cut',
       'Copy',
       'Duplicate',
-      'Show in text',
-      'Peek code',
+      'Open in Text Editor',
+      'Peek Code',
       'Delete',
     ]);
     const del = screen.getByRole('menuitem', { name: 'Delete' });
@@ -143,23 +143,23 @@ describe('canvas context menu', () => {
       fireEvent.contextMenu(node('push-baseline'), { clientX: 200, clientY: 150 });
     });
     expect(useUi.getState().selection).toEqual({ nodes: group });
-    expect(items()).toEqual(['Cut', 'Copy', 'Duplicate', 'Extract into subflow…', 'Delete']);
+    expect(items()).toEqual(['Cut', 'Copy', 'Duplicate', 'Extract into Subflow…', 'Delete']);
     const wire = doc.edges.find((e) => e.from.node === id('precheck'))?.id as string;
     act(() =>
       useUi.getState().openContextMenu({ target: { kind: 'edge', id: wire }, x: 10, y: 10 }),
     );
-    expect(items()).toEqual(['Insert node on this wire', 'Rewire to another node…', 'Disconnect']);
+    expect(items()).toEqual(['Insert Node on This Wire', 'Rewire to Another Node…', 'Disconnect']);
   });
 
-  it('empty canvas: Paste here asks the host for the clipboard with the spot; the paste lands there', async () => {
+  it('empty canvas: Paste Here asks the host for the clipboard with the spot; the paste lands there', async () => {
     mount();
     const pane = document.querySelector('.react-flow__pane') as HTMLElement;
     act(() => {
       fireEvent.contextMenu(pane, { clientX: 300, clientY: 200 });
     });
     const at = useUi.getState().contextMenu?.at as { x: number; y: number };
-    expect(items()).toEqual(['Paste here', 'Add node here…', 'Select all', 'Tidy up', 'Fit view']);
-    act(() => screen.getByRole('menuitem', { name: 'Paste here' }).click());
+    expect(items()).toEqual(['Paste Here', 'Add Node Here…', 'Select All', 'Tidy Up', 'Fit View']);
+    act(() => screen.getByRole('menuitem', { name: 'Paste Here' }).click());
     expect(sent('requestPaste')).toEqual([{ type: 'requestPaste', at }]);
     // The host answers with the text and the same spot (App passes both to pasteText).
     await act(async () => {
@@ -178,11 +178,11 @@ describe('canvas context menu', () => {
     const focused = () =>
       (document.activeElement as HTMLElement).getAttribute('aria-label') ??
       document.activeElement?.textContent;
-    expect(focused()).toBe('Properties…');
+    expect(focused()).toBe('Details…');
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'End' });
     expect(focused()).toBe('Delete');
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' });
-    expect(focused()).toBe('Properties…');
+    expect(focused()).toBe('Details…');
     fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Delete' });
     expect(sent('command')).toEqual([]);
     const status = screen.getByRole('menuitem', { name: 'Status' });
@@ -216,6 +216,6 @@ describe('canvas context menu', () => {
     act(() => {
       fireEvent.contextMenu(node('precheck'), { clientX: 200, clientY: 150 });
     });
-    expect(items()).toEqual(['Properties…', 'Copy', 'Show in text', 'Peek code']);
+    expect(items()).toEqual(['Details…', 'Copy', 'Open in Text Editor', 'Peek Code']);
   });
 });

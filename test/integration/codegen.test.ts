@@ -147,7 +147,7 @@ describe('M3 acceptance: code generation', () => {
       const t0 = Date.now();
       while (!done && Date.now() - t0 < 200_000) {
         await new Promise((r) => setTimeout(r, 1_000));
-        await vscode.commands.executeCommand('afd.stopRun', EDGE);
+        await vscode.commands.executeCommand('afd.run.stop', EDGE);
       }
       const run = await withTimeout(running, 30_000, 'stopped run');
       assert.equal(run.state, 'error', JSON.stringify(run));

@@ -22,7 +22,7 @@ const READABLE_PX = 11;
 const VIEWS = {
   design: async () => {},
   code: async (page) => {
-    await ui(page, 'setMode', 'implementation');
+    await ui(page, 'setMode', 'code');
     await host(page, { type: 'sync' });
     await settle(page, 900);
   },

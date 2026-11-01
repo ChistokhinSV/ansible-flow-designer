@@ -64,7 +64,7 @@ export function LensBrowser() {
           <p>
             Targets: <span className="mono">{inv?.targets || 'not set'}</span>{' '}
             <button type="button" className="link" onClick={() => send({ type: 'setTargets' })}>
-              Set targets…
+              Set Targets…
             </button>
           </p>
         </div>
@@ -153,7 +153,7 @@ function Finding({ f }: { f: LensFinding }) {
             className="secondary"
             onClick={() => setAccept({ id: f.id, node: f.node, title: f.title })}
           >
-            Mark expected
+            Accept with Reason…
           </button>
         </div>
       )}
@@ -211,7 +211,7 @@ export function LensPanel() {
   );
 }
 
-/** "Mark expected": the reason is required and stored with the Git author (M8-4). */
+/** "Accept with Reason…": the reason is required and stored with the Git author (M8-4). */
 export function AcceptDialog() {
   const target = useUi((s) => s.accept);
   const close = useUi((s) => s.setAccept);
@@ -219,9 +219,9 @@ export function AcceptDialog() {
   return (
     <ReasonDialog
       id="afd-accept"
-      title="Mark as expected"
+      title="Accept with Reason"
       placeholder="e.g. The spines must drain while the edge switch reboots"
-      submit="Mark expected"
+      submit="Accept"
       target={target}
       record={(reason) =>
         run({ kind: 'acceptFinding', finding: target.id, node: target.node, reason })

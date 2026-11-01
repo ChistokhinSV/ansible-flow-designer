@@ -3,6 +3,7 @@
 // matching words in messages.
 import * as vscode from 'vscode';
 import type { RunErrorCode } from '../core/protocol';
+import { CMD } from './commands/ids';
 
 /** The outcome text of a pick or prompt the user closed: never shown as an error. */
 export const CANCELLED = 'Cancelled';
@@ -11,8 +12,8 @@ export const isCancelled = (error: string | undefined) => error === CANCELLED;
 
 /** The fix for each error code: a button on the error message. */
 const FIXES: Partial<Record<RunErrorCode, { label: string; command: string }>> = {
-  'awx-token': { label: 'Set AWX Token', command: 'afd.awx.setToken' },
-  'awx-template': { label: 'Set Up AWX Template', command: 'afd.awx.setupTemplate' },
+  'awx-token': { label: 'Set AWX Token', command: CMD.awxSetToken },
+  'awx-template': { label: 'Set Up AWX Template', command: CMD.awxSetupTemplate },
   'awx-url': { label: 'Open Settings', command: 'workbench.action.openSettings' },
 };
 

@@ -55,7 +55,7 @@ describe('AFD-17 acceptance: copy and paste nodes', () => {
     await openDesigner(EDGE);
     await vscode.env.clipboard.writeText('');
     await selectNode(EDGE, 'backup-config');
-    await vscode.commands.executeCommand('afd.copyNodes');
+    await vscode.commands.executeCommand('afd.edit.copy');
     const text = await clipboardWith((t) => t.startsWith(CLIP_HEADER), 'copied nodes');
     const clip = parse(text) as Pick<FlowDocument, 'nodes' | 'decisions'>;
     assert.deepEqual(
@@ -72,14 +72,14 @@ describe('AFD-17 acceptance: copy and paste nodes', () => {
     await openDesigner(EDGE);
     await selectNode(EDGE, 'backup-config');
     await vscode.env.clipboard.writeText('');
-    await vscode.commands.executeCommand('afd.copyNodes');
+    await vscode.commands.executeCommand('afd.edit.copy');
     await clipboardWith((t) => t.startsWith(CLIP_HEADER), 'copied nodes');
     await closeAll();
 
     const api = await testApi();
     const doc = await openDesigner(OS);
     const before = doc.getText();
-    await vscode.commands.executeCommand('afd.pasteNodes');
+    await vscode.commands.executeCommand('afd.edit.paste');
     const after = parse(await changed(doc, before)) as FlowDocument;
     const pasted = after.nodes.at(-1);
     // os-upgrade has a backup-config of its own.
@@ -106,7 +106,7 @@ describe('AFD-17 acceptance: copy and paste nodes', () => {
     await vscode.env.clipboard.writeText(
       '# kept in notes.yaml\n- type: task\n  title: Check free flash\n  status: tested\n',
     );
-    await vscode.commands.executeCommand('afd.pasteNodes');
+    await vscode.commands.executeCommand('afd.edit.paste');
     const after = parse(await changed(doc, before)) as FlowDocument;
     const inner = after.nodes.find((n) => n.key === 'upgrade-os')?.subflow?.nodes ?? [];
     assert.deepEqual(

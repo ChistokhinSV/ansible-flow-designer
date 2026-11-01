@@ -69,7 +69,9 @@ export function Banner() {
       <strong>
         {count} open fail port{count === 1 ? '' : 's'}
       </strong>
-      <span className="muted">Wire them to a handler or mark them open on purpose.</span>
+      <span className="muted">
+        Wire them to a handler, or Accept with Reason… on a port you keep open.
+      </span>
       <button type="button" className="link" onClick={show}>
         Show
       </button>

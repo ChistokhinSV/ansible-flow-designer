@@ -18,9 +18,9 @@ export function DecisionDialog() {
   return (
     <ReasonDialog
       id="afd-decide"
-      title="Leave open on purpose"
+      title="Accept with Reason"
       placeholder="e.g. Fails before any change; stopping is safe"
-      submit={existing ? 'Save reason' : 'Leave open'}
+      submit={existing ? 'Save Reason' : 'Accept'}
       initial={existing?.reason}
       target={target}
       record={(reason) =>

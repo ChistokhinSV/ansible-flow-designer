@@ -10,6 +10,7 @@ import { auditUri } from '../run/audit';
 import { type RunOptions, runFlow } from '../run/runner';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
+import { CMD } from './ids';
 
 export function registerRunCommands(host: Host): vscode.Disposable[] {
   const run = async (mode: RunOptions['mode'], uri?: vscode.Uri) => {
@@ -22,9 +23,9 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     return result;
   };
   return [
-    vscode.commands.registerCommand('afd.runSkeleton', (uri?: vscode.Uri) => run('check', uri)),
-    vscode.commands.registerCommand('afd.runReal', (uri?: vscode.Uri) => run('real', uri)),
-    vscode.commands.registerCommand('afd.stopRun', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.runSkeleton, (uri?: vscode.Uri) => run('check', uri)),
+    vscode.commands.registerCommand(CMD.runReal, (uri?: vscode.Uri) => run('real', uri)),
+    vscode.commands.registerCommand(CMD.stopRun, async (uri?: vscode.Uri) => {
       const outcome = await stopRun(host.targetUri(uri));
       if (outcome === 'none') void vscode.window.showInformationMessage('No run is going.');
       else if (outcome === 'which')
@@ -32,14 +33,27 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           'Several flows are running: open the one to stop, then Stop Run.',
         );
     }),
-    vscode.commands.registerCommand('afd.syntaxCheck', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.checkFlow, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return;
+      // Check Flow (AFD-41) folds Validate Design and Check Generated Code: the design first, and
+      // the generated code in the environment only when the design has no errors.
+      await host.sessionFor(doc).refresh();
+      const problems = vscode.languages.getDiagnostics(doc.uri);
+      const errors = problems.filter((d) => d.severity === vscode.DiagnosticSeverity.Error).length;
+      if (problems.length > 0)
+        await vscode.commands.executeCommand('workbench.actions.view.problems');
+      if (errors > 0) {
+        void vscode.window.showWarningMessage(
+          `The design has ${errors} error${errors === 1 ? '' : 's'} (see Problems): the generated code is checked once they are fixed.`,
+        );
+        return;
+      }
       // A cancellable progress (AFD-39): the check can take minutes in a cold environment.
       const outcome = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: 'Checking the generated code in the environment',
+          title: 'Check Flow: the generated code in the environment',
           cancellable: true,
         },
         (_progress, token) => {
@@ -54,17 +68,21 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           );
         },
       );
-      if (outcome.ok) void vscode.window.showInformationMessage(outcome.message);
-      else if (!isCancelled(outcome.message)) void vscode.window.showErrorMessage(outcome.message);
+      const design = problems.length
+        ? `The design has no errors (${problems.length} warning${problems.length === 1 ? '' : 's'})`
+        : 'The design has no problems';
+      if (outcome.ok) void vscode.window.showInformationMessage(`${design}. ${outcome.message}.`);
+      else if (!isCancelled(outcome.message))
+        void vscode.window.showErrorMessage(`${design}. ${outcome.message}`);
     }),
-    vscode.commands.registerCommand('afd.showAudit', async () => {
+    vscode.commands.registerCommand(CMD.showAudit, async () => {
       try {
         await vscode.window.showTextDocument(auditUri(host.storage), { preview: false });
       } catch {
         void vscode.window.showInformationMessage('No run has been launched yet.');
       }
     }),
-    vscode.commands.registerCommand('afd.catalog.rebuild', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.rebuildCatalog, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);
       const folder = scope && vscode.workspace.getWorkspaceFolder(scope);
       if (!folder) return void vscode.window.showErrorMessage('Open a repository folder first.');
@@ -78,7 +96,7 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
         void vscode.window.showErrorMessage(err instanceof Error ? err.message : String(err));
       }
     }),
-    vscode.commands.registerCommand('afd.awx.launch', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.awxLaunch, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return undefined;
       const result = await launchInAwx(doc, host.awxDeps(doc.uri));
@@ -87,7 +105,7 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       else if (result.state === 'done') void announceRun(result);
       return result;
     }),
-    vscode.commands.registerCommand('afd.awx.setupTemplate', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.awxSetupTemplate, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
       if (!doc) return;
       const r = await setupTemplate(doc, host.awxDeps(doc.uri));
@@ -98,13 +116,13 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       else if (!isCancelled(r.error))
         void vscode.window.showErrorMessage(r.error ?? 'Setting up the AWX template failed');
     }),
-    vscode.commands.registerCommand('afd.awx.setToken', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.awxSetToken, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);
       if (!scope) return;
       const error = await setToken(scope, host.context.secrets);
       if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
     }),
-    vscode.commands.registerCommand('afd.awx.clearToken', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.awxClearToken, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);
       if (scope) await clearToken(scope, host.context.secrets);
     }),

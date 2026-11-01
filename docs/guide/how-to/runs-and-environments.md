@@ -1,6 +1,6 @@
 # Runs and environments
 
-Designing needs no Ansible. Runs, syntax checks, the module catalog and Implementation mode need an
+Designing needs no Ansible. Runs, syntax checks, the module catalog and Code mode need an
 **Ansible environment** with ansible-core 2.19 or later.
 
 ## Choose an environment
@@ -19,9 +19,9 @@ keys: `["-v", "/home/jane/.ssh:/home/ansible/.ssh:ro"]`.
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.
 
-## Run as skeleton
+## Run as Skeleton
 
-**Run as skeleton** (top bar, or the play button in the editor title bar):
+**Run as Skeleton** (top bar, or the play button in the editor title bar):
 1. generates the code;
 2. asks for the flow inputs (remembered per flow; host lists are hosts or groups, comma-separated);
 3. runs `ansible-playbook --check` in a terminal, in your environment.
@@ -31,7 +31,7 @@ modules support it.
 
 ## Run for real
 
-**Run for real…** (under the chevron of _Run as skeleton_) first shows a confirmation with:
+**Run for Real…** (under the chevron of _Run as Skeleton_) first shows a confirmation with:
 - the inventory (`afd.run.inventory`, else `ansible.cfg`'s default);
 - how many hosts match the targets, and hosts missing from the inventory;
 - groups whose names look like production.
@@ -66,5 +66,5 @@ a terminal with `afd_approvals` ([approvals](approvals.md)).
 
 ## Syntax check
 
-**Ansible Flow: Check Generated Code (Syntax)** runs `ansible-playbook --syntax-check` in the
+**Ansible Flow: Check Flow** runs `ansible-playbook --syntax-check` in the
 environment and puts errors on the generated files in the Problems panel.

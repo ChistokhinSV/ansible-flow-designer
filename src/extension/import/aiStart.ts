@@ -2,6 +2,7 @@
 // prompt filled in (the user sends it), or the clipboard for Claude Code, Codex and the others. The
 // prompt is always on the clipboard too, so nothing is lost when the chat cannot open.
 import * as vscode from 'vscode';
+import { CMD } from '../commands/ids';
 
 export type ImportMode = 'as-is' | 'ai';
 
@@ -74,6 +75,6 @@ export async function startAiImport(prompt: string, via?: 'chat' | 'clipboard'):
       'The import prompt is on the clipboard: paste it into your AI assistant. It uses the Ansible Flow tools (source_outline, flow_new, flow_edit); Set Up AI Assistants gives them to Claude Code, Codex and others.',
       setup,
     )
-    .then((p) => (p === setup ? vscode.commands.executeCommand('afd.setupAi') : undefined));
+    .then((p) => (p === setup ? vscode.commands.executeCommand(CMD.setupAi) : undefined));
   return 'clipboard';
 }

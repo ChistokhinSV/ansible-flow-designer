@@ -29,7 +29,7 @@ describe('AFD-25 acceptance: export', () => {
     const uri = flowUri('os-upgrade');
     const before = sha(uri);
     const file = join(outDir(), 'os-upgrade.drawio');
-    const written = await vscode.commands.executeCommand<string[]>('afd.exportDrawio', uri, {
+    const written = await vscode.commands.executeCommand<string[]>('afd.export.drawio', uri, {
       out: file,
       quiet: true,
     });
@@ -47,7 +47,7 @@ describe('AFD-25 acceptance: export', () => {
   it('Export as image writes an SVG per level from the Explorer, without opening the designer', async () => {
     const uri = flowUri('os-upgrade');
     const file = join(outDir(), 'os.drawio.svg');
-    const written = await vscode.commands.executeCommand<string[]>('afd.exportImage', uri, {
+    const written = await vscode.commands.executeCommand<string[]>('afd.export.image', uri, {
       out: file,
       format: 'svg',
       level: 'all',
@@ -67,7 +67,7 @@ describe('AFD-25 acceptance: export', () => {
   it('PNG: the designer opens and draws it at twice the size; the PNG holds the draw.io file', async () => {
     const uri = flowUri('edge-baseline');
     const file = join(outDir(), 'edge.drawio.png');
-    const written = await vscode.commands.executeCommand<string[]>('afd.exportImage', uri, {
+    const written = await vscode.commands.executeCommand<string[]>('afd.export.image', uri, {
       out: file,
       format: 'png',
       level: 'root',
@@ -78,7 +78,7 @@ describe('AFD-25 acceptance: export', () => {
     assert.deepEqual([...png.subarray(1, 4)], [80, 78, 71]);
     const svg = readFileSync(
       (
-        await vscode.commands.executeCommand<string[]>('afd.exportImage', uri, {
+        await vscode.commands.executeCommand<string[]>('afd.export.image', uri, {
           out: join(outDir(), 'edge.svg'),
           format: 'svg',
           level: 'root',

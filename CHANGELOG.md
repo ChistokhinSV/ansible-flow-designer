@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.25.0 — AFD-41
+
+- **One word per thing** (improvement program, wave 3): a [glossary](docs/guide/reference/glossary.md) fixes the words the designer, the Command Palette and the guide use, and a test keeps them so.
+  - **Implementation mode is Code mode**, and its tab in the node page is **Binding**; the node page is **Details**.
+  - **Accept with Reason…** replaces Leave open on purpose…, Mark expected and Ignore…; **Reopen** takes it back.
+  - **Open in Text Editor** replaces Open as text, Show as text and Show in text; **Tidy Up**, **Generate Code**, **Import AWX Workflow or Job Template…**.
+  - Actions are in Title Case in every menu and button, as in VS Code.
+- **Check Flow** replaces Validate Design and Check Generated Code: it checks the design and, when the design has no errors, the generated code in your Ansible environment. It is in the designer's "…" menu in every mode.
+- **Command ids** are now `afd.<area>.<verb>` (`afd.flow.check`, `afd.run.skeleton`, …). The old ids keep working until 0.27 for your keybindings and links, but are no longer in the Command Palette ([commands](docs/guide/reference/commands.md)).
+- **Keys in the designer:** Ctrl+F5 Run as Skeleton, Shift+F5 Stop Run, Ctrl+Shift+B Generate Code, Shift+Alt+F Tidy Up, F7 Check Flow; the `?` sheet lists them.
+- The MCP server's size budget is now 1,088 KB (it is 954 KB).
+
 ## 0.24.6 — AFD-40
 
 - **Core, one rule in one place** (improvement program, wave 2; no visible change, generated code byte-identical):

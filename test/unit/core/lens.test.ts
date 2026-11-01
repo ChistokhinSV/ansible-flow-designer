@@ -143,7 +143,7 @@ describe('Inventory lens', () => {
     const broad = view('inventory').findings[0];
     expect(broad?.title).toBe('Rollback targets all (9)');
     expect(broad?.detail).toContain('failed_hosts');
-    expect(broad?.fixes[0]?.label).toBe('Limit to arriving hosts');
+    expect(broad?.fixes[0]?.label).toBe('Limit to Arriving Hosts');
   });
 
   it('the fixes are one edit each and clear their finding', () => {

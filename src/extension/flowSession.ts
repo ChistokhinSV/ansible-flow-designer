@@ -32,6 +32,7 @@ import { checkBindings } from '../node/catalog/bindingCheck';
 import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
 import { generatedDir } from './codegen';
+import { CMD } from './commands/ids';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
 import { authorName } from './gitHead';
@@ -383,25 +384,25 @@ export class FlowSession implements vscode.Disposable {
       }
       case 'validate':
         // Through the command, so the walkthrough step that waits for it checks off (AFD-22).
-        await vscode.commands.executeCommand('afd.validate');
+        await vscode.commands.executeCommand(CMD.checkFlow);
         break;
       case 'openGuide':
-        await vscode.commands.executeCommand('afd.openGuide', m.page);
+        await vscode.commands.executeCommand(CMD.openGuide, m.page);
         break;
       case 'run':
         await vscode.commands.executeCommand(
-          m.mode === 'check' ? 'afd.runSkeleton' : 'afd.runReal',
+          m.mode === 'check' ? CMD.runSkeleton : CMD.runReal,
           this.uri,
         );
         break;
       case 'launchAwx':
-        await vscode.commands.executeCommand('afd.awx.launch', this.uri);
+        await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
         break;
       case 'stopRun':
-        await vscode.commands.executeCommand('afd.stopRun', this.uri);
+        await vscode.commands.executeCommand(CMD.stopRun, this.uri);
         break;
       case 'generate':
-        await vscode.commands.executeCommand('afd.generate', this.uri);
+        await vscode.commands.executeCommand(CMD.generateCode, this.uri);
         break;
       case 'showRunOutput': {
         // Only URLs the host itself got from AWX: the run, or one of its approvals (AFD-11).
@@ -418,7 +419,7 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'tidyUp': {
         const outcome = await this.tidyUp(m.level);
-        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Tidy up failed');
+        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Tidy Up failed');
         break;
       }
       case 'inspectResult':
@@ -428,9 +429,8 @@ export class FlowSession implements vscode.Disposable {
         this.pngs.answer(m.reqId, m);
         break;
       case 'export':
-        if (m.format === 'drawio')
-          await vscode.commands.executeCommand('afd.exportDrawio', this.uri);
-        else await vscode.commands.executeCommand('afd.exportImage', this.uri, { level: m.level });
+        if (m.format === 'drawio') await vscode.commands.executeCommand(CMD.exportDrawio, this.uri);
+        else await vscode.commands.executeCommand(CMD.exportImage, this.uri, { level: m.level });
         break;
       case 'perf':
         this.perf.push({ event: m.event, ms: m.ms, docVersion: m.docVersion });
@@ -611,7 +611,7 @@ export class FlowSession implements vscode.Disposable {
       await vscode.workspace.fs.stat(uri);
     } catch {
       void vscode.window.showInformationMessage(
-        'Save the flow to generate its code (or run Generate Playbook)',
+        'Save the flow to generate its code (or run Generate Code)',
       );
       return;
     }
@@ -678,7 +678,7 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Opens a level (`root` or a subflow node id) in every panel of this flow. */
-  setMode(mode: 'design' | 'implementation' | 'run'): void {
+  setMode(mode: 'design' | 'code' | 'run'): void {
     this.broadcast({ type: 'setMode', mode });
   }
 
@@ -745,7 +745,7 @@ export class FlowSession implements vscode.Disposable {
   async initFlow(): Promise<CommandOutcome> {
     const text = this.document.getText();
     if (!isEmptyFile(parseYaml(text)))
-      return { ok: false, error: 'The file has content: open it as text to change it' };
+      return { ok: false, error: 'The file has content: open it in the text editor to change it' };
     const base = (this.uri.path.split('/').pop() ?? 'flow').replace(/\.flow\.ya?ml$/i, '');
     const key = slugify(base, 'flow');
     const words = base.replace(/[-_.]+/g, ' ').trim() || 'Flow';

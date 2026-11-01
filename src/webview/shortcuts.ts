@@ -8,11 +8,14 @@ export const IS_MAC =
 
 const MOD = IS_MAC ? '⌘' : 'Ctrl+';
 
+/** Keys VS Code handles while the designer has focus (package.json `keybindings`, AFD-41). */
+type FlowKey = 'runSkeleton' | 'stopRun' | 'generate' | 'tidyUp' | 'check';
+
 export interface Shortcut {
-  id: ShortcutId | 'undo' | 'nudge' | 'select' | 'escape';
+  id: ShortcutId | 'undo' | 'nudge' | 'select' | 'escape' | FlowKey;
   keys: string;
   label: string;
-  group: 'Edit' | 'Move around' | 'Canvas';
+  group: 'Edit' | 'Move around' | 'Canvas' | 'Flow';
 }
 
 export const SHORTCUTS: readonly Shortcut[] = [
@@ -55,6 +58,11 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Canvas',
   },
   { id: 'help', keys: '?', label: 'This list', group: 'Canvas' },
+  { id: 'runSkeleton', keys: 'Ctrl+F5', label: 'Run as Skeleton', group: 'Flow' },
+  { id: 'stopRun', keys: 'Shift+F5', label: 'Stop Run', group: 'Flow' },
+  { id: 'generate', keys: IS_MAC ? '⇧⌘B' : 'Ctrl+Shift+B', label: 'Generate Code', group: 'Flow' },
+  { id: 'tidyUp', keys: IS_MAC ? '⇧⌥F' : 'Shift+Alt+F', label: 'Tidy Up', group: 'Flow' },
+  { id: 'check', keys: 'F7', label: 'Check Flow', group: 'Flow' },
 ];
 
 /** The keys shown next to a menu item. */

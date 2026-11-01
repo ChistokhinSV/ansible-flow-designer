@@ -294,7 +294,7 @@ function CatalogError({ message }: { message: string }) {
           catalogRequest({ op: 'rebuild' }).finally(() => setBusy(false));
         }}
       >
-        Rebuild catalog
+        Rebuild Catalog
       </button>
     </div>
   );
@@ -400,7 +400,7 @@ function ModuleDoc({
       </table>
       {options.length > PARAMS_SHOWN ? (
         <button type="button" className="link" onClick={() => setAll(!all)}>
-          {all ? 'Show fewer parameters' : `Show ${options.length - PARAMS_SHOWN} more parameters`}
+          {all ? 'Show Fewer Parameters' : `Show ${options.length - PARAMS_SHOWN} More Parameters`}
         </button>
       ) : null}
       {doc.returns && Object.keys(doc.returns).length > 0 ? (
@@ -849,7 +849,7 @@ function ListField({
         </div>
       ))}
       <button type="button" className="link" onClick={() => setRows([...rows, ''])}>
-        Add line
+        Add Line
       </button>
     </div>
   );

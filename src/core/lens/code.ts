@@ -64,7 +64,7 @@ export function codeLens(doc: FlowDocument, facts: CodeFacts | undefined): LensV
         severity: 'warning',
         title: `${node.title}: ${impl.ref} is not in the environment`,
         detail: `${facts?.environment ?? 'The environment'} has no ${impl.kind} ${impl.ref}${nf.collection ? `; ${nf.collection} is not installed there` : ''}. Add the collection to the EE or bind another ${impl.kind}.`,
-        fixes: [{ label: 'Open properties', properties: node.id }],
+        fixes: [{ label: 'Open Details', properties: node.id }],
       });
     else if (nf.state === 'removed' || nf.state === 'deprecated')
       findings.push({
@@ -73,7 +73,7 @@ export function codeLens(doc: FlowDocument, facts: CodeFacts | undefined): LensV
         severity: 'warning',
         title: `${node.title}: ${nf.fqcn ?? impl.ref} is ${nf.state}`,
         detail: nf.why ? `${nf.why}` : `The catalog marks ${nf.fqcn ?? impl.ref} as ${nf.state}.`,
-        fixes: [{ label: 'Open properties', properties: node.id }],
+        fixes: [{ label: 'Open Details', properties: node.id }],
       });
     if (node.settings?.execution_environment && env && node.settings.execution_environment !== env)
       findings.push({

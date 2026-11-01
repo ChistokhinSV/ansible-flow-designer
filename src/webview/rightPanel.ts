@@ -28,7 +28,7 @@ export function rightPanelFor(s: {
 }): RightPanel {
   const { node, edge, nodes } = s.selection;
   if (s.lens && !node && !edge && !nodes) return { kind: 'lens' };
-  if (s.mode === 'implementation') return node ? { kind: 'nodeCode', id: node } : { kind: 'drift' };
+  if (s.mode === 'code') return node ? { kind: 'nodeCode', id: node } : { kind: 'drift' };
   if (s.mode === 'run') {
     if (node) return { kind: 'nodeRun', id: node };
     if (edge && !boundaryWire(edge)) return { kind: 'wireRun', edge };

@@ -68,7 +68,7 @@ let closeTimer: ReturnType<typeof setTimeout> | undefined;
 let onCard = false;
 
 /** Tabs of the node properties page (mockup 11). */
-export type PropTab = 'general' | 'implementation' | 'io' | 'ports' | 'execution';
+export type PropTab = 'general' | 'binding' | 'io' | 'ports' | 'execution';
 
 /**
  * Design edits the graph; Implementation shows it against the code (M6, mockup 04); Run shows what
@@ -90,7 +90,7 @@ export interface IgnoreTarget {
   label: string;
 }
 
-/** A lens finding whose "Mark expected" reason is being entered (M8). */
+/** A lens finding whose "Accept with Reason…" reason is being entered (M8). */
 export interface AcceptTarget {
   id: string;
   node?: Ulid;

@@ -55,4 +55,4 @@ The token never goes into settings: **Ansible Flow: Set AWX Token**.
 }
 ```
 
-Then use **Ansible Flow: Generate Playbook** when you want the files.
+Then use **Ansible Flow: Generate Code** when you want the files.

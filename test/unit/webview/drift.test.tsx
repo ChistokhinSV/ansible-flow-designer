@@ -56,7 +56,7 @@ beforeEach(() => {
     drift: null,
     ignore: null,
     properties: null,
-    mode: 'implementation',
+    mode: 'code',
     run: null,
   });
   act(() => {
@@ -98,7 +98,7 @@ describe('Design vs code panel', () => {
   it('design-side actions are flow commands; code-side ones go to the host', async () => {
     render(<DriftPanel />);
     const card = (id: string) => document.querySelector(`[data-drift="${id}"]`) as HTMLElement;
-    fireEvent.click(within(card('output:validation_result')).getByText('Update design'));
+    fireEvent.click(within(card('output:validation_result')).getByText('Update Design'));
     await ackAll();
     expect(commands().at(-1)).toMatchObject({
       kind: 'setContractField',
@@ -107,27 +107,27 @@ describe('Design vs code panel', () => {
       name: 'validation_result',
       rename: 'diff_report',
     });
-    fireEvent.click(within(card('output:validation_result')).getByText('Open code'));
+    fireEvent.click(within(card('output:validation_result')).getByText('Open Code'));
     expect(posted.at(-1)).toEqual({
       type: 'openCode',
       path: 'roles/netops_validate/tasks/main.yml',
       line: 2,
     });
-    fireEvent.click(within(card(`unbound:${idOf('rollback')}`)).getByText('Generate stub'));
+    fireEvent.click(within(card(`unbound:${idOf('rollback')}`)).getByText('Generate Stub'));
     expect(posted.at(-1)).toMatchObject({
       type: 'driftAction',
       action: { kind: 'generateStub', node: idOf('rollback'), role: 'rollback' },
     });
     await ackAll();
-    fireEvent.click(within(card(`unbound:${idOf('rollback')}`)).getByText('Bind role'));
+    fireEvent.click(within(card(`unbound:${idOf('rollback')}`)).getByText('Bind Role'));
     expect(useUi.getState().properties).toEqual({
       node: idOf('rollback'),
-      tab: 'implementation',
+      tab: 'binding',
       bindKind: 'role',
     });
   });
 
-  it('Ignore asks for a reason and records a drift_ignored decision', () => {
+  it('Accept with Reason… asks for a reason and records a drift_ignored decision', () => {
     render(
       <>
         <DriftPanel />
@@ -137,9 +137,9 @@ describe('Design vs code panel', () => {
     const card = document.querySelector(
       '[data-drift="task-file:wait_for_convergence"]',
     ) as HTMLElement;
-    fireEvent.click(within(card).getByText('Ignore…'));
-    const dialog = screen.getByRole('dialog', { name: 'Ignore this drift' });
-    const submit = within(dialog).getByText('Ignore', { selector: 'button' }) as HTMLButtonElement;
+    fireEvent.click(within(card).getByText('Accept with Reason…'));
+    const dialog = screen.getByRole('dialog', { name: 'Accept with Reason' });
+    const submit = within(dialog).getByText('Accept', { selector: 'button' }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
     fireEvent.change(within(dialog).getByLabelText('Reason (required)'), {
       target: { value: 'Runs from the role main' },

@@ -41,7 +41,7 @@ describe('a file that is not a flow', () => {
     expect(screen.getByRole('heading', { name: /Ansible Flow Designer/ })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Create a flow here/ })).toBeNull();
     expect(document.querySelector('.afd-not-a-flow-error')?.textContent).toContain('end with a ]');
-    fireEvent.click(screen.getByRole('button', { name: /Open as text/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Open in Text Editor/ }));
     expect(posted).toEqual([{ type: 'openText' }]);
   });
 });

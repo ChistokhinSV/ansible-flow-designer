@@ -7,6 +7,7 @@ import { createSchemaValidator } from '../core/flow/schema';
 import type { AwxDeps } from './awx/awxRun';
 import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import type { CodegenOutcome } from './codegen';
+import { CMD } from './commands/ids';
 import { ProbeManager } from './env/environment';
 import { FlowSession, type SessionDeps } from './flowSession';
 import type { PlaybookImportDeps } from './import/playbookImport';
@@ -157,7 +158,7 @@ export class Host {
           create,
         )
         .then((pick) =>
-          pick === create ? vscode.commands.executeCommand('afd.newFlow') : undefined,
+          pick === create ? vscode.commands.executeCommand(CMD.newFlow) : undefined,
         );
     }
     return undefined;

@@ -48,7 +48,7 @@ export function dataLens(doc: FlowDocument): LensView {
             detail: `The input ${name} is required, has no default and no \`from:\`. Wire it to a flow input or an upstream output.`,
             node: node.id,
             nodes: [node.id],
-            fixes: [{ label: 'Open properties', properties: node.id }],
+            fixes: [{ label: 'Open Details', properties: node.id }],
           });
         continue;
       }
@@ -115,7 +115,7 @@ export function dataLens(doc: FlowDocument): LensView {
           detail: `No node input refers to ${node.key}.${out}. Remove the output, or wire it where it is needed.`,
           node: node.id,
           nodes: [node.id],
-          fixes: [{ label: 'Open properties', properties: node.id }],
+          fixes: [{ label: 'Open Details', properties: node.id }],
         });
     }
   }
@@ -171,6 +171,6 @@ function unresolved(
     detail: `"${from}" ${why}.`,
     node,
     nodes: [node],
-    fixes: [{ label: 'Open properties', properties: node }],
+    fixes: [{ label: 'Open Details', properties: node }],
   };
 }
