@@ -17,6 +17,8 @@ export interface SettingField {
   group: SettingGroup;
   /** The flow format that has the setting (AFD-52); older formats do not show it. */
   format?: number;
+  /** The last flow format that has it on a node (AFD-52: credential and EE moved to the flow). */
+  formatMax?: number;
 }
 
 export const EXECUTION_SETTINGS: readonly SettingField[] = [
@@ -86,6 +88,8 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
   },
   {
     key: 'credential',
+    // Format 2 sets them on the flow (AFD-52).
+    formatMax: 1,
     group: 'Privilege',
     label: 'Credential (AWX)',
     kind: 'text',

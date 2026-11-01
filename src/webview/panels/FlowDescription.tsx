@@ -55,7 +55,18 @@ export function FlowDescription() {
           label="Runtime"
           value={
             flow.runtime && model
-              ? [runtimeKind(model), flow.runtime.template].filter(Boolean).join(' · ')
+              ? [
+                  runtimeKind(model),
+                  flow.runtime.template,
+                  flow.runtime.credentials?.length
+                    ? `credentials ${flow.runtime.credentials.join(', ')}`
+                    : '',
+                  flow.runtime.execution_environment
+                    ? `EE ${flow.runtime.execution_environment}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
               : 'not set'
           }
         />

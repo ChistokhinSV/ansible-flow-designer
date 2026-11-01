@@ -61,6 +61,17 @@
             "template": {
               "type": "string",
               "description": "Name of the AWX job or workflow template."
+            },
+            "credentials": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Format 2: the AWX credentials of the template, by name (machine, vault …). Set Up AWX Template applies them, and records what was chosen."
+            },
+            "execution_environment": {
+              "type": "string",
+              "description": "Format 2: the AWX execution environment of the template, by name."
             }
           },
           "description": "How the flow runs in AWX: a job template, or a workflow when approvals split it."

@@ -280,6 +280,15 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
       });
     }
     const hasInner = (node.subflow?.nodes?.length ?? 0) > 0;
+    // Format 2 (AFD-52): the AWX template has one set of credentials and one environment.
+    if (v2 && (node.settings?.credential || node.settings?.execution_environment))
+      add({
+        code: 'setting-on-flow',
+        severity: 'warning',
+        message: `${label(node)}: credential and execution environment belong to the flow in format 2 (its runtime)`,
+        path: [...path, 'settings'],
+        node: node.id,
+      });
     // Format 2 (AFD-52): become_user is a setting, which a subflow passes to its steps.
     if (v2 && node.impl?.keywords && 'become_user' in node.impl.keywords)
       add({

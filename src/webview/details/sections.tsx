@@ -414,34 +414,35 @@ export function ExecutionSection({
       {SETTING_GROUPS.map((group) => (
         <section className="afd-section" key={group} data-setting-group={group}>
           <h3>{group}</h3>
-          {EXECUTION_SETTINGS.filter((s) => s.group === group && (s.format ?? 1) <= format).map(
-            (s) => {
-              const value = settings[s.key];
-              if (s.kind === 'bool')
-                return (
-                  <label key={s.key} className="afd-check">
-                    <input
-                      type="checkbox"
-                      checked={value === true}
-                      onChange={(e) => set(s.key, e.target.checked ? true : null)}
-                    />
-                    {s.label} <span className="muted">{s.help}</span>
-                  </label>
-                );
+          {EXECUTION_SETTINGS.filter(
+            (s) =>
+              s.group === group && (s.format ?? 1) <= format && format <= (s.formatMax ?? format),
+          ).map((s) => {
+            const value = settings[s.key];
+            if (s.kind === 'bool')
               return (
-                <div key={s.key}>
-                  <CommitField
-                    label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
-                    value={settingText(value)}
-                    mono
-                    problem={fieldProblem(problems, `settings.${s.key}`)}
-                    validate={(v) => settingProblem(s, v)}
-                    onCommit={(v) => set(s.key, settingValue(s, v))}
+                <label key={s.key} className="afd-check">
+                  <input
+                    type="checkbox"
+                    checked={value === true}
+                    onChange={(e) => set(s.key, e.target.checked ? true : null)}
                   />
-                </div>
+                  {s.label} <span className="muted">{s.help}</span>
+                </label>
               );
-            },
-          )}
+            return (
+              <div key={s.key}>
+                <CommitField
+                  label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
+                  value={settingText(value)}
+                  mono
+                  problem={fieldProblem(problems, `settings.${s.key}`)}
+                  validate={(v) => settingProblem(s, v)}
+                  onCommit={(v) => set(s.key, settingValue(s, v))}
+                />
+              </div>
+            );
+          })}
           {group === 'Tags' ? <TaskKeywords node={node} /> : null}
         </section>
       ))}

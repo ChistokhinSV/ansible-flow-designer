@@ -198,7 +198,7 @@ export interface FlowPatch {
   goal?: string | null;
   owner?: string | null;
   /** The AWX job template the flow launches (M7 "Set up AWX template"); null removes runtime. */
-  runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string } | null;
+  runtime?: NonNullable<FlowDocument['flow']['runtime']> | null;
   /** Timing lens (M8): `4h`, `2h30m`; null removes it. */
   maintenance_window?: string | null;
 }

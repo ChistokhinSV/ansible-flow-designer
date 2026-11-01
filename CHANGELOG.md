@@ -4,6 +4,7 @@
 
 - **Privilege reaches the steps of a subflow** (format 2): become and its user, set on a subflow, apply to the generated plays of the steps inside; the nearest setting wins and a step can turn it off. The level chips say so. **Become user** is a setting (Execution › Privilege), no longer a task keyword; Upgrade Flow Format moves it and lists the subflows whose become now applies inside. Format 1 flows generate what they always did.
 - The **serial** chip on subflow levels is gone: serial batches the hosts of a node's own play, nothing inside.
+- **AWX credentials and execution environment belong to the flow** (format 2): the template has one set, so the flow keeps them by name next to the template (`flow.runtime`). Set Up AWX Template uses them, or asks and records what you pick; the AWX import writes them there; the upgrade moves the ones nodes named (they were never applied) and says which. The Access lens shows the flow's.
 
 ## 0.30.0 — AFD-51
 

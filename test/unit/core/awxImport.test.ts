@@ -184,8 +184,6 @@ describe('AWX workflow → flow', () => {
       status: 'implemented',
       impl: { kind: 'playbook', ref: PLAYBOOK, params: { min_flash_mb: 512 } },
       settings: {
-        credential: 'Demo Credential',
-        execution_environment: 'AFD EE (ansible-core 2.19)',
         inventory_target: 'edge',
         tags: ['precheck'],
       },

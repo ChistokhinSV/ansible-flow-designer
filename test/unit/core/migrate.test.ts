@@ -25,6 +25,7 @@ import { nodeDesigns } from '../../../src/core/flow/semantic';
 import { newFlowText } from '../../../src/core/flow/template';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
+import { walkNodes } from '../../../src/core/flow/walk';
 import { setIn } from '../../../src/core/yaml/ops';
 import { YamlTransaction } from '../../../src/core/yaml/transaction';
 
@@ -67,7 +68,18 @@ describe('Upgrade Flow Format', () => {
       expect(formatOf(after)).toBe(CURRENT_FORMAT);
       // The file's own words stay: the first line (a comment in the examples) and every design.
       expect(result.text.split('\n')[0]).toBe(text.split('\n')[0]);
-      expect(nodeDesigns(after)).toEqual(nodeDesigns(before));
+      // The upgrade moves node credentials and environments to the flow (AFD-52); the rest of
+      // each node's design stays.
+      const unawx = (d: FlowDocument) => {
+        const c = structuredClone(d);
+        for (const n of walkNodes(c.nodes)) {
+          delete n.settings?.credential;
+          delete n.settings?.execution_environment;
+          if (n.settings && Object.keys(n.settings).length === 0) delete n.settings;
+        }
+        return c;
+      };
+      expect(nodeDesigns(after)).toEqual(nodeDesigns(unawx(before)));
       const issues = (doc: FlowDocument) => schema(doc).map((i) => i.pointer);
       expect(issues(after)).toEqual(issues(before));
       const source = name.split(/[\\/]/).pop() as string;

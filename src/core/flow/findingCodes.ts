@@ -111,6 +111,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A status claims more than the node has (e.g. implemented without impl).',
     fix: 'Lower the status, or add what it needs (contract for specified, impl for implemented).',
   },
+  'setting-on-flow': {
+    meaning:
+      'Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow.',
+    fix: 'Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask.',
+  },
   'keyword-is-setting': {
     meaning: 'Format 2: a task keyword the flow now models as a setting (become_user).',
     fix: 'Set it in Execution › Privilege instead; on a subflow it applies to the steps inside.',

@@ -103,3 +103,13 @@ Found in the improvement review (KB AFD-A-17): `vars.json` kept every run input,
 - **Stop Run** (`afd.stopRun`, the top bar's **Stop** while `run.state` is `running`, palette when `afd.running`): `run/stop.ts` keeps one stop function per flow while a run goes. A local run registers `TaskExecution.terminate()`; the run ends with `state: error`, `errorCode: cancelled`, "Stopped by the user" (no error dialog; the top bar says "Run interrupted"). The runner ends on `onDidEndTaskProcess` or, after a stop, `onDidEndTask`. An AWX launch registers the job's `cancel` (or the workflow job's), and following continues until AWX reports `canceled`.
 - **Cancellation:** `ProbeClient.call(…, signal)`: a queued call leaves the queue; a running one fails and the probe restarts for the calls behind it (the serial probe cannot drop one request). _Check Generated Code_ runs under a cancellable notification. The catalog dump and Re-sync are not cancellable yet (background work with window progress).
 - **Timeouts:** `src/node/timeouts.ts` (`TIMEOUTS`) holds the probe, AWX, designer and typing waits.
+
+## Amendment (AFD-52, 2026-11-01): credentials and environment on the flow
+
+An AWX job or workflow template has one set of credentials and one execution environment, so a
+format 2 flow keeps them in `flow.runtime` (`credentials`, `execution_environment`, by name), next
+to the template. Set Up AWX Template uses them when they are there and records what was chosen
+when they were asked. Node-level `credential` and `execution_environment` (format 1) were never
+applied; the upgrade and the AWX import move them to the flow (`core/flow/awxSettings.ts`), keeping
+the first environment and naming the others, and format 2 warns about one left on a node
+(`setting-on-flow`). The Access lens reads the flow's credentials for every node in format 2.

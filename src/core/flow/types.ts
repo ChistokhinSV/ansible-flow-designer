@@ -169,7 +169,13 @@ export interface FlowHeader {
   version: number;
   goal?: string;
   owner?: string;
-  runtime?: { kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook'; template?: string };
+  runtime?: {
+    kind?: 'awx_workflow' | 'awx_job' | 'ansible_playbook';
+    template?: string;
+    /** Format 2 (AFD-52): the AWX template's credentials and execution environment, by name. */
+    credentials?: string[];
+    execution_environment?: string;
+  };
   /** Where an imported flow came from (M9, AFD-26): a one-time copy, kept for reference only. */
   imported_from?: {
     kind: 'awx_workflow' | 'awx_job_template' | 'playbook';

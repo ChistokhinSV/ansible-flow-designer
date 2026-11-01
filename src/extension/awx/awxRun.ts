@@ -67,10 +67,18 @@ function runtimeFor(
   doc: FlowDocument,
   kind: 'awx_workflow' | 'awx_job',
   template: string,
+  credentials: readonly AwxNamed[],
+  ee: AwxNamed | undefined,
 ): NonNullable<FlowDocument['flow']['runtime']> {
   if (formatOf(doc) >= 2) {
+    // Format 2 keeps what the template was set up with (AFD-52); the kind follows from the flow.
     const { kind: _kind, ...rest } = doc.flow.runtime ?? {};
-    return { ...rest, template };
+    return {
+      ...rest,
+      template,
+      ...(credentials.length ? { credentials: credentials.map((c) => c.name) } : {}),
+      ...(ee ? { execution_environment: ee.name } : {}),
+    };
   }
   return { ...doc.flow.runtime, kind, template };
 }
@@ -238,17 +246,29 @@ export async function setupTemplate(
         ok: false,
         error: inventory === null && picks ? `No AWX inventory ${picks.inventory}` : 'Cancelled',
       };
+    // Format 2 (AFD-52): what the flow names is what the template gets; the rest is asked.
+    const named = formatOf(doc) >= 2 ? doc.flow.runtime : undefined;
     const ees = await awx.list<AwxNamed>('execution_environments');
-    const ee = picks
-      ? picks.environment
-        ? ees.find((e) => e.name === picks.environment)
-        : undefined
-      : await pick(ees, 'Execution environment (ansible-core 2.19+)', undefined, true);
-    if (ee === null) return { ok: false, error: 'Cancelled' };
+    const wantEe = picks?.environment ?? named?.execution_environment;
+    const ee =
+      picks || wantEe
+        ? wantEe
+          ? (ees.find((e) => e.name === wantEe) ?? null)
+          : undefined
+        : await pick(ees, 'Execution environment (ansible-core 2.19+)', undefined, true);
+    if (ee === null)
+      return {
+        ok: false,
+        error: wantEe ? `No AWX execution environment ${wantEe}` : 'Cancelled',
+      };
     let credentials: AwxNamed[] = [];
     const all = await awx.list<AwxNamed>('credentials');
-    if (picks) credentials = all.filter((c) => picks.credentials?.includes(c.name));
-    else {
+    const wantCreds = picks?.credentials ?? named?.credentials;
+    if (picks || wantCreds?.length) {
+      credentials = all.filter((c) => wantCreds?.includes(c.name));
+      const missing = (wantCreds ?? []).filter((n) => !credentials.some((c) => c.name === n));
+      if (missing.length) return { ok: false, error: `No AWX credential ${missing.join(', ')}` };
+    } else {
       const chosen = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, item: c })),
         { title: 'Credentials (machine, vault …)', canPickMany: true, ignoreFocusOut: true },
@@ -278,11 +298,9 @@ export async function setupTemplate(
         credentials,
         playbooks,
       });
-      if (doc.flow.runtime?.template !== name || runtimeKind(modelOf(doc)) !== 'awx_workflow') {
-        const r = await deps.runCommand({
-          kind: 'updateFlow',
-          patch: { runtime: runtimeFor(doc, 'awx_workflow', name) },
-        });
+      const runtime = runtimeFor(doc, 'awx_workflow', name, credentials, ee ?? undefined);
+      if (JSON.stringify(runtime) !== JSON.stringify(doc.flow.runtime ?? {})) {
+        const r = await deps.runCommand({ kind: 'updateFlow', patch: { runtime } });
         if (!r.ok) return { ok: false, error: r.error };
       }
       return { ok: true, template: name };
@@ -303,11 +321,9 @@ export async function setupTemplate(
       execution_environment: ee?.id,
       credentials: credentials.map((c) => c.id),
     });
-    if (doc.flow.runtime?.template !== name || runtimeKind(modelOf(doc)) !== 'awx_job') {
-      const r = await deps.runCommand({
-        kind: 'updateFlow',
-        patch: { runtime: runtimeFor(doc, 'awx_job', name) },
-      });
+    const runtime = runtimeFor(doc, 'awx_job', name, credentials, ee ?? undefined);
+    if (JSON.stringify(runtime) !== JSON.stringify(doc.flow.runtime ?? {})) {
+      const r = await deps.runCommand({ kind: 'updateFlow', patch: { runtime } });
       if (!r.ok) return { ok: false, error: r.error };
     }
     return { ok: true, template: name };

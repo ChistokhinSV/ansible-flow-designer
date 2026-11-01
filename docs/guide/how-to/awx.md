@@ -14,11 +14,14 @@ the canvas. Step by step: [Tutorial 3](../tutorials/03-awx-end-to-end.md).
 
 **Ansible Flow: Set Up AWX Template**, once per flow:
 1. Pick the AWX project that holds this repository, an inventory, an execution environment
-   (ansible-core 2.19+) and credentials.
+   (ansible-core 2.19+) and credentials. In a format 2 flow that already names its credentials and
+   execution environment (`flow.runtime`), those are used and only the rest is asked.
 2. The extension creates or updates the job template `AFD · <flow key>` for the generated
    playbook. A flow with top-level approvals gets a workflow of segment templates instead
    ([approvals](approvals.md)).
-3. It writes the name to `flow.runtime`.
+3. It writes the name to `flow.runtime`; a format 2 flow also keeps the credentials and the
+   execution environment there, by name. One set per template: a format 2 flow has no credential
+   or environment on a node (the upgrade moves them to the flow).
 
 AWX runs what its project checks out: commit and push the flow and `generated/` first. If AWX does
 not find the playbooks, the setup stops and names them.
@@ -63,5 +66,6 @@ AWX Template writes it), a workflow when approvals split it, else a job.
 
 ## Lenses for AWX
 
-The **Access** lens shows credentials per node and flags node credentials that only AWX can use.
+The **Access** lens shows the credentials each node runs with (in a format 2 flow, the flow's) and
+flags credentials that only AWX can use.
 The **Timing** lens uses real-run durations ([lenses](lenses.md)).

@@ -5,6 +5,10 @@ flow:
   name: AFD fixture · edge upgrade
   version: 1
   goal: Upgrade the edge switches in one maintenance window
+  runtime:
+    credentials:
+    - Demo Credential
+    execution_environment: AFD EE (ansible-core 2.19)
   imported_from:
     kind: awx_workflow
     template: AFD fixture · edge upgrade
@@ -48,8 +52,6 @@ nodes:
     params:
       min_flash_mb: 512
   settings:
-    credential: Demo Credential
-    execution_environment: AFD EE (ansible-core 2.19)
     inventory_target: edge
     tags:
     - precheck
@@ -86,8 +88,6 @@ nodes:
       impl:
         kind: playbook
         ref: flows/awx-e2e/generated/awx-e2e.yml
-      settings:
-        execution_environment: AFD EE (ansible-core 2.19)
     - id: 01JDAWX0000000000000000007
       key: install
       type: task
@@ -98,7 +98,6 @@ nodes:
         ref: flows/awx-e2e/generated/awx-e2e.yml
       settings:
         become: true
-        execution_environment: AFD EE (ansible-core 2.19)
     - id: 01JDAWX0000000000000000008
       key: reload
       type: task
@@ -109,7 +108,6 @@ nodes:
         ref: flows/awx-e2e/generated/awx-e2e.yml
       settings:
         timeout: 15m
-        execution_environment: AFD EE (ansible-core 2.19)
     - id: 01JDAWX0000000000000000009
       key: start-in-parallel
       type: parallel
@@ -180,8 +178,6 @@ nodes:
   impl:
     kind: playbook
     ref: flows/awx-e2e/generated/awx-e2e.yml
-  settings:
-    execution_environment: AFD EE (ansible-core 2.19)
 - id: 01JDAWX0000000000000000018
   key: report
   type: task
@@ -190,8 +186,6 @@ nodes:
   impl:
     kind: playbook
     ref: hello_world.yml
-  settings:
-    credential: Demo Credential
 - id: 01JDAWX0000000000000000019
   key: rollback
   type: task
@@ -200,8 +194,6 @@ nodes:
   impl:
     kind: playbook
     ref: flows/awx-e2e/generated/awx-e2e.yml
-  settings:
-    execution_environment: AFD EE (ansible-core 2.19)
 - id: 01JDAWX0000000000000000020
   key: afd-fixture-notify-on-call
   type: task
@@ -210,8 +202,6 @@ nodes:
   impl:
     kind: playbook
     ref: flows/awx-e2e/generated/awx-e2e.yml
-  settings:
-    execution_environment: AFD EE (ansible-core 2.19)
 - id: 01JDAWX0000000000000000021
   key: after-upgrade
   type: parallel

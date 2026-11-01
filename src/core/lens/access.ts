@@ -1,6 +1,8 @@
 // Access lens (04 §7): with which credential, user and privilege each node acts, and which vaulted
 // variables it reads. Node `credential` names apply in AWX (decision 22); locally the inventory's
 // connection variables decide, read by the probe with their origin and never decrypted.
+
+import { formatOf } from '../flow/format';
 import { refsIn } from '../flow/jinja';
 import { modelOf } from '../flow/model';
 import { runtimeKind } from '../flow/status';
@@ -43,11 +45,15 @@ export function accessLens(
   const vaultUse = new Map<string, Set<Ulid>>();
   const kind = runtimeKind(model);
   const awx = kind === 'awx_job' || kind === 'awx_workflow';
+  // Format 2 (AFD-52): every node runs with the flow's AWX credentials, the template's.
+  const flowCreds = formatOf(doc) >= 2 ? (doc.flow.runtime?.credentials ?? []).join(', ') : '';
+  const credOf = (n: FlowNode): string | undefined =>
+    formatOf(doc) >= 2 ? flowCreds || undefined : n.settings?.credential;
 
   for (const { node } of model.nodes.values()) {
     if (!isWork(node)) continue;
     const list: LensChip[] = [];
-    const cred = node.settings?.credential;
+    const cred = credOf(node);
     const pattern = declaredTarget(doc, node, targets, code)?.pattern ?? targets;
     const vars = facts?.access[pattern];
     if (cred) {
@@ -87,9 +93,9 @@ export function accessLens(
   for (const { node } of model.nodes.values()) {
     if (!isWork(node)) continue;
     const near = neighbours(model, node.id).filter(isWork);
-    const cred = node.settings?.credential;
+    const cred = credOf(node);
     // Neighbours that agree on one credential (at least two of them) make an odd one stand out.
-    const used = near.map((n) => n.settings?.credential).filter((c): c is string => !!c);
+    const used = near.map((n) => credOf(n)).filter((c): c is string => !!c);
     const others = [...new Set(used)];
     if (cred && used.length >= 2 && others.length === 1 && others[0] !== cred)
       findings.push({
@@ -97,7 +103,7 @@ export function accessLens(
         lens: 'access',
         severity: 'warning',
         title: `${node.title} uses ${cred}, its neighbours use ${others[0]}`,
-        detail: `${joinTitles(near.filter((n) => n.settings?.credential).map((n) => n.title))} run with ${others[0]}. Check that ${node.title} needs the access ${cred} gives.`,
+        detail: `${joinTitles(near.filter((n) => credOf(n)).map((n) => n.title))} run with ${others[0]}. Check that ${node.title} needs the access ${cred} gives.`,
         node: node.id,
         nodes: [node.id, ...near.map((n) => n.id)],
         fixes: [],

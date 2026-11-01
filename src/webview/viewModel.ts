@@ -147,8 +147,9 @@ export function inheritedContext(
       });
     };
     if (s.inventory_target) add('inventory', `inherits ${s.inventory_target}`, true);
-    if (s.credential) add('credential', s.credential, false);
-    if (s.execution_environment) add('ee', `EE ${s.execution_environment}`, false);
+    if (s.credential && formatOf(doc) < 2) add('credential', s.credential, false);
+    if (s.execution_environment && formatOf(doc) < 2)
+      add('ee', `EE ${s.execution_environment}`, false);
     // Format 2 passes become (and whom) to the steps inside (AFD-52); serial stays per node.
     if (s.become)
       add('become', s.become_user ? `become ${s.become_user}` : 'become', formatOf(doc) >= 2);

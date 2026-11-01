@@ -2,6 +2,7 @@
 // an import writes. The AWX and playbook importers build with it. IDs are made as nodes and wires
 // are, so they sort in the order the importer made them (D-06).
 
+import { withAwxRuntime } from './awxSettings';
 import { CURRENT_FORMAT } from './format';
 import { type IdFactory, uniqueKey } from './ids';
 import { settleDocument } from './status';
@@ -53,11 +54,14 @@ export interface ImportedMeta {
 /** The document of an imported flow: the current format, flow version 1, the top level built. */
 export function importedFlow(id: Ulid, meta: ImportedMeta, top: LevelBuilder): FlowDocument {
   const { key, name, goal, imported_from, inputs } = meta;
-  // The statuses the designer would give the nodes (AFD-50).
-  return settleDocument({
-    schema_version: CURRENT_FORMAT,
-    flow: { id, key, name, version: 1, ...(goal ? { goal } : {}), imported_from, inputs },
-    nodes: top.nodes,
-    edges: top.edges,
-  });
+  // The statuses the designer would give the nodes (AFD-50); AWX credentials and environment on
+  // the flow, where the template takes them (AFD-52).
+  return settleDocument(
+    withAwxRuntime({
+      schema_version: CURRENT_FORMAT,
+      flow: { id, key, name, version: 1, ...(goal ? { goal } : {}), imported_from, inputs },
+      nodes: top.nodes,
+      edges: top.edges,
+    }),
+  );
 }

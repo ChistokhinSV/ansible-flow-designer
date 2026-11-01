@@ -5,6 +5,7 @@
 // Each step takes a file from one version to the next; tickets that change the format add theirs.
 import { deleteKey, removeItem, setIn } from '../yaml/ops';
 import type { YamlTransaction } from '../yaml/transaction';
+import { awxLift } from './awxSettings';
 import { acceptedAll, upgradedItem } from './decisions';
 import { CURRENT_FORMAT, FormatError, formatOf, keysAfter } from './format';
 import { buildModel } from './model';
@@ -227,8 +228,58 @@ const privilegeStep: MigrationStep = {
   },
 };
 
+/**
+ * AFD-52: the credentials and execution environment nodes named (applied nowhere in format 1) go
+ * to the flow's runtime, where Set Up AWX Template applies them. Several environments: the first
+ * stays, and the notes name the others.
+ */
+const awxStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const lift = awxLift(doc);
+    if (lift.nodes.length === 0) return [];
+    const what = [
+      lift.credentials.length ? `credentials ${lift.credentials.join(', ')}` : '',
+      lift.execution_environment ? `execution environment ${lift.execution_environment}` : '',
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    return [
+      `${what} move from ${lift.nodes.length} node${lift.nodes.length === 1 ? '' : 's'} to the flow, where Set Up AWX Template applies them`,
+      ...(lift.otherEnvironments.length
+        ? [
+            `execution environment ${lift.otherEnvironments.join(', ')} is dropped (one per template)`,
+          ]
+        : []),
+    ];
+  },
+  apply(tx) {
+    const doc = tx.current.doc.toJS() as FlowDocument;
+    const lift = awxLift(doc);
+    if (lift.nodes.length === 0) return;
+    for (const id of lift.nodes) {
+      const entry = buildModel(tx.current.doc.toJS() as FlowDocument).nodes.get(id);
+      if (!entry) continue;
+      const s = entry.node.settings ?? {};
+      const left = Object.keys(s).filter(
+        (k) => k !== 'credential' && k !== 'execution_environment',
+      );
+      if (left.length === 0) tx.apply((f) => deleteKey(f, entry.path, 'settings'));
+      else
+        for (const k of ['credential', 'execution_environment'] as const)
+          if (s[k] !== undefined) tx.apply((f) => deleteKey(f, [...entry.path, 'settings'], k));
+    }
+    if (lift.credentials.length)
+      tx.apply((f) => setIn(f, ['flow', 'runtime', 'credentials'], lift.credentials));
+    if (lift.execution_environment) {
+      const ee = lift.execution_environment;
+      tx.apply((f) => setIn(f, ['flow', 'runtime', 'execution_environment'], ee));
+    }
+  },
+};
+
 /** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-52, -54). */
-export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep, privilegeStep];
+export const STEPS: readonly MigrationStep[] = [statusStep, decisionStep, privilegeStep, awxStep];
 
 /**
  * Brings the document in `tx` to `CURRENT_FORMAT`, step by step. Throws when it is already current

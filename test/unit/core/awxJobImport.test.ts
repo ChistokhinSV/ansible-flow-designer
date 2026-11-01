@@ -116,12 +116,13 @@ describe('AWX job templates', () => {
     });
     expect(r.doc.flow.inputs?.api_token).not.toHaveProperty('default');
     const sub = node(r.doc, 'edge-pre-checks');
-    expect(sub).toMatchObject({
-      type: 'subflow',
-      status: 'implemented',
-      settings: { credential: 'Edge switches', execution_environment: 'Netops EE' },
+    expect(sub).toMatchObject({ type: 'subflow', status: 'implemented' });
+    // Format 2 (AFD-52): the template's credential and environment are the flow's.
+    expect(sub.settings).toBeUndefined();
+    expect(r.doc.flow.runtime).toMatchObject({
+      credentials: ['Edge switches'],
+      execution_environment: 'Netops EE',
     });
-    expect(sub.settings).not.toHaveProperty('inventory_target');
     expect(sub.subflow?.nodes?.map((n) => n.key)).toEqual([
       'create-the-report-folder',
       'read-the-software-version',
