@@ -5,10 +5,13 @@ import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { planCommand } from '../../../src/core/flow/commands';
+import { createIdFactory } from '../../../src/core/flow/ids';
 import { CURRENT_FORMAT } from '../../../src/core/flow/migrate';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
-import type { FlowDocument } from '../../../src/core/flow/types';
+import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
+import { Lifecycle } from '../../../src/webview/details/sections';
 import { FormatBanner } from '../../../src/webview/panels/Banner';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
@@ -60,5 +63,42 @@ describe('the format banner', () => {
     rerender(<FormatBanner />);
     fireEvent.click(screen.getByRole('button', { name: 'Hide the format message' }));
     expect(document.querySelector('[data-format-banner]')).toBeNull();
+  });
+});
+
+describe('the lifecycle in format 2 (AFD-50)', () => {
+  const v2 = parse(
+    planCommand(
+      readFileSync(join(__dirname, '../../../examples/edge-baseline.flow.yaml'), 'utf8'),
+      { kind: 'upgradeFormat' },
+      { newId: createIdFactory() },
+    ).text,
+  ) as FlowDocument;
+  const push = v2.nodes.find((n) => n.key === 'push-baseline') as FlowNode;
+
+  it('shows the status the content gives, with Mark Tested… for implemented content', () => {
+    show(v2);
+    const set: string[] = [];
+    render(<Lifecycle node={push} onSet={(s) => set.push(s)} />);
+    expect(document.querySelector('[data-lifecycle="derived"]')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'implemented' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Mark Tested/ }));
+    expect(set).toEqual(['tested']);
+  });
+
+  it('a tested node shows its record and Clear Tested goes back to what the content gives', () => {
+    const tested: FlowNode = {
+      ...push,
+      status: 'tested',
+      tested: { run: 'r7', flow_version: 3, commit: 'abc1234def5678' },
+    };
+    show({ ...v2, nodes: v2.nodes.map((n) => (n.id === push.id ? tested : n)) });
+    const set: string[] = [];
+    render(<Lifecycle node={tested} onSet={(s) => set.push(s)} />);
+    expect(document.querySelector('[data-tested-record]')?.textContent).toBe(
+      'Tested by run r7 of flow version 3 at abc1234def',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Tested' }));
+    expect(set).toEqual(['implemented']);
   });
 });

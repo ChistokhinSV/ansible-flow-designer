@@ -139,7 +139,8 @@ export const OP_SPECS: OpSpec[] = [
       status: {
         ...field('status'),
         enum: ['draft', 'specified', 'implemented'],
-        description: 'draft, specified or implemented. tested is set by runs only.',
+        description:
+          'Format 2: the status follows the node (inputs or outputs make it specified, a binding implemented); set here only the status the node already has, which clears tested. Format 1: draft, specified or implemented by hand. tested comes from a passing run only.',
       },
       condition: nullable(field('condition')),
       outcome: nullable(field('outcome')),
@@ -160,7 +161,11 @@ export const OP_SPECS: OpSpec[] = [
       }),
     },
     required: ['node'],
-    example: { op: 'update_node', node: 'check-ntp', status: 'specified' },
+    example: {
+      op: 'update_node',
+      node: 'check-ntp',
+      intent: 'Compare NTP servers with the standard',
+    },
   },
   {
     op: 'delete',

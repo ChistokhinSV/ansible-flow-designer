@@ -145,8 +145,13 @@ describe('Run mode', () => {
       document.querySelector<HTMLElement>('[data-tested-proposal]')?.dataset.testedProposal,
     ).toBe('2');
     fireEvent.click(screen.getByRole('button', { name: /Mark 2 Nodes Tested/ }));
+    // The run goes with it: format 2 keeps it on each node (AFD-50).
     expect(commands()).toEqual([
-      { kind: 'setStatuses', statuses: { [id('probe')]: 'tested', [id('work')]: 'tested' } },
+      {
+        kind: 'setStatuses',
+        statuses: { [id('probe')]: 'tested', [id('work')]: 'tested' },
+        run: { id: 'r1', flowVersion: 1, commit: job.awx?.revision },
+      },
     ]);
   });
 

@@ -51,9 +51,13 @@ selected.
 | start, end     | where hosts enter and where they finish (`success` or `failed`) |
 
 A node's **status** is shown by its stripe and icon: draft, specified (has inputs or outputs),
-implemented (bound to code), tested (a passing real run, or set by hand with a reason: choose
-**tested** in the Lifecycle of its Details, or Status ▸ tested in its menu, and say why; the reason is
-kept in the flow with your Git user name until the node's design changes).
+implemented (bound to code; a decision once it has its condition, an approval, parallel or join as
+it is), tested (a passing real run, or set by hand with a reason). In a format 2 flow the status
+follows what the node has: binding a step makes it implemented, removing its inputs and outputs
+makes it draft again, and a subflow is as far as its least finished step. The one thing set by
+hand is **Mark Tested…** (the Lifecycle in its Details, or its menu): say why, and the reason is
+kept on the node with your Git user name and the day, until its design changes; **Clear Tested**
+takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set any status by hand.
 
 ## Add, wire, move, delete
 

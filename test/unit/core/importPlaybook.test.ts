@@ -223,7 +223,12 @@ describe('mappings', () => {
     const { doc, findings } = check(r);
     expect(findings.filter((f) => f.severity === 'error')).toEqual([]);
     expect(node(doc, 'include-os-yml').status).toBe('draft');
-    expect(node(doc, 'odd-module')).toMatchObject({ status: 'draft', impl: { ref: 'frobnicate' } });
+    // Bound, so implemented in format 2 (AFD-50); the import counts it to check, with a note.
+    expect(node(doc, 'odd-module')).toMatchObject({
+      status: 'implemented',
+      impl: { ref: 'frobnicate' },
+    });
+    expect(r.counts?.drafts).toBeGreaterThan(0);
     expect(node(doc, 'ask').type).toBe('approval');
     expect(node(doc, 'tolerant')).toMatchObject({
       ports: ['unreachable'],

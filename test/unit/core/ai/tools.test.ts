@@ -562,7 +562,7 @@ describe('AFD-27: import tools', () => {
     const r = await call(io, 'flow_import', { source: 'site.yml' });
     expect(r.isError).toBeFalsy();
     expect(r.text).toMatch(
-      /^Created flows\/site\/site.flow.yaml from site.yml: 21 step\(s\), 21 implemented, 0 draft/,
+      /^Created flows\/site\/site.flow.yaml from site.yml: 21 step\(s\), 21 ready to run, 0 to check/,
     );
     expect(r.text).toContain('Imported by name only');
     const text = io.files.get('flows/site/site.flow.yaml') as string;

@@ -42,7 +42,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `title` (string): Human name shown on the canvas.
 - `key` (string): Short name, unique on its level: lowercase letters, digits and dashes. Wires and from: references may use it.
 - `intent` (string | null): What the node should do, in a sentence. Skeleton runs print it.
-- `status` (draft | specified | implemented): draft, specified or implemented. tested is set by runs only.
+- `status` (draft | specified | implemented): Format 2: the status follows the node (inputs or outputs make it specified, a binding implemented); set here only the status the node already has, which clears tested. Format 1: draft, specified or implemented by hand. tested comes from a passing run only.
 - `condition` (string | null): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed | null): End nodes
 - `handler` (rollback | notify | retry | exclude | null): Marks a failure handler node (what kind of handling it does)
@@ -52,7 +52,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `keywords` (object | null): Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.
 
 ```json
-{"op":"update_node","node":"check-ntp","status":"specified"}
+{"op":"update_node","node":"check-ntp","intent":"Compare NTP servers with the standard"}
 ```
 
 ### delete
@@ -309,6 +309,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
+| status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
+| tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
 | undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
@@ -323,7 +325,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become AWX segments. | Keep approvals on the top level, one at a time. |
-| runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals). | Use awx_workflow with approvals, awx_job without. |
+| runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals); in format 2, it is derived and not written. | Use awx_workflow with approvals, awx_job without; in format 2, remove it. |
 | rollback-unreachable | A Rollback node cannot be reached by any failed hosts. | Wire a fail port to it, or delete it. |
 | boundary-ref | The subflow entry or an exit names something that is not on its inner level. | set_entry / add_exit with an inner node of that subflow. |
 | boundary-no-entry | A subflow has inner steps but no entry: hosts cannot get in. | set_entry to its first step. |

@@ -65,7 +65,7 @@ nodes:
       key: on-target
       type: decision
       title: Already on target?
-      status: specified
+      status: implemented
       condition: fw_version == target_version
       inputs:
         fw_version:
@@ -167,13 +167,13 @@ nodes:
   key: approve
   type: approval
   title: Change approval
-  status: draft
+  status: implemented
   intent: The engineer on duty confirms the pre-check report and the maintenance window.
 - id: 01M67T3CFKMVBF5BVBNRBM9F9R
   key: upgrade
   type: subflow
   title: Upgrade
-  status: draft
+  status: specified
   intent: Install the image, wait until the device answers on the target version.
   settings:
     serial: 1

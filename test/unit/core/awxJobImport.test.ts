@@ -135,17 +135,19 @@ describe('AWX job templates', () => {
     expect(r.counts).toEqual({ steps: 4, implemented: 4, drafts: 0 });
   });
 
-  it('keeps a playbook from another repository as a draft step, naming where it lives', () => {
+  it('keeps a playbook from another repository as a step to check, naming where it lives', () => {
     const r = importWorkflow(jobTemplateFromExport(EXPORT, 'Elsewhere'), {
       key: 'x',
       newId: createIdFactory(),
       hasPlaybook: () => false,
       kind: 'awx_job_template',
     });
+    // Bound, so implemented in format 2 (AFD-50); the counts and the note say to check it.
     expect(node(r.doc, 'elsewhere')).toMatchObject({
-      status: 'draft',
+      status: 'implemented',
       impl: { kind: 'playbook', ref: 'site/other.yml' },
     });
+    expect(r.counts.drafts).toBe(1);
     expect(r.notes.join('\n')).toContain(
       'site/other.yml (project Other, https://git.example.net/other.git) is not in this repository',
     );

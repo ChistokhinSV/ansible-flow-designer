@@ -567,7 +567,7 @@ export class FlowSession implements vscode.Disposable {
     extra?: (edit: vscode.WorkspaceEdit) => void,
   ): Promise<CommandOutcome> {
     // The webview never names the author of a decision; the host does (decision 13).
-    const command =
+    const named =
       (input.kind === 'setDecision' ||
         input.kind === 'ignoreDrift' ||
         input.kind === 'acceptFinding' ||
@@ -575,6 +575,11 @@ export class FlowSession implements vscode.Disposable {
       !input.by
         ? { ...input, by: await authorName(this.uri) }
         : input;
+    // Tested by hand keeps the day it was said (format 2, AFD-50).
+    const command =
+      named.kind === 'markTested' && !named.at
+        ? { ...named, at: new Date().toISOString().slice(0, 10) }
+        : named;
     const snapshot = await this.snapshot();
     if (snapshot.stale)
       return {

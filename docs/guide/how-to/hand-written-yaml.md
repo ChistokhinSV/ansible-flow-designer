@@ -56,5 +56,10 @@ from the flow schema. The schema is registered for `*.flow.yaml`.
 - Do not edit `flow.version`, `layout` or files in `generated/`. The designer bumps the version on
   save (once per commit) and regenerates the code.
 - Every fail port needs a wire or a `decisions:` entry with a reason.
-- `status: tested` is set by a passing run, or in the designer with a reason (a `finding_accepted`
-  decision `status:tested|<node id>`).
+- In format 2 the designer keeps `status` in line with what each node has; write what you like,
+  the next edit of the node sets it again (a hand-written mismatch shows as a note in Problems).
+  `status: tested` needs a `tested:` record on the node: `run`, `flow_version` and `commit` from a
+  passing run, or `reason`, `by` and `at` by hand. In format 1 it is a `finding_accepted` decision
+  `status:tested|<node id>`.
+- In format 2 `flow.runtime` names only the AWX `template`; whether it runs as a job or a workflow
+  follows from the flow.

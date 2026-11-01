@@ -111,6 +111,15 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A status claims more than the node has (e.g. implemented without impl).',
     fix: 'Lower the status, or add what it needs (contract for specified, impl for implemented).',
   },
+  'status-out-of-step': {
+    meaning:
+      'Format 2: the stored status is not the one the node’s content gives (a hand edit of the file).',
+    fix: 'Any edit of the node in the designer sets it again; or write the status the message names.',
+  },
+  'tested-without-record': {
+    meaning: 'Format 2: a node is tested but has no `tested` record (a run, or a reason).',
+    fix: 'Mark Tested… with a reason, or run the flow; else set the status it has.',
+  },
   'undo-unbound': {
     meaning: 'The undo port is used but the node has no undo binding.',
     fix: 'Bind undo, or remove the wire into undo.',
@@ -172,8 +181,9 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'Keep approvals on the top level, one at a time.',
   },
   'runtime-kind': {
-    meaning: 'flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals).',
-    fix: 'Use awx_workflow with approvals, awx_job without.',
+    meaning:
+      'flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals); in format 2, it is derived and not written.',
+    fix: 'Use awx_workflow with approvals, awx_job without; in format 2, remove it.',
   },
   'rollback-unreachable': {
     meaning: 'A Rollback node cannot be reached by any failed hosts.',

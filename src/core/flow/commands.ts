@@ -8,15 +8,16 @@ import { YamlTransaction } from '../yaml/transaction';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
 import { enclosing } from './dataRefs';
+import { NODE_ORDER } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
-import { CURRENT_FORMAT, FormatError, migrate } from './migrate';
+import { CURRENT_FORMAT, FormatError, formatOf, migrate } from './migrate';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
 import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
-import { testedDropBack } from './semantic';
-import { statusAfterBinding } from './status';
+import { nodeDesigns, testedDropBack } from './semantic';
+import { canMarkTested, contentStatus, hasStatus, statusAfterBinding, statusFor } from './status';
 import type {
   BoundaryExit,
   ContractField,
@@ -31,6 +32,7 @@ import type {
   PortRef,
   Position,
   SubflowBody,
+  TestedRecord,
   Ulid,
 } from './types';
 import { descendantIds } from './walk';
@@ -106,7 +108,8 @@ export type FlowCommand =
   | { kind: 'setExitReason'; subflow: Ulid; from: PortRef; port: string; reason: string | null }
   /**
    * M5 "Save binding" (mockup 11): the implementation and what came with it (inputs the chips
-   * created, outputs from the registered result, the status) in one edit; `impl: null` unbinds.
+   * created, outputs from the registered result) in one edit; `impl: null` unbinds. The status
+   * follows (AFD-50).
    */
   | {
       kind: 'setBinding';
@@ -115,7 +118,6 @@ export type FlowCommand =
       /** Contract fields to set (null removes one); other fields stay. */
       inputs?: Record<string, ContractField | null>;
       outputs?: Record<string, ContractField | null>;
-      status?: NodeStatus;
     }
   /** M6 (D-29): keep a drift item as it is, with a reason; the host adds `by`. */
   | { kind: 'ignoreDrift'; node: Ulid; item: string; reason: string; by?: string }
@@ -123,13 +125,21 @@ export type FlowCommand =
   /** M8: keep a lens finding as expected, with a reason; the host adds `by`. */
   | { kind: 'acceptFinding'; finding: string; node?: Ulid; reason: string; by?: string }
   | { kind: 'clearFindingAccept'; finding: string }
-  /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
-  | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> }
   /**
-   * AFD-44: `tested` set by hand, with the reason and the author (the host adds `by`), in the
-   * `finding_accepted` record `status:tested|<node>` until AFD-50 gives runs and hands one record.
+   * Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. Format 2
+   * records the run on each node (AFD-50).
    */
-  | { kind: 'markTested'; id: Ulid; reason: string; by?: string }
+  | {
+      kind: 'setStatuses';
+      statuses: Record<Ulid, NodeStatus>;
+      run?: { id: string; flowVersion?: number; commit?: string };
+    }
+  /**
+   * AFD-44: `tested` set by hand, with the reason, the author and the day (the host adds `by` and
+   * `at`): format 2 keeps them on the node (AFD-50), format 1 in the `finding_accepted` record
+   * `status:tested|<node>`.
+   */
+  | { kind: 'markTested'; id: Ulid; reason: string; by?: string; at?: string }
   /** Upgrade Flow Format (AFD-49): the file to the current format, one undo step. */
   | { kind: 'upgradeFormat' }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
@@ -216,26 +226,6 @@ export function formatGuard<T>(run: () => T): T {
   }
 }
 
-const NODE_ORDER = [
-  'id',
-  'key',
-  'type',
-  'title',
-  'status',
-  'intent',
-  'condition',
-  'outcome',
-  'handler',
-  'join_mode',
-  'branches',
-  'ports',
-  'inputs',
-  'outputs',
-  'settings',
-  'impl',
-  'undo',
-  'subflow',
-];
 const FLOW_ORDER = [
   'id',
   'key',
@@ -817,17 +807,22 @@ function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'upda
   // `tested` by hand takes a reason (markTested, AFD-44); another status drops that record.
   if (patch.status === 'tested')
     throw new CommandError('needs-reason', 'Say why it counts as tested');
-  if (patch.status) dropTestedRecords(tx, [cmd.id]);
-  for (const k of [
-    'intent',
-    'status',
-    'condition',
-    'outcome',
-    'handler',
-    'join_mode',
-    'branches',
-  ] as const) {
+  for (const k of ['intent', 'condition', 'outcome', 'handler', 'join_mode', 'branches'] as const) {
     setField(tx, path, k, patch[k] as YamlValue | undefined, NODE_ORDER);
+  }
+  // Format 2: the status follows what the node has (AFD-50); the one status to set by hand is the
+  // one its content gives, which clears `tested` (Clear Tested). Format 1 sets what it is told.
+  if (patch.status) {
+    const st = state(tx);
+    const now = nodeAt(st, cmd.id).node;
+    const content = contentStatus(now);
+    if (formatOf(st.doc) >= 2 && patch.status !== content)
+      throw new CommandError(
+        'status-follows-content',
+        `${now.title} is ${content} by what it has: inputs or outputs make a step specified, a binding implemented, and a passing run (or Mark Tested… with a reason) tested`,
+      );
+    dropTestedRecords(tx, [cmd.id]);
+    setField(tx, path, 'status', patch.status, NODE_ORDER);
   }
   if (patch.settings) {
     for (const [k, v] of Object.entries(patch.settings)) {
@@ -1004,16 +999,17 @@ function setBinding(
       ? { ...cmd.impl, keywords: kept }
       : cmd.impl;
   setField(tx, path, 'impl', impl ? implValue(impl) : null, NODE_ORDER);
-  // Every writer gets the same lifecycle rule (AFD-31): the AI `bind` op sends no status.
-  const current = node.status ?? 'draft';
-  const status =
-    cmd.status ??
-    statusAfterBinding(
+  // Format 2: the status follows in planCommand, as for every writer (AFD-50). Format 1 keeps the
+  // rule every writer had (AFD-31): bind → implemented, unbind → specified.
+  if (formatOf(state(tx).doc) < 2) {
+    const current = node.status ?? 'draft';
+    const status = statusAfterBinding(
       current,
       !!impl,
       JSON.stringify(impl ?? null) === JSON.stringify(node.impl ?? null),
     );
-  setField(tx, path, 'status', status === current ? undefined : status, NODE_ORDER);
+    setField(tx, path, 'status', status === current ? undefined : status, NODE_ORDER);
+  }
   liftPathRefs(tx, cmd.id, notes);
 }
 
@@ -1322,10 +1318,28 @@ function acceptFinding(
 export const testedFinding = (node: Ulid) => `status:tested|${node}`;
 
 function markTested(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'markTested' }>): void {
-  const { node, path } = nodeAt(state(tx), cmd.id);
+  const st = state(tx);
+  const { node, path } = nodeAt(st, cmd.id);
   if (node.type === 'start' || node.type === 'end')
     throw new CommandError('no-status', 'Start and end nodes have no status');
+  // Format 1 takes any node with a reason, as before; format 2 only implemented content.
+  if (formatOf(st.doc) >= 2 && !canMarkTested(st.doc, node))
+    throw new CommandError(
+      'not-implemented',
+      (node.subflow?.nodes ?? []).length > 0
+        ? 'A subflow is tested when its steps are: mark them'
+        : `${node.title} is ${contentStatus(node)}: only an implemented node can be tested`,
+    );
   setField(tx, path, 'status', 'tested', NODE_ORDER);
+  if (formatOf(st.doc) >= 2) {
+    const record: TestedRecord = {
+      reason: cmd.reason,
+      ...(cmd.by ? { by: cmd.by } : {}),
+      ...(cmd.at ? { at: cmd.at } : {}),
+    };
+    setField(tx, path, 'tested', record as YamlValue, NODE_ORDER);
+    return;
+  }
   acceptFinding(tx, {
     kind: 'acceptFinding',
     finding: testedFinding(cmd.id),
@@ -1335,8 +1349,15 @@ function markTested(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'mark
   });
 }
 
-/** A node no longer tested by hand loses its record (another status set, or the design changed). */
+/**
+ * A node no longer tested loses its evidence (another status, or the design changed): format 2's
+ * `tested` record on the node, format 1's decision for tested by hand.
+ */
 function dropTestedRecords(tx: YamlTransaction, ids: readonly Ulid[]): void {
+  for (const id of ids) {
+    const entry = state(tx).model.nodes.get(id);
+    if (entry?.node.tested !== undefined) tx.apply((f) => deleteKey(f, entry.path, 'tested'));
+  }
   const findings = new Set(ids.map(testedFinding));
   const decisions = state(tx).doc.decisions ?? [];
   const idx = decisions
@@ -1589,7 +1610,8 @@ function extractSubflow(
 
   const docNodes = level.nodes.filter((n) => n && picked.has(n.id));
   const item: Record<string, YamlValue> = { id, key, type: 'subflow', title: cmd.title };
-  // As far along as its least advanced work step; "specified" needs a contract of its own.
+  // As far along as its least advanced work step; "specified" needs a contract of its own. Format 2
+  // settles it from its steps right after (settleStatuses, AFD-50).
   const rank: NodeStatus[] = ['draft', 'specified', 'implemented', 'tested'];
   const work = entries.filter((e) => e.node.type === 'task' || e.node.type === 'subflow');
   const lowest = work.length
@@ -1720,6 +1742,7 @@ function pasteNodes(
     const copy = structuredClone(n) as FlowNode;
     copy.id = mint(n.id);
     if (copy.status === 'tested') copy.status = 'implemented';
+    delete copy.tested;
     if (copy.subflow) {
       copy.subflow.nodes = (copy.subflow.nodes ?? []).map(remapNode);
       const inner = copy.subflow;
@@ -1831,6 +1854,41 @@ function pasteNodes(
   return nodes.map((n) => n.id);
 }
 
+/**
+ * AFD-50: every node a command changed, and the subflows around it, takes the status the rule
+ * gives it (status.ts), deepest first, so a subflow sees its steps' new statuses. A node that
+ * stops being tested loses its evidence. Nodes the command did not touch keep what they have.
+ */
+function settleStatuses(tx: YamlTransaction, ids: ReadonlySet<Ulid>): void {
+  if (ids.size === 0) return;
+  const first = state(tx);
+  const todo = new Map<Ulid, number>();
+  for (const id of ids) {
+    let at: Ulid | undefined = id;
+    for (let depth = 0; at && at !== ROOT && first.model.nodes.has(at); depth++) {
+      todo.set(at, Math.max(todo.get(at) ?? 0, depth));
+      at = first.model.nodes.get(at)?.level;
+    }
+  }
+  const levelDepth = (id: Ulid) => {
+    let n = 0;
+    for (let at = first.model.nodes.get(id)?.level; at && at !== ROOT; n++)
+      at = first.model.nodes.get(at)?.level;
+    return n;
+  };
+  const order = [...todo.keys()].sort((a, b) => levelDepth(b) - levelDepth(a));
+  for (const id of order) {
+    const st = state(tx);
+    const entry = st.model.nodes.get(id);
+    if (!entry || !hasStatus(entry.node)) continue;
+    const want = statusFor(st.doc, entry.node);
+    const have = entry.node.status;
+    if (have === want || (have === undefined && want === 'draft')) continue;
+    if (have === 'tested') dropTestedRecords(tx, [id]);
+    setField(tx, nodeAt(state(tx), id).path, 'status', want, NODE_ORDER);
+  }
+}
+
 export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): void {
   const st = state(tx);
   tx.applyAll(
@@ -1930,9 +1988,22 @@ export function planCommand(
     case 'setBinding':
       setBinding(tx, cmd, notes);
       break;
-    case 'setStatuses':
-      for (const [id, status] of Object.entries(cmd.statuses))
-        setField(tx, nodeAt(state(tx), id).path, 'status', status, NODE_ORDER);
+    case 'setStatuses': {
+      const v2 = formatOf(state(tx).doc) >= 2;
+      if (v2 && !cmd.run && Object.values(cmd.statuses).includes('tested'))
+        throw new CommandError('needs-run', 'Tested from a run needs the run (format 2 keeps it)');
+      for (const [id, status] of Object.entries(cmd.statuses)) {
+        const { path } = nodeAt(state(tx), id);
+        setField(tx, path, 'status', status, NODE_ORDER);
+        if (v2 && status === 'tested' && cmd.run) {
+          const record: TestedRecord = {
+            run: cmd.run.id,
+            ...(cmd.run.flowVersion !== undefined ? { flow_version: cmd.run.flowVersion } : {}),
+            ...(cmd.run.commit ? { commit: cmd.run.commit } : {}),
+          };
+          setField(tx, path, 'tested', record as YamlValue, NODE_ORDER);
+        }
+      }
       dropTestedRecords(
         tx,
         Object.entries(cmd.statuses)
@@ -1940,6 +2011,7 @@ export function planCommand(
           .map(([id]) => id),
       );
       break;
+    }
     case 'markTested':
       markTested(tx, cmd);
       break;
@@ -2001,15 +2073,29 @@ export function planCommand(
     }
   }
   let dropped: Ulid[] | undefined;
+  // Format 2 settles the statuses of what changed; format 1 files keep theirs (ADR-0025).
+  const settle = formatOf(before ?? (tx.current.doc.toJS() as FlowDocument)) >= 2;
+  const changed = new Set<Ulid>();
   if (before) {
     // A status the same command sets is the user's choice and stays.
     const keep = new Set<Ulid>();
     if (cmd.kind === 'updateNode' && cmd.patch.status !== undefined) keep.add(cmd.id);
-    if (cmd.kind === 'setBinding' && cmd.status !== undefined) keep.add(cmd.id);
     for (const n of rereferenced) keep.add(n);
-    dropped = testedDropBack(before, tx.current.doc.toJS() as FlowDocument, keep);
+    const after = tx.current.doc.toJS() as FlowDocument;
+    dropped = testedDropBack(before, after, keep);
     if (dropped.length > 0) implementedAgain(tx, dropped);
     else dropped = undefined;
+    if (settle) {
+      const was = nodeDesigns(before);
+      for (const [id, design] of Object.entries(nodeDesigns(after)))
+        if (was[id] !== design) changed.add(id);
+      if (created) changed.add(created);
+    }
+  }
+  if (settle) {
+    if (cmd.kind === 'setStatuses') for (const id of Object.keys(cmd.statuses)) changed.add(id);
+    if (cmd.kind === 'markTested' || cmd.kind === 'updateNode') changed.add(cmd.id);
+    settleStatuses(tx, changed);
   }
   return {
     edits: tx.edits(),

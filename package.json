@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -1005,7 +1005,7 @@
                           "specified",
                           "implemented"
                         ],
-                        "description": "draft, specified or implemented. tested is set by runs only."
+                        "description": "Format 2: the status follows the node (inputs or outputs make it specified, a binding implemented); set here only the status the node already has, which clears tested. Format 1: draft, specified or implemented by hand. tested comes from a passing run only."
                       },
                       "condition": {
                         "type": [

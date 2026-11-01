@@ -1,8 +1,8 @@
 // Text of a new flow: start → end and a host_list input that seeds the start node. No positions:
 // the canvas lays the flow out until the first move or Tidy up writes them (AFD-23).
 import { renderBlock, renderScalar } from '../yaml/render';
+import { CURRENT_FORMAT } from './format';
 import type { IdFactory } from './ids';
-import { CURRENT_FORMAT } from './migrate';
 
 export function newFlowText(name: string, key: string, newId: IdFactory): string {
   const [flowId, start, end, edge] = [newId(), newId(), newId(), newId()];

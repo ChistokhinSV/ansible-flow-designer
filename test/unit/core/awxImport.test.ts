@@ -193,8 +193,10 @@ describe('AWX workflow → flow', () => {
     expect(node('install', inner)).toMatchObject({ status: 'implemented' });
     expect(node('install', inner).settings?.become).toBe(true);
     expect(node('reload', inner).settings?.timeout).toBe('15m');
+    // A playbook this repository does not have: bound, so implemented in format 2 (AFD-50); the
+    // import counts it to check (counts above) and says why in its notes.
     expect(node('report')).toMatchObject({
-      status: 'draft',
+      status: 'implemented',
       impl: { kind: 'playbook', ref: 'hello_world.yml' },
     });
     expect(node('sync', inner)).toEqual({

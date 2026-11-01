@@ -56,9 +56,12 @@ export function versionBump(current: unknown, base: unknown): number | undefined
   return baseVersion + 1;
 }
 
-/** A node's design: its entry without status, inner nodes included and positions left out. */
+/**
+ * A node's design: its entry without its status and the evidence for it (AFD-50), inner nodes
+ * included and positions left out.
+ */
 function nodeDesign(node: FlowNode): unknown {
-  const { status: _status, subflow, ...rest } = node;
+  const { status: _status, tested: _tested, subflow, ...rest } = node;
   if (!subflow || typeof subflow !== 'object') return rest;
   const { layout: _layout, nodes, ...body } = subflow;
   return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };

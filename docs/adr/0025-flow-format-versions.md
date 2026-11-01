@@ -44,3 +44,31 @@ just because someone opened them.
   price of the new format, and the reason format 1 files are never upgraded behind anyone's back.
 - The examples and most test fixtures stay format 1, so both formats stay covered; every one of
   them is upgraded in a unit test with its design and generated code unchanged.
+
+## Amendment: the status lifecycle (AFD-50, 2026-11-01)
+
+Format 2 is where the status follows the content (product-owner decision 10 and the plan's
+"derived statuses"):
+
+- **One rule** (`core/flow/status.ts`): a step is implemented by a binding, specified by inputs or
+  outputs, else draft; a control node is implemented once complete (a decision by its condition;
+  approval, parallel and join as they are); a subflow with steps is as far as its least finished
+  step; tested only on implemented content. `planCommand` applies it to every node a command
+  changes and to the subflows around it, deepest first (`settleStatuses`), so the designer, the AI
+  tools and MCP all write the same statuses. A status set by hand is refused unless it is the one
+  the content gives, which is how Clear Tested works.
+- **Tested keeps its evidence on the node:** `tested: {run, flow_version, commit}` from a passing
+  run (the run panel's proposal sends the run), or `{reason, by, at}` from Mark Tested… (the host
+  adds the Git user name and the day). The record goes with the status when the design changes.
+- **Format 1 is left as it was** (AFD-31: statuses by hand, bind → implemented, unbind →
+  specified, the overclaim warnings): applying the rule there rewrote the stored statuses of every
+  node an edit touched, noise in a file nobody upgraded.
+- **Runtime:** `flow.runtime.kind` is worked out in format 2 (`runtimeKind`): AWX when a template is
+  named, a workflow when approvals split the flow, else a job; without a template, a playbook run.
+  Set Up AWX Template writes only the template.
+- **The upgrade step** sets every status from the content (bottom-up), turns tested into a record (the
+  AFD-44 reason by hand when there is one, else "tested in flow format 1, before runs were
+  recorded" with the flow version), removes those decisions and `runtime.kind`, and lists all of it
+  in the banner before anyone upgrades.
+- **Checks:** `status-out-of-step` (info) for a hand-written status that disagrees with the content,
+  `tested-without-record` (warning), and `runtime-kind` for a kind still written in format 2.

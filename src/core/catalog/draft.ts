@@ -7,8 +7,7 @@ import { registerName } from '../flow/dataNames';
 import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
-import { statusAfterBinding } from '../flow/status';
-import type { ContractField, ContractType, FlowNode, ImplBinding, NodeStatus } from '../flow/types';
+import type { ContractField, ContractType, FlowNode, ImplBinding } from '../flow/types';
 import { MAGIC_VARS } from '../flow/validate';
 import type { CatalogOption, CatalogPlugin, CatalogReturn } from './types';
 
@@ -92,12 +91,9 @@ export function isDirty(node: FlowNode, d: BindingDraft): boolean {
   );
 }
 
-/** Save binding: one command; a bound node is implemented, an unbound one back to specified. */
+/** Save binding: one command; the status follows in planCommand (AFD-50). */
 export function bindingCommand(node: FlowNode, d: BindingDraft): FlowCommand {
   const impl = draftImpl(d);
-  const current: NodeStatus = node.status ?? 'draft';
-  // The rule every writer shares (AFD-31); setBinding applies it too when no status is sent.
-  const status = statusAfterBinding(current, !!impl, !isDirty(node, d));
   const changed = (patch: Record<string, ContractField | null>, side: 'inputs' | 'outputs') =>
     Object.fromEntries(
       Object.entries(patch).filter(
@@ -110,7 +106,6 @@ export function bindingCommand(node: FlowNode, d: BindingDraft): FlowCommand {
     impl,
     inputs: changed(d.inputs, 'inputs'),
     outputs: changed(d.outputs, 'outputs'),
-    ...(status && status !== current ? { status } : {}),
   };
 }
 

@@ -43,7 +43,8 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `type` (start | end | task | subflow | decision | approval | parallel | join, required): start (one, on the top level; hosts enter), end (hosts leave; outcome success or failed), task, subflow (has an inner level), decision (true/false per host), approval (a person approves), parallel (branches), join (branches meet).
 - `title` (string, required): Human name shown on the canvas.
 - `intent` (string): What the node should do, in a sentence. Skeleton runs print it.
-- `status` (draft | specified | implemented | tested): How far the node is built: draft (an idea), specified (has inputs or outputs), implemented (bound to code), tested (a passing run; set by runs only).
+- `status` (draft | specified | implemented | tested): How far the node is built: draft (an idea), specified (has inputs or outputs), implemented (bound to code; a control node once complete), tested (a passing run, or by hand with a reason). In format 2 it follows the node's content (a subflow: its lowest step) and the designer keeps it so; tested needs a `tested` record.
+- `tested` (any | any): Format 2: why the node counts as tested. A passing run (run, flow_version, commit) or a reason given by hand (reason, by, at).
 - `inputs` (contract): Values the node needs, usually from: an earlier node or a flow input.
 - `outputs` (contract): Values the node produces for later nodes.
 - `ports` (list of port): Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task).

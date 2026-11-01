@@ -4,7 +4,9 @@
 import { stringify } from 'yaml';
 import { keyPath } from '../ai/refs';
 import type { FlowModel } from '../flow/model';
+import { modelOf } from '../flow/model';
 import type { OpenPort } from '../flow/openPorts';
+import { runtimeKind } from '../flow/status';
 import type { Contract, FlowDocument, FlowNode, NodeType } from '../flow/types';
 import type { Finding } from '../flow/validate';
 
@@ -134,8 +136,9 @@ export function flowDetails(doc: FlowDocument, findings: readonly Finding[]): De
   ];
   if (f.goal) out.push(['goal', f.goal]);
   if (f.owner) out.push(['owner', f.owner]);
-  if (f.runtime?.kind)
-    out.push(['runtime', [f.runtime.kind, f.runtime.template].filter(Boolean).join(': ')]);
+  // Format 2 works the kind out from the flow (AFD-50).
+  const kind = f.runtime ? runtimeKind(modelOf(doc)) : undefined;
+  if (kind) out.push(['runtime', [kind, f.runtime?.template].filter(Boolean).join(': ')]);
   if (f.maintenance_window) out.push(['maintenance_window', f.maintenance_window]);
   const inputs = contractText(f.inputs);
   if (inputs) out.push(['inputs', inputs]);

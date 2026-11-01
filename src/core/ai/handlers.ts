@@ -613,7 +613,7 @@ export async function flowImport(
   const c = result.counts;
   return {
     text: [
-      `Created ${path} from ${source}${input.template ? ` (${input.template})` : ''}: ${c.steps} step(s), ${c.implemented} implemented, ${c.drafts} draft. One step per task, as the source has them.`,
+      `Created ${path} from ${source}${input.template ? ` (${input.template})` : ''}: ${c.steps} step(s), ${c.implemented} ready to run, ${c.drafts} to check (the notes say why). One step per task, as the source has them.`,
       ...created.notes,
       ...(result.notes.length
         ? ['What did not map one to one:', ...result.notes.map((n) => `- ${n}`)]

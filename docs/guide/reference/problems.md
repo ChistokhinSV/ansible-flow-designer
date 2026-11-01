@@ -31,6 +31,8 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
+| status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
+| tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
 | undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
@@ -45,7 +47,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become AWX segments. | Keep approvals on the top level, one at a time. |
-| runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals). | Use awx_workflow with approvals, awx_job without. |
+| runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals); in format 2, it is derived and not written. | Use awx_workflow with approvals, awx_job without; in format 2, remove it. |
 | rollback-unreachable | A Rollback node cannot be reached by any failed hosts. | Wire a fail port to it, or delete it. |
 | boundary-ref | The subflow entry or an exit names something that is not on its inner level. | set_entry / add_exit with an inner node of that subflow. |
 | boundary-no-entry | A subflow has inner steps but no entry: hosts cannot get in. | set_entry to its first step. |

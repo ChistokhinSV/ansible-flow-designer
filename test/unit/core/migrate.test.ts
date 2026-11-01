@@ -9,6 +9,7 @@ import { parse } from 'yaml';
 import { applyOps } from '../../../src/core/ai/ops';
 import { optionA } from '../../../src/core/engine/optionA';
 import { CommandError, planCommand } from '../../../src/core/flow/commands';
+import { completeIds } from '../../../src/core/flow/completeIds';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import {
   CURRENT_FORMAT,
@@ -20,8 +21,10 @@ import {
   upgradeNotes,
 } from '../../../src/core/flow/migrate';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
+import { nodeDesigns } from '../../../src/core/flow/semantic';
 import { newFlowText } from '../../../src/core/flow/template';
 import type { FlowDocument } from '../../../src/core/flow/types';
+import { validateFlow } from '../../../src/core/flow/validate';
 import { setIn } from '../../../src/core/yaml/ops';
 import { YamlTransaction } from '../../../src/core/yaml/transaction';
 
@@ -54,22 +57,30 @@ describe('Upgrade Flow Format', () => {
   });
 
   it.each(flows)(
-    '$name: only the version line changes; the design and the code stay',
-    ({ name, text }) => {
+    '$name: the design and the code stay; every status is where the rule puts it',
+    ({ name, text: written }) => {
+      // The designer and the AI tools complete the IDs of a file written by key first.
+      const text = completeIds(written, ctx.newId).text;
       const result = planCommand(text, { kind: 'upgradeFormat' }, ctx);
-      expect(result.edits).toHaveLength(1);
-      expect(result.text).toBe(
-        text.replace(/^schema_version: 1$/m, `schema_version: ${CURRENT_FORMAT}`),
-      );
       const before = parse(text) as FlowDocument;
       const after = parse(result.text) as FlowDocument;
       expect(formatOf(after)).toBe(CURRENT_FORMAT);
-      expect({ ...after, schema_version: 1 }).toEqual(before);
+      // The file's own words stay: the first line (a comment in the examples) and every design.
+      expect(result.text.split('\n')[0]).toBe(text.split('\n')[0]);
+      expect(nodeDesigns(after)).toEqual(nodeDesigns(before));
       const issues = (doc: FlowDocument) => schema(doc).map((i) => i.pointer);
       expect(issues(after)).toEqual(issues(before));
       const source = name.split(/[\\/]/).pop() as string;
       const code = (doc: FlowDocument) => optionA.generate(doc, { source });
       expect(JSON.stringify(code(after).files)).toBe(JSON.stringify(code(before).files));
+      // AFD-50: statuses follow the content, tested nodes keep why, the runtime kind goes.
+      const off = validateFlow(after).findings.filter(
+        (f) => f.code === 'status-out-of-step' || f.code === 'tested-without-record',
+      );
+      expect(off).toEqual([]);
+      expect(after.flow.runtime?.kind).toBeUndefined();
+      if (before.flow.runtime?.template)
+        expect(after.flow.runtime?.template).toBe(before.flow.runtime.template);
     },
   );
 

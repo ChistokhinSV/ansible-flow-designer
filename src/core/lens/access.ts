@@ -3,6 +3,7 @@
 // connection variables decide, read by the probe with their origin and never decrypted.
 import { refsIn } from '../flow/jinja';
 import { modelOf } from '../flow/model';
+import { runtimeKind } from '../flow/status';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { isWork, joinTitles, neighbours, plural, title } from './common';
 import { declaredTarget } from './inventory';
@@ -40,7 +41,8 @@ export function accessLens(
   const creds = new Map<string, Set<Ulid>>();
   const become = new Set<Ulid>();
   const vaultUse = new Map<string, Set<Ulid>>();
-  const awx = doc.flow.runtime?.kind === 'awx_job' || doc.flow.runtime?.kind === 'awx_workflow';
+  const kind = runtimeKind(model);
+  const awx = kind === 'awx_job' || kind === 'awx_workflow';
 
   for (const { node } of model.nodes.values()) {
     if (!isWork(node)) continue;

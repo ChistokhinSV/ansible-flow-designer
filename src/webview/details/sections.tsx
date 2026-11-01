@@ -3,12 +3,14 @@
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
 import { useId } from 'react';
 import { registerName } from '../../core/flow/dataNames';
+import { formatOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
 import { keywordProblem } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
 import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
-import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
+import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
+import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import {
   EXECUTION_SETTINGS,
@@ -159,28 +161,64 @@ export function updatePatch(id: string, p: Record<string, unknown>) {
   return run({ kind: 'updateNode', id, patch: p });
 }
 
+/** What a format 2 tested record says (AFD-50). */
+export function testedText(r: TestedRecord): string {
+  if (r.run)
+    return `Tested by run ${r.run}${r.flow_version !== undefined ? ` of flow version ${r.flow_version}` : ''}${r.commit ? ` at ${r.commit.slice(0, 10)}` : ''}`;
+  const who = [r.by, r.at].filter(Boolean).join(', ');
+  return `Tested by hand: ${r.reason ?? ''}${who ? ` (${who})` : ''}`;
+}
+
+/**
+ * The lifecycle stepper. Format 1 sets a status by hand. Format 2 (AFD-50) shows the status the
+ * content gives, the tested record, and the two things set by hand: Mark Tested… and Clear Tested.
+ */
 export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus): void }) {
+  const doc = useUi((s) => s.snapshot?.doc);
+  const v2 = !!doc && formatOf(doc) >= 2;
   const status = node.status ?? 'draft';
   const current = STATUS_ORDER.indexOf(status);
-  const next = nextRequirement(node);
+  const next = v2 && doc ? nextStep(doc, node) : nextRequirement(node);
   return (
-    <section className="afd-section">
+    <section className="afd-section" data-lifecycle={v2 ? 'derived' : 'manual'}>
       <h3>Lifecycle</h3>
-      <ol className="afd-stepper">
+      <ol className={`afd-stepper${v2 ? ' read' : ''}`}>
         {STATUS_ORDER.map((s, i) => (
           <li key={s} className={i < current ? 'done' : i === current ? 'current' : ''}>
-            <button
-              type="button"
-              onClick={() => onSet(s)}
-              aria-current={i === current ? 'step' : undefined}
-              title={`Set status to ${s}`}
-            >
-              {s}
-            </button>
+            {v2 ? (
+              <span aria-current={i === current ? 'step' : undefined}>{s}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSet(s)}
+                aria-current={i === current ? 'step' : undefined}
+                title={`Set status to ${s}`}
+              >
+                {s}
+              </button>
+            )}
           </li>
         ))}
       </ol>
+      {v2 && node.tested ? (
+        <p className="muted" data-tested-record>
+          {testedText(node.tested)}
+        </p>
+      ) : null}
       {next ? <p className="muted">Next: {next}</p> : null}
+      {v2 && doc && (status === 'tested' || canMarkTested(doc, node)) ? (
+        <div className="afd-inline-actions">
+          {status === 'tested' ? (
+            <button type="button" className="secondary" onClick={() => onSet(contentStatus(node))}>
+              Clear Tested
+            </button>
+          ) : (
+            <button type="button" className="secondary" onClick={() => onSet('tested')}>
+              <span className="codicon codicon-verified" aria-hidden="true" /> Mark Tested…
+            </button>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

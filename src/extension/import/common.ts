@@ -103,7 +103,7 @@ export async function announceImport(outcome: ImportSummary): Promise<void> {
     outcome.uris.length === 1
       ? vscode.workspace.asRelativePath(outcome.uris[0] as vscode.Uri)
       : `${outcome.uris.length} flows`;
-  const text = `Imported ${what}: ${c?.steps ?? 0} step(s), ${c?.implemented ?? 0} implemented, ${c?.drafts ?? 0} draft.`;
+  const text = `Imported ${what}: ${c?.steps ?? 0} step(s), ${c?.implemented ?? 0} ready to run, ${c?.drafts ?? 0} to check.`;
   const show = outcome.notes.length ? 'Show notes' : undefined;
   const pick = await vscode.window.showInformationMessage(text, ...(show ? [show] : []));
   if (pick === show)

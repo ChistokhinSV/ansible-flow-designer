@@ -108,7 +108,6 @@ describe('setBinding (Save binding, one edit)', () => {
       },
       inputs: { device_name: { type: 'string', from: 'flow.site' } },
       outputs: { backup_out: { type: 'dict', from: 'impl.register' } },
-      status: 'implemented',
     });
     const node = nodeOf(text, 'backup-config');
     expect(node.impl).toEqual({
@@ -243,10 +242,11 @@ describe('catalog query and context', () => {
 });
 
 describe('binding draft (properties page)', () => {
-  it('saves a new binding as implemented and an unbinding as specified', () => {
+  it('saves a new binding, and an unbinding, without a status of its own (AFD-50)', () => {
     const node = { ...nodeOf(EDGE, 'backup-config'), status: 'specified' as const };
     const draft = { ...draftOf(node), ref: 'cisco.ios.ios_config', params: { backup: true } };
-    expect(bindingCommand(node, draft)).toMatchObject({
+    const save = bindingCommand(node, draft);
+    expect(save).toMatchObject({
       kind: 'setBinding',
       impl: {
         kind: 'module',
@@ -254,13 +254,10 @@ describe('binding draft (properties page)', () => {
         params: { backup: true },
         register: 'backup_config_result',
       },
-      status: 'implemented',
     });
+    expect(save).not.toHaveProperty('status');
     const bound = { ...nodeOf(OS, 'set-boot-variable'), status: 'tested' as const };
-    expect(bindingCommand(bound, { ...draftOf(bound), ref: '' })).toMatchObject({
-      impl: null,
-      status: 'specified',
-    });
+    expect(bindingCommand(bound, { ...draftOf(bound), ref: '' })).toMatchObject({ impl: null });
     expect(isDirty(bound, draftOf(bound))).toBe(false);
   });
 

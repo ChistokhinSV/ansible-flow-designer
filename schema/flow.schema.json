@@ -56,7 +56,7 @@
                 "awx_job",
                 "ansible_playbook"
               ],
-              "description": "awx_job (one playbook), awx_workflow (approval segments) or ansible_playbook (local runs only)."
+              "description": "Format 1: awx_job (one playbook), awx_workflow (approval segments) or ansible_playbook (local runs only). Format 2 derives it: AWX when a template is named, a workflow when approvals split the flow."
             },
             "template": {
               "type": "string",
@@ -550,7 +550,50 @@
             "implemented",
             "tested"
           ],
-          "description": "How far the node is built: draft (an idea), specified (has inputs or outputs), implemented (bound to code), tested (a passing run; set by runs only)."
+          "description": "How far the node is built: draft (an idea), specified (has inputs or outputs), implemented (bound to code; a control node once complete), tested (a passing run, or by hand with a reason). In format 2 it follows the node's content (a subflow: its lowest step) and the designer keeps it so; tested needs a `tested` record."
+        },
+        "tested": {
+          "type": "object",
+          "description": "Format 2: why the node counts as tested. A passing run (run, flow_version, commit) or a reason given by hand (reason, by, at).",
+          "properties": {
+            "run": {
+              "type": "string",
+              "description": "The run that passed."
+            },
+            "flow_version": {
+              "type": "integer",
+              "description": "The flow version that run executed."
+            },
+            "commit": {
+              "type": "string",
+              "description": "The commit the run executed (AWX runs)."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why it counts as tested, given by hand."
+            },
+            "by": {
+              "type": "string",
+              "description": "Who gave the reason (Git user name)."
+            },
+            "at": {
+              "type": "string",
+              "description": "When (a date)."
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "run"
+              ]
+            },
+            {
+              "required": [
+                "reason"
+              ]
+            }
+          ],
+          "additionalProperties": false
         },
         "inputs": {
           "$ref": "#/$defs/contract",

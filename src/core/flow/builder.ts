@@ -1,8 +1,10 @@
 // Building a flow from scratch (AFD-40): one level's nodes, wires and taken keys, and the document
 // an import writes. The AWX and playbook importers build with it. IDs are made as nodes and wires
 // are, so they sort in the order the importer made them (D-06).
+
+import { CURRENT_FORMAT } from './format';
 import { type IdFactory, uniqueKey } from './ids';
-import { CURRENT_FORMAT } from './migrate';
+import { settleDocument } from './status';
 import type { Contract, Edge, FlowDocument, FlowHeader, FlowNode, PortRef, Ulid } from './types';
 
 export class LevelBuilder {
@@ -51,10 +53,11 @@ export interface ImportedMeta {
 /** The document of an imported flow: the current format, flow version 1, the top level built. */
 export function importedFlow(id: Ulid, meta: ImportedMeta, top: LevelBuilder): FlowDocument {
   const { key, name, goal, imported_from, inputs } = meta;
-  return {
+  // The statuses the designer would give the nodes (AFD-50).
+  return settleDocument({
     schema_version: CURRENT_FORMAT,
     flow: { id, key, name, version: 1, ...(goal ? { goal } : {}), imported_from, inputs },
     nodes: top.nodes,
     edges: top.edges,
-  };
+  });
 }

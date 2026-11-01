@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.0 — AFD-50
+
+- **Status follows the content** (format 2): a binding makes a step implemented, inputs or outputs specified; a decision is implemented by its condition, an approval, parallel or join as it is; a subflow is as far as its least finished step. Every writer gets the same statuses: the designer, the AI tools and MCP. The Lifecycle in the Details shows the status, with **Mark Tested…** and **Clear Tested**; the node menu has the same two.
+- **Tested keeps its evidence on the node:** the run (id, flow version, commit) when the run panel marks nodes tested, or the reason, who and when for Mark Tested…. A design change takes both away.
+- **The runtime is worked out from the flow** in format 2: AWX when a template is named (a workflow when approvals split it, else a job). Set Up AWX Template writes only the template.
+- **Upgrade Flow Format** now brings statuses in line with what the nodes have, turns tested into records (keeping a reason given by hand), and drops `runtime.kind`; the banner lists these changes before you upgrade.
+- Format 1 flows keep working as before: statuses by hand, tested by hand as a decision.
+
 ## 0.28.0 — AFD-49
 
 - **Flow format 2** (improvement program, wave 4): new flows, imports and the samples are written with `schema_version: 2`. A format 1 flow stays readable and works as before; nothing is changed on open.

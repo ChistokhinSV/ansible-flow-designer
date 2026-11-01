@@ -33,7 +33,10 @@
   flex: 1;
 }
 
-.afd-stepper button {
+.afd-stepper button,
+.afd-stepper.read span {
+  display: flex;
+  box-sizing: border-box;
   width: 100%;
   justify-content: center;
   font-size: var(--afd-fs-11);
@@ -43,12 +46,14 @@
   padding: 2px 0;
 }
 
-.afd-stepper li.done button {
+.afd-stepper li.done button,
+.afd-stepper.read li.done span {
   color: var(--afd-fg);
   background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
 }
 
-.afd-stepper li.current button {
+.afd-stepper li.current button,
+.afd-stepper.read li.current span {
   color: var(--vscode-button-foreground, #ffffff);
   background: var(--vscode-button-background, var(--afd-accent));
   font-weight: 600;

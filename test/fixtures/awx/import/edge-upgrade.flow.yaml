@@ -57,6 +57,7 @@ nodes:
   key: approve
   type: approval
   title: Approve the upgrade window
+  status: implemented
   intent: Network on-call approves
   ports:
   - timeout
@@ -66,6 +67,7 @@ nodes:
   key: upgrade
   type: subflow
   title: AFD fixture · upgrade steps
+  status: draft
   intent: Backup, install and reload
   subflow:
     nodes:
@@ -112,11 +114,13 @@ nodes:
       key: start-in-parallel
       type: parallel
       title: Start in parallel
+      status: implemented
       branches: 2
     - id: 01JDAWX0000000000000000012
       key: join-install
       type: join
       title: Join for AFD fixture · install image
+      status: implemented
       join_mode: all
     edges:
     - id: 01JDAWX0000000000000000010
@@ -182,7 +186,7 @@ nodes:
   key: report
   type: task
   title: Demo Job Template
-  status: draft
+  status: implemented
   impl:
     kind: playbook
     ref: hello_world.yml
@@ -212,6 +216,7 @@ nodes:
   key: after-upgrade
   type: parallel
   title: After AFD fixture · upgrade steps
+  status: implemented
   branches: 2
 - id: 01JDAWX0000000000000000034
   key: done

@@ -4,6 +4,8 @@ import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { copyNodes } from '../../src/core/flow/clipboard';
+import { planCommand } from '../../src/core/flow/commands';
+import { createIdFactory } from '../../src/core/flow/ids';
 import type { FlowDocument } from '../../src/core/flow/types';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 
@@ -71,7 +73,10 @@ describe('AFD-18 acceptance: one undo step per edit', () => {
     );
     assert.ok(outcome?.ok, outcome?.error);
     assert.equal(doc.version, version + 1, 'one edit');
-    assert.equal(doc.getText(), before.replace(/^schema_version: 1$/m, 'schema_version: 2'));
+    // What the core upgrade makes of it (the statuses follow their content since AFD-50).
+    const upgraded = planCommand(before, { kind: 'upgradeFormat' }, { newId: createIdFactory() });
+    assert.equal(doc.getText(), upgraded.text);
+    assert.match(doc.getText(), /^schema_version: 2$/m);
     await vscode.commands.executeCommand('undo');
     assert.equal(doc.getText(), before);
   });

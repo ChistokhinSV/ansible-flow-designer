@@ -45,7 +45,6 @@ function withModule(keywords: Record<string, unknown>, extra: Partial<ImplBindin
         keywords,
         ...extra,
       },
-      status: 'implemented',
     },
     ctx,
   ).text;
@@ -108,7 +107,6 @@ describe('impl.keywords validation', () => {
         kind: 'setBinding',
         id: nodeOf(EDGE, 'push-baseline').id,
         impl: { kind: 'role', ref: 'netops.baseline.push_ntp_aaa', keywords: { vars: { a: 1 } } },
-        status: 'implemented',
       },
       ctx,
     ).text;
@@ -215,7 +213,6 @@ describe('impl.keywords edits and display', () => {
         kind: 'setBinding',
         id,
         impl: { kind: 'module', ref: 'ansible.builtin.ping' },
-        status: 'implemented',
       },
       ctx,
     ).text;

@@ -47,10 +47,12 @@ side by side.
 A failure the playbook does not handle stays an open fail port: the banner shows it, because
 Ansible stops that host there too.
 
-These have no one-to-one form and are noted:
+These have no one-to-one form and are noted; the import counts them "to check" next to the steps
+ready to run:
 - a dynamic include (templated file name, or in a loop): a draft step;
 - `meta` tasks other than `flush_handlers`: a draft step;
-- a module with an unknown short name: a draft step;
+- a module with an unknown short name: a step bound as the playbook writes it (implemented in a
+  format 2 flow, since its status follows the binding), to check;
 - play `serial`, `any_errors_fatal` and `max_fail_percentage`: they apply to each step;
 - `strategy` and `order`: left out;
 - a role that generated playbooks cannot find: add its folder to `roles_path` in `ansible.cfg`.
@@ -92,7 +94,7 @@ top-down at every level; its description shows where it came from.
   - its credential and execution environment are settings.
 - **A playbook in this repository** (the template's project checked out here) is imported into
   steps, as above, inside the template's step. A playbook the designer generated stays one step.
-- **A playbook that is not here** stays one playbook step, a draft; the notes name the project and
+- **A playbook that is not here** stays one playbook step to check; the notes name the project and
   where it lives. Check the project out and import again to get its steps.
 - **With an AI assistant**, the command writes `flows/<key>/source/awx-export.json` for the
   assistant to read: the template, its nodes and edges, and the job templates, with secret values

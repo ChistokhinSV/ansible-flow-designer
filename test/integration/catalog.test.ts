@@ -67,7 +67,6 @@ describe('M5 acceptance: catalog and binding', () => {
         register: 'backup_out',
       },
       outputs: { backup_ref: { type: 'string', from: 'impl.register.backup_path' } },
-      status: 'implemented',
     });
     assert.ok(bind.ok, bind.error);
     const bound = docOf(doc.getText()).nodes.find((n) => n.id === backup);

@@ -7,12 +7,14 @@ import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { exprRefs, refsIn } from './jinja';
 import { keywordReads } from './keywords';
+import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
+import { hasStatus, runtimeKind, statusFor } from './status';
 import type { Decision, FlowDocument, FlowNode, PortRef, Ulid } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -229,6 +231,7 @@ function checkEdges(model: FlowModel, add: (f: Finding) => void): void {
 }
 
 function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
+  const v2 = formatOf(model.doc) >= 2;
   for (const { node, path, level } of model.nodes.values()) {
     for (const p of node.ports ?? []) {
       if (!isPortLegal(node, p)) {
@@ -264,7 +267,33 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
       });
     }
     const hasInner = (node.subflow?.nodes?.length ?? 0) > 0;
-    if ((node.status === 'implemented' || node.status === 'tested') && !node.impl && !hasInner) {
+    // Format 2 (AFD-50): the status is the one the content gives; a hand edit can still disagree.
+    if (v2 && hasStatus(node)) {
+      const have = node.status ?? 'draft';
+      const want = statusFor(model.doc, node);
+      if (have === 'tested' && !node.tested)
+        add({
+          code: 'tested-without-record',
+          severity: 'warning',
+          message: `${label(node)} is tested but has no record of the run or the reason`,
+          path: [...path, 'status'],
+          node: node.id,
+        });
+      else if (have !== want)
+        add({
+          code: 'status-out-of-step',
+          severity: 'info',
+          message: `${label(node)} is ${have}, but what it has makes it ${want}`,
+          path: [...path, 'status'],
+          node: node.id,
+        });
+    }
+    if (
+      !v2 &&
+      (node.status === 'implemented' || node.status === 'tested') &&
+      !node.impl &&
+      !hasInner
+    ) {
       add({
         code: 'status-overclaim',
         severity: 'warning',
@@ -274,6 +303,7 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
       });
     }
     if (
+      !v2 &&
       node.status === 'specified' &&
       Object.keys(node.inputs ?? {}).length + Object.keys(node.outputs ?? {}).length === 0
     ) {
@@ -576,6 +606,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
     checkConditions(model, node, level, path, flowInputs, add);
   }
   const runtime = model.doc.flow?.runtime?.kind;
+  const v2 = formatOf(model.doc) >= 2;
   // AWX workflows split at top-level approvals (AFD-11, ADR-0016).
   const plan = planSegments(model);
   for (const p of plan?.problems ?? [])
@@ -586,7 +617,14 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
       path: p.node ? (model.nodes.get(p.node)?.path ?? []) : ['nodes'],
       node: p.node,
     });
-  if (runtime && runtime !== 'ansible_playbook') {
+  if (v2 && runtime)
+    add({
+      code: 'runtime-kind',
+      severity: 'info',
+      message: `In format 2 the flow's runtime is worked out from the flow (it is ${runtimeKind(model)}): runtime.kind can go`,
+      path: ['flow', 'runtime', 'kind'],
+    });
+  else if (runtime && runtime !== 'ansible_playbook') {
     const split = !!plan && plan.problems.length === 0 && plan.segments.length > 0;
     const inferred = split ? 'awx_workflow' : 'awx_job';
     if (runtime !== inferred) {

@@ -53,9 +53,13 @@ its record, so avoid secret flow inputs for AWX launches until surveys keep them
 ## Mark tested
 
 After a passing real run of the current flow version (exit 0, every failure routed, no failed end),
-the run panel offers **Mark N nodes tested**. A tested node whose design changes later goes back to
-`implemented`. Without such a run, a node can be marked tested by hand with a reason
+the run panel offers **Mark N nodes tested**. In a format 2 flow each of them keeps the run (its
+id, the flow version and, from AWX, the commit). A tested node whose design changes later goes
+back to `implemented`. Without such a run, a node can be marked tested by hand with a reason
 ([canvas basics](canvas-basics.md#nodes)).
+
+In a format 2 flow the runtime is worked out from the flow: AWX when it names a template (Set Up
+AWX Template writes it), a workflow when approvals split it, else a job.
 
 ## Lenses for AWX
 

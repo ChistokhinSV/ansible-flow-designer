@@ -9,9 +9,11 @@ import { engineFor } from '../../core/engine/engines';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
-import { buildModel } from '../../core/flow/model';
+import { formatOf } from '../../core/flow/migrate';
+import { buildModel, modelOf } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
+import { runtimeKind } from '../../core/flow/status';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RunErrorCode, RunView } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
@@ -60,6 +62,18 @@ function offerCancel(awx: AwxClient, stopped: StoppedFollowing): void {
   });
 }
 
+/** The runtime to record after Set Up AWX Template: format 2 keeps the template only (AFD-50). */
+function runtimeFor(
+  doc: FlowDocument,
+  kind: 'awx_workflow' | 'awx_job',
+  template: string,
+): NonNullable<FlowDocument['flow']['runtime']> {
+  if (formatOf(doc) >= 2) {
+    const { kind: _kind, ...rest } = doc.flow.runtime ?? {};
+    return { ...rest, template };
+  }
+  return { ...doc.flow.runtime, kind, template };
+}
 export interface AwxDeps {
   secrets: vscode.SecretStorage;
   storage: vscode.Uri;
@@ -264,10 +278,10 @@ export async function setupTemplate(
         credentials,
         playbooks,
       });
-      if (doc.flow.runtime?.template !== name || doc.flow.runtime?.kind !== 'awx_workflow') {
+      if (doc.flow.runtime?.template !== name || runtimeKind(modelOf(doc)) !== 'awx_workflow') {
         const r = await deps.runCommand({
           kind: 'updateFlow',
-          patch: { runtime: { ...doc.flow.runtime, kind: 'awx_workflow', template: name } },
+          patch: { runtime: runtimeFor(doc, 'awx_workflow', name) },
         });
         if (!r.ok) return { ok: false, error: r.error };
       }
@@ -289,10 +303,10 @@ export async function setupTemplate(
       execution_environment: ee?.id,
       credentials: credentials.map((c) => c.id),
     });
-    if (doc.flow.runtime?.template !== name || doc.flow.runtime?.kind !== 'awx_job') {
+    if (doc.flow.runtime?.template !== name || runtimeKind(modelOf(doc)) !== 'awx_job') {
       const r = await deps.runCommand({
         kind: 'updateFlow',
-        patch: { runtime: { ...doc.flow.runtime, kind: 'awx_job', template: name } },
+        patch: { runtime: runtimeFor(doc, 'awx_job', name) },
       });
       if (!r.ok) return { ok: false, error: r.error };
     }
@@ -335,7 +349,7 @@ export async function launchInAwx(
   const awx = await awxClient(document.uri, deps.secrets);
   if ('error' in awx) return fail(awx.error, awx.code);
 
-  const workflow = doc.flow.runtime?.kind === 'awx_workflow';
+  const workflow = runtimeKind(modelOf(doc)) === 'awx_workflow';
   const segments = generated.result.segments;
   if (workflow && !segments)
     return fail('The flow has no approvals to split any more: run "Set Up AWX Template" again');

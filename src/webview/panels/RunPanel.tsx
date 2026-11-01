@@ -78,6 +78,12 @@ function Proposal({ run }: { run: RunView }) {
           void runCommand({
             kind: 'setStatuses',
             statuses: Object.fromEntries(ids.map((id) => [id, 'tested' as const])),
+            // Format 2 keeps the run on each node (AFD-50).
+            run: {
+              id: run.id,
+              ...(run.flowVersion !== undefined ? { flowVersion: run.flowVersion } : {}),
+              ...(run.awx?.revision ? { commit: run.awx.revision } : {}),
+            },
           })
         }
       >

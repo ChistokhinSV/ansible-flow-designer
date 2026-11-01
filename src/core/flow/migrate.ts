@@ -3,39 +3,142 @@
 // runs only when someone asks for it (Upgrade Flow Format, the `upgrade_format` op), as one YAML
 // transaction, so it is one edit and one undo step and the bytes outside the changed nodes stay.
 // Each step takes a file from one version to the next; tickets that change the format add theirs.
-import { setIn } from '../yaml/ops';
+import { deleteKey, removeItem, setIn } from '../yaml/ops';
 import type { YamlTransaction } from '../yaml/transaction';
-import type { FlowDocument } from './types';
+import { CURRENT_FORMAT, FormatError, formatOf, keysAfter } from './format';
+import { buildModel } from './model';
+import { contentStatus, hasStatus, lowest } from './status';
+import type { FlowDocument, FlowNode, NodeStatus, TestedRecord, Ulid } from './types';
+import { walkNodes } from './walk';
 
-/** The format new flows are written in, and what Upgrade Flow Format leads to. */
-export const CURRENT_FORMAT = 2;
+export { CURRENT_FORMAT, FormatError, formatOf, requireFormat } from './format';
 
 export interface MigrationStep {
   /** The version this step reads; it leaves the file at `from + 1`. */
   from: number;
-  /** What the step changes in this document, in a few words each; empty when only the version. */
+  /** What the step changes in this document, in a few words each; empty when nothing. */
   notes(doc: FlowDocument): string[];
   /** The step's own edits; the version number is set by `migrate` after it. */
   apply(tx: YamlTransaction): void;
 }
 
-/** v1 → v2. Wave 4 tickets add their conversions here (AFD-50, -51, -52, -54). */
-export const STEPS: readonly MigrationStep[] = [{ from: 1, notes: () => [], apply: () => {} }];
+/** The AFD-44 record of `tested` by hand in format 1. */
+const testedFinding = (node: Ulid) => `status:tested|${node}`;
 
-export function formatOf(doc: Pick<FlowDocument, 'schema_version'> | undefined): number {
-  const v = Number(doc?.schema_version);
-  return Number.isInteger(v) && v > 0 ? v : 1;
+interface StatusPlan {
+  /** Nodes whose status changes, with the new one. */
+  statuses: Map<Ulid, NodeStatus>;
+  /** Tested nodes and the record they keep. */
+  records: Map<Ulid, TestedRecord>;
+  /** Format 1 decisions that become records (their finding ids). */
+  decisions: Set<string>;
 }
 
-export class FormatError extends Error {
-  constructor(
-    readonly code: 'format-newer' | 'format-current' | 'needs-format',
-    message: string,
-  ) {
-    super(message);
-    this.name = 'FormatError';
+/**
+ * AFD-50: what format 2 makes of format 1 statuses. Each node takes the status its content gives,
+ * deepest first, so a subflow sees its steps' new statuses. A tested node stays tested when its
+ * content is implemented and keeps why: the reason given by hand (AFD-44), else a note that it
+ * was tested before runs were recorded.
+ */
+function planStatuses(doc: FlowDocument): StatusPlan {
+  const plan: StatusPlan = { statuses: new Map(), records: new Map(), decisions: new Set() };
+  const byHand = new Map(
+    (doc.decisions ?? [])
+      .filter((d) => d?.kind === 'finding_accepted')
+      .map((d) => [(d as { finding: string }).finding, d as { reason?: string; by?: string }]),
+  );
+  // Deepest first: walkNodes lists a subflow before its steps, so go backwards over levels.
+  const work = structuredClone(doc.nodes);
+  const nodes = [...walkNodes(work)].reverse();
+  for (const node of nodes) {
+    // A file written by key gets its IDs first (Complete IDs); the upgrade needs them.
+    if (!hasStatus(node) || !node.id) continue;
+    const steps = (node.subflow?.nodes ?? []).filter((n): n is FlowNode => !!n && hasStatus(n));
+    const content =
+      steps.length > 0 ? lowest(steps.map((n) => n.status ?? 'draft')) : contentStatus(node);
+    const was = node.status ?? 'draft';
+    const want =
+      was === 'tested' && content === 'implemented' && steps.length === 0 ? 'tested' : content;
+    if (want !== was) plan.statuses.set(node.id, want);
+    node.status = want;
+    if (want === 'tested') {
+      const hand = byHand.get(testedFinding(node.id));
+      plan.records.set(
+        node.id,
+        hand
+          ? { reason: hand.reason ?? 'Marked tested by hand', ...(hand.by ? { by: hand.by } : {}) }
+          : {
+              reason: 'Tested in flow format 1, before runs were recorded',
+              flow_version: doc.flow.version,
+            },
+      );
+    }
+    if (byHand.has(testedFinding(node.id))) plan.decisions.add(testedFinding(node.id));
   }
+  return plan;
 }
+
+const statusStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const plan = planStatuses(doc);
+    const notes: string[] = [];
+    const titles = [...walkNodes(doc.nodes)]
+      .filter((n) => plan.statuses.has(n.id))
+      .map((n) => `${n.title} → ${plan.statuses.get(n.id)}`);
+    if (titles.length)
+      notes.push(
+        `${titles.length} status${titles.length === 1 ? '' : 'es'} follow what the nodes have (${titles.slice(0, 3).join(', ')}${titles.length > 3 ? ', …' : ''})`,
+      );
+    if (plan.records.size)
+      notes.push(
+        `${plan.records.size} tested node${plan.records.size === 1 ? '' : 's'} keep why on the node`,
+      );
+    if (doc.flow.runtime?.kind) notes.push('the runtime kind is worked out from the flow');
+    return notes;
+  },
+  apply(tx) {
+    const doc = tx.current.doc.toJS() as FlowDocument;
+    const plan = planStatuses(doc);
+    const pathOf = (id: Ulid) =>
+      buildModel(tx.current.doc.toJS() as FlowDocument).nodes.get(id)?.path;
+    for (const [id, status] of plan.statuses) {
+      const path = pathOf(id);
+      if (path)
+        tx.apply((f) => setIn(f, [...path, 'status'], status, { before: keysAfter('status') }));
+    }
+    for (const [id, record] of plan.records) {
+      const path = pathOf(id);
+      if (path)
+        tx.apply((f) =>
+          setIn(f, [...path, 'tested'], record as Record<string, string | number>, {
+            before: keysAfter('tested'),
+          }),
+        );
+    }
+    // The format 1 decisions for tested by hand now live on the nodes.
+    const decisions = (tx.current.doc.toJS() as FlowDocument).decisions ?? [];
+    const gone = decisions
+      .map((d, i) =>
+        d?.kind === 'finding_accepted' && plan.decisions.has((d as { finding: string }).finding)
+          ? i
+          : -1,
+      )
+      .filter((i) => i >= 0);
+    if (gone.length === decisions.length && gone.length > 0)
+      tx.apply((f) => deleteKey(f, [], 'decisions'));
+    else for (const i of gone.reverse()) tx.apply((f) => removeItem(f, ['decisions'], i));
+    // The runtime kind follows from the flow in format 2; the template stays.
+    const runtime = (tx.current.doc.toJS() as FlowDocument).flow.runtime;
+    if (runtime?.kind !== undefined) {
+      if (Object.keys(runtime).length === 1) tx.apply((f) => deleteKey(f, ['flow'], 'runtime'));
+      else tx.apply((f) => deleteKey(f, ['flow', 'runtime'], 'kind'));
+    }
+  },
+};
+
+/** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-51, -52, -54). */
+export const STEPS: readonly MigrationStep[] = [statusStep];
 
 /**
  * Brings the document in `tx` to `CURRENT_FORMAT`, step by step. Throws when it is already current
@@ -61,18 +164,6 @@ export function upgradeNotes(doc: FlowDocument, steps: readonly MigrationStep[] 
   return steps
     .filter((s) => s.from >= version && s.from < CURRENT_FORMAT)
     .flatMap((s) => s.notes(doc));
-}
-
-/**
- * For an edit that needs a newer format (a field format 1 does not have): explains the upgrade
- * instead of writing something a format 1 reader would reject.
- */
-export function requireFormat(doc: FlowDocument, version: number, what: string): void {
-  if (formatOf(doc) >= version) return;
-  throw new FormatError(
-    'needs-format',
-    `${what} needs flow format ${version}; this file is format ${formatOf(doc)}. Run Upgrade Flow Format (one undo step reverts it), then try again.`,
-  );
 }
 
 function newer(version: number): FormatError {

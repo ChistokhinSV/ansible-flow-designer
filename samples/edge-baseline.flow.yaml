@@ -9,7 +9,6 @@ flow:
     rollback if validation fails.
   owner: netops
   runtime:
-    kind: awx_workflow
     template: 'AFD · edge-baseline'
   inputs:
     site:
@@ -30,7 +29,7 @@ nodes:
   key: precheck
   type: task
   title: Pre-checks
-  status: draft
+  status: specified
   intent: Verify reachability and current OS version
   inputs:
     devices:
@@ -76,7 +75,7 @@ nodes:
   key: validate
   type: task
   title: Validate
-  status: draft
+  status: specified
   intent: Compare running config with desired state
   inputs:
     devices:
@@ -89,7 +88,7 @@ nodes:
   key: rollback
   type: task
   title: Rollback
-  status: draft
+  status: specified
   intent: Restore backup on failed hosts
   inputs:
     backup_ref:

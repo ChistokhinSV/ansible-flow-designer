@@ -4,6 +4,7 @@
 // an imported playbook are shown as declared too.
 import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
+import { runtimeKind } from '../flow/status';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
 import type { RunSummary } from '../run/events';
@@ -321,9 +322,10 @@ export function inventoryLens(
   else if (inv.state === 'error') notes.push(`The inventory could not be read: ${inv.error}`);
   if (!targets) notes.push(`Enter the flow targets (${name}) to count hosts per node.`);
   const runtime = doc.flow.runtime;
-  if (runtime?.kind === 'awx_job' || runtime?.kind === 'awx_workflow')
+  const kind = runtimeKind(modelOf(doc));
+  if (kind === 'awx_job' || kind === 'awx_workflow')
     notes.push(
-      `This flow runs in AWX${runtime.template ? ` (${runtime.template})` : ''}; AWX may use another inventory than the local one.`,
+      `This flow runs in AWX${runtime?.template ? ` (${runtime.template})` : ''}; AWX may use another inventory than the local one.`,
     );
   if (facts?.dynamic.length)
     notes.push(`Dynamic sources read on demand: ${facts.dynamic.join(', ')}.`);

@@ -1,9 +1,12 @@
 // What a right-click on the canvas offers (AFD-18), by target and mode. Pure data: the webview
 // renders the entries and runs their actions, so tests can check every menu without React.
 // Design and Implementation offer the edits the canvas allows there; Run mode only reads.
+
+import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
 import { freeOutput, type PortMenuItem, portMenu } from './portMenu';
+import { canMarkTested, contentStatus } from './status';
 import { NODE_STATUSES, type NodeStatus, type PortRef, type Ulid } from './types';
 
 export type CanvasMode = 'design' | 'code' | 'run';
@@ -167,7 +170,25 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
     design.push(
       item('Rename', { do: 'rename', node: id }, { icon: 'edit', shortcut: 'rename', ...lock }),
     );
-  if (edit && !ends)
+  if (edit && !ends && formatOf(model.doc) >= 2) {
+    // Format 2 (AFD-50): the status follows the content; tested is the one set by hand.
+    if (node.status === 'tested')
+      design.push(
+        item(
+          'Clear Tested',
+          { do: 'setStatus', node: id, status: contentStatus(node) },
+          { icon: 'circle-large-outline', ...lock },
+        ),
+      );
+    else if (canMarkTested(model.doc, node))
+      design.push(
+        item(
+          'Mark Tested…',
+          { do: 'setStatus', node: id, status: 'tested' },
+          { icon: 'verified', ...lock },
+        ),
+      );
+  } else if (edit && !ends)
     design.push({
       type: 'submenu',
       label: 'Status',

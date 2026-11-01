@@ -6,7 +6,7 @@ import { parse } from 'yaml';
 import { planCommand } from '../../../src/core/flow/commands';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
-import { statusAfterBinding } from '../../../src/core/flow/status';
+import { contentStatus, statusFor } from '../../../src/core/flow/status';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { readExample } from './helpers';
@@ -20,12 +20,15 @@ const nodeOf = (text: string, key: string): FlowNode => {
 };
 
 describe('status on bind (every writer)', () => {
-  it('binds to implemented, unbinds to specified, keeps tested when nothing changed', () => {
-    expect(statusAfterBinding('draft', true, false)).toBe('implemented');
-    expect(statusAfterBinding('tested', true, true)).toBe('tested');
-    expect(statusAfterBinding('tested', true, false)).toBe('implemented');
-    expect(statusAfterBinding('implemented', false, false)).toBe('specified');
-    expect(statusAfterBinding('draft', false, true)).toBe('draft');
+  it('the content decides: a binding implemented, a contract specified, tested stays on implemented', () => {
+    const task = { id: 't', key: 't', type: 'task' as const, title: 'T' };
+    const v1 = { schema_version: 1 as const };
+    expect(contentStatus(task)).toBe('draft');
+    expect(contentStatus({ ...task, outputs: { r: { type: 'dict' as const } } })).toBe('specified');
+    const bound = { ...task, impl: { kind: 'module' as const, ref: 'ansible.builtin.ping' } };
+    expect(contentStatus(bound)).toBe('implemented');
+    expect(statusFor(v1, { ...bound, status: 'tested' })).toBe('tested');
+    expect(statusFor(v1, { ...task, status: 'tested' })).toBe('draft');
   });
 
   it('applies it when the command sends no status, as the AI bind op does', () => {

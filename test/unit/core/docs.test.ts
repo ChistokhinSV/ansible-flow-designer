@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { guideReferenceFiles } from '../../../src/core/ai/reference';
 import { optionA } from '../../../src/core/engine/optionA';
-import { CURRENT_FORMAT } from '../../../src/core/flow/migrate';
+import { planCommand } from '../../../src/core/flow/commands';
+import { createIdFactory } from '../../../src/core/flow/ids';
+import { CURRENT_FORMAT, formatOf } from '../../../src/core/flow/migrate';
 import { flowText } from '../../../src/core/flow/text';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
@@ -176,13 +178,14 @@ describe('samples', () => {
       'open-fail-port',
       'open-fail-port',
     ]);
-    // The sample ships in the current format; the example stays format 1 for the v1 tests (AFD-49).
-    expect(readFileSync(join(ROOT, 'samples', 'edge-baseline.flow.yaml'), 'utf8')).toBe(
-      readFileSync(join(ROOT, 'examples', 'edge-baseline.flow.yaml'), 'utf8').replace(
-        /^schema_version: 1$/m,
-        `schema_version: ${CURRENT_FORMAT}`,
-      ),
-    );
+    // The sample ships in the current format: the example (format 1, for the v1 tests) upgraded.
+    const upgraded = planCommand(
+      readFileSync(join(ROOT, 'examples', 'edge-baseline.flow.yaml'), 'utf8'),
+      { kind: 'upgradeFormat' },
+      { newId: createIdFactory() },
+    ).text;
+    expect(readFileSync(join(ROOT, 'samples', 'edge-baseline.flow.yaml'), 'utf8')).toBe(upgraded);
+    expect(formatOf(parse(upgraded))).toBe(CURRENT_FORMAT);
   });
 });
 

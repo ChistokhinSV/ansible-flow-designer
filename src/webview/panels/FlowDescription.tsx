@@ -1,6 +1,8 @@
 // Right panel with nothing selected (04 §1): flow identity, goal, typed inputs, owner, runtime,
 // maintenance window (Timing lens, M8) and readiness counters.
 import { SLUG } from '../../core/flow/ids';
+import { modelOf } from '../../core/flow/model';
+import { runtimeKind } from '../../core/flow/status';
 import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
 import { StatusIcon } from '../canvas/StatusIcon';
@@ -16,6 +18,7 @@ export function FlowDescription() {
   const doc = snapshot?.doc;
   if (!doc?.flow) return <p className="muted">No flow loaded.</p>;
   const { flow } = doc;
+  const model = modelOf(doc);
   const ready = readiness(doc);
   const update = (patch: Record<string, string | null>) => run({ kind: 'updateFlow', patch });
   return (
@@ -51,8 +54,8 @@ export function FlowDescription() {
         <ReadOnly
           label="Runtime"
           value={
-            flow.runtime
-              ? [flow.runtime.kind, flow.runtime.template].filter(Boolean).join(' · ')
+            flow.runtime && model
+              ? [runtimeKind(model), flow.runtime.template].filter(Boolean).join(' · ')
               : 'not set'
           }
         />

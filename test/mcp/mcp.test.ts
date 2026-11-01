@@ -217,7 +217,7 @@ describe('MCP server', () => {
     expect(r.isError).toBe(false);
     // The repository root has no ansible.cfg, so netops/roles is not searched: two draft role steps.
     expect(r.text).toMatch(
-      /^Created flows\/site\/site.flow.yaml from netops\/site.yml: 20 step\(s\), 18 implemented, 2 draft/,
+      /^Created flows\/site\/site.flow.yaml from netops\/site.yml: 20 step\(s\), 18 ready to run, 2 to check/,
     );
     expect(r.text).toContain('Role netops_backup was not found in the repository');
     expect(readFileSync(join(repo, 'flows/site/site.flow.yaml'), 'utf8')).not.toContain(

@@ -78,4 +78,4 @@ playbooks are generated from it.
 | **level**           | The top of the flow, or the inside of a subflow                                                                          |
 | **binding**         | The module, role or playbook a step runs                                                                                 |
 | **skeleton run**    | `ansible-playbook --check` of the generated code; unbound steps print TODO                                               |
-| **status**          | draft → specified (has inputs or outputs) → implemented (bound) → tested (a real run passed)                             |
+| **status**          | draft → specified (has inputs or outputs) → implemented (bound) → tested (a real run passed, or a reason by hand)        |

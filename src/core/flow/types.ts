@@ -87,6 +87,19 @@ export interface BoundaryExit extends PortRef {
   reason?: string;
 }
 
+/**
+ * The evidence for `tested` (format 2, AFD-50): a passing run of a flow version, or a reason
+ * given by hand, with who gave it and when.
+ */
+export interface TestedRecord {
+  run?: string;
+  flow_version?: number;
+  commit?: string;
+  reason?: string;
+  by?: string;
+  at?: string;
+}
+
 export interface FlowNode {
   id: Ulid;
   key: string;
@@ -94,6 +107,8 @@ export interface FlowNode {
   title: string;
   intent?: string;
   status?: NodeStatus;
+  /** Format 2: why the node counts as tested (AFD-50); format 1 has no such field. */
+  tested?: TestedRecord;
   inputs?: Contract;
   outputs?: Contract;
   /** Optional ports enabled beyond the type defaults. */
