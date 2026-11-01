@@ -12,7 +12,7 @@ import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
-import { isFailPort, isPortLegal, portDirection, portsFor } from './ports';
+import { isFailPort, isPortLegal, LEGACY_PORTS, portDirection, portsFor } from './ports';
 import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
 import { hasStatus, runtimeKind, statusFor } from './status';
@@ -216,16 +216,6 @@ function checkEdges(model: FlowModel, add: (f: Finding) => void): void {
             edge: edge.id,
           });
         }
-        if (end === 'from' && ref.port === 'cancelled') {
-          add({
-            code: 'port-not-routable',
-            severity: 'warning',
-            message:
-              'The compiled engine cannot route "cancelled" (the job is killed); it shows in Run mode only',
-            path: [...path, 'from', 'port'],
-            edge: edge.id,
-          });
-        }
       }
       const fromKey = `${edge.from.node}|${edge.from.port}`;
       if (used.has(fromKey)) {
@@ -257,13 +247,16 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         });
       }
     }
-    if (node.ports?.includes('undo') && !node.undo) {
+    // AFD-54: undo and cancelled were never built; the upgrade removes them and their wires.
+    for (const [i, port] of (node.ports ?? []).entries()) {
+      if (!LEGACY_PORTS.has(port)) continue;
       add({
-        code: 'undo-unbound',
+        code: 'legacy-port',
         severity: 'warning',
-        message: `${label(node)} enables the undo port but has no undo binding`,
-        path: [...path, 'ports'],
+        message: `${label(node)}: the ${port} port was never built (${port === 'undo' ? 'Rollback wires explicit undo steps' : 'a cancelled job routes no host'}); ${formatOf(model.doc) >= 2 ? 'remove it and its wires' : 'Upgrade Flow Format removes it and its wires'}`,
+        path: [...path, 'ports', i],
         node: node.id,
+        port,
       });
     }
     if (

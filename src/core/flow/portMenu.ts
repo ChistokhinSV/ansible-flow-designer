@@ -69,10 +69,7 @@ function openOutputSuggestions(node: FlowNode, port: string): PortMenuItem[] {
         { kind: 'pick', label: 'Connect to Another Node…', mode: 'to' },
       ];
     case 'cancelled':
-      return [
-        { kind: 'quickAdd', label: 'Add Next Node' },
-        { kind: 'pick', label: 'Connect to Another Node…', mode: 'to' },
-      ];
+      return [];
     default: {
       const items: PortMenuItem[] = [{ kind: 'quickAdd', label: 'Add Next Node' }];
       if (patternFits('done', node, port))
@@ -97,15 +94,9 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
 
   if (portDirection(ref.port) === 'in') {
     const incoming = edges.filter((e) => e?.to?.node === ref.node && e.to.port === ref.port);
-    if (ref.port === 'undo') {
-      items.push({
-        kind: 'later',
-        label: 'Bind Undo Task',
-        hint: 'Not supported: wire rollback steps from the failure port instead',
-      });
-    } else {
+    // A legacy undo port (AFD-54) only lets go of its wires and itself.
+    if (ref.port !== 'undo')
       items.push({ kind: 'pick', label: 'Connect from Another Node…', mode: 'from' });
-    }
     for (const e of incoming) {
       const from = model.nodes.get(e.from.node)?.node;
       items.push({

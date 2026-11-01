@@ -9,6 +9,7 @@ import { awxLift } from './awxSettings';
 import { acceptedAll, upgradedItem } from './decisions';
 import { CURRENT_FORMAT, FormatError, formatOf, keysAfter } from './format';
 import { buildModel } from './model';
+import { LEGACY_PORTS } from './ports';
 import { contentStatus, hasStatus, lowest } from './status';
 import type { FlowDocument, FlowNode, NodeStatus, TestedRecord, Ulid } from './types';
 import { walkNodes } from './walk';
@@ -301,6 +302,62 @@ const purposeStep: MigrationStep = {
   },
 };
 
+const legacyWire = (e: { from?: { port?: string }; to?: { port?: string } } | undefined) =>
+  !!e && (LEGACY_PORTS.has(e.from?.port ?? '') || LEGACY_PORTS.has(e.to?.port ?? ''));
+
+/**
+ * AFD-54: the undo and cancelled ports were never built. They leave `ports:` with every wire that
+ * starts or ends at one and every subflow exit through one; an `undo` binding stays, since the
+ * Rollback pattern binds its undo steps to it.
+ */
+const portsStep: MigrationStep = {
+  from: 1,
+  notes(doc) {
+    const model = buildModel(doc);
+    const nodes = [...walkNodes(doc.nodes)].filter((n) =>
+      n.ports?.some((p) => LEGACY_PORTS.has(p)),
+    ).length;
+    const wires = [...model.levels.values()].flatMap((l) => l.edges.filter(legacyWire)).length;
+    if (nodes + wires === 0) return [];
+    const count = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
+    return [
+      `the undo and cancelled ports go (${count(nodes, 'node')}, ${count(wires, 'wire')}): they were never built; Rollback wires explicit undo steps, and undo bindings stay`,
+    ];
+  },
+  apply(tx) {
+    const model = () => buildModel(tx.current.doc.toJS() as FlowDocument);
+    for (const level of model().levels.values()) {
+      const gone = level.edges.flatMap((e, i) => (legacyWire(e) ? [i] : [])).reverse();
+      for (const i of gone) tx.apply((f) => removeItem(f, level.edgesPath, i));
+    }
+    for (const { node, path } of model().nodes.values()) {
+      const outputs = node.subflow?.boundary?.outputs ?? {};
+      for (const [port, exits] of Object.entries(outputs)) {
+        const at = [...path, 'subflow', 'boundary', 'outputs'];
+        if (LEGACY_PORTS.has(port)) {
+          tx.apply((f) => deleteKey(f, at, port));
+          continue;
+        }
+        const list = Array.isArray(exits) ? exits : [];
+        for (let i = list.length - 1; i >= 0; i--)
+          if (LEGACY_PORTS.has(list[i]?.port ?? ''))
+            tx.apply((f) => removeItem(f, [...at, port], i));
+      }
+    }
+    for (const { node, path } of model().nodes.values()) {
+      const ports = node.ports ?? [];
+      if (!ports.some((p) => LEGACY_PORTS.has(p))) continue;
+      if (ports.every((p) => LEGACY_PORTS.has(p))) {
+        tx.apply((f) => deleteKey(f, path, 'ports'));
+        continue;
+      }
+      for (let i = ports.length - 1; i >= 0; i--)
+        if (LEGACY_PORTS.has(ports[i] as string))
+          tx.apply((f) => removeItem(f, [...path, 'ports'], i));
+    }
+  },
+};
+
 /** v1 → v2, in order. Wave 4 tickets add their conversions here (AFD-52, -54). */
 export const STEPS: readonly MigrationStep[] = [
   statusStep,
@@ -308,6 +365,7 @@ export const STEPS: readonly MigrationStep[] = [
   privilegeStep,
   awxStep,
   purposeStep,
+  portsStep,
 ];
 
 /**

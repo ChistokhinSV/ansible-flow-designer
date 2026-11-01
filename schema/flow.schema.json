@@ -651,7 +651,7 @@
         },
         "undo": {
           "$ref": "#/$defs/impl",
-          "description": "What reverses the node, run by Rollback for the failed hosts."
+          "description": "What reverses the node: the Rollback pattern binds this node's undo step to it."
         },
         "condition": {
           "type": "string",

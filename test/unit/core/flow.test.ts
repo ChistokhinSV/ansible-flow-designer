@@ -52,13 +52,15 @@ describe('load and validate the examples', () => {
     );
   });
 
-  it('os-upgrade: warns about overclaiming statuses and unbound undo ports', () => {
+  it('os-upgrade: warns about overclaiming statuses and the undo ports never built (AFD-54)', () => {
     const { findings } = validateFlow(docOf(OS));
     const codes = (code: string) => findings.filter((f) => f.code === code).map((f) => f.node);
     expect(codes('status-overclaim')).toContain(id(OS, 'pre-checks'));
-    expect(codes('undo-unbound').sort()).toEqual(
-      [id(OS, 'backup-config'), id(OS, 'drain-traffic')].sort(),
+    expect(codes('legacy-port').sort()).toEqual(
+      [id(OS, 'backup-config'), id(OS, 'drain-traffic'), id(OS, 'upgrade-os')].sort(),
     );
+    const legacy = findings.find((f) => f.code === 'legacy-port');
+    expect(legacy?.message).toContain('Upgrade Flow Format removes it and its wires');
   });
 });
 

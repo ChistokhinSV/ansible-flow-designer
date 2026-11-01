@@ -6,17 +6,22 @@ failed through `failed_hosts`, and so on. Each port is wired to the next node, o
 
 ## Ports per node type
 
-| Type          | Ports                            | Optional (enable when needed)                                        |
-| ------------- | -------------------------------- | -------------------------------------------------------------------- |
-| start         | `ok_hosts`                       |                                                                      |
-| end           | `in`                             |                                                                      |
-| task, subflow | `in`, `ok_hosts`, `failed_hosts` | `unreachable`, `unchanged`, `always`, `cancelled`, `timeout`, `undo` |
-| decision      | `in`, `true`, `false`            |                                                                      |
-| approval      | `in`, `approved`, `rejected`     | `timeout`                                                            |
-| parallel      | `in`, `branch_1..n`              |                                                                      |
-| join          | `in`, `ok_hosts`                 | `failed_hosts`                                                       |
+| Type          | Ports                            | Optional (enable when needed)                   |
+| ------------- | -------------------------------- | ----------------------------------------------- |
+| start         | `ok_hosts`                       |                                                 |
+| end           | `in`                             |                                                 |
+| task, subflow | `in`, `ok_hosts`, `failed_hosts` | `unreachable`, `unchanged`, `always`, `timeout` |
+| decision      | `in`, `true`, `false`            |                                                 |
+| approval      | `in`, `approved`, `rejected`     | `timeout`                                       |
+| parallel      | `in`, `branch_1..n`              |                                                 |
+| join          | `in`, `ok_hosts`                 | `failed_hosts`                                  |
 
 **Fail ports** are `failed_hosts`, `unreachable`, `timeout` and `rejected`.
+
+Flows from before 0.33 may have an `undo` or `cancelled` port. Neither was ever built: undo steps
+are wired by the Rollback pattern, and a cancelled job routes no host. Such a port still shows,
+with a warning (`legacy-port`); **Upgrade Flow Format** removes it and its wires, and keeps the
+node's `undo` binding.
 
 ## What a port looks like
 
@@ -45,16 +50,21 @@ Click a port.
 
 A pattern adds a handler node and the wires around it, in one undo step (Retry adds no node):
 
-| Pattern                       | Adds                                       | Ends at         |
-| ----------------------------- | ------------------------------------------ | --------------- |
-| Rollback from Backup          | a Rollback handler (one per level, reused) | `failed`        |
-| Notify On-Call and Stop       | a notify handler                           | `stopped`       |
-| Exclude and Report            | an exclude handler                         | `excluded`      |
-| Retry (module steps)          | retries 3, delay 10 s on the step itself   | (the same port) |
-| Stop flow                     | nothing but the wire                       | `stopped`       |
-| Escalate Approval (approvals) | a second approval                          | `stopped`       |
+| Pattern                       | Adds                                                     | Ends at         |
+| ----------------------------- | -------------------------------------------------------- | --------------- |
+| Rollback from Backup          | a Rollback subflow of undo steps (one per level, reused) | `failed`        |
+| Notify On-Call and Stop       | a notify handler                                         | `stopped`       |
+| Exclude and Report            | an exclude handler                                       | `excluded`      |
+| Retry (module steps)          | retries 3, delay 10 s on the step itself                 | (the same port) |
+| Stop flow                     | nothing but the wire                                     | `stopped`       |
+| Escalate Approval (approvals) | a second approval                                        | `stopped`       |
 
 You can also drag a pattern from the palette onto an open fail port or a node.
+
+**Rollback** builds a subflow with one undo step per step the hosts completed on this level,
+newest first: the failing step itself, then the ones before it. A step with an `undo` binding in
+the file gets an undo step bound to it; the others get steps to build (delete those with nothing to
+undo). The next failure port on the level reuses the same Rollback.
 
 **End nodes:** a pattern reuses an end node of this level only when it has the pattern's key
 (`stopped`, `failed`, `excluded`, `done`). Otherwise it adds a new one. So a rejected approval

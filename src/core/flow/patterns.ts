@@ -6,6 +6,7 @@
 
 import { purposeOf } from './format';
 import type { Level } from './model';
+import { isFailPort } from './ports';
 import type { FlowNode, HandlerKind, ImplBinding, NodeSettings, NodeType } from './types';
 
 export const PATTERN_IDS = [
@@ -120,6 +121,7 @@ export interface NodeRecipe {
   intent?: string;
   purpose?: HandlerKind;
   settings?: NodeSettings;
+  impl?: ImplBinding;
 }
 
 export interface EndRecipe {
@@ -141,6 +143,8 @@ export interface Recipe {
   rejoin?: { port: string; sourcePort: string };
   /** Settings the source step gets instead of a new node; those it has already stay. */
   source?: NodeSettings;
+  /** The new node is a subflow running these steps in a chain (AFD-54: Rollback's undo steps). */
+  steps?: NodeRecipe[];
 }
 
 // An end is reused only by key: a stop or a failed rollback must not land in "Rolled back" or
@@ -152,7 +156,39 @@ const FAILED_END = { outcome: 'failed' } as const;
  * `rollback` as in flows predating the marker.
  */
 export function isRollback(node: FlowNode | undefined): boolean {
-  return node?.type === 'task' && (purposeOf(node) === 'rollback' || node.key === 'rollback');
+  return (
+    (node?.type === 'task' || node?.type === 'subflow') &&
+    (purposeOf(node) === 'rollback' || node.key === 'rollback')
+  );
+}
+
+/**
+ * What a Rollback from `source` undoes, newest first (AFD-54): the source itself (it may have
+ * changed part of a host) and the steps the hosts passed on this level before it, each bound to
+ * that step's `undo` binding when it has one, else a step to build.
+ */
+function undoSteps(level: Level, source: FlowNode): NodeRecipe[] {
+  const byId = new Map(level.nodes.filter(Boolean).map((n) => [n.id, n]));
+  const order = [source];
+  const seen = new Set([source.id]);
+  for (let i = 0; i < order.length; i++) {
+    const at = order[i]?.id;
+    for (const e of level.edges) {
+      if (e?.to?.node !== at || isFailPort(e.from?.port ?? '')) continue;
+      const prev = byId.get(e.from.node);
+      if (!prev || seen.has(prev.id)) continue;
+      seen.add(prev.id);
+      order.push(prev);
+    }
+  }
+  return order
+    .filter((n) => (n.type === 'task' || n.type === 'subflow') && !isRollback(n))
+    .map((n) => ({
+      type: 'task',
+      title: `Undo ${n.title}`,
+      intent: `Reverse ${n.title} for the failed hosts`,
+      ...(n.undo?.ref ? { impl: n.undo } : {}),
+    }));
 }
 
 /** Rollback handler of a level (D-11: one per level walks the undo chain). */
@@ -166,14 +202,17 @@ export function recipeFor(id: PatternId, source: FlowNode, port: string, level: 
     case 'rollback': {
       const existing = findRollback(level, source.id);
       if (existing) return { reuse: existing };
+      const steps = undoSteps(level, source);
+      const end = { ...FAILED_END, title: 'Failed', prefer: ['failed'], from: ['ok_hosts'] };
       return {
         node: {
-          type: 'task',
+          type: steps.length > 0 ? 'subflow' : 'task',
           title: 'Rollback',
           purpose: 'rollback',
-          intent: 'Run the undo of completed nodes in reverse order, failed hosts only',
+          intent: 'Undo the completed steps for the failed hosts only, newest first',
         },
-        end: { ...FAILED_END, title: 'Failed', prefer: ['failed'], from: ['ok_hosts'] },
+        ...(steps.length > 0 ? { steps } : {}),
+        end,
       };
     }
     case 'notify-stop':

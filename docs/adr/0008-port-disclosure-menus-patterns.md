@@ -36,3 +36,17 @@ About nine handles per task node instead of three: first render of os-upgrade we
 - **Ctrl+A is bound** on the canvas (or with nothing focused) to select every node of the level, like the designer's other keys: consumed and stopped, so neither the page's nor VS Code's Select All runs. A focused field or a panel keeps the browser's own Select All. This reverses the AFD-18 note.
 - **New keys:** N (Add Next Node… on the selected node, else Add Node at the paste place), Enter on a non-subflow node (into its Details), Shift+1 (Fit View), Alt+1/2/3 (modes; VS Code's Alt+n editor switching does not reach it while the designer has the focus). Find (Ctrl+F) arrives with AFD-48.
 - **Focus rules** (`webview/focus.ts`): `useReturnFocus` (extracted from `Menu`) gives the focus back on close when nothing else took it, and a dialog opened from a menu item gives it back to what opened the menu. `useDialogFocus` adds focus-in on open and Tab wrapping for every modal (reason dialogs, Quick Add, the cheat sheet, the leave guard). `onTabListKeys` gives tab lists arrow keys, Home and End with one tab stop.
+
+## Amendment (AFD-54, 2026-11-01): undo and cancelled ports removed
+
+The `undo` input and the `cancelled` output were never built: nothing bound or ran the undo
+port ("Bind Undo Task" stayed disabled), and the engine cannot route a cancelled job. They are no
+longer offered (`LEGACY_PORTS` in `ports.ts`: not revealed, not enabled by commands or the AI
+tools, not in the reference). A node that still has one shows it with the warning `legacy-port`,
+and Upgrade Flow Format removes them with their wires and subflow exits. The `join` port name,
+never on any node type, is gone from the catalog code (the schema keeps it for format 1 files).
+
+Undo is wired instead: the Rollback pattern builds a Rollback subflow (purpose rollback) with an
+undo step per step the hosts completed on the level, newest first, starting with the failing step.
+A step with an `undo` binding gets its undo step bound to it; the others are steps to build. A
+level's existing Rollback, a task or a subflow, is reused as before.

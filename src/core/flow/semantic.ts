@@ -1,5 +1,6 @@
 // Semantic projection of a flow document: everything except layout (D-30, ADR-0006). Two documents
 // with equal keys differ only in node positions, comments or formatting.
+import { LEGACY_PORTS } from './ports';
 import type { FlowDocument, FlowNode, Ulid } from './types';
 import { walkNodes } from './walk';
 
@@ -58,13 +59,16 @@ export function versionBump(current: unknown, base: unknown): number | undefined
 
 /**
  * A node's design: its entry without its status and the evidence for it (AFD-50), inner nodes
- * included and positions left out. Format 1 `handler` is the same design as `purpose` (AFD-52),
- * so a run recorded before Upgrade Flow Format still matches.
+ * included and positions left out. What Upgrade Flow Format only renames or drops is the same
+ * design, so a run recorded before the upgrade still matches: format 1 `handler` is `purpose`
+ * (AFD-52), and the undo and cancelled ports never did anything (AFD-54).
  */
 function nodeDesign(node: FlowNode): unknown {
-  const { status: _status, tested: _tested, handler, subflow, ...own } = node;
-  const rest =
+  const { status: _status, tested: _tested, handler, subflow, ports, ...own } = node;
+  const rest: Record<string, unknown> =
     handler !== undefined && own.purpose === undefined ? { ...own, purpose: handler } : own;
+  const kept = ports?.filter((p) => !LEGACY_PORTS.has(p));
+  if (kept?.length) rest.ports = kept;
   if (!subflow || typeof subflow !== 'object') return rest;
   const { layout: _layout, nodes, ...body } = subflow;
   return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };

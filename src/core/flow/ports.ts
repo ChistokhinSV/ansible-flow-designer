@@ -44,6 +44,13 @@ const DEFAULTS: Record<Exclude<NodeType, 'parallel'>, readonly string[]> = {
 
 const TASK_OPTIONAL = ['unreachable', 'unchanged', 'always', 'cancelled', 'timeout', 'undo'];
 
+/**
+ * Ports that were never built (AFD-54): `undo` (Rollback wires explicit undo steps instead) and
+ * `cancelled` (a killed job routes nothing). A node that has one still shows it, with a warning;
+ * none is offered, and Upgrade Flow Format removes them and their wires.
+ */
+export const LEGACY_PORTS: ReadonlySet<string> = new Set(['undo', 'cancelled']);
+
 const OPTIONAL: Record<NodeType, readonly string[]> = {
   start: [],
   end: [],
@@ -76,7 +83,7 @@ export function optionalPortNames(type: NodeType): readonly string[] {
 }
 
 export function portDirection(name: string): PortDirection {
-  return name === 'in' || name === 'undo' || name === 'join' ? 'in' : 'out';
+  return name === 'in' || name === 'undo' ? 'in' : 'out';
 }
 
 export function isFailPort(name: string): boolean {
@@ -84,7 +91,7 @@ export function isFailPort(name: string): boolean {
 }
 
 function sideOf(name: string): PortSide {
-  if (name === 'in' || name === 'join') return 'top';
+  if (name === 'in') return 'top';
   if (name === 'undo') return 'left';
   if (FAIL_PORTS.has(name) || name === 'cancelled') return 'right';
   return 'bottom';
@@ -141,7 +148,6 @@ export function portsFor(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>): P
 // (mockup 07: always | ok_hosts | unchanged at the bottom; problems top-down on the right).
 const SLOT = [
   'in',
-  'join',
   'undo',
   'always',
   'ok_hosts',
@@ -166,11 +172,19 @@ export interface LegalPort extends PortSpec {
   enabled: boolean;
 }
 
-/** Every port the node type supports (D-14 hover reveal), in slot order, flagged when enabled. */
+/**
+ * Every port the node type supports (D-14 hover reveal), in slot order, flagged when enabled. A
+ * legacy port is listed only when the node has it.
+ */
 export function legalPorts(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>): LegalPort[] {
   const enabled = new Set(portsFor(node).map((p) => p.name));
   const defaults = defaultPortNames(node);
-  const names = [...defaults, ...OPTIONAL[node.type].filter((p) => !defaults.includes(p))];
+  const names = [
+    ...defaults,
+    ...OPTIONAL[node.type].filter(
+      (p) => !defaults.includes(p) && (!LEGACY_PORTS.has(p) || enabled.has(p)),
+    ),
+  ];
   return names
     .map((name) => ({
       ...portSpec(name, !defaults.includes(name)),

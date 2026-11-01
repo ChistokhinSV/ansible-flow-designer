@@ -4,7 +4,13 @@
 import schema from '../../../schema/flow.schema.json';
 import { FINDING_CODES } from '../flow/findingCodes';
 import { PATTERNS } from '../flow/patterns';
-import { defaultPortNames, FAIL_PORTS, optionalPortNames, portDirection } from '../flow/ports';
+import {
+  defaultPortNames,
+  FAIL_PORTS,
+  LEGACY_PORTS,
+  optionalPortNames,
+  portDirection,
+} from '../flow/ports';
 import type { NodeType } from '../flow/types';
 import { OP_SPECS } from './specs';
 
@@ -117,9 +123,7 @@ const PORT_MEANING: Record<string, string> = {
   unreachable: 'hosts that could not be reached',
   unchanged: 'hosts it succeeded on without changing anything',
   always: 'every host after the step, whatever the outcome',
-  cancelled: 'hosts of a cancelled run (Run mode only)',
   timeout: 'hosts that ran out of time (settings.timeout; approvals: no answer in time)',
-  undo: 'Rollback runs the undo binding for these hosts',
   true: 'hosts the condition is true for',
   false: 'hosts it is false for',
   approved: 'hosts a person approved',
@@ -130,7 +134,10 @@ const PORT_MEANING: Record<string, string> = {
 export function portsReference(): string {
   const rows = TYPES.map((t) => {
     const defaults = defaultPortNames({ type: t }).join(', ');
-    const optional = optionalPortNames(t).join(', ') || '-';
+    const optional =
+      optionalPortNames(t)
+        .filter((p) => !LEGACY_PORTS.has(p))
+        .join(', ') || '-';
     return `| ${t} | ${defaults} | ${optional} |`;
   });
   return [
@@ -145,6 +152,7 @@ export function portsReference(): string {
     ...Object.entries(PORT_MEANING).map(
       ([p, m]) => `- \`${p}\` (${portDirection(p) === 'in' ? 'input' : 'output'}): ${m}`,
     ),
+    '- `undo` and `cancelled` (older flows): never built; Upgrade Flow Format removes them and their wires. For undo steps, apply_pattern rollback.',
     '',
     `Fail ports (${[...FAIL_PORTS].join(', ')}) must be handled: wired (often with apply_pattern), or left open on purpose with a reason (leave_open). Unhandled fail ports are warnings; their hosts fail the run.`,
     '',

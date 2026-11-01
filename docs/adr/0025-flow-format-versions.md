@@ -104,3 +104,10 @@ calls it `purpose`. Readers take either (`purposeOf`), writers use the document'
 `handler` for one release). The upgrade step renames the key in place, and the node's design
 fingerprint treats both names as one, so a run recorded in format 1 still proposes `tested`.
 Format 2 warns about a `handler` left in a node (`renamed-field`).
+
+## Amendment (AFD-54, 2026-11-01): the undo and cancelled ports go
+
+The upgrade step `portsStep` removes `undo` and `cancelled` from `ports:` (the key when nothing
+is left), every wire from or to them on any level and every subflow exit through them, and says
+how many. A node's `undo` binding stays (Rollback binds its undo steps to it). The node design
+fingerprint ignores legacy ports, so tested records still match after the upgrade.

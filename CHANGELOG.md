@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.0 — AFD-54
+
+- **The undo and cancelled ports are gone**: they were never built (nothing ran an undo port, and a cancelled job routes no host). They are no longer offered; a flow that has one shows it with the warning `legacy-port`, and Upgrade Flow Format removes them with their wires. A node's `undo` binding stays.
+- **Rollback wires explicit undo steps**: the pattern builds a Rollback subflow with one undo step per completed step on the level, newest first, starting with the failing step; a step with an `undo` binding gets its undo step bound to it. The next failure port reuses the same Rollback.
+
 ## 0.32.0 — AFD-53
 
 - **Each step keeps its own outputs** in the generated code: a role's, playbook's or stub's output is copied right after the step into `afd_<key>__<output>`, and readers read that copy. Two steps that both set `version` no longer overwrite each other. The flow file does not change (both formats).

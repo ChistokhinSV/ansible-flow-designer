@@ -66,10 +66,6 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'An output port has more than one wire.',
     fix: 'One wire per output: fan out with a parallel node.',
   },
-  'port-not-routable': {
-    meaning: 'The generated playbook cannot route this port (e.g. cancelled).',
-    fix: 'Keep it for Run mode only, or wire another port.',
-  },
   'port-not-supported': {
     meaning: 'The port is enabled on a node type that does not support it.',
     fix: 'disable_port, or change the node type.',
@@ -134,9 +130,10 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Format 2: a node is tested but has no `tested` record (a run, or a reason).',
     fix: 'Mark Tested… with a reason, or run the flow; else set the status it has.',
   },
-  'undo-unbound': {
-    meaning: 'The undo port is used but the node has no undo binding.',
-    fix: 'Bind undo, or remove the wire into undo.',
+  'legacy-port': {
+    meaning:
+      'A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host.',
+    fix: 'Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps.',
   },
   'timeout-without-setting': {
     meaning: 'The timeout port is enabled but settings.timeout is not set.',

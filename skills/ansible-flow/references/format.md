@@ -47,7 +47,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `outputs` (contract): Values the node produces for later nodes.
 - `ports` (list of port): Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task).
 - `impl` (impl): What the node runs: a module, a role or a playbook. Absent: a TODO stub.
-- `undo` (impl): What reverses the node, run by Rollback for the failed hosts.
+- `undo` (impl): What reverses the node: the Rollback pattern binds this node's undo step to it.
 - `condition` (string): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed): End nodes
 - `join_mode` (all | any): Join nodes: per host, all = every branch delivered the host (default), any = at least one
@@ -176,8 +176,8 @@ Wires go from an output port to an input port (usually `in`) on the same level, 
 | --- | --- | --- |
 | start | ok_hosts | - |
 | end | in | - |
-| task | in, ok_hosts, failed_hosts | unreachable, unchanged, always, cancelled, timeout, undo |
-| subflow | in, ok_hosts, failed_hosts | unreachable, unchanged, always, cancelled, timeout, undo |
+| task | in, ok_hosts, failed_hosts | unreachable, unchanged, always, timeout |
+| subflow | in, ok_hosts, failed_hosts | unreachable, unchanged, always, timeout |
 | decision | in, true, false | - |
 | approval | in, approved, rejected | timeout |
 | parallel | in, branch_1, branch_2 | - |
@@ -189,14 +189,13 @@ Wires go from an output port to an input port (usually `in`) on the same level, 
 - `unreachable` (output): hosts that could not be reached
 - `unchanged` (output): hosts it succeeded on without changing anything
 - `always` (output): every host after the step, whatever the outcome
-- `cancelled` (output): hosts of a cancelled run (Run mode only)
 - `timeout` (output): hosts that ran out of time (settings.timeout; approvals: no answer in time)
-- `undo` (input): Rollback runs the undo binding for these hosts
 - `true` (output): hosts the condition is true for
 - `false` (output): hosts it is false for
 - `approved` (output): hosts a person approved
 - `rejected` (output): hosts a person rejected
 - `branch_<n>` (output): every host, once per branch (parallel)
+- `undo` and `cancelled` (older flows): never built; Upgrade Flow Format removes them and their wires. For undo steps, apply_pattern rollback.
 
 Fail ports (failed_hosts, unreachable, timeout, rejected) must be handled: wired (often with apply_pattern), or left open on purpose with a reason (leave_open). Unhandled fail ports are warnings; their hosts fail the run.
 

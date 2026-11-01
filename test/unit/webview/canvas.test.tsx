@@ -142,10 +142,9 @@ describe('view model', () => {
     const upgrade = view.nodes.find((n) => n.node.key === 'upgrade-os');
     const right = upgrade?.ports.filter((p) => p.side === 'right');
     expect(right?.map((p) => [p.name, p.offset])).toEqual([
-      ['failed_hosts', 0.2],
-      ['unreachable', 0.4],
-      ['timeout', 0.6],
-      ['cancelled', 0.8],
+      ['failed_hosts', 0.25],
+      ['unreachable', 0.5],
+      ['timeout', 0.75],
     ]);
     const bottom = upgrade?.ports.filter((p) => p.side === 'bottom').map((p) => p.name);
     expect(bottom).toEqual(['always', 'ok_hosts', 'unchanged']);

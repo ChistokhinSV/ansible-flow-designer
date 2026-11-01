@@ -23,8 +23,15 @@ import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
 import { CURRENT_FORMAT, FormatError, formatOf, migrate } from './migrate';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
-import { findEnd, type PatternId, patternFits, recipeFor } from './patterns';
-import { isFailPort, isPortLegal, optionalPortNames, portDirection, portsFor } from './ports';
+import { findEnd, type NodeRecipe, type PatternId, patternFits, recipeFor } from './patterns';
+import {
+  isFailPort,
+  isPortLegal,
+  LEGACY_PORTS,
+  optionalPortNames,
+  portDirection,
+  portsFor,
+} from './ports';
 import { nodeDesigns, testedDropBack } from './semantic';
 import { canMarkTested, contentStatus, hasStatus, statusAfterBinding, statusFor } from './status';
 import type {
@@ -322,6 +329,11 @@ function enablePortOps(st: State, id: Ulid, port: string): Op[] {
   if (!optionalPortNames(node.type).includes(port)) {
     throw new CommandError('bad-port', `${node.type} nodes have no port "${port}"`);
   }
+  if (LEGACY_PORTS.has(port))
+    throw new CommandError(
+      'legacy-port',
+      `The ${port} port was never built: ${port === 'undo' ? 'apply Rollback on the failure port, which wires an undo step per completed step' : 'a cancelled job routes no host'}`,
+    );
   if (node.ports) return [(f) => insertItem(f, [...path, 'ports'], 'end', port)];
   return [(f) => setIn(f, [...path, 'ports'], [port], { before: after(NODE_ORDER, 'ports') })];
 }
@@ -715,6 +727,8 @@ function applyPattern(
   let handler: Ulid | undefined;
   if (recipe.node) {
     const created = nodeItem(ctx, recipe.node, taken, purposeKey(st.doc));
+    if (recipe.steps?.length)
+      created.item.subflow = chainBody(ctx, recipe.steps, purposeKey(st.doc));
     nodes.push(created.item);
     handler = created.id;
     if (cmd.position) positions[handler] = cmd.position;
@@ -758,6 +772,39 @@ function applyPattern(
     ...decisionRemovalOps(st, cmd.from.node, cmd.from.port),
   ]);
   return first;
+}
+
+/**
+ * A new subflow's inner level (AFD-54): the steps wired one after another on ok_hosts, the first
+ * the entry and the last one's ok_hosts the exit; their failed hosts bubble to the subflow's port.
+ */
+function chainBody(
+  ctx: CommandContext,
+  steps: NodeRecipe[],
+  purpose: 'purpose' | 'handler',
+): Record<string, YamlValue> {
+  const taken = new Set<string>();
+  const items = steps.map((s) => {
+    const { impl, ...spec } = s;
+    const made = nodeItem(ctx, spec, taken, purpose);
+    if (impl) {
+      made.item.status = 'implemented';
+      made.item.impl = implValue(impl);
+    }
+    return made;
+  });
+  const edges = items
+    .slice(1)
+    .map((b, i) =>
+      edgeItem(ctx, { node: items[i]?.id as Ulid, port: 'ok_hosts' }, { node: b.id, port: 'in' }),
+    );
+  const first = items[0]?.id as Ulid;
+  const last = items[items.length - 1]?.id as Ulid;
+  return {
+    nodes: items.map((i) => i.item),
+    ...(edges.length > 0 ? { edges } : {}),
+    boundary: { in: first, outputs: { ok_hosts: [{ node: last, port: 'ok_hosts' }] } },
+  };
 }
 
 /** Vertical gap between a pattern's handler and the end node created for it. */

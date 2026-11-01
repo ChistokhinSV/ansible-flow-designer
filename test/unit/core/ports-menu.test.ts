@@ -50,15 +50,15 @@ describe('legal ports (D-14 reveal)', () => {
     const ports = legalPorts({ type: 'task', ports: ['unreachable'] });
     expect(ports.map((p) => p.name)).toEqual([
       'in',
-      'undo',
       'always',
       'ok_hosts',
       'unchanged',
       'failed_hosts',
       'unreachable',
       'timeout',
-      'cancelled',
     ]);
+    // AFD-54: undo and cancelled were never built; a node that has one still shows it.
+    expect(legalPorts({ type: 'task', ports: ['undo'] }).map((p) => p.name)).toContain('undo');
     expect(ports.filter((p) => p.enabled).map((p) => p.name)).toEqual([
       'in',
       'ok_hosts',
@@ -447,7 +447,7 @@ describe('port menu (04 §3, mockup 07)', () => {
       'Connect from Another Node…',
       'Disconnect from Rollback · ok_hosts',
     ]);
-    expect(labels(OS, 'backup-config', 'undo')).toEqual(['Bind Undo Task', 'Remove Port']);
+    expect(labels(OS, 'backup-config', 'undo')).toEqual(['Remove Port']);
   });
 
   it('a dropped pattern targets the first open port it fits', () => {

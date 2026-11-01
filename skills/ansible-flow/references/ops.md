@@ -321,7 +321,6 @@ Lay out a level again with the auto-layout and store every position (positions o
 | edge-direction | A wire starts at an input or ends at an output. | Wires go from an output port to an input port (usually in). |
 | edge-port-not-enabled | A wire uses an optional port the node has not enabled. | enable_port for that node and port. |
 | port-multiple-edges | An output port has more than one wire. | One wire per output: fan out with a parallel node. |
-| port-not-routable | The generated playbook cannot route this port (e.g. cancelled). | Keep it for Run mode only, or wire another port. |
 | port-not-supported | The port is enabled on a node type that does not support it. | disable_port, or change the node type. |
 | port-role-unroutable | A role binding gives no signal for this port (e.g. unchanged). | Bind a module instead, or do not use the port. |
 | open-fail-port | A fail port (failed_hosts, unreachable, timeout, rejected) is not wired: its hosts fail the run. | Wire it to a handler (apply_pattern), or leave_open with a reason. |
@@ -337,7 +336,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |
 | tested-without-record | Format 2: a node is tested but has no `tested` record (a run, or a reason). | Mark Tested… with a reason, or run the flow; else set the status it has. |
-| undo-unbound | The undo port is used but the node has no undo binding. | Bind undo, or remove the wire into undo. |
+| legacy-port | A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host. | Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps. |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
