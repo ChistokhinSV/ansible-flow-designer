@@ -7,7 +7,7 @@ import { FILLS, type ThemeKind, TONES } from '../../core/theme';
 // The palette lives in core (AFD-25: the exports use it too).
 export { FILLS, type FillToken, type ThemeKind, TONES, type ToneToken } from '../../core/theme';
 
-export type LensToken = 'inventory' | 'data' | 'code' | 'access' | 'timing';
+export type LensToken = 'inventory' | 'data' | 'code' | 'access' | 'timing' | 'changes';
 
 /** Lens chip colors (04 §9); high contrast drops the tint and keeps a strong text color. */
 export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: string }>> = {
@@ -17,6 +17,7 @@ export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: s
     code: { bg: '#e9f7f1', fg: '#0f5a43' },
     access: { bg: '#fdf2e7', fg: '#8a4b0a' },
     timing: { bg: '#f1f2f4', fg: '#3d444d' },
+    changes: { bg: '#e7f3f8', fg: '#0b4f6c' },
   },
   dark: {
     inventory: { bg: '#1b2c42', fg: '#9cc3f0' },
@@ -24,6 +25,7 @@ export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: s
     code: { bg: '#1c3329', fg: '#8fdcb7' },
     access: { bg: '#3a2a17', fg: '#f2c48a' },
     timing: { bg: '#2b2e33', fg: '#c9ced6' },
+    changes: { bg: '#173240', fg: '#9fd3ea' },
   },
   'hc-dark': {
     inventory: { bg: 'transparent', fg: '#9db4ff' },
@@ -31,6 +33,7 @@ export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: s
     code: { bg: 'transparent', fg: '#57e389' },
     access: { bg: 'transparent', fg: '#ffc457' },
     timing: { bg: 'transparent', fg: '#ffffff' },
+    changes: { bg: 'transparent', fg: '#7fdbff' },
   },
   'hc-light': {
     inventory: { bg: 'transparent', fg: '#0f4a85' },
@@ -38,6 +41,7 @@ export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: s
     code: { bg: 'transparent', fg: '#1b6b44' },
     access: { bg: 'transparent', fg: '#8a4b00' },
     timing: { bg: 'transparent', fg: '#292929' },
+    changes: { bg: 'transparent', fg: '#004b6b' },
   },
 };
 

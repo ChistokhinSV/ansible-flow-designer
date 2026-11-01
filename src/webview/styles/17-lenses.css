@@ -33,6 +33,32 @@
   color: var(--afd-lens-timing-fg);
 }
 
+.afd-lens-chips.lens-changes .afd-lens-chip {
+  background: var(--afd-lens-changes-bg);
+  color: var(--afd-lens-changes-fg);
+}
+
+/* Changes lens (AFD-57): a node the compared version had, drawn where it stood. */
+.afd-ghost {
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px dashed var(--afd-lens-changes-fg);
+  border-radius: 6px;
+  color: var(--afd-lens-changes-fg);
+  background: transparent;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.afd-ghost .afd-ghost-title {
+  font-weight: 600;
+  text-decoration: line-through;
+}
+
+.afd-ghost .afd-ghost-sub {
+  font-size: var(--afd-fs-11);
+}
+
 /* High contrast has no tint: the chip keeps an outline. */
 [data-theme^="hc"] .afd-lens-chip {
   border-color: currentColor;

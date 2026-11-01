@@ -7,6 +7,7 @@ import type { FlowDocument, FlowNode } from '../flow/types';
 import type { RunView } from '../protocol';
 import { formatSeconds, nodeHosts } from '../run/view';
 import { accessLens } from './access';
+import { changesLens } from './changes';
 import { codeLens } from './code';
 import { incoming, title } from './common';
 import { dataLens } from './data';
@@ -29,7 +30,9 @@ export function lensView(
           ? codeLens(doc, facts.code)
           : lens === 'access'
             ? accessLens(doc, facts.inventory, facts.code)
-            : timingLens(doc, facts.timing);
+            : lens === 'changes'
+              ? changesLens(doc, facts.compare)
+              : timingLens(doc, facts.timing);
   const accepted = new Map(
     acceptedAll(doc)
       .filter((a) => a.area === 'lens')

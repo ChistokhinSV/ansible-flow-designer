@@ -2,9 +2,9 @@
 // chips (two at most, D-19), may label wires, and adds a side panel with findings. Pure data: the
 // host gathers facts (inventory, catalog, run history), the webview computes the view.
 import type { FlowCommand } from '../flow/commands';
-import type { Ulid } from '../flow/types';
+import type { FlowDocument, NodeType, Position, Ulid } from '../flow/types';
 
-export type LensId = 'inventory' | 'data' | 'code' | 'access' | 'timing';
+export type LensId = 'inventory' | 'data' | 'code' | 'access' | 'timing' | 'changes';
 
 export const LENSES: readonly { id: LensId; label: string }[] = [
   { id: 'inventory', label: 'Inventory' },
@@ -12,6 +12,7 @@ export const LENSES: readonly { id: LensId; label: string }[] = [
   { id: 'code', label: 'Code' },
   { id: 'access', label: 'Access' },
   { id: 'timing', label: 'Timing' },
+  { id: 'changes', label: 'Changes' },
 ];
 
 export interface LensChip {
@@ -64,8 +65,19 @@ export interface DataWire {
   title: string;
 }
 
+/** A node of the compared version that is gone (AFD-57): drawn as a ghost on its level. */
+export interface GhostNode {
+  id: Ulid;
+  title: string;
+  type: NodeType;
+  level: string;
+  position?: Position;
+}
+
 export interface LensView {
   lens: LensId;
+  /** Changes lens: removed nodes, drawn where they stood. */
+  ghosts?: GhostNode[];
   chips: Record<Ulid, LensChip[]>;
   /** Wire labels by edge id (Inventory: hosts that took the wire in the last run). */
   wires?: Record<string, string>;
@@ -160,8 +172,25 @@ export interface TimingFacts {
   nodes: Record<Ulid, NodeTiming>;
 }
 
+/** A version to compare with (AFD-57): HEAD, a branch, or a commit that touched the flow. */
+export interface CompareRef {
+  ref: string;
+  label: string;
+}
+
+/** The Changes lens's base: the flow as the chosen version has it. */
+export interface CompareFacts {
+  state: 'loading' | 'ready' | 'error';
+  ref: string;
+  label: string;
+  refs: CompareRef[];
+  base?: FlowDocument;
+  error?: string;
+}
+
 export interface LensFacts {
   inventory?: InventoryState;
   code?: CodeFacts;
   timing?: TimingFacts;
+  compare?: CompareFacts;
 }

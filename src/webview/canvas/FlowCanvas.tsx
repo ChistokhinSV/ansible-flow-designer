@@ -37,6 +37,7 @@ import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import type { NodeType, Position } from '../../core/flow/types';
+import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
@@ -55,9 +56,10 @@ import { useUi } from '../store';
 import { type BoundaryEdgeView, boundaryView, type NodeView } from '../viewModel';
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
+import { GhostNodeView, type GhostRFNode } from './GhostNode';
 
-const nodeTypes = { flow: FlowNodeView, boundary: BoundaryFrame };
-type CanvasNode = FlowRFNode | FrameRFNode;
+const nodeTypes = { flow: FlowNodeView, boundary: BoundaryFrame, ghost: GhostNodeView };
+type CanvasNode = FlowRFNode | FrameRFNode | GhostRFNode;
 
 interface SavedState {
   /** Top-level viewport (M1–M3 state). */
@@ -72,6 +74,27 @@ function nodeName({ node, ports }: NodeView): string {
   const open = ports.filter((p) => p.state === 'open-fail').length;
   const ports_ = open ? `, ${open} open fail port${open === 1 ? '' : 's'}` : '';
   return `${TYPE_LABEL[node.type]} ${node.title}${status}${ports_}`;
+}
+
+/**
+ * Ghosts where the compared version stored them; one without a stored place goes in a column to the
+ * right of the level, so it never covers a node.
+ */
+function ghostNodes(ghosts: GhostNode[], nodes: NodeView[]): GhostRFNode[] {
+  const right = Math.max(0, ...nodes.map((n) => n.position.x + n.width)) + 80;
+  const top = Math.min(...nodes.map((n) => n.position.y), 0);
+  let row = 0;
+  return ghosts.map((g) => ({
+    id: `ghost:${g.id}`,
+    type: 'ghost',
+    position: g.position ?? { x: right, y: top + 90 * row++ },
+    data: { ghost: g },
+    selectable: false,
+    draggable: false,
+    connectable: false,
+    deletable: false,
+    focusable: false,
+  }));
 }
 
 function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
@@ -132,6 +155,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const lensWires = useUi((s) => s.lensView?.wires);
   const dataWires = useUi((s) => s.lensView?.dataWires);
   const dataLens = useUi((s) => s.lens === 'data');
+  // Changes lens (AFD-57): nodes the compared version had on this level, drawn as ghosts.
+  const allGhosts = useUi((s) => (s.lens === 'changes' ? s.lensView?.ghosts : undefined));
+  const ghosts = useMemo(
+    () => (allGhosts ?? []).filter((g) => g.level === level),
+    [allGhosts, level],
+  );
 
   const view = useLevelView();
   // AFD-42: the minimap shows while part of the level is out of view.
@@ -199,8 +228,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       return entry.node;
     });
     cache.current = next;
-    return frame ? [frame, ...nodes] : nodes;
-  }, [view.nodes, selection.node, selection.nodes, frame]);
+    const all: CanvasNode[] = frame ? [frame, ...nodes] : nodes;
+    return ghosts.length > 0 ? [...all, ...ghostNodes(ghosts, view.nodes)] : all;
+  }, [view.nodes, selection.node, selection.nodes, frame, ghosts]);
 
   const [nodes, setNodes] = useState<CanvasNode[]>(derived);
   useEffect(() => setNodes(derived), [derived]);

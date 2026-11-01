@@ -13,6 +13,8 @@ interface GitRepository {
   rootUri: vscode.Uri;
   state: {
     HEAD?: { name?: string; commit?: string };
+    /** Ref type 0 is a local branch (vscode.git RefType.Head). */
+    refs?: { type: number; name?: string; commit?: string }[];
     workingTreeChanges: GitChange[];
     indexChanges: GitChange[];
     untrackedChanges?: GitChange[];
@@ -22,6 +24,12 @@ interface GitRepository {
   getGlobalConfig(key: string): Promise<string>;
   getCommit(ref: string): Promise<{ hash: string; commitDate?: Date; authorDate?: Date }>;
   status(): Promise<void>;
+  log(options?: { maxEntries?: number; path?: string }): Promise<GitCommit[]>;
+}
+interface GitCommit {
+  hash: string;
+  message: string;
+  authorDate?: Date;
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
@@ -52,6 +60,44 @@ export async function headText(uri: vscode.Uri): Promise<string | undefined> {
   if (!repo) return undefined;
   try {
     return await repo.show('HEAD', uri.fsPath);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Versions of a flow to compare with (AFD-57): HEAD, the other local branches, and the last commits
+ * that touched the file. Empty outside a repository.
+ */
+export async function fileVersions(
+  uri: vscode.Uri,
+  commits = 15,
+): Promise<{ ref: string; label: string }[]> {
+  const repo = (await gitApi())?.getRepository(uri);
+  if (!repo) return [];
+  const head = repo.state.HEAD;
+  const out = [{ ref: 'HEAD', label: `HEAD${head?.name ? ` (${head.name})` : ''}` }];
+  for (const r of repo.state.refs ?? [])
+    if (r.type === 0 && r.name && r.name !== head?.name)
+      out.push({ ref: r.name, label: `branch ${r.name}` });
+  try {
+    for (const c of await repo.log({ maxEntries: commits, path: uri.fsPath })) {
+      const subject = c.message.split('\n')[0]?.trim() ?? '';
+      const date = c.authorDate ? ` · ${c.authorDate.toISOString().slice(0, 10)}` : '';
+      out.push({ ref: c.hash, label: `${c.hash.slice(0, 7)} ${subject}${date}` });
+    }
+  } catch {
+    // A repository without commits yet: HEAD and branches only.
+  }
+  return out;
+}
+
+/** The file's text at a ref (HEAD, a branch, a commit), or undefined when that version has none. */
+export async function textAt(uri: vscode.Uri, ref: string): Promise<string | undefined> {
+  const repo = (await gitApi())?.getRepository(uri);
+  if (!repo) return undefined;
+  try {
+    return await repo.show(ref, uri.fsPath);
   } catch {
     return undefined;
   }

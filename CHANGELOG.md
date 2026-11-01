@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.0 — AFD-57
+
+- **Changes lens: compare with HEAD, a branch or a commit**, node by node, for a review. Changed and added nodes get chips (`changed: title, binding`), a subflow says how many changes are inside it, removed nodes come back as ghosts where they stood, and the panel lists every changed, added and removed node, wire and flow field. A selected node's Details shows its field changes, before → after. **Compare with** picks the version from Git.
+
 ## 0.34.1 — AFD-56
 
 - **Complete IDs handles wires written as one flow mapping**, such as `- {from: {node: a, port: ok_hosts}, to: {node: b, port: in}}`.

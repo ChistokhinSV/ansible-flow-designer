@@ -4,7 +4,7 @@ import { LEGACY_PORTS } from './ports';
 import type { FlowDocument, FlowNode, Ulid } from './types';
 import { walkNodes } from './walk';
 
-function canonical(value: unknown): unknown {
+export function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {};

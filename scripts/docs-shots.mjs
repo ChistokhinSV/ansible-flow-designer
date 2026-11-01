@@ -114,6 +114,23 @@ const SHOTS = {
       await ui(page, 'setLens', 'data');
     },
   },
+  'changes-lens': {
+    flow: 'firewall-upgrade',
+    act: async (page) => {
+      const command = (reqId, c) => host(page, { type: 'command', reqId, command: c });
+      await command(901, {
+        kind: 'updateNode',
+        id: await idOf(page, 'approve'),
+        patch: { title: 'CAB approval', intent: 'The change advisory board approves the window.' },
+      });
+      await command(902, { kind: 'deleteNodes', ids: [await idOf(page, 'notify')] });
+      await settle(page);
+      await host(page, { type: 'lens', lens: 'changes' });
+      await ui(page, 'setLens', 'changes');
+      await ui(page, 'openDetails', await idOf(page, 'approve'));
+      await settle(page, 600);
+    },
+  },
   'inventory-lens': {
     flow: 'lens-e2e',
     act: async (page) => {

@@ -43,6 +43,27 @@ async function showLens(
 describe('M8 acceptance: lenses and semantic zoom', () => {
   afterEach(closeAll);
 
+  it('AFD-57: Changes compares with HEAD from Git: an unsaved title edit is chipped as changed', async () => {
+    const doc = await openDesigner(LENS);
+    const api = await testApi();
+    const precheck = await idOf('precheck');
+    api.setLens(LENS, 'changes');
+    const until = Date.now() + 15_000;
+    while (api.lensFacts(LENS).compare?.state !== 'ready') {
+      assert.ok(Date.now() < until, JSON.stringify(api.lensFacts(LENS).compare));
+      await pause(200);
+    }
+    const compare = api.lensFacts(LENS).compare;
+    assert.equal(compare?.refs[0]?.ref, 'HEAD');
+    assert.equal(compare?.base?.flow.key, 'lens-e2e');
+    await api.run(LENS, { kind: 'updateNode', id: precheck, patch: { title: 'Pre-checks v2' } });
+    const dom = await showLens('changes', (d) => (d.lens?.chips[precheck]?.length ?? 0) > 0);
+    assert.deepEqual(dom.lens?.chips[precheck], ['changed: title']);
+    await vscode.commands.executeCommand('undo');
+    assert.equal(doc.isDirty, false);
+    await showLens(null);
+  });
+
   it('Data, Code and Timing swap the chips and draw data wires; the flow is not edited', async () => {
     const doc = await openDesigner(LENS);
     const before = doc.getText();

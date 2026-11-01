@@ -136,6 +136,7 @@ The rest of this page is the complete feature reference.
   - **Data** shows inputs and outputs and draws dotted data wires from `from:` references. Findings: unresolved inputs, outputs nothing reads.
   - **Code** shows each binding with its collection version and the execution environment. Findings: not in the environment, removed or deprecated, versions that do not meet `collections/requirements.yml`.
   - **Access** shows credentials, the inventory's connection user, become and vaulted variables (by name and file:line, never the value). Findings: a credential unlike the one its neighbours share, become alone, node credentials outside AWX.
+  - **Changes** (AFD-57) compares the flow with HEAD, another branch or a recent commit: chips on changed and added nodes, ghosts for removed ones, every change listed, and a node's field changes (before → after) in its Details.
   - **Timing** shows serial, timeout and average durations from the last 20 real runs started from VS Code. Findings: the slowest path does not fit `flow.maintenance_window` (set in the flow description), a node runs close to its timeout.
   - _Accept with Reason…_ keeps a finding with a required reason, recorded in the flow with your Git user (`finding_accepted`); _Reopen_ removes it.
 - **Semantic zoom (D-19):** zoomed out, nodes show titles only. At default zoom they show their status and what they run, or a lens's two chips. From 1.4× the box lists summary rows. A selected node shows its Details on the right.

@@ -2,6 +2,7 @@
 // the run history for the Timing lens, and the inventory for the targets, read only when the lens
 // is open and only again when what they depend on changed.
 import * as vscode from 'vscode';
+import { parseFlow } from '../../core/flow/document';
 import { modelOf } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
 import { timingStats } from '../../core/lens/history';
@@ -9,6 +10,7 @@ import { inventoryPatterns } from '../../core/lens/inventory';
 import type { LensFacts, LensId } from '../../core/lens/types';
 import type { HostMessage, RunView, Snapshot } from '../../core/protocol';
 import type { SessionDeps } from '../flowSession';
+import { fileVersions, textAt } from '../gitHead';
 import { readCode, readInventory, rememberedTargets, rememberTargets } from '../lens/lensFacts';
 import { readHistory, recordRun } from '../run/history';
 
@@ -19,6 +21,8 @@ export class LensController {
   /** Targets and patterns of the last inventory read: a new pattern reads again. */
   private inventoryKey?: string;
   private codeKey?: string;
+  /** The version the Changes lens compares with (AFD-57). */
+  private compareRef = 'HEAD';
 
   constructor(
     private readonly uri: vscode.Uri,
@@ -64,6 +68,38 @@ export class LensController {
     await this.gather(doc, true);
   }
 
+  /** The Changes lens's base picker: read the flow as that version has it. */
+  async compareWith(ref: string): Promise<void> {
+    this.compareRef = ref;
+    if (this.open === 'changes') await this.readBase();
+  }
+
+  /** The compared version of the flow, from Git (AFD-57); nothing is cached across picks. */
+  private async readBase(): Promise<void> {
+    const ref = this.compareRef;
+    const refs = await fileVersions(this.uri);
+    const label = refs.find((r) => r.ref === ref)?.label ?? ref;
+    this.facts.compare = { state: 'loading', ref, label, refs };
+    this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
+    const text = refs.length > 0 ? await textAt(this.uri, ref) : undefined;
+    const base = text === undefined ? undefined : parseFlow(text).doc;
+    this.facts.compare = base
+      ? { state: 'ready', ref, label, refs, base }
+      : {
+          state: 'error',
+          ref,
+          label,
+          refs,
+          error:
+            refs.length === 0
+              ? 'The flow is not in a Git repository: nothing to compare with'
+              : text === undefined
+                ? `${label} has no version of this flow`
+                : `${label}: the flow file does not parse`,
+        };
+    this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
+  }
+
   /** A finished real run joins the Timing lens's history. */
   ran(run: RunView, flowId: string | undefined): void {
     const deps = this.deps.lens;
@@ -83,6 +119,10 @@ export class LensController {
     const bindings = JSON.stringify(
       [...modelOf(doc).nodes.values()].map((e) => e.node.impl?.ref ?? ''),
     );
+    if (lens === 'changes') {
+      if (refresh || this.facts.compare?.ref !== this.compareRef) await this.readBase();
+      return;
+    }
     if (lens !== 'data' && lens !== 'timing' && (refresh || this.codeKey !== bindings)) {
       this.codeKey = bindings;
       this.facts.code = await readCode(this.uri, doc, this.deps.catalog);

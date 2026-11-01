@@ -1,7 +1,7 @@
 // The sections of a node's Details (AFD-43): General (identity, lifecycle, what the type adds, the
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 import { registerName } from '../../core/flow/dataNames';
 import { formatOf, purposeOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
@@ -9,8 +9,10 @@ import { keywordProblem } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
 import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
+import { diffFlows } from '../../core/flow/semanticDiff';
 import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
+import { fieldLabel } from '../../core/lens/changes';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import {
   EXECUTION_SETTINGS,
@@ -33,6 +35,46 @@ import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
 
 /** Identity, lifecycle and what the node's type adds; `context` when its level is the open one. */
+const shortValue = (v: unknown): string => {
+  if (v === undefined || v === null) return '(none)';
+  const text = typeof v === 'string' ? v : JSON.stringify(v);
+  return text.length > 140 ? `${text.slice(0, 139)}…` : text;
+};
+
+/** Changes lens (AFD-57): what changed on this node since the compared version, field by field. */
+function NodeChanges({ id }: { id: string }) {
+  const on = useUi((s) => s.lens === 'changes');
+  const compare = useUi((s) => s.lensFacts.compare);
+  const doc = useUi((s) => s.snapshot?.doc);
+  const change = useMemo(
+    () =>
+      on && compare?.state === 'ready' && compare.base && doc
+        ? diffFlows(compare.base, doc).nodes.find((n) => n.id === id)
+        : undefined,
+    [on, compare, doc, id],
+  );
+  if (!change || !compare) return null;
+  return (
+    <section className="afd-section afd-node-changes" data-node-changes={change.kind}>
+      <h3>Since {compare.label}</h3>
+      {change.kind === 'added' ? (
+        <p className="muted">Added</p>
+      ) : (
+        <dl>
+          {change.fields.map((f) => (
+            <div key={f.field}>
+              <dt>{fieldLabel(f)}</dt>
+              <dd className="mono">
+                {shortValue(f.before)} → {shortValue(f.after)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
+  );
+}
+
 export function GeneralSection({
   node,
   context,
@@ -46,6 +88,7 @@ export function GeneralSection({
   const designable = node.type !== 'start' && node.type !== 'end';
   return (
     <div className="afd-details-page">
+      <NodeChanges id={node.id} />
       {context ? (
         <p className="muted" data-level-context={node.id}>
           You are inside this subflow. Select a step to edit it; the subflow itself is described

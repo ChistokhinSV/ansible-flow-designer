@@ -68,6 +68,8 @@ let lensTargets = 'edge_switches';
 let lensOpen: LensId | null = null;
 const params = new URLSearchParams(location.search);
 let text = FLOWS[params.get('flow') ?? 'edge-baseline'] ?? edgeBaseline;
+/** The flow as loaded: the Changes lens's "HEAD" (AFD-57). */
+const committed = text;
 let version = 1;
 const undo: string[] = [];
 const newId = createIdFactory();
@@ -412,6 +414,24 @@ async function onMessage(m: WebviewMessage) {
           timing: timingStats(lensFixture.history as HistoryEntry[]),
         },
       });
+      if (m.lens === 'changes') {
+        const base = parseFlow(committed).doc;
+        toWebview({
+          type: 'lensFacts',
+          facts: {
+            compare: {
+              state: 'ready',
+              ref: 'HEAD',
+              label: 'HEAD (main)',
+              refs: [
+                { ref: 'HEAD', label: 'HEAD (main)' },
+                { ref: '4f2a9c1', label: '4f2a9c1 Add the approval gate · 2026-10-30' },
+              ],
+              base,
+            },
+          },
+        });
+      }
       if (m.lens === 'inventory' || m.lens === 'access') {
         toWebview({
           type: 'lensFacts',

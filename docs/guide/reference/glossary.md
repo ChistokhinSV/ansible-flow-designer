@@ -33,7 +33,7 @@ the Command Palette and these pages are checked against the **Not** column. Back
 | purpose         | what a step is for in failure handling: rollback, notify, retry or exclude (format 1 calls it `handler`; it is not an Ansible handler) | `Failure handler role` |
 | problem         | something the design check found, in the banner and the Problems panel                                                                 |                        |
 | finding         | something a lens found, in the lens's panel                                                                                            |                        |
-| lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code) with chips on the nodes and findings                                |                        |
+| lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code, Changes) with chips on the nodes and findings                       |                        |
 | drift           | a difference between the design and the code it runs, shown in Code mode                                                               |                        |
 | format          | the version of the file's layout (`schema_version`): 2 for new flows; **Upgrade Flow Format** moves a 1 to 2                           |                        |
 

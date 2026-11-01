@@ -347,6 +347,9 @@ export class FlowSession implements vscode.Disposable {
       case 'setTargets':
         await this.lens.askTargets();
         break;
+      case 'compareWith':
+        await this.lens.compareWith(m.ref);
+        break;
       case 'sync':
         void this.sync();
         break;

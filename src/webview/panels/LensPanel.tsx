@@ -42,6 +42,30 @@ function Item({ item }: { item: LensItem }) {
   );
 }
 
+/** The Changes lens's base (AFD-57): HEAD, another branch or a commit that touched the flow. */
+function ComparePick() {
+  const compare = useUi((s) => s.lensFacts.compare);
+  if (!compare) return <p className="muted">Reading the versions of this flow…</p>;
+  return (
+    <div className="afd-lens-source">
+      <label htmlFor="afd-compare-ref">Compare with</label>
+      <select
+        id="afd-compare-ref"
+        value={compare.ref}
+        disabled={compare.refs.length === 0}
+        onChange={(e) => send({ type: 'compareWith', ref: e.target.value })}
+      >
+        {compare.refs.length === 0 ? <option value={compare.ref}>{compare.label}</option> : null}
+        {compare.refs.map((r) => (
+          <option key={r.ref} value={r.ref}>
+            {r.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /** Left panel while a lens is on: what the lens counts, row by row. */
 export function LensBrowser() {
   const view = useUi((s) => s.lensView);
@@ -68,6 +92,12 @@ export function LensBrowser() {
             </button>
           </p>
         </div>
+      ) : null}
+      {lens === 'changes' ? <ComparePick /> : null}
+      {view.notes.length > 0 && lens === 'changes' ? (
+        <p className="muted" data-compare-note>
+          {view.notes.join(' ')}
+        </p>
       ) : null}
       {view.sections.map((s) => (
         <section key={s.title} className="afd-section">

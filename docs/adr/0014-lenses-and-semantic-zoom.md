@@ -102,3 +102,23 @@ Improvement program wave 3. The AFD-33 baseline opened large levels at zoom 0.5â
 
 In a format 2 flow an accepted lens finding is an `accepted` decision with
 `finding: lens:<finding id>` (ADR-0025). Lenses read both formats through `core/flow/decisions.ts`.
+
+## Amendment (AFD-57, 2026-11-01): the Changes lens
+
+A sixth lens compares the flow with another version of it, for review: HEAD by default, another
+local branch, or one of the last 15 commits that touched the file (product-owner decision).
+
+- **Facts:** the host reads the versions and the file's text at the chosen ref through the
+  vscode.git API (`log` with the path, `show`), parses it, and sends it as `facts.compare`; the
+  webview's `compareWith` message picks another ref. The base is read when the lens opens or the
+  ref changes, not on every edit: unsaved edits compare against the same base.
+- **Diff** (`core/flow/semanticDiff.ts`, pure): nodes match by ID, then unmatched ones by key path
+  and type; a node's reviewable fields are its entry without the ID, inner level and `tested`
+  evidence, plus the subflow boundary and the decisions about it, with format 1 `handler` read as
+  `purpose`. Wires compare by their ends in current IDs. The flow's own fields and the format are
+  compared too; the version is not.
+- **View** (`core/lens/changes.ts`): chips (`changed: <fields>`, `added`, `N changes inside` on a
+  subflow), labels on added wires, `ghosts` for removed nodes (their stored position, else a column
+  beside the level), sections Changed, Added, Removed, Wires and Flow. No findings: a change is not
+  a problem to accept.
+- **Details** shows the selected node's field changes, before â†’ after.

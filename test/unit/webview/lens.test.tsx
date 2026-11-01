@@ -98,6 +98,7 @@ describe('Lenses (M8)', () => {
       ['Code', 'false'],
       ['Access', 'false'],
       ['Timing', 'false'],
+      ['Changes', 'false'],
     ]);
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Inventory' }));
     expect(useUi.getState().lens).toBe('inventory');

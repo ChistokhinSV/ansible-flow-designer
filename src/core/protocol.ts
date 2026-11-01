@@ -223,6 +223,8 @@ export type WebviewMessage =
   | { type: 'driftAction'; reqId: number; action: DriftAction }
   /** A lens was picked (M8): the host gathers its facts; `refresh` reads the inventory again. */
   | { type: 'lens'; lens: LensId | null; refresh?: boolean }
+  /** The Changes lens's base picker (AFD-57): HEAD, a branch or a commit. */
+  | { type: 'compareWith'; ref: string }
   /** Asks for the flow targets the Inventory lens counts (remembered with the run inputs). */
   | { type: 'setTargets' }
   /** AFD-17: nodes as text for the system clipboard (Copy buttons, the palette command). */
