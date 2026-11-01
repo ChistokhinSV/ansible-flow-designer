@@ -33,8 +33,10 @@ time: the top of the flow, or the inside of one subflow.
 | parallel, join | branches that run side by side, and where they meet             |
 | start, end     | where hosts enter and where they finish (`success` or `failed`) |
 
-A node's **status** is shown by its dot: draft, specified (has inputs or outputs), implemented
-(bound to code), tested (a passing real run).
+A node's **status** is shown by its stripe and icon: draft, specified (has inputs or outputs),
+implemented (bound to code), tested (a passing real run, or set by hand with a reason: choose
+**tested** in the Lifecycle of its Details, or Status ▸ tested in its menu, and say why; the reason is
+kept in the flow with your Git user name until the node's design changes).
 
 ## Add, wire, move, delete
 

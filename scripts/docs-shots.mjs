@@ -102,6 +102,9 @@ const SHOTS = {
     act: async (page) => {
       await ui(page, 'setLevel', await idOf(page, 'upgrade'));
       await ui(page, 'openDetails', await idOf(page, 'upgrade/wait-up'), 'execution');
+      // The polling settings are in the Timing group (AFD-44).
+      await settle(page);
+      await page.locator('[data-setting-group="Timing"]').scrollIntoViewIfNeeded();
     },
   },
   'data-lens': {

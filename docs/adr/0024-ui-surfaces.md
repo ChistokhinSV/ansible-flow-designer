@@ -56,3 +56,18 @@ that subflow (`context`).
 - Tests render `<Details>` directly and drive the guard through the store and the keyboard handler (`panelFixes.test.tsx`).
 - The Details are narrower than the old page: tabs wrap at the default width, and the docs need **Expand** to sit beside the search.
 - Deviation: the Code and Run panels with nothing selected (drift list, run summary) stay as they were; AFD-45 revisits the modes.
+
+## Amendment: Details content (AFD-44, 2026-11-01)
+
+- **Execution** is grouped as an operator reads a play: Targeting (inventory target, serial, max fail percentage), Privilege (become, AWX credential), Timing (timeout, retries, until, delay), Tags (tags and the task keywords). `SettingField.group`, `SETTING_GROUPS` in `core/view/settings.ts`.
+- **Task keywords** stay in view while they cannot apply: disabled, with why (no binding yet, or a playbook binding).
+- **Parameters from the docs:** **+** on a row of a module's parameter table adds it to Configure, like **More parameters**. The list of added parameters moved from Configure up to the binding editor, so the table and the form share it.
+- **Problems inline:**
+  - `core/view/nodeProblems.ts` maps the node's findings to the tab they are about (by the path segment after the node: `impl` → Binding, `inputs`/`outputs` → Inputs and outputs, `settings` → Execution, a port → Ports, else General) and to a field;
+  - the Details list them at the top, each opening its tab, and mark those tabs;
+  - Title, Key and the Execution fields show their problem under them (`CommitField.problem`, `aria-describedby`).
+- **`tested` by hand** (decision 10):
+  - The Lifecycle stepper and the node menu's Status ▸ tested open a reason dialog. `markTested` sets the status and records `finding_accepted` with `finding: status:tested|<node>`, the reason and the author (the host fills `by`), in one edit.
+  - `updateNode` refuses `status: tested`, as the AI ops already did; a passing run still marks nodes through `setStatuses`.
+  - Setting another status, or the drop-back after a design change (`implementedAgain`), removes the record in the same edit.
+  - AFD-50 replaces the record with the v2 `tested` record and AFD-51 with the unified `accepted` decision.

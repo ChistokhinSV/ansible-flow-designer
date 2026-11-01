@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.1 — AFD-44
+
+- **Details content** (improvement program, wave 3):
+  - **Execution** in groups: Targeting, Privilege, Timing, Tags.
+  - **Task keywords** stay visible while they cannot apply, disabled, saying why (bind a module or role first; a playbook takes none).
+  - **+** on a row of the module docs adds that parameter to the form.
+  - **Problems inline:** a node's problems are listed at the top of its Details, each opening its tab; the fields they are about show them underneath, and tabs with problems are marked.
+  - **Tested by hand takes a reason:** choosing **tested** (Lifecycle, or Status ▸ tested) asks why; the reason is recorded in the flow with your Git user name and goes when the node's design changes. A passing run still marks nodes tested by itself.
+
 ## 0.26.0 — AFD-43
 
 - **One Details panel** (improvement program, wave 3): a selected node's Details are docked on the right in every mode, instead of an inspector plus a page over the canvas.

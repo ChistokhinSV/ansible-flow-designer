@@ -15,6 +15,8 @@ interface CommitProps {
   validate?(value: string): string | undefined;
   /** Takes the focus (text selected) when this field is requested: F2 Rename, Edit reason. */
   focusKey?: FocusRequest['field'];
+  /** A problem the flow check found with the stored value (AFD-44), shown under the field. */
+  problem?: string;
 }
 
 export function CommitField({
@@ -26,6 +28,7 @@ export function CommitField({
   placeholder,
   validate,
   focusKey,
+  problem,
 }: CommitProps) {
   const id = useId();
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
@@ -34,7 +37,7 @@ export function CommitField({
   useEffect(() => setDraft(value), [value]);
   // Escape blurs the field; the blur must not commit what Escape just reverted (AFD-30).
   const reverting = useRef(false);
-  const error = draft !== value ? validate?.(draft) : undefined;
+  const error = draft !== value ? validate?.(draft) : problem;
   const commit = () => {
     if (reverting.current) {
       reverting.current = false;
@@ -69,6 +72,7 @@ export function CommitField({
     onBlur: commit,
     onKeyDown,
     'aria-invalid': !!error,
+    'aria-describedby': error ? `${id}-error` : undefined,
   };
   return (
     <div className="afd-field">
@@ -78,7 +82,11 @@ export function CommitField({
       ) : (
         <input {...common} onChange={(e) => setDraft(e.target.value)} />
       )}
-      {error ? <div className="afd-field-error">{error}</div> : null}
+      {error ? (
+        <div className="afd-field-error" id={`${id}-error`}>
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

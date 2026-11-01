@@ -60,7 +60,9 @@ export function runCanvasAction(
       rename(action.node);
       return;
     case 'setStatus':
-      void run({ kind: 'updateNode', id: action.node, patch: { status: action.status } });
+      // `tested` by hand takes a reason (AFD-44).
+      if (action.status === 'tested') ui.setTestedReason(action.node);
+      else void run({ kind: 'updateNode', id: action.node, patch: { status: action.status } });
       return;
     case 'port':
       void runPortItem(action.item, action.ref);

@@ -9,8 +9,10 @@ import type { FlowModel } from '../../core/flow/model';
 import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
 import type { FlowNode, HandlerKind, NodeStatus } from '../../core/flow/types';
+import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import {
   EXECUTION_SETTINGS,
+  SETTING_GROUPS,
   type SettingKey,
   settingProblem,
   settingText,
@@ -29,7 +31,15 @@ import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
 
 /** Identity, lifecycle and what the node's type adds; `context` when its level is the open one. */
-export function GeneralSection({ node, context }: { node: FlowNode; context?: boolean }) {
+export function GeneralSection({
+  node,
+  context,
+  problems = [],
+}: {
+  node: FlowNode;
+  context?: boolean;
+  problems?: readonly NodeProblem[];
+}) {
   const patch = (p: Record<string, unknown>) => void updatePatch(node.id, p);
   const designable = node.type !== 'start' && node.type !== 'end';
   return (
@@ -44,6 +54,7 @@ export function GeneralSection({ node, context }: { node: FlowNode; context?: bo
         label="Title"
         focusKey="title"
         value={node.title}
+        problem={fieldProblem(problems, 'title')}
         onCommit={(v) => patch({ title: v })}
         validate={(v) => (v.trim() ? undefined : 'Required')}
       />
@@ -51,6 +62,7 @@ export function GeneralSection({ node, context }: { node: FlowNode; context?: bo
         label="Key"
         value={node.key}
         mono
+        problem={fieldProblem(problems, 'key')}
         onCommit={(v) => patch({ key: v })}
         validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
       />
@@ -62,7 +74,15 @@ export function GeneralSection({ node, context }: { node: FlowNode; context?: bo
           onCommit={(v) => patch({ intent: v.trim() ? v : null })}
         />
       ) : null}
-      {designable ? <Lifecycle node={node} onSet={(status) => patch({ status })} /> : null}
+      {designable ? (
+        <Lifecycle
+          node={node}
+          onSet={(status) =>
+            // `tested` by hand takes a reason (AFD-44); a passing run sets it by itself.
+            status === 'tested' ? useUi.getState().setTestedReason(node.id) : patch({ status })
+          }
+        />
+      ) : null}
       <TypeFields node={node} patch={patch} />
       {node.type === 'subflow' && !context ? (
         <section className="afd-section">
@@ -339,38 +359,51 @@ export function PortsSection({ id }: { id: string }) {
   );
 }
 
-export function ExecutionSection({ node }: { node: FlowNode }) {
+export function ExecutionSection({
+  node,
+  problems = [],
+}: {
+  node: FlowNode;
+  problems?: readonly NodeProblem[];
+}) {
   const set = (key: SettingKey, value: unknown) =>
     void updatePatch(node.id, { settings: { [key]: value } });
   const settings = node.settings ?? {};
+  // AFD-44: grouped as an operator reads a play: where it runs, as whom, when, and its tags.
   return (
     <div className="afd-details-page">
-      {EXECUTION_SETTINGS.map((s) => {
-        const value = settings[s.key];
-        if (s.kind === 'bool')
-          return (
-            <label key={s.key} className="afd-check">
-              <input
-                type="checkbox"
-                checked={value === true}
-                onChange={(e) => set(s.key, e.target.checked ? true : null)}
-              />
-              {s.label} <span className="muted">{s.help}</span>
-            </label>
-          );
-        return (
-          <div key={s.key}>
-            <CommitField
-              label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
-              value={settingText(value)}
-              mono
-              validate={(v) => settingProblem(s, v)}
-              onCommit={(v) => set(s.key, settingValue(s, v))}
-            />
-          </div>
-        );
-      })}
-      <TaskKeywords node={node} />
+      {SETTING_GROUPS.map((group) => (
+        <section className="afd-section" key={group} data-setting-group={group}>
+          <h3>{group}</h3>
+          {EXECUTION_SETTINGS.filter((s) => s.group === group).map((s) => {
+            const value = settings[s.key];
+            if (s.kind === 'bool')
+              return (
+                <label key={s.key} className="afd-check">
+                  <input
+                    type="checkbox"
+                    checked={value === true}
+                    onChange={(e) => set(s.key, e.target.checked ? true : null)}
+                  />
+                  {s.label} <span className="muted">{s.help}</span>
+                </label>
+              );
+            return (
+              <div key={s.key}>
+                <CommitField
+                  label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
+                  value={settingText(value)}
+                  mono
+                  problem={fieldProblem(problems, `settings.${s.key}`)}
+                  validate={(v) => settingProblem(s, v)}
+                  onCommit={(v) => set(s.key, settingValue(s, v))}
+                />
+              </div>
+            );
+          })}
+          {group === 'Tags' ? <TaskKeywords node={node} /> : null}
+        </section>
+      ))}
     </div>
   );
 }
@@ -382,12 +415,27 @@ export function ExecutionSection({ node }: { node: FlowNode }) {
 function TaskKeywords({ node }: { node: FlowNode }) {
   const id = useId();
   const impl = node.impl;
-  if (!impl?.ref) return null;
-  if (impl.kind === 'playbook')
+  // AFD-44: shown, disabled, with why, rather than missing.
+  const blocked = !impl?.ref
+    ? 'Bind a module or role first: task keywords go on the task the binding generates.'
+    : impl.kind === 'playbook'
+      ? 'A playbook binding takes no task keywords (import_playbook has none).'
+      : undefined;
+  if (blocked || !impl)
     return (
-      <p className="muted">
-        Task keywords do not apply to a playbook binding (import_playbook takes none).
-      </p>
+      <div className="afd-field" data-keywords-blocked>
+        <label htmlFor={id}>Task keywords</label>
+        <textarea
+          id={id}
+          className="afd-input mono"
+          rows={2}
+          disabled
+          aria-describedby={`${id}-why`}
+        />
+        <p id={`${id}-why`} className="muted">
+          {blocked}
+        </p>
+      </div>
     );
   return (
     <div className="afd-field">

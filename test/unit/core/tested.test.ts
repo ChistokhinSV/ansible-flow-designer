@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { type FlowCommand, planCommand } from '../../../src/core/flow/commands';
+import { type FlowCommand, planCommand, testedFinding } from '../../../src/core/flow/commands';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { planSave } from '../../../src/core/flow/save';
 import { nodeDesigns, testedDropBack } from '../../../src/core/flow/semantic';
@@ -62,10 +62,10 @@ describe('canvas commands', () => {
     const r = run(TESTED, {
       kind: 'updateNode',
       id: id('post-checks'),
-      patch: { intent: 'More', status: 'tested' },
+      patch: { intent: 'More', status: 'specified' },
     });
     expect(r.dropped).toBeUndefined();
-    expect(byKey(r.text, 'post-checks').status).toBe('tested');
+    expect(byKey(r.text, 'post-checks').status).toBe('specified');
   });
 
   it('a change inside a tested subflow drops the inner node and the subflow', () => {
@@ -138,5 +138,37 @@ describe('tested proposals', () => {
       run(OS, { kind: 'updateNode', id: id('post-checks'), patch: { intent: 'Later' } }).text,
     ) as FlowDocument;
     expect(testedCandidates(changed, passed)).toEqual([id('pre-checks')]);
+  });
+});
+
+describe('tested by hand (AFD-44)', () => {
+  const decisions = (text: string) => (parse(text) as FlowDocument).decisions ?? [];
+  const node = () => byKey(OS, 'stage-image').id;
+
+  it('takes a reason: a plain status edit to tested is refused', () => {
+    expect(() =>
+      planCommand(OS, { kind: 'updateNode', id: node(), patch: { status: 'tested' } }, ctx),
+    ).toThrow('Say why it counts as tested');
+  });
+
+  it('marks it tested with the reason and the author, in one edit', () => {
+    const r = run(OS, { kind: 'markTested', id: node(), reason: 'Ran in the lab', by: 'Jane' });
+    expect(byKey(r.text, 'stage-image').status).toBe('tested');
+    expect(decisions(r.text)).toContainEqual({
+      kind: 'finding_accepted',
+      finding: testedFinding(node()),
+      node: node(),
+      reason: 'Ran in the lab',
+      by: 'Jane',
+    });
+  });
+
+  it('another status or a design change drops the record with the status', () => {
+    const marked = run(OS, { kind: 'markTested', id: node(), reason: 'Ran in the lab' }).text;
+    const back = run(marked, { kind: 'updateNode', id: node(), patch: { status: 'implemented' } });
+    expect(decisions(back.text).some((d) => d.kind === 'finding_accepted')).toBe(false);
+    const changed = run(marked, { kind: 'updateNode', id: node(), patch: { title: 'Stage it' } });
+    expect(changed.dropped).toEqual([node()]);
+    expect(decisions(changed.text).some((d) => d.kind === 'finding_accepted')).toBe(false);
   });
 });

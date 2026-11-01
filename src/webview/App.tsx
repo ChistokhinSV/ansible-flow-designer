@@ -23,6 +23,7 @@ import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
 import { RunPanel, WireRunPanel } from './panels/RunPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
+import { TestedDialog } from './panels/TestedDialog';
 import { TopBar } from './panels/TopBar';
 import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
@@ -257,6 +258,7 @@ export function App() {
         <DecisionDialog />
         <IgnoreDialog />
         <AcceptDialog />
+        <TestedDialog />
         <PortMenu />
         <CanvasContextMenu />
         <CheatSheet />

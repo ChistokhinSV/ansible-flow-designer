@@ -54,7 +54,8 @@ its record, so avoid secret flow inputs for AWX launches until surveys keep them
 
 After a passing real run of the current flow version (exit 0, every failure routed, no failed end),
 the run panel offers **Mark N nodes tested**. A tested node whose design changes later goes back to
-`implemented`.
+`implemented`. Without such a run, a node can be marked tested by hand with a reason
+([canvas basics](canvas-basics.md#nodes)).
 
 ## Lenses for AWX
 

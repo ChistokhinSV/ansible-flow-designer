@@ -18,6 +18,7 @@ import { Details } from '../../../src/webview/details/Details';
 import { installKeyboard } from '../../../src/webview/keyboard';
 import { DecisionDialog } from '../../../src/webview/panels/DecisionDialog';
 import { PickBar } from '../../../src/webview/panels/PickBar';
+import { TestedDialog } from '../../../src/webview/panels/TestedDialog';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -225,5 +226,66 @@ describe('run verdict (AFD-30)', () => {
         summary: { ...summary, failures: [{ host: 'a', node: 'n', port: 'failed_hosts' }] },
       } as unknown as RunView),
     ).toEqual({ ok: false, failed: 1 });
+  });
+});
+
+describe('Details content (AFD-44)', () => {
+  it("lists the node's problems, each opening its tab, and shows a field's under it", () => {
+    const path = model.nodes.get(task.id)?.path ?? [];
+    act(() =>
+      useUi.getState().setSnapshot(
+        snapshotOf({
+          docVersion: 3,
+          findings: [
+            {
+              code: 'k',
+              severity: 'error',
+              message: 'Key used twice',
+              path: [...path, 'key'],
+              node: task.id,
+            },
+            {
+              code: 't',
+              severity: 'warning',
+              message: 'Timeout is shorter than the poll',
+              path: [...path, 'settings', 'timeout'],
+              node: task.id,
+            },
+          ],
+        }),
+      ),
+    );
+    act(() => useUi.getState().openDetails(task.id, 'general'));
+    render(<Details id={task.id} />);
+    const list = screen.getByRole('list', { name: 'Problems of this node' });
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .map((b) => b.textContent?.trim()),
+    ).toEqual(['Key used twice', 'Timeout is shorter than the poll']);
+    const key = screen.getByLabelText('Key');
+    expect(key.getAttribute('aria-invalid')).toBe('true');
+    expect(document.getElementById(key.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'Key used twice',
+    );
+    fireEvent.click(within(list).getByText('Timeout is shorter than the poll'));
+    expect(screen.getByRole('tab', { name: /Execution/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+  });
+
+  it('tested by hand asks for a reason and sends markTested', () => {
+    act(() => useUi.getState().openDetails(task.id, 'general'));
+    render(
+      <>
+        <Details id={task.id} />
+        <TestedDialog />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'tested' }));
+    const dialog = screen.getByRole('dialog', { name: 'Accept with Reason' });
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Ran by hand' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark Tested' }));
+    expect(commands()).toEqual([{ kind: 'markTested', id: task.id, reason: 'Ran by hand' }]);
   });
 });

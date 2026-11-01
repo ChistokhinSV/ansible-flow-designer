@@ -53,4 +53,5 @@ from the flow schema. The schema is registered for `*.flow.yaml`.
 - Do not edit `flow.version`, `layout` or files in `generated/`. The designer bumps the version on
   save (once per commit) and regenerates the code.
 - Every fail port needs a wire or a `decisions:` entry with a reason.
-- `status: tested` is set only by a passing run.
+- `status: tested` is set by a passing run, or in the designer with a reason (a `finding_accepted`
+  decision `status:tested|<node id>`).

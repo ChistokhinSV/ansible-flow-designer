@@ -47,8 +47,26 @@ export interface DraftProps {
   setDraft(d: BindingDraft): void;
 }
 
+/** Parameters shown in Configure beyond the required and set ones, added by the user. */
+interface ExtraParams {
+  extra: string[];
+  addParam(name: string): void;
+}
+
 export function Implementation(props: DraftProps) {
   const { draft } = props;
+  // AFD-44: the docs table adds a parameter to Configure as the "More parameters" list does.
+  const [extra, setExtra] = useState<string[]>([]);
+  const addParam = (name: string) => {
+    if (!extra.includes(name)) setExtra([...extra, name]);
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(
+          `[data-param="${name}"] input, [data-param="${name}"] textarea, [data-param="${name}"] select, [data-param="${name}"] [contenteditable]`,
+        )
+        ?.focus(),
+    );
+  };
   const doc = useCatalog(
     draft.kind === 'module' && draft.ref ? { op: 'doc', fqcn: draft.ref } : null,
     `doc:${draft.kind}:${draft.ref}`,
@@ -67,7 +85,14 @@ export function Implementation(props: DraftProps) {
       </section>
       <section className="afd-impl-understand" aria-label="Understand">
         {draft.kind === 'module' ? (
-          <ModuleDoc {...props} doc={doc.data ?? null} loading={doc.loading} error={doc.error} />
+          <ModuleDoc
+            {...props}
+            doc={doc.data ?? null}
+            loading={doc.loading}
+            error={doc.error}
+            extra={extra}
+            addParam={addParam}
+          />
         ) : draft.kind === 'role' ? (
           <RoleDoc {...props} role={role} />
         ) : (
@@ -81,6 +106,8 @@ export function Implementation(props: DraftProps) {
           docLoading={doc.loading}
           role={role}
           playbook={playbook}
+          extra={extra}
+          addParam={addParam}
         />
       </section>
     </div>
@@ -317,7 +344,9 @@ function ModuleDoc({
   doc,
   loading,
   error,
-}: DraftProps & { doc: CatalogDoc | null; loading: boolean; error?: string }) {
+  extra,
+  addParam,
+}: DraftProps & ExtraParams & { doc: CatalogDoc | null; loading: boolean; error?: string }) {
   const [all, setAll] = useState(false);
   if (!draft.ref)
     return (
@@ -334,6 +363,10 @@ function ModuleDoc({
     );
   const options = Object.entries(doc.options ?? {});
   const shown = all ? options : options.slice(0, PARAMS_SHOWN);
+  const inConfigure = new Set([
+    ...formFields(doc.options, draft.params).shown.map((f) => f.name),
+    ...extra,
+  ]);
   const url = docsUrl(doc.fqcn);
   const outputs = stagedNode(node, draft).outputs ?? {};
   const toggleReturn = (name: string, type: ContractField['type']) => {
@@ -380,6 +413,9 @@ function ModuleDoc({
             <th>Parameter</th>
             <th>Type</th>
             <th>Description</th>
+            <th>
+              <span className="afd-sr-only">Add</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -393,6 +429,19 @@ function ModuleDoc({
               <td>
                 {o.description.split('\n')[0]}
                 <OptionFacts option={o} />
+              </td>
+              <td>
+                <button
+                  type="button"
+                  className="icon"
+                  aria-label={`Add ${name} to the parameters`}
+                  title={inConfigure.has(name) ? `${name} is in Configure` : `Add ${name}`}
+                  disabled={inConfigure.has(name)}
+                  data-add-param={name}
+                  onClick={() => addParam(name)}
+                >
+                  <span className="codicon codicon-add" aria-hidden="true" />
+                </button>
               </td>
             </tr>
           ))}
@@ -542,12 +591,15 @@ function Configure({
   docLoading,
   role,
   playbook,
-}: DraftProps & {
-  doc: CatalogDoc | null;
-  docLoading?: boolean;
-  role?: RoleInfo;
-  playbook?: PlaybookInfo;
-}) {
+  extra,
+  addParam,
+}: DraftProps &
+  ExtraParams & {
+    doc: CatalogDoc | null;
+    docLoading?: boolean;
+    role?: RoleInfo;
+    playbook?: PlaybookInfo;
+  }) {
   const staged = stagedNode(node, draft);
   const choices = refChoices(model, staged);
   // Inserting a chip stages an input and changes a value in one gesture: both see the latest.
@@ -574,7 +626,6 @@ function Configure({
         ? role?.entry_points[entry]?.options
         : undefined;
   const { shown, more } = formFields(options, draft.params);
-  const [extra, setExtra] = useState<string[]>([]);
   const visible = [...shown, ...more.filter((f) => extra.includes(f.name))];
   const hidden = more.filter((f) => !extra.includes(f.name));
   const known = new Set(Object.keys(options ?? {}));
@@ -607,7 +658,7 @@ function Configure({
           <select
             id="afd-add-param"
             value=""
-            onChange={(e) => e.target.value && setExtra([...extra, e.target.value])}
+            onChange={(e) => e.target.value && addParam(e.target.value)}
           >
             <option value="">Add a parameter…</option>
             {hidden.map((f) => (

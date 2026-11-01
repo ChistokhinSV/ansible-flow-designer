@@ -11,6 +11,7 @@ export type Overlay =
   | 'decide'
   | 'ignore'
   | 'accept'
+  | 'testedReason'
   | 'cheatSheet'
   | 'preview';
 
@@ -23,6 +24,7 @@ export const CLOSED = {
   decide: null,
   ignore: null,
   accept: null,
+  testedReason: null,
   cheatSheet: false,
   preview: null,
 } as const satisfies Record<Overlay, null | false>;
@@ -36,6 +38,7 @@ export const CLOSES: Record<Overlay | 'level' | 'mode' | 'details', readonly Ove
   decide: ['portMenu'],
   ignore: [],
   accept: [],
+  testedReason: ['contextMenu', 'portMenu'],
   cheatSheet: ['contextMenu'],
   preview: [],
   /** A node's Details opened from a menu, a lens fix or a drift action (AFD-43). */
@@ -66,6 +69,7 @@ export const ESCAPE_ORDER: readonly Overlay[] = [
   'decide',
   'ignore',
   'accept',
+  'testedReason',
   'pick',
 ];
 

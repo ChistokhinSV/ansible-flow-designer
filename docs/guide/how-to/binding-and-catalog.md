@@ -24,16 +24,17 @@ install collections.
 
 ## Understand
 
-The middle column shows what you picked:
-- **a module:** its docs, the parameter table, the returns (click one to make it a node output)
-  and an example;
+The docs show what you picked (beside the search when the panel is expanded, below it otherwise):
+- **a module:** its docs, the parameter table (**+** on a row adds that parameter to Configure),
+  the returns (click one to make it a node output) and an example;
 - **a role:** its entry points and argument spec;
 - **a playbook:** its plays and the hosts they target.
 
 ## Configure
 
-The right column is a form from the argument spec: choices, booleans, one line per list item, YAML
-for dicts. Required and already-set parameters come first.
+A form from the argument spec: choices, booleans, one line per list item, YAML for dicts. Required
+and already-set parameters come first; **More parameters**, or **+** in the docs table, adds the
+others.
 
 - **Values are Jinja.** A value that is only `{{ name }}` shows as a purple **input chip**. Type `@`
   (or use the @ button) to insert one. Choosing a flow input, an upstream output, the subflow's

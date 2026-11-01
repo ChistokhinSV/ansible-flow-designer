@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import type { FlowNode } from '../../core/flow/types';
+import { nodeProblems } from '../../core/view/nodeProblems';
 import { run } from '../actions';
 import { send } from '../bus';
 import { StatusIcon } from '../canvas/StatusIcon';
@@ -88,6 +89,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const tabs = detailsTabs(node, mode);
   const tab = tabs.includes(wanted) ? wanted : (tabs[0] as PropTab);
   const play = snapshot.plays?.[id];
+  // AFD-44: the node's problems at the top, each opening its tab; fields show theirs inline.
+  const problems = nodeProblems(snapshot.findings, id, entry.path);
+  const tabsWithProblems = new Set<string>(problems.map((p) => p.tab));
   const readOnly = !editable || mode === 'run';
 
   const save = async (): Promise<boolean> => {
@@ -180,6 +184,30 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           </button>
         </div>
       ) : null}
+      {problems.length > 0 ? (
+        <ul
+          className="afd-node-problems"
+          aria-label="Problems of this node"
+          data-node-problems={id}
+        >
+          {problems.map((p) => (
+            <li key={`${p.finding.code}|${p.finding.path.join('.')}|${p.finding.port ?? ''}`}>
+              <button
+                type="button"
+                className="link"
+                onClick={() => tabs.includes(p.tab) && setTab(p.tab)}
+              >
+                <span
+                  className={`codicon codicon-${p.finding.severity === 'error' ? 'error' : 'warning'}`}
+                  role="img"
+                  aria-label={p.finding.severity}
+                />{' '}
+                {p.finding.message}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="afd-props-tabs" role="tablist" aria-label="Details">
         {tabs.map((t) => (
           <button
@@ -194,6 +222,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           >
             {LABEL[t]}
             {t === 'binding' && dirty ? <span className="afd-dirty" title="Not saved" /> : null}
+            {tabsWithProblems.has(t) ? (
+              <span className="afd-tab-problem" title="Has problems" />
+            ) : null}
           </button>
         ))}
       </div>
@@ -216,9 +247,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             ) : tab === 'ports' ? (
               <PortsSection id={id} />
             ) : tab === 'execution' ? (
-              <ExecutionSection node={node} />
+              <ExecutionSection node={node} problems={problems} />
             ) : (
-              <GeneralSection node={node} context={context} />
+              <GeneralSection node={node} context={context} problems={problems} />
             )}
           </fieldset>
         )}

@@ -74,3 +74,13 @@ body,
   outline: 1px solid var(--afd-focus);
   outline-offset: 1px;
 }
+
+/* Read by screen readers, not shown: a table column's name, a label the layout already shows. */
+.afd-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

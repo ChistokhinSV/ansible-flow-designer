@@ -124,6 +124,11 @@ export type FlowCommand =
   | { kind: 'clearFindingAccept'; finding: string }
   /** Decision 15 (M7): the nodes a passing run of this flow version tested, in one edit. */
   | { kind: 'setStatuses'; statuses: Record<Ulid, NodeStatus> }
+  /**
+   * AFD-44: `tested` set by hand, with the reason and the author (the host adds `by`), in the
+   * `finding_accepted` record `status:tested|<node>` until AFD-50 gives runs and hands one record.
+   */
+  | { kind: 'markTested'; id: Ulid; reason: string; by?: string }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
   | {
       kind: 'pasteNodes';
@@ -796,6 +801,10 @@ function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'upda
     throw new CommandError('bad-title', 'Title must not be empty');
   }
   setField(tx, path, 'title', patch.title, NODE_ORDER);
+  // `tested` by hand takes a reason (markTested, AFD-44); another status drops that record.
+  if (patch.status === 'tested')
+    throw new CommandError('needs-reason', 'Say why it counts as tested');
+  if (patch.status) dropTestedRecords(tx, [cmd.id]);
   for (const k of [
     'intent',
     'status',
@@ -1296,6 +1305,35 @@ function acceptFinding(
   else tx.apply((f) => setIn(f, ['decisions'], [item], { before: after(ROOT_ORDER, 'decisions') }));
 }
 
+/** The record of a node marked tested by hand (AFD-44). */
+export const testedFinding = (node: Ulid) => `status:tested|${node}`;
+
+function markTested(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'markTested' }>): void {
+  const { node, path } = nodeAt(state(tx), cmd.id);
+  if (node.type === 'start' || node.type === 'end')
+    throw new CommandError('no-status', 'Start and end nodes have no status');
+  setField(tx, path, 'status', 'tested', NODE_ORDER);
+  acceptFinding(tx, {
+    kind: 'acceptFinding',
+    finding: testedFinding(cmd.id),
+    node: cmd.id,
+    reason: cmd.reason,
+    by: cmd.by,
+  });
+}
+
+/** A node no longer tested by hand loses its record (another status set, or the design changed). */
+function dropTestedRecords(tx: YamlTransaction, ids: readonly Ulid[]): void {
+  const findings = new Set(ids.map(testedFinding));
+  const decisions = state(tx).doc.decisions ?? [];
+  const idx = decisions
+    .map((d, i) => (d?.kind === 'finding_accepted' && findings.has(d.finding) ? i : -1))
+    .filter((i) => i >= 0);
+  if (idx.length === 0) return;
+  if (idx.length === decisions.length) tx.apply((f) => deleteKey(f, [], 'decisions'));
+  else tx.applyAll([...idx].reverse().map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
+}
+
 function clearFindingAccept(tx: YamlTransaction, finding: string): void {
   const decisions = state(tx).doc.decisions ?? [];
   const idx = decisions
@@ -1785,6 +1823,7 @@ export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): voi
   tx.applyAll(
     ids.map((id) => (f: YamlFile) => setIn(f, [...nodeAt(st, id).path, 'status'], 'implemented')),
   );
+  dropTestedRecords(tx, ids);
 }
 
 /** Commands that cannot change a node's design (positions, statuses, drift decisions). */
@@ -1797,6 +1836,7 @@ const NO_DESIGN = new Set<FlowCommand['kind']>([
   'clearDriftIgnore',
   'acceptFinding',
   'clearFindingAccept',
+  'markTested',
 ]);
 
 /** `parsed` may carry the caller's existing parse of `text` (saves one parse per command). */
@@ -1878,6 +1918,15 @@ export function planCommand(
     case 'setStatuses':
       for (const [id, status] of Object.entries(cmd.statuses))
         setField(tx, nodeAt(state(tx), id).path, 'status', status, NODE_ORDER);
+      dropTestedRecords(
+        tx,
+        Object.entries(cmd.statuses)
+          .filter(([, s]) => s !== 'tested')
+          .map(([id]) => id),
+      );
+      break;
+    case 'markTested':
+      markTested(tx, cmd);
       break;
     case 'ignoreDrift':
       ignoreDrift(tx, cmd);

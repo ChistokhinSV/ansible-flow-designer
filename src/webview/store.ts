@@ -168,6 +168,8 @@ interface UiState {
   /** Nodes a hovered lens panel item matches; the rest dims (04 §7). */
   highlight: Ulid[] | null;
   accept: AcceptTarget | null;
+  /** A node being marked tested by hand: its reason is being entered (AFD-44). */
+  testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
@@ -208,6 +210,7 @@ interface UiState {
   setLensFacts(facts: LensFacts): void;
   setHighlight(nodes: Ulid[] | null): void;
   setAccept(target: AcceptTarget | null): void;
+  setTestedReason(node: Ulid | null): void;
 }
 
 function runOf(snapshot: Snapshot | null, run: RunView | null): Record<Ulid, NodeRun> | null {
@@ -261,6 +264,7 @@ export const useUi = create<UiState>((set, get) => ({
   lensView: null,
   highlight: null,
   accept: null,
+  testedReason: null,
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
@@ -341,6 +345,7 @@ export const useUi = create<UiState>((set, get) => ({
   },
   setHighlight: (highlight) => set({ highlight }),
   setAccept: (accept) => set({ accept }),
+  setTestedReason: (testedReason) => set({ testedReason, ...closing('testedReason') }),
   setLevel(level) {
     if (level === get().level) return;
     if (get().pendingBinding) return void set({ leave: { kind: 'level', level } });

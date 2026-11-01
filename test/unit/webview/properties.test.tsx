@@ -125,6 +125,13 @@ describe('Details: Binding (AFD-43)', () => {
     );
     // Nothing changed yet: nothing to save, no pending bar.
     expect(screen.queryByText('Save Binding')).toBeNull();
+    // AFD-44: "+" on a docs row adds that parameter to Configure.
+    const add = understand.querySelector<HTMLButtonElement>('[data-add-param]:not([disabled])');
+    const name = add?.dataset.addParam as string;
+    expect(configure.querySelector(`[data-param="${name}"]`)).toBeNull();
+    fireEvent.click(add as HTMLButtonElement);
+    expect(configure.querySelector(`[data-param="${name}"]`)).toBeTruthy();
+    expect(add?.disabled).toBe(true);
   });
 
   it('stages edits and saves them as one setBinding command', async () => {
@@ -216,19 +223,27 @@ describe('Details: Execution (AFD-26)', () => {
     ]);
   });
 
-  it('says a playbook binding takes no keywords, and shows nothing for an unbound node', () => {
+  it('shows task keywords disabled, with why, for a playbook binding or an unbound node (AFD-44)', () => {
     const bound = doc.nodes.find((n) => n.impl?.kind === 'playbook');
     if (bound) {
       openExecution(bound.key);
-      expect(screen.getByText(/do not apply to a playbook binding/)).toBeTruthy();
+      expect(screen.getByText(/takes no task keywords/)).toBeTruthy();
       cleanup();
     }
     const unbound = [...buildModel(doc).nodes.values()].find(
       (n) => n.node.type === 'task' && !n.node.impl,
     )?.node;
-    if (unbound) {
-      openExecution(unbound.key);
-      expect(screen.queryByLabelText(/Task keywords/)).toBeNull();
-    }
+    expect(unbound).toBeTruthy();
+    openExecution(unbound?.key as string);
+    const box = screen.getByLabelText('Task keywords') as HTMLTextAreaElement;
+    expect(box.disabled).toBe(true);
+    expect(box.getAttribute('aria-describedby')).toBeTruthy();
+    expect(screen.getByText(/Bind a module or role first/)).toBeTruthy();
+    // Grouped as an operator reads a play.
+    expect(
+      [...document.querySelectorAll('[data-setting-group]')].map((g) =>
+        g.getAttribute('data-setting-group'),
+      ),
+    ).toEqual(['Targeting', 'Privilege', 'Timing', 'Tags']);
   });
 });

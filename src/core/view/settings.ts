@@ -5,55 +5,85 @@ import type { NodeSettings } from '../flow/types';
 
 export type SettingKey = keyof NodeSettings;
 
+/** The Execution tab's groups, in order (AFD-44). */
+export const SETTING_GROUPS = ['Targeting', 'Privilege', 'Timing', 'Tags'] as const;
+export type SettingGroup = (typeof SETTING_GROUPS)[number];
+
 export interface SettingField {
   key: SettingKey;
   label: string;
   kind: 'text' | 'int' | 'bool' | 'list';
   help: string;
+  group: SettingGroup;
 }
 
 export const EXECUTION_SETTINGS: readonly SettingField[] = [
   {
     key: 'timeout',
+    group: 'Timing',
     label: 'Timeout',
     kind: 'text',
     help: '30s, 15m, 1h30m: the task timeout keyword (timeout port)',
   },
   {
     key: 'retries',
+    group: 'Timing',
     label: 'Retries',
     kind: 'int',
     help: 'Module nodes retry until the result succeeds, or until Until holds',
   },
-  { key: 'until', label: 'Until', kind: 'text', help: 'Poll until this Jinja test holds' },
+  {
+    key: 'until',
+    group: 'Timing',
+    label: 'Until',
+    kind: 'text',
+    help: 'Poll until this Jinja test holds',
+  },
   {
     key: 'delay',
+    group: 'Timing',
     label: 'Delay',
     kind: 'int',
     help: 'Seconds between retries (Ansible default 5)',
   },
   {
     key: 'serial',
+    group: 'Targeting',
     label: 'Serial',
     kind: 'text',
     help: 'Hosts per batch: a number or a percentage',
   },
   {
     key: 'max_fail_percentage',
+    group: 'Targeting',
     label: 'Max fail percentage',
     kind: 'int',
     help: 'Stop the flow when more hosts fail',
   },
-  { key: 'become', label: 'Become', kind: 'bool', help: 'Run with privilege escalation' },
-  { key: 'tags', label: 'Tags', kind: 'list', help: 'Extra play tags, comma separated' },
+  {
+    key: 'become',
+    group: 'Privilege',
+    label: 'Become',
+    kind: 'bool',
+    help: 'Run with privilege escalation',
+  },
+  {
+    key: 'tags',
+    group: 'Tags',
+    label: 'Tags',
+    kind: 'list',
+    help: 'Extra play tags, comma separated',
+  },
   {
     key: 'credential',
+    group: 'Privilege',
     label: 'Credential (AWX)',
     kind: 'text',
     help: 'AWX credential name; local runs use the environment',
   },
   {
     key: 'inventory_target',
+    group: 'Targeting',
     label: 'Inventory target',
     kind: 'text',
     help: 'Run the work on these hosts (an inventory pattern) instead of the arriving ones; steps inside a subflow inherit it',

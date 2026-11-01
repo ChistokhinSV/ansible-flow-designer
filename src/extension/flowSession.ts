@@ -536,7 +536,8 @@ export class FlowSession implements vscode.Disposable {
     const command =
       (input.kind === 'setDecision' ||
         input.kind === 'ignoreDrift' ||
-        input.kind === 'acceptFinding') &&
+        input.kind === 'acceptFinding' ||
+        input.kind === 'markTested') &&
       !input.by
         ? { ...input, by: await authorName(this.uri) }
         : input;

@@ -1,6 +1,7 @@
 # Retries and polling
 
-Two different needs, set on the **Execution** tab of the step's Details:
+Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details
+(the tab groups settings as Targeting, Privilege, Timing and Tags):
 
 | You want                                                          | Set                                                  |
 | ----------------------------------------------------------------- | ---------------------------------------------------- |
