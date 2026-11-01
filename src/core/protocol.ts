@@ -137,6 +137,13 @@ export interface CatalogResults {
   rebuild: CatalogStatus;
 }
 
+export type NoticeLevel = 'info' | 'success' | 'error';
+/** What an action came to, in a sentence: a message in the designer, a notification elsewhere. */
+export interface Notice {
+  level: NoticeLevel;
+  text: string;
+}
+
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'run'; run: RunView | null }
@@ -158,6 +165,8 @@ export type HostMessage =
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number }
   | { type: 'catalogStatus'; status: CatalogStatus }
+  /** What a designer action came to, as a message over its canvas (AFD-46). */
+  | ({ type: 'notify' } & Notice)
   /** Shows a node's Details on a tab (tests and commands, AFD-43). */
   | {
       type: 'openDetails';

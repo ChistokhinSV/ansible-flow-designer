@@ -22,6 +22,16 @@ const api: VsCodeApi = acquireVsCodeApi();
 const listeners = new Set<(m: HostMessage) => void>();
 const pending = new Map<number, (a: Ack) => void>();
 let nextReq = 1;
+const inFlight = new Set<(n: number) => void>();
+const told = () => {
+  for (const l of inFlight) l(pending.size);
+};
+
+/** How many requests wait for their answer, each time it changes (AFD-46: "Saving…"). */
+export function onInFlight(listener: (n: number) => void): () => void {
+  inFlight.add(listener);
+  return () => inFlight.delete(listener);
+}
 
 window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   const m = event.data;
@@ -29,6 +39,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   if (m.type === 'ack') {
     pending.get(m.reqId)?.({ ok: m.ok, error: m.error, created: m.created, pasted: m.pasted });
     pending.delete(m.reqId);
+    told();
   }
   for (const l of listeners) l(m);
 });
@@ -47,6 +58,7 @@ export function hostAction(action: DriftAction): Promise<Ack> {
   const reqId = nextReq++;
   return new Promise((resolve) => {
     pending.set(reqId, resolve);
+    told();
     send({ type: 'driftAction', reqId, action });
   });
 }
@@ -55,6 +67,7 @@ export function command(cmd: FlowCommand): Promise<Ack> {
   const reqId = nextReq++;
   return new Promise((resolve) => {
     pending.set(reqId, resolve);
+    told();
     send({ type: 'command', reqId, command: cmd });
   });
 }

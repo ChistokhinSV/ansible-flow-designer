@@ -18,6 +18,9 @@ time: the top of the flow, or the inside of one subflow.
 - **Palette** (left, Design mode): node types and failure patterns, and a legend of port and wire
   styles. Code and Run modes read the graph, so the palette folds away there.
 - **Canvas** (middle): nodes, ports and wires.
+- **Messages** (bottom of the canvas): what **Generate Code**, **Check Flow**, **Tidy Up**, copy and
+  paste came to. They close by themselves (errors stay longer); × closes one now. **Saving…** shows
+  there while an edit waits for VS Code longer than a moment.
 - **Right panel:** the flow (name, goal, owner, maintenance window, inputs, readiness) when nothing
   is selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs,
   Ports, Execution; Code and Run modes add theirs); or the selection panel for several nodes. Drag
@@ -126,6 +129,9 @@ bottom (`TB`, the default) or left to right (`LR`). It is yours, not the flow's.
 **Open in Text Editor** opens the YAML next to the canvas. Both edit the same document, so save, dirty
 state, undo, Git diff and hot exit are VS Code's own. `flow.version` goes up once per commit when
 the design changes (not for layout moves).
+
+While the text has YAML errors, the designer shows the last valid version **read-only**, with a
+banner naming the error and **Open in Text Editor**. Fix the text and the designer edits again.
 
 See also: [ports and failure patterns](ports-and-failure-patterns.md), [subflows](subflows.md),
 [copy and paste](copy-paste.md).

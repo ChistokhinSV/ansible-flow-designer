@@ -20,10 +20,15 @@ export function Banner() {
   if (!snapshot) return null;
   if (snapshot.stale) {
     return (
-      <div className="afd-banner error" role="alert">
+      <div className="afd-banner error" role="alert" data-read-only-banner>
         <span className="codicon codicon-error" aria-hidden="true" />
-        The text has YAML errors: {snapshot.parseError}. Showing the last valid version; editing is
-        paused.
+        <span>
+          <strong>Read-only:</strong> the text has YAML errors ({snapshot.parseError}). This is the
+          last valid version; fix the text to edit again.
+        </span>
+        <button type="button" onClick={() => send({ type: 'openText' })}>
+          Open in Text Editor
+        </button>
       </div>
     );
   }

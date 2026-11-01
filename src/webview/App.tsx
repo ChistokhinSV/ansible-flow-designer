@@ -1,7 +1,7 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
 import { LENSES } from '../core/lens/types';
-import { loadState, onHostMessage, saveState, send } from './bus';
+import { loadState, onHostMessage, onInFlight, saveState, send } from './bus';
 import { FlowCanvas } from './canvas/FlowCanvas';
 import { copySelection, installClipboard, pasteText } from './clipboard';
 import { Details } from './details/Details';
@@ -25,6 +25,7 @@ import { QuickAdd } from './panels/QuickAdd';
 import { RunPanel, WireRunPanel } from './panels/RunPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
 import { TestedDialog } from './panels/TestedDialog';
+import { Toasts } from './panels/Toasts';
 import { TopBar } from './panels/TopBar';
 import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
@@ -73,6 +74,8 @@ function useHost() {
       } else if (m.type === 'clipboard') {
         if (m.action === 'copy') copySelection();
         else void pasteText(m.text, m.at);
+      } else if (m.type === 'notify') {
+        ui.notify(m.level, m.text);
       } else if (m.type === 'openDetails') {
         ui.reveal(m.node);
         ui.openDetails(m.node, m.tab);
@@ -94,11 +97,13 @@ function useHost() {
     document.addEventListener('securitypolicyviolation', onCsp);
     const offClipboard = installClipboard((nodes) => void deleteSelection(nodes));
     const offKeyboard = installKeyboard();
+    const offInFlight = onInFlight((n) => useUi.setState({ saving: n > 0 }));
     send({ type: 'ready' });
     return () => {
       off();
       offClipboard();
       offKeyboard();
+      offInFlight();
       document.removeEventListener('securitypolicyviolation', onCsp);
     };
   }, []);
@@ -239,20 +244,12 @@ export function App() {
   const wire = useUi((s) => s.selection.edge);
   const many = useUi((s) => s.selection.nodes);
   const level = useUi((s) => s.level);
-  const error = useUi((s) => s.error);
-  const setError = useUi((s) => s.setError);
   const panelWidth = useUi((s) => s.panelWidth);
   const lensTab = useUi((s) => s.lens !== null && s.lensTab);
   const expanded = useUi((s) => s.expanded);
   usePanelState();
   const mode = useUi((s) => s.mode);
   const lens = useUi((s) => s.lens);
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(null), 6000);
-    return () => clearTimeout(t);
-  }, [error, setError]);
-
   const panel = rightPanelFor({
     lens,
     mode,
@@ -281,6 +278,7 @@ export function App() {
           <Banner />
           <PickBar />
           <FlowCanvas />
+          <Toasts />
         </main>
         <aside className="afd-right" aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}>
           <PanelResizer />
@@ -303,11 +301,6 @@ export function App() {
         <CanvasContextMenu />
         <CheatSheet />
         <PreviewCard />
-        {error ? (
-          <div className="afd-toast" role="alert">
-            <span className="codicon codicon-error" aria-hidden="true" /> {error}
-          </div>
-        ) : null}
       </div>
     </ReactFlowProvider>
   );

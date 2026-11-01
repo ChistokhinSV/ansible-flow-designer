@@ -81,6 +81,17 @@ export type Leave =
   | { kind: 'reveal'; node: Ulid }
   | { kind: 'details'; node: Ulid; tab: PropTab; bindKind?: BindKind };
 
+/** A message over the canvas (AFD-46): what happened, as info, success or error. */
+export type ToastLevel = 'info' | 'success' | 'error';
+export interface Toast {
+  id: number;
+  level: ToastLevel;
+  text: string;
+}
+/** How long a toast stays, in ms: errors longer, so they can be read. */
+export const TOAST_MS: Record<ToastLevel, number> = { info: 4000, success: 4000, error: 9000 };
+let toastId = 0;
+
 /** The side panel's width when not expanded, in px (AFD-43). */
 export const PANEL_WIDTH = { min: 260, initial: 340, max: 720 };
 
@@ -135,7 +146,10 @@ interface UiState {
   bannerDismissedAt: number | null;
   /** Positions dragged locally and not yet confirmed by a snapshot. */
   optimistic: Record<Ulid, Position>;
-  error: string | null;
+  /** Messages over the canvas, oldest first (AFD-46). */
+  toasts: Toast[];
+  /** Commands sent and not answered yet: the top bar says "Saving…" (AFD-46). */
+  saving: boolean;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
@@ -184,7 +198,10 @@ interface UiState {
   setDecide(p: PortRef | null): void;
   dismissBanner(count: number | null): void;
   setOptimistic(p: Record<Ulid, Position>): void;
+  /** An error toast (a refused change, a failed action); null does nothing. */
   setError(e: string | null): void;
+  notify(level: ToastLevel, text: string): void;
+  dismissToast(id: number): void;
   setRun(r: RunView | null): void;
   /** Opens a level; selection, menus and picks belong to the level being left. */
   setLevel(level: string): void;
@@ -247,7 +264,8 @@ export const useUi = create<UiState>((set, get) => ({
   decide: null,
   bannerDismissedAt: null,
   optimistic: {},
-  error: null,
+  toasts: [],
+  saving: false,
   run: null,
   runNodes: null,
   level: ROOT,
@@ -332,7 +350,17 @@ export const useUi = create<UiState>((set, get) => ({
   setDecide: (decide) => set({ decide, ...closing('decide') }),
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
-  setError: (error) => set({ error }),
+  setError(error) {
+    if (error) get().notify('error', error);
+  },
+  notify(level, text) {
+    const id = ++toastId;
+    // The same message again replaces the one shown; at most four stay.
+    const others = get().toasts.filter((t) => t.text !== text);
+    set({ toasts: [...others, { id, level, text }].slice(-4) });
+    setTimeout(() => get().dismissToast(id), TOAST_MS[level]);
+  },
+  dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   setRun: (run) =>
     set({
       run,

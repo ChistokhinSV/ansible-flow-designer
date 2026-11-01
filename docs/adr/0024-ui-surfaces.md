@@ -87,3 +87,10 @@ that subflow (`context`).
   - With a lens on, the right panel has two tabs: the mode's panel (the flow, a node's Details, the drift or run panel) and **Lens: X** with the lens's browser and findings (`lensTab`).
   - Turning a lens on opens its tab; selecting a node or a wire shows the panel; the tabs switch back and forth.
   - `rightPanelFor` no longer knows lenses.
+
+## Amendment: feedback (AFD-46, 2026-11-01)
+
+- **Messages** are one stack in the store (`toasts`, `notify(level, text)`, `dismissToast`), drawn by `panels/Toasts.tsx` at the bottom centre of `.afd-center`, so the side panels' widths no longer place them. Levels info, success, error; at most four; the same text again replaces the older one; each closes after `TOAST_MS` (errors 9 s, the others 4 s) or by its ×. Errors are `role="alert"`, the others `role="status"`, inside an `aria-live="polite"` region. `setError` is now `notify('error', …)`.
+- **The host's word:** a `notify` host message (`Notice {level, text}` in `core/protocol.ts`). Generate Code and Check Flow take `{ quiet: true }` from the designer and return their `Notice` instead of showing a notification, so the outcome reads over the canvas that asked; the walkthrough still sees Check Flow run, and from the Command Palette both notify as before. Tidy Up from the designer reports through the same message.
+- **Pending:** `bus.onInFlight` counts requests waiting for their answer; `saving` in the store follows it, and **Saving…** shows at the top of the message stack only after `SAVING_DELAY_MS` (250 ms), so quick edits stay quiet. Not in the top bar: its slot, even empty, took a flex gap and wrapped the bar at 1200 px, and the note coming and going would move the actions.
+- **Read-only file:** while the text has YAML errors the banner says **Read-only** with the error and **Open in Text Editor** (`data-read-only-banner`); the panels were already read-only then (AFD-30).

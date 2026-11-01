@@ -4,18 +4,21 @@ import * as vscode from 'vscode';
 import { slugify } from '../../core/flow/ids';
 import { newFlowText } from '../../core/flow/template';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
-import { writeCode } from '../documents';
+import { codegenNotice, writeCode } from '../documents';
 import type { Host } from '../host';
 import { CMD } from './ids';
 
 export function registerFlowCommands(host: Host): vscode.Disposable[] {
   return [
-    vscode.commands.registerCommand(CMD.generateCode, async (uri?: vscode.Uri) => {
-      const doc = await host.resolveTargetFlow(uri);
-      if (!doc) return;
-      if (doc.isDirty) await doc.save();
-      await writeCode(doc, host.deps, true);
-    }),
+    vscode.commands.registerCommand(
+      CMD.generateCode,
+      async (uri?: vscode.Uri, opts?: { quiet?: boolean }) => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        if (doc.isDirty) await doc.save();
+        return codegenNotice(await writeCode(doc, host.deps, true, opts?.quiet));
+      },
+    ),
     vscode.commands.registerCommand(CMD.newFlow, () => newFlow(host)),
     vscode.commands.registerCommand(CMD.tidyUp, async () => {
       const outcome = await host.activeSession()?.tidyUp();

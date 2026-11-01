@@ -20,6 +20,7 @@ import type {
   CatalogStatus,
   DomSummary,
   HostMessage,
+  Notice,
   RunView,
   Snapshot,
   WebviewMessage,
@@ -43,6 +44,9 @@ import { SyncController } from './session/syncController';
 import type { SyncDeps } from './sync/codeSync';
 import { openCode } from './sync/driftActions';
 import { markTour } from './tour';
+
+/** Commands the designer runs say their outcome over its canvas, not in a notification (AFD-46). */
+const QUIET = { quiet: true };
 
 /** Decision 15: say which tested nodes are implemented again, since their design changed. */
 export function announceImplementedAgain(
@@ -311,6 +315,11 @@ export class FlowSession implements vscode.Disposable {
     void panel.webview.postMessage(message);
   }
 
+  /** A message over the panel's canvas (AFD-46). */
+  private tell(panel: vscode.WebviewPanel, notice: Notice | undefined): void {
+    if (notice) this.post(panel, { type: 'notify', ...notice });
+  }
+
   private broadcast(message: HostMessage): void {
     for (const p of this.panels) this.post(p, message);
   }
@@ -385,8 +394,12 @@ export class FlowSession implements vscode.Disposable {
         break;
       }
       case 'validate':
-        // Through the command, so the walkthrough step that waits for it checks off (AFD-22).
-        await vscode.commands.executeCommand(CMD.checkFlow);
+        // Through the command, so the walkthrough step that waits for it checks off (AFD-22);
+        // quiet, so the outcome reads over the canvas that asked (AFD-46).
+        this.tell(
+          panel,
+          await vscode.commands.executeCommand<Notice | undefined>(CMD.checkFlow, this.uri, QUIET),
+        );
         break;
       case 'openGuide':
         await vscode.commands.executeCommand(CMD.openGuide, m.page);
@@ -404,7 +417,14 @@ export class FlowSession implements vscode.Disposable {
         await vscode.commands.executeCommand(CMD.stopRun, this.uri);
         break;
       case 'generate':
-        await vscode.commands.executeCommand(CMD.generateCode, this.uri);
+        this.tell(
+          panel,
+          await vscode.commands.executeCommand<Notice | undefined>(
+            CMD.generateCode,
+            this.uri,
+            QUIET,
+          ),
+        );
         break;
       case 'showRunOutput': {
         // Only URLs the host itself got from AWX: the run, or one of its approvals (AFD-11).
@@ -421,7 +441,12 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'tidyUp': {
         const outcome = await this.tidyUp(m.level);
-        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Tidy Up failed');
+        this.tell(
+          panel,
+          outcome.ok
+            ? { level: 'success', text: 'Tidied up the level' }
+            : { level: 'error', text: outcome.error ?? 'Tidy Up failed' },
+        );
         break;
       }
       case 'inspectResult':

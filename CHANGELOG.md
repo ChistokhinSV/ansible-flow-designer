@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.27.1 — AFD-46
+
+- **Feedback** (improvement program, wave 3):
+  - **Messages over the canvas:** at its bottom centre, whatever the side panels' widths; info, success and error, stacked, each with ×. They close by themselves, errors after 9 s, the others after 4 s. Screen readers hear errors at once and the rest politely.
+  - **Success says so:** Generate Code ("Generated 3 file(s) in …" or "… is up to date"), Check Flow and Tidy Up report in the designer instead of a VS Code notification; from the Command Palette they still notify.
+  - **Saving…** with the messages while an edit waits for VS Code longer than 250 ms.
+  - **A file with YAML errors** shows a read-only banner naming the error, with **Open in Text Editor**.
+
 ## 0.27.0 — AFD-45
 
 - **The same toolbar in every mode** (improvement program, wave 3): **Run as Skeleton** (with **Run for Real…** and **Launch in AWX** under its arrow), **Stop**, **Generate Code**, **Export** ▾ and "…". What cannot run now is greyed out, and its tooltip says why. **Re-sync from Git** is at the top of Code mode's panel.

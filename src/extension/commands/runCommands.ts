@@ -1,7 +1,7 @@
 // Run commands (AFD-37): skeleton and real runs, the syntax check, the audit log, the module
 // catalog, and AWX (launch, template, token). Errors carry the command that fixes them.
 import * as vscode from 'vscode';
-import type { RunView } from '../../core/protocol';
+import type { Notice, NoticeLevel, RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
 import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun';
 import { isCancelled, showOutcomeError } from '../errors';
@@ -11,6 +11,8 @@ import { type RunOptions, runFlow } from '../run/runner';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 import { CMD } from './ids';
+
+type Quiet = { quiet?: boolean };
 
 export function registerRunCommands(host: Host): vscode.Disposable[] {
   const run = async (mode: RunOptions['mode'], uri?: vscode.Uri) => {
@@ -33,9 +35,14 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           'Several flows are running: open the one to stop, then Stop Run.',
         );
     }),
-    vscode.commands.registerCommand(CMD.checkFlow, async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand(CMD.checkFlow, async (uri?: vscode.Uri, opts?: Quiet) => {
       const doc = await host.resolveTargetFlow(uri);
-      if (!doc) return;
+      if (!doc) return undefined;
+      // `quiet`: the designer says it over its canvas (AFD-46); the outcome is returned either way.
+      const tell = (level: NoticeLevel, text: string, show: (t: string) => unknown): Notice => {
+        if (!opts?.quiet) void show(text);
+        return { level, text };
+      };
       // Check Flow (AFD-41) folds Validate Design and Check Generated Code: the design first, and
       // the generated code in the environment only when the design has no errors.
       await host.sessionFor(doc).refresh();
@@ -43,12 +50,12 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       const errors = problems.filter((d) => d.severity === vscode.DiagnosticSeverity.Error).length;
       if (problems.length > 0)
         await vscode.commands.executeCommand('workbench.actions.view.problems');
-      if (errors > 0) {
-        void vscode.window.showWarningMessage(
+      if (errors > 0)
+        return tell(
+          'error',
           `The design has ${errors} error${errors === 1 ? '' : 's'} (see Problems): the generated code is checked once they are fixed.`,
+          (t) => vscode.window.showWarningMessage(t),
         );
-        return;
-      }
       // A cancellable progress (AFD-39): the check can take minutes in a cold environment.
       const outcome = await vscode.window.withProgress(
         {
@@ -71,9 +78,14 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       const design = problems.length
         ? `The design has no errors (${problems.length} warning${problems.length === 1 ? '' : 's'})`
         : 'The design has no problems';
-      if (outcome.ok) void vscode.window.showInformationMessage(`${design}. ${outcome.message}.`);
-      else if (!isCancelled(outcome.message))
-        void vscode.window.showErrorMessage(`${design}. ${outcome.message}`);
+      if (outcome.ok)
+        return tell('success', `${design}. ${outcome.message}.`, (t) =>
+          vscode.window.showInformationMessage(t),
+        );
+      if (isCancelled(outcome.message)) return undefined;
+      return tell('error', `${design}. ${outcome.message}`, (t) =>
+        vscode.window.showErrorMessage(t),
+      );
     }),
     vscode.commands.registerCommand(CMD.showAudit, async () => {
       try {

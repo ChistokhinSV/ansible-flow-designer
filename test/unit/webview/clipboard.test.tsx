@@ -64,7 +64,7 @@ async function ack(pasted: string[] | null, error?: string) {
 let uninstall: () => void;
 beforeEach(() => {
   posted.length = 0;
-  useUi.setState({ snapshot: null, selection: {}, error: null, mode: 'design', level: 'root' });
+  useUi.setState({ snapshot: null, selection: {}, toasts: [], mode: 'design', level: 'root' });
   act(() => {
     useUi.getState().setSnapshot({
       docVersion: 1,
@@ -145,7 +145,7 @@ describe('paste', () => {
     clipboard('paste', 'hello');
     expect(sent('command')[0]?.command).toMatchObject({ level: id('push-baseline') });
     await ack(null, 'The clipboard does not hold flow nodes');
-    expect(useUi.getState().error).toBe('The clipboard does not hold flow nodes');
+    expect(useUi.getState().toasts.at(-1)?.text).toBe('The clipboard does not hold flow nodes');
   });
 
   it('a flow shown by auto layout: the paste writes what the canvas shows for every node', () => {
@@ -175,7 +175,7 @@ describe('paste', () => {
     act(() => useUi.getState().setMode('run'));
     clipboard('paste', 'key: x\ntype: task\n');
     expect(sent('command')).toEqual([]);
-    expect(useUi.getState().error).toMatch(/read-only/);
+    expect(useUi.getState().toasts.at(-1)?.text).toMatch(/read-only/);
   });
 });
 

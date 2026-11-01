@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
 import { planSave } from '../core/flow/save';
+import type { Notice } from '../core/protocol';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { announceImplementedAgain, type SessionDeps } from './flowSession';
 import { headText } from './gitHead';
@@ -45,13 +46,30 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
  * Writes generated/ for a flow (ADR-0009). On save this is quiet unless something needs the user;
  * from the command, files edited by hand can be overwritten after a confirmation.
  */
+/** What Generate Code came to, in a sentence (AFD-46). */
+export function codegenNotice(outcome: CodegenOutcome): Notice {
+  if (!outcome.ok) return { level: 'error', text: outcome.error ?? 'Code generation failed' };
+  const n = outcome.written.length;
+  const where = outcome.dir ? vscode.workspace.asRelativePath(outcome.dir) : 'generated';
+  const kept = outcome.kept.length
+    ? `; ${outcome.kept.length} edited by hand left as they are`
+    : '';
+  return {
+    level: 'success',
+    text: `${n > 0 ? `Generated ${n} file(s) in ${where}` : `${where} is up to date`}${kept}`,
+  };
+}
+
+/** `quiet`: the caller says how it went (the designer, over its canvas), so no error pop-up. */
 export async function writeCode(
   doc: vscode.TextDocument,
   deps: SessionDeps,
   explicit: boolean,
+  quiet = false,
 ): Promise<CodegenOutcome> {
   let outcome = await generateFlow(doc, deps.schema);
   if (!outcome.ok) {
+    if (explicit && quiet) return outcome;
     if (explicit) void vscode.window.showErrorMessage(outcome.error ?? 'Code generation failed');
     else vscode.window.setStatusBarMessage(`$(warning) ${outcome.error}`, 6000);
     return outcome;
@@ -76,14 +94,8 @@ export async function writeCode(
       outcome = { ...forced, written: [...outcome.written, ...forced.written] };
     }
   }
-  const n = outcome.written.length;
-  if (n > 0 || explicit) {
-    const where = outcome.dir ? vscode.workspace.asRelativePath(outcome.dir) : 'generated';
-    vscode.window.setStatusBarMessage(
-      n > 0 ? `$(check) Generated ${n} file(s) in ${where}` : `$(check) ${where} is up to date`,
-      4000,
-    );
-  }
+  if (outcome.written.length > 0 || explicit)
+    vscode.window.setStatusBarMessage(`$(check) ${codegenNotice(outcome).text}`, 4000);
   return outcome;
 }
 

@@ -62,6 +62,20 @@ describe('M3 acceptance: code generation', () => {
     }
   });
 
+  it('Generate Code from the designer says what it came to, with no pop-up (AFD-46)', async () => {
+    await openDesigner(EDGE);
+    const said = await vscode.commands.executeCommand<{ level: string; text: string }>(
+      'afd.code.generate',
+      EDGE,
+      { quiet: true },
+    );
+    assert.equal(said?.level, 'success');
+    assert.match(
+      said?.text ?? '',
+      /^(Generated \d+ file\(s\) in .*generated|.*generated is up to date)/,
+    );
+  });
+
   it('never overwrites a generated file edited by hand on save', async () => {
     const doc = await openDesigner(EDGE);
     const api = await testApi();

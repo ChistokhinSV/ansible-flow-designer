@@ -28,18 +28,67 @@
   margin-left: auto;
 }
 
-.afd-toast {
+/* Messages stack at the bottom centre of the canvas, whatever the side panels' widths (AFD-46). */
+.afd-toasts {
   position: absolute;
-  right: calc(var(--afd-right-width) + 16px);
+  left: 50%;
   bottom: 16px;
-  max-width: 420px;
-  padding: 8px 12px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+  z-index: 80;
+}
+
+.afd-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 480px;
+  padding: 6px 6px 6px 10px;
   background: var(--vscode-notifications-background, var(--afd-panel));
   color: var(--vscode-notifications-foreground, var(--afd-fg));
   border: 1px solid var(--vscode-notifications-border, var(--afd-border));
-  border-left: 3px solid var(--afd-failed);
+  border-left: 3px solid var(--afd-neutral);
   box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
-  z-index: 80;
+  font-size: var(--afd-fs-12);
+  pointer-events: auto;
+}
+
+.afd-toast > .codicon {
+  margin-top: 2px;
+}
+
+.afd-toast-text {
+  flex: 1;
+  padding-top: 1px;
+  line-height: 1.4;
+}
+
+.afd-toast.level-info {
+  border-left-color: var(--afd-focus);
+}
+
+.afd-toast.level-success {
+  border-left-color: var(--afd-ok);
+}
+
+.afd-toast.level-error {
+  border-left-color: var(--afd-failed);
+}
+
+.afd-banner[data-read-only-banner] button {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.afd-toast.afd-saving {
+  padding-right: 10px;
+  color: var(--afd-muted);
 }
 
 .afd-modal-backdrop {
