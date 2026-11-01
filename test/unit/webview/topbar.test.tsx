@@ -65,7 +65,7 @@ describe('top bar', () => {
     fireEvent.click(screen.getByRole('button', { name: /Run as Skeleton/ }));
     expect(posted).toEqual([{ type: 'run', mode: 'check' }]);
     fireEvent.click(screen.getByRole('button', { name: 'More run options' }));
-    expect(items()).toEqual(['Run for Real…', 'Launch in AWX']);
+    expect(items()).toEqual(['Run for Real…', 'Run Scenarios', 'Launch in AWX']);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run for Real…' }));
     expect(posted.at(-1)).toEqual({ type: 'run', mode: 'real' });
     // Stop is in place but unavailable with no run going.

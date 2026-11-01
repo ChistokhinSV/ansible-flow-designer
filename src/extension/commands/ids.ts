@@ -17,6 +17,8 @@ export const CMD = {
   runSkeleton: 'afd.run.skeleton',
   runReal: 'afd.run.real',
   stopRun: 'afd.run.stop',
+  runScenarios: 'afd.run.scenarios',
+  copyScenarioRunner: 'afd.run.copyScenarioRunner',
   showAudit: 'afd.run.showAudit',
   importPlaybooks: 'afd.import.playbooks',
   importAwx: 'afd.import.awx',

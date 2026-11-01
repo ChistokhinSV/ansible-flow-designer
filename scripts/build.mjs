@@ -67,7 +67,10 @@ const hostOptions = {
     catalogWorker: 'src/node/catalog/catalogWorker.ts',
     elk: 'elkjs/lib/elk.bundled.js',
     mcp: 'src/mcp/main.ts',
+    // Scenario tests for CI (AFD-58): one file, the routing callback inside.
+    'afd-scenarios': 'src/cli/scenarios.ts',
   },
+  loader: { '.py': 'text' },
   plugins: [elkApart, noD3],
   // jsonc-parser's default (UMD) build requires its parts at run time; the ESM build bundles.
   alias: { 'jsonc-parser': './node_modules/jsonc-parser/lib/esm/main.js' },

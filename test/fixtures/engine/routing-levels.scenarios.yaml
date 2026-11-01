@@ -1,0 +1,23 @@
+# Scenario tests for the routing-levels engine fixture (AFD-58): fictional hosts, local connection.
+flow: routing-levels
+scenarios:
+  - name: every host goes through
+    inputs:
+      devices: [h01, h02]
+    expect:
+      h01: done
+      h02: done
+  - name: a failed stage is handled, a failed gate stops the host there
+    inputs:
+      devices: [h01, h02, h03, h04, h05]
+    force:
+      stage/prepare:
+        failed: [h02]
+      gate:
+        failed: [h03]
+    expect:
+      h01: done
+      h02: failed
+      h03: gate.failed_hosts
+      h04: done
+      h05: done

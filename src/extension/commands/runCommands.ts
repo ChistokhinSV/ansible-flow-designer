@@ -8,6 +8,7 @@ import { isCancelled, showOutcomeError } from '../errors';
 import type { Host } from '../host';
 import { auditUri } from '../run/audit';
 import { type RunOptions, runFlow } from '../run/runner';
+import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 import { CMD } from './ids';
@@ -26,6 +27,14 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
   };
   return [
     vscode.commands.registerCommand(CMD.runSkeleton, (uri?: vscode.Uri) => run('check', uri)),
+    // Scenario tests (AFD-58); `only` names scenarios (tests).
+    vscode.commands.registerCommand(
+      CMD.runScenarios,
+      (uri?: vscode.Uri, only?: readonly string[]) => runScenariosCommand(host, uri, only),
+    ),
+    vscode.commands.registerCommand(CMD.copyScenarioRunner, (uri?: vscode.Uri) =>
+      copyScenarioRunner(host, uri),
+    ),
     vscode.commands.registerCommand(CMD.runReal, (uri?: vscode.Uri) => run('real', uri)),
     vscode.commands.registerCommand(CMD.stopRun, async (uri?: vscode.Uri) => {
       const outcome = await stopRun(host.targetUri(uri));

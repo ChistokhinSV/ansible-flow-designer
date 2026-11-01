@@ -39,14 +39,16 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 
 ## Code and runs
 
-| Command                                           | Does                                                                                                                                      |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `afd.code.generate` · Generate Code               | writes `generated/` now                                                                                                                   |
-| `afd.run.skeleton` · Run as Skeleton (Check Mode) | generates the code and runs it in check mode                                                                                              |
-| `afd.run.real` · Run for Real…                    | runs it for real, after a confirmation                                                                                                    |
-| `afd.run.stop` · Stop Run                         | stops the run going: ends the local run, or cancels the job or workflow in AWX (also the **Stop** button in the top bar while a run goes) |
-| `afd.run.showAudit` · Show Run Audit Log          | the local log of every launch (no input values)                                                                                           |
-| `afd.catalog.rebuild` · Rebuild Module Catalog    | reads the environment's collection docs again                                                                                             |
+| Command                                                           | Does                                                                                                                                                                  |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `afd.code.generate` · Generate Code                               | writes `generated/` now                                                                                                                                               |
+| `afd.run.skeleton` · Run as Skeleton (Check Mode)                 | generates the code and runs it in check mode                                                                                                                          |
+| `afd.run.real` · Run for Real…                                    | runs it for real, after a confirmation                                                                                                                                |
+| `afd.run.stop` · Stop Run                                         | stops the run going: ends the local run, or cancels the job or workflow in AWX (also the **Stop** button in the top bar while a run goes)                             |
+| `afd.run.scenarios` · Run Scenarios                               | runs the scenario tests next to the flow (`<key>.scenarios.yaml`): every step as its stub on local hosts, then where each host ended (also **Run ▾ › Run Scenarios**) |
+| `afd.run.copyScenarioRunner` · Copy Scenario Runner to Repository | copies the command-line scenario runner to `.afd/afd-scenarios.js`, for CI                                                                                            |
+| `afd.run.showAudit` · Show Run Audit Log                          | the local log of every launch (no input values)                                                                                                                       |
+| `afd.catalog.rebuild` · Rebuild Module Catalog                    | reads the environment's collection docs again                                                                                                                         |
 
 ## AWX
 

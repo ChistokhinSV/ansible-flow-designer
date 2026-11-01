@@ -388,7 +388,7 @@ class Generator {
         });
         continue;
       }
-      if (node.impl?.kind === 'playbook' && node.impl.ref) {
+      if (node.impl?.kind === 'playbook' && node.impl.ref && !this.opts.stubAll) {
         file.chunks.push({ node: node.id, lines: this.playbookNode(ctx, node, hosts) });
         continue;
       }
@@ -552,7 +552,7 @@ class Generator {
     const enabled = new Set(portsFor(node).map((p) => p.name));
     const path = this.model.nodes.get(node.id)?.path ?? [];
     const impl = node.impl?.ref ? node.impl : undefined;
-    const kind = impl?.kind ?? 'todo';
+    const kind = this.opts.stubAll ? 'todo' : (impl?.kind ?? 'todo');
     const sim = this.opts.simulate && kind === 'todo';
     for (const p of portsFor(node)) if (p.direction === 'out') this.target(ctx, node, p.name);
     const never = ['unreachable', 'unchanged'].filter((p) => enabled.has(p));
@@ -862,7 +862,8 @@ class Generator {
   private taskTasks(ctx: LevelCtx, node: FlowNode): Out[] {
     const enabled = new Set(portsFor(node).map((p) => p.name));
     const impl = node.impl?.ref ? node.impl : undefined;
-    const kind = impl?.kind === 'module' || impl?.kind === 'role' ? impl.kind : 'todo';
+    const kind =
+      !this.opts.stubAll && (impl?.kind === 'module' || impl?.kind === 'role') ? impl.kind : 'todo';
     const sim = this.opts.simulate && kind === 'todo';
     const timeout = durationSeconds(node.settings?.timeout);
     const reg = registerName(node, impl);
@@ -981,7 +982,7 @@ class Generator {
     const yes = this.target(ctx, node, 'true');
     const no = this.target(ctx, node, 'false');
     const condition = node.condition?.trim();
-    if (!condition) {
+    if (!condition || this.opts.stubAll) {
       this.todo = true;
       const choices = this.opts.simulate
         ? [{ test: simIn('false'), group: no, port: 'false' }]
@@ -991,7 +992,9 @@ class Generator {
         {
           name: `[${node.key}] TODO`,
           'ansible.builtin.debug': {
-            msg: `TODO: ${oneLine(node.title)} has no condition yet, so every host takes true`,
+            msg: condition
+              ? `Scenario: ${oneLine(node.title)} takes true unless afd_simulate sends a host to false`
+              : `TODO: ${oneLine(node.title)} has no condition yet, so every host takes true`,
           },
         },
         pick,
@@ -1152,6 +1155,8 @@ class Generator {
       );
     if (this.opts.simulate)
       lines.push('# SIMULATION build: afd_simulate sends chosen hosts down other ports.');
+    if (this.opts.stubAll)
+      lines.push('# SCENARIO build: every step runs as its stub; no binding runs (AFD-58).');
     return lines;
   }
 

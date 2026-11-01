@@ -167,6 +167,16 @@ it handles).
 `flow_reference` with topic `ops` lists every op with its fields; `ports` lists the ports of each
 node type; `patterns` the failure patterns. See [examples.md](examples.md) for whole batches.
 
+## Scenario tests
+
+A flow can have `<flow key>.scenarios.yaml` next to it: per scenario, `inputs` (the targets input
+lists the hosts), `force` (step key or `sub/step` -> `failed`, `unreachable`, `timeout`, `unchanged`,
+or `false` on a decision -> hosts), optional `approvals` and `groups`, and `expect` (host -> end node
+key, or `<step>.<port>` for an unwired output). Every step runs as its stub on local hosts; decisions
+take true unless forced. Write it with your file tools; run it with Ansible Flow: Run Scenarios, or
+`node .afd/afd-scenarios.js --image <EE image> flows` (exit 1 when a scenario fails). When you
+change a flow's wiring, run its scenarios.
+
 ## Without the tools
 
 Edit the YAML directly, by key:

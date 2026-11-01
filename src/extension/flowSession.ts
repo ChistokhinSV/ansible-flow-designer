@@ -350,6 +350,9 @@ export class FlowSession implements vscode.Disposable {
       case 'compareWith':
         await this.lens.compareWith(m.ref);
         break;
+      case 'runScenarios':
+        void vscode.commands.executeCommand(CMD.runScenarios, this.uri);
+        break;
       case 'sync':
         void this.sync();
         break;

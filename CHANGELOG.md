@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.0 — AFD-58
+
+- **Scenario tests**: `<flow key>.scenarios.yaml` next to a flow says, per scenario, the inputs, the outcomes to force on chosen hosts and steps, and where each host must end. **Run ▾ › Run Scenarios** runs them with every step as its stub on local hosts (no binding runs) and says which pass; the Problems panel checks the file against the flow. **Copy Scenario Runner to Repository** puts the CI command line into `.afd/afd-scenarios.js` (`--image`, `--junit`, exit 1 on a failure).
+
 ## 0.35.0 — AFD-57
 
 - **Changes lens: compare with HEAD, a branch or a commit**, node by node, for a review. Changed and added nodes get chips (`changed: title, binding`), a subflow says how many changes are inside it, removed nodes come back as ghosts where they stood, and the panel lists every changed, added and removed node, wire and flow field. A selected node's Details shows its field changes, before → after. **Compare with** picks the version from Git.

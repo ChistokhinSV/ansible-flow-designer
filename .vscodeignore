@@ -3,6 +3,7 @@
 !dist/catalogWorker.js
 !dist/elk.js
 !dist/mcp.js
+!dist/afd-scenarios.js
 !skills/**
 !instructions/**
 !docs/guide/**
@@ -12,6 +13,7 @@
 !dist/webview/**
 !dist/probe/**
 !schema/flow.schema.json
+!schema/scenarios.schema.json
 !package.json
 !README.md
 !CHANGELOG.md

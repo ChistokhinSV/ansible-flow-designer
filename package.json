@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -96,6 +96,17 @@
         "title": "Stop Run",
         "category": "Ansible Flow",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "afd.run.scenarios",
+        "title": "Run Scenarios",
+        "category": "Ansible Flow",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "afd.run.copyScenarioRunner",
+        "title": "Copy Scenario Runner to Repository",
+        "category": "Ansible Flow"
       },
       {
         "command": "afd.flow.check",
@@ -269,6 +280,10 @@
         {
           "command": "afd.run.stop",
           "when": "afd.running"
+        },
+        {
+          "command": "afd.run.scenarios",
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.(flow|scenarios)\\.yaml$/)"
         }
       ],
       "explorer/context": [
@@ -417,6 +432,10 @@
       {
         "fileMatch": "*.flow.yaml",
         "url": "./schema/flow.schema.json"
+      },
+      {
+        "fileMatch": "*.scenarios.yaml",
+        "url": "./schema/scenarios.schema.json"
       }
     ],
     "chatSkills": [

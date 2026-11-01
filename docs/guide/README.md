@@ -50,6 +50,7 @@ playbooks are generated from it.
 
 **Running**
 - [Runs and environments](how-to/runs-and-environments.md)
+- [Scenario tests](how-to/scenario-tests.md)
 - [Approvals](how-to/approvals.md)
 - [AWX](how-to/awx.md)
 - [Import playbooks and AWX templates](how-to/import.md)

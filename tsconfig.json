@@ -4,5 +4,12 @@
     "lib": ["es2023"],
     "types": ["node", "vscode", "mocha"]
   },
-  "include": ["src/core", "src/extension", "test/unit/core", "test/integration"]
+  "include": [
+    "src/core",
+    "src/extension",
+    "src/node",
+    "src/cli",
+    "test/unit/core",
+    "test/integration"
+  ]
 }

@@ -146,8 +146,14 @@ describe('walkthroughs', () => {
       '!samples/**',
       '!media/icon.png',
       '!media/walkthrough/**',
+      // What the extension reads at run time beside its bundle (AFD-58: the CI runner, the schema).
+      '!dist/afd-scenarios.js',
+      '!schema/scenarios.schema.json',
     ])
       expect(ignore).toContain(line);
+    // Every yamlValidation schema ships (Red Hat YAML reads it from the extension folder).
+    for (const v of pkg.contributes.yamlValidation as { url: string }[])
+      expect(ignore).toContain(`!${v.url.replace(/^\.\//, '')}`);
     expect(existsSync(join(ROOT, pkg.icon))).toBe(true);
     // The screenshots are most of the VSIX (about 3 MB of 4.2): keep it under 5 MB.
     const images = join(GUIDE, 'images');

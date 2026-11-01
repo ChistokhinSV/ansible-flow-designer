@@ -364,6 +364,15 @@ function RunActions({ running }: { running: boolean }) {
           },
           {
             type: 'item',
+            label: 'Run Scenarios',
+            icon: 'beaker',
+            title:
+              'Run the scenario tests next to the flow: every step as its stub on local hosts, then where each host ended',
+            disabled: busy,
+            onSelect: () => send({ type: 'runScenarios' }),
+          },
+          {
+            type: 'item',
             label: 'Launch in AWX',
             icon: 'rocket',
             title:

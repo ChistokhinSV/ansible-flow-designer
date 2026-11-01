@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ansible-flow-designer.local/scenarios.schema.json",
+  "title": "Ansible Flow scenario tests",
+  "description": "Scenario tests for the flow next to this file (<key>.scenarios.yaml, AFD-58). Each scenario runs every step as its stub on local-connection hosts, forces the outcomes listed, and checks where each host ends.",
+  "type": "object",
+  "required": [
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "flow": {
+      "type": "string",
+      "description": "The key of the flow these scenarios test (the flow next to this file)."
+    },
+    "scenarios": {
+      "type": "array",
+      "description": "The scenarios, run one after another.",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "expect"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the scenario shows, unique in the file."
+          },
+          "inputs": {
+            "type": "object",
+            "description": "Run inputs. The flow's targets input (a host_list) lists the hosts the scenario runs on."
+          },
+          "groups": {
+            "type": "object",
+            "description": "Inventory groups for patterns the flow uses besides its targets (inventory_target): group -> hosts.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "force": {
+            "type": "object",
+            "description": "Outcomes to force: step key (or subflow/step inside a subflow) -> outcome -> hosts. failed sends hosts down failed_hosts; unreachable, timeout and unchanged need that port enabled; false applies to decisions (they take true otherwise).",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "failed": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts sent down failed_hosts."
+                },
+                "unreachable": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts sent down unreachable."
+                },
+                "timeout": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts sent down timeout."
+                },
+                "unchanged": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts sent down unchanged."
+                },
+                "false": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts sent down false (decisions)."
+                }
+              }
+            }
+          },
+          "approvals": {
+            "type": "object",
+            "description": "Approval key -> outcome for this run (default approved).",
+            "additionalProperties": {
+              "enum": [
+                "approved",
+                "rejected"
+              ]
+            }
+          },
+          "expect": {
+            "type": "object",
+            "description": "Host -> where it must end: an end node key (subflow/end inside a subflow), or <step>.<port> for an output nobody wired.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

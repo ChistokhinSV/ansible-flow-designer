@@ -9,6 +9,11 @@ export interface GenerateOptions {
   /** Adds `afd_simulate` hooks so runs can send chosen hosts down failure paths (engine tests). */
   simulate?: boolean;
   /**
+   * Scenario tests (AFD-58), with `simulate`: every step runs as its stub, so no binding runs, and a
+   * decision takes true unless afd_simulate forces false (the steps feeding its condition are stubs).
+   */
+  stubAll?: boolean;
+  /**
    * The repository root relative to `generated/` (forward slashes), for playbook bindings, whose
    * refs are repository paths. Default `../../..`: flows/<key>/generated (decision 8).
    */
