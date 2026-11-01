@@ -102,8 +102,8 @@ describe('AFD-22 acceptance: user help', () => {
     await until(() => /Subflows/i.test(activeTab()?.label ?? ''), 'subflows preview');
     assert.ok(activeTab()?.input instanceof vscode.TabInputWebview, String(activeTab()?.label));
     await closeAll();
-    // The id before 0.25 still runs the command, with its arguments (AFD-41).
-    await vscode.commands.executeCommand('afd.openGuide', '../../package.json');
+    // A path outside the guide opens the guide's index instead.
+    await vscode.commands.executeCommand('afd.help.openGuide', '../../package.json');
     await until(() => /README/i.test(activeTab()?.label ?? ''), 'index preview');
   });
 

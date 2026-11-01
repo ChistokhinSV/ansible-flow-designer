@@ -84,3 +84,9 @@ Improvement program wave 3. The designer, the Command Palette and the guide used
 - **Check Flow** folds Validate Design and Check Generated Code: it checks the design, shows the Problems panel when there are problems, and checks the generated code in the environment (cancellable) only when the design has no errors. It is in the top bar's "…" menu in every mode.
 - **Command ids** follow `afd.<area>.<verb>` (`src/extension/commands/ids.ts`: `CMD`). The ids before 0.25 are registered as hidden aliases (`ALIASES`, not contributed, so not in the Command Palette) until 0.27; an alias runs the new command with its arguments and returns its result. The extension starts `onStartupFinished`, so aliases need no activation events. The Complete IDs code action kind stays `source.afd.completeIds`.
 - **Keybindings** (`contributes.keybindings`, `when: activeCustomEditorId == afd.flowEditor`), after VS Code's own: Ctrl+F5 Run as Skeleton (Run Without Debugging), Shift+F5 Stop Run (Stop), Ctrl+Shift+B Generate Code (Run Build Task), Shift+Alt+F Tidy Up (Format Document), F7 Check Flow. The `?` sheet lists them under **Flow**.
+
+## Amendment (0.28.0, 2026-11-01): aliases removed
+
+The hidden aliases for the ids before 0.25 (`ALIASES`, `registerAliases`) were removed in 0.28, as
+decided: two minor versions (0.25 to 0.27) of overlap. The commands reference lists the old ids
+with their new ones.

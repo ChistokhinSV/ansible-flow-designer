@@ -5,7 +5,7 @@ import { KEEP_RUNS, sweepRuns } from '../node/run/storage';
 import { hostFlowIO, registerFlowTools } from './ai/lmTools';
 import { AiSetup } from './ai/setup';
 import { registerFlowCommands } from './commands/flowCommands';
-import { CMD, registerAliases } from './commands/ids';
+import { CMD } from './commands/ids';
 import { registerImportCommands } from './commands/importCommands';
 import { registerRunCommands } from './commands/runCommands';
 import { registerDocuments } from './documents';
@@ -58,7 +58,6 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   context.subscriptions.push(
     vscode.commands.registerCommand(CMD.setupAi, () => aiSetup.setup()),
     vscode.commands.registerCommand(CMD.removeAi, () => aiSetup.remove()),
-    ...registerAliases(),
   );
   // AFD-20: the extension also starts after VS Code does (onStartupFinished), so agents found
   // without the setup are offered it even in folders without flows.

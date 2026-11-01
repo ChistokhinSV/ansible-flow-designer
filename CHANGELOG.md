@@ -5,6 +5,7 @@
 - **Flow format 2** (improvement program, wave 4): new flows, imports and the samples are written with `schema_version: 2`. A format 1 flow stays readable and works as before; nothing is changed on open.
 - **Upgrade Flow Format** (the banner over the canvas on a format 1 flow, the Command Palette, or the AI op `upgrade_format`) moves a flow to format 2 in one edit; one undo reverts it, and comments and layout stay. For now it changes only the version: the next wave 4 changes add what format 2 is for, and the banner will list them before anyone upgrades.
 - An edit that needs format 2 will say so and how to upgrade, instead of writing what an older reader rejects.
+- **The command ids from before 0.25 are gone** (`afd.validate`, `afd.generate`, `afd.runSkeleton`, …): they ran as hidden aliases of the `afd.<area>.<verb>` ids through 0.27. Keybindings or links that still use an old id need the new one (the commands reference lists them).
 
 ## 0.27.3 — AFD-48
 

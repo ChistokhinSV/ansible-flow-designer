@@ -80,8 +80,8 @@ The designer's own keys (copy, paste, rename, moving around) are in its **?** sh
 
 ## Ids before 0.25
 
-The ids before 0.25 still run their command until 0.27, for keybindings and links you made, but
-are not in the Command Palette: `afd.newFlow`, `afd.validate` and `afd.syntaxCheck` (both now
+The ids before 0.25 ran their command as hidden aliases through 0.27 and are gone since 0.28. A
+keybinding or a link that still uses one needs the new id from the table above: `afd.newFlow`, `afd.validate` and `afd.syntaxCheck` (both now
 Check Flow), `afd.completeIds`, `afd.openAsText`, `afd.generate`, `afd.tidyUp`, `afd.copyNodes`,
 `afd.pasteNodes`, `afd.runSkeleton`, `afd.runReal`, `afd.stopRun`, `afd.showAudit`,
 `afd.importPlaybooks`, `afd.importAwxWorkflow`, `afd.exportDrawio`, `afd.exportImage`,

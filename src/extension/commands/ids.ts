@@ -1,7 +1,6 @@
 // Command ids (AFD-41): `afd.<area>.<verb>`, titled with the glossary's words
-// (docs/guide/reference/glossary.md). The ids before 0.25 stay registered as hidden aliases until
-// 0.27, so keybindings and links people made keep working; they are not in the Command Palette.
-import * as vscode from 'vscode';
+// (docs/guide/reference/glossary.md). The ids before 0.25 ran as hidden aliases through 0.27 and
+// are gone since 0.28.
 
 export const CMD = {
   newFlow: 'afd.flow.new',
@@ -32,38 +31,3 @@ export const CMD = {
   getStarted: 'afd.help.getStarted',
   openSample: 'afd.help.openSample',
 } as const;
-
-/** Old id → new id. Check Generated Code and Validate Design folded into Check Flow. */
-export const ALIASES: Readonly<Record<string, string>> = {
-  'afd.newFlow': CMD.newFlow,
-  'afd.validate': CMD.checkFlow,
-  'afd.syntaxCheck': CMD.checkFlow,
-  'afd.completeIds': CMD.completeIds,
-  'afd.openAsText': CMD.openInTextEditor,
-  'afd.generate': CMD.generateCode,
-  'afd.tidyUp': CMD.tidyUp,
-  'afd.copyNodes': CMD.copyNodes,
-  'afd.pasteNodes': CMD.pasteNodes,
-  'afd.runSkeleton': CMD.runSkeleton,
-  'afd.runReal': CMD.runReal,
-  'afd.stopRun': CMD.stopRun,
-  'afd.showAudit': CMD.showAudit,
-  'afd.importPlaybooks': CMD.importPlaybooks,
-  'afd.importAwxWorkflow': CMD.importAwx,
-  'afd.exportDrawio': CMD.exportDrawio,
-  'afd.exportImage': CMD.exportImage,
-  'afd.setupAi': CMD.setupAi,
-  'afd.removeAi': CMD.removeAi,
-  'afd.openGuide': CMD.openGuide,
-  'afd.openWalkthrough': CMD.getStarted,
-  'afd.openSample': CMD.openSample,
-};
-
-/** Each old id runs its new command with the same arguments and returns what it returns. */
-export function registerAliases(): vscode.Disposable[] {
-  return Object.entries(ALIASES).map(([old, now]) =>
-    vscode.commands.registerCommand(old, (...args: unknown[]) =>
-      vscode.commands.executeCommand(now, ...args),
-    ),
-  );
-}
