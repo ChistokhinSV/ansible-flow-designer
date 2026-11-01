@@ -649,6 +649,26 @@
           "$ref": "#/$defs/impl",
           "description": "What the node runs: a module, a role or a playbook. Absent: a TODO stub."
         },
+        "origin": {
+          "type": "object",
+          "required": ["task", "design"],
+          "additionalProperties": false,
+          "description": "Where an import took this step from (Re-import from Source matches by it).",
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "The source task: <file>#<task name>#<occurrence>."
+            },
+            "design": {
+              "type": "string",
+              "description": "Fingerprint of the step as imported: a different one means it was changed here."
+            },
+            "gone": {
+              "type": "boolean",
+              "description": "The task is no longer in the source (set by Re-import; the step stays)."
+            }
+          }
+        },
         "ref": {
           "type": "object",
           "required": ["from", "version", "design"],

@@ -5,6 +5,7 @@ import { isCancelled } from '../errors';
 import { type Host, VIEW_TYPE } from '../host';
 import { announceImport } from '../import/common';
 import { importPlaybooks } from '../import/playbookImport';
+import { type ReimportRequest, reimportFromSource } from '../import/reimport';
 import { CMD } from './ids';
 
 export function registerImportCommands(host: Host): vscode.Disposable[] {
@@ -34,5 +35,8 @@ export function registerImportCommands(host: Host): vscode.Disposable[] {
       if (outcome.error) void vscode.window.showWarningMessage(outcome.error);
       void announceImport(outcome);
     }),
+    vscode.commands.registerCommand(CMD.reimport, (uri?: vscode.Uri, request?: ReimportRequest) =>
+      reimportFromSource(host, uri, request),
+    ),
   ];
 }

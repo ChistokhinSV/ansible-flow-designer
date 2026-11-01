@@ -29,6 +29,7 @@ import { bareParams, MAGIC_VARS } from '../flow/validate';
 import { walkNodes } from '../flow/walk';
 import { shortName } from './builtins';
 import { basename, relative } from './read';
+import { stepDesign } from './reimport';
 import type { ImportResult } from './result';
 import { isSecret, SECRET, VAULT } from './secrets';
 import type {
@@ -110,6 +111,8 @@ class PlaybookImporter {
   private targets = 'devices';
   private hosts?: string;
   private readonly unknownReads = new Set<string>();
+  /** Tasks seen per file and name, for their re-import identity (AFD-61). */
+  private readonly occurrences = new Map<string, number>();
 
   constructor(private readonly opts: PlaybookImportOptions) {}
 
@@ -161,6 +164,8 @@ class PlaybookImporter {
       this.notes.push(
         `Read but not set in the playbook (inventory, role defaults or extra vars): ${[...this.unknownReads].sort().join(', ')}. The banner shows them as unknown variables.`,
       );
+    // What each step looks like as imported: a re-import tells the designer's edits by it.
+    for (const n of walkNodes(top.nodes)) if (n.origin) n.origin.design = stepDesign(n);
     const doc = importedFlow(
       this.opts.newId(),
       {
@@ -215,6 +220,15 @@ class PlaybookImporter {
   }
 
   /** A secret value inside params or keywords becomes a read of a flow input of that name. */
+  /** Source task identity for a re-import (AFD-61): its file, its name, its occurrence there. */
+  private origin(path: string, name: string): { task: string; design: string } {
+    const id = `${path}#${name}`;
+    const n = (this.occurrences.get(id) ?? 0) + 1;
+    this.occurrences.set(id, n);
+    // The fingerprint is taken once the import is done (`run`): later passes add data wiring.
+    return { task: `${id}#${n}`, design: '' };
+  }
+
   private scrub(value: unknown, name: string): unknown {
     if (value === VAULT) {
       const input = name.replace(/[^A-Za-z0-9_]/g, '_') || 'secret';
@@ -483,6 +497,7 @@ class PlaybookImporter {
       return;
     }
     const key = this.key(level, `${t.name || shortName(t.module)}${suffix}`, 'step');
+    const origin = this.origin(t.origin.path, t.name || t.module);
     const notifies = t.notify.length > 0;
     const register = t.register ?? (notifies ? `${groupPart(key)}_result` : undefined);
     const params: Record<string, unknown> = { ...t.params };
@@ -531,6 +546,7 @@ class PlaybookImporter {
       impl,
       ...(Object.keys(settings).length ? { settings } : {}),
       ...(t.ignoreUnreachable ? { ports: ['unreachable'] } : {}),
+      origin,
     };
     if (!t.fqcn)
       this.notes.push(

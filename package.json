@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -66,6 +66,11 @@
       {
         "command": "afd.import.playbooks",
         "title": "Import Ansible Playbooks…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.import.reimport",
+        "title": "Re-import from Source",
         "category": "Ansible Flow"
       },
       {
@@ -278,6 +283,10 @@
         },
         {
           "command": "afd.flow.upgradeFormat",
+          "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
+        },
+        {
+          "command": "afd.import.reimport",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
         {

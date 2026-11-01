@@ -47,6 +47,9 @@ nodes:
           path: '{{ out_dir }}/{{ inventory_hostname }}'
           state: directory
           mode: '0755'
+      origin:
+        task: playbooks/prechecks.yml#Create the report folder#1
+        design: 864fb6ef
       inputs:
         out_dir:
           type: string
@@ -65,6 +68,9 @@ nodes:
         register: version_check
         keywords:
           changed_when: false
+      origin:
+        task: playbooks/prechecks.yml#Read the software version#1
+        design: dcba04e8
       outputs:
         version_check:
           type: dict
@@ -82,6 +88,9 @@ nodes:
           that:
           - version_check.stdout is version('17.0', '>=')
           fail_msg: Unsupported version {{ version_check.stdout }}
+      origin:
+        task: playbooks/prechecks.yml#Check the version is supported#1
+        design: 2ee713fb
       inputs:
         version_check:
           type: dict
@@ -101,6 +110,9 @@ nodes:
           mode: '0644'
         keywords:
           when: version_check.stdout is version('17.0', '>=')
+      origin:
+        task: playbooks/prechecks.yml#Record the pre-check#1
+        design: fc9c3c61
       inputs:
         version_check:
           type: dict
@@ -194,6 +206,9 @@ nodes:
                   dest: '{{ out_dir }}/{{ inventory_hostname }}/motd.txt'
                   mode: '0644'
                 register: render_the_motd_result
+              origin:
+                task: playbooks/baseline.yml#Render the MOTD#1
+                design: c9984aac
               inputs:
                 out_dir:
                   type: string
@@ -218,6 +233,9 @@ nodes:
                 register: configure_the_uplinks_result
                 keywords:
                   loop: '{{ uplinks }}'
+              origin:
+                task: playbooks/baseline.yml#Configure the uplinks#1
+                design: 190cc509
               inputs:
                 out_dir:
                   type: string
@@ -244,6 +262,9 @@ nodes:
                   mode: '0644'
                 keywords:
                   no_log: true
+              origin:
+                task: playbooks/baseline.yml#Set the SNMP community#1
+                design: 86d991b0
               inputs:
                 snmp_community:
                   type: string
@@ -264,6 +285,9 @@ nodes:
                   msg: the canary switch refused the baseline
                 keywords:
                   when: inventory_hostname == 'sw-edge-04'
+              origin:
+                task: playbooks/baseline.yml#Refuse the change on the canary switch#1
+                design: 0a10a270
             edges:
             - id: 01JDPBK0000000000000000019
               from:
@@ -313,6 +337,9 @@ nodes:
               content: "rolled back\n"
               dest: '{{ out_dir }}/{{ inventory_hostname }}/rollback.txt'
               mode: '0644'
+          origin:
+            task: playbooks/baseline.yml#Record the rollback#1
+            design: e3909ddb
           inputs:
             out_dir:
               type: string
@@ -330,6 +357,9 @@ nodes:
               content: "attempted\n"
               dest: '{{ out_dir }}/{{ inventory_hostname }}/attempt.txt'
               mode: '0644'
+          origin:
+            task: playbooks/baseline.yml#Record the attempt#1
+            design: 3de95439
           inputs:
             out_dir:
               type: string
@@ -347,6 +377,9 @@ nodes:
               content: "attempted\n"
               dest: '{{ out_dir }}/{{ inventory_hostname }}/attempt.txt'
               mode: '0644'
+          origin:
+            task: playbooks/baseline.yml#Record the attempt#2
+            design: 3de95439
           inputs:
             out_dir:
               type: string
@@ -364,6 +397,9 @@ nodes:
               that:
               - enable_secret | length > 0
               quiet: true
+          origin:
+            task: playbooks/baseline.yml#Check the enable secret was given#1
+            design: 3f1829da
           inputs:
             enable_secret:
               type: string
@@ -388,6 +424,9 @@ nodes:
                 register: ntp_status
                 keywords:
                   changed_when: false
+              origin:
+                task: playbooks/tasks/verify.yml#Read the NTP status#1
+                design: 1cbf39e2
               inputs:
                 ntp_servers:
                   type: any
@@ -409,6 +448,9 @@ nodes:
                   content: "{{ ntp_status.stdout }}\n"
                   dest: '{{ out_dir }}/{{ inventory_hostname }}/ntp.txt'
                   mode: '0644'
+              origin:
+                task: playbooks/tasks/verify.yml#Record the NTP status#1
+                design: d08a6f3a
               inputs:
                 ntp_status:
                   type: dict
@@ -493,6 +535,9 @@ nodes:
               mode: '0644'
             keywords:
               when: (render_the_motd_result | default({})) is changed or (configure_the_uplinks_result | default({})) is changed
+          origin:
+            task: playbooks/baseline.yml#Save config#1
+            design: d9aac021
           inputs:
             out_dir:
               type: string
@@ -613,6 +658,9 @@ nodes:
               content: "baseline done on {{ ansible_facts['hostname'] | default('localhost') }}\n"
               dest: '{{ out_dir | default(''/tmp/afd-import'') }}/summary.txt'
               mode: '0644'
+          origin:
+            task: playbooks/baseline.yml#Write the summary#1
+            design: c85407a7
           inputs:
             out_dir:
               type: string

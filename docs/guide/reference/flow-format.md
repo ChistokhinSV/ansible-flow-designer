@@ -49,6 +49,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `outputs` (contract): Values the node produces for later nodes.
 - `ports` (list of port): Optional ports enabled beyond the type defaults (e.g. unreachable, timeout, always on a task).
 - `impl` (impl): What the node runs: a module, a role or a playbook. Absent: a TODO stub.
+- `origin` (object): Where an import took this step from (Re-import from Source matches by it).
 - `ref` (object): Format 2: this subflow is a copy of a subflow in another flow (a shared subflow). Edit the source flow, then Update; Unlink makes the copy this flow's own.
 - `undo` (impl): What reverses the node: the Rollback pattern binds this node's undo step to it.
 - `condition` (string): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs

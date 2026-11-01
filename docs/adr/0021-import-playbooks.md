@@ -153,3 +153,23 @@ Decisions 4, 5 (AI over AWX) and 8, as designed:
   - on any failure, the clipboard message offers _Set Up AI Assistants_.
 - **Sanitized export** (`src/core/awx/sanitize.ts`): built from the normalized `WorkflowSource` only. Extra vars and node extra data with secret values become `$encrypted$`; password and secret survey defaults are dropped; credentials are kept by name and kind; projects keep their SCM URL without credentials. It is written to `flows/<key>/source/awx-export.json`, and importing it gives the same flow as the source it came from (tested).
 - **Bundle:** `mcp.js` grows to 926 KB. The budget is raised to 960 KB (ADR-0017 amendment) rather than splitting a lazy chunk, which would carry its own copy of `yaml` and the flow model.
+
+## Amendment: re-import merge (AFD-61, 2026-11-01)
+
+Product-owner decision: "Merge, keep designer edits". An as-is playbook import was a one-time copy; a flow imported from a playbook can now take the playbook's later changes.
+- **Identity** (`src/core/import/playbook.ts`): every task step gets `origin: {task, design}`.
+  - `task` is `<repository path of the file>#<task name>#<occurrence>` (the n-th task of that name in that file, in import order), so it survives reordering and edits to the task body.
+  - `design` is an FNV-1a fingerprint of the step's imported fields (`title`, `intent`, `impl`, `settings`, `ports`), taken when the import is done (`stepDesign`, `src/core/import/reimport.ts`).
+  - Schema: `origin` with `task`, `design` and `gone`. Steps the import makes for plays, blocks and split roles have no origin: their structure is not merged.
+- **Merge** (`planReimport(current, fresh)`): the source is imported again with the same key, then matched by `origin.task`:
+  - fresh design = recorded design: the source did not change it (`same`);
+  - otherwise, the step's own fingerprint = recorded design: only the source changed (`updates`); different: both changed (`conflicts`). Fields that are equal anyway count as `same`;
+  - a task only in the fresh import: `adds`, after the step of the previous matched task;
+  - a step whose task is not in the fresh import: `gone` (once; a flagged step is not listed again).
+- **Command** `reimport {updates, adds, gone, keep}` (`src/core/flow/commands.ts`), one transaction:
+  - updates replace the imported fields and record the fresh design;
+  - adds go through `addNode`, inserted on the previous step's `ok_hosts` wire (else connected from it), with settings, ports and origin;
+  - gone sets `origin.gone` (validator warning `import-gone`): never deleted;
+  - keep records the fresh design without touching the fields, so a change not taken is not offered again until the source changes that task again.
+- **VS Code** (`src/extension/import/reimport.ts`, `afd.import.reimport` Re-import from Source): reads `imported_from.path` through the workspace source (open editors win) with the catalog's module resolution, plans, and shows a multi-select preview (conflicts unpicked, the rest picked). Unpicked updates and conflicts become `keep`. Tests pass `{take}` instead of picking.
+- **Limits:** wires, inputs, outputs and decisions are never merged; a new step brings its own data contract, and wiring `from:` to it is left to the designer and the validator. Flows imported before 0.39 have no origins and are refused with a message. AWX and AI-assisted imports are not re-imported.

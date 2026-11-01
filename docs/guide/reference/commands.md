@@ -14,6 +14,7 @@ the [guide](../README.md).
 | `afd.flow.new` · New Flow…                              | creates `flows/<key>/<key>.flow.yaml` with a start and a done node                                                           |
 | `afd.import.playbooks` · Import Ansible Playbooks…      | turns a playbook, or the playbooks of a folder, into new flows, one step per task (also on the Explorer's right-click)       |
 | `afd.import.awx` · Import AWX Workflow or Job Template… | turns an AWX workflow or job template (from AWX or an export file) into a new flow; playbooks in the repository become steps |
+| `afd.import.reimport` · Re-import from Source           | merges the playbook's later changes into a flow imported from it, keeping yours; previewed, then one edit                    |
 
 ## Designing
 

@@ -24,6 +24,7 @@ export const CMD = {
   copyScenarioRunner: 'afd.run.copyScenarioRunner',
   showAudit: 'afd.run.showAudit',
   importPlaybooks: 'afd.import.playbooks',
+  reimport: 'afd.import.reimport',
   importAwx: 'afd.import.awx',
   exportDrawio: 'afd.export.drawio',
   exportImage: 'afd.export.image',

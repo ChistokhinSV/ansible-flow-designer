@@ -3,12 +3,13 @@
 // job template whose playbook is in the repository imports as its steps. With AFD_AWX_URL and
 // AFD_AWX_TOKEN, a job template is also read from the lab AWX API.
 import * as assert from 'node:assert/strict';
-import { cpSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
+import type { ReimportOutcome } from '../../src/extension/import/reimport';
 import { collectInputs } from '../../src/extension/run/inputs';
 import { closeAll, openDesigner, testApi } from './helpers';
 
@@ -17,6 +18,7 @@ const REPO = resolve(__dirname, '../../..');
 const NETOPS = join(REPO, 'test/fixtures/import/netops');
 const url = process.env.AFD_AWX_URL;
 const token = process.env.AFD_AWX_TOKEN;
+const CMD_REIMPORT = 'afd.import.reimport';
 const root = () => vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
 const read = async (uri: vscode.Uri) =>
   parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))) as FlowDocument;
@@ -76,6 +78,68 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
       keys: ['netops-prechecks'],
     });
     assert.match(again.error ?? '', /already exists/);
+  });
+
+  it('Re-import from Source (AFD-61): the source merged in one edit, the designer kept', async () => {
+    const api = await testApi();
+    made.add('netops-reimport');
+    const book = vscode.Uri.joinPath(root(), 'netops', 'playbooks', 'reimport.yml');
+    const write = (text: string) =>
+      vscode.workspace.fs.writeFile(book, new TextEncoder().encode(text));
+    const original = readFileSync(join(NETOPS, 'playbooks', 'prechecks.yml'), 'utf8');
+    await write(original);
+    const r = await api.importPlaybooks({ source: book, keys: ['netops-reimport'] });
+    assert.equal(r.error, undefined);
+    const uri = r.uris[0] as vscode.Uri;
+    const doc = await openDesigner(uri);
+    const step = (key: string) =>
+      (parse(doc.getText()) as FlowDocument).nodes.find((n) => n.key === key || n.title === key);
+    // The designer renames a step; the playbook changes it too, changes another and gains a task.
+    const renamed = await api.run(uri, {
+      kind: 'updateNode',
+      id: step('record-the-pre-check')?.id as string,
+      patch: { title: 'Record the result' },
+    });
+    assert.equal(renamed.ok, true);
+    await write(
+      `${original
+        .replace('fail_msg: "Unsupported version', 'fail_msg: "Not supported: version')
+        .replace('mode: "0644"', 'mode: "0640"')
+        .trimEnd()}\n\n    - name: Report done\n      debug:\n        msg: done\n`,
+    );
+    const out = await vscode.commands.executeCommand<ReimportOutcome>(CMD_REIMPORT, uri, {
+      take: [],
+    });
+    assert.equal(out?.error, undefined);
+    assert.equal(out?.applied?.ok, true, out?.applied?.error);
+    assert.deepEqual(
+      [
+        out?.plan?.updates.map((u) => u.key),
+        out?.plan?.conflicts.map((u) => u.key),
+        out?.plan?.adds.map((a) => a.step.title),
+        out?.plan?.gone.length,
+      ],
+      [['check-the-version-is-supported'], ['record-the-pre-check'], ['Report done'], 0],
+    );
+    assert.match(
+      JSON.stringify(step('check-the-version-is-supported')?.impl),
+      /Not supported: version/,
+    );
+    assert.equal(step('record-the-pre-check')?.title, 'Record the result');
+    assert.equal(step('record-the-pre-check')?.impl?.params?.mode, '0644');
+    assert.equal(step('Report done')?.origin?.task, 'netops/playbooks/reimport.yml#Report done#1');
+    const errors = api
+      .diagnostics(uri)
+      .filter((d) => d.severity === vscode.DiagnosticSeverity.Error);
+    assert.deepEqual(
+      errors.map((d) => d.message),
+      [],
+    );
+    // The conflict not taken was noted: nothing is offered again.
+    const again = await vscode.commands.executeCommand<ReimportOutcome>(CMD_REIMPORT, uri, {
+      take: [],
+    });
+    assert.equal(again?.applied, undefined);
   });
 
   it('a folder: the playbooks picked, one flow each, with keys of their own and the notes', async () => {

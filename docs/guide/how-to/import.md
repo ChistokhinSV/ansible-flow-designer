@@ -1,8 +1,9 @@
 # Import playbooks and AWX templates
 
 Turn automation you already have into flows: playbooks and folders of playbooks (with their roles,
-task files, handlers and variables), AWX job templates and AWX workflows. An import is a one-time
-copy: the playbooks and AWX are only read, and the new flow is yours to change.
+task files, handlers and variables), AWX job templates and AWX workflows. The playbooks and AWX
+are only read, and the new flow is yours to change. A flow imported as is from a playbook can take
+the playbook's later changes: [Re-import from Source](#re-import-from-the-source).
 
 New to it? [Tutorial 5](../tutorials/05-import-playbooks.md) imports a sample repository step by step:
 **Open Sample Flow…** → _Playbooks to import: edge-baseline_ copies it into an empty folder.
@@ -56,6 +57,30 @@ ready to run:
 - play `serial`, `any_errors_fatal` and `max_fail_percentage`: they apply to each step;
 - `strategy` and `order`: left out;
 - a role that generated playbooks cannot find: add its folder to `roles_path` in `ansible.cfg`.
+
+### Re-import from the source
+
+The playbook keeps changing after the import? With the flow open, Command Palette → **Ansible
+Flow: Re-import from Source** reads the playbook again (from `imported_from`) and merges it into
+the flow, keeping what you changed. Each imported step remembers its task (`origin`: the file, the
+task name and which occurrence) and how it looked when imported, so the command can tell your
+changes from the playbook's.
+
+| The task                                 | The step                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| changed in the playbook, not in the flow | takes the playbook's version (title, intent, binding, settings, ports)           |
+| changed in both                          | a conflict: yours stays unless you pick it, then it takes the playbook's version |
+| changed in the flow only, or in neither  | stays as it is                                                                   |
+| new in the playbook                      | a new step after the step of the task before it, on its success wire             |
+| no longer in the playbook                | stays, flagged with the warning `import-gone`: delete it, or keep it             |
+
+A list shows the merge first: the playbook's changes, new steps and gone tasks are picked,
+conflicts are not. **OK** applies the picked ones as one edit (one undo step). A change you leave
+unpicked is noted on the step, so it is not offered again until the playbook changes that task
+again. Wires you drew, inputs, outputs and decisions stay as they are.
+
+Flows imported before 0.39 do not record their tasks: import the playbook again to re-import it
+later. AWX imports and AI-assisted imports are not re-imported.
 
 ## With an AI assistant
 

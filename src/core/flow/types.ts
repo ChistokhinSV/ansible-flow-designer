@@ -143,6 +143,11 @@ export interface FlowNode {
   purpose?: HandlerKind;
   /** Format 2: this subflow is a copy of one in another flow (AFD-60). */
   ref?: SubflowRef;
+  /**
+   * Where an import took this step from (AFD-61): the source task (`<file>#<name>#<n>`), the
+   * fingerprint of the step as imported, and whether the task is gone from the source since.
+   */
+  origin?: { task: string; design: string; gone?: boolean };
   subflow?: SubflowBody;
 }
 

@@ -1,5 +1,7 @@
 // Canvas intent commands → minimal text edits of the flow document (ADR-0001). Commands address
 // nodes and edges by ID; each one becomes a single WorkspaceEdit, i.e. one undo step.
+
+import { IMPORTED_FIELDS, type ReimportAdd, type ReimportUpdate } from '../import/reimport';
 import type { TextEdit } from '../yaml/edits';
 import { deleteKey, insertItem, type OpResult, removeItem, setIn } from '../yaml/ops';
 import type { Path, YamlFile } from '../yaml/parse';
@@ -181,6 +183,19 @@ export type FlowCommand =
   | { kind: 'updateReference'; id: Ulid; version: number; source: FlowNode }
   /** AFD-60: the copy becomes this flow's own subflow, to edit here. */
   | { kind: 'unlinkReference'; id: Ulid }
+  /**
+   * AFD-61: a re-import's merge, as the host planned it from a fresh import of the source: the
+   * steps that take the source's version, the new steps after the step before them, the steps
+   * whose task is gone (flagged), and the steps that keep the designer's version: they note the
+   * source's fingerprint, so the same change is not offered again.
+   */
+  | {
+      kind: 'reimport';
+      updates: ReimportUpdate[];
+      adds: ReimportAdd[];
+      gone: Ulid[];
+      keep?: { node: Ulid; design: string }[];
+    }
   /** AFD-17: nodes from clipboard text become new nodes on a level (`root` or a subflow). */
   | {
       kind: 'pasteNodes';
@@ -1879,6 +1894,70 @@ function updateReference(
   writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source);
 }
 
+// ---- re-import (AFD-61) --------------------------------------------------------------------
+
+function reimport(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'reimport' }>,
+  notes: string[],
+): Ulid | undefined {
+  for (const u of cmd.updates) {
+    const { path } = nodeAt(state(tx), u.node);
+    for (const k of IMPORTED_FIELDS)
+      setField(tx, path, k, (u.fields[k] ?? null) as YamlValue, NODE_ORDER);
+    tx.apply((f) => setIn(f, [...path, 'origin', 'design'], u.design));
+  }
+  for (const k of cmd.keep ?? []) {
+    const { path } = nodeAt(state(tx), k.node);
+    tx.apply((f) => setIn(f, [...path, 'origin', 'design'], k.design));
+  }
+  for (const id of cmd.gone) {
+    const { path } = nodeAt(state(tx), id);
+    tx.apply((f) => setIn(f, [...path, 'origin', 'gone'], true));
+  }
+  let first: Ulid | undefined;
+  for (const a of cmd.adds) {
+    // On the ok_hosts wire of the step before it; without one, at the end of the top level.
+    const st = state(tx);
+    const after = a.after ? st.model.nodes.get(a.after) : undefined;
+    const level = after ? levelOf(st, after.level) : levelOf(st, ROOT);
+    const wire = after
+      ? level.edges.find((e) => e?.from?.node === a.after && e.from.port === 'ok_hosts')
+      : undefined;
+    const id = addNode(
+      tx,
+      ctx,
+      {
+        kind: 'addNode',
+        ...(after && after.level !== ROOT ? { parent: after.level } : {}),
+        type: a.step.type,
+        title: a.step.title,
+        ...(a.step.intent ? { intent: a.step.intent } : {}),
+        ...(a.step.impl ? { impl: a.step.impl } : {}),
+        ...(wire
+          ? { insertOn: wire.id }
+          : after
+            ? { connectFrom: { node: after.node.id, port: 'ok_hosts' } }
+            : {}),
+      },
+      notes,
+    );
+    const { path } = nodeAt(state(tx), id);
+    for (const k of ['settings', 'ports'] as const)
+      if (a.step[k] !== undefined) setField(tx, path, k, a.step[k] as YamlValue, NODE_ORDER);
+    if (a.step.origin)
+      setField(tx, path, 'origin', a.step.origin as unknown as YamlValue, NODE_ORDER);
+    first ??= id;
+  }
+  const kept = cmd.keep?.length ?? 0;
+  if (cmd.updates.length + cmd.adds.length + cmd.gone.length + kept > 0)
+    notes.push(
+      `re-import: ${cmd.updates.length} step(s) took the source's version, ${cmd.adds.length} new, ${cmd.gone.length} flagged as gone, ${kept} kept as designed`,
+    );
+  return first;
+}
+
 // ---- paste nodes (AFD-17) ------------------------------------------------------------------
 
 /**
@@ -2245,6 +2324,9 @@ export function planCommand(
       break;
     case 'updateReference':
       updateReference(tx, ctx, cmd);
+      break;
+    case 'reimport':
+      created = reimport(tx, ctx, cmd, notes);
       break;
     case 'unlinkReference': {
       const { node, path } = nodeAt(state(tx), cmd.id);

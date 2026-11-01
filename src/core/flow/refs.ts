@@ -35,7 +35,7 @@ export function subflowsOf(doc: FlowDocument): { path: string; node: FlowNode }[
   const out: { path: string; node: FlowNode }[] = [];
   const walk = (nodes: FlowNode[] | undefined, prefix: string) => {
     for (const n of nodes ?? []) {
-      if (!n || n.type !== 'subflow' || !n.subflow?.nodes?.length) continue;
+      if (n?.type !== 'subflow' || !n.subflow?.nodes?.length) continue;
       const path = prefix ? `${prefix}/${n.key}` : n.key;
       out.push({ path, node: n });
       walk(n.subflow.nodes, path);

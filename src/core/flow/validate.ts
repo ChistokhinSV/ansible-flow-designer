@@ -284,6 +284,15 @@ function checkNodes(model: FlowModel, add: (f: Finding) => void): void {
         path: [...path, 'settings'],
         node: node.id,
       });
+    // AFD-61: Re-import flags the steps whose source task is gone; it never deletes them.
+    if (node.origin?.gone)
+      add({
+        code: 'import-gone',
+        severity: 'warning',
+        message: `${label(node)}: its task (${node.origin.task}) is no longer in the source: delete the step, or keep it as this flow's own`,
+        path: [...path, 'origin'],
+        node: node.id,
+      });
     // AFD-60: a shared subflow is a copy; edits belong in its source flow.
     if (node.ref && refDesign(node) !== node.ref.design)
       add({

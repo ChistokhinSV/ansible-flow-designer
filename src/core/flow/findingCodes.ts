@@ -130,6 +130,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Format 2: a node is tested but has no `tested` record (a run, or a reason).',
     fix: 'Mark Tested… with a reason, or run the flow; else set the status it has.',
   },
+  'import-gone': {
+    meaning:
+      'Re-import from Source found that the task this step was imported from is no longer in the source; the step stays.',
+    fix: "Delete the step, or keep it: remove its origin to make it this flow's own.",
+  },
   'shared-edited': {
     meaning:
       "A shared subflow (a copy of another flow's subflow, AFD-60) was changed here, so it no longer matches the version it was copied from; or it sits in a format 1 flow.",

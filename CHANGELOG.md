@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.0 — AFD-61
+
+- **Re-import from Source**: a flow imported as is from a playbook takes the playbook's later changes and keeps yours. A step the playbook changed and you did not takes the playbook's version; a step both changed is a conflict that keeps yours unless you pick it; new tasks become steps after the task before them; a step whose task is gone stays, with the warning `import-gone`. A list previews the merge, then it applies as one edit. Imported steps now record their task (`origin`); flows imported earlier need a new import first.
+
 ## 0.38.0 — AFD-60
 
 - **Shared subflows**: **Insert Shared Subflow…** copies a subflow of another flow in the workspace, pinned to that flow's version (format 2). The copy's level is edited in its source; when the source has a newer version, **Update Shared Subflow** brings it (a quick fix, and saving the source is enough for open flows to notice). A copy changed here is flagged; **Unlink Shared Subflow** makes it the flow's own.
