@@ -142,12 +142,19 @@ export const AnnotationNodeView = memo(function AnnotationNodeView({
       ) : null}
       {view.kind === 'section' ? (
         <>
-          <div className="afd-annotation-title">
-            {editing ? (
-              <Editor id={id} text={a.text} done={stop} />
-            ) : (
-              <MarkdownView text={a.text} />
-            )}
+          {/* AFD-68: the whole bar is the handle, and looks it. */}
+          <div
+            className="afd-annotation-title"
+            title={editing ? undefined : 'Drag to move the section and what is inside it'}
+          >
+            <span className="afd-annotation-grip codicon codicon-gripper" aria-hidden="true" />
+            <div className="afd-annotation-title-text">
+              {editing ? (
+                <Editor id={id} text={a.text} done={stop} />
+              ) : (
+                <MarkdownView text={a.text} />
+              )}
+            </div>
           </div>
           <div className="afd-annotation-body" />
         </>

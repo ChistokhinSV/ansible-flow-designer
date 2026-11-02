@@ -85,7 +85,7 @@ const Z = { section: -2, frame: -1, note: 0, node: 1, tied: 2 } as const;
  * A Note, Section or Text as a canvas node. A Note on a node shown here is that node's child: its
  * position is relative, as stored, so it follows the node wherever it goes.
  */
-function toAnnotationNode(
+export function toAnnotationNode(
   v: AnnotationView,
   selected: boolean,
   editable: boolean,
@@ -102,6 +102,10 @@ function toAnnotationNode(
     ...(tied ? { parentId: tied } : {}),
     width: v.width,
     height: v.height,
+    // AFD-68: React Flow's resizer starts from `measured`, which a new node object lacks until it
+    // is measured again (the DOM size does not change, so that can wait); a resize then began at
+    // 0 and collapsed. The size is ours, so say it.
+    measured: { width: v.width, height: v.height },
     data: { view: v, editable },
     selected,
     zIndex: v.kind === 'section' ? Z.section : tied ? Z.tied : Z.note,

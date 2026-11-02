@@ -1,7 +1,8 @@
 // Annotations on the canvas (AFD-65): add one where the menu or the pointer is (a Note on a node
 // right of it), recolour, tie and untie. Each is one command. Positions come from what the canvas
 // shows, so a Note stays put when it is tied or untied to a node still placed by the canvas.
-import { TIE_OFFSET } from '../core/flow/annotations';
+import { freeSpot, sectionAround, TIE_OFFSET } from '../core/flow/annotations';
+import { annotationSize } from '../core/flow/geometry';
 import type { AnnotationColor, AnnotationKind, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
 import { canvasPlace } from './clipboard';
@@ -11,12 +12,42 @@ import { levelView, unplacedPositions } from './viewModel';
 
 const FIRST_TEXT: Record<AnnotationKind, string> = { note: '', section: 'Section', text: 'Text' };
 
-/** Adds a Note, Section or Text and opens its text for typing. */
-export async function addAnnotation(kind: AnnotationKind, at?: Position, on?: Ulid): Promise<void> {
+/**
+ * Adds a Note, Section or Text and opens its text for typing. `near` (a palette click) takes the
+ * free space nearest `at`; `around` (AFD-68) draws a Section round those nodes and annotations.
+ */
+export async function addAnnotation(
+  kind: AnnotationKind,
+  at?: Position,
+  on?: Ulid,
+  how: { near?: boolean; around?: readonly Ulid[] } = {},
+): Promise<void> {
   const ui = useUi.getState();
   if (!canEdit() || !ui.snapshot?.doc) return;
   const view = levelView(ui.snapshot, ui.optimistic, ui.level);
-  const place = on ? TIE_OFFSET : (at ?? canvasPlace() ?? { x: 0, y: 0 });
+  const text = FIRST_TEXT[kind];
+  const ids = new Set(how.around ?? []);
+  const wrap =
+    kind === 'section'
+      ? sectionAround([
+          ...view.nodes.filter((n) => ids.has(n.node.id)),
+          ...view.annotations.filter(
+            (a) => a.kind !== 'section' && (ids.has(a.annotation.id) || (!!a.on && ids.has(a.on))),
+          ),
+        ])
+      : undefined;
+  // Sections lie under nodes and Notes, so a new Note or Text may go on one; a new Section not.
+  const taken = [
+    ...view.nodes,
+    ...view.annotations.filter((a) => kind === 'section' || a.kind !== 'section'),
+  ];
+  const place = on
+    ? TIE_OFFSET
+    : wrap
+      ? wrap.position
+      : how.near && at
+        ? freeSpot(taken, annotationSize({ kind, text }), at)
+        : (at ?? canvasPlace() ?? { x: 0, y: 0 });
   // A Section drawn around nodes still placed by the canvas keeps them where it was drawn.
   const freeze = kind === 'section' ? unplacedPositions(view, ui.snapshot.doc.layout) : {};
   const ack = await run({
@@ -24,9 +55,10 @@ export async function addAnnotation(kind: AnnotationKind, at?: Position, on?: Ul
     level: ui.level,
     annotation: {
       kind,
-      text: FIRST_TEXT[kind],
+      text,
       x: Math.round(place.x),
       y: Math.round(place.y),
+      ...(wrap ? { width: wrap.width, height: wrap.height } : {}),
       ...(on ? { on } : {}),
     },
     ...(Object.keys(freeze).length ? { freeze } : {}),

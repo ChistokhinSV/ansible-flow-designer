@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.43.0 — AFD-68
+
+- **Sections are easier to move:** a title bar across the top with a grip is the handle; drag it and the steps inside come along.
+- **A palette click places new annotations in free space** near the middle of the view, not under a step.
+- **Add Section with steps selected** (palette, or right-click several steps › Add Section Around) draws the section around them.
+- **Fix:** resizing a note, section or text right after editing its text no longer snaps it to the smallest size.
+
 ## 0.42.1 — AFD-67
 
 - **Fix:** the Details, Run and lens panels show the lines between their sections again; they had been lost in 0.41.0, when canvas sections took the panels' class name. Canvas sections no longer get the panels' extra spacing either.

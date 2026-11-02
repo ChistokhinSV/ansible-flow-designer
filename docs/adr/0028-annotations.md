@@ -94,3 +94,19 @@ owner asked for elements that explain a flow and never run (2026-11-02):
   - Text cells have no border or fill;
   - ties are dashed edges with no arrow from the note to its node;
   - each annotation carries `annotation`, `key` and `text` as shape data.
+
+## Amendment: after first use (AFD-68, 2026-11-02)
+
+- **Measured size:** annotation canvas nodes carry `measured` (their stored or default size).
+  React Flow's resizer starts from `measured`. A new node object without it (every snapshot after
+  a save) stayed unmeasured until something re-measured it, so a resize started at 0 and collapsed
+  to the minimum.
+- **Title bar:** a Section's handle is a full-width title bar (`SECTION_TITLE_HEIGHT`) with a grip
+  and a grab cursor. The body still lets the pointer through to the pane and the nodes.
+- **Placement:** a palette click puts a new annotation centred in the free space nearest the
+  view's middle (`freeSpot`). Nodes and Notes are avoided, and for a Section other Sections too.
+  A drop or a menu spot is taken as given.
+- **Wrap:** with nodes (or annotations) picked, a palette Section and the group menu's **Add
+  Section Around** draw the Section round them (`sectionAround`: 24 px padding, title bar room).
+  It is one `addAnnotation` with width and height, which also freezes auto-placed nodes, so a drag
+  carries them.

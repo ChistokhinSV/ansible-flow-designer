@@ -30,6 +30,9 @@ export function AnnotationPanel({ id }: { id: string }) {
       <p className="muted">
         Explains the flow and never runs: changing it keeps the flow's version.
         {kind === 'note' && on ? ' Its text is a comment above the code of the node it is on.' : ''}
+        {kind === 'section'
+          ? ' Drag its title bar to move it with what is wholly inside; the arrow keys move it alone.'
+          : ''}
       </p>
       <fieldset className="afd-editable" disabled={!editable}>
         <CommitField

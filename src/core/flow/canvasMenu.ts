@@ -65,7 +65,7 @@ export type CanvasAction =
       annotations?: Ulid[];
     }
   /** AFD-65: at the menu's spot, or on a node. */
-  | { do: 'addAnnotation'; kind: AnnotationKind; on?: Ulid }
+  | { do: 'addAnnotation'; kind: AnnotationKind; on?: Ulid; around?: Ulid[] }
   | { do: 'editAnnotation'; id: Ulid }
   | { do: 'colorAnnotation'; id: Ulid; color: AnnotationColor }
   | { do: 'attachAnnotation'; id: Ulid }
@@ -303,6 +303,15 @@ function groupMenu(
       ),
     );
   const more: CanvasMenuEntry[] = [];
+  // AFD-68: a Section drawn round the picked nodes (and annotations), so a drag carries them.
+  if (edit && formatOf(model.doc) >= 2)
+    more.push(
+      item(
+        'Add Section Around',
+        { do: 'addAnnotation', kind: 'section', around: [...ids, ...annotations] },
+        { icon: 'layout-panel', ...lock },
+      ),
+    );
   if (ctx.mode === 'design') {
     const ends = nodes.some((n) => n.type === 'start' || n.type === 'end');
     more.push(

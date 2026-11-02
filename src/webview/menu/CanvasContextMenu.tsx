@@ -96,7 +96,12 @@ export function runCanvasAction(
       void deleteSelection(action.nodes, action.edges, action.annotations);
       return;
     case 'addAnnotation':
-      void addAnnotation(action.kind, menu.at, action.on);
+      void addAnnotation(
+        action.kind,
+        menu.at,
+        action.on,
+        action.around ? { around: action.around } : {},
+      );
       return;
     case 'editAnnotation':
       editAnnotation(action.id);

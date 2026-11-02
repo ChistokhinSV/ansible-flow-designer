@@ -27,7 +27,8 @@
 
   /* Annotations (AFD-65): a border and the system text colour instead of tints. */
   .afd-kind-note,
-  .afd-kind-section {
+  .afd-kind-section,
+  .afd-annotation-title {
     border-color: CanvasText;
   }
 

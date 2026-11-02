@@ -13,14 +13,18 @@ flow there).
   node (Tidy Up included), is copied, extracted and deleted with it, and its text becomes a comment
   above that step's code.
 - **Section**: a titled region behind the steps, such as "Pre-checks" or "Change window". Drag it
-  by its title: the steps and annotations wholly inside move with it, in one undo step. Nothing
-  records what is inside; it is read from where things are when you drag.
+  by its **title bar** (the strip across its top, with a grip): the steps and annotations wholly
+  inside move with it, in one undo step. Nothing records what is inside; it is read from where
+  things are when you drag. The rest of a section lets clicks through, so you can still pan and
+  select the steps on it; the arrow keys move a selected section alone.
 - **Text**: a heading or caption with no background, small, medium or large.
 
 ## Add one
 
 - The palette's **Annotate** group: click Note, Section or Text, or drag one onto the canvas.
-  Drop a Note on a node to tie it to that node.
+  A click puts it in free space near the middle of the view; with steps selected, **Section**
+  is drawn around them. Drop a Note on a node to tie it to that node.
+- Select several steps and right-click one: **Add Section Around**.
 - Right-click the canvas: **Add Note Here**, **Add Section Here**, **Add Text Here**.
 - Right-click a node: **Add Note to This Node**.
 - Shift+N: a note on the selected node, else where the pointer is.

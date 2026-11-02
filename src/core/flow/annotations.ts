@@ -3,7 +3,7 @@
 // relative to that node; everything else is placed on the canvas like a node.
 import { Literal, type YamlValue } from '../yaml/render';
 import { ANNOTATION_ORDER } from './format';
-import { annotationSize, NODE_WIDTH } from './geometry';
+import { annotationSize, NODE_WIDTH, SECTION_TITLE_HEIGHT } from './geometry';
 import type { Level } from './model';
 import type { Annotation, AnnotationKind, Position, Ulid } from './types';
 
@@ -76,6 +76,56 @@ export function sectionContents(
     annotations: view.annotations
       .filter((a) => a.annotation.id !== id && !a.on && inside(a, section))
       .map((a) => a.annotation.id),
+  };
+}
+
+const overlaps = (a: Box, b: Box, gap: number) =>
+  a.position.x < b.position.x + b.width + gap &&
+  b.position.x < a.position.x + a.width + gap &&
+  a.position.y < b.position.y + b.height + gap &&
+  b.position.y < a.position.y + a.height + gap;
+
+/**
+ * AFD-68: where a new annotation goes when only a rough spot is known (a palette click): centred
+ * on `at`, or the nearest place around it that covers none of `taken`, so a Section's title bar
+ * never starts under a node (nodes are drawn above Sections). Falls back to the centred place.
+ */
+export function freeSpot(
+  taken: readonly Box[],
+  size: { width: number; height: number },
+  at: Position,
+  gap = 16,
+): Position {
+  const centred = { x: at.x - size.width / 2, y: at.y - size.height / 2 };
+  const STEP = 40;
+  const offsets: Position[] = [];
+  for (let dx = -12; dx <= 12; dx++)
+    for (let dy = -12; dy <= 12; dy++) offsets.push({ x: dx * STEP, y: dy * STEP });
+  offsets.sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y));
+  for (const d of offsets) {
+    const position = { x: centred.x + d.x, y: centred.y + d.y };
+    if (!taken.some((t) => overlaps({ position, ...size }, t, gap))) return position;
+  }
+  return centred;
+}
+
+/**
+ * AFD-68: the box of a Section drawn around these boxes: `pad` round them and room above for its
+ * title bar, so they are wholly inside and a drag of the Section carries them.
+ */
+export function sectionAround(
+  boxes: readonly Box[],
+  pad = 24,
+): { position: Position; width: number; height: number } | undefined {
+  if (boxes.length === 0) return undefined;
+  const left = Math.min(...boxes.map((b) => b.position.x)) - pad;
+  const top = Math.min(...boxes.map((b) => b.position.y)) - pad - SECTION_TITLE_HEIGHT;
+  const right = Math.max(...boxes.map((b) => b.position.x + b.width)) + pad;
+  const bottom = Math.max(...boxes.map((b) => b.position.y + b.height)) + pad;
+  return {
+    position: { x: Math.round(left), y: Math.round(top) },
+    width: Math.round(right - left),
+    height: Math.round(bottom - top),
   };
 }
 

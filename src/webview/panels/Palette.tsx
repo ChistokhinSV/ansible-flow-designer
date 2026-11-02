@@ -164,11 +164,20 @@ export function Palette() {
                 const at = canvas
                   ? screenToFlowPosition({
                       x: canvas.left + canvas.width / 2,
-                      y: canvas.top + canvas.height / 3,
+                      y: canvas.top + canvas.height / 2,
                     })
                   : undefined;
-                const on = n.kind === 'note' ? useUi.getState().selection.node : undefined;
-                void addAnnotation(n.kind, at, on);
+                const sel = useUi.getState().selection;
+                const on = n.kind === 'note' ? sel.node : undefined;
+                // AFD-68: in free space by the middle of the view; a Section wraps what is picked.
+                const picked = [
+                  ...(sel.nodes ?? (sel.node ? [sel.node] : [])),
+                  ...(sel.annotations ?? []),
+                ];
+                void addAnnotation(n.kind, at, on, {
+                  near: true,
+                  ...(n.kind === 'section' && picked.length ? { around: picked } : {}),
+                });
               }}
               {...named(
                 n.label,
