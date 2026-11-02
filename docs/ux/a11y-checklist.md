@@ -41,3 +41,17 @@ tasks by keyboard.
 | Banners and toasts                          | announced (`role="status"` / `alert`), dismissible, not timed out too fast    | ⚠ the error toast hides after 6 s, no close button           | ✅ (AFD-46)                                            |
 | Cheat sheet                                 | lists every shortcut (including redo)                                         | ⚠ redo missing                                               | ✅                                                     |
 | Whole designer                              | reduced motion and forced colours handled                                     | ❌ no `prefers-reduced-motion` or `forced-colors` rules      | ✅ (AFD-36)                                            |
+
+## Annotations (wave 6, 0.42)
+
+Notes, Sections and Text (AFD-65, ADR-0028). Checked with jsdom (`test/unit/webview/annotations.test.tsx`) and in the harness.
+
+| Check                                                                  | Wave 6 (0.42)                                                                            |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| reached with Tab after the steps; named by kind and first line         | ✅ "Note: …", "Section: …", "Text: …"; ties are hidden from readers                      |
+| add, edit, delete with the keyboard                                    | ✅ Shift+N (on the selected node), Enter or F2, Ctrl+Enter saves, Escape cancels, Delete |
+| menu (Shift+F10 or the Menu key); Attach to Node… finished by keyboard | ✅ the pick mode's Tab or arrows, then Enter                                             |
+| editor field labelled                                                  | ✅ "Annotation text (Markdown); Ctrl+Enter saves, Escape cancels"                        |
+| links open only through the host                                       | ✅ http(s) links found in the flow's annotations                                         |
+| colours meet contrast; forced colours show a border, not a tint        | ✅ theme token check; `19-motion-and-forced-colours.css`                                 |
+| a Section's body lets clicks, pan and box select through to the steps  | ✅ only its title bar and resize handles take the pointer                                |
