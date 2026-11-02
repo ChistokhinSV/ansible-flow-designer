@@ -11,6 +11,7 @@ import {
 } from '../awx/workflow';
 import { checksum } from '../engine/util';
 import { toDrawio } from '../export/drawio';
+import { flowLayoutProblems } from '../export/layoutCheck';
 import { type ExportSource, levelSuffix, scenesOf } from '../export/scene';
 import { sceneSvg } from '../export/svg';
 import { completeIds } from '../flow/completeIds';
@@ -168,10 +169,15 @@ export async function flowDescribe(
       }
     }
   }
-  // AFD-24: where the canvas shows each node, when asked.
+  // AFD-24: where the canvas shows each node, when asked; AFD-69: what is hard to read there.
   const shown = input.layout ? await io.ops(l.path).positions?.(l.model) : undefined;
+  const complete = !l.findings.some((f) => f.code === 'missing-id' || f.code === 'unknown-key');
+  const issues =
+    shown && complete
+      ? flowLayoutProblems(l.model, shown, level ? new Set([level]) : undefined)
+      : undefined;
   return {
-    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown)}`,
+    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues)}`,
   };
 }
 

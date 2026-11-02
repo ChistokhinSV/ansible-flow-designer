@@ -45,7 +45,7 @@ import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
-import { labelledAtRest } from '../../core/view/nodeFace';
+import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import { addAnnotation, editAnnotation } from '../annotationActions';
 import { command, loadState, saveState } from '../bus';
@@ -404,12 +404,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'smoothstep',
-        label:
-          e.kind === 'exit' && (e.exit?.reason || labelledAtRest(e.exit?.port ?? 'ok_hosts'))
-            ? e.label
-            : shows(e.id, 'in')
-              ? e.label
-              : undefined,
+        label: exitLabelledAtRest(e) || shows(e.id, 'in') ? e.label : undefined,
         className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
         markerEnd: {
           type: MarkerType.ArrowClosed,

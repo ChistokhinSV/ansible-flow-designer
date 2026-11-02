@@ -31,7 +31,9 @@ export function importPrompt(p: ImportPromptInput): string {
       ? "4. Keep what AWX does: success → ok_hosts, failure → failed_hosts, always → both; approvals stay approvals; survey questions and extra vars become flow inputs. Keep the playbooks' behaviour as in 5."
       : '4. Make the flow inputs from the play variables and prompts (secrets without a default); the hosts input (devices, host_list) defaults to a list, e.g. [edge].',
     '5. Keep the playbook\'s behaviour: when, loop and other task keywords stay in impl.keywords. Where the source handles a failure (block/rescue, ignore_errors, retries), handle that fail port the same way (apply_pattern, or a wire to the rescue steps); leave the others open, as the source does, and do not invent handling. Handlers become steps after their play with keywords.when "(<register> | default({})) is changed".',
-    '6. Finish with flow_validate (no errors). Then report how you grouped the tasks, what you changed, and what you left out or could not map.',
+    // AFD-69: the agent never sees the canvas; the layout check says what a person would see.
+    '6. Check the layout: flow_describe with layout: true ends with a layout check per level (a wire through a node, a label on a node or on another label, overlaps, crossings). Fix wires through nodes and labels on nodes with move (put the node in the way beside the wire) and check again; leave crossings no move removes. tidy_up does not help here: it lays out the nodes the way the canvas already does and does not route wires.',
+    '7. Finish with flow_validate (no errors). Then report how you grouped the tasks, what you changed, and what you left out or could not map.',
     '',
     'If an exact copy is wanted instead, flow_import makes one in a single call.',
   ].join('\n');

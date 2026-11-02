@@ -156,6 +156,21 @@ Consequences:
 - A place needs `OpsContext.positions`. Without it (a host that cannot run ELK), ops that take a place fail with "positions are not available here"; both shipped hosts provide it.
 - An agent that places by numbers without reading the layout can overlap nodes. The answer reports it, and `move` or `unplace` repairs it.
 
+## Amendment: AFD-69 (0.44.0)
+
+Context: a product-owner test of an AI playbook import left a level hard to read. Failure wires into one rescue step ran through the steps between, and labels sat on nodes. The agent had coordinates and node-overlap warnings, but never the wires. The canvas draws each wire as a React Flow smooth step from port to port that steers round nothing, and ELK's own routes are discarded, so `tidy_up` gave the same picture.
+
+Decision: a **layout check** in words (`src/core/export/layoutCheck.ts`), computed from the scene the exports draw. That is the canvas's own geometry, with the wire labels shown at rest.
+1. Per level, worst first: boxes overlapping (nodes, notes, text; sections are regions, not obstacles), a wire through a box (boxes inset 2 px, so grazing an edge does not count), a wire label on a box or on another label, and wires crossing at right angles. Wires from one port or into one port are not counted as crossing. At most 8 crossings are listed; the rest are counted.
+2. `flow_describe` with `layout: true` lists the problems under each level and ends with a count and how to fix them (`LAYOUT_FIX`), or "no problems". It is skipped on a file that still lacks IDs.
+3. `flow_edit` checks every level the batch placed nodes on (a `position`, `move`, or `tidy_up`) and says "no problems" when the level is clean. The node-overlap warning of AFD-24 is now this check's first kind (`a at x,y overlaps b`).
+4. The import prompt gains a step before `flow_validate`: check the layout, fix wires through nodes and labels on nodes with `move`, and leave crossings no move removes. The skill, the MCP instructions and the tool descriptions say the same; `tidy_up` says it places nodes, not wires.
+
+Consequences:
+- An agent can see, in words, what a person sees on a level, and it can confirm that a `move` helped. On the reported level, one `move` (the rescue step beside the step its wires skipped) cleared all eight problems.
+- Rejected for now: a picture for the agent. A PNG needs a text renderer in the MCP server, which has about 96 KB of budget left, and models read exact geometry from a list of named problems better than from pixels. Port-aware ELK or wires routed round nodes would fix the cause for Tidy Up too; that is a separate, larger change.
+- The check follows the canvas only as far as the scene does: label widths are estimated (10 px mono), and lens and run labels are not considered.
+
 ## Amendment: AFD-27 (0.21.0)
 
 Two more tools, ten in all:

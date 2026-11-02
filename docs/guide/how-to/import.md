@@ -95,8 +95,14 @@ keywords as the playbook.
 
 The prompt names the source and the flow to write. The assistant reads the source with
 `source_outline` (each task's binding, ready to copy), builds the flow with `flow_new` and
-`flow_edit`, keeps failures open where the playbook does, and reports what it grouped, changed or
-left out. Review the flow on the canvas like any change.
+`flow_edit`, keeps failures open where the playbook does, checks the layout, and reports what it
+grouped, changed or left out. Review the flow on the canvas like any change.
+
+The assistant never sees the canvas. Before it finishes it runs the layout check (`flow_describe`
+with `layout`), which lists what you would spot at a glance: a wire through a step, a wire label
+on a step or on another label, steps on top of each other, wires crossing. It moves steps until
+the wires run clear. This matters most where several failure wires lead to one rescue step: _Tidy
+Up_ stacks such steps in one column, and a wire that skips a step runs through it.
 
 You can also just ask, for example "turn site.yml into a flow, grouped by purpose", or "import
 site.yml as is" (the assistant then uses `flow_import`). See [AI assistants](ai-assistants.md).

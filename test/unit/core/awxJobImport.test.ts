@@ -287,5 +287,7 @@ describe('AFD-27: the sanitized export an AI assistant reads', () => {
       'flow_import',
     ])
       expect(text).toContain(tool);
+    // AFD-69: the agent checks the layout it cannot see before it finishes.
+    expect(text).toContain('flow_describe with layout: true ends with a layout check');
   });
 });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.44.0 — AFD-69
+
+- **AI assistants check the layout they cannot see:** `flow_describe` with layout lists, per level, a wire running through a step, a wire label on a step or on another label, steps or notes on top of each other, and wires crossing. An edit that places steps checks the levels it laid out, so the assistant can tell whether a move helped.
+- **An AI import checks the layout before it finishes** and moves steps until no wire runs through one.
+- Tidy Up (`tidy_up`) is described as what it is: it places steps, not wires.
+
 ## 0.43.0 — AFD-68
 
 - **Sections are easier to move:** a title bar across the top with a grip is the handle; drag it and the steps inside come along.

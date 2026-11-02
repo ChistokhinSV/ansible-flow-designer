@@ -68,6 +68,13 @@ Good to know:
   uses `move` later; `unplace` hands nodes back to automatic placement and `tidy_up` lays out a
   level. `flow_describe` with `layout` shows where each node is. The first position on an
   automatically laid out level also stores the others where you see them, so nothing jumps.
+- **Layout check:** agents cannot see the canvas, so `flow_describe` with `layout` also lists, per
+  level, what would look wrong there: nodes or notes overlapping, a wire through a node, a wire
+  label on a node or on another label, wires crossing. A `flow_edit` that places nodes (a
+  `position`, `move`, `tidy_up`) checks the levels it laid out. If a level looks messy, ask "fix the
+  layout of the change subflow": the agent moves the node in the way beside the wire until the check
+  is clean. The canvas draws wires straight from port to port, so `tidy_up` alone cannot fix a wire
+  through a node.
 - **Terminal agents** write the file like a save: `flow.version` once per commit, tested nodes that
   changed drop back to implemented, `generated/` is refreshed. They touch only `*.flow.yaml` inside
   the agent's roots.

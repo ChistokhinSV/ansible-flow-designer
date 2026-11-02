@@ -522,7 +522,7 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'tidy_up',
     summary:
-      'Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.',
+      'Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. It places nodes but does not route wires: a wire can still run through a node, so read the layout check it reports.',
     properties: {
       level: { type: 'string', description: 'top (default), all, or a subflow key.' },
     },
@@ -581,7 +581,7 @@ export const TOOL_SPECS: ToolSpec[] = [
         layout: {
           type: 'boolean',
           description:
-            'Also list where each node is: "at x,y" for a stored position, "auto x,y" where the canvas places it now (AFD-24). Use it before move, or to place new nodes next to existing ones.',
+            'Also list where each node is ("at x,y" for a stored position, "auto x,y" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow. flow_edit runs the same check on the levels it placed nodes on.',
         },
       },
     },

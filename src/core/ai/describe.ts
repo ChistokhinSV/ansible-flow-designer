@@ -1,5 +1,6 @@
 // A flow described for AI tools (AFD-19): compact, by key, one line per node and wire, with the
 // open fail ports and the problems. IDs never appear.
+import { LAYOUT_FIX, type LayoutProblem } from '../export/layoutCheck';
 import { registerName } from '../flow/dataNames';
 import { liftOf } from '../flow/dataRefs';
 import { acceptedAll } from '../flow/decisions';
@@ -120,6 +121,8 @@ export function describeFlow(
   revision: string,
   level?: string,
   layout?: ShownLayout,
+  /** AFD-69: the layout check per level, with layout. */
+  layoutIssues?: ReadonlyMap<string, readonly LayoutProblem[]>,
 ): string {
   const { doc } = model;
   const f = doc.flow;
@@ -181,6 +184,20 @@ export function describeFlow(
       out.push(
         `  left open on purpose: ${kept.map((d) => `${keyPath(model, d.node as string)}.${d.what} (${d.reason ?? 'no reason'})`).join(', ')}`,
       );
+    const issues = layoutIssues?.get(lv.id) ?? [];
+    if (issues.length) {
+      out.push('  layout problems:');
+      for (const p of issues) out.push(`    ${p.text}`);
+    }
+  }
+  if (layoutIssues) {
+    const n = [...layoutIssues.values()].reduce((sum, l) => sum + l.length, 0);
+    out.push(
+      '',
+      n
+        ? `Layout check: ${n} problem(s), listed per level. ${LAYOUT_FIX}`
+        : 'Layout check: no problems (no overlap, no wire through a box, no label on a box or another label, no crossing).',
+    );
   }
   out.push(
     '',

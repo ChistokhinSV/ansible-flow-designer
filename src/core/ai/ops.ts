@@ -1,6 +1,7 @@
 // The op language AI tools edit flows with (AFD-19): nodes and ports named by key, applied in
 // order through the same commands as the canvas, all or nothing. A batch first completes any IDs
 // the file was written without. Errors say what went wrong and how to fix it, never with IDs.
+import { flowLayoutProblems, LAYOUT_FIX } from '../export/layoutCheck';
 import { annotationViews, sectionContents, TIE_OFFSET } from '../flow/annotations';
 import {
   type AnnotationPatch,
@@ -787,6 +788,8 @@ async function commandsOf(
             );
       const positions: Record<Ulid, Position> = {};
       for (const level of levels) Object.assign(positions, await ctx.layout(level));
+      // AFD-69: the tidied levels get the layout check too; ELK does not route the wires.
+      for (const id of Object.keys(positions)) placed.add(id);
       return [{ kind: 'tidyUp', positions }];
     }
   }
@@ -867,7 +870,7 @@ export async function applyOps(
       );
     }
   }
-  if (placed.size > 0 && ctx.positions) notes.push(...(await overlapNotes(st, ctx, placed)));
+  if (placed.size > 0 && ctx.positions) notes.push(...(await layoutNotes(st, ctx, placed)));
   // Patterns and extraction add nodes too: report every node the batch made.
   const created = [...st.model.nodes.keys()]
     .filter((id) => !existing.has(id))
@@ -875,23 +878,23 @@ export async function applyOps(
   return { text: st.text, created, dropped: [...dropped], notes };
 }
 
-/** "a overlaps b" for nodes placed where the agent said (AFD-24): placed as asked, reported. */
-async function overlapNotes(st: State, ctx: OpsContext, placed: Set<Ulid>): Promise<string[]> {
-  const shown = await shownOf(st, ctx);
-  const out: string[] = [];
+/**
+ * The layout check (AFD-69) of each level the batch placed nodes on: overlaps (AFD-24), wires
+ * through boxes, labels on boxes and on each other, crossings. The agent never sees the canvas.
+ */
+async function layoutNotes(st: State, ctx: OpsContext, placed: Set<Ulid>): Promise<string[]> {
+  const levels = new Set<string>();
   for (const id of placed) {
     const level = st.model.nodes.get(id)?.level;
-    if (level === undefined) continue;
-    const boxes = boxesOf(st, shown, level, {});
-    const me = boxes.find((b) => b.id === id);
-    if (!me) continue;
-    const hits = boxes
-      .filter((b) => b.id !== id && overlap(me, b))
-      .map((b) => keyPath(st.model, b.id));
-    if (hits.length)
-      out.push(
-        `${keyPath(st.model, id)} at ${me.x},${me.y} overlaps ${hits.join(', ')}: move one of them (move) if that is not wanted`,
-      );
+    if (level !== undefined) levels.add(level);
   }
-  return out;
+  const found = flowLayoutProblems(st.model, await shownOf(st, ctx), levels);
+  return [...found].flatMap(([level, problems]) =>
+    problems.length
+      ? [
+          `Layout check of ${levelName(st.model, level)}: ${problems.length} problem(s). ${LAYOUT_FIX}`,
+          ...problems.map((p) => `  ${p.text}`),
+        ]
+      : [`Layout check of ${levelName(st.model, level)}: no problems.`],
+  );
 }

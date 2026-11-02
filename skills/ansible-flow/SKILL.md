@@ -132,12 +132,12 @@ it handles).
   A position is `{x, y}` (top-left corner, canvas pixels, y grows down) or one of `below`, `above`,
   `right_of`, `left_of` naming a node on the same level, with an optional `gap`. Prefer relative
   places: they step aside until the spot is free.
-- `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y` (where the
-  canvas puts it now) and the node sizes. Read it before placing by numbers.
+- `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y` (shown now)
+  and a layout check of what you cannot see: overlaps, a wire through a box, labels on boxes or each
+  other, crossings. A wire that skips a step runs through it: `move` the box beside it; check again.
 - The first position on a level the canvas lays out also stores the others where they are shown,
-  so nothing jumps. The answer warns when a position overlaps another node.
-- `unplace` (nodes, or `level`: top, all or a subflow key) hands nodes back to the canvas;
-  `tidy_up` stores a fresh layered layout for a level.
+  so nothing jumps. flow_edit checks every level it placed nodes on. Check before you finish.
+- `unplace` (nodes or a `level`) hands nodes back to the canvas; `tidy_up` re-lays a level (not wires).
 
 ## Notes, sections and text
 

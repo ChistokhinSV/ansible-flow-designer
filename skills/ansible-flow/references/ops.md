@@ -334,7 +334,7 @@ Move a format 1 flow to the current format (2). Nothing in the design changes; a
 
 ### tidy_up
 
-Lay out a level again with the auto-layout and store every position (positions only). Use it for a clean layered layout; it replaces hand-made positions on that level.
+Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. It places nodes but does not route wires: a wire can still run through a node, so read the layout check it reports.
 
 - `level` (string): top (default), all, or a subflow key.
 

@@ -310,6 +310,92 @@ describe('AI tools', () => {
     expect(two.text).toContain('exactly one of below, above, right_of, left_of');
   });
 
+  it('AFD-69: the layout check names a wire through a node, and a move clears it', async () => {
+    const io = memoryIO();
+    const path = 'flows/wires/wires.flow.yaml';
+    await call(io, 'flow_new', { path, name: 'Wires' });
+    const laid = await call(io, 'flow_edit', {
+      path,
+      ops: [
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'A',
+          after: 'start.ok_hosts',
+          position: { x: 1000, y: 100 },
+        },
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'B',
+          after: 'a.failed_hosts',
+          position: { x: 1000, y: 250 },
+        },
+        {
+          op: 'add_node',
+          type: 'task',
+          title: 'C',
+          after: 'a.ok_hosts',
+          position: { x: 1000, y: 400 },
+        },
+      ],
+    });
+    expect(laid.text).toContain('Layout check of the top level: 1 problem(s). Fix wires through');
+    expect(laid.text).toContain('\n  wire a.ok_hosts -> c runs through b');
+    const d = await call(io, 'flow_describe', { path, layout: true });
+    expect(d.text).toContain('  layout problems:\n    wire a.ok_hosts -> c runs through b');
+    expect(d.text).toContain('Layout check: 1 problem(s), listed per level.');
+    expect((await call(io, 'flow_describe', { path })).text).not.toContain('Layout check');
+    // The hint works: the node in the way goes beside the wire.
+    const moved = await call(io, 'flow_edit', {
+      path,
+      ops: [{ op: 'move', nodes: { b: { right_of: 'a', gap: 96 } } }],
+    });
+    expect(moved.text).toContain('Layout check of the top level: no problems.');
+    // A clean ELK level says so.
+    expect((await call(io, 'flow_describe', { path: EDGE, layout: true })).text).toContain(
+      'Layout check: no problems',
+    );
+
+    // As in an AI import (product-owner report): fail wires into a rescue step skip a step, and
+    // tidy_up stacks them in one column; ELK places nodes, the canvas does not route wires round.
+    const rescue = 'flows/rescue/rescue.flow.yaml';
+    await call(io, 'flow_new', { path: rescue, name: 'Rescue' });
+    const tidied = await call(io, 'flow_edit', {
+      path: rescue,
+      ops: [
+        { op: 'add_node', type: 'task', title: 'Render', after: 'start.ok_hosts' },
+        { op: 'add_node', type: 'task', title: 'Write', after: 'render.ok_hosts' },
+        { op: 'add_node', type: 'task', title: 'Refuse', after: 'write.ok_hosts' },
+        { op: 'add_node', type: 'task', title: 'Rollback', after: 'refuse.failed_hosts' },
+        { op: 'connect', from: 'render.failed_hosts', to: 'rollback' },
+        { op: 'connect', from: 'write.failed_hosts', to: 'rollback' },
+        { op: 'add_node', type: 'task', title: 'Attempt', after: 'refuse.ok_hosts' },
+        { op: 'connect', from: 'rollback.ok_hosts', to: 'attempt' },
+        { op: 'tidy_up', level: 'top' },
+      ],
+    });
+    expect(tidied.text).toContain(
+      '  wire render.failed_hosts -> rollback runs through write, refuse',
+    );
+    expect(tidied.text).toContain(
+      '  label "failed_hosts" of wire write.failed_hosts -> rollback covers refuse',
+    );
+    expect(tidied.text).toContain(
+      '  wires refuse.ok_hosts -> attempt and write.failed_hosts -> rollback cross',
+    );
+    // Worst first: wires through boxes, then labels, then crossings.
+    const lines = tidied.text.split('\n').filter((l) => l.startsWith('  '));
+    expect(lines.findIndex((l) => l.includes(' cross'))).toBeGreaterThan(
+      lines.findIndex((l) => l.includes('covers')),
+    );
+    const fixed = await call(io, 'flow_edit', {
+      path: rescue,
+      ops: [{ op: 'move', nodes: { rollback: { right_of: 'refuse', gap: 96 } } }],
+    });
+    expect(fixed.text).toContain('Layout check of the top level: no problems.');
+  });
+
   it('AFD-20: a chain built with after on a new flow; on_wire inside a subflow stays there', async () => {
     const io = memoryIO();
     const path = 'flows/fortigate-upgrade/fortigate-upgrade.flow.yaml';

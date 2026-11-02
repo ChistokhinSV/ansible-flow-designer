@@ -16,6 +16,14 @@ export function labelledAtRest(port: string): boolean {
   return !QUIET_PORTS.has(port);
 }
 
+/** A subflow exit wire is labelled at rest when it gives a reason or leaves by a labelled port. */
+export function exitLabelledAtRest(e: {
+  kind: string;
+  exit?: { port: string; reason?: string };
+}): boolean {
+  return e.kind === 'exit' && (!!e.exit?.reason || labelledAtRest(e.exit?.port ?? 'ok_hosts'));
+}
+
 /** Under the title: the bound module or role, else what kind of node it is; a decision's test. */
 export function subLine(node: FlowNode): string {
   if (node.type === 'decision') return node.condition ? `if ${node.condition}` : 'Decision';
