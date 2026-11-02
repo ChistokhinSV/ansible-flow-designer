@@ -1,5 +1,6 @@
 // SVG image of one flow level (AFD-25), drawn like the canvas in its light theme: node boxes with
-// status dot, title, type line and binding chip; resting ports; smooth-step wires coloured by port
+// status dot, title, type line and binding chip; resting ports; wires (smooth steps, or routed round
+// nodes: AFD-70) coloured by port
 // with their port name; a subflow's boundary frame. `content` embeds the draw.io file, as draw.io's
 // own `.drawio.svg` does, so draw.io opens the image as an editable diagram.
 

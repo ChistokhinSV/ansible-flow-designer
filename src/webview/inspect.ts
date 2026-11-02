@@ -23,6 +23,12 @@ export function domSummary(docVersion: number): DomSummary {
     level: useUi.getState().level,
     nodes,
     edges: document.querySelectorAll('.react-flow__edge').length,
+    wires: Object.fromEntries(
+      [...document.querySelectorAll<SVGElement>('.react-flow__edge[data-id]')].map((el) => [
+        el.dataset.id ?? '',
+        el.querySelector('.react-flow__edge-path')?.getAttribute('d') ?? '',
+      ]),
+    ),
     annotations: document.querySelectorAll('[data-annotation-id]').length,
     banner: banner ? Number(banner.dataset.bannerCount) : null,
     idGaps: gaps ? Number(gaps.dataset.idGaps) : null,

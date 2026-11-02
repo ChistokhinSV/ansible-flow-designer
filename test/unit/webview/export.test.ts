@@ -7,7 +7,7 @@ import { deflateRawSync, deflateSync, inflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { contractText, nodeDetails } from '../../../src/core/export/details';
-import { toDrawio } from '../../../src/core/export/drawio';
+import { shiftOf, toDrawio } from '../../../src/core/export/drawio';
 import { crc32, diagramInPng, embedDiagramInPng } from '../../../src/core/export/png';
 import { type ExportSource, levelSuffix, scenesOf } from '../../../src/core/export/scene';
 import { sceneSvg, toSvg } from '../../../src/core/export/svg';
@@ -17,6 +17,7 @@ import { openFailPorts } from '../../../src/core/flow/openPorts';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
+import { pointsOf, runsThrough } from '../../../src/core/view/route';
 import { shownPositions } from '../../../src/node/autoLayout';
 import { readExample } from '../core/helpers';
 
@@ -121,6 +122,31 @@ describe('draw.io export (AFD-25)', () => {
       expect(Number(g?.getAttribute('y'))).toBe(n.position.y + dy);
       expect(Number(g?.getAttribute('width'))).toBe(n.width);
     }
+  });
+
+  it('AFD-70: no wire runs through a node; a routed wire keeps its corners as waypoints', async () => {
+    const src = await source(sample());
+    const pages = [...xml(toDrawio(src)).getElementsByTagName('diagram')];
+    let routed = 0;
+    for (const scene of scenesOf(src)) {
+      const boxes = scene.view.nodes.map((n) => ({
+        ...n.position,
+        width: n.width,
+        height: n.height,
+      }));
+      const page = pages.find((p) => p.getAttribute('id') === `afd-${scene.level}`);
+      const { dx, dy } = shiftOf(scene);
+      for (const [id, w] of scene.wires) {
+        expect(runsThrough(pointsOf(w.path), boxes), id).toBe(false);
+        const points = [...(page?.querySelectorAll(`UserObject[id="${id}"] mxPoint`) ?? [])];
+        expect(
+          points.map((p) => [Number(p.getAttribute('x')), Number(p.getAttribute('y'))]),
+        ).toEqual((w.bends ?? []).map((b) => [b.x + dx, b.y + dy]));
+        if (w.bends) routed++;
+      }
+    }
+    // The sample's top level had three wires through nodes, its Pre-checks one.
+    expect(routed).toBe(4);
   });
 
   it('details: contract fields on one line each, problems with their code', async () => {

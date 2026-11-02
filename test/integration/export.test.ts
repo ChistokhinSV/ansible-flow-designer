@@ -5,9 +5,12 @@ import * as assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
+import { getSmoothStepPath, Position as Side } from '@xyflow/system';
 import * as vscode from 'vscode';
 import { diagramInPng } from '../../src/core/export/png';
-import { closeAll, flowUri, sha, testApi, VIEW_TYPE } from './helpers';
+import type { Position } from '../../src/core/flow/types';
+import { pointsOf } from '../../src/core/view/route';
+import { closeAll, flowUri, openDesigner, sha, testApi, VIEW_TYPE } from './helpers';
 
 const designerTabs = () =>
   vscode.window.tabGroups.all
@@ -62,6 +65,74 @@ describe('AFD-25 acceptance: export', () => {
     assert.match(sub, /<svg [^>]*content="&lt;mxfile [^"]*&gt;&lt;diagram id=&quot;afd-01/);
     assert.match(sub, /Subflow boundary · /);
     assert.equal(designerTabs().length, 0);
+  });
+
+  it('AFD-70: the canvas draws the wires the export draws, routed round nodes where they would cross one', async () => {
+    const api = await testApi();
+    const uri = flowUri('os-upgrade');
+    await openDesigner(uri);
+    const drawn = Object.values((await api.inspect(uri)).wires ?? {});
+    const file = join(outDir(), 'os-wires.svg');
+    await vscode.commands.executeCommand('afd.export.image', uri, {
+      out: file,
+      format: 'svg',
+      level: 'root',
+      quiet: true,
+    });
+    const svg = readFileSync(file, 'utf8');
+    const exported = [...svg.matchAll(/<path d="([^"]+)"[^>]*marker-end="url\(#afd-arrow-/g)].map(
+      (m) => m[1] ?? '',
+    );
+    assert.ok(drawn.length > 10, `${drawn.length} wires drawn`);
+    assert.equal(drawn.length, exported.length);
+    // The canvas measures its handles and the export computes them, so ends differ by a pixel or a
+    // few (as before AFD-70); each wire turns at the same places give or take that.
+    const near = (u: number, v: number) => Math.abs(u - v) < 2;
+    const shape = (d: string) => {
+      const out: Position[] = [];
+      for (const p of pointsOf(d)) {
+        const q = out.at(-1);
+        if (q && near(p.x, q.x) && near(p.y, q.y)) continue;
+        const o = out.at(-2);
+        if (o && q && ((near(o.x, q.x) && near(q.x, p.x)) || (near(o.y, q.y) && near(q.y, p.y))))
+          out.pop();
+        out.push(p);
+      }
+      return out;
+    };
+    const alike = (d: string, e: string) => {
+      const [p, q] = [shape(d), shape(e)];
+      return (
+        p.length === q.length &&
+        p.every(
+          (pt, i) => Math.abs(pt.x - (q[i]?.x ?? 0)) <= 8 && Math.abs(pt.y - (q[i]?.y ?? 0)) <= 8,
+        )
+      );
+    };
+    for (const d of drawn)
+      assert.ok(
+        exported.some((e) => alike(d, e)),
+        `not exported: ${d}`,
+      );
+    // Two of os-upgrade's wires would run through steps: on both, those two, and only those, are
+    // not the plain smooth step between their ends.
+    const sideOf = (p: Position, q: Position) =>
+      q.x > p.x ? Side.Right : q.x < p.x ? Side.Left : q.y > p.y ? Side.Bottom : Side.Top;
+    const routed = (d: string) => {
+      const pts = pointsOf(d);
+      const [a, b] = [pts[0] as Position, pts.at(-1) as Position];
+      const [path] = getSmoothStepPath({
+        sourceX: a.x,
+        sourceY: a.y,
+        sourcePosition: sideOf(a, pts[1] as Position),
+        targetX: b.x,
+        targetY: b.y,
+        targetPosition: sideOf(b, pts.at(-2) as Position),
+      });
+      return path !== d;
+    };
+    assert.equal(drawn.filter(routed).length, 2);
+    assert.equal(exported.filter(routed).length, 2);
   });
 
   it('PNG: the designer opens and draws it at twice the size; the PNG holds the draw.io file', async () => {

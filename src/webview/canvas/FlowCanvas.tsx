@@ -5,6 +5,7 @@
 // and exit wires; wiring to the frame edits `subflow.boundary`. Double-click or Enter opens a subflow.
 // AFD-65: Notes, Sections and Text are nodes without ports, layered by hand (zIndexMode manual):
 // Sections behind everything, a Note on a node as that node's child, in front of it.
+// AFD-70: wires step round the nodes in their way (RoutedEdge), as in the exports.
 import {
   applyNodeChanges,
   Background,
@@ -47,6 +48,7 @@ import { wireHosts } from '../../core/run/view';
 import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
 import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
+import type { Box } from '../../core/view/route';
 import { addAnnotation, editAnnotation } from '../annotationActions';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
@@ -63,6 +65,7 @@ import { AnnotationNodeView, type AnnotationRFNode, annotationName } from './Ann
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
 import { GhostNodeView, type GhostRFNode } from './GhostNode';
+import { NodeBoxes, RoutedEdge } from './RoutedEdge';
 
 const nodeTypes = {
   flow: FlowNodeView,
@@ -71,6 +74,7 @@ const nodeTypes = {
   annotation: AnnotationNodeView,
 };
 type CanvasNode = FlowRFNode | FrameRFNode | GhostRFNode | AnnotationRFNode;
+const edgeTypes = { routed: RoutedEdge };
 
 const NO_NOTES: AnnotationView[] = [];
 
@@ -341,6 +345,23 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   useEffect(() => setNodes(derived), [derived]);
   const latest = useRef(nodes);
   latest.current = nodes;
+  // Where the steps are drawn now (a drag included): what wires step round. Notes, Sections, the
+  // frame and ghosts are not in the way.
+  const flowNodes = nodes.filter((n) => n.type === 'flow');
+  const boxKey = flowNodes
+    .map((n) => `${n.position.x},${n.position.y},${n.width},${n.height}`)
+    .join(';');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the boxes change only with boxKey
+  const boxes = useMemo<Box[]>(
+    () =>
+      flowNodes.map((n) => ({
+        x: n.position.x,
+        y: n.position.y,
+        width: n.width ?? 0,
+        height: n.height ?? 0,
+      })),
+    [boxKey],
+  );
 
   // A start node has no play: its wire carries every host of the run.
   const hostsOn = useMemo(() => {
@@ -356,7 +377,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         sourceHandle: e.sourcePort,
         target: e.target,
         targetHandle: e.targetPort,
-        type: 'smoothstep',
+        type: 'routed',
         label: ran
           ? hostCount(hostsOn(ran, e).length)
           : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
@@ -403,7 +424,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         sourceHandle: e.sourcePort,
         target: e.target,
         targetHandle: e.targetPort,
-        type: 'smoothstep',
+        type: 'routed',
         label: exitLabelledAtRest(e) || shows(e.id, 'in') ? e.label : undefined,
         className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
         markerEnd: {
@@ -798,11 +819,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, { zoom });
   }, [pickAt, view.nodes, paneWidth, paneHeight, getViewport, setCenter]);
 
-  return (
+  const canvas = (
     <ReactFlow<CanvasNode>
       nodes={nodes}
       edges={allEdges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={(changes: EdgeChange[]) => {
         const picked = changes.filter((c) => c.type === 'select');
@@ -988,4 +1010,5 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       ) : null}
     </ReactFlow>
   );
+  return <NodeBoxes.Provider value={boxes}>{canvas}</NodeBoxes.Provider>;
 }

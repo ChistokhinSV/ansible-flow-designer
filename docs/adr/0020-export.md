@@ -78,3 +78,72 @@ in the `content` attribute, as draw.io writes `.drawio.svg`.
   - it reads the diagram back out of our `.drawio.png` and `.drawio.svg`.
 - A real Claude Code (2.1.314), asked for a draw.io file and a wiki picture, used `flow_export` for
   both, with a draw.io drawing skill also installed.
+
+## Amendment: wires round nodes (AFD-70, 0.45.0)
+
+Context: the AFD-69 layout check showed what a product owner had seen on an AI import. After Tidy Up,
+several failure wires into one rescue step ran through the steps between. ELK places the nodes but
+gets no ports and its routes are dropped; the canvas and this scene draw each wire as a smooth step
+from port to port, which steers round nothing. Any wire that skips a layer, or goes back up the
+flow, can cross a node, on hand-made layouts too.
+
+Options:
+- (a) **Port-aware ELK** (`in` on top, normal outcomes below, problems right). ELK would keep its
+  long edges beside the nodes, but only for the routes it computes, which are not drawn. The smooth
+  step would still cut through, and still does after the first hand move. It also moves every
+  auto-laid-out node in every flow.
+- (b) **Draw ELK's routes** (bend points) on the canvas and here. They exist only right after a
+  layout and go stale on the first move or drag. Keeping them means storing bend points in the flow
+  file (ADR-0002 stores positions only), or running ELK on every change. ELK's layered algorithm
+  cannot route around fixed positions, and libavoid is not in elkjs.
+- (c) **Our own router** that steps round node boxes, used everywhere a wire is drawn.
+
+Decision: (c), in `core/view/route.ts`: `routeWire(a, side, b, side, boxes, label)`.
+1. **The smooth step first.** React Flow's `getSmoothStepPath` between the two ends, unchanged,
+   whenever its corners clear every node box of the level (boxes shrunk by 2 px, the layout check's
+   test). So every wire that ran clear looks exactly as before, label included.
+2. **Otherwise an orthogonal route**, A* over a grid of lines: the two stub ends, lines 25 px off
+   each box edge (a stub's own distance), and the middle of gaps too narrow for those. A stretch
+   that would come within 8 px of a box is not taken. The cost is length, plus 40 px per turn,
+   plus the length of a stretch that runs within 25 px of a box, plus 1 % for wire off the stub
+   lines. That last part breaks ties so that wires into one port share their last stretch. No
+   U-turns. The route
+   keeps the smooth step's 20 px stubs, and its corners are drawn with the same 5 px rounding.
+   The heuristic is distance plus the turns still needed (0, 1 or 2), so A* stays exact. Ties go
+   to the deeper state, then to push order, so a route is the same wherever it is drawn. Nodes more
+   than 400 px off the box spanning the two ends are left out of the first search; if it finds
+   nothing, it runs again with every node.
+3. **Boxed in:** when a stub end lies in or within 8 px of a box, or no route exists, the wire
+   keeps its smooth step. The layout check still reports it.
+4. **Labels on a route** go on the first stretch from the source that holds them clear of every
+   box, as near its middle as possible, so a label sits by the port it names.
+5. **Obstacles are nodes only.** Notes, Text, Sections, the subflow frame and Changes-lens ghosts
+   are not avoided. A wire under a note is still reported by the layout check.
+6. **Where it applies:**
+   - the scene routes the level's wires and the boundary's entry and exit wires; `Wire.bends`
+     holds a route's corners;
+   - draw.io writes them as `<Array as="points">` waypoints, so draw.io draws the same route;
+   - SVG and PNG draw the path;
+   - the canvas draws its level and boundary wires with a custom edge (`RoutedEdge`). It routes
+     the measured handle ends among the boxes of the canvas's own nodes state, so a wire steps
+     aside while a node is dragged. The boxes reach the edges through a context, rebuilt only when
+     a box moves or resizes. Data-lens wires stay bezier curves.
+
+Consequences:
+- Tidy Up and `tidy_up` leave no wire through a node on the rescue shape that prompted AFD-69. Only
+  crossings remain, and moving the rescue step beside the step its wires skipped clears those.
+  Across the repository's 23 flows, the 19 levels whose wires all ran clear export byte for byte as
+  before; the 6 levels with wires through nodes changed only in those wires.
+- The layout check reads the same scene, so "runs through" now means boxed in, or a note or text in
+  the way. Its hint (`LAYOUT_FIX`), the import prompt, the skill and the `tidy_up` description say
+  so.
+- Cost: most wires only pay for the smooth step's check. A routed wire takes 0.04–1.1 ms; the
+  longest are in the repository's examples. All 23 flows build every scene in about 24 ms (12 ms
+  before), and a 100-node grid with 64 routed wires takes about 63 ms. On the canvas, routes are
+  memoised per wire and recomputed when an end or a box moves. os-upgrade's webview render median
+  went from about 12 ms to 17 ms in `just perf`. First render and round trips stayed within budget
+  in quiet runs, and both versions miss the 100 ms round-trip budget at times under load.
+- Bundles: extension 801.0 KB of 832 and MCP server 1002.0 KB of 1088 (+5 KB each); the webview does not grow,
+  since React Flow already ships the smooth step.
+- A route does not avoid other wires, so wires can still cross. Two routes can also run along the
+  same line in opposite directions in a dense level.

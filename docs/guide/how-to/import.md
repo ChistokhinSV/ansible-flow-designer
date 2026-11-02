@@ -101,8 +101,8 @@ grouped, changed or left out. Review the flow on the canvas like any change.
 The assistant never sees the canvas. Before it finishes it runs the layout check (`flow_describe`
 with `layout`), which lists what you would spot at a glance: a wire through a step, a wire label
 on a step or on another label, steps on top of each other, wires crossing. It moves steps until
-the wires run clear. This matters most where several failure wires lead to one rescue step: _Tidy
-Up_ stacks such steps in one column, and a wire that skips a step runs through it.
+the level reads well. Wires step round the steps in their way by themselves, so several failure
+wires into one rescue step run beside the steps they skip, also after _Tidy Up_.
 
 You can also just ask, for example "turn site.yml into a flow, grouped by purpose", or "import
 site.yml as is" (the assistant then uses `flow_import`). See [AI assistants](ai-assistants.md).

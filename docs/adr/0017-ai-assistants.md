@@ -156,6 +156,10 @@ Consequences:
 - A place needs `OpsContext.positions`. Without it (a host that cannot run ELK), ops that take a place fail with "positions are not available here"; both shipped hosts provide it.
 - An agent that places by numbers without reading the layout can overlap nodes. The answer reports it, and `move` or `unplace` repairs it.
 
+## Amendment: AFD-70 (0.45.0)
+
+Wires now step round the nodes in their way (ADR-0020 amendment), so the "port-aware ELK or wires routed round nodes" left out of AFD-69 is done, as the router. The layout check reads the routed scene: a wire through a node now means no gap was wide enough, or a note or text is in the way. `LAYOUT_FIX`, the import prompt's step 6, the skill, the MCP instructions and the `tidy_up` description no longer say that `tidy_up` cannot fix wires. After `tidy_up` on the reported rescue shape, only crossings remain.
+
 ## Amendment: AFD-69 (0.44.0)
 
 Context: a product-owner test of an AI playbook import left a level hard to read. Failure wires into one rescue step ran through the steps between, and labels sat on nodes. The agent had coordinates and node-overlap warnings, but never the wires. The canvas draws each wire as a React Flow smooth step from port to port that steers round nothing, and ELK's own routes are discarded, so `tidy_up` gave the same picture.

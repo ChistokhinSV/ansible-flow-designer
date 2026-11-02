@@ -1,7 +1,8 @@
 // One picture per flow level (AFD-25): what the canvas shows, as boxes, ports and wires in canvas
 // pixels, for the draw.io and SVG writers. The geometry is the canvas's own (levelView), and wires
-// take React Flow's smooth-step route, so an export looks like the designer.
-import { getSmoothStepPath, Position as Side } from '@xyflow/system';
+// take the canvas's route (a smooth step, or round the nodes in its way: AFD-70), so an export
+// looks like the designer.
+import { Position as Side } from '@xyflow/system';
 import { keyPath } from '../ai/refs';
 import { type BoundaryView, boundaryView, type LevelView, levelView } from '../flow/levelView';
 import { buildModel, type FlowModel, ROOT } from '../flow/model';
@@ -10,6 +11,9 @@ import type { PortSide } from '../flow/ports';
 import type { FlowDocument, Layout, Position, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import type { Snapshot } from '../protocol';
+import { type Box, routeWire } from '../view/route';
+
+export type { Box };
 
 /** What an export is drawn from: the flow, where the canvas shows its nodes, and its problems. */
 export interface ExportSource {
@@ -20,18 +24,13 @@ export interface ExportSource {
   openPorts: OpenPort[];
 }
 
-export interface Box {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 export interface Wire {
   id: string;
   /** SVG path in canvas pixels and where its label sits. */
   path: string;
   label: { x: number; y: number };
+  /** A wire routed round nodes: its corners between the two ends (AFD-70). */
+  bends?: Position[];
 }
 
 export interface Scene {
@@ -43,7 +42,7 @@ export interface Scene {
   parent?: string;
   view: LevelView;
   boundary?: BoundaryView;
-  /** Smooth-step routes of the level's wires and the boundary's entry and exit wires, by ID. */
+  /** Routes of the level's wires and the boundary's entry and exit wires, by ID. */
   wires: Map<string, Wire>;
   /** Everything drawn, wires and port marks included. */
   bounds: Box;
@@ -118,16 +117,20 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
     const box = boxes.get(node);
     return n && p && box ? { centre: portCentre(box, p.side, p.offset), side: p.side } : undefined;
   };
-  const route = (wid: string, a: Position, as: Side, b: Position, bs: Side) => {
-    const [path, x, y] = getSmoothStepPath({
-      sourceX: a.x,
-      sourceY: a.y,
-      sourcePosition: as,
-      targetX: b.x,
-      targetY: b.y,
-      targetPosition: bs,
+  // Wires step round the level's nodes, as on the canvas; labels are the text the wire shows.
+  const obstacles: Box[] = view.nodes.map((n) => ({
+    ...n.position,
+    width: n.width,
+    height: n.height,
+  }));
+  const route = (wid: string, a: Position, as: Side, b: Position, bs: Side, label: string) => {
+    const r = routeWire(a, as, b, bs, obstacles, label);
+    wires.set(wid, {
+      id: wid,
+      path: r.path,
+      label: r.label,
+      ...(r.bends ? { bends: r.bends } : {}),
     });
-    wires.set(wid, { id: wid, path, label: { x, y } });
   };
   for (const e of view.edges) {
     const s = portAt(e.source, e.sourcePort);
@@ -139,6 +142,7 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
       SIDE[s.side],
       wireEnd(t.centre, SIDE[t.side], PORT),
       SIDE[t.side],
+      e.sourcePort,
     );
   }
   if (boundary) {
@@ -156,12 +160,12 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
         const s = framePort('in');
         const t = portAt(e.target, e.targetPort);
         if (s && t)
-          route(e.id, s.at, s.facing, wireEnd(t.centre, SIDE[t.side], PORT), SIDE[t.side]);
+          route(e.id, s.at, s.facing, wireEnd(t.centre, SIDE[t.side], PORT), SIDE[t.side], e.label);
       } else {
         const s = portAt(e.source, e.sourcePort);
         const t = framePort(e.targetPort);
         if (s && t)
-          route(e.id, wireEnd(s.centre, SIDE[s.side], PORT), SIDE[s.side], t.at, t.facing);
+          route(e.id, wireEnd(s.centre, SIDE[s.side], PORT), SIDE[s.side], t.at, t.facing, e.label);
       }
     }
   }

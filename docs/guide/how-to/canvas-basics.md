@@ -160,6 +160,9 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 - **Wire labels:** a wire that leaves by a failure, a branch, a decision's answer, a timeout,
   `always` or `unchanged` is labelled with its port; the normal path is not. Hover or select a wire
   to see its port.
+- **Wires round nodes:** a wire runs in steps from port to port. Where that would cross a node (a
+  wire that skips a step, or one back up the flow), it goes round the nodes in its way instead,
+  also while you drag one, and in exports. Wires into one port share their last stretch.
 
 ## Zoom
 

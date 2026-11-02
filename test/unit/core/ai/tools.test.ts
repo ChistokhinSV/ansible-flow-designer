@@ -11,8 +11,11 @@ import {
   type ToolResult,
 } from '../../../../src/core/ai/handlers';
 import { checkOps, OP_SPECS } from '../../../../src/core/ai/specs';
+import { flowLayoutProblems } from '../../../../src/core/export/layoutCheck';
+import { scenesOf } from '../../../../src/core/export/scene';
 import { createIdFactory } from '../../../../src/core/flow/ids';
-import { buildModel } from '../../../../src/core/flow/model';
+import { buildModel, ROOT } from '../../../../src/core/flow/model';
+import { openFailPorts } from '../../../../src/core/flow/openPorts';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../../src/core/flow/types';
 import { validateFlow } from '../../../../src/core/flow/validate';
@@ -314,6 +317,8 @@ describe('AI tools', () => {
     const io = memoryIO();
     const path = 'flows/wires/wires.flow.yaml';
     await call(io, 'flow_new', { path, name: 'Wires' });
+    // AFD-70: wires step round nodes, except where there is no room: B sits 20 px under A's
+    // ok_hosts port, so the wire to C has nowhere to turn and runs through B.
     const laid = await call(io, 'flow_edit', {
       path,
       ops: [
@@ -324,13 +329,7 @@ describe('AI tools', () => {
           after: 'start.ok_hosts',
           position: { x: 1000, y: 100 },
         },
-        {
-          op: 'add_node',
-          type: 'task',
-          title: 'B',
-          after: 'a.failed_hosts',
-          position: { x: 1000, y: 250 },
-        },
+        { op: 'add_node', type: 'task', title: 'B', position: { x: 1000, y: 196 } },
         {
           op: 'add_node',
           type: 'task',
@@ -356,9 +355,12 @@ describe('AI tools', () => {
     expect((await call(io, 'flow_describe', { path: EDGE, layout: true })).text).toContain(
       'Layout check: no problems',
     );
+  });
 
-    // As in an AI import (product-owner report): fail wires into a rescue step skip a step, and
-    // tidy_up stacks them in one column; ELK places nodes, the canvas does not route wires round.
+  it('AFD-70: after tidy_up no wire runs through a node, on the canvas and in exports', async () => {
+    const io = memoryIO();
+    // As in an AI import (product-owner report, AFD-69): fail wires into a rescue step skip
+    // steps, and tidy_up staggers those steps in one column. The wires now go round them.
     const rescue = 'flows/rescue/rescue.flow.yaml';
     await call(io, 'flow_new', { path: rescue, name: 'Rescue' });
     const tidied = await call(io, 'flow_edit', {
@@ -375,20 +377,25 @@ describe('AI tools', () => {
         { op: 'tidy_up', level: 'top' },
       ],
     });
-    expect(tidied.text).toContain(
-      '  wire render.failed_hosts -> rollback runs through write, refuse',
-    );
-    expect(tidied.text).toContain(
-      '  label "failed_hosts" of wire write.failed_hosts -> rollback covers refuse',
-    );
-    expect(tidied.text).toContain(
-      '  wires refuse.ok_hosts -> attempt and write.failed_hosts -> rollback cross',
-    );
-    // Worst first: wires through boxes, then labels, then crossings.
-    const lines = tidied.text.split('\n').filter((l) => l.startsWith('  '));
-    expect(lines.findIndex((l) => l.includes(' cross'))).toBeGreaterThan(
-      lines.findIndex((l) => l.includes('covers')),
-    );
+    expect(tidied.text).toContain('Layout check of the top level:');
+    expect(tidied.text).not.toContain('runs through');
+    expect(tidied.text).not.toContain('covers');
+    // The check reads the scene the exports draw (the canvas routes with the same function):
+    // only crossings are left, where the fail wires pass under refuse.ok_hosts -> attempt.
+    const doc = parse(io.files.get(rescue) as string) as FlowDocument;
+    const model = buildModel(doc);
+    const shown = await shownPositions(model);
+    const problems = flowLayoutProblems(model, shown).get(ROOT) ?? [];
+    expect(problems.filter((p) => p.kind !== 'cross')).toEqual([]);
+    // Render's and Write's fail wires go round; the wires that skip nothing keep their smooth step.
+    const scene = scenesOf({ doc, shown, findings: [], openPorts: openFailPorts(model) })[0];
+    const routed = [...(scene?.wires.values() ?? [])].filter((w) => w.bends);
+    expect(routed).toHaveLength(2);
+    // draw.io keeps a routed wire's corners as waypoints.
+    await call(io, 'flow_export', { path: rescue });
+    const drawio = io.exports.get('flows/rescue/rescue.drawio') as string;
+    expect(drawio.match(/<Array as="points">/g)).toHaveLength(2);
+    // Moving Rollback beside Refuse clears the crossings too.
     const fixed = await call(io, 'flow_edit', {
       path: rescue,
       ops: [{ op: 'move', nodes: { rollback: { right_of: 'refuse', gap: 96 } } }],

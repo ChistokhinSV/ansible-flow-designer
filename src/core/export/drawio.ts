@@ -9,7 +9,7 @@ import { keywordHint } from '../flow/keywords';
 import type { FramePortView, PortView } from '../flow/levelView';
 import { buildModel, ROOT } from '../flow/model';
 import type { PortTone } from '../flow/ports';
-import type { FlowNode } from '../flow/types';
+import type { FlowNode, Position } from '../flow/types';
 import { FILLS, NOTE_COLORS, TONES } from '../theme';
 import { markdownHtml, plainText } from '../view/markdown';
 import { type Detail, flowDetails, NODE_TYPE_LABEL, nodeDetails, tooltipOf } from './details';
@@ -234,6 +234,7 @@ function edgeCell(
   to: { id: string; side: string },
   tone: PortTone,
   problem: boolean,
+  bends: Position[] | undefined,
 ): void {
   const [ex, ey] = FACE[from.side] ?? [0.5, 1];
   const [nx, ny] = FACE[to.side] ?? [0.5, 0];
@@ -269,7 +270,12 @@ function edgeCell(
     label,
     data,
     {},
-    `<mxCell style="${attr(s)}" edge="1" parent="1" source="${attr(from.id)}" target="${attr(to.id)}"><mxGeometry relative="1" as="geometry"/></mxCell>`,
+    `<mxCell style="${attr(s)}" edge="1" parent="1" source="${attr(from.id)}" target="${attr(to.id)}">${
+      // A wire routed round nodes (AFD-70) keeps its route as waypoints.
+      bends?.length
+        ? `<mxGeometry relative="1" as="geometry"><Array as="points">${bends.map((p) => `<mxPoint x="${p.x}" y="${p.y}"/>`).join('')}</Array></mxGeometry>`
+        : '<mxGeometry relative="1" as="geometry"/>'
+    }</mxCell>`,
   );
 }
 
@@ -422,6 +428,8 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
 
   // Wires: labelled with their port, as on the canvas.
   const keyOf = (id: string) => scene.view.nodes.find((v) => v.node.id === id)?.node.key ?? id;
+  const bendsOf = (id: string) =>
+    scene.wires.get(id)?.bends?.map((p) => ({ x: p.x + dx, y: p.y + dy }));
   for (const e of scene.view.edges) {
     const from = ports.get(`${e.source}:${e.sourcePort}`);
     const to = ports.get(`${e.target}:${e.targetPort}`);
@@ -439,6 +447,7 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
       to,
       e.tone,
       e.problem,
+      bendsOf(e.id),
     );
   }
   for (const e of scene.boundary?.edges ?? []) {
@@ -457,6 +466,7 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
         to,
         e.tone,
         false,
+        bendsOf(e.id),
       );
     } else {
       const from = ports.get(`${e.source}:${e.sourcePort}`);
@@ -475,6 +485,7 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
         { id: `${frameId}:${e.targetPort}`, side: facing[side(e.targetPort)] ?? 'top' },
         e.tone,
         e.problem,
+        bendsOf(e.id),
       );
     }
   }

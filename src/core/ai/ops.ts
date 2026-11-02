@@ -788,7 +788,7 @@ async function commandsOf(
             );
       const positions: Record<Ulid, Position> = {};
       for (const level of levels) Object.assign(positions, await ctx.layout(level));
-      // AFD-69: the tidied levels get the layout check too; ELK does not route the wires.
+      // AFD-69: the tidied levels get the layout check too (crossings and labels can remain).
       for (const id of Object.keys(positions)) placed.add(id);
       return [{ kind: 'tidyUp', positions }];
     }

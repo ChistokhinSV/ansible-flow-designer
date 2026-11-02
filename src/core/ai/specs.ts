@@ -522,7 +522,7 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'tidy_up',
     summary:
-      'Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. It places nodes but does not route wires: a wire can still run through a node, so read the layout check it reports.',
+      'Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. Wires then step round the nodes in their way by themselves; read the layout check it reports for what is left (crossings, labels).',
     properties: {
       level: { type: 'string', description: 'top (default), all, or a subflow key.' },
     },

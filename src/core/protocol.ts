@@ -250,6 +250,8 @@ export interface DomSummary {
   /** Per node: every port of its type, the enabled ones, and those shown at rest (D-14). */
   nodes: { id: string; legal: string[]; ports: string[]; rest: string[] }[];
   edges: number;
+  /** AFD-70: each wire's path as drawn (`d`), by ID. */
+  wires?: Record<string, string>;
   /** AFD-65: Notes, Sections and Text drawn on the level. */
   annotations?: number;
   banner: number | null;

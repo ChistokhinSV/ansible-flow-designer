@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.45.0 — AFD-70
+
+- **Wires go round steps:** a wire that would run through a step (one that skips a step, such as several failure wires into one rescue step, or one back up the flow) now goes round the steps in its way, on the canvas while you drag and in draw.io, SVG and PNG exports. Wires into one port share their last stretch, and a label sits where it covers no step.
+- **Tidy Up gives a clean level by itself:** after Tidy Up (and an AI assistant's `tidy_up`) no wire runs through a step; what the layout check can still report is mostly crossings.
+- Every other wire looks exactly as before.
+
 ## 0.44.0 — AFD-69
 
 - **AI assistants check the layout they cannot see:** `flow_describe` with layout lists, per level, a wire running through a step, a wire label on a step or on another label, steps or notes on top of each other, and wires crossing. An edit that places steps checks the levels it laid out, so the assistant can tell whether a move helped.

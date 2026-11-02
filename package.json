@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.44.0",
+  "version": "0.45.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -2386,7 +2386,7 @@
                   },
                   {
                     "type": "object",
-                    "description": "Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. It places nodes but does not route wires: a wire can still run through a node, so read the layout check it reports.",
+                    "description": "Lay out a level again with the auto-layout and store every position (positions only). It replaces hand-made positions on that level. Wires then step round the nodes in their way by themselves; read the layout check it reports for what is left (crossings, labels).",
                     "properties": {
                       "op": {
                         "const": "tidy_up"

@@ -134,10 +134,10 @@ it handles).
   places: they step aside until the spot is free.
 - `flow_describe` with `layout: true` shows each node `at x,y` (stored) or `auto x,y` (shown now)
   and a layout check of what you cannot see: overlaps, a wire through a box, labels on boxes or each
-  other, crossings. A wire that skips a step runs through it: `move` the box beside it; check again.
+  other, crossings. Wires step round boxes where a gap lets them; one still through a box: `move` it.
 - The first position on a level the canvas lays out also stores the others where they are shown,
   so nothing jumps. flow_edit checks every level it placed nodes on. Check before you finish.
-- `unplace` (nodes or a `level`) hands nodes back to the canvas; `tidy_up` re-lays a level (not wires).
+- `unplace` (nodes or a `level`) hands nodes back to the canvas; `tidy_up` re-lays a level.
 
 ## Notes, sections and text
 
