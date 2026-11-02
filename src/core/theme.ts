@@ -104,3 +104,47 @@ export const FILLS: Record<ThemeKind, Record<FillToken, string>> = {
     'fill-failed-end': 'transparent',
   },
 };
+
+/**
+ * Annotation colours (AFD-65): a Note's fill, and the ink of a Section's border and title and of
+ * Text. High contrast keeps no fills; the ink carries the colour where the theme allows one.
+ */
+export type AnnotationTone = 'yellow' | 'blue' | 'green' | 'pink' | 'purple' | 'gray';
+
+export const NOTE_COLORS: Record<
+  ThemeKind,
+  Record<AnnotationTone, { fill: string; ink: string }>
+> = {
+  light: {
+    yellow: { fill: '#fff4c2', ink: '#7a5600' },
+    blue: { fill: '#e2edff', ink: '#1f4e9e' },
+    green: { fill: '#e0f5e7', ink: '#1d6336' },
+    pink: { fill: '#fde6ef', ink: '#9b2358' },
+    purple: { fill: '#eee7ff', ink: '#5536b0' },
+    gray: { fill: '#eceef1', ink: '#4b5058' },
+  },
+  dark: {
+    yellow: { fill: '#4a3e10', ink: '#f2d46b' },
+    blue: { fill: '#1c2d4a', ink: '#8ab4ff' },
+    green: { fill: '#1a3925', ink: '#7ed49a' },
+    pink: { fill: '#45202f', ink: '#f59ac0' },
+    purple: { fill: '#2f2550', ink: '#c1aaff' },
+    gray: { fill: '#2e3137', ink: '#c3c7cd' },
+  },
+  'hc-dark': {
+    yellow: { fill: 'transparent', ink: '#ffff00' },
+    blue: { fill: 'transparent', ink: '#8ab4ff' },
+    green: { fill: 'transparent', ink: '#89d185' },
+    pink: { fill: 'transparent', ink: '#ff9ccf' },
+    purple: { fill: 'transparent', ink: '#d0b8ff' },
+    gray: { fill: 'transparent', ink: '#ffffff' },
+  },
+  'hc-light': {
+    yellow: { fill: 'transparent', ink: '#5c4400' },
+    blue: { fill: 'transparent', ink: '#0f3d8a' },
+    green: { fill: 'transparent', ink: '#0f5223' },
+    pink: { fill: 'transparent', ink: '#8a1846' },
+    purple: { fill: 'transparent', ink: '#45249c' },
+    gray: { fill: 'transparent', ink: '#292929' },
+  },
+};

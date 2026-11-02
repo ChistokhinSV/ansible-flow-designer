@@ -13,6 +13,7 @@ import eos from '../../../test/fixtures/catalog/files/arista.eos@10.0.1.json';
 import ios from '../../../test/fixtures/catalog/files/cisco.ios@9.0.3.json';
 import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.flow.yaml?raw';
 import driftScan from '../../../test/fixtures/drift/scan.json';
+import annotated from '../../../test/fixtures/flows/annotated.flow.yaml?raw';
 import handWritten from '../../../test/fixtures/flows/hand-written.flow.yaml?raw';
 import sampleImport from '../../../test/fixtures/import/sample-site.flow.yaml?raw';
 import lensFixture from '../../../test/fixtures/lens/facts.json';
@@ -47,6 +48,8 @@ function fixedIds(): () => string {
 
 const FLOWS: Record<string, string> = {
   'edge-baseline': edgeBaseline,
+  // AFD-65: edge-baseline in format 2 with notes, a section and text.
+  annotated,
   'os-upgrade': osUpgrade,
   // AFD-22: the bundled sample, and a flow as New Flow makes it (screenshots for the guides).
   'firewall-upgrade': firewallUpgrade,

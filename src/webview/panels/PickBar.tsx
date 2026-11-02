@@ -8,6 +8,7 @@ const VERB = {
   to: 'Click the node to wire',
   rewire: 'Click the new target of',
   from: 'Click the node that feeds',
+  attach: 'Click the node this note is about',
 } as const;
 
 export function PickBar() {
@@ -25,7 +26,14 @@ export function PickBar() {
     <div className="afd-banner info" role="status" data-pick={pick.mode}>
       <span className="codicon codicon-target" aria-hidden="true" />
       <span>
-        {VERB[pick.mode]} <strong>{title}</strong> · <span className="mono">{pick.ref.port}</span>
+        {pick.mode === 'attach' ? (
+          VERB.attach
+        ) : (
+          <>
+            {VERB[pick.mode]} <strong>{title}</strong> ·{' '}
+            <span className="mono">{pick.ref.port}</span>
+          </>
+        )}
       </span>
       <span className="muted" data-pick-at={pickAt ?? undefined}>
         {pickAt ? (

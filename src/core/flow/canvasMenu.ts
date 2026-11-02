@@ -7,13 +7,25 @@ import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
 import { freeOutput, type PortMenuItem, portMenu } from './portMenu';
 import { canMarkTested, contentStatus } from './status';
-import { NODE_STATUSES, type NodeStatus, type PortRef, type Ulid } from './types';
+import {
+  ANNOTATION_COLORS,
+  type AnnotationColor,
+  type AnnotationKind,
+  NODE_STATUSES,
+  type NodeStatus,
+  type PortRef,
+  type Ulid,
+} from './types';
 
 export type CanvasMode = 'design' | 'code' | 'run';
 
 export type CanvasTarget =
   | { kind: 'node'; id: Ulid }
-  | { kind: 'nodes'; ids: Ulid[] }
+  /** Several nodes, with the annotations picked with them (AFD-65). */
+  | { kind: 'nodes'; ids: Ulid[]; annotations?: Ulid[] }
+  /** AFD-65: one Note, Section or Text, or several with no node. */
+  | { kind: 'annotation'; id: Ulid }
+  | { kind: 'annotations'; ids: Ulid[] }
   | { kind: 'edge'; id: Ulid }
   /** The boundary frame's entry wire (D-23). */
   | { kind: 'entry'; subflow: Ulid }
@@ -34,6 +46,7 @@ export type ShortcutId =
   | 'menu'
   | 'help'
   | 'addNode'
+  | 'addNote'
   | 'selectAll'
   | 'fit'
   | 'find';
@@ -45,7 +58,18 @@ export type CanvasAction =
   | { do: 'setStatus'; node: Ulid; status: NodeStatus }
   | { do: 'port'; ref: PortRef; item: PortMenuItem }
   | { do: 'addNext'; from: PortRef }
-  | { do: 'cut' | 'copy' | 'duplicate' | 'delete'; nodes: Ulid[]; edges?: Ulid[] }
+  | {
+      do: 'cut' | 'copy' | 'duplicate' | 'delete';
+      nodes: Ulid[];
+      edges?: Ulid[];
+      annotations?: Ulid[];
+    }
+  /** AFD-65: at the menu's spot, or on a node. */
+  | { do: 'addAnnotation'; kind: AnnotationKind; on?: Ulid }
+  | { do: 'editAnnotation'; id: Ulid }
+  | { do: 'colorAnnotation'; id: Ulid; color: AnnotationColor }
+  | { do: 'attachAnnotation'; id: Ulid }
+  | { do: 'detachAnnotation'; id: Ulid }
   | { do: 'extract'; nodes: Ulid[] }
   | { do: 'showInText'; node: Ulid }
   | { do: 'peekCode'; node: Ulid }
@@ -89,6 +113,8 @@ export interface CanvasMenuContext {
   why?: string;
   openPorts: readonly OpenPort[];
   hasPlay: (node: Ulid) => boolean;
+  /** The file's format (default: the model's): annotations need 2 (AFD-65). */
+  format?: number;
 }
 
 const STALE = 'Fix the YAML errors first';
@@ -220,6 +246,14 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
+  if (edit && formatOf(model.doc) >= 2)
+    design.push(
+      item(
+        'Add Note to This Node',
+        { do: 'addAnnotation', kind: 'note', on: id },
+        { icon: 'note', shortcut: 'addNote', ...lock },
+      ),
+    );
 
   const one = [id];
   const clip: CanvasMenuEntry[] = [];
@@ -246,18 +280,25 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   return groups(open, design, clip, code, remove);
 }
 
-function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): CanvasMenuEntry[] {
+function groupMenu(
+  model: FlowModel,
+  ids: Ulid[],
+  ctx: CanvasMenuContext,
+  annotations: Ulid[] = [],
+): CanvasMenuEntry[] {
   const nodes = ids.map((id) => model.nodes.get(id)?.node).filter((n) => !!n);
   const edit = ctx.mode === 'design';
   const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
+  const also = annotations.length ? { annotations } : {};
   const clip: CanvasMenuEntry[] = [];
-  if (edit) clip.push(item('Cut', { do: 'cut', nodes: ids }, { shortcut: 'cut', ...lock }));
-  clip.push(item('Copy', { do: 'copy', nodes: ids }, { icon: 'copy', shortcut: 'copy' }));
+  if (edit)
+    clip.push(item('Cut', { do: 'cut', nodes: ids, ...also }, { shortcut: 'cut', ...lock }));
+  clip.push(item('Copy', { do: 'copy', nodes: ids, ...also }, { icon: 'copy', shortcut: 'copy' }));
   if (edit)
     clip.push(
       item(
         'Duplicate',
-        { do: 'duplicate', nodes: ids },
+        { do: 'duplicate', nodes: ids, ...also },
         { icon: 'files', shortcut: 'duplicate', ...lock },
       ),
     );
@@ -276,9 +317,82 @@ function groupMenu(model: FlowModel, ids: Ulid[], ctx: CanvasMenuContext): Canva
     );
   }
   const remove = edit
-    ? [item('Delete', { do: 'delete', nodes: ids }, { icon: 'trash', shortcut: 'delete', ...lock })]
+    ? [
+        item(
+          'Delete',
+          { do: 'delete', nodes: ids, ...also },
+          { icon: 'trash', shortcut: 'delete', ...lock },
+        ),
+      ]
     : [];
   return groups(clip, more, remove);
+}
+
+const COLOR_LABEL: Record<AnnotationColor, string> = {
+  yellow: 'Yellow',
+  blue: 'Blue',
+  green: 'Green',
+  pink: 'Pink',
+  purple: 'Purple',
+  gray: 'Gray',
+};
+
+/** AFD-65: a Note, Section or Text: its words, colour, tie, the clipboard and Delete. */
+function annotationMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
+  const a = model.annotations.get(id)?.annotation;
+  if (!a) return paneMenu(ctx);
+  const kind = a.kind ?? 'note';
+  const edit = ctx.mode === 'design';
+  const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
+  const one = { nodes: [], annotations: [id] };
+  const words = edit
+    ? [
+        item(
+          'Edit Text',
+          { do: 'editAnnotation', id },
+          { icon: 'edit', shortcut: 'rename', ...lock },
+        ),
+        {
+          type: 'submenu' as const,
+          label: 'Color',
+          icon: 'symbol-color',
+          items: ANNOTATION_COLORS.map((color) =>
+            item(
+              COLOR_LABEL[color],
+              { do: 'colorAnnotation', id, color },
+              { checked: (a.color ?? (kind === 'note' ? 'yellow' : 'gray')) === color, ...lock },
+            ),
+          ),
+        },
+      ]
+    : [];
+  const tie =
+    edit && kind === 'note'
+      ? [
+          a.on
+            ? item(
+                'Detach from Node',
+                { do: 'detachAnnotation', id },
+                { icon: 'debug-disconnect', ...lock },
+              )
+            : item('Attach to Node…', { do: 'attachAnnotation', id }, { icon: 'link', ...lock }),
+        ]
+      : [];
+  const clip: CanvasMenuEntry[] = [];
+  if (edit) clip.push(item('Cut', { do: 'cut', ...one }, { shortcut: 'cut', ...lock }));
+  clip.push(item('Copy', { do: 'copy', ...one }, { icon: 'copy', shortcut: 'copy' }));
+  if (edit)
+    clip.push(
+      item(
+        'Duplicate',
+        { do: 'duplicate', ...one },
+        { icon: 'files', shortcut: 'duplicate', ...lock },
+      ),
+    );
+  const remove = edit
+    ? [item('Delete', { do: 'delete', ...one }, { icon: 'trash', shortcut: 'delete', ...lock })]
+    : [];
+  return groups(words, tie, clip, remove);
 }
 
 function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
@@ -291,6 +405,27 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
         item('Insert Shared Subflow…', { do: 'insertShared' }, { icon: 'references', ...lock }),
       ]
     : [];
+  // AFD-65: annotations are format 2.
+  const note =
+    edit && (ctx.format ?? 1) >= 2
+      ? [
+          item(
+            'Add Note Here',
+            { do: 'addAnnotation', kind: 'note' },
+            { icon: 'note', shortcut: 'addNote', ...lock },
+          ),
+          item(
+            'Add Section Here',
+            { do: 'addAnnotation', kind: 'section' },
+            { icon: 'layout-panel', ...lock },
+          ),
+          item(
+            'Add Text Here',
+            { do: 'addAnnotation', kind: 'text' },
+            { icon: 'text-size', ...lock },
+          ),
+        ]
+      : [];
   const view: CanvasMenuEntry[] = [
     item('Select All', { do: 'selectAll' }, { icon: 'selection', shortcut: 'selectAll' }),
   ];
@@ -301,20 +436,41 @@ function paneMenu(ctx: CanvasMenuContext): CanvasMenuEntry[] {
     ctx.level !== ROOT
       ? [item('Up to Parent', { do: 'upLevel' }, { icon: 'arrow-up', shortcut: 'up' })]
       : [];
-  return groups(add, view, nav);
+  return groups(add, note, view, nav);
 }
 
 export function canvasMenu(
   model: FlowModel,
   target: CanvasTarget,
-  ctx: CanvasMenuContext,
+  given: CanvasMenuContext,
 ): CanvasMenuEntry[] {
+  const ctx = { ...given, format: given.format ?? formatOf(model.doc) };
   const edit = ctx.mode === 'design' && !ctx.stale;
   switch (target.kind) {
     case 'node':
       return nodeMenu(model, target.id, ctx);
     case 'nodes':
-      return groupMenu(model, target.ids, ctx);
+      return groupMenu(model, target.ids, ctx, target.annotations);
+    case 'annotation':
+      return annotationMenu(model, target.id, ctx);
+    case 'annotations': {
+      const lock = ctx.stale ? { disabled: ctx.why ?? STALE } : {};
+      const many = { nodes: [], annotations: target.ids };
+      if (ctx.mode !== 'design')
+        return [item('Copy', { do: 'copy', ...many }, { icon: 'copy', shortcut: 'copy' })];
+      return groups(
+        [
+          item('Cut', { do: 'cut', ...many }, { shortcut: 'cut', ...lock }),
+          item('Copy', { do: 'copy', ...many }, { icon: 'copy', shortcut: 'copy' }),
+          item(
+            'Duplicate',
+            { do: 'duplicate', ...many },
+            { icon: 'files', shortcut: 'duplicate', ...lock },
+          ),
+        ],
+        [item('Delete', { do: 'delete', ...many }, { icon: 'trash', shortcut: 'delete', ...lock })],
+      );
+    }
     case 'edge': {
       const edge = model.edges.get(target.id)?.edge;
       if (!edge || !edit) return paneMenu(ctx);

@@ -91,6 +91,7 @@ describe('top bar', () => {
       // The palette and the side panel fold away for room (AFD-48).
       'Collapse Palette',
       'Hide Side Panel',
+      'Hide Annotations',
       'Keyboard Shortcuts',
       'User Guide',
     ]);

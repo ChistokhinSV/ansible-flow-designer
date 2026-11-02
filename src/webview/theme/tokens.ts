@@ -2,10 +2,17 @@
 // applied as CSS custom properties at runtime (CSSOM, allowed by the CSP) and checked for contrast
 // in unit tests. Everything else (backgrounds, text, focus) comes from VS Code's --vscode-* vars.
 
-import { FILLS, type ThemeKind, TONES } from '../../core/theme';
+import { FILLS, NOTE_COLORS, type ThemeKind, TONES } from '../../core/theme';
 
 // The palette lives in core (AFD-25: the exports use it too).
-export { FILLS, type FillToken, type ThemeKind, TONES, type ToneToken } from '../../core/theme';
+export {
+  FILLS,
+  type FillToken,
+  NOTE_COLORS,
+  type ThemeKind,
+  TONES,
+  type ToneToken,
+} from '../../core/theme';
 
 export type LensToken = 'inventory' | 'data' | 'code' | 'access' | 'timing' | 'changes';
 
@@ -66,6 +73,10 @@ export function applyTheme(root: HTMLElement, kind: ThemeKind): void {
   for (const [k, v] of Object.entries(LENS_CHIPS[kind])) {
     root.style.setProperty(`--afd-lens-${k}-bg`, v.bg);
     root.style.setProperty(`--afd-lens-${k}-fg`, v.fg);
+  }
+  for (const [k, v] of Object.entries(NOTE_COLORS[kind])) {
+    root.style.setProperty(`--afd-note-${k}`, v.fill);
+    root.style.setProperty(`--afd-note-${k}-ink`, v.ink);
   }
   // Data lens wires take the data chip's text color.
   root.style.setProperty('--afd-lens-data', LENS_CHIPS[kind].data.fg);

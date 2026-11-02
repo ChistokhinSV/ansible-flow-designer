@@ -25,6 +25,7 @@ import type {
   Snapshot,
   WebviewMessage,
 } from '../core/protocol';
+import { isWebLink, linksOf } from '../core/view/markdown';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
@@ -402,6 +403,18 @@ export class FlowSession implements vscode.Disposable {
       case 'requestPaste': {
         const text = await vscode.env.clipboard.readText();
         this.post(panel, { type: 'clipboard', action: 'paste', text, at: m.at });
+        break;
+      }
+      case 'openLink': {
+        // Only a web link written in one of this flow's annotations (AFD-65), never a URL the
+        // page makes up: the webview shows the file's own text.
+        const doc = this.built?.parsed.doc;
+        const known =
+          doc &&
+          [...modelOf(doc).annotations.values()].some((e) =>
+            linksOf(e.annotation.text).includes(m.url),
+          );
+        if (known && isWebLink(m.url)) await vscode.env.openExternal(vscode.Uri.parse(m.url));
         break;
       }
       case 'copyText':

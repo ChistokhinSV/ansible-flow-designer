@@ -102,3 +102,24 @@ that subflow (`context`).
 - **Failed steps** in the run panel: every non-subflow node with failed hosts, sorted by trail, each a link that reveals it.
 - **Collapsible side panels:** `paletteCollapsed` (icons with their names as labels; the pattern hint stays for screen readers) and `panelCollapsed` (a 40 px strip, `--afd-collapsed-width`, with Show Side Panel), both in webview state. The window-splitter pattern on the panel edge: Enter or a double-click folds it. The legend leaves the column for a non-modal popover from "? Legend" (Escape and an outside click close it). Resizing stays the right panel's only (the palette is icons or names).
 - **Empty level card** in Design mode while the level has only Start and End: Add a Step (Quick Add on the Start to End wire of a new flow, else after Start or at the paste place), and on the top level a `startFrom` host message for the two importers and Open Sample Flow. "Apply a pattern" from the plan is not offered: a pattern needs a step with an open fail port, which an empty level does not have.
+
+## Amendment: annotations on the canvas (AFD-65, 2026-11-02)
+
+Notes, Sections and Text (ADR-0028) are canvas nodes of type `annotation`, without ports.
+- **Layers:** `zIndexMode="manual"`. Sections are at -2, behind the subflow frame (-1); wires and free Notes and Text are at 0; nodes at 1; tied Notes at 2. In React Flow's default mode a selected node rises by 1000, which would put a selected Section over its steps.
+- **A Note on a node** is that node's React Flow child (`parentId`). Its stored position is relative, as React Flow's is, so it follows drags, optimistic moves and Tidy Up. It draws its own dashed tie, border to border (`core/view/tie.ts`), so wires and the metrics see no extra edges.
+- **Sections:** only the title bar (`dragHandle`) and the resize handles take the pointer; clicks, pan and box-select go through the body. A drag carries what `sectionContents` finds wholly inside, and saves one `moveNodes` with `annotations`.
+- **Editing:**
+  - double-click, Enter or F2 opens a textarea (`nodrag nopan nowheel`); Ctrl+Enter or blur saves one edit, and Escape cancels;
+  - Markdown is shown as React text nodes from `core/view/markdown.ts`;
+  - a link click asks the host, which opens only http(s) links found in the flow's annotations.
+- **Surfaces:**
+  - the palette's Annotate group (drag with `ANNOTATION_MIME`; a Note dropped on a node is tied to it);
+  - the canvas menu (Add Note/Section/Text Here), the node menu (Add Note to This Node), and an annotation menu (Edit Text, Color, Attach to Node… with pick mode `attach`, Detach, Cut, Copy, Duplicate, Delete);
+  - Shift+N;
+  - an Annotation panel on the right for one selected annotation;
+  - Find matches annotation text;
+  - **Hide Annotations** in the … menu (per viewer, kept with the panel state).
+- **Selection:** `Selection.annotations`, alone or with nodes; Delete, Copy, Cut, Duplicate and Select All take them.
+- **Read-only** outside Design mode, on shared levels and on broken files; faded under a lens and in Run mode.
+- **Colours:** `NOTE_COLORS` per theme, with a fill and an ink each. Note text reaches 4.5:1 on its fill and the ink 4.5:1 on the canvas (theme test); high contrast has no fills.

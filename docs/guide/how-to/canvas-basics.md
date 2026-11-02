@@ -96,8 +96,11 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
   fail port, Add Next Node…, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
 - **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Delete.
+- **Note, section or text:** Edit Text, Color ▸, Attach to Node… or Detach from Node, Cut, Copy,
+  Duplicate, Delete ([Notes, sections and text](annotations.md)).
 - **Wire:** Insert Node on This Wire, Rewire to Another Node…, Disconnect.
-- **Empty canvas:** Paste Here, Add Node Here…, Select All, Tidy Up, Fit View, Up to Parent.
+- **Empty canvas:** Paste Here, Add Node Here…, Insert Shared Subflow…, Add Note Here, Add Section
+  Here, Add Text Here, Select All, Tidy Up, Fit View, Up to Parent.
 
 Shift+F10 or the Menu key opens it for the selection. Run mode only reads.
 
@@ -112,8 +115,9 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                                  |
 | Ctrl+D                   | Duplicate the selection                                 |
 | Delete / Backspace       | Delete the selection                                    |
-| F2                       | Rename (the Title in the Details)                       |
+| F2                       | Rename (the Title in the Details), or edit a note       |
 | N                        | Add a node: after the selected one, else at the pointer |
+| Shift+N                  | Add a note: on the selected node, else at the pointer   |
 | Ctrl+Z / Ctrl+Y          | Undo / Redo                                             |
 | Enter                    | Open the selected subflow, or go to the node's Details  |
 | Alt+↑                    | Back to the parent level                                |

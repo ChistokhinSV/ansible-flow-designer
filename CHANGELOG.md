@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.41.0 — AFD-65
+
+- **Notes, sections and text on the canvas** (format 2): add them from the palette's Annotate group, the canvas menu (Add Note/Section/Text Here), a node's menu (Add Note to This Node) or Shift+N. Double-click, Enter or F2 edits the Markdown in place; Ctrl+Enter saves, Esc cancels. A note on a node is tied to it by a dashed line and moves with it; a section is dragged by its title and carries the steps inside it; text comes in three sizes. Their panel sets the text, color, size and the node a note is on (Attach to Node…, Detach from Node). Links open in the browser. Find searches their words; … › Hide Annotations takes them off your canvas. They never change the flow's version.
+
 ## 0.40.0 — AFD-64
 
 - **Annotations in the flow file (format 2)**: Notes (Markdown), Notes on a node (they move, are copied, extracted and deleted with it), Sections (titled regions that carry what is inside them when moved) and Text, under `annotations:` on each level. They never run and change no version: saving a flow whose only change is its annotations keeps its version and its tested steps. Multi-line text is written as a readable YAML block. Complete IDs completes annotations written by hand. The canvas shows them from the next version.

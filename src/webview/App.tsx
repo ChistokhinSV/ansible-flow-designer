@@ -10,6 +10,7 @@ import { onTabListKeys } from './focus';
 import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
 import { CanvasContextMenu } from './menu/CanvasContextMenu';
+import { AnnotationPanel } from './panels/AnnotationPanel';
 import { Banner, FormatBanner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
 import { CheatSheet } from './panels/CheatSheet';
@@ -140,6 +141,8 @@ function RightPanelView({ panel }: { panel: RightPanel }) {
       return <Details key={panel.id} id={panel.id} context={panel.context} />;
     case 'boundary':
       return <BoundaryPanel edge={panel.edge} />;
+    case 'annotation':
+      return <AnnotationPanel id={panel.id} />;
     case 'flow':
       return <FlowDescription />;
   }
@@ -150,6 +153,7 @@ interface PanelState {
   expanded?: boolean;
   paletteCollapsed?: boolean;
   panelCollapsed?: boolean;
+  annotationsHidden?: boolean;
 }
 
 /** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
@@ -160,12 +164,14 @@ function usePanelState() {
     if (saved.expanded) useUi.getState().setExpanded(true);
     if (saved.paletteCollapsed) useUi.getState().setPaletteCollapsed(true);
     if (saved.panelCollapsed) useUi.getState().setPanelCollapsed(true);
+    if (saved.annotationsHidden) useUi.getState().setAnnotationsHidden(true);
     return useUi.subscribe((s, before) => {
       if (
         s.panelWidth === before.panelWidth &&
         s.expanded === before.expanded &&
         s.paletteCollapsed === before.paletteCollapsed &&
-        s.panelCollapsed === before.panelCollapsed
+        s.panelCollapsed === before.panelCollapsed &&
+        s.annotationsHidden === before.annotationsHidden
       )
         return;
       saveState({
@@ -174,6 +180,7 @@ function usePanelState() {
         expanded: s.expanded,
         paletteCollapsed: s.paletteCollapsed,
         panelCollapsed: s.panelCollapsed,
+        annotationsHidden: s.annotationsHidden,
       });
     });
   }, []);
@@ -270,6 +277,7 @@ export function App() {
   const selected = useUi((s) => s.selection.node);
   const wire = useUi((s) => s.selection.edge);
   const many = useUi((s) => s.selection.nodes);
+  const notes = useUi((s) => s.selection.annotations);
   const level = useUi((s) => s.level);
   const panelWidth = useUi((s) => s.panelWidth);
   const lensTab = useUi((s) => s.lens !== null && s.lensTab);
@@ -282,7 +290,7 @@ export function App() {
   const panel = rightPanelFor({
     lens,
     mode,
-    selection: { node: selected, edge: wire, nodes: many },
+    selection: { node: selected, edge: wire, nodes: many, annotations: notes },
     level,
   });
 

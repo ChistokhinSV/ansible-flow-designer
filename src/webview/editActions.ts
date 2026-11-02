@@ -17,6 +17,11 @@ export function selectedNodes(): Ulid[] {
   return selection.nodes ?? (selection.node ? [selection.node] : []);
 }
 
+/** The selected Notes, Sections and Text (AFD-65). */
+export function selectedAnnotations(): Ulid[] {
+  return useUi.getState().selection.annotations ?? [];
+}
+
 /**
  * The graph can be edited: Design mode (Code and Run show it read-only, AFD-45), the text parses,
  * and no IDs are missing (AFD-19).
@@ -70,7 +75,11 @@ export function selectCreated(ack: Ack): Ulid[] {
  * Deletes nodes and wires in one edit. Boundary wires are boundary edits of their own (the entry
  * or the exit of the open subflow); those touching a deleted node go with the node.
  */
-export async function deleteSelection(nodes: Ulid[], edges: string[] = []): Promise<void> {
+export async function deleteSelection(
+  nodes: Ulid[],
+  edges: string[] = [],
+  annotations: Ulid[] = [],
+): Promise<void> {
   if (!canEdit()) return;
   const gone = new Set(nodes);
   const doc = useUi.getState().snapshot?.doc;
@@ -88,22 +97,27 @@ export async function deleteSelection(nodes: Ulid[], edges: string[] = []): Prom
         await run({ kind: 'disconnectBoundary', subflow: b.subflow, from: b.from, port: b.port });
     } else plain.push(id);
   }
-  if (nodes.length === 0 && plain.length === 0) return;
-  await run({ kind: 'deleteNodes', ids: nodes, edges: plain });
+  if (nodes.length === 0 && plain.length === 0 && annotations.length === 0) return;
+  await run({
+    kind: 'deleteNodes',
+    ids: nodes,
+    edges: plain,
+    ...(annotations.length ? { annotations } : {}),
+  });
 }
 
 /** Cut from the menu: the text goes to the clipboard through the host, then one delete. */
-export async function cutNodes(ids: Ulid[]): Promise<void> {
-  if (ids.length === 0) return;
-  copySelection(ids);
-  await deleteSelection(ids);
+export async function cutNodes(ids: Ulid[], annotations: Ulid[] = []): Promise<void> {
+  if (ids.length === 0 && annotations.length === 0) return;
+  copySelection(ids, annotations);
+  await deleteSelection(ids, [], annotations);
 }
 
 /** A copy of the nodes next to them (+40, +40), without the clipboard: one paste command. */
-export async function duplicate(ids: Ulid[]): Promise<void> {
+export async function duplicate(ids: Ulid[], annotations: Ulid[] = []): Promise<void> {
   const ui = useUi.getState();
-  if (!canEdit() || ids.length === 0 || !ui.snapshot?.doc) return;
-  const text = copyNodes(ui.snapshot.doc, ids, ui.snapshot.autoPositions);
+  if (!canEdit() || (ids.length === 0 && annotations.length === 0) || !ui.snapshot?.doc) return;
+  const text = copyNodes(ui.snapshot.doc, ids, ui.snapshot.autoPositions, annotations);
   if (!text) return;
   // Nodes still at auto-layout positions are written too, so the copy does not move them.
   const freeze = unplacedPositions(
@@ -119,13 +133,17 @@ export async function duplicate(ids: Ulid[]): Promise<void> {
   if (ack.ok) selectCreated(ack);
 }
 
-/** Every node of the open level. */
+/** Every node and annotation of the open level. */
 export function selectAll(): void {
   const ui = useUi.getState();
   if (!ui.snapshot) return;
-  const ids = levelView(ui.snapshot, ui.optimistic, ui.level).nodes.map((n) => n.node.id);
-  if (ids.length > 1) ui.select({ nodes: ids });
-  else if (ids[0]) ui.select({ node: ids[0] });
+  const view = levelView(ui.snapshot, ui.optimistic, ui.level);
+  const ids = view.nodes.map((n) => n.node.id);
+  const notes = ui.annotationsHidden ? [] : view.annotations.map((a) => a.annotation.id);
+  const also = notes.length ? { annotations: notes } : {};
+  if (ids.length > 1) ui.select({ nodes: ids, ...also });
+  else if (ids[0]) ui.select({ node: ids[0], ...also });
+  else if (notes.length) ui.select(also);
 }
 
 /** The level that holds the open subflow. */

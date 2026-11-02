@@ -6,7 +6,8 @@ import { freeOutput } from '../flow/portMenu';
 import { portsFor } from '../flow/ports';
 import type { FlowNode, Position, Ulid } from '../flow/types';
 
-export type PickMode = 'to' | 'from' | 'rewire';
+/** `attach` (AFD-65): any node of the level takes a Note. */
+export type PickMode = 'to' | 'from' | 'rewire' | 'attach';
 
 export function pickCandidates(
   model: FlowModel,
@@ -15,9 +16,11 @@ export function pickCandidates(
 ): Ulid[] {
   // Wiring to a node needs its `in` port; wiring from one needs an output that is still free.
   const fits = (node: FlowNode) =>
-    pick.mode === 'from'
-      ? freeOutput(model, node.id) !== undefined
-      : portsFor(node).some((p) => p.name === 'in');
+    pick.mode === 'attach'
+      ? true
+      : pick.mode === 'from'
+        ? freeOutput(model, node.id) !== undefined
+        : portsFor(node).some((p) => p.name === 'in');
   return nodes
     .filter(({ node }) => node.id !== pick.node && fits(node))
     .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)

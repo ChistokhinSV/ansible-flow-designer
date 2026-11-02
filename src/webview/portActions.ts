@@ -5,6 +5,7 @@ import type { PatternId } from '../core/flow/patterns';
 import { freeOutput, type PortMenuItem, patternTarget } from '../core/flow/portMenu';
 import type { PortRef, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
+import { attachAnnotation } from './annotationActions';
 import { canvasPlace } from './clipboard';
 import { useUi } from './store';
 import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel';
@@ -109,6 +110,9 @@ export async function completePick(target: Ulid): Promise<void> {
     case 'rewire':
       if (pick.edge)
         await run({ kind: 'rewire', edge: pick.edge, to: { node: target, port: 'in' } });
+      return;
+    case 'attach':
+      await attachAnnotation(pick.ref.node, target);
       return;
     case 'from': {
       const port = freeOutput(modelOf(snapshot.doc), target);

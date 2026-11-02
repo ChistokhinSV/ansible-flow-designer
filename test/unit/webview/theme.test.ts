@@ -3,6 +3,7 @@ import {
   contrast,
   FILLS,
   LENS_CHIPS,
+  NOTE_COLORS,
   REFERENCE_BACKGROUNDS,
   type ThemeKind,
   TONES,
@@ -43,6 +44,20 @@ describe('theme tokens (08: check the 04 palette on dark and high-contrast)', ()
       3,
     );
   });
+
+  it.each(KINDS)(
+    '%s: note text (4.5:1) on every note fill; section and text ink (4.5:1) on the canvas',
+    (kind) => {
+      for (const [color, { fill, ink }] of Object.entries(NOTE_COLORS[kind])) {
+        const bg = fill === 'transparent' ? REFERENCE_BACKGROUNDS[kind] : fill;
+        expect(contrast(FOREGROUND[kind], bg), `${kind} ${color} fill`).toBeGreaterThanOrEqual(4.5);
+        expect(
+          contrast(ink, REFERENCE_BACKGROUNDS[kind]),
+          `${kind} ${color} ink`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    },
+  );
 
   it('contrast() matches known WCAG values', () => {
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 0);

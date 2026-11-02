@@ -37,6 +37,10 @@ the Command Palette and these pages are checked against the **Not** column. Back
 | lens            | a view over the whole flow (Inventory, Access, Data, Timing, Code, Changes) with chips on the nodes and findings                       |                        |
 | drift           | a difference between the design and the code it runs, shown in Code mode                                                               |                        |
 | format          | the version of the file's layout (`schema_version`): 2 for new flows; **Upgrade Flow Format** moves a 1 to 2                           |                        |
+| annotation      | a note, section or text on a level: it explains the flow and never runs; changing it changes no version                                |                        |
+| note            | a sticky annotation; a note on a node is tied to it and moves with it                                                                  | `Sticky note`          |
+| section         | a titled annotation behind steps; moving it moves what is inside                                                                       | `Group box`            |
+| text            | an annotation of words with no background, in three sizes                                                                              | `Text label`           |
 
 ## Modes and panels
 

@@ -218,7 +218,15 @@ function panelActions(mode: Mode): UiMenuEntry[] {
     icon: 'layout-sidebar-right',
     onSelect: () => ui.setPanelCollapsed(!ui.panelCollapsed),
   };
-  if (mode !== 'design') return [panel];
+  // AFD-65: this viewer's choice; the flow file keeps its annotations.
+  const notes: UiMenuEntry = {
+    type: 'item',
+    label: ui.annotationsHidden ? 'Show Annotations' : 'Hide Annotations',
+    icon: 'note',
+    title: 'Notes, sections and text on the canvas',
+    onSelect: () => ui.setAnnotationsHidden(!ui.annotationsHidden),
+  };
+  if (mode !== 'design') return [panel, notes];
   return [
     {
       type: 'item',
@@ -227,6 +235,7 @@ function panelActions(mode: Mode): UiMenuEntry[] {
       onSelect: () => ui.setPaletteCollapsed(!ui.paletteCollapsed),
     },
     panel,
+    notes,
   ];
 }
 

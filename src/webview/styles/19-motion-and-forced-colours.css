@@ -24,4 +24,14 @@
   :focus-visible {
     outline: 2px solid Highlight;
   }
+
+  /* Annotations (AFD-65): a border and the system text colour instead of tints. */
+  .afd-note,
+  .afd-section {
+    border-color: CanvasText;
+  }
+
+  .afd-tie line {
+    stroke: CanvasText;
+  }
 }

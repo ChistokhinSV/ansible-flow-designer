@@ -5,9 +5,11 @@
 // filling the column.
 import { useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
+import { formatOf } from '../../core/flow/format';
 import { PATTERNS, type PatternId } from '../../core/flow/patterns';
-import type { NodeType } from '../../core/flow/types';
-import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
+import type { AnnotationKind, NodeType } from '../../core/flow/types';
+import { addAnnotation } from '../annotationActions';
+import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { dropPattern } from '../portActions';
 import { useUi } from '../store';
 
@@ -33,10 +35,23 @@ const ITEMS: { type: NodeType; icon: string; hint: string }[] = [
   { type: 'end', icon: 'debug-stop', hint: 'Exit of the flow' },
 ];
 
+/** AFD-65: words on the canvas that explain the flow and never run. */
+const NOTES: { kind: AnnotationKind; label: string; icon: string; hint: string }[] = [
+  { kind: 'note', label: 'Note', icon: 'note', hint: 'A sticky note; drop it on a node to tie it' },
+  {
+    kind: 'section',
+    label: 'Section',
+    icon: 'layout-panel',
+    hint: 'A titled region behind steps; moving it moves what is inside',
+  },
+  { kind: 'text', label: 'Text', icon: 'text-size', hint: 'A heading or caption' },
+];
+
 export function Palette() {
   const openQuickAdd = useUi((s) => s.openQuickAdd);
   // Run mode is read-only (AFD-18): the palette shows what exists but adds nothing.
   const locked = useUi((s) => s.mode === 'run');
+  const v1 = useUi((s) => !!s.snapshot?.doc && formatOf(s.snapshot.doc) < 2);
   const collapsed = useUi((s) => s.paletteCollapsed);
   const { screenToFlowPosition } = useReactFlow();
   const addCentered = (type: NodeType) => {
@@ -127,6 +142,41 @@ export function Palette() {
                 aria-hidden="true"
               />
               {collapsed ? null : p.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {collapsed ? null : <h2>Annotate</h2>}
+      <ul className="afd-palette" aria-label="Annotate">
+        {NOTES.map((n) => (
+          <li key={n.kind}>
+            <button
+              type="button"
+              draggable={!locked && !v1}
+              disabled={locked || v1}
+              data-annotation-kind={n.kind}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(ANNOTATION_MIME, n.kind);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              onClick={() => {
+                const canvas = document.querySelector('.react-flow')?.getBoundingClientRect();
+                const at = canvas
+                  ? screenToFlowPosition({
+                      x: canvas.left + canvas.width / 2,
+                      y: canvas.top + canvas.height / 3,
+                    })
+                  : undefined;
+                const on = n.kind === 'note' ? useUi.getState().selection.node : undefined;
+                void addAnnotation(n.kind, at, on);
+              }}
+              {...named(
+                n.label,
+                v1 ? 'Annotations need flow format 2: Upgrade Flow Format' : n.hint,
+              )}
+            >
+              <span className={`codicon codicon-${n.icon}`} aria-hidden="true" />
+              {collapsed ? null : n.label}
             </button>
           </li>
         ))}

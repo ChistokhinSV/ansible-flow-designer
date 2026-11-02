@@ -205,6 +205,8 @@ export type WebviewMessage =
   | { type: 'generate' }
   /** The run's output; with `approval`, that approval node's page in AWX (AFD-11). */
   | { type: 'showRunOutput'; approval?: Ulid }
+  /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
+  | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
   | { type: 'peekCode'; node: Ulid }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
@@ -248,6 +250,8 @@ export interface DomSummary {
   /** Per node: every port of its type, the enabled ones, and those shown at rest (D-14). */
   nodes: { id: string; legal: string[]; ports: string[]; rest: string[] }[];
   edges: number;
+  /** AFD-65: Notes, Sections and Text drawn on the level. */
+  annotations?: number;
   banner: number | null;
   /** AFD-19: items the written-by-hand banner says need IDs (null: no banner). */
   idGaps: number | null;

@@ -27,6 +27,7 @@ body {
   --afd-fs-13: 13px;
   --afd-fs-14: 14px;
   --afd-fs-18: 18px;
+  --afd-fs-26: 26px;
   --afd-font-node-title: var(--afd-fs-14);
   --afd-font-node-sub: var(--afd-fs-12);
   /* Spacing and the side panels. */

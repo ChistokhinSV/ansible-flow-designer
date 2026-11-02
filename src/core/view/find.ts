@@ -1,7 +1,8 @@
 // Find a node (AFD-48): every level of the flow, by title, key or what it is bound to, best match
 // first. Each word of the query has to match somewhere; a title that starts with the query wins.
 import { type FlowModel, ROOT } from '../flow/model';
-import type { NodeType, Ulid } from '../flow/types';
+import type { AnnotationKind, NodeType, Ulid } from '../flow/types';
+import { plainText } from './markdown';
 
 export interface FoundNode {
   id: Ulid;
@@ -13,6 +14,8 @@ export interface FoundNode {
   trail: string[];
   /** The module, role or playbook it is bound to. */
   ref?: string;
+  /** AFD-65: a Note, Section or Text found by its words (`type` is unused then). */
+  annotation?: AnnotationKind;
 }
 
 export function trailOf(model: FlowModel, level: Ulid): string[] {
@@ -57,6 +60,27 @@ export function findNodes(model: FlowModel, query: string, limit = 50): FoundNod
         ...(node.impl?.ref ? { ref: node.impl.ref } : {}),
       },
       score,
+      depth: trail.length,
+    });
+  }
+  // AFD-65: annotations by their words, after the nodes that match as well.
+  for (const { annotation: a, level } of model.annotations.values()) {
+    const text = plainText(a.text ?? '');
+    const lower = text.toLowerCase();
+    if (!words.every((w) => lower.includes(w))) continue;
+    const trail = trailOf(model, level);
+    const first = text.split('\n')[0] ?? '';
+    scored.push({
+      found: {
+        id: a.id,
+        title: first.length > 60 ? `${first.slice(0, 59)}…` : first,
+        key: a.key ?? '',
+        type: 'task',
+        level,
+        trail,
+        annotation: a.kind ?? 'note',
+      },
+      score: lower.startsWith(whole) ? 3 : 4,
       depth: trail.length,
     });
   }

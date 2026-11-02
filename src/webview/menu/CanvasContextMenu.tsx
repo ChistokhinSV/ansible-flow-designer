@@ -10,6 +10,13 @@ import {
 import { type FlowModel, modelOf } from '../../core/flow/model';
 import { FULL_FIT } from '../../core/view/fit';
 import { run } from '../actions';
+import {
+  addAnnotation,
+  colorAnnotation,
+  detachAnnotation,
+  editAnnotation,
+  startAttach,
+} from '../annotationActions';
 import { send } from '../bus';
 import { copySelection } from '../clipboard';
 import {
@@ -33,6 +40,12 @@ function titleOf(model: FlowModel, target: CanvasTarget): string {
       return model.nodes.get(target.id)?.node.title ?? 'Node';
     case 'nodes':
       return `${target.ids.length} nodes`;
+    case 'annotation': {
+      const kind = model.annotations.get(target.id)?.annotation.kind ?? 'note';
+      return kind === 'section' ? 'Section' : kind === 'text' ? 'Text' : 'Note';
+    }
+    case 'annotations':
+      return `${target.ids.length} annotations`;
     case 'edge':
     case 'entry':
     case 'exit':
@@ -71,16 +84,31 @@ export function runCanvasAction(
       void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, action.from);
       return;
     case 'cut':
-      void cutNodes(action.nodes);
+      void cutNodes(action.nodes, action.annotations);
       return;
     case 'copy':
-      copySelection(action.nodes);
+      copySelection(action.nodes, action.annotations ?? []);
       return;
     case 'duplicate':
-      void duplicate(action.nodes);
+      void duplicate(action.nodes, action.annotations);
       return;
     case 'delete':
-      void deleteSelection(action.nodes, action.edges);
+      void deleteSelection(action.nodes, action.edges, action.annotations);
+      return;
+    case 'addAnnotation':
+      void addAnnotation(action.kind, menu.at, action.on);
+      return;
+    case 'editAnnotation':
+      editAnnotation(action.id);
+      return;
+    case 'colorAnnotation':
+      colorAnnotation(action.id, action.color);
+      return;
+    case 'attachAnnotation':
+      startAttach(action.id);
+      return;
+    case 'detachAnnotation':
+      detachAnnotation(action.id);
       return;
     case 'extract':
       startExtract(action.nodes);

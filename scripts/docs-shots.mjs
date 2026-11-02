@@ -227,6 +227,17 @@ const SHOTS = {
     },
   },
   'hand-written': { flow: 'hand-written' },
+  // AFD-65: notes (one on a node), a section and text; a note selected shows its panel.
+  annotations: {
+    flow: 'annotated',
+    act: async (page) => {
+      const id = await page.evaluate(
+        () => window.afdUi.getState().snapshot.doc.annotations.find((a) => a.key === 'note-1').id,
+      );
+      await ui(page, 'select', { annotations: [id] });
+      await settle(page, 600);
+    },
+  },
 };
 
 // ---- run -----------------------------------------------------------------------------------------

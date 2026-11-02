@@ -13,6 +13,8 @@ export type RightPanel =
   | { kind: 'selection'; ids: string[] }
   | { kind: 'details'; id: string; context?: boolean }
   | { kind: 'boundary'; edge: string }
+  /** AFD-65: one Note, Section or Text selected, with no node. */
+  | { kind: 'annotation'; id: string }
   | { kind: 'flow' };
 
 const boundaryWire = (edge: string | undefined) => !!edge && /^(entry|exit):/.test(edge);
@@ -23,8 +25,10 @@ export function rightPanelFor(s: {
   selection: Selection;
   level: string;
 }): RightPanel {
-  const { node, edge, nodes } = s.selection;
+  const { node, edge, nodes, annotations } = s.selection;
   if (node) return { kind: 'details', id: node };
+  const one = !nodes?.length && annotations?.length === 1 ? annotations[0] : undefined;
+  if (one) return { kind: 'annotation', id: one };
   if (s.mode === 'code') return { kind: 'drift' };
   if (s.mode === 'run') {
     if (edge && !boundaryWire(edge)) return { kind: 'wireRun', edge };
@@ -51,6 +55,8 @@ export function rightPanelLabel(panel: RightPanel): string {
       return panel.context ? 'Subflow details' : 'Details';
     case 'boundary':
       return 'Subflow boundary';
+    case 'annotation':
+      return 'Annotation';
     case 'flow':
       return 'Flow description';
   }

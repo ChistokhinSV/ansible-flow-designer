@@ -1,0 +1,239 @@
+# Example flow document. IDs are sample ULIDs. Values in [BRACKETS] are placeholders.
+schema_version: 2
+flow:
+  id: 01JBM9S346Q3D25VT4F5V37E3S
+  key: edge-baseline
+  name: Edge baseline
+  version: 3
+  goal: All edge switches at a site get the NTP, AAA and syslog baseline, with a backup taken first and automatic
+    rollback if validation fails.
+  owner: netops
+  runtime:
+    template: 'AFD · edge-baseline'
+  inputs:
+    site:
+      type: string
+      required: true
+    devices:
+      type: host_list
+      required: true
+    dry_run:
+      type: boolean
+      default: false
+nodes:
+- id: 01JB3E28JT97KB6CQ643DZVMXX
+  key: start
+  type: start
+  title: Start
+- id: 01JBQKFBF5KZNWJ47TAN9ZT24M
+  key: precheck
+  type: task
+  title: Pre-checks
+  status: specified
+  intent: Verify reachability and current OS version
+  inputs:
+    devices:
+      type: host_list
+      from: flow.devices
+  outputs:
+    precheck_report:
+      type: dict
+  impl: null
+- id: 01JBNPZX45HY43KWJRP1XPA7Z3
+  key: backup-config
+  type: task
+  title: Backup config
+  status: specified
+  intent: Save running config to Git
+  inputs:
+    devices:
+      type: host_list
+      from: flow.devices
+  outputs:
+    backup_ref:
+      type: string
+  impl: null
+- id: 01JBDJ8FSSZ5AWSH8VHTPRE95B
+  key: push-baseline
+  type: subflow
+  title: Push baseline
+  status: implemented
+  intent: Apply NTP, AAA and syslog baseline
+  inputs:
+    devices:
+      type: host_list
+    backup_ref:
+      type: string
+      from: backup-config.backup_ref
+  outputs:
+    change_report:
+      type: dict
+  impl:
+    kind: role
+    ref: netops.baseline.push_ntp_aaa
+- id: 01JB9EE0ZBGJ09TQM83XSSSS6Y
+  key: validate
+  type: task
+  title: Validate
+  status: specified
+  intent: Compare running config with desired state
+  inputs:
+    devices:
+      type: host_list
+    change_report:
+      type: dict
+      from: push-baseline.change_report
+  impl: null
+- id: 01JBS3C4DWA7N36096Q14DR9GP
+  key: rollback
+  type: task
+  title: Rollback
+  status: specified
+  intent: Restore backup on failed hosts
+  inputs:
+    backup_ref:
+      type: string
+      from: backup-config.backup_ref
+  impl: null
+- id: 01JBQY77ZXYYK596NGYA1DQ91K
+  key: done
+  type: end
+  title: Done
+  outcome: success
+- id: 01JB5GQAPENECFSECZP11HYGCP
+  key: failed
+  type: end
+  title: Failed
+  outcome: failed
+edges:
+- id: 01JBWPQ5E6EYCNDY0YP57RCYBV
+  from:
+    node: 01JB3E28JT97KB6CQ643DZVMXX
+    port: ok_hosts
+  to:
+    node: 01JBQKFBF5KZNWJ47TAN9ZT24M
+    port: in
+- id: 01JBN5SXS5AA819X9YP981068V
+  from:
+    node: 01JBQKFBF5KZNWJ47TAN9ZT24M
+    port: ok_hosts
+  to:
+    node: 01JBNPZX45HY43KWJRP1XPA7Z3
+    port: in
+- id: 01JBCD1GDJFMGT83PXT891WB09
+  from:
+    node: 01JBNPZX45HY43KWJRP1XPA7Z3
+    port: ok_hosts
+  to:
+    node: 01JBDJ8FSSZ5AWSH8VHTPRE95B
+    port: in
+- id: 01JBB9Y73MY63FCH26W14WMCHW
+  from:
+    node: 01JBDJ8FSSZ5AWSH8VHTPRE95B
+    port: ok_hosts
+  to:
+    node: 01JB9EE0ZBGJ09TQM83XSSSS6Y
+    port: in
+- id: 01JBYFGCW8T7SWM4FV4DK79Q9G
+  from:
+    node: 01JB9EE0ZBGJ09TQM83XSSSS6Y
+    port: ok_hosts
+  to:
+    node: 01JBQY77ZXYYK596NGYA1DQ91K
+    port: in
+- id: 01JB8XE6SZAEAVSNTCPM5Q1NXW
+  from:
+    node: 01JBDJ8FSSZ5AWSH8VHTPRE95B
+    port: failed_hosts
+  to:
+    node: 01JBS3C4DWA7N36096Q14DR9GP
+    port: in
+- id: 01JB1RNJ47E65GH2BH8VGS9ZM5
+  from:
+    node: 01JBS3C4DWA7N36096Q14DR9GP
+    port: ok_hosts
+  to:
+    node: 01JB5GQAPENECFSECZP11HYGCP
+    port: in
+annotations:
+- id: 01JDANN0000000000000000001
+  key: text-1
+  kind: text
+  x: 120
+  y: -10
+  size: l
+  text: Edge baseline
+- id: 01JDANN0000000000000000002
+  key: section-1
+  kind: section
+  x: 72
+  y: 232
+  width: 312
+  height: 396
+  color: blue
+  text: Change window
+- id: 01JDANN0000000000000000003
+  key: note-1
+  kind: note
+  'on': 01JBQKFBF5KZNWJ47TAN9ZT24M
+  x: 248
+  y: 0
+  width: 200
+  height: 76
+  color: green
+  text: 'Read-only checks: **safe** to rerun.'
+- id: 01JDANN0000000000000000004
+  key: note-2
+  kind: note
+  'on': 01JBDJ8FSSZ5AWSH8VHTPRE95B
+  x: -248
+  y: -10
+  width: 200
+  height: 96
+  text: |-
+    Pushes the baseline:
+    - NTP
+    - AAA
+    - SNMP
+- id: 01JDANN0000000000000000005
+  key: note-3
+  kind: note
+  x: 400
+  y: 20
+  width: 220
+  height: 104
+  color: pink
+  text: |-
+    Runbook: https://wiki.example.net/edge-baseline
+    Owner: *netops*
+layout:
+  01JB3E28JT97KB6CQ643DZVMXX:
+    x: 140
+    y: 64
+  01JBQKFBF5KZNWJ47TAN9ZT24M:
+    x: 120
+    y: 160
+  01JBNPZX45HY43KWJRP1XPA7Z3:
+    x: 120
+    y: 280
+  01JBDJ8FSSZ5AWSH8VHTPRE95B:
+    x: 120
+    y: 400
+  01JB9EE0ZBGJ09TQM83XSSSS6Y:
+    x: 120
+    y: 520
+  01JBQY77ZXYYK596NGYA1DQ91K:
+    x: 160
+    y: 640
+  01JBS3C4DWA7N36096Q14DR9GP:
+    x: 456
+    y: 400
+  01JB5GQAPENECFSECZP11HYGCP:
+    x: 720
+    y: 412
+decisions:
+- kind: accepted
+  node: 01JBNPZX45HY43KWJRP1XPA7Z3
+  finding: port:failed_hosts
+  reason: Fails before any change; stopping is safe
+  by: '[USER]'

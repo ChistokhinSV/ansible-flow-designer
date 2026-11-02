@@ -41,6 +41,38 @@ describe('AFD-18 acceptance: one undo step per edit', () => {
     assert.equal(doc.getText(), before);
   });
 
+  it('AFD-65: a note on a node is one edit, drawn, follows the node; undo removes it', async () => {
+    const api = await testApi();
+    const doc = await openDesigner(EDGE);
+    assert.ok((await api.run(EDGE, { kind: 'upgradeFormat' })).ok);
+    const before = doc.getText();
+    const flow = parse(before) as FlowDocument;
+    const precheck = flow.nodes.find((n) => n.key === 'precheck')?.id as string;
+    const version = doc.version;
+    const added = await api.run(EDGE, {
+      kind: 'addAnnotation',
+      annotation: { text: 'Read-only: **safe** to rerun', on: precheck, x: 232, y: 0 },
+    });
+    assert.ok(added.ok, added.error);
+    assert.equal(doc.version, version + 1, 'one edit');
+    let dom = await api.inspect(EDGE);
+    for (let i = 0; i < 50 && dom.annotations !== 1; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      dom = await api.inspect(EDGE);
+    }
+    assert.equal(dom.annotations, 1, 'drawn on the canvas');
+    assert.equal(dom.nodes.length, flow.nodes.length, 'node counts stay node-only');
+    // Moving the node keeps the note's offset: it follows.
+    assert.ok(
+      (await api.run(EDGE, { kind: 'moveNodes', positions: { [precheck]: { x: 0, y: 0 } } })).ok,
+    );
+    const note = (parse(doc.getText()) as FlowDocument).annotations?.[0];
+    assert.deepEqual([note?.on, note?.x, note?.y], [precheck, 232, 0]);
+    await vscode.commands.executeCommand('undo');
+    await vscode.commands.executeCommand('undo');
+    assert.equal(doc.getText(), before);
+  });
+
   it('Duplicate is one paste of a copy at +40, +40; one undo removes it', async () => {
     const api = await testApi();
     const doc = await openDesigner(EDGE);

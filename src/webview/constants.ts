@@ -18,6 +18,8 @@ export const STATE_LABEL: Record<PortState, string> = {
 /** Drag data types: a node type or a failure pattern dragged from the palette onto the canvas. */
 export const DRAG_MIME = 'application/x-afd-node-type';
 export const PATTERN_MIME = 'application/x-afd-pattern';
+/** AFD-65: a Note, Section or Text dragged from the palette. */
+export const ANNOTATION_MIME = 'application/x-afd-annotation';
 
 /** "5 min ago" for a time stamp, in the panels that show when something happened. */
 export function ago(iso: string | undefined, now = Date.now()): string {

@@ -37,6 +37,7 @@ playbooks are generated from it.
 - [Subflows](how-to/subflows.md)
 - [Decisions, parallel branches, approvals and ends](how-to/control-flow.md)
 - [Copy and paste nodes](how-to/copy-paste.md)
+- [Notes, sections and text](how-to/annotations.md)
 - [Hand-written YAML and Complete IDs](how-to/hand-written-yaml.md)
 - [Export as draw.io or an image](how-to/export.md)
 

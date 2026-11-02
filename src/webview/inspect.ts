@@ -23,6 +23,7 @@ export function domSummary(docVersion: number): DomSummary {
     level: useUi.getState().level,
     nodes,
     edges: document.querySelectorAll('.react-flow__edge').length,
+    annotations: document.querySelectorAll('[data-annotation-id]').length,
     banner: banner ? Number(banner.dataset.bannerCount) : null,
     idGaps: gaps ? Number(gaps.dataset.idGaps) : null,
     frame: frame

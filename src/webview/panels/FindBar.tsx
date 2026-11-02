@@ -8,6 +8,8 @@ import { TYPE_LABEL } from '../constants';
 import { useModel } from '../hooks';
 import { useUi } from '../store';
 
+const NOTE_LABEL = { note: 'Note', section: 'Section', text: 'Text' } as const;
+
 const LIMIT = 50;
 
 export function FindBar() {
@@ -121,7 +123,9 @@ function Find() {
             >
               <span className="afd-find-title">{r.title}</span>
               <span className="muted">
-                {[...r.trail, TYPE_LABEL[r.type]].join(' › ')}
+                {[...r.trail, r.annotation ? NOTE_LABEL[r.annotation] : TYPE_LABEL[r.type]].join(
+                  ' › ',
+                )}
                 {r.ref ? ` · ${r.ref}` : ''}
               </span>
             </div>

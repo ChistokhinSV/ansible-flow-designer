@@ -34,13 +34,24 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'paste', keys: `${MOD}V`, label: 'Paste nodes at the pointer', group: 'Edit' },
   { id: 'duplicate', keys: `${MOD}D`, label: 'Duplicate the selected nodes', group: 'Edit' },
   { id: 'delete', keys: 'Delete', label: 'Delete the selection, in one undo step', group: 'Edit' },
-  { id: 'rename', keys: 'F2', label: 'Rename the selected node', group: 'Edit' },
+  {
+    id: 'rename',
+    keys: 'F2',
+    label: "Rename the selected node, or edit a note's text",
+    group: 'Edit',
+  },
   { id: 'undo', keys: `${MOD}Z`, label: 'Undo (VS Code keeps one step per change)', group: 'Edit' },
   { id: 'redo', keys: IS_MAC ? '⇧⌘Z' : 'Ctrl+Y', label: 'Redo', group: 'Edit' },
   {
     id: 'addNode',
     keys: 'N',
     label: 'Add a node: after the selected one, else at the pointer',
+    group: 'Edit',
+  },
+  {
+    id: 'addNote',
+    keys: 'Shift+N',
+    label: 'Add a note: on the selected node, else at the pointer',
     group: 'Edit',
   },
   {

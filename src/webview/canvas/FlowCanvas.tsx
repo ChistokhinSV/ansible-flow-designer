@@ -3,6 +3,8 @@
 // A click on a port opens its menu; dragging from it (beyond a few pixels) draws a wire.
 // Inside a subflow (M4, D-23) the level's nodes sit in a boundary frame whose ports carry the entry
 // and exit wires; wiring to the frame edits `subflow.boundary`. Double-click or Enter opens a subflow.
+// AFD-65: Notes, Sections and Text are nodes without ports, layered by hand (zIndexMode manual):
+// Sections behind everything, a Note on a node as that node's child, in front of it.
 import {
   applyNodeChanges,
   Background,
@@ -33,20 +35,22 @@ import {
   useRef,
   useState,
 } from 'react';
+import { type AnnotationView, sectionContents } from '../../core/flow/annotations';
 import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import { sharedAround } from '../../core/flow/refs';
-import type { NodeType, Position } from '../../core/flow/types';
+import type { AnnotationKind, NodeType, Position } from '../../core/flow/types';
 import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
 import { labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
+import { addAnnotation, editAnnotation } from '../annotationActions';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
-import { DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
+import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { boundaryWire, upLevel } from '../editActions';
 import { useLevelView, useModel } from '../hooks';
 import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
@@ -55,12 +59,60 @@ import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import { type BoundaryEdgeView, boundaryView, type NodeView } from '../viewModel';
+import { AnnotationNodeView, type AnnotationRFNode, annotationName } from './AnnotationNode';
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
 import { GhostNodeView, type GhostRFNode } from './GhostNode';
 
-const nodeTypes = { flow: FlowNodeView, boundary: BoundaryFrame, ghost: GhostNodeView };
-type CanvasNode = FlowRFNode | FrameRFNode | GhostRFNode;
+const nodeTypes = {
+  flow: FlowNodeView,
+  boundary: BoundaryFrame,
+  ghost: GhostNodeView,
+  annotation: AnnotationNodeView,
+};
+type CanvasNode = FlowRFNode | FrameRFNode | GhostRFNode | AnnotationRFNode;
+
+const NO_NOTES: AnnotationView[] = [];
+
+/** The minimap draws Sections as outlines, Notes as small fills and Text not at all. */
+const miniKind = (n: { type?: string; data: unknown }) =>
+  n.type === 'annotation' ? (n.data as AnnotationRFNode['data']).view.kind : undefined;
+
+/** Layers (zIndexMode manual): Sections, the subflow frame, wires and Notes, nodes, tied Notes. */
+const Z = { section: -2, frame: -1, note: 0, node: 1, tied: 2 } as const;
+
+/**
+ * A Note, Section or Text as a canvas node. A Note on a node shown here is that node's child: its
+ * position is relative, as stored, so it follows the node wherever it goes.
+ */
+function toAnnotationNode(
+  v: AnnotationView,
+  selected: boolean,
+  editable: boolean,
+  shown: ReadonlySet<string>,
+  optimistic: Record<string, Position>,
+): AnnotationRFNode {
+  const a = v.annotation;
+  const tied = v.on && shown.has(v.on) ? v.on : undefined;
+  return {
+    id: a.id,
+    type: 'annotation',
+    position: tied ? (optimistic[a.id] ?? { x: a.x, y: a.y }) : v.position,
+    ...(tied ? { parentId: tied } : {}),
+    width: v.width,
+    height: v.height,
+    data: { view: v, editable },
+    selected,
+    zIndex: v.kind === 'section' ? Z.section : tied ? Z.tied : Z.note,
+    ...(v.kind === 'section'
+      ? { dragHandle: '.afd-section-title', style: { pointerEvents: 'none' as const } }
+      : {}),
+    ariaLabel: annotationName(v),
+    draggable: editable,
+    deletable: false,
+    connectable: false,
+  };
+}
 
 interface SavedState {
   /** Top-level viewport (M1–M3 state). */
@@ -109,6 +161,7 @@ function toRfNode(view: NodeView, selected: boolean): FlowRFNode {
     ariaLabel: nodeName(view),
     selected,
     deletable: true,
+    zIndex: Z.node,
   };
 }
 
@@ -155,6 +208,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   // Written by hand without IDs (AFD-19): shown, not edited, until Complete IDs.
   const handWritten = useUi((s) => !!s.snapshot?.idGaps);
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
+  // Under a lens or in Run mode the flow speaks; annotations step back (AFD-65).
+  const dimNotes = useUi((s) => s.lens !== null || s.mode === 'run');
   // Lenses (M8): Inventory labels wires with last-run host counts, Data adds derived data wires.
   const lensWires = useUi((s) => s.lensView?.wires);
   const dataWires = useUi((s) => s.lensView?.dataWires);
@@ -167,11 +222,20 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
 
   const view = useLevelView();
+  // AFD-65: annotations, unless this viewer hid them; edited in Design mode only.
+  const hidden = useUi((s) => s.annotationsHidden);
+  const optimistic = useUi((s) => s.optimistic);
+  const editable = !readOnly && !handWritten;
+  // A stable empty list: a new one per render would rebuild the nodes, and render again.
+  const notes = hidden ? NO_NOTES : view.annotations;
   // AFD-42: the minimap shows while part of the level is out of view.
-  const contentBounds = useMemo(
-    () => (view.nodes.length ? getNodesBounds(view.nodes.map((v) => toRfNode(v, false))) : null),
-    [view.nodes],
-  );
+  const contentBounds = useMemo(() => {
+    const boxes = [
+      ...view.nodes.map((v) => toRfNode(v, false)),
+      ...notes.map((a) => ({ position: a.position, width: a.width, height: a.height })),
+    ];
+    return boxes.length ? getNodesBounds(boxes as never) : null;
+  }, [view.nodes, notes]);
   // A level with only Start and End shows how to begin, under them (AFD-48).
   const empty = useEmptyLevel();
   const cardAt = useMemo(
@@ -212,7 +276,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
             selectable: false,
             deletable: false,
             focusable: false,
-            zIndex: -1,
+            zIndex: Z.frame,
             style: { pointerEvents: 'none' },
           }
         : undefined,
@@ -221,8 +285,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
 
   // Structural sharing: keep the previous node object when its content did not change.
   const cache = useRef(new Map<string, { key: string; node: FlowRFNode }>());
+  const annotationCache = useRef(new Map<string, { key: string; node: AnnotationRFNode }>());
   const derived = useMemo(() => {
     const next = new Map<string, { key: string; node: FlowRFNode }>();
+    const nextNotes = new Map<string, { key: string; node: AnnotationRFNode }>();
     const nodes = view.nodes.map((v) => {
       const sel = selection.node === v.node.id || !!selection.nodes?.includes(v.node.id);
       const key = JSON.stringify([v, sel]);
@@ -232,9 +298,34 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       return entry.node;
     });
     cache.current = next;
-    const all: CanvasNode[] = frame ? [frame, ...nodes] : nodes;
+    // Annotations after the nodes: a child follows its parent, and Tab reaches the steps first.
+    const shownIds = new Set(view.nodes.map((v) => v.node.id));
+    const picked = new Set(selection.annotations ?? []);
+    const annotated = notes.map((v) => {
+      const sel = picked.has(v.annotation.id);
+      const key = JSON.stringify([v, sel, editable, optimistic[v.annotation.id]]);
+      const hit = annotationCache.current.get(v.annotation.id);
+      const entry =
+        hit && hit.key === key
+          ? hit
+          : { key, node: toAnnotationNode(v, sel, editable, shownIds, optimistic) };
+      nextNotes.set(v.annotation.id, entry);
+      return entry.node;
+    });
+    annotationCache.current = nextNotes;
+    const all: CanvasNode[] = frame ? [frame, ...nodes, ...annotated] : [...nodes, ...annotated];
     return ghosts.length > 0 ? [...all, ...ghostNodes(ghosts, view.nodes)] : all;
-  }, [view.nodes, selection.node, selection.nodes, frame, ghosts]);
+  }, [
+    view.nodes,
+    selection.node,
+    selection.nodes,
+    selection.annotations,
+    frame,
+    ghosts,
+    notes,
+    editable,
+    optimistic,
+  ]);
 
   const [nodes, setNodes] = useState<CanvasNode[]>(derived);
   useEffect(() => setNodes(derived), [derived]);
@@ -328,15 +419,22 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (changes: NodeChange<CanvasNode>[]) => {
       const picked = changes.filter((c) => c.type === 'select');
       if (picked.length > 0) {
-        // Several nodes (Ctrl/Cmd+click, Shift+drag) select as a group (AFD-7).
-        const chosen = applyNodeChanges(picked, latest.current)
-          .filter((n) => n.type === 'flow' && n.selected)
-          .map((n) => n.id);
+        // Several nodes (Ctrl/Cmd+click, Shift+drag) select as a group (AFD-7); annotations
+        // picked with them come along (AFD-65).
+        const after = applyNodeChanges(picked, latest.current).filter((n) => n.selected);
+        const chosen = after.filter((n) => n.type === 'flow').map((n) => n.id);
+        const notes = after.filter((n) => n.type === 'annotation').map((n) => n.id);
         const current = useUi.getState().selection;
-        if (chosen.length > 1) select({ nodes: chosen });
+        const also = notes.length ? { annotations: notes } : {};
+        const same = (a: string[] | undefined, b: string[]) =>
+          (a ?? []).length === b.length && b.every((id) => a?.includes(id));
+        if (chosen.length > 1) select({ nodes: chosen, ...also });
         else if (chosen.length === 1) {
-          if (current.node !== chosen[0]) select({ node: chosen[0] });
-        } else if (current.node || current.nodes) select({});
+          if (current.node !== chosen[0] || !same(current.annotations, notes))
+            select({ node: chosen[0], ...also });
+        } else if (notes.length) {
+          if (current.node || current.nodes || !same(current.annotations, notes)) select(also);
+        } else if (current.node || current.nodes || current.annotations?.length) select({});
       }
       setNodes((ns) =>
         applyNodeChanges(
@@ -352,23 +450,65 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (moved: CanvasNode[]) => {
       if (moved.length === 0) return;
       const positions: Record<string, Position> = {};
+      const annotations: Record<string, Position> = {};
       const round = (p: Position) => ({ x: Math.round(p.x), y: Math.round(p.y) });
-      for (const n of moved) positions[n.id] = round(n.position);
+      // An annotation's position is in its stored form: relative to its node for a tied Note.
+      for (const n of moved)
+        if (n.type === 'annotation') annotations[n.id] = round(n.position);
+        else if (n.type === 'flow') positions[n.id] = round(n.position);
       // Nodes still shown at in-memory auto positions are written too, so the first move freezes
       // the layout the user sees instead of letting the other nodes jump (ADR-0002).
       const stored = useUi.getState().snapshot?.doc?.layout ?? {};
       for (const n of latest.current)
         if (n.type === 'flow' && !stored[n.id] && !positions[n.id])
           positions[n.id] = round(n.position);
-      setOptimistic(positions);
-      void command({ kind: 'moveNodes', positions }).then((ack) => {
+      setOptimistic({ ...positions, ...annotations });
+      void command({
+        kind: 'moveNodes',
+        positions,
+        ...(Object.keys(annotations).length ? { annotations } : {}),
+      }).then((ack) => {
         if (!ack.ok) setError(ack.error ?? 'Move failed');
       });
     },
     [setOptimistic, setError],
   );
+  // A Section carries the nodes and annotations wholly inside it (AFD-65): they are found when
+  // the drag starts, follow by the same distance, and are saved with it in one move.
+  const carry = useRef<{ id: string; from: Position; items: Map<string, Position> } | null>(null);
+  const onNodeDragStart = useCallback(
+    (_e: unknown, n: CanvasNode) => {
+      useUi.getState().setPreview(null);
+      carry.current = null;
+      if (n.type !== 'annotation' || n.data.view.kind !== 'section') return;
+      const inside = sectionContents(view, n.id);
+      const items = new Map<string, Position>();
+      for (const m of latest.current)
+        if (inside.nodes.includes(m.id) || inside.annotations.includes(m.id))
+          items.set(m.id, m.position);
+      carry.current = { id: n.id, from: n.position, items };
+    },
+    [view],
+  );
+  const onNodeDrag = useCallback((_e: unknown, n: CanvasNode) => {
+    const c = carry.current;
+    if (!c || c.id !== n.id) return;
+    const dx = n.position.x - c.from.x;
+    const dy = n.position.y - c.from.y;
+    setNodes((ns) =>
+      ns.map((m) => {
+        const at = c.items.get(m.id);
+        return at ? { ...m, position: { x: at.x + dx, y: at.y + dy } } : m;
+      }),
+    );
+  }, []);
   const onNodeDragStop = useCallback(
-    (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => saveMoves(dragged),
+    (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {
+      const c = carry.current;
+      carry.current = null;
+      const extra = c ? latest.current.filter((m) => c.items.has(m.id)) : [];
+      saveMoves([...dragged, ...extra.filter((m) => !dragged.some((d) => d.id === m.id))]);
+    },
     [saveMoves],
   );
 
@@ -382,7 +522,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         return;
       clearTimeout(nudge.current);
       nudge.current = setTimeout(
-        () => saveMoves(latest.current.filter((n) => n.type === 'flow' && n.selected)),
+        () =>
+          saveMoves(
+            latest.current.filter(
+              (n) => (n.type === 'flow' || n.type === 'annotation') && n.selected,
+            ),
+          ),
         500,
       );
     },
@@ -479,6 +624,17 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         else setError('Drop a failure pattern onto an open fail port');
         return;
       }
+      const note = e.dataTransfer.getData(ANNOTATION_MIME) as AnnotationKind;
+      if (note) {
+        e.preventDefault();
+        // A Note dropped on a node goes on that node.
+        const hit = document.elementFromPoint(e.clientX, e.clientY);
+        const on = hit?.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+        const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        if (note === 'note' && on) void addAnnotation('note', undefined, on);
+        else void addAnnotation(note, { x: Math.round(at.x), y: Math.round(at.y) });
+        return;
+      }
       const type = e.dataTransfer.getData(DRAG_MIME) as NodeType;
       if (!type) return;
       e.preventDefault();
@@ -534,13 +690,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   // middle once its level is drawn, after the opening fit, at 100% or closer.
   useEffect(() => {
     if (!centerOn || paneWidth <= 0 || paneHeight <= 0) return;
-    const v = view.nodes.find((n) => n.node.id === centerOn);
+    const v =
+      view.nodes.find((n) => n.node.id === centerOn) ??
+      view.annotations.find((a) => a.annotation.id === centerOn);
     if (!v) return;
     useUi.setState({ centerOn: null });
     void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, {
       zoom: Math.max(getViewport().zoom, 1),
     });
-  }, [centerOn, view.nodes, paneWidth, paneHeight, setCenter, getViewport]);
+  }, [centerOn, view.nodes, view.annotations, paneWidth, paneHeight, setCenter, getViewport]);
 
   // Keys that need the level's geometry (AFD-47), unless a field, menu or dialog has the focus:
   // Enter opens a selected subflow (04 §8) or moves into a node's Details, Shift+1 fits the level.
@@ -550,7 +708,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       const t = e.target as HTMLElement | null;
       if (t?.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return;
       if (e.key === 'Enter' && !e.shiftKey) {
-        const n = view.nodes.find((v) => v.node.id === useUi.getState().selection.node)?.node;
+        const sel = useUi.getState().selection;
+        const note = !sel.node && sel.annotations?.length === 1 ? sel.annotations[0] : undefined;
+        if (note && editable) {
+          e.preventDefault();
+          editAnnotation(note);
+          return;
+        }
+        const n = view.nodes.find((v) => v.node.id === sel.node)?.node;
         if (!n) return;
         e.preventDefault();
         if (n.type === 'subflow') setLevel(n.id);
@@ -570,7 +735,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view.nodes, setLevel, fitView]);
+  }, [view.nodes, setLevel, fitView, editable]);
 
   // Picking a node with the keyboard (AFD-47): Tab or the arrow keys walk the nodes the pick can
   // choose, Enter or Space wires the one shown. Captured before React Flow, which would otherwise
@@ -646,6 +811,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }}
       onEdgeMouseEnter={(_e, edge) => setHoverEdge(edge.id)}
       onEdgeMouseLeave={() => setHoverEdge(null)}
+      onNodeDragStart={onNodeDragStart}
+      onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
       onConnect={onConnect}
       onConnectStart={() => {
@@ -664,9 +831,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         useUi.getState().hoverNode(n.id, { left: r.left, right: r.right, top: r.top });
       }}
       onNodeMouseLeave={() => useUi.getState().hoverNode(null)}
-      onNodeDragStart={() => useUi.getState().setPreview(null)}
       onNodeDoubleClick={(_e, n) => {
         if (n.type === 'flow' && n.data.view.node.type === 'subflow') setLevel(n.id);
+        if (n.type === 'annotation' && editable) editAnnotation(n.id);
       }}
       zoomOnDoubleClick={false}
       onPaneClick={(e) => {
@@ -676,6 +843,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       // A right-click selects the node under it, unless that node is part of the selected group;
       // the menu acts on what is selected. On a port, the port menu opens instead.
       onNodeContextMenu={(e, n) => {
+        if (n.type === 'annotation') {
+          const current = useUi.getState().selection;
+          if (!current.annotations?.includes(n.id)) select({ annotations: [n.id] });
+          openMenu(e, { kind: 'annotation', id: n.id });
+          return;
+        }
         if (n.type !== 'flow') {
           openMenu(e, { kind: 'pane' });
           return;
@@ -696,14 +869,19 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }}
       onSelectionContextMenu={(e, picked) => {
         const ids = picked.filter((n) => n.type === 'flow').map((n) => n.id);
+        const notes = picked.filter((n) => n.type === 'annotation').map((n) => n.id);
         const one = ids[0];
         openMenu(
           e,
-          ids.length > 1
-            ? { kind: 'nodes', ids }
+          ids.length > 1 || (one && notes.length)
+            ? { kind: 'nodes', ids, ...(notes.length ? { annotations: notes } : {}) }
             : one
               ? { kind: 'node', id: one }
-              : { kind: 'pane' },
+              : notes.length > 1
+                ? { kind: 'annotations', ids: notes }
+                : notes[0]
+                  ? { kind: 'annotation', id: notes[0] }
+                  : { kind: 'pane' },
         );
       }}
       onEdgeContextMenu={(e, edge) => {
@@ -728,11 +906,20 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         useUi.getState().openContextMenu(null);
         useUi.getState().setPreview(null);
       }}
-      className={[connecting ? 'afd-connecting' : '', picking ? 'afd-picking' : '']
+      className={[
+        connecting ? 'afd-connecting' : '',
+        picking ? 'afd-picking' : '',
+        dimNotes ? 'afd-dim-annotations' : '',
+      ]
         .filter(Boolean)
         .join(' ')}
+      zIndexMode="manual"
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(DRAG_MIME) || e.dataTransfer.types.includes(PATTERN_MIME))
+        if (
+          e.dataTransfer.types.includes(DRAG_MIME) ||
+          e.dataTransfer.types.includes(PATTERN_MIME) ||
+          e.dataTransfer.types.includes(ANNOTATION_MIME)
+        )
           e.preventDefault();
       }}
       onDrop={onDrop}
@@ -778,8 +965,19 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           style={{ width: 160, height: 110 }}
           bgColor="var(--afd-minimap-bg)"
           maskColor="var(--afd-minimap-mask)"
-          nodeColor={(n) => (n.type === 'boundary' ? 'transparent' : 'var(--afd-minimap-node)')}
-          nodeStrokeColor={(n) => (n.type === 'boundary' ? 'var(--afd-neutral)' : 'transparent')}
+          nodeColor={(n) => {
+            const kind = miniKind(n);
+            return n.type === 'boundary' || (kind && kind !== 'note')
+              ? 'transparent'
+              : kind
+                ? 'var(--afd-note-yellow)'
+                : 'var(--afd-minimap-node)';
+          }}
+          nodeStrokeColor={(n) =>
+            n.type === 'boundary' || miniKind(n) === 'section'
+              ? 'var(--afd-neutral)'
+              : 'transparent'
+          }
           nodeBorderRadius={4}
         />
       ) : null}

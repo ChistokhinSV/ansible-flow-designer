@@ -3,12 +3,15 @@
 // Ctrl/Cmd+C, X, V, Z and Y are never stopped, since VS Code turns them into copy, cut, paste and
 // undo for the page. Typing in a field and keys inside menus and dialogs (`nokey`) are left alone.
 import { chooseMode } from './actions';
+import { addAnnotation, editAnnotation } from './annotationActions';
+import { canvasPlace } from './clipboard';
 import {
   canEdit,
   deleteSelection,
   duplicate,
   rename,
   selectAll,
+  selectedAnnotations,
   selectedNodes,
   upLevel,
 } from './editActions';
@@ -26,7 +29,13 @@ function closeInnermost(): boolean {
   if (open) useUi.setState({ [open]: CLOSED[open] });
   else if (ui.leave) ui.resolveLeave('stay');
   else if (ui.preview) ui.setPreview(null);
-  else if (ui.selection.node || ui.selection.nodes || ui.selection.edge) ui.select({});
+  else if (
+    ui.selection.node ||
+    ui.selection.nodes ||
+    ui.selection.edge ||
+    ui.selection.annotations?.length
+  )
+    ui.select({});
   else return false;
   return true;
 }
@@ -50,6 +59,17 @@ function keyboardMenu(): void {
     const r = box(`.react-flow__node[data-id="${selection.node}"]`);
     ui.openContextMenu({
       target: { kind: 'node', id: selection.node },
+      x: r ? r.left + 12 : middle.x,
+      y: r ? r.bottom : middle.y,
+    });
+  } else if (selection.annotations?.length) {
+    const [first] = selection.annotations;
+    const r = box(`.react-flow__node[data-id="${first}"]`);
+    ui.openContextMenu({
+      target:
+        selection.annotations.length > 1
+          ? { kind: 'annotations', ids: selection.annotations }
+          : { kind: 'annotation', id: first as string },
       x: r ? r.left + 12 : middle.x,
       y: r ? r.bottom : middle.y,
     });
@@ -87,22 +107,28 @@ export function installKeyboard(): () => void {
     if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !e.altKey) {
       // The whole selection in one command (React Flow's own delete key is off).
       const nodes = selectedNodes();
+      const notes = selectedAnnotations();
       const edge = ui.selection.edge;
-      if (canEdit() && (nodes.length > 0 || edge)) {
+      if (canEdit() && (nodes.length > 0 || notes.length > 0 || edge)) {
         consume();
-        void deleteSelection(nodes, edge ? [edge] : []);
+        void deleteSelection(nodes, edge ? [edge] : [], notes);
       }
     } else if (e.key === 'F2' && !mod && !e.altKey) {
       const ids = selectedNodes();
+      const notes = selectedAnnotations();
       if (ids.length === 1 && ids[0] && ui.mode === 'design') {
         consume();
         rename(ids[0]);
+      } else if (ids.length === 0 && notes.length === 1 && notes[0] && canEdit()) {
+        consume();
+        editAnnotation(notes[0]);
       }
     } else if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
       const ids = selectedNodes();
-      if (ids.length > 0) {
+      const notes = selectedAnnotations();
+      if (ids.length + notes.length > 0) {
         consume();
-        void duplicate(ids);
+        void duplicate(ids, notes);
       }
     } else if (e.altKey && !mod && e.key === 'ArrowUp') {
       consume();
@@ -116,6 +142,12 @@ export function installKeyboard(): () => void {
       if (target && target !== document.body && !target.closest?.('.react-flow')) return;
       consume();
       selectAll();
+    } else if (e.key.toLowerCase() === 'n' && !mod && !e.altKey && e.shiftKey) {
+      // AFD-65: a Note on the selected node, else where a paste would land.
+      if (!canEdit()) return;
+      consume();
+      const one = ui.selection.node;
+      void addAnnotation('note', one ? undefined : canvasPlace(), one);
     } else if (e.key.toLowerCase() === 'n' && !mod && !e.altKey && !e.shiftKey) {
       if (!canEdit()) return;
       consume();

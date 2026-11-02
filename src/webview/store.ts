@@ -26,6 +26,8 @@ export interface Selection {
   edge?: Ulid;
   /** Several nodes (Ctrl/Cmd+click, Shift+drag): Extract into subflow (AFD-7). */
   nodes?: Ulid[];
+  /** AFD-65: Notes, Sections and Text, alone or with nodes. */
+  annotations?: Ulid[];
 }
 
 /** Port menu (04 §3), anchored at a point in the window. */
@@ -48,7 +50,7 @@ export interface ContextMenuState {
 
 /** A field to focus (F2 Rename, Extract, Edit reason); the nonce repeats the request. */
 export interface FocusRequest {
-  field: 'title' | 'extractTitle' | 'exitReason';
+  field: 'title' | 'extractTitle' | 'exitReason' | 'annotationText';
   nonce: number;
 }
 
@@ -126,7 +128,8 @@ export interface AcceptTarget {
 
 /** Waiting for a node click to finish a port menu action ("Connect to another node…"). */
 export interface PickState {
-  mode: 'to' | 'from' | 'rewire';
+  /** `attach` (AFD-65): the node a Note goes on; `ref.node` is the Note then. */
+  mode: 'to' | 'from' | 'rewire' | 'attach';
   ref: PortRef;
   edge?: Ulid;
 }
@@ -182,6 +185,10 @@ interface UiState {
   /** The palette shows icons only; the side panel folds to a strip (AFD-48). */
   paletteCollapsed: boolean;
   panelCollapsed: boolean;
+  /** AFD-65: Notes, Sections and Text hidden from the canvas (this viewer only). */
+  annotationsHidden: boolean;
+  /** The annotation whose text is being edited on the canvas. */
+  editingAnnotation: Ulid | null;
   /** The environment's module catalog (M5). */
   catalog: CatalogStatus;
   mode: Mode;
@@ -204,6 +211,8 @@ interface UiState {
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   select(s: Selection): void;
+  setAnnotationsHidden(hidden: boolean): void;
+  editAnnotation(id: Ulid | null): void;
   openQuickAdd(q: QuickAddState | null): void;
   openPortMenu(m: PortMenuState | null): void;
   openContextMenu(m: ContextMenuState | null): void;
@@ -304,6 +313,8 @@ export const useUi = create<UiState>((set, get) => ({
   expanded: false,
   paletteCollapsed: false,
   panelCollapsed: false,
+  annotationsHidden: false,
+  editingAnnotation: null,
   catalog: { state: 'idle' },
   mode: 'design',
   sync: { state: 'idle' },
@@ -328,7 +339,13 @@ export const useUi = create<UiState>((set, get) => ({
       }),
     );
     const model = snapshot.doc ? modelOf(snapshot.doc) : undefined;
+    // Annotations confirmed where they were moved (AFD-65) drop their optimistic place too.
+    for (const [id, p] of Object.entries(optimistic)) {
+      const a = model?.annotations.get(id)?.annotation;
+      if (a && a.x === Math.round(p.x) && a.y === Math.round(p.y)) delete optimistic[id];
+    }
     const ids = new Set(model ? model.nodes.keys() : []);
+    const notes = new Set(model ? model.annotations.keys() : []);
     // The open subflow may be gone (deleted, or the text was edited): fall back to the top level.
     // A subflow without inner steps has no level in the model yet, but it can be open.
     const open = get().level;
@@ -336,7 +353,11 @@ export const useUi = create<UiState>((set, get) => ({
       model?.levels.has(open) || model?.nodes.get(open)?.node.type === 'subflow' ? open : ROOT;
     const sel = get().selection;
     const selection =
-      (sel.node && !ids.has(sel.node)) || sel.nodes?.some((id) => !ids.has(id)) ? {} : sel;
+      (sel.node && !ids.has(sel.node)) ||
+      sel.nodes?.some((id) => !ids.has(id)) ||
+      sel.annotations?.some((id) => !notes.has(id))
+        ? {}
+        : sel;
     const gone = (ref: PortRef | undefined) => ref !== undefined && !ids.has(ref.node);
     const target = get().contextMenu?.target;
     const lost =
@@ -363,9 +384,21 @@ export const useUi = create<UiState>((set, get) => ({
     if (pending && selection.node !== pending)
       return void set({ leave: { kind: 'select', selection } });
     // Selecting shows what was selected: the mode's panel, not the lens's tab.
-    const chosen = !!(selection.node || selection.nodes?.length || selection.edge);
-    set({ selection, ...(chosen ? { lensTab: false } : {}) });
+    const chosen = !!(
+      selection.node ||
+      selection.nodes?.length ||
+      selection.edge ||
+      selection.annotations?.length
+    );
+    const editing = get().editingAnnotation;
+    set({
+      selection,
+      ...(chosen ? { lensTab: false } : {}),
+      ...(editing && !selection.annotations?.includes(editing) ? { editingAnnotation: null } : {}),
+    });
   },
+  setAnnotationsHidden: (annotationsHidden) => set({ annotationsHidden }),
+  editAnnotation: (editingAnnotation) => set({ editingAnnotation }),
   openQuickAdd: (quickAdd) => set({ quickAdd }),
   openPortMenu: (portMenu) => set({ portMenu, ...closing('portMenu') }),
   openContextMenu: (contextMenu) => {
@@ -507,7 +540,15 @@ export const useUi = create<UiState>((set, get) => ({
     const pending = get().pendingBinding;
     if (pending && pending !== node) return void set({ leave: { kind: 'reveal', node } });
     const doc = get().snapshot?.doc;
-    const entry = doc ? modelOf(doc).nodes.get(node) : undefined;
+    const model = doc ? modelOf(doc) : undefined;
+    // AFD-65: a Note, Section or Text found shows on its level, selected.
+    const note = model?.annotations.get(node);
+    if (note) {
+      get().setLevel(note.level);
+      set({ selection: { annotations: [node] }, centerOn: node, annotationsHidden: false });
+      return;
+    }
+    const entry = model?.nodes.get(node);
     if (!entry) return;
     get().setLevel(entry.level);
     set({ selection: { node }, centerOn: node });

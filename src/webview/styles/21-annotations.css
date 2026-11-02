@@ -1,0 +1,170 @@
+/* Annotations (AFD-65): Notes, Sections and Text explain the flow and never run. Notes are sticky
+   cards, Sections titled regions behind the nodes, Text words on the canvas. */
+.afd-annotation {
+  position: relative;
+  box-sizing: border-box;
+  color: var(--afd-fg);
+  font-size: var(--afd-fs-12);
+  line-height: 1.4;
+}
+
+.afd-annotation-text {
+  height: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.afd-annotation p,
+.afd-annotation ul {
+  margin: 0 0 4px;
+}
+
+.afd-annotation ul {
+  padding-left: 16px;
+}
+
+.afd-annotation code {
+  font-family: var(--afd-mono);
+  font-size: var(--afd-fs-11);
+}
+
+.afd-annotation a {
+  color: var(--vscode-textLink-foreground, var(--afd-accent));
+  pointer-events: all;
+}
+
+.afd-annotation-editor {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 24px;
+  resize: none;
+  font: inherit;
+  font-family: var(--afd-mono);
+  font-size: var(--afd-fs-12);
+  color: var(--vscode-input-foreground, var(--afd-fg));
+  background: var(--vscode-input-background, var(--afd-bg));
+  border: 1px solid var(--afd-input-border);
+}
+
+/* Notes: a sticky card in its colour. */
+.afd-note {
+  height: 100%;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--afd-ink) 35%, transparent);
+  border-radius: 4px;
+  background: var(--afd-fill);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Sections: a titled region; only the title takes the pointer (it is the drag handle). */
+.react-flow__node-annotation:has(.afd-section) {
+  pointer-events: none;
+}
+
+.afd-section {
+  height: 100%;
+  border: 2px solid color-mix(in srgb, var(--afd-ink) 55%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--afd-ink) 6%, transparent);
+}
+
+.afd-section-title {
+  display: inline-block;
+  max-width: calc(100% - 16px);
+  margin: 6px 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--afd-ink);
+  font-weight: 600;
+  font-size: var(--afd-fs-13);
+  cursor: grab;
+  pointer-events: all;
+  background: color-mix(in srgb, var(--afd-ink) 12%, var(--afd-bg));
+}
+
+.afd-section-title p {
+  margin: 0;
+}
+
+.afd-section .react-flow__resize-control {
+  pointer-events: all;
+}
+
+/* Text: words on the canvas, in three sizes. */
+.afd-text {
+  color: var(--afd-ink);
+  font-weight: 600;
+}
+
+.afd-text.size-s {
+  font-size: var(--afd-fs-13);
+}
+
+.afd-text.size-m {
+  font-size: var(--afd-fs-18);
+}
+
+.afd-text.size-l {
+  font-size: var(--afd-fs-26);
+}
+
+.afd-annotation.selected:not(.afd-section) {
+  outline: 2px solid var(--afd-accent);
+  outline-offset: 2px;
+}
+
+.afd-section.selected .afd-section-title {
+  outline: 2px solid var(--afd-accent);
+}
+
+/* A Note on a node: a dashed tie, border to border, under the pointer. */
+.afd-tie {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.afd-tie line {
+  stroke: color-mix(in srgb, var(--afd-ink) 70%, transparent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+/* Colours: the fill and ink of each, from the theme (theme/tokens.ts). */
+.afd-annotation.color-yellow {
+  --afd-fill: var(--afd-note-yellow);
+  --afd-ink: var(--afd-note-yellow-ink);
+}
+
+.afd-annotation.color-blue {
+  --afd-fill: var(--afd-note-blue);
+  --afd-ink: var(--afd-note-blue-ink);
+}
+
+.afd-annotation.color-green {
+  --afd-fill: var(--afd-note-green);
+  --afd-ink: var(--afd-note-green-ink);
+}
+
+.afd-annotation.color-pink {
+  --afd-fill: var(--afd-note-pink);
+  --afd-ink: var(--afd-note-pink-ink);
+}
+
+.afd-annotation.color-purple {
+  --afd-fill: var(--afd-note-purple);
+  --afd-ink: var(--afd-note-purple-ink);
+}
+
+.afd-annotation.color-gray {
+  --afd-fill: var(--afd-note-gray);
+  --afd-ink: var(--afd-note-gray-ink);
+}
+
+/* Under a lens or a run the flow speaks: annotations step back. */
+.afd-dim-annotations .react-flow__node-annotation {
+  opacity: 0.45;
+}

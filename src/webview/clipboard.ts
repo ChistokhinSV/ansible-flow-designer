@@ -9,18 +9,25 @@ import { command, send } from './bus';
 import { useUi } from './store';
 import { levelView, unplacedPositions } from './viewModel';
 
-/** Nodes (default: the selected ones) as clipboard text; undefined when there are none. */
-export function selectionText(nodes?: Ulid[]): { text: string; count: number } | undefined {
+/**
+ * Nodes and annotations (default: the selected ones) as clipboard text; undefined when there are
+ * none. The Notes on copied nodes come along (AFD-65).
+ */
+export function selectionText(
+  nodes?: Ulid[],
+  annotations?: Ulid[],
+): { text: string; count: number } | undefined {
   const { selection, snapshot } = useUi.getState();
   const ids = nodes ?? selection.nodes ?? (selection.node ? [selection.node] : []);
-  if (!snapshot?.doc || ids.length === 0) return undefined;
-  const text = copyNodes(snapshot.doc, ids, snapshot.autoPositions);
-  return text ? { text, count: ids.length } : undefined;
+  const notes = annotations ?? (nodes ? [] : (selection.annotations ?? []));
+  if (!snapshot?.doc || ids.length + notes.length === 0) return undefined;
+  const text = copyNodes(snapshot.doc, ids, snapshot.autoPositions, notes);
+  return text ? { text, count: ids.length + notes.length } : undefined;
 }
 
 /** Copy through the host (buttons, menus, palette command). */
-export function copySelection(nodes?: Ulid[]): void {
-  const copied = selectionText(nodes);
+export function copySelection(nodes?: Ulid[], annotations?: Ulid[]): void {
+  const copied = selectionText(nodes, annotations);
   if (copied) send({ type: 'copyText', ...copied });
   else useUi.getState().setError('Select the nodes to copy first');
 }
