@@ -83,3 +83,14 @@ owner asked for elements that explain a flow and never run (2026-11-02):
 - A Note on a node goes wherever the node goes, including into a subflow and onto the clipboard.
 - Tidy Up moves nodes only: Sections, free Notes and Text keep their places.
 - Not covered: notes on wires; Markdown headings, tables and images.
+
+## Amendment: exports (AFD-66, 2026-11-02)
+
+- `Scene.view.annotations` comes from `levelView`, and `boundsOf` includes them.
+- **SVG:** Sections are drawn before the frame and wires, and Notes, ties and Text after the nodes. The Markdown is made plain and wrapped (`wrapText`).
+- **draw.io:**
+  - Sections are rounded cells before the nodes;
+  - Notes use `shape=note`, with the Markdown as an escaped HTML subset (`markdownHtml`: b, i, code, a, ul/li);
+  - Text cells have no border or fill;
+  - ties are dashed edges with no arrow from the note to its node;
+  - each annotation carries `annotation`, `key` and `text` as shape data.

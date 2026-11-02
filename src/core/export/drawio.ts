@@ -10,7 +10,8 @@ import type { FramePortView, PortView } from '../flow/levelView';
 import { buildModel, ROOT } from '../flow/model';
 import type { PortTone } from '../flow/ports';
 import type { FlowNode } from '../flow/types';
-import { FILLS, TONES } from '../theme';
+import { FILLS, NOTE_COLORS, TONES } from '../theme';
+import { markdownHtml, plainText } from '../view/markdown';
 import { type Detail, flowDetails, NODE_TYPE_LABEL, nodeDetails, tooltipOf } from './details';
 import { type ExportSource, type Scene, scenesOf } from './scene';
 
@@ -305,6 +306,29 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
     `<mxCell style="${attr(style({ strokeColor: 'none', fillColor: 'none', html: 1, align: 'left', verticalAlign: 'top', whiteSpace: 'wrap', fontFamily: 'Helvetica', fontSize: 12, fontColor: INK.fg, spacing: 0 }))}" vertex="1" parent="1"><mxGeometry x="40" y="20" width="${Math.max(420, Math.round(scene.bounds.width))}" height="80" as="geometry"/></mxCell>`,
   );
 
+  // AFD-66: Sections first, so they sit behind everything.
+  const notes = scene.view.annotations;
+  const colourOf = (a: (typeof notes)[number]) =>
+    NOTE_COLORS.light[a.annotation.color ?? (a.kind === 'note' ? 'yellow' : 'gray')];
+  const box = (a: (typeof notes)[number]) =>
+    `<mxGeometry x="${a.position.x + dx}" y="${a.position.y + dy}" width="${a.width}" height="${a.height}" as="geometry"/>`;
+  const annotationData = (a: (typeof notes)[number]): Detail[] => [
+    ['annotation', a.kind],
+    ['key', a.annotation.key ?? ''],
+    ['text', a.annotation.text],
+  ];
+  for (const a of notes.filter((n) => n.kind === 'section')) {
+    const c = colourOf(a);
+    userObject(
+      out,
+      a.annotation.id,
+      `<b>${html(plainText(a.annotation.text).split('\n')[0] ?? '')}</b>`,
+      annotationData(a),
+      {},
+      `<mxCell style="${attr(style({ rounded: 1, absoluteArcSize: 1, arcSize: 16, fillColor: c.fill, opacity: 60, strokeColor: c.ink, strokeWidth: 2, html: 1, whiteSpace: 'wrap', align: 'left', verticalAlign: 'top', spacingLeft: 12, spacingTop: 4, fontFamily: 'Helvetica', fontSize: 13, fontColor: c.ink, container: 0 }))}" vertex="1" parent="1">${box(a)}</mxCell>`,
+    );
+  }
+
   // The subflow's boundary frame, behind its steps.
   const frameId = 'afd-frame';
   if (scene.boundary) {
@@ -347,6 +371,53 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
       const id = portCell(out, n.id, p, portLook(p), 10, p.state, reason, p.state !== 'connected');
       ports.set(id, { id, side: p.side });
     }
+  }
+
+  // AFD-66: Notes (draw.io notes, Markdown as simple HTML) and Text, then the ties to their nodes.
+  for (const a of notes.filter((n) => n.kind !== 'section')) {
+    const c = colourOf(a);
+    const size = a.annotation.size === 's' ? 13 : a.annotation.size === 'l' ? 26 : 18;
+    const look =
+      a.kind === 'note'
+        ? style({
+            shape: 'note',
+            size: 12,
+            fillColor: c.fill,
+            strokeColor: c.ink,
+            html: 1,
+            whiteSpace: 'wrap',
+            align: 'left',
+            verticalAlign: 'top',
+            spacing: 8,
+            fontFamily: 'Helvetica',
+            fontSize: 12,
+            fontColor: INK.fg,
+          })
+        : style({
+            text: 1,
+            strokeColor: 'none',
+            fillColor: 'none',
+            html: 1,
+            whiteSpace: 'wrap',
+            align: 'left',
+            verticalAlign: 'top',
+            fontFamily: 'Helvetica',
+            fontStyle: 1,
+            fontSize: size,
+            fontColor: c.ink,
+          });
+    userObject(
+      out,
+      a.annotation.id,
+      markdownHtml(a.annotation.text),
+      annotationData(a),
+      {},
+      `<mxCell style="${attr(look)}" vertex="1" parent="1">${box(a)}</mxCell>`,
+    );
+    if (a.kind === 'note' && a.on)
+      out.cells.push(
+        `<mxCell id="${attr(`${a.annotation.id}:tie`)}" style="${attr(style({ endArrow: 'none', dashed: 1, dashPattern: '4 3', strokeColor: c.ink, strokeWidth: 1.5, html: 1 }))}" edge="1" parent="1" source="${attr(a.annotation.id)}" target="${attr(a.on)}"><mxGeometry relative="1" as="geometry"/></mxCell>`,
+      );
   }
 
   // Wires: labelled with their port, as on the canvas.

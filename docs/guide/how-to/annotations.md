@@ -53,6 +53,14 @@ Duplicate and Delete. Drag a corner to resize a note or a section.
 **Show Annotations** brings them back. Under a lens and in Run mode they fade so the flow speaks.
 In Code and Run modes, and on a shared subflow's level, they are read-only.
 
+## In reviews, pictures and code
+
+- The [Changes lens](lenses.md#compare-with-head-changes) outlines the annotations added or
+  changed since the version you compare with and lists those removed.
+- [Exports](export.md) to draw.io and images include them.
+- A note on a step becomes `# Note:` comments above that step's play in the
+  [generated code](code-generation.md).
+
 ## In the file
 
 They live per level: `annotations:` next to `nodes:` (and `subflow.annotations` inside a

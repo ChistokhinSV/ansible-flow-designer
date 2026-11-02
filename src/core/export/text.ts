@@ -35,3 +35,22 @@ export function fitText(
   while (chars.length > 0 && textWidth(`${chars.join('')}…`, size, opts) > max) chars.pop();
   return `${chars.join('').trimEnd()}…`;
 }
+
+/** Lines of `text` wrapped at word boundaries to `max` pixels; long words are cut to fit. */
+export function wrapText(text: string, max: number, size: number): string[] {
+  const out: string[] = [];
+  for (const para of text.split('\n')) {
+    let line = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (textWidth(next, size) <= max || !line) line = next;
+      else {
+        out.push(line);
+        line = word;
+      }
+      if (textWidth(line, size) > max) line = fitText(line, max, size);
+    }
+    out.push(line);
+  }
+  return out;
+}

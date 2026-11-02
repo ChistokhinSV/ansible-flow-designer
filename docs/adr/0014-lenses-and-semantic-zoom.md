@@ -122,3 +122,8 @@ local branch, or one of the last 15 commits that touched the file (product-owner
   beside the level), sections Changed, Added, Removed, Wires and Flow. No findings: a change is not
   a problem to accept.
 - **Details** shows the selected node's field changes, before → after.
+
+## Amendment: annotations in the Changes lens (AFD-66, 2026-11-02)
+
+- `FlowDiff.annotations` matches annotations by ID, else by key on the matched level. It compares kind, text, color, size and the node a note is on (by key); a move is no change.
+- The lens adds `LensView.annotations` (added or changed, outlined on the canvas and not faded), an **Annotations** stat and section when there are any, and counts them in "No changes since …".

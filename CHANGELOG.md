@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.42.0 — AFD-66
+
+- **Annotations in exports, reviews and code**: draw.io diagrams and images include notes (draw.io notes tied to their steps), sections and text. The Changes lens outlines the annotations added or changed and lists those removed. A note on a step becomes `# Note:` comments above that step's play in the generated code (the flow's version stays).
+
 ## 0.41.0 — AFD-65
 
 - **Notes, sections and text on the canvas** (format 2): add them from the palette's Annotate group, the canvas menu (Add Note/Section/Text Here), a node's menu (Add Note to This Node) or Shift+N. Double-click, Enter or F2 edits the Markdown in place; Ctrl+Enter saves, Esc cancels. A note on a node is tied to it by a dashed line and moves with it; a section is dragged by its title and carries the steps inside it; text comes in three sizes. Their panel sets the text, color, size and the node a note is on (Attach to Node…, Detach from Node). Links open in the browser. Find searches their words; … › Hide Annotations takes them off your canvas. They never change the flow's version.

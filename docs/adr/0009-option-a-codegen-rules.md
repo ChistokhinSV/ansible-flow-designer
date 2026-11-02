@@ -157,3 +157,14 @@ upgrade the play-per-step level cannot express (`serial` on a node batches only 
 - Engine contract: routing-levels with its subflow rolling 2 at a time routes every host the same
   way as play by play, and each batch finishes the subflow before the next starts it (2.19, 2.20,
   2.21).
+
+## Amendment: notes as comments (AFD-66, 2026-11-02)
+
+A Note on a node (ADR-0028) becomes `# Note: <first line>` and `#   <next lines>` above the node's code:
+- **Where:**
+  - in `result()`, before the play range is taken, so Peek Code and the Details preview still cover only the play;
+  - this covers plain plays, inventory_target chunks, playbook nodes, subflow imports and approval segments;
+  - rolling levels get comment items before each step's block;
+  - start, end and unreached nodes get none.
+- **Text:** the Markdown is made plain (`plainText`) and split on every YAML line break (`\r\n`, `\r`, `\n`, U+0085, U+2028, U+2029), so no text can end the comment and become YAML. Unit and engine tests try each one.
+- **Not design:** generated files can change while `flow.version` stays, because annotations are not design. Codegen on save compares text and rewrites only what changed; the body checksum covers the comments, so hand-edit protection holds; drift parses YAML and ignores comments.

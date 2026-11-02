@@ -30,6 +30,9 @@ The file opens in draw.io desktop, at app.diagrams.net, and in VS Code with a Dr
   a node shows a summary.
 - **The flow's own data** sits on the page background: select nothing and press Ctrl+M. It holds
   the name, key, version, goal, inputs and problem counts.
+- **[Notes, sections and text](annotations.md)** come along: sections behind the steps, notes as
+  draw.io notes tied to their nodes by a dashed line, text as words. Their Markdown shows as simple
+  formatting; the image export draws them as plain text.
 
 | Attribute                                                     | Holds                                                                     |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------- |

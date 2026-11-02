@@ -78,6 +78,8 @@ export interface LensView {
   lens: LensId;
   /** Changes lens: removed nodes, drawn where they stood. */
   ghosts?: GhostNode[];
+  /** Changes lens (AFD-66): annotations outlined as added or changed. */
+  annotations?: Record<Ulid, 'added' | 'changed'>;
   chips: Record<Ulid, LensChip[]>;
   /** Wire labels by edge id (Inventory: hosts that took the wire in the last run). */
   wires?: Record<string, string>;

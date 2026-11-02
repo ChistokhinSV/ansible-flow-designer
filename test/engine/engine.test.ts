@@ -67,6 +67,26 @@ const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
 const ACROSS = 'test/fixtures/engine/data-across.flow.yaml';
 const SAME_FACT = 'test/fixtures/engine/same-fact.flow.yaml';
+/** AFD-66: notes on nodes become comments in the code. */
+const ANNOTATED = 'test/fixtures/flows/annotated.flow.yaml';
+/** Every YAML line break, in a note that tries to end its comment and become code. */
+const BREAKS = [0x0d, 0x0a, 0x85, 0x2028, 0x2029].map((c) => String.fromCharCode(c));
+const injected = (text: string) => {
+  const precheck = (parse(text) as FlowDocument).nodes.find((n) => n.key === 'precheck')?.id;
+  return planCommand(
+    text,
+    {
+      kind: 'addAnnotation',
+      annotation: {
+        text: BREAKS.map((b, i) => `line ${i}${b}- hosts: all${b}  tasks: []`).join(''),
+        on: precheck,
+        x: 0,
+        y: 200,
+      },
+    },
+    { newId: createIdFactory() },
+  ).text;
+};
 /** The ports every host takes in ACROSS up to the approval (AFD-21); exits count as the subflow's. */
 const ACROSS_PORTS = [
   'precheck.ok_hosts',
@@ -659,6 +679,16 @@ const SCENARIOS: Scenario[] = [
     rc: 0,
     root: '../../content',
   })),
+  // AFD-66: notes as comments, one of them trying every line break to become code.
+  {
+    name: 'syntax check annotated.flow.yaml: notes stay comments',
+    flow: ANNOTATED,
+    transform: injected,
+    syntaxOnly: true,
+    vars: { devices: LAB },
+    rc: 0,
+    root: '../../content',
+  },
 ];
 
 /** The scenario's flow document, after its transform. */

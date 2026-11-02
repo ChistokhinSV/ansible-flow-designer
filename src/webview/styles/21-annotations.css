@@ -168,3 +168,15 @@
 .afd-dim-annotations .react-flow__node-annotation {
   opacity: 0.45;
 }
+
+/* Changes lens (AFD-66): added and changed annotations are outlined, and do not fade. */
+.afd-dim-annotations .react-flow__node-annotation.afd-mark-added,
+.afd-dim-annotations .react-flow__node-annotation.afd-mark-changed {
+  opacity: 1;
+}
+
+.react-flow__node-annotation.afd-mark-added .afd-annotation,
+.react-flow__node-annotation.afd-mark-changed .afd-annotation {
+  outline: 2px dashed var(--afd-lens-changes-fg);
+  outline-offset: 3px;
+}

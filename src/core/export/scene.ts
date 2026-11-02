@@ -187,6 +187,8 @@ function boundsOf(view: LevelView, boundary: BoundaryView | undefined, wires: Ma
     ys.push(b.y - pad, b.y + b.height + pad);
   };
   for (const n of view.nodes) add({ ...n.position, width: n.width, height: n.height }, PORT);
+  // AFD-66: notes, sections and text are part of the picture.
+  for (const a of view.annotations) add({ ...a.position, width: a.width, height: a.height });
   if (boundary) add(boundary.frame, FRAME_PORT);
   for (const w of wires.values()) {
     const nums = w.path.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];

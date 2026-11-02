@@ -38,6 +38,9 @@ branch, or one of the last commits that touched the flow.
 - Select a node: **Since <version>** at the top of its Details lists each field, before → after.
 - The panel lists the changed, added and removed nodes, the wires added or removed, and changes to
   the flow itself (name, goal, inputs, runtime, format). A row with a node shows it.
+- [Notes, sections and text](annotations.md) that were added or changed are outlined; the
+  **Annotations** list names what changed in each (text, color, the node a note is on) and the ones
+  removed. Moving one is not a change.
 
 Unsaved edits count: the lens compares what you see with the version you picked. Nodes match by
 ID; a flow that got its IDs later (Complete IDs) matches by key.

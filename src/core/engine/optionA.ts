@@ -23,6 +23,7 @@ import { rollingObstacles } from '../flow/rolling';
 import { planSegments, type Segment } from '../flow/segments';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
+import { plainText } from '../view/markdown';
 import { bindingTask, inputVars, stubFacts } from './binding';
 import { effectiveTargets } from './targets';
 import type {
@@ -48,6 +49,9 @@ interface LevelCtx {
   entry: string;
   parent?: { node: FlowNode; ctx: LevelCtx };
 }
+
+/** Every line break YAML (1.1 and 1.2) knows: a Note's text is split on all of them (AFD-66). */
+const LINE_BREAK = /\r\n|[\r\n\u0085\u2028\u2029]/;
 
 interface Chunk {
   node?: Ulid;
@@ -477,6 +481,7 @@ class Generator {
         continue;
       }
       const play = this.play(ctx, node, hosts, edges);
+      for (const t of this.noteLines(node.id)) blocks.push(comment(t));
       // Every host of the play enters at the entry; the others arrive through their groups.
       const groups = hosts.filter((h) => h !== ctx.entry);
       blocks.push({
@@ -1113,6 +1118,26 @@ class Generator {
     ];
   }
 
+  /**
+   * The Notes on a node as comment text (AFD-66): Markdown made plain, one line per line. Every
+   * YAML line break is a split, so no text can end the comment and become code.
+   */
+  private noteLines(id: Ulid): string[] {
+    const level = this.model.levels.get(this.model.nodes.get(id)?.level ?? '');
+    const out: string[] = [];
+    for (const a of level?.annotations ?? []) {
+      if (!a || (a.kind ?? 'note') !== 'note' || a.on !== id) continue;
+      const lines = plainText(String(a.text ?? ''))
+        .split(LINE_BREAK)
+        .map((l) => l.trimEnd())
+        .filter((l, i, all) => l !== '' || (i > 0 && i < all.length - 1));
+      lines.forEach((l, i) => {
+        out.push(i === 0 ? `Note: ${l}` : `  ${l}`.trimEnd());
+      });
+    }
+    return out;
+  }
+
   private result(ok: boolean): GenerateResult {
     const eol = this.opts.eol ?? '\n';
     const files: GeneratedFile[] = [];
@@ -1123,6 +1148,8 @@ class Generator {
         const body: string[] = [];
         for (const chunk of chunks) {
           body.push('');
+          // AFD-66: the Notes on the node, above its code (outside its play range).
+          if (chunk.node) body.push(...this.noteLines(chunk.node).map((t) => `# ${t}`));
           const start = header.length + 1 + body.length;
           body.push(...chunk.lines);
           if (chunk.node)

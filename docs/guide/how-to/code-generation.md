@@ -25,6 +25,8 @@ The flow is the source of truth; the playbooks are generated from it.
 - Inputs become play variables from the upstream outputs (see
   [data between steps](data-between-steps.md)).
 - The header says how the file was made, and how to choose an approval outcome in a local run.
+- A [note on a step](annotations.md) becomes `# Note:` comment lines right above that step's play.
+  Changing a note rewrites the generated file but not the flow's version.
 
 Generated code shows in two places: the Details' **Binding** tab shows the task as the playbook
 will run it, and **Peek Code** (the node menu, or `</>` in the Details) opens the node's play in

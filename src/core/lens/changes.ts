@@ -92,6 +92,19 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
     tone: w.kind === 'removed' ? ('muted' as const) : undefined,
   }));
   const flowItems = diff.flow.map((f) => ({ key: f.field, label: f.field, nodes: [] }));
+  // AFD-66: annotations, outlined where they are and listed with what changed.
+  view.annotations = Object.fromEntries(
+    diff.annotations
+      .filter((a) => a.kind !== 'removed')
+      .map((a) => [a.id, a.kind as 'added' | 'changed']),
+  );
+  const noteItems = diff.annotations.map((a) => ({
+    key: `annotation:${a.kind}:${a.id}`,
+    label: `${a.kind === 'added' ? '+' : a.kind === 'removed' ? '−' : '~'} ${a.annotation} ${a.key}: ${a.label}`,
+    detail: a.kind === 'changed' ? a.fields.map(fieldLabel).join(', ') : where(a.where),
+    nodes: [],
+    tone: a.kind === 'removed' ? ('muted' as const) : undefined,
+  }));
   view.stats.push(
     { label: 'Changed', value: String(changed.length) },
     { label: 'Added', value: String(added.length) },
@@ -101,6 +114,16 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
       value: `+${diff.wires.filter((w) => w.kind === 'added').length} −${diff.wires.filter((w) => w.kind === 'removed').length}`,
     },
   );
+  if (diff.annotations.length > 0)
+    view.stats.push({
+      label: 'Annotations',
+      value: (['added', 'changed', 'removed'] as const)
+        .map(
+          (k) =>
+            `${k === 'added' ? '+' : k === 'removed' ? '−' : '~'}${diff.annotations.filter((a) => a.kind === k).length}`,
+        )
+        .join(' '),
+    });
   view.sections.push(
     { title: 'Changed', items: changed, empty: 'No node changed' },
     { title: 'Added', items: added, empty: 'No node added' },
@@ -108,7 +131,9 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
     { title: 'Wires', items: wireItems, empty: 'No wire added or removed' },
     { title: 'Flow', items: flowItems, empty: 'Name, goal, inputs and runtime unchanged' },
   );
-  if (diff.nodes.length + diff.wires.length + diff.flow.length === 0)
+  if (noteItems.length > 0)
+    view.sections.push({ title: 'Annotations', items: noteItems, empty: '' });
+  if (diff.nodes.length + diff.wires.length + diff.flow.length + diff.annotations.length === 0)
     view.notes.push(`No changes since ${compare.label}`);
   return view;
 }

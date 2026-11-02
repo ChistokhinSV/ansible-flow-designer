@@ -3,13 +3,16 @@
 // with their port name; a subflow's boundary frame. `content` embeds the draw.io file, as draw.io's
 // own `.drawio.svg` does, so draw.io opens the image as an editable diagram.
 
+import type { AnnotationView } from '../flow/annotations';
 import type { FramePortView, NodeView, PortView } from '../flow/levelView';
 import { ROOT } from '../flow/model';
 import type { PortTone } from '../flow/ports';
-import { TONES } from '../theme';
+import { NOTE_COLORS, TONES } from '../theme';
+import { plainText } from '../view/markdown';
+import { tieLine } from '../view/tie';
 import { attr, INK, nodeLook, portLook, shiftOf, toneColour } from './drawio';
 import { type ExportSource, portCentre, type Scene, scenesOf } from './scene';
-import { fitText, textWidth } from './text';
+import { fitText, textWidth, wrapText } from './text';
 
 const TONE = TONES.light;
 const CHIP_BORDER = '#d3d3d3';
@@ -255,12 +258,75 @@ export function sceneSvg(src: ExportSource, scene: Scene, opts: SvgOptions = {})
     `<rect width="${width}" height="${height}" fill="${INK.bg}"/>`,
     title,
     `<g transform="translate(${dx} ${dy})">`,
+    sectionsSvg(scene),
     frameSvg(scene),
     wires.paths,
     ...scene.view.nodes.map((v) => nodeSvg(v) + portsSvg(v)),
+    notesSvg(scene),
     wires.labels,
     '</g></svg>\n',
   ].join('');
+}
+
+const NOTE_COLOURS = NOTE_COLORS.light;
+const colourOf = (a: AnnotationView) =>
+  NOTE_COLOURS[a.annotation.color ?? (a.kind === 'note' ? 'yellow' : 'gray')];
+
+/** AFD-66: Sections behind everything, titled in their ink. */
+function sectionsSvg(scene: Scene): string {
+  return scene.view.annotations
+    .filter((a) => a.kind === 'section')
+    .map((a) => {
+      const c = colourOf(a);
+      const { x, y } = a.position;
+      const title = fitText(plainText(a.annotation.text).split('\n')[0] ?? '', a.width - 24, 13, {
+        bold: true,
+      });
+      return `<rect x="${n2(x + 1)}" y="${n2(y + 1)}" width="${n2(a.width - 2)}" height="${n2(a.height - 2)}" rx="8" fill="${c.fill}" fill-opacity="0.35" stroke="${c.ink}" stroke-width="2"/>${text(x + 14, y + 22, title, { 'font-size': 13, 'font-weight': 700, fill: c.ink })}`;
+    })
+    .join('');
+}
+
+/** AFD-66: Notes as cards with their tie, Text as words; Markdown as plain text. */
+function notesSvg(scene: Scene): string {
+  const nodes = new Map(scene.view.nodes.map((n) => [n.node.id, n]));
+  return scene.view.annotations
+    .filter((a) => a.kind !== 'section')
+    .map((a) => {
+      const c = colourOf(a);
+      const { x, y } = a.position;
+      const words = plainText(a.annotation.text);
+      if (a.kind === 'text') {
+        const size = a.annotation.size === 's' ? 13 : a.annotation.size === 'l' ? 26 : 18;
+        return wrapText(words, a.width, size)
+          .map((l, i) =>
+            text(x, y + size + i * size * 1.3, l, {
+              'font-size': size,
+              'font-weight': 700,
+              fill: c.ink,
+            }),
+          )
+          .join('');
+      }
+      const node = a.on ? nodes.get(a.on) : undefined;
+      const line = node
+        ? tieLine(
+            { ...a.position, width: a.width, height: a.height },
+            { ...node.position, width: node.width, height: node.height },
+          )
+        : undefined;
+      const tie = line
+        ? `<line x1="${n2(line.from.x)}" y1="${n2(line.from.y)}" x2="${n2(line.to.x)}" y2="${n2(line.to.y)}" stroke="${c.ink}" stroke-width="1.5" stroke-dasharray="4 3"/>`
+        : '';
+      const rows = wrapText(words, a.width - 20, 12).slice(
+        0,
+        Math.max(1, Math.floor((a.height - 12) / 16)),
+      );
+      return `${tie}<rect x="${n2(x)}" y="${n2(y)}" width="${n2(a.width)}" height="${n2(a.height)}" rx="4" fill="${c.fill}" stroke="${c.ink}" stroke-opacity="0.35"/>${rows
+        .map((l, i) => text(x + 10, y + 20 + i * 16, l, { 'font-size': 12, fill: INK.fg }))
+        .join('')}`;
+    })
+    .join('');
 }
 
 /** SVG of one level (ROOT or a subflow node ID). */

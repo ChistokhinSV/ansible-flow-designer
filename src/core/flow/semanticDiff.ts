@@ -7,7 +7,16 @@ import { withIds } from './completeIds';
 import { acceptedAll } from './decisions';
 import { buildModel, type FlowModel, ROOT } from './model';
 import { canonical } from './semantic';
-import type { FlowDocument, FlowNode, NodeType, PortRef, Position, Ulid } from './types';
+import type {
+  Annotation,
+  AnnotationKind,
+  FlowDocument,
+  FlowNode,
+  NodeType,
+  PortRef,
+  Position,
+  Ulid,
+} from './types';
 
 export interface FieldChange {
   field: string;
@@ -40,9 +49,23 @@ export interface WireChange {
   label: string;
 }
 
+/** AFD-66: a Note, Section or Text added, removed or changed (its place is not a change). */
+export interface AnnotationChange {
+  id: Ulid;
+  kind: 'added' | 'removed' | 'changed';
+  key: string;
+  annotation: AnnotationKind;
+  /** Its first line of text. */
+  label: string;
+  level: string;
+  where: string[];
+  fields: FieldChange[];
+}
+
 export interface FlowDiff {
   nodes: NodeChange[];
   wires: WireChange[];
+  annotations: AnnotationChange[];
   /** The flow's own fields (name, goal, inputs, runtime, …) and its format. */
   flow: FieldChange[];
 }
@@ -199,13 +222,78 @@ export function diffFlows(baseDoc: FlowDocument, currentDoc: FlowDocument): Flow
       .map(([, w]) => ({ kind: 'removed' as const, ...w, label: label(was, w) })),
   ];
 
+  const annotations = annotationChanges(was, now, ids, back);
+
   const { version: _v1, id: _i1, ...flowWas } = base.flow;
   const { version: _v2, id: _i2, ...flowNow } = current.flow;
   const flow = fieldChanges(
     { ...flowWas, format: base.schema_version },
     { ...flowNow, format: current.schema_version },
   );
-  return { nodes, wires, flow };
+  return { nodes, wires, annotations, flow };
+}
+
+/** What a review compares in an annotation: its words and look, and the node a note is on. */
+function annotationFields(model: FlowModel, a: Annotation): Record<string, unknown> {
+  const kind = a.kind ?? 'note';
+  return {
+    kind,
+    text: a.text,
+    color: a.color ?? (kind === 'note' ? 'yellow' : 'gray'),
+    ...(a.size ? { size: a.size } : {}),
+    on: a.on ? (model.nodes.get(a.on)?.node.key ?? a.on) : undefined,
+  };
+}
+
+/** Annotations matched by ID, else by key on the same level (written by hand, then completed). */
+function annotationChanges(
+  was: FlowModel,
+  now: FlowModel,
+  ids: Map<Ulid, Ulid>,
+  back: Map<Ulid, Ulid>,
+): AnnotationChange[] {
+  const out: AnnotationChange[] = [];
+  const first = (a: Annotation) => String(a.text ?? '').split('\n')[0] ?? '';
+  const matched = new Set<Ulid>();
+  for (const [id, { annotation: a, level }] of now.annotations) {
+    const baseLevel = level === ROOT ? ROOT : (back.get(level) ?? level);
+    const prior =
+      was.annotations.get(id) ??
+      [...was.annotations.values()].find(
+        (e) =>
+          !now.annotations.has(e.annotation.id) &&
+          e.level === baseLevel &&
+          e.annotation.key === a.key,
+      );
+    const entry = {
+      id,
+      key: a.key,
+      annotation: a.kind ?? 'note',
+      label: first(a),
+      level,
+      where: whereOf(now, level),
+    };
+    if (!prior) {
+      out.push({ ...entry, kind: 'added', fields: [] });
+      continue;
+    }
+    matched.add(prior.annotation.id);
+    const fields = fieldChanges(annotationFields(was, prior.annotation), annotationFields(now, a));
+    if (fields.length > 0) out.push({ ...entry, kind: 'changed', fields });
+  }
+  for (const [id, { annotation: a, level }] of was.annotations)
+    if (!matched.has(id))
+      out.push({
+        id,
+        kind: 'removed',
+        key: a.key,
+        annotation: a.kind ?? 'note',
+        label: first(a),
+        level: ids.get(level) ?? level,
+        where: whereOf(was, level),
+        fields: [],
+      });
+  return out;
 }
 
 /** The changes inside a subflow's level, on every level below it. */

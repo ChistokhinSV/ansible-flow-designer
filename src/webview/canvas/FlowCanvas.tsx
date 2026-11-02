@@ -91,6 +91,7 @@ function toAnnotationNode(
   editable: boolean,
   shown: ReadonlySet<string>,
   optimistic: Record<string, Position>,
+  mark?: 'added' | 'changed',
 ): AnnotationRFNode {
   const a = v.annotation;
   const tied = v.on && shown.has(v.on) ? v.on : undefined;
@@ -108,6 +109,8 @@ function toAnnotationNode(
       ? { dragHandle: '.afd-section-title', style: { pointerEvents: 'none' as const } }
       : {}),
     ariaLabel: annotationName(v),
+    // The Changes lens outlines what was added or changed (AFD-66).
+    ...(mark ? { className: `afd-mark-${mark}` } : {}),
     draggable: editable,
     deletable: false,
     connectable: false,
@@ -226,6 +229,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const hidden = useUi((s) => s.annotationsHidden);
   const optimistic = useUi((s) => s.optimistic);
   const editable = !readOnly && !handWritten;
+  const marks = useUi((s) => (s.lens === 'changes' ? s.lensView?.annotations : undefined));
   // A stable empty list: a new one per render would rebuild the nodes, and render again.
   const notes = hidden ? NO_NOTES : view.annotations;
   // AFD-42: the minimap shows while part of the level is out of view.
@@ -303,12 +307,13 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     const picked = new Set(selection.annotations ?? []);
     const annotated = notes.map((v) => {
       const sel = picked.has(v.annotation.id);
-      const key = JSON.stringify([v, sel, editable, optimistic[v.annotation.id]]);
+      const mark = marks?.[v.annotation.id];
+      const key = JSON.stringify([v, sel, editable, optimistic[v.annotation.id], mark]);
       const hit = annotationCache.current.get(v.annotation.id);
       const entry =
         hit && hit.key === key
           ? hit
-          : { key, node: toAnnotationNode(v, sel, editable, shownIds, optimistic) };
+          : { key, node: toAnnotationNode(v, sel, editable, shownIds, optimistic, mark) };
       nextNotes.set(v.annotation.id, entry);
       return entry.node;
     });
@@ -325,6 +330,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     notes,
     editable,
     optimistic,
+    marks,
   ]);
 
   const [nodes, setNodes] = useState<CanvasNode[]>(derived);
