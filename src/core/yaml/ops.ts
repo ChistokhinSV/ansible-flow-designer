@@ -22,7 +22,15 @@ import {
   type Path,
   type YamlFile,
 } from './parse';
-import { type QuoteHint, renderBlock, renderFlow, renderInline, type YamlValue } from './render';
+import {
+  Literal,
+  literalLines,
+  type QuoteHint,
+  renderBlock,
+  renderFlow,
+  renderInline,
+  type YamlValue,
+} from './render';
 
 export type OpResult =
   | { ok: true; edits: TextEdit[] }
@@ -83,12 +91,29 @@ function rerenderFlow(node: Node, value: YamlValue): OpResult {
 }
 
 /** Replaces the value at an existing location (map value or sequence item). */
-function replaceAt(file: YamlFile, loc: Located, value: YamlValue): OpResult {
+function replaceAt(file: YamlFile, loc: Located, given: YamlValue): OpResult {
   const guard = guardRefs(loc, loc.node);
   if (guard) return guard;
   const { text, style } = file;
   const old = loc.node;
   const parent = loc.parent;
+  const literalKey = !parent?.flow ? (loc.pair?.key as Node | undefined) : undefined;
+  // A literal block needs a key line to hang from; elsewhere it is an ordinary string.
+  const value = given instanceof Literal && !literalKey ? given.text : given;
+  const literal =
+    value instanceof Literal && literalKey
+      ? literalLines(value.text, childColumn(file, literalKey, value))
+      : undefined;
+  if (literal && literalKey) {
+    const at = afterColon(text, literalKey);
+    const range = old?.range;
+    const end =
+      !range || range[0] === range[1]
+        ? Math.max(at, range?.[1] ?? at)
+        : trimNewlines(text, range[0], isBlockCollection(old) ? range[2] : range[1]);
+    const newText = ` ${literal.indicator}${style.eol}${literal.lines.join(style.eol)}`;
+    return ok([{ start: at, end, newText }]);
+  }
 
   if (parent?.flow) {
     // Only the value's own text changes: the collection keeps its spacing, and edits of other

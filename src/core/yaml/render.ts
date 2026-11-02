@@ -11,7 +11,47 @@ export interface Style {
 export type QuoteHint = 'PLAIN' | 'QUOTE_SINGLE' | 'QUOTE_DOUBLE' | undefined;
 
 type Plain = string | number | boolean | null;
-export type YamlValue = Plain | YamlValue[] | { [key: string]: YamlValue };
+
+/**
+ * A string written as a literal block (`|-`) when it spans lines and reads back the same, else as a
+ * quoted scalar (AFD-64: annotation text stays readable in the file and in diffs). Opt-in, so
+ * other multi-line strings keep the quoted form writers and goldens rely on.
+ */
+export class Literal {
+  constructor(readonly text: string) {}
+}
+
+export type YamlValue = Plain | Literal | YamlValue[] | { [key: string]: YamlValue };
+
+/** `|-` / `|` and the content lines at `col`, or undefined where a literal block would not fit. */
+export function literalLines(
+  text: string,
+  col: number,
+): { indicator: string; lines: string[] } | undefined {
+  if (!text.includes('\n') || /[\r\u0085\u2028\u2029\ufeff]/.test(text)) return undefined;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (c < 0x20 && c !== 0x0a && c !== 0x09) return undefined;
+  }
+  const trailing = /\n*$/.exec(text)?.[0].length ?? 0;
+  if (trailing > 1) return undefined;
+  const body = trailing ? text.slice(0, -1) : text;
+  const rows = body.split('\n');
+  // A leading space would be read as indentation; a blank line with spaces cannot be written.
+  if (/^[ \t]/.test(rows[0] ?? '') || rows.some((r) => r !== '' && r.trim() === ''))
+    return undefined;
+  const pad = ' '.repeat(Math.max(col, 1));
+  const indicator = trailing ? '|' : '|-';
+  const lines = rows.map((r) => (r === '' ? '' : pad + r));
+  try {
+    if (parse(`k: ${indicator}\n${lines.join('\n')}\n`)?.k !== text) return undefined;
+  } catch {
+    return undefined;
+  }
+  return { indicator, lines };
+}
+
+const plainOf = (v: Plain | Literal): Plain => (v instanceof Literal ? v.text : v);
 
 const INDICATORS = /^[-?:,[\]{}#&*!|>'"%@`\s]/;
 
@@ -59,8 +99,8 @@ export function renderKey(key: string): string {
   return isPlainSafe(key) ? key : single(key);
 }
 
-function isPlainValue(v: YamlValue): v is Plain {
-  return v === null || typeof v !== 'object';
+function isPlainValue(v: YamlValue): v is Plain | Literal {
+  return v === null || typeof v !== 'object' || v instanceof Literal;
 }
 
 function isEmptyCollection(v: YamlValue): boolean {
@@ -69,9 +109,13 @@ function isEmptyCollection(v: YamlValue): boolean {
     : typeof v === 'object' && v !== null && Object.keys(v).length === 0;
 }
 
-/** Inline form for scalars and empty collections; undefined when the value needs block lines. */
+/**
+ * Inline form for scalars and empty collections; undefined when the value needs block lines. A
+ * literal that fits a block is rendered by the caller (`literalLines`), after its key.
+ */
 export function renderInline(v: YamlValue, hint?: QuoteHint): string | undefined {
-  if (isPlainValue(v)) return renderScalar(v, hint);
+  if (v instanceof Literal && literalLines(v.text, 2)) return undefined;
+  if (isPlainValue(v)) return renderScalar(plainOf(v), hint);
   if (isEmptyCollection(v)) return Array.isArray(v) ? '[]' : '{}';
   return undefined;
 }
@@ -83,7 +127,7 @@ function flowSafe(rendered: string): string {
 
 /** Flow style for a value inside a flow collection (`[a, b]`, `{x: 1}`). */
 export function renderFlow(v: YamlValue, hint?: QuoteHint): string {
-  if (isPlainValue(v)) return flowSafe(renderScalar(v, hint));
+  if (isPlainValue(v)) return flowSafe(renderScalar(plainOf(v), hint));
   if (Array.isArray(v)) return `[${v.map((x) => renderFlow(x)).join(', ')}]`;
   return `{${Object.entries(v)
     .map(([k, x]) => `${flowSafe(renderKey(k))}: ${renderFlow(x)}`)
@@ -107,7 +151,7 @@ export function renderBlock(
   };
   if (Array.isArray(v)) {
     for (const item of v) {
-      const inline = renderInline(item);
+      const inline = item instanceof Literal ? renderScalar(item.text) : renderInline(item);
       if (inline !== undefined) {
         push(`${pad}- ${inline}`);
         continue;
@@ -120,6 +164,12 @@ export function renderBlock(
   }
   for (const [k, x] of Object.entries(v as Record<string, YamlValue>)) {
     const key = renderKey(k);
+    const literal = x instanceof Literal ? literalLines(x.text, col + style.indentUnit) : undefined;
+    if (literal) {
+      push(`${pad}${key}: ${literal.indicator}`);
+      lines.push(...literal.lines);
+      continue;
+    }
     const inline = renderInline(x);
     if (inline !== undefined) {
       push(`${pad}${key}: ${inline}`);

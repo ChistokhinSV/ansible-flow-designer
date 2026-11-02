@@ -27,6 +27,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | decision-not-fail | Only fail ports can be left open on purpose. | reopen it; wire the port instead. |
 | decision-on-connected | A port marked open on purpose is wired. | reopen it (the wire decides). |
 | duplicate-decision | The same port has two decisions. | Keep one: reopen, then leave_open once. |
+| annotation-target-missing | A note is on a node that is not on its level (or gone), a section or text is on a node, or the file is format 1. | Detach the note (its menu, or remove `on`), or attach it again; for format 1, Upgrade Flow Format. |
 | stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |

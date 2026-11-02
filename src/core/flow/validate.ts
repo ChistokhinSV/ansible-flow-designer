@@ -84,6 +84,7 @@ export function validateFlow(
   checkDecisions(model, add);
   checkUnreachableRollback(model, add);
   checkTargets(model, add);
+  checkAnnotations(model, add);
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
@@ -158,7 +159,52 @@ function checkIdentity(model: FlowModel, add: (f: Finding) => void): void {
     level.edges.forEach((e, i) => {
       claim(e?.id, [...level.edgesPath, i, 'id']);
     });
+    // AFD-64: annotations share the ID space (the canvas draws them all), keys are per level.
+    const annotationKeys = new Set<string>();
+    level.annotations.forEach((a, i) => {
+      if (!a) return;
+      claim(a.id, [...level.annotationsPath, i, 'id']);
+      if (!a.key) return;
+      if (annotationKeys.has(a.key))
+        add({
+          code: 'duplicate-key',
+          severity: 'error',
+          message: `Duplicate annotation key "${a.key}" in this level`,
+          path: [...level.annotationsPath, i, 'key'],
+        });
+      annotationKeys.add(a.key);
+    });
   }
+}
+
+/** AFD-64: a Note on a node that is not on its level; annotations in a format 1 file. */
+function checkAnnotations(model: FlowModel, add: (f: Finding) => void): void {
+  const v2 = formatOf(model.doc) >= 2;
+  for (const level of model.levels.values())
+    level.annotations.forEach((a, i) => {
+      if (!a || typeof a !== 'object') return;
+      const path = [...level.annotationsPath, i];
+      if (!v2 && i === 0)
+        add({
+          code: 'annotation-target-missing',
+          severity: 'warning',
+          message: 'Annotations are format 2: Upgrade Flow Format',
+          path: level.annotationsPath,
+        });
+      if (a.on === undefined) return;
+      const target = model.nodes.get(a.on);
+      if ((a.kind ?? 'note') !== 'note' || !target || target.level !== level.id)
+        add({
+          code: 'annotation-target-missing',
+          severity: 'warning',
+          message:
+            (a.kind ?? 'note') !== 'note'
+              ? `${a.kind} "${a.key ?? a.id}" is on a node, which only a note can be: Detach it`
+              : `Note "${a.key ?? a.id}" is on a node that is not on its level: Detach it, or attach it again`,
+          path: [...path, 'on'],
+          subject: a.id,
+        });
+    });
 }
 
 function checkEdges(model: FlowModel, add: (f: Finding) => void): void {

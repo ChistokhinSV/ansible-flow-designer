@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.39.1",
+  "version": "0.40.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -542,8 +542,8 @@
         "tags": [
           "ansible-flow"
         ],
-        "userDescription": "List the problems of a flow (errors, warnings, notes) by node key, each with how to fix it.",
-        "modelDescription": "List the problems of a flow (errors, warnings, notes) by node key, each with how to fix it. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "userDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it.",
+        "modelDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1336,7 +1336,7 @@
                           "type": "string",
                           "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
                         },
-                        "description": "Nodes to delete."
+                        "description": "Nodes to delete (with the notes on them)."
                       },
                       "wires": {
                         "type": "array",
@@ -1345,6 +1345,14 @@
                           "description": "An output port: node.port, e.g. check-ntp.failed_hosts or fix-ntp/push-config.ok_hosts."
                         },
                         "description": "Wires to delete, by the output they leave."
+                      },
+                      "annotations": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "An annotation by key path: note-1 on the top level, fix-ntp/note-1 inside subflow fix-ntp (flow_describe lists them)."
+                        },
+                        "description": "Notes, sections or text to delete."
                       }
                     },
                     "required": [
@@ -2036,7 +2044,7 @@
                   },
                   {
                     "type": "object",
-                    "description": "Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
+                    "description": "Place or move nodes and annotations (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. A section carries the nodes and annotations wholly inside it; a note on a node moves with the node. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.",
                     "properties": {
                       "op": {
                         "const": "move"
@@ -2080,11 +2088,50 @@
                             }
                           }
                         }
+                      },
+                      "annotations": {
+                        "type": "object",
+                        "description": "Annotation (key path) -> where it goes.",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "description": "Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.",
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "description": "Left edge, canvas pixels."
+                            },
+                            "y": {
+                              "type": "number",
+                              "description": "Top edge, canvas pixels (y grows down)."
+                            },
+                            "below": {
+                              "type": "string",
+                              "description": "Under this node, centred on it."
+                            },
+                            "above": {
+                              "type": "string",
+                              "description": "Over this node, centred on it."
+                            },
+                            "right_of": {
+                              "type": "string",
+                              "description": "Right of this node, level with it."
+                            },
+                            "left_of": {
+                              "type": "string",
+                              "description": "Left of this node, level with it."
+                            },
+                            "gap": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Pixels between the two nodes."
+                            }
+                          }
+                        }
                       }
                     },
                     "required": [
-                      "op",
-                      "nodes"
+                      "op"
                     ],
                     "additionalProperties": false
                   },
@@ -2110,6 +2157,217 @@
                     },
                     "required": [
                       "op"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Add a note, section or text (format 2): words on the canvas that explain the flow and never run, so adding or changing them changes no version. A note on a node (on) moves with the node, is deleted with it, and its text becomes a comment above the node's code. A section is a titled region behind nodes: moving it moves what is inside. Text is words with no background. The text is Markdown: **bold**, *italic*, `code`, - lists, [links](https://...).",
+                    "properties": {
+                      "op": {
+                        "const": "annotate"
+                      },
+                      "kind": {
+                        "enum": [
+                          "note",
+                          "section",
+                          "text"
+                        ],
+                        "description": "note (default): a sticky note; section: a titled region behind nodes, dragged with what is inside it; text: words with no background."
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text."
+                      },
+                      "on": {
+                        "type": "string",
+                        "description": "Notes only: the node this note is about (its level is the note's)."
+                      },
+                      "in": {
+                        "type": "string",
+                        "description": "Subflow whose inner level gets it (default: the top level, or the level of on)."
+                      },
+                      "position": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Left edge, canvas pixels."
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Top edge, canvas pixels (y grows down)."
+                          },
+                          "below": {
+                            "type": "string",
+                            "description": "Under this node, centred on it."
+                          },
+                          "above": {
+                            "type": "string",
+                            "description": "Over this node, centred on it."
+                          },
+                          "right_of": {
+                            "type": "string",
+                            "description": "Right of this node, level with it."
+                          },
+                          "left_of": {
+                            "type": "string",
+                            "description": "Left of this node, level with it."
+                          },
+                          "gap": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Pixels between the two nodes."
+                          }
+                        }
+                      },
+                      "width": {
+                        "type": "number",
+                        "minimum": 40,
+                        "description": "Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words)."
+                      },
+                      "height": {
+                        "type": "number",
+                        "minimum": 24,
+                        "description": "Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words)."
+                      },
+                      "color": {
+                        "enum": [
+                          "yellow",
+                          "blue",
+                          "green",
+                          "pink",
+                          "purple",
+                          "gray"
+                        ],
+                        "description": "Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text)."
+                      },
+                      "size": {
+                        "enum": [
+                          "s",
+                          "m",
+                          "l"
+                        ],
+                        "description": "Text only: small, medium (default) or large."
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "Key of the new annotation; default: note-1, section-1, text-1, ... Must be new on its level."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Change a note, section or text: its words, color, size, place, or the node a note is on (on: null unties it and it stays where it is shown). Changes no version.",
+                    "properties": {
+                      "op": {
+                        "const": "update_annotation"
+                      },
+                      "annotation": {
+                        "type": "string",
+                        "description": "An annotation by key path: note-1 on the top level, fix-ntp/note-1 inside subflow fix-ntp (flow_describe lists them)."
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text."
+                      },
+                      "on": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The node the note is about (same level); null unties it."
+                      },
+                      "position": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "description": "Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.",
+                        "properties": {
+                          "x": {
+                            "type": "number",
+                            "description": "Left edge, canvas pixels."
+                          },
+                          "y": {
+                            "type": "number",
+                            "description": "Top edge, canvas pixels (y grows down)."
+                          },
+                          "below": {
+                            "type": "string",
+                            "description": "Under this node, centred on it."
+                          },
+                          "above": {
+                            "type": "string",
+                            "description": "Over this node, centred on it."
+                          },
+                          "right_of": {
+                            "type": "string",
+                            "description": "Right of this node, level with it."
+                          },
+                          "left_of": {
+                            "type": "string",
+                            "description": "Left of this node, level with it."
+                          },
+                          "gap": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Pixels between the two nodes."
+                          }
+                        }
+                      },
+                      "width": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 40,
+                        "description": "Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words)."
+                      },
+                      "height": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 24,
+                        "description": "Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words)."
+                      },
+                      "color": {
+                        "enum": [
+                          "yellow",
+                          "blue",
+                          "green",
+                          "pink",
+                          "purple",
+                          "gray",
+                          null
+                        ],
+                        "description": "Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text)."
+                      },
+                      "size": {
+                        "enum": [
+                          "s",
+                          "m",
+                          "l",
+                          null
+                        ],
+                        "description": "Text only: small, medium (default) or large."
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "Unique among the annotations of its level, e.g. note-1 or section-2; tools name it by this key."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "annotation"
                     ],
                     "additionalProperties": false
                   },

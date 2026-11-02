@@ -14,6 +14,7 @@ A flow is one YAML file named `<key>.flow.yaml`. The top level has one start nod
 - `flow` (object, required): The flow itself: identity, version, goal and the inputs a run asks for.
 - `nodes` (list of node, required): Nodes of the top level, in any order. Subflow nodes hold their own inner level under subflow.
 - `edges` (list of edge, required): Wires of the top level: an output port of one node to an input port of another node on the same level. One wire per output port.
+- `annotations` (list of annotation): Format 2: Notes, Sections and Text on the top level. They explain the flow and never run: editing them changes no version.
 - `layout` (layout): Canvas positions of every node at every level, by node ID (or by key while written by hand). Optional: missing positions are laid out automatically.
 - `decisions` (list of object): Choices people made about the design: a fail port left open on purpose, a drift item or a lens finding kept as it is.
 
@@ -83,6 +84,7 @@ Subflow nodes: the inner level and how hosts enter and leave it.
 
 - `nodes` (list of node): Nodes of the inner level.
 - `edges` (list of edge): Wires of the inner level.
+- `annotations` (list of annotation): Format 2: Notes, Sections and Text on the inner level.
 - `layout` (layout): Old place for inner positions: read, never written (positions live in the top-level layout).
 - `boundary` (object): How hosts enter and leave the subflow.
 
@@ -136,6 +138,22 @@ What the node runs: an Ansible module, a role or a playbook. null or absent: the
 - `params` (object): Module parameters or role variables. Jinja may reference inputs by name.
 - `register` (string): Variable that keeps the task result; outputs read it with from: impl.register.
 - `keywords` (object): Ansible task keywords written on the generated task as they are (module and role bindings). Jinja may reference inputs by name; when, changed_when and failed_when are Jinja tests without braces. What the flow models itself is set there instead: register (impl.register), tags, become, timeout, retries, delay and until (settings), handlers (steps with when: <register> is changed), block and rescue (subflows and failure paths).
+
+### Annotation (annotations[], subflow.annotations[])
+
+A Note, Section or Text on a level (format 2): it explains the flow and never runs.
+
+- `id` (ulid): Unique among the nodes, wires and annotations of the flow. 'Complete IDs' adds it when written by hand.
+- `key` (slug): Unique among the annotations of its level, e.g. note-1 or section-2; tools name it by this key.
+- `kind` (note | section | text): note (default): a sticky note; section: a titled region behind nodes, dragged with what is inside it; text: words with no background.
+- `x` (number, required): Left edge on the canvas, in pixels; for a note on a node, from the node's left edge.
+- `y` (number, required): Top edge on the canvas, in pixels; for a note on a node, from the node's top edge.
+- `width` (number): Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words).
+- `height` (number): Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words).
+- `color` (yellow | blue | green | pink | purple | gray): Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text).
+- `on` (nodeRef): Notes only: the node on the same level this note is about. The note moves with it, is deleted with it, and its text becomes a comment above the node's code.
+- `size` (s | m | l): Text only: small, medium (default) or large.
+- `text` (string, required): Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text.
 
 ### Decision (decisions[])
 

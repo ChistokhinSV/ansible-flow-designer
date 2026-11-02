@@ -395,7 +395,7 @@ describe('subflows (M4)', () => {
     ]);
     // An empty subflow: a default-size frame whose ports wait for inner steps.
     const push = idOf(EDGE, 'push-baseline');
-    const empty = boundaryView(snapshotOf(EDGE), { nodes: [], edges: [] }, push);
+    const empty = boundaryView(snapshotOf(EDGE), { nodes: [], edges: [], annotations: [] }, push);
     expect(empty?.frame).toMatchObject({ width: 420, height: 280 });
     expect(
       empty?.ports.filter((p) => p.state !== 'available').map((p) => `${p.name}:${p.state}`),

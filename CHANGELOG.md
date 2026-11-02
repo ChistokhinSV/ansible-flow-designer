@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.40.0 — AFD-64
+
+- **Annotations in the flow file (format 2)**: Notes (Markdown), Notes on a node (they move, are copied, extracted and deleted with it), Sections (titled regions that carry what is inside them when moved) and Text, under `annotations:` on each level. They never run and change no version: saving a flow whose only change is its annotations keeps its version and its tested steps. Multi-line text is written as a readable YAML block. Complete IDs completes annotations written by hand. The canvas shows them from the next version.
+- **AI tools**: `annotate` and `update_annotation`; `delete` and `move` take annotations (moving a section carries its contents); `flow_describe` lists them by key (`note-1`, `fix-ntp/note-1`).
+- Info-level problem counts now say `info` instead of `note(s)`.
+
 ## 0.39.1 — AFD-62
 
 - **A shared subflow copied from a format 1 flow is copied as format 2**: the source is upgraded in memory first (the file is left as it is), so its legacy ports and field names no longer land in the copy, where they showed warnings that could not be cleared.

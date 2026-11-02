@@ -88,9 +88,38 @@ export interface SubflowRef {
   design: string;
 }
 
+export const ANNOTATION_KINDS = ['note', 'section', 'text'] as const;
+export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
+export const ANNOTATION_COLORS = ['yellow', 'blue', 'green', 'pink', 'purple', 'gray'] as const;
+export type AnnotationColor = (typeof ANNOTATION_COLORS)[number];
+export const TEXT_SIZES = ['s', 'm', 'l'] as const;
+export type TextSize = (typeof TEXT_SIZES)[number];
+
+/**
+ * Something on a level that explains the flow and never runs (AFD-64): a Note (on a node when `on`
+ * is set; then `x`, `y` are relative to that node), a Section (a titled region) or Text. Not design:
+ * it moves no version and drops no `tested`.
+ */
+export interface Annotation {
+  id: Ulid;
+  key: string;
+  kind?: AnnotationKind;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  color?: AnnotationColor;
+  on?: Ulid;
+  size?: TextSize;
+  /** Markdown (a Section's title, Text's words). */
+  text: string;
+}
+
 export interface SubflowBody {
   nodes?: FlowNode[];
   edges?: Edge[];
+  /** Format 2: Notes, Sections and Text on this level (AFD-64). */
+  annotations?: Annotation[];
   layout?: Layout;
   boundary?: {
     in?: Ulid;
@@ -219,6 +248,8 @@ export interface FlowDocument {
   flow: FlowHeader;
   nodes: FlowNode[];
   edges: Edge[];
+  /** Format 2: Notes, Sections and Text on the top level (AFD-64). */
+  annotations?: Annotation[];
   layout?: Layout;
   decisions?: Decision[];
 }

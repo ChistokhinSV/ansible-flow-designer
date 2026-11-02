@@ -225,3 +225,31 @@ first one's registered result.
 ```
 
 Failures the playbook does not handle stay open; `flow_validate` lists them for the user to decide.
+
+## Explain the flow on the canvas
+
+"Note why the pre-checks are safe to rerun, and mark the change window." (Annotations are format 2,
+so this flow is upgraded first; on a format 2 flow leave `upgrade_format` out.)
+
+```json
+{
+  "ops": [
+    { "op": "upgrade_format" },
+    {
+      "op": "annotate",
+      "on": "precheck",
+      "text": "Read-only checks: **safe** to rerun.\nRunbook: https://wiki.example.net/edge-baseline"
+    },
+    {
+      "op": "annotate",
+      "kind": "section",
+      "text": "Change window",
+      "position": { "left_of": "backup-config", "gap": 24 },
+      "width": 560,
+      "height": 380,
+      "color": "blue"
+    },
+    { "op": "annotate", "kind": "text", "text": "Edge baseline", "size": "l", "position": { "above": "precheck" } }
+  ]
+}
+```

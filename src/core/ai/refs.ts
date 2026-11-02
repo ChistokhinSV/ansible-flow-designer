@@ -2,7 +2,7 @@
 // subflow), `check-ntp.failed_hosts`. IDs never appear in what tools take or say.
 import { type FlowModel, ROOT } from '../flow/model';
 import { defaultPortNames, legalPorts, optionalPortNames } from '../flow/ports';
-import type { FlowNode, Ulid } from '../flow/types';
+import type { Annotation, FlowNode, Ulid } from '../flow/types';
 
 export class RefError extends Error {
   constructor(message: string) {
@@ -122,10 +122,47 @@ export function resolvePort(
   return { node, port };
 }
 
+/** Key path of an annotation (AFD-64): its key, after the key path of its subflow. */
+export function annotationPath(model: FlowModel, id: Ulid): string {
+  const entry = model.annotations.get(id);
+  if (!entry) return id;
+  const key = entry.annotation.key ?? id;
+  return entry.level === ROOT ? key : `${keyPath(model, entry.level)}/${key}`;
+}
+
+/**
+ * An annotation by key path: `note-1` on the top level, `fix-ntp/note-1` inside a subflow. Keys
+ * are per level, so a bare key means the top level unless `context` names another one.
+ */
+export function resolveAnnotation(
+  model: FlowModel,
+  ref: string,
+  context: string = ROOT,
+): { id: Ulid; annotation: Annotation; level: string; path: string } {
+  const wanted = ref.trim();
+  const all = [...model.annotations.values()].map((e) => ({
+    id: e.annotation.id,
+    annotation: e.annotation,
+    level: e.level,
+    path: annotationPath(model, e.annotation.id),
+  }));
+  const hit =
+    all.find((a) => a.path === wanted) ??
+    (wanted.includes('/')
+      ? undefined
+      : all.find((a) => a.level === context && a.annotation.key === wanted));
+  if (hit) return hit;
+  const here = all.filter((a) => a.level === context).map((a) => a.path);
+  throw new RefError(
+    `No annotation "${wanted}"${here.length ? `; annotations on ${levelName(model, context)}: ${here.join(', ')}` : ` on ${levelName(model, context)}`}`,
+  );
+}
+
 /** IDs in a message replaced by key paths, so tool output never shows IDs. */
 export function withoutIds(model: FlowModel, text: string): string {
   return text.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, (id) => {
     if (model.nodes.has(id)) return keyPath(model, id);
+    if (model.annotations.has(id)) return annotationPath(model, id);
     const edge = model.edges.get(id)?.edge;
     if (edge)
       return `wire ${keyPath(model, edge.from.node)}.${edge.from.port} -> ${keyPath(model, edge.to.node)}`;

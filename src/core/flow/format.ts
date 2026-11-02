@@ -58,6 +58,21 @@ export const NODE_ORDER = [
   'subflow',
 ] as const;
 
+/** Where a writer puts each key of an annotation (AFD-64): the text last, as it may run long. */
+export const ANNOTATION_ORDER = [
+  'id',
+  'key',
+  'kind',
+  'on',
+  'x',
+  'y',
+  'width',
+  'height',
+  'color',
+  'size',
+  'text',
+] as const;
+
 /** The keys that come after `key` in a node, for an insert that keeps NODE_ORDER. */
 export function keysAfter(key: (typeof NODE_ORDER)[number]): string[] {
   return NODE_ORDER.slice(NODE_ORDER.indexOf(key) + 1);

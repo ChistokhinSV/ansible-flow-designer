@@ -58,7 +58,7 @@ describe('a flow written by hand', () => {
 
   it('Complete IDs: one edit, only IDs added and keys replaced; valid; a second run changes nothing', () => {
     const r = completeIds(HAND, createIdFactory());
-    expect(r.filled).toEqual({ nodes: 7, wires: 5, refs: 15 });
+    expect(r.filled).toEqual({ nodes: 7, wires: 5, refs: 15, annotations: 0 });
     expect(r.unresolved).toEqual([]);
     const doc = parse(r.text) as FlowDocument;
     expect(idGaps(doc)).toEqual([]);
@@ -146,7 +146,7 @@ describe('a flow written by hand', () => {
           `  - id: ${W3}\n    from: { node: ${WORK}, port: failed_hosts }\n    to: {node: ${DONE}, port: in}`,
         ),
     );
-    expect(r.filled).toEqual({ nodes: 3, wires: 3, refs: 6 });
+    expect(r.filled).toEqual({ nodes: 3, wires: 3, refs: 6, annotations: 0 });
     const doc = parse(r.text) as FlowDocument;
     expect(idGaps(doc)).toEqual([]);
     expect(schema(doc)).toEqual([]);

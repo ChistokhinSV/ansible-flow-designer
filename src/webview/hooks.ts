@@ -23,7 +23,8 @@ export function useLevelView(level?: string): LevelView {
   const open = useUi((s) => s.level);
   const at = level ?? open;
   return useMemo(
-    () => (snapshot ? levelView(snapshot, optimistic, at) : { nodes: [], edges: [] }),
+    () =>
+      snapshot ? levelView(snapshot, optimistic, at) : { nodes: [], edges: [], annotations: [] },
     [snapshot, optimistic, at],
   );
 }

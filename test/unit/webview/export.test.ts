@@ -103,9 +103,7 @@ describe('draw.io export (AFD-25)', () => {
     const root = top.querySelector('UserObject[id="0"]');
     expect(root?.getAttribute('flow')).toBe(src.doc.flow.name);
     expect(root?.getAttribute('version')).toBe(String(src.doc.flow.version));
-    expect(root?.getAttribute('problems')).toMatch(
-      /^\d+ error\(s\), \d+ warning\(s\), \d+ note\(s\)$/,
-    );
+    expect(root?.getAttribute('problems')).toMatch(/^\d+ error\(s\), \d+ warning\(s\), \d+ info$/);
   });
 
   it('positions are the canvas positions, shifted below the title block', async () => {

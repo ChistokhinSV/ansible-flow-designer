@@ -2,6 +2,7 @@
 // state (D-13), edges with tone and problem styling (04 §2), and a subflow's boundary frame (D-23).
 // Shared by the webview canvas and the exports (AFD-25), so a picture matches the canvas.
 import type { Snapshot } from '../protocol';
+import { type AnnotationView, annotationViews } from './annotations';
 import { fedByBubbling, levelTaken } from './bubbling';
 import { nodeSize } from './geometry';
 import { modelOf, ROOT } from './model';
@@ -47,6 +48,8 @@ export interface EdgeView {
 export interface LevelView {
   nodes: NodeView[];
   edges: EdgeView[];
+  /** AFD-64: the level's Notes, Sections and Text, placed. */
+  annotations: AnnotationView[];
 }
 
 export function levelView(
@@ -55,10 +58,10 @@ export function levelView(
   levelId: string = ROOT,
 ): LevelView {
   const doc = snapshot.doc;
-  if (!doc) return { nodes: [], edges: [] };
+  if (!doc) return { nodes: [], edges: [], annotations: [] };
   const model = modelOf(doc);
   const level = model.levels.get(levelId);
-  if (!level) return { nodes: [], edges: [] };
+  if (!level) return { nodes: [], edges: [], annotations: [] };
   const edgeEnds = new Set<string>();
   for (const e of level.edges) {
     if (!e?.from || !e.to) continue;
@@ -115,7 +118,8 @@ export function levelView(
         problem: spec.side === 'right',
       };
     });
-  return { nodes, edges };
+  const shown = new Map(nodes.map((n) => [n.node.id, n.position]));
+  return { nodes, edges, annotations: annotationViews(level, shown, optimistic) };
 }
 
 function withOffsets(ports: PortView[]): PortView[] {
@@ -185,9 +189,11 @@ export function boundaryView(
   const id = `${FRAME_PREFIX}${subflow.id}`;
 
   let frame = { x: 0, y: 0, ...EMPTY_FRAME };
-  if (view.nodes.length > 0) {
-    const xs = view.nodes.flatMap((n) => [n.position.x, n.position.x + n.width]);
-    const ys = view.nodes.flatMap((n) => [n.position.y, n.position.y + n.height]);
+  // The frame holds the inner nodes and the level's annotations (AFD-64).
+  const boxes = [...view.nodes, ...view.annotations];
+  if (boxes.length > 0) {
+    const xs = boxes.flatMap((n) => [n.position.x, n.position.x + n.width]);
+    const ys = boxes.flatMap((n) => [n.position.y, n.position.y + n.height]);
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     frame = {
       x: x0 - FRAME_PAD.x,

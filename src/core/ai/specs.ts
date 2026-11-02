@@ -69,6 +69,22 @@ const placeOf = (what: string) => ({
   description: `Where ${what} goes; leave it out for automatic placement. ${PLACE.description}`,
 });
 
+/** AFD-64: Notes, Sections and Text, with their field types from the schema. */
+const ANNOTATION = inline(defs.annotation) as Json & { properties: Record<string, Json> };
+const note = (name: string, description?: string): Json => ({
+  ...(ANNOTATION.properties[name] as Json),
+  ...(description ? { description } : {}),
+});
+const ANNOTATION_REF = {
+  type: 'string',
+  description:
+    'An annotation by key path: note-1 on the top level, fix-ntp/note-1 inside subflow fix-ntp (flow_describe lists them).',
+};
+const ANNOTATION_PLACE = {
+  ...PLACE,
+  description: `Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.`,
+};
+
 const CONTRACT_FIELD = inline(
   (defs.contract as { additionalProperties: Json }).additionalProperties,
 ) as Json;
@@ -172,11 +188,20 @@ export const OP_SPECS: OpSpec[] = [
     summary:
       'Delete nodes (with their wires, inner steps and positions) and wires (named by the output port they leave).',
     properties: {
-      nodes: { type: 'array', items: NODE, description: 'Nodes to delete.' },
+      nodes: {
+        type: 'array',
+        items: NODE,
+        description: 'Nodes to delete (with the notes on them).',
+      },
       wires: {
         type: 'array',
         items: OUT,
         description: 'Wires to delete, by the output they leave.',
+      },
+      annotations: {
+        type: 'array',
+        items: ANNOTATION_REF,
+        description: 'Notes, sections or text to delete.',
       },
     },
     required: [],
@@ -402,15 +427,20 @@ export const OP_SPECS: OpSpec[] = [
   },
   {
     op: 'move',
-    summary: `Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. ${LAYOUT_RULES}`,
+    summary: `Place or move nodes and annotations (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. A section carries the nodes and annotations wholly inside it; a note on a node moves with the node. ${LAYOUT_RULES}`,
     properties: {
       nodes: {
         type: 'object',
         description: 'Node (key, or subflow/step) -> where it goes.',
         additionalProperties: PLACE,
       },
+      annotations: {
+        type: 'object',
+        description: 'Annotation (key path) -> where it goes.',
+        additionalProperties: ANNOTATION_PLACE,
+      },
     },
-    required: ['nodes'],
+    required: [],
     example: {
       op: 'move',
       nodes: { 'check-ntp': { x: 320, y: 140 }, 'fix-ntp': { right_of: 'check-ntp' } },
@@ -426,6 +456,60 @@ export const OP_SPECS: OpSpec[] = [
     },
     required: [],
     example: { op: 'unplace', level: 'top' },
+  },
+  {
+    op: 'annotate',
+    summary:
+      "Add a note, section or text (format 2): words on the canvas that explain the flow and never run, so adding or changing them changes no version. A note on a node (on) moves with the node, is deleted with it, and its text becomes a comment above the node's code. A section is a titled region behind nodes: moving it moves what is inside. Text is words with no background. The text is Markdown: **bold**, *italic*, `code`, - lists, [links](https://...).",
+    properties: {
+      kind: note('kind'),
+      text: note('text'),
+      on: {
+        ...NODE,
+        description: "Notes only: the node this note is about (its level is the note's).",
+      },
+      in: {
+        ...NODE,
+        description:
+          'Subflow whose inner level gets it (default: the top level, or the level of on).',
+      },
+      position: ANNOTATION_PLACE,
+      width: note('width'),
+      height: note('height'),
+      color: note('color'),
+      size: note('size'),
+      key: note(
+        'key',
+        'Key of the new annotation; default: note-1, section-1, text-1, ... Must be new on its level.',
+      ),
+    },
+    required: ['text'],
+    example: {
+      op: 'annotate',
+      on: 'precheck',
+      text: 'Read-only: **safe** to run again. Runbook: https://wiki.example.net/edge',
+    },
+  },
+  {
+    op: 'update_annotation',
+    summary:
+      'Change a note, section or text: its words, color, size, place, or the node a note is on (on: null unties it and it stays where it is shown). Changes no version.',
+    properties: {
+      annotation: ANNOTATION_REF,
+      text: note('text'),
+      on: nullable({
+        ...NODE,
+        description: 'The node the note is about (same level); null unties it.',
+      }),
+      position: ANNOTATION_PLACE,
+      width: nullable(note('width')),
+      height: nullable(note('height')),
+      color: nullable(note('color')),
+      size: nullable(note('size')),
+      key: note('key'),
+    },
+    required: ['annotation'],
+    example: { op: 'update_annotation', annotation: 'note-1', color: 'green' },
   },
   {
     op: 'upgrade_format',
@@ -506,7 +590,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'flow_validate',
     title: 'Check a flow',
     description:
-      'List the problems of a flow (errors, warnings, notes) by node key, each with how to fix it.',
+      'List the problems of a flow (errors, warnings, info) by node key, each with how to fix it.',
     readOnly: true,
     inputSchema: { type: 'object', properties: { path: PATH } },
   },

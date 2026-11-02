@@ -5,8 +5,9 @@ import { IMPORTED_FIELDS, type ReimportAdd, type ReimportUpdate } from '../impor
 import type { TextEdit } from '../yaml/edits';
 import { deleteKey, insertItem, type OpResult, removeItem, setIn } from '../yaml/ops';
 import type { Path, YamlFile } from '../yaml/parse';
-import type { YamlValue } from '../yaml/render';
+import { Literal, type YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
+import { annotationValue, nextAnnotationKey, TIE_OFFSET } from './annotations';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
 import { enclosing } from './dataRefs';
@@ -19,7 +20,7 @@ import {
   findAccepted,
   portAccepted,
 } from './decisions';
-import { NODE_ORDER, purposeKey, requireFormat } from './format';
+import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
@@ -37,22 +38,28 @@ import {
 import { copySubflow, parseRefFrom, refFor } from './refs';
 import { nodeDesigns, testedDropBack } from './semantic';
 import { canMarkTested, contentStatus, hasStatus, statusAfterBinding, statusFor } from './status';
-import type {
-  BoundaryExit,
-  ContractField,
-  FlowDocument,
-  FlowNode,
-  HandlerKind,
-  ImplBinding,
-  JoinMode,
-  NodeSettings,
-  NodeStatus,
-  NodeType,
-  PortRef,
-  Position,
-  SubflowBody,
-  TestedRecord,
-  Ulid,
+import {
+  ANNOTATION_COLORS,
+  ANNOTATION_KINDS,
+  type AnnotationColor,
+  type AnnotationKind,
+  type BoundaryExit,
+  type ContractField,
+  type FlowDocument,
+  type FlowNode,
+  type HandlerKind,
+  type ImplBinding,
+  type JoinMode,
+  type NodeSettings,
+  type NodeStatus,
+  type NodeType,
+  type PortRef,
+  type Position,
+  type SubflowBody,
+  TEXT_SIZES,
+  type TestedRecord,
+  type TextSize,
+  type Ulid,
 } from './types';
 import { descendantIds } from './walk';
 
@@ -98,12 +105,29 @@ export type FlowCommand =
   | { kind: 'rewire'; edge: Ulid; to: PortRef }
   | { kind: 'updateNode'; id: Ulid; patch: NodePatch }
   | { kind: 'deleteNode'; id: Ulid }
-  /** AFD-18: a selection (nodes and wires of one level) goes in one edit, so one undo restores it. */
-  | { kind: 'deleteNodes'; ids: Ulid[]; edges?: Ulid[] }
-  | { kind: 'moveNodes'; positions: Record<Ulid, Position> }
+  /**
+   * AFD-18: a selection (nodes and wires of one level) goes in one edit, so one undo restores it;
+   * AFD-64: with its annotations.
+   */
+  | { kind: 'deleteNodes'; ids: Ulid[]; edges?: Ulid[]; annotations?: Ulid[] }
+  /** AFD-64: annotations move in the same edit (stored form: relative for a Note on a node). */
+  | {
+      kind: 'moveNodes';
+      positions: Record<Ulid, Position>;
+      annotations?: Record<Ulid, Position>;
+    }
   /** AFD-24: drop stored positions, so the canvas places these nodes again. */
   | { kind: 'unplaceNodes'; ids: Ulid[] }
-  | { kind: 'tidyUp'; positions: Record<Ulid, Position> }
+  | { kind: 'tidyUp'; positions: Record<Ulid, Position>; annotations?: Record<Ulid, Position> }
+  /** AFD-64: a Note, Section or Text on a level (format 2); `freeze` as for addNode. */
+  | {
+      kind: 'addAnnotation';
+      level?: string;
+      annotation: AnnotationPatch & { text: string; x: number; y: number };
+      freeze?: Record<Ulid, Position>;
+    }
+  /** AFD-64: an annotation's text, look, place or tie (`on: null` unties it). */
+  | { kind: 'updateAnnotation'; id: Ulid; patch: AnnotationPatch }
   | { kind: 'connect'; from: PortRef; to: PortRef }
   | { kind: 'disconnect'; edge: Ulid }
   | { kind: 'setPortEnabled'; node: Ulid; port: string; enabled: boolean }
@@ -213,7 +237,26 @@ export type FlowCommand =
       key?: string;
       position?: Position;
       freeze?: Record<Ulid, Position>;
+      /** AFD-64: annotations of the level that go inside too (Notes on the nodes always do). */
+      annotations?: Ulid[];
     };
+
+/**
+ * What an annotation command writes (AFD-64). `on` ties a Note to a node of its level (null unties);
+ * with `x`/`y` absent the Note keeps its place on the canvas as far as the stored positions tell.
+ */
+export interface AnnotationPatch {
+  kind?: AnnotationKind;
+  key?: string;
+  text?: string;
+  x?: number;
+  y?: number;
+  width?: number | null;
+  height?: number | null;
+  color?: AnnotationColor | null;
+  size?: TextSize | null;
+  on?: Ulid | null;
+}
 
 export interface NodePatch {
   title?: string;
@@ -292,8 +335,16 @@ const FLOW_ORDER = [
   'maintenance_window',
   'inputs',
 ];
-const SUBFLOW_ORDER = ['nodes', 'edges', 'layout', 'boundary'];
-const ROOT_ORDER = ['schema_version', 'flow', 'nodes', 'edges', 'layout', 'decisions'];
+const SUBFLOW_ORDER = ['nodes', 'edges', 'annotations', 'layout', 'boundary'];
+const ROOT_ORDER = [
+  'schema_version',
+  'flow',
+  'nodes',
+  'edges',
+  'annotations',
+  'layout',
+  'decisions',
+];
 
 const after = (order: readonly string[], key: string) => order.slice(order.indexOf(key) + 1);
 
@@ -1058,6 +1109,10 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
 
   ops.push(...removeIndexes(path.slice(0, -1), [path.at(-1) as number], level.nodes.length));
 
+  // AFD-64: the Notes on the node go with it (those inside it go with its body).
+  const tied = level.annotations.filter((a) => a?.on === id || a?.on === node.key);
+  ops.push(...removeAnnotationOps(level, new Set(tied.map((a) => a.id))));
+
   const parent = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
   const boundary = parent?.subflow?.boundary;
   if (parent && boundary) {
@@ -1770,6 +1825,13 @@ function extractSubflow(
       from: { node: e.from.node, port: e.from.port },
       to: { node: e.to.node, port: e.to.port },
     }));
+  // AFD-64: the Notes on the extracted nodes and the annotations picked with them go inside,
+  // where they stood (positions are in canvas pixels on every level).
+  const withThem = new Set(cmd.annotations ?? []);
+  const moving = level.annotations.filter(
+    (a) => a && (a.on ? picked.has(a.on) : withThem.has(a.id)),
+  );
+  if (moving.length > 0) body.annotations = moving.map((a) => annotationValue(a));
   const b: Record<string, YamlValue> = { in: entry };
   if (Object.keys(outputs).length > 0)
     b.outputs = Object.fromEntries(
@@ -1801,6 +1863,7 @@ function extractSubflow(
     .map((e, i) => (e && dropEdge.has(e.id) ? i : -1))
     .filter((i) => i >= 0);
   ops.push(...removeIndexes(level.edgesPath, edgeIdx, level.edges.length));
+  ops.push(...removeAnnotationOps(level, new Set(moving.map((a) => a.id))));
   level.edges.forEach((e, i) => {
     if (!e || dropEdge.has(e.id)) return;
     const path = [...level.edgesPath, i];
@@ -1894,6 +1957,179 @@ function updateReference(
   writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source);
 }
 
+// ---- annotations (AFD-64) -------------------------------------------------------------------
+
+/** Ops removing annotations of one level against one parse; the key goes with the last one. */
+function removeAnnotationOps(level: Level, ids: ReadonlySet<string>): Op[] {
+  const idx = level.annotations.map((a, i) => (a && ids.has(a.id) ? i : -1)).filter((i) => i >= 0);
+  if (idx.length === 0) return [];
+  if (idx.length === level.annotations.length) {
+    const base = level.annotationsPath.slice(0, -1);
+    return [(f) => deleteKey(f, base, 'annotations')];
+  }
+  return idx.map((i) => (f: YamlFile) => removeItem(f, level.annotationsPath, i));
+}
+
+/** Removes annotations level by level; how many were there. */
+function deleteAnnotations(tx: YamlTransaction, ids: readonly Ulid[]): number {
+  const byLevel = new Map<string, Set<Ulid>>();
+  for (const id of ids) {
+    const entry = state(tx).model.annotations.get(id);
+    if (!entry) continue;
+    byLevel.set(entry.level, (byLevel.get(entry.level) ?? new Set()).add(id));
+  }
+  let removed = 0;
+  for (const [levelId, set] of byLevel) {
+    const level = state(tx).model.levels.get(levelId);
+    if (!level) continue;
+    tx.applyAll(removeAnnotationOps(level, set));
+    removed += set.size;
+  }
+  return removed;
+}
+
+function moveAnnotations(tx: YamlTransaction, positions: Record<Ulid, Position>): void {
+  const st = state(tx);
+  const ops: Op[] = [];
+  for (const [id, p] of Object.entries(positions)) {
+    const entry = st.model.annotations.get(id);
+    if (!entry) continue;
+    const x = Math.round(p.x);
+    const y = Math.round(p.y);
+    if (entry.annotation.x !== x) ops.push((f) => setIn(f, [...entry.path, 'x'], x));
+    if (entry.annotation.y !== y) ops.push((f) => setIn(f, [...entry.path, 'y'], y));
+  }
+  tx.applyAll(ops);
+}
+
+function checkAnnotation(
+  st: State,
+  levelId: string,
+  kind: AnnotationKind,
+  patch: AnnotationPatch,
+): void {
+  if (!ANNOTATION_KINDS.includes(kind))
+    throw new CommandError('invalid', `No annotation kind ${kind}`);
+  if (patch.color != null && !ANNOTATION_COLORS.includes(patch.color))
+    throw new CommandError('invalid', `No color ${patch.color}: ${ANNOTATION_COLORS.join(', ')}`);
+  if (patch.size != null && (kind !== 'text' || !TEXT_SIZES.includes(patch.size)))
+    throw new CommandError('invalid', 'Only text has a size: s, m or l');
+  if (patch.on != null) {
+    if (kind !== 'note') throw new CommandError('invalid', 'Only a note can be on a node');
+    const entry = st.model.nodes.get(patch.on);
+    if (!entry || entry.level !== levelId)
+      throw new CommandError('not-found', 'A note can only be on a node of its own level');
+  }
+  for (const k of ['x', 'y', 'width', 'height'] as const) {
+    const v = patch[k];
+    if (v != null && !Number.isFinite(v))
+      throw new CommandError('invalid', `${k} must be a number`);
+  }
+  if (patch.key !== undefined && !SLUG.test(patch.key))
+    throw new CommandError(
+      'invalid',
+      `"${patch.key}" is not a key (lowercase letters, digits, dashes)`,
+    );
+}
+
+function addAnnotation(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'addAnnotation' }>,
+): Ulid {
+  requireFormat(state(tx).doc, 2, 'Annotations');
+  const levelId = cmd.level ?? ROOT;
+  const a = cmd.annotation;
+  const kind = a.kind ?? 'note';
+  checkAnnotation(state(tx), levelId, kind, a);
+  if (cmd.freeze) setPositions(tx, cmd.freeze);
+  const level = levelOf(state(tx), levelId);
+  const taken = level.annotations.map((x) => x?.key);
+  if (a.key !== undefined && taken.includes(a.key))
+    throw new CommandError('key-taken', `Key "${a.key}" is already used on this level`);
+  const id = ctx.newId();
+  const value = annotationValue({
+    id,
+    key: a.key ?? nextAnnotationKey(taken, kind),
+    kind,
+    ...(a.on ? { on: a.on } : {}),
+    x: Math.round(a.x),
+    y: Math.round(a.y),
+    ...(a.width != null ? { width: Math.round(a.width) } : {}),
+    ...(a.height != null ? { height: Math.round(a.height) } : {}),
+    ...(a.color != null ? { color: a.color } : {}),
+    ...(a.size != null ? { size: a.size } : {}),
+    text: a.text,
+  });
+  const order = levelId === ROOT ? ROOT_ORDER : SUBFLOW_ORDER;
+  if (level.annotations.length === 0)
+    tx.apply((f) =>
+      setIn(f, level.annotationsPath, [value], { before: after(order, 'annotations') }),
+    );
+  else tx.apply((f) => setIn(f, [...level.annotationsPath, level.annotations.length], value));
+  return id;
+}
+
+/** A node's stored position, when the file has one (a tie converts through it). */
+function storedAt(st: State, id: Ulid | undefined): Position | undefined {
+  return id ? st.doc.layout?.[id] : undefined;
+}
+
+function updateAnnotation(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'updateAnnotation' }>,
+): void {
+  const st = state(tx);
+  const entry = st.model.annotations.get(cmd.id);
+  if (!entry) throw new CommandError('not-found', 'That annotation is no longer in the flow');
+  const { annotation: a, path, level: levelId } = entry;
+  const p = { ...cmd.patch };
+  const kind = p.kind ?? a.kind ?? 'note';
+  checkAnnotation(st, levelId, kind, p);
+  if (p.key !== undefined && p.key !== a.key) {
+    const level = levelOf(st, levelId);
+    if (level.annotations.some((x) => x?.key === p.key))
+      throw new CommandError('key-taken', `Key "${p.key}" is already used on this level`);
+  }
+  // Tying, untying or re-tying keeps the Note where it is shown, as far as stored positions tell.
+  if (
+    p.on !== undefined &&
+    (p.on ?? undefined) !== a.on &&
+    p.x === undefined &&
+    p.y === undefined
+  ) {
+    const from = storedAt(st, a.on);
+    const to = storedAt(st, p.on ?? undefined);
+    const shown = a.on
+      ? from
+        ? { x: from.x + a.x, y: from.y + a.y }
+        : undefined
+      : { x: a.x, y: a.y };
+    if (p.on) {
+      const placed = shown && to ? { x: shown.x - to.x, y: shown.y - to.y } : TIE_OFFSET;
+      p.x = placed.x;
+      p.y = placed.y;
+    } else if (shown) {
+      p.x = shown.x;
+      p.y = shown.y;
+    }
+  }
+  if (kind !== 'note' && a.on) p.on = null;
+  for (const k of ANNOTATION_ORDER) {
+    if (k === 'id' || !(k in p)) continue;
+    const v = p[k as keyof AnnotationPatch];
+    if (v === undefined) continue;
+    const value =
+      k === 'text'
+        ? new Literal(String(v))
+        : typeof v === 'number'
+          ? Math.round(v)
+          : (v as YamlValue);
+    if (k === 'text') tx.apply((f) => setIn(f, [...path, 'text'], value));
+    else setField(tx, path, k, value, ANNOTATION_ORDER);
+  }
+}
+
 // ---- re-import (AFD-61) --------------------------------------------------------------------
 
 function reimport(
@@ -1975,9 +2211,11 @@ function pasteNodes(
   const clip = parseClip(cmd.text);
   if (typeof clip === 'string') throw new CommandError('bad-clipboard', clip);
   const source = clip.nodes.filter((n) => n.type !== 'start');
-  if (source.length === 0)
-    throw new CommandError('bad-clipboard', 'Nothing to paste: a flow has one start node');
   const st = state(tx);
+  // Annotations are format 2 (AFD-64): a format 1 file takes the nodes without them.
+  const notes = formatOf(st.doc) >= 2 ? clip.annotations : [];
+  if (source.length === 0 && notes.length === 0)
+    throw new CommandError('bad-clipboard', 'Nothing to paste: a flow has one start node');
   const levelId = cmd.level ?? ROOT;
   const parent = levelId === ROOT ? undefined : nodeAt(st, levelId);
   if (parent && parent.node.type !== 'subflow')
@@ -2011,6 +2249,12 @@ function pasteNodes(
         for (const refs of Object.values(b.outputs ?? {}))
           for (const r of refs ?? []) r.node = ids.get(r.node) ?? r.node;
       }
+      if (inner.annotations)
+        inner.annotations = inner.annotations.filter(Boolean).map((a) => ({
+          ...a,
+          id: ctx.newId(),
+          ...(a.on ? { on: ids.get(a.on) ?? a.on } : {}),
+        }));
       delete inner.layout;
     }
     return copy;
@@ -2061,9 +2305,33 @@ function pasteNodes(
     return [decisionItem(target, 'port', a.what, ids.get(a.node) as Ulid, a.reason ?? '', a.by)];
   });
 
+  // Annotations: new IDs and keys; a Note stays on its node when that node came along.
+  const keysTaken = (level?.annotations ?? []).map((a) => a?.key);
+  const annotations = notes.map((a) => {
+    const kind = a.kind ?? 'note';
+    const key =
+      a.key && SLUG.test(a.key) && !keysTaken.includes(a.key)
+        ? a.key
+        : nextAnnotationKey(keysTaken, kind);
+    keysTaken.push(key);
+    const tied = a.on ? ids.get(a.on) : undefined;
+    // A Note whose node stayed behind keeps its place on the canvas, untied.
+    const base = a.on && !tied ? clip.layout[a.on] : undefined;
+    return {
+      ...a,
+      id: ctx.newId(),
+      key,
+      ...(tied ? { on: tied } : { on: undefined }),
+      ...(base ? { x: base.x + a.x, y: base.y + a.y } : {}),
+    };
+  });
+
   // Positions: the group keeps its shape around `position`; inner levels keep theirs.
   const positions: Record<Ulid, Position> = {};
-  const top = source.map((n) => clip.layout[n.id]).filter((p): p is Position => !!p);
+  const top = [
+    ...source.map((n) => clip.layout[n.id]).filter((p): p is Position => !!p),
+    ...annotations.filter((a) => !a.on).map((a) => ({ x: a.x, y: a.y })),
+  ];
   const anchor = top.length
     ? { x: Math.min(...top.map((p) => p.x)), y: Math.min(...top.map((p) => p.y)) }
     : undefined;
@@ -2078,6 +2346,19 @@ function pasteNodes(
   for (const [old, fresh] of ids)
     if (!source.some((n) => n.id === old) && clip.layout[old])
       positions[fresh] = clip.layout[old] as Position;
+  for (const a of annotations) {
+    if (a.on) continue;
+    const at = { x: a.x, y: a.y };
+    const moved =
+      cmd.position && anchor
+        ? { x: cmd.position.x + at.x - anchor.x, y: cmd.position.y + at.y - anchor.y }
+        : cmd.position
+          ? cmd.position
+          : { x: at.x + 40, y: at.y + 40 };
+    a.x = Math.round(moved.x);
+    a.y = Math.round(moved.y);
+  }
+  const annotationItems = annotations.map((a) => annotationValue(a));
 
   const ops: Op[] = [];
   const append = (path: Path, values: unknown[], order: readonly string[]) => {
@@ -2088,12 +2369,13 @@ function pasteNodes(
     else ops.push((f) => setIn(f, path, items, { before: after(order, path.at(-1) as string) }));
   };
   const subflow = parent?.node.subflow;
-  const entry = nodes[0]?.id as Ulid;
+  const entry = nodes[0]?.id;
   if (parent && !subflow) {
     // A subflow without an inner graph: the pasted nodes are its first level (D-23 entry).
     const body: Record<string, YamlValue> = { nodes: nodes as unknown as YamlValue[] };
     if (edges.length > 0) body.edges = edges as unknown as YamlValue[];
-    body.boundary = { in: entry };
+    if (annotationItems.length > 0) body.annotations = annotationItems;
+    if (entry) body.boundary = { in: entry };
     ops.push((f) =>
       setIn(f, [...parent.path, 'subflow'], body, { before: after(NODE_ORDER, 'subflow') }),
     );
@@ -2102,7 +2384,8 @@ function pasteNodes(
     const order = parent ? SUBFLOW_ORDER : ROOT_ORDER;
     append(level.nodesPath, nodes, order);
     append(level.edgesPath, edges, order);
-    if (parent && !subflow?.nodes?.length && !subflow?.boundary?.in)
+    append(level.annotationsPath, annotationItems, order);
+    if (entry && parent && !subflow?.nodes?.length && !subflow?.boundary?.in)
       ops.push(...boundaryOps(st, parent.node.id, { ...subflow?.boundary, in: entry }));
   }
   append(['decisions'], decisions, ROOT_ORDER);
@@ -2159,6 +2442,9 @@ export function implementedAgain(tx: YamlTransaction, ids: readonly Ulid[]): voi
 const NO_DESIGN = new Set<FlowCommand['kind']>([
   // The format, not the design: no node goes back to implemented over it.
   'upgradeFormat',
+  // Annotations explain the flow; they are not its design (AFD-64).
+  'addAnnotation',
+  'updateAnnotation',
   'moveNodes',
   'tidyUp',
   'unplaceNodes',
@@ -2210,12 +2496,20 @@ export function planCommand(
           deleteNode(tx, id);
           removed++;
         }
+      removed += deleteAnnotations(tx, cmd.annotations ?? []);
       if (removed === 0) throw new CommandError('not-found', 'Nothing to delete');
       break;
     }
     case 'moveNodes':
     case 'tidyUp':
       setPositions(tx, cmd.positions);
+      if (cmd.annotations) moveAnnotations(tx, cmd.annotations);
+      break;
+    case 'addAnnotation':
+      created = addAnnotation(tx, ctx, cmd);
+      break;
+    case 'updateAnnotation':
+      updateAnnotation(tx, cmd);
       break;
     case 'unplaceNodes':
       unplaceNodes(tx, cmd.ids);

@@ -133,6 +133,13 @@
       },
       "description": "Wires of the top level: an output port of one node to an input port of another node on the same level. One wire per output port."
     },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/annotation"
+      },
+      "description": "Format 2: Notes, Sections and Text on the top level. They explain the flow and never run: editing them changes no version."
+    },
     "layout": {
       "$ref": "#/$defs/layout",
       "description": "Canvas positions of every node at every level, by node ID (or by key while written by hand). Optional: missing positions are laid out automatically."
@@ -541,6 +548,79 @@
       },
       "description": "Positions by node ID (or by key while written by hand)."
     },
+    "annotation": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "A Note, Section or Text on a level (format 2): it explains the flow and never runs.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ulid",
+          "description": "Unique among the nodes, wires and annotations of the flow. 'Complete IDs' adds it when written by hand."
+        },
+        "key": {
+          "$ref": "#/$defs/slug",
+          "description": "Unique among the annotations of its level, e.g. note-1 or section-2; tools name it by this key."
+        },
+        "kind": {
+          "enum": [
+            "note",
+            "section",
+            "text"
+          ],
+          "description": "note (default): a sticky note; section: a titled region behind nodes, dragged with what is inside it; text: words with no background."
+        },
+        "x": {
+          "type": "number",
+          "description": "Left edge on the canvas, in pixels; for a note on a node, from the node's left edge."
+        },
+        "y": {
+          "type": "number",
+          "description": "Top edge on the canvas, in pixels; for a note on a node, from the node's top edge."
+        },
+        "width": {
+          "type": "number",
+          "minimum": 40,
+          "description": "Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words)."
+        },
+        "height": {
+          "type": "number",
+          "minimum": 24,
+          "description": "Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words)."
+        },
+        "color": {
+          "enum": [
+            "yellow",
+            "blue",
+            "green",
+            "pink",
+            "purple",
+            "gray"
+          ],
+          "description": "Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text)."
+        },
+        "on": {
+          "$ref": "#/$defs/nodeRef",
+          "description": "Notes only: the node on the same level this note is about. The note moves with it, is deleted with it, and its text becomes a comment above the node's code."
+        },
+        "size": {
+          "enum": [
+            "s",
+            "m",
+            "l"
+          ],
+          "description": "Text only: small, medium (default) or large."
+        },
+        "text": {
+          "type": "string",
+          "description": "Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text."
+        }
+      }
+    },
     "node": {
       "type": "object",
       "required": [
@@ -822,6 +902,13 @@
                 "$ref": "#/$defs/edge"
               },
               "description": "Wires of the inner level."
+            },
+            "annotations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/annotation"
+              },
+              "description": "Format 2: Notes, Sections and Text on the inner level."
             },
             "layout": {
               "$ref": "#/$defs/layout",

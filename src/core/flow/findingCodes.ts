@@ -95,6 +95,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'The same port has two decisions.',
     fix: 'Keep one: reopen, then leave_open once.',
   },
+  'annotation-target-missing': {
+    meaning:
+      'A note is on a node that is not on its level (or gone), a section or text is on a node, or the file is format 1.',
+    fix: 'Detach the note (its menu, or remove `on`), or attach it again; for format 1, Upgrade Flow Format.',
+  },
   'stale-decision': {
     meaning: 'A decision refers to a node, port or item that is gone.',
     fix: 'Remove the decision (reopen).',

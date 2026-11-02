@@ -139,6 +139,11 @@ it handles).
 - `unplace` (nodes, or `level`: top, all or a subflow key) hands nodes back to the canvas;
   `tidy_up` stores a fresh layered layout for a level.
 
+## Notes, sections and text
+
+`annotate` (format 2): a note (`on` a node, it moves with it and becomes a comment in its code), a
+`section` (carries what is inside) or `text`. Markdown; never runs; no version change.
+
 ## Ops cheat sheet
 
 ```json

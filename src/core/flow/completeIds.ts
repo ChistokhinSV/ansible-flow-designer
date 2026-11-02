@@ -5,15 +5,16 @@
 import { renameKey, setIn } from '../yaml/ops';
 import type { Path } from '../yaml/parse';
 import { YamlTransaction } from '../yaml/transaction';
+import { nextAnnotationKey } from './annotations';
 import type { IdFactory } from './ids';
-import type { Edge, FlowDocument, FlowNode, SubflowBody } from './types';
+import type { Annotation, Edge, FlowDocument, FlowNode, SubflowBody } from './types';
 
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const isId = (v: unknown): v is string => typeof v === 'string' && ULID.test(v);
 const isKey = (v: unknown): v is string => typeof v === 'string' && v !== '' && !isId(v);
 
 export interface IdGap {
-  kind: 'flow' | 'node' | 'wire' | 'ref' | 'layout';
+  kind: 'flow' | 'node' | 'wire' | 'ref' | 'layout' | 'annotation';
   /** YAML path of the node, wire or reference. */
   path: Path;
   /** Worded with keys, never IDs. */
@@ -23,7 +24,13 @@ export interface IdGap {
 }
 
 type Fix =
-  | { op: 'id'; of: 'flow' | 'node' | 'wire'; path: Path; id: string; before: string[] }
+  | {
+      op: 'id';
+      of: 'flow' | 'node' | 'wire' | 'annotation';
+      path: Path;
+      id: string;
+      before: string[];
+    }
   | { op: 'set'; path: Path; id: string }
   | { op: 'rename'; mapPath: Path; key: string; id: string };
 
@@ -31,8 +38,10 @@ interface LevelInfo {
   label: string;
   nodesPath: Path;
   edgesPath: Path;
+  annotationsPath: Path;
   nodes: FlowNode[];
   edges: Edge[];
+  annotations: Annotation[];
   boundaryPath?: Path;
   boundary?: SubflowBody['boundary'];
 }
@@ -44,6 +53,7 @@ function levelsOf(doc: FlowDocument): LevelInfo[] {
     label: string,
     nodes: unknown,
     edges: unknown,
+    annotations: unknown,
     boundaryPath?: Path,
     boundary?: SubflowBody['boundary'],
   ) => {
@@ -52,8 +62,10 @@ function levelsOf(doc: FlowDocument): LevelInfo[] {
       label,
       nodesPath: [...base, 'nodes'],
       edgesPath: [...base, 'edges'],
+      annotationsPath: [...base, 'annotations'],
       nodes: list,
       edges: Array.isArray(edges) ? (edges as Edge[]) : [],
+      annotations: Array.isArray(annotations) ? (annotations as Annotation[]) : [],
       boundaryPath,
       boundary,
     });
@@ -65,12 +77,13 @@ function levelsOf(doc: FlowDocument): LevelInfo[] {
         `subflow ${n.key}`,
         n.subflow.nodes,
         n.subflow.edges,
+        n.subflow.annotations,
         [...p, 'boundary'],
         n.subflow.boundary,
       );
     });
   };
-  walk([], 'the top level', doc.nodes, doc.edges);
+  walk([], 'the top level', doc.nodes, doc.edges, doc.annotations);
   return out;
 }
 
@@ -165,6 +178,46 @@ function analyse(
           kind: 'wire',
           path,
           message: `Wire ${e.from?.node}.${e.from?.port} -> ${e.to?.node}.${e.to?.port} on ${level.label}: ${missing.join(', ')}`,
+        });
+    });
+    // AFD-64: annotations written by hand get an ID and a key; a note names its node by key.
+    const annotationKeys = level.annotations.map((a) =>
+      a && typeof a === 'object' ? a.key : undefined,
+    );
+    level.annotations.forEach((a, i) => {
+      if (!a || typeof a !== 'object') return;
+      const path = [...level.annotationsPath, i];
+      const missing: string[] = [];
+      if (!isId(a.id)) {
+        const id = mint(`annotation|${path.join('.')}|${a.key ?? ''}`);
+        fixes.push({
+          op: 'id',
+          of: 'annotation',
+          path: [...path, 'id'],
+          id,
+          before: Object.keys(a),
+        });
+        missing.push('no id');
+      }
+      if (typeof a.key !== 'string' || a.key === '') {
+        const key = nextAnnotationKey(annotationKeys, a.kind ?? 'note');
+        annotationKeys.push(key);
+        const before = Object.keys(a).filter((k) => k !== 'id');
+        fixes.push({ op: 'id', of: 'annotation', path: [...path, 'key'], id: key, before });
+        missing.push('no key');
+      }
+      if (isKey(a.on)) {
+        const id = resolve(keys, a.on, `annotation on ${level.label}`, [...path, 'on']);
+        if (id) {
+          fixes.push({ op: 'set', path: [...path, 'on'], id });
+          missing.push(`names "${a.on}" by key`);
+        }
+      }
+      if (missing.length > 0)
+        gaps.push({
+          kind: 'annotation',
+          path,
+          message: `${a.kind ?? 'note'} "${a.key ?? i}" on ${level.label}: ${missing.join(', ')}`,
         });
     });
     const b = level.boundary;
@@ -274,7 +327,7 @@ export function withIds(doc: FlowDocument): FlowDocument {
 export interface CompleteResult {
   text: string;
   /** How many of each kind were filled. */
-  filled: { nodes: number; wires: number; refs: number };
+  filled: { nodes: number; wires: number; refs: number; annotations: number };
   /** Gaps Complete IDs could not fill (unknown or ambiguous keys). */
   unresolved: IdGap[];
 }
@@ -300,6 +353,7 @@ export function completeIds(text: string, newId: IdFactory): CompleteResult {
       nodes: count((f) => f.op === 'id' && f.of === 'node'),
       wires: count((f) => f.op === 'id' && f.of === 'wire'),
       refs: count((f) => f.op !== 'id'),
+      annotations: count((f) => f.op === 'id' && f.of === 'annotation'),
     },
     unresolved: gaps.filter((g) => g.unresolved),
   };

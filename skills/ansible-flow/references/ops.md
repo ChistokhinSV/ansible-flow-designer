@@ -59,8 +59,9 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 
 Delete nodes (with their wires, inner steps and positions) and wires (named by the output port they leave).
 
-- `nodes` (list of string): Nodes to delete.
+- `nodes` (list of string): Nodes to delete (with the notes on them).
 - `wires` (list of string): Wires to delete, by the output they leave.
+- `annotations` (list of string): Notes, sections or text to delete.
 
 ```json
 {"op":"delete","nodes":["old-check"],"wires":["precheck.failed_hosts"]}
@@ -265,9 +266,10 @@ Bind what the node runs (a module, role or playbook), or null for a TODO stub. P
 
 ### move
 
-Place or move nodes (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
+Place or move nodes and annotations (positions only; nothing else changes). Several in one op, in order: a later one may be placed relative to an earlier one. A section carries the nodes and annotations wholly inside it; a note on a node moves with the node. Positions are per level (the top level, or the inside of one subflow): x,y is the top-left corner of the node box in canvas pixels, y grows down; start and end nodes are 136x40, all others 208x76; flows read top-down. A node without a position is placed by the canvas (auto-layout next to its neighbours) until the first move or tidy_up stores it, so positions can be left out. Placing a node on a level that is still auto-laid out also stores where the canvas shows the others, so nothing else moves.
 
-- `nodes` (map of object, required): Node (key, or subflow/step) -> where it goes.
+- `nodes` (map of object): Node (key, or subflow/step) -> where it goes.
+- `annotations` (map of object): Annotation (key path) -> where it goes.
 
 ```json
 {"op":"move","nodes":{"check-ntp":{"x":320,"y":140},"fix-ntp":{"right_of":"check-ntp"}}}
@@ -282,6 +284,43 @@ Drop stored positions so the canvas places these nodes automatically again (posi
 
 ```json
 {"op":"unplace","level":"top"}
+```
+
+### annotate
+
+Add a note, section or text (format 2): words on the canvas that explain the flow and never run, so adding or changing them changes no version. A note on a node (on) moves with the node, is deleted with it, and its text becomes a comment above the node's code. A section is a titled region behind nodes: moving it moves what is inside. Text is words with no background. The text is Markdown: **bold**, *italic*, `code`, - lists, [links](https://...).
+
+- `kind` (note | section | text): note (default): a sticky note; section: a titled region behind nodes, dragged with what is inside it; text: words with no background.
+- `text` (string, required): Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text.
+- `on` (string): Notes only: the node this note is about (its level is the note's).
+- `in` (string): Subflow whose inner level gets it (default: the top level, or the level of on).
+- `position` (object): Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.
+- `width` (number): Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words).
+- `height` (number): Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words).
+- `color` (yellow | blue | green | pink | purple | gray): Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text).
+- `size` (s | m | l): Text only: small, medium (default) or large.
+- `key` (string): Key of the new annotation; default: note-1, section-1, text-1, ... Must be new on its level.
+
+```json
+{"op":"annotate","on":"precheck","text":"Read-only: **safe** to run again. Runbook: https://wiki.example.net/edge"}
+```
+
+### update_annotation
+
+Change a note, section or text: its words, color, size, place, or the node a note is on (on: null unties it and it stays where it is shown). Changes no version.
+
+- `annotation` (string, required): An annotation by key path: note-1 on the top level, fix-ntp/note-1 inside subflow fix-ntp (flow_describe lists them).
+- `text` (string): Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text.
+- `on` (string | null): The node the note is about (same level); null unties it.
+- `position` (object): Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.
+- `width` (number | null): Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words).
+- `height` (number | null): Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words).
+- `color` (yellow | blue | green | pink | purple | gray | null): Background of a note, tint of a section, color of text. Absent: yellow (notes), gray (sections, text).
+- `size` (s | m | l | null): Text only: small, medium (default) or large.
+- `key` (string): Unique among the annotations of its level, e.g. note-1 or section-2; tools name it by this key.
+
+```json
+{"op":"update_annotation","annotation":"note-1","color":"green"}
 ```
 
 ### upgrade_format
@@ -328,6 +367,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | decision-not-fail | Only fail ports can be left open on purpose. | reopen it; wire the port instead. |
 | decision-on-connected | A port marked open on purpose is wired. | reopen it (the wire decides). |
 | duplicate-decision | The same port has two decisions. | Keep one: reopen, then leave_open once. |
+| annotation-target-missing | A note is on a node that is not on its level (or gone), a section or text is on a node, or the file is format 1. | Detach the note (its menu, or remove `on`), or attach it again; for format 1, Upgrade Flow Format. |
 | stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |

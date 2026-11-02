@@ -3,7 +3,7 @@
 // so the code, the runs and the reviews need nothing else; the host compares it with its source
 // (newer version: Update), and `design` tells a copy edited here from the one that was copied.
 import { modelOf } from './model';
-import { canonical } from './semantic';
+import { canonical, withoutAnnotations } from './semantic';
 import type { Edge, FlowDocument, FlowNode, SubflowBody, SubflowRef, Ulid } from './types';
 
 /** `../shared/backup.flow.yaml#backup` → the file (relative to this flow's folder) and key path. */
@@ -17,7 +17,7 @@ export function parseRefFrom(from: string): { path: string; key: string } | unde
 export function refDesign(node: Pick<FlowNode, 'subflow' | 'inputs' | 'outputs'>): string {
   const text = JSON.stringify(
     canonical({
-      subflow: node.subflow ?? {},
+      subflow: withoutAnnotations(node.subflow ?? {}),
       inputs: node.inputs ?? {},
       outputs: node.outputs ?? {},
     }),
@@ -58,9 +58,9 @@ export function sharedAround(doc: FlowDocument, level: string): FlowNode | undef
 }
 
 /**
- * A fresh copy of a subflow's inner level and contract: every inner node and wire gets a new ID,
- * wires, the boundary and inner layouts follow, tested evidence and decisions stay behind (the copy
- * has not run here).
+ * A fresh copy of a subflow's inner level and contract: every inner node, wire and annotation gets
+ * a new ID, wires, the boundary and inner layouts follow, tested evidence and decisions stay behind
+ * (the copy has not run here).
  */
 export function copySubflow(
   source: FlowNode,
@@ -87,6 +87,13 @@ export function copySubflow(
     );
     const out: SubflowBody = { nodes };
     if (edges.length) out.edges = edges;
+    // AFD-64: the level's annotations come along, tied ones to the copies of their nodes.
+    const annotations = (b.annotations ?? []).filter(Boolean).map((a) => ({
+      ...structuredClone(a),
+      id: mint(),
+      ...(a.on ? { on: idOf(a.on) } : {}),
+    }));
+    if (annotations.length) out.annotations = annotations;
     if (b.layout)
       out.layout = Object.fromEntries(Object.entries(b.layout).map(([k, p]) => [idOf(k), p]));
     if (b.boundary)

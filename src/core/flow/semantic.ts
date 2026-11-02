@@ -1,5 +1,6 @@
-// Semantic projection of a flow document: everything except layout (D-30, ADR-0006). Two documents
-// with equal keys differ only in node positions, comments or formatting.
+// Semantic projection of a flow document: everything except layout and annotations (D-30,
+// ADR-0006, AFD-64). Two documents with equal keys differ only in node positions, annotations,
+// comments or formatting.
 import { LEGACY_PORTS } from './ports';
 import type { FlowDocument, FlowNode, Ulid } from './types';
 import { walkNodes } from './walk';
@@ -28,9 +29,26 @@ function stripLayout(value: unknown): unknown {
   return value;
 }
 
-/** Canonical JSON of the document without any `layout` block (top level or inside subflows). */
+/**
+ * A level body without its annotations, inner levels included (AFD-64). Removed where they live
+ * (the top level, `subflow.annotations`), not by key name: a module's params may hold an
+ * `annotations` key (Kubernetes metadata), and that is design.
+ */
+export function withoutAnnotations<T>(body: T): T {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return body;
+  const { annotations: _annotations, ...rest } = body as Record<string, unknown>;
+  if (Array.isArray(rest.nodes))
+    rest.nodes = rest.nodes.map((n) => {
+      if (n === null || typeof n !== 'object') return n;
+      const sub = (n as { subflow?: unknown }).subflow;
+      return sub && typeof sub === 'object' ? { ...n, subflow: withoutAnnotations(sub) } : n;
+    });
+  return rest as T;
+}
+
+/** Canonical JSON of the document without any `layout` block and without its annotations. */
 export function semanticKey(doc: FlowDocument | unknown): string {
-  return JSON.stringify(canonical(stripLayout(doc)));
+  return JSON.stringify(canonical(stripLayout(withoutAnnotations(doc))));
 }
 
 /** Same as semanticKey but ignoring `flow.version`, to decide whether a bump is due. */
@@ -70,7 +88,7 @@ function nodeDesign(node: FlowNode): unknown {
   const kept = ports?.filter((p) => !LEGACY_PORTS.has(p));
   if (kept?.length) rest.ports = kept;
   if (!subflow || typeof subflow !== 'object') return rest;
-  const { layout: _layout, nodes, ...body } = subflow;
+  const { layout: _layout, annotations: _annotations, nodes, ...body } = subflow;
   return { ...rest, subflow: { ...body, nodes: (nodes ?? []).map(nodeDesign) } };
 }
 

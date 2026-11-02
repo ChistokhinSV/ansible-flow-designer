@@ -225,14 +225,14 @@ function problemKeys(model: FlowModel, findings: Finding[]): Map<string, Finding
   return out;
 }
 
-/** "11 warning(s), 2 note(s)" for the findings that went away. */
+/** "11 warning(s), 2 info" for the findings that went away. */
 function solvedText(solved: Finding[]): string {
   if (solved.length === 0) return '';
   const n = (s: Finding['severity']) => solved.filter((f) => f.severity === s).length;
   const parts = [
     n('error') ? `${n('error')} error(s)` : '',
     n('warning') ? `${n('warning')} warning(s)` : '',
-    n('info') ? `${n('info')} note(s)` : '',
+    n('info') ? `${n('info')} info` : '',
   ].filter(Boolean);
   return `; solved by this edit: ${parts.join(', ')}`;
 }

@@ -95,6 +95,7 @@ export function formatReference(): string {
       (defs.contract as Json).additionalProperties as Json,
     ),
     ...section('Binding (impl, undo)', defs.impl as Json),
+    ...section('Annotation (annotations[], subflow.annotations[])', defs.annotation as Json),
     ...section('Decision (decisions[])', decision),
     '### A small flow written by hand',
     '',

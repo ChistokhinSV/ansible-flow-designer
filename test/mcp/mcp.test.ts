@@ -149,6 +149,31 @@ describe('MCP server', () => {
     expect(described.text).toContain('purpose: notify');
   });
 
+  it('AFD-64: a note on a step and a section change no version and are described by key', async () => {
+    git('add', '.');
+    git('commit', '-qm', 'format 2');
+    const before = parse(disk()) as FlowDocument;
+    const r = await call('flow_edit', {
+      ops: [
+        { op: 'annotate', on: 'precheck', text: 'Read-only: **safe** to rerun' },
+        {
+          op: 'annotate',
+          kind: 'section',
+          text: 'Change',
+          position: { x: 0, y: 200 },
+          width: 400,
+          height: 300,
+        },
+      ],
+    });
+    expect(r.isError).toBe(false);
+    const doc = parse(disk()) as FlowDocument;
+    expect(doc.annotations?.map((a) => a.key)).toEqual(['note-1', 'section-1']);
+    expect(doc.flow.version).toBe(before.flow.version);
+    const d = await call('flow_describe', {});
+    expect(d.text).toContain('note-1 (note on precheck): "Read-only: safe to rerun"');
+  });
+
   it('generated files edited by hand are kept', async () => {
     const file = join(repo, 'flows/edge-baseline/generated/edge-baseline.yml');
     writeFileSync(file, `${readFileSync(file, 'utf8')}\n# my tweak\n`);

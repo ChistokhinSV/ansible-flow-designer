@@ -1,15 +1,23 @@
 // The op language AI tools edit flows with (AFD-19): nodes and ports named by key, applied in
 // order through the same commands as the canvas, all or nothing. A batch first completes any IDs
 // the file was written without. Errors say what went wrong and how to fix it, never with IDs.
-import { CommandError, type FlowCommand, planCommand } from '../flow/commands';
+import { annotationViews, sectionContents, TIE_OFFSET } from '../flow/annotations';
+import {
+  type AnnotationPatch,
+  CommandError,
+  type FlowCommand,
+  planCommand,
+} from '../flow/commands';
 import { completeIds } from '../flow/completeIds';
 import { flowFromFile } from '../flow/document';
-import { nodeSize } from '../flow/geometry';
+import { annotationSize, nodeSize } from '../flow/geometry';
 import { type IdFactory, SLUG, slugify } from '../flow/ids';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { PATTERN_IDS, type PatternId } from '../flow/patterns';
 import { portDirection } from '../flow/ports';
 import type {
+  AnnotationColor,
+  AnnotationKind,
   ContractField,
   HandlerKind,
   ImplBinding,
@@ -19,11 +27,20 @@ import type {
   NodeStatus,
   NodeType,
   Position,
+  TextSize,
   Ulid,
 } from '../flow/types';
 import { parseYaml, type YamlFile } from '../yaml/parse';
 import { YamlEditError } from '../yaml/transaction';
-import { keyPath, levelName, RefError, resolveNode, resolvePort, withoutIds } from './refs';
+import {
+  keyPath,
+  levelName,
+  RefError,
+  resolveAnnotation,
+  resolveNode,
+  resolvePort,
+  withoutIds,
+} from './refs';
 
 /**
  * Where a node goes on its level (AFD-24): the top-left corner in canvas pixels (y grows down), or
@@ -79,7 +96,7 @@ export type Op =
       settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
       keywords?: Record<string, unknown> | null;
     }
-  | { op: 'delete'; nodes?: string[]; wires?: string[] }
+  | { op: 'delete'; nodes?: string[]; wires?: string[]; annotations?: string[] }
   | { op: 'connect'; from: string; to: string }
   | { op: 'disconnect'; from: string }
   | { op: 'rewire'; from: string; to: string }
@@ -109,7 +126,33 @@ export type Op =
   | { op: 'add_exit'; from: string; port: string; reason?: string }
   | { op: 'remove_exit'; from: string; port: string }
   | { op: 'extract_subflow'; nodes: string[]; title: string; key?: string; position?: Place }
-  | { op: 'move'; nodes: Record<string, Place> }
+  | { op: 'move'; nodes?: Record<string, Place>; annotations?: Record<string, Place> }
+  /** AFD-64: a Note (on a node), a Section or Text. */
+  | {
+      op: 'annotate';
+      text: string;
+      kind?: AnnotationKind;
+      on?: string;
+      in?: string;
+      position?: Place;
+      width?: number;
+      height?: number;
+      color?: AnnotationColor;
+      size?: TextSize;
+      key?: string;
+    }
+  | {
+      op: 'update_annotation';
+      annotation: string;
+      text?: string;
+      on?: string | null;
+      position?: Place;
+      width?: number | null;
+      height?: number | null;
+      color?: AnnotationColor | null;
+      size?: TextSize | null;
+      key?: string;
+    }
   | { op: 'unplace'; nodes?: string[]; level?: string }
   | { op: 'bind'; node: string; impl: ImplBinding | null }
   | { op: 'tidy_up'; level?: string }
@@ -148,7 +191,7 @@ export interface OpsResult {
 /** One line about an op for messages: `connect check-ntp.ok_hosts -> fix-ntp`. */
 export function opLabel(op: Op): string {
   const o = op as Record<string, unknown>;
-  const main = ['node', 'at', 'from', 'subflow', 'title']
+  const main = ['node', 'at', 'from', 'subflow', 'title', 'annotation', 'on']
     .map((k) => o[k])
     .find((v) => typeof v === 'string');
   const to = typeof o.to === 'string' ? ` -> ${o.to}` : '';
@@ -231,8 +274,9 @@ function resolvePlace(
   place: Place,
   set: Record<Ulid, Position>,
   self?: Ulid,
+  box?: { width: number; height: number },
 ): Position {
-  const size = nodeSize(type);
+  const size = box ?? nodeSize(type);
   if ('x' in place || 'y' in place) {
     const { x, y } = place as { x: number; y: number };
     if (!Number.isFinite(x) || !Number.isFinite(y))
@@ -286,6 +330,43 @@ function freezeOf(
     if (n?.id && !shown.stored[n.id] && shown.auto[n.id] && !except.includes(n.id))
       out[n.id] = shown.auto[n.id] as Position;
   return out;
+}
+
+/**
+ * Where an annotation goes, in its stored form (AFD-64): a place in canvas pixels, relative to its
+ * node for a Note on one. Without a place: right of its node, or right of what the level shows.
+ */
+function annotationAt(
+  st: State,
+  shown: Shown,
+  level: string,
+  box: { width: number; height: number },
+  place: Place | undefined,
+  tied: Ulid | undefined,
+  set: Record<Ulid, Position> = {},
+): Position {
+  const base = tied ? (set[tied] ?? shown.stored[tied] ?? shown.auto[tied]) : undefined;
+  if (!place) {
+    if (tied) return TIE_OFFSET;
+    const lv = st.model.levels.get(level);
+    const boxes = [
+      ...boxesOf(st, shown, level, set),
+      ...(lv?.annotations ?? [])
+        .filter((a) => a && !a.on)
+        .map((a) => ({ id: a.id, x: a.x, y: a.y, ...annotationSize(a) })),
+    ];
+    if (boxes.length === 0) return { x: 0, y: 0 };
+    return {
+      x: Math.max(...boxes.map((b) => b.x + b.width)) + GAP_BESIDE,
+      y: Math.min(...boxes.map((b) => b.y)),
+    };
+  }
+  const at = resolvePlace(st, shown, level, 'task', place, set, undefined, box);
+  return base ? { x: at.x - base.x, y: at.y - base.y } : at;
+}
+
+async function shownOrStored(st: State, ctx: OpsContext): Promise<Shown> {
+  return ctx.positions ? shownOf(st, ctx) : { stored: st.model.doc.layout ?? {}, auto: {} };
 }
 
 /** Position and freeze for a new node of `type` on `level`, when the op gives a place. */
@@ -384,8 +465,10 @@ async function commandsOf(
     case 'delete': {
       const ids = (op.nodes ?? []).map((n) => resolveNode(st.model, n).id);
       const edges = (op.wires ?? []).map((w) => wireFrom(st, w).edge);
-      if (ids.length + edges.length === 0) throw new RefError('Name nodes or wires to delete');
-      return [{ kind: 'deleteNodes', ids, edges }];
+      const annotations = (op.annotations ?? []).map((a) => resolveAnnotation(st.model, a).id);
+      if (ids.length + edges.length + annotations.length === 0)
+        throw new RefError('Name nodes, wires or annotations to delete');
+      return [{ kind: 'deleteNodes', ids, edges, ...(annotations.length ? { annotations } : {}) }];
     }
     case 'connect': {
       const from = outputPort(st, op.from);
@@ -567,7 +650,9 @@ async function commandsOf(
     }
     case 'move': {
       const entries = Object.entries(op.nodes ?? {});
-      if (entries.length === 0) throw new RefError('Name the nodes to move: {"node-key": {x, y}}');
+      const notes = Object.entries(op.annotations ?? {});
+      if (entries.length + notes.length === 0)
+        throw new RefError('Name what to move: {"nodes": {"node-key": {x, y}}} or annotations');
       const shown = await shownOf(st, ctx);
       const set: Record<Ulid, Position> = {};
       const levels = new Set<string>();
@@ -577,11 +662,104 @@ async function commandsOf(
         levels.add(node.level);
         placed.add(node.id);
       }
+      // AFD-64: a section carries what is wholly inside it, by the distance it moves.
+      const moved: Record<Ulid, Position> = {};
+      for (const [ref, place] of notes) {
+        const a = resolveAnnotation(st.model, ref);
+        const box = annotationSize(a.annotation);
+        const at = annotationAt(st, shown, a.level, box, place, a.annotation.on, set);
+        moved[a.id] = at;
+        if ((a.annotation.kind ?? 'note') !== 'section') continue;
+        const dx = at.x - a.annotation.x;
+        const dy = at.y - a.annotation.y;
+        const lv = st.model.levels.get(a.level);
+        if (!lv || (dx === 0 && dy === 0)) continue;
+        const nodes = boxesOf(st, shown, a.level, {}).map((b) => ({
+          node: { id: b.id },
+          position: { x: b.x, y: b.y },
+          width: b.width,
+          height: b.height,
+        }));
+        const views = annotationViews(lv, new Map(nodes.map((n) => [n.node.id, n.position])));
+        const inside = sectionContents({ nodes, annotations: views }, a.id);
+        for (const id of inside.nodes) {
+          const p = nodes.find((n) => n.node.id === id)?.position;
+          if (p && !set[id]) set[id] = { x: p.x + dx, y: p.y + dy };
+        }
+        for (const id of inside.annotations) {
+          const other = st.model.annotations.get(id)?.annotation;
+          if (other && !moved[id]) moved[id] = { x: other.x + dx, y: other.y + dy };
+        }
+        if (inside.nodes.length) levels.add(a.level);
+      }
       const freeze = Object.assign(
         {},
         ...[...levels].map((l) => freezeOf(st, shown, l, Object.keys(set))),
       ) as Record<Ulid, Position>;
-      return [{ kind: 'moveNodes', positions: { ...freeze, ...set } }];
+      return [
+        {
+          kind: 'moveNodes',
+          positions: { ...freeze, ...set },
+          ...(Object.keys(moved).length ? { annotations: moved } : {}),
+        },
+      ];
+    }
+    case 'annotate': {
+      const kind = op.kind ?? 'note';
+      const inLevel = op.in ? subflowOf(st, op.in) : undefined;
+      const on = op.on ? resolveNode(st.model, op.on, inLevel) : undefined;
+      if (on && inLevel && on.level !== inLevel)
+        throw new RefError(
+          `${on.path} is not inside ${op.in}: a note is on a node of its own level`,
+        );
+      const level = on?.level ?? inLevel ?? ROOT;
+      const box = annotationSize({ kind, ...op });
+      const shown = await shownOrStored(st, ctx);
+      const at = annotationAt(st, shown, level, box, op.position, on?.id);
+      return [
+        {
+          kind: 'addAnnotation',
+          level,
+          annotation: {
+            kind,
+            text: op.text,
+            x: at.x,
+            y: at.y,
+            ...(on ? { on: on.id } : {}),
+            ...(op.width !== undefined ? { width: op.width } : {}),
+            ...(op.height !== undefined ? { height: op.height } : {}),
+            ...(op.color !== undefined ? { color: op.color } : {}),
+            ...(op.size !== undefined ? { size: op.size } : {}),
+            ...(op.key !== undefined ? { key: op.key } : {}),
+          },
+          // A section drawn around nodes still placed by the canvas keeps them where it drew them.
+          ...(kind === 'section' && ctx.positions ? { freeze: freezeOf(st, shown, level) } : {}),
+        },
+      ];
+    }
+    case 'update_annotation': {
+      const a = resolveAnnotation(st.model, op.annotation);
+      const { op: _op, annotation: _a, on, position, ...rest } = op;
+      const patch: AnnotationPatch = { ...rest };
+      if (on !== undefined) {
+        if (on === null) patch.on = null;
+        else {
+          const node = resolveNode(st.model, on, a.level);
+          if (node.level !== a.level)
+            throw new RefError(
+              `${node.path} is on ${levelName(st.model, node.level)}; ${a.path} is on ${levelName(st.model, a.level)}: a note is on a node of its own level`,
+            );
+          patch.on = node.id;
+        }
+      }
+      if (position) {
+        const shown = await shownOrStored(st, ctx);
+        const tied = patch.on === undefined ? a.annotation.on : (patch.on ?? undefined);
+        const at = annotationAt(st, shown, a.level, annotationSize(a.annotation), position, tied);
+        patch.x = at.x;
+        patch.y = at.y;
+      }
+      return [{ kind: 'updateAnnotation', id: a.id, patch }];
     }
     case 'unplace': {
       if (!op.nodes?.length && !op.level)
@@ -633,7 +811,7 @@ export async function applyOps(
       current = done.text;
       const f = done.filled;
       notes.push(
-        `Completed IDs: ${f.nodes} node(s), ${f.wires} wire(s), ${f.refs} reference(s) by key`,
+        `Completed IDs: ${f.nodes} node(s), ${f.wires} wire(s), ${f.refs} reference(s) by key${f.annotations ? `, ${f.annotations} annotation ID(s) and key(s)` : ''}`,
       );
     }
   } catch (e) {

@@ -147,7 +147,7 @@ export function flowDetails(doc: FlowDocument, findings: readonly Finding[]): De
   const count = (sev: string) => findings.filter((x) => x.severity === sev).length;
   out.push([
     'problems',
-    `${count('error')} error(s), ${count('warning')} warning(s), ${count('info')} note(s)`,
+    `${count('error')} error(s), ${count('warning')} warning(s), ${count('info')} info`,
   ]);
   out.push(['exported_by', 'Ansible Flow Designer']);
   return out;

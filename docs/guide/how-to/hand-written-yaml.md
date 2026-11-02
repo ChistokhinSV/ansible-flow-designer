@@ -32,6 +32,29 @@ edges:
 - Wires, subflow entries and exits, decisions and layout may name nodes by key.
 - The [flow file format](../reference/flow-format.md) lists every field.
 
+### Notes, sections and text
+
+Format 2 flows can carry words that explain them and never run: `annotations:` next to `nodes:`
+(and `subflow.annotations` inside a subflow). Changing them changes no version and keeps tested
+steps tested.
+
+```yaml
+annotations:
+  - kind: note
+    on: check-ntp # a note on a node: x, y count from the node, and it moves with it
+    x: 232
+    y: 0
+    text: |-
+      Read-only: **safe** to rerun.
+      Runbook: https://wiki.example.net/ntp
+  - { kind: section, x: 40, y: 120, width: 520, height: 360, color: blue, text: Change window }
+  - { kind: text, size: l, x: 40, y: -60, text: NTP check }
+```
+
+Leave `id:` and `key:` out here too: Complete IDs adds them (`note-1`, `section-1`, `text-1`) and
+turns `on: check-ntp` into the node's ID. The text is Markdown: `**bold**`, `*italic*`,
+`` `code` ``, `- ` lists and `[links](https://...)`.
+
 ## Complete the IDs
 
 The designer opens such a file with a **Written by hand** banner. It shows the flow, but locks

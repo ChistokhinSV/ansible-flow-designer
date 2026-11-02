@@ -1,6 +1,6 @@
 // Flow document → indexed model: every node and edge with its level and YAML path.
 import type { Path } from '../yaml/parse';
-import type { Edge, FlowDocument, FlowNode, Ulid } from './types';
+import type { Annotation, Edge, FlowDocument, FlowNode, Ulid } from './types';
 
 /** Level id of the top level; subflow levels use their subflow node's id. */
 export const ROOT = 'root';
@@ -11,8 +11,11 @@ export interface Level {
   parent?: Ulid;
   nodesPath: Path;
   edgesPath: Path;
+  /** AFD-64: where the level's annotations are (or would be), and what they are. */
+  annotationsPath: Path;
   nodes: FlowNode[];
   edges: Edge[];
+  annotations: Annotation[];
 }
 
 export interface NodeEntry {
@@ -27,11 +30,18 @@ export interface EdgeEntry {
   path: Path;
 }
 
+export interface AnnotationEntry {
+  annotation: Annotation;
+  level: string;
+  path: Path;
+}
+
 export interface FlowModel {
   doc: FlowDocument;
   levels: Map<string, Level>;
   nodes: Map<Ulid, NodeEntry>;
   edges: Map<Ulid, EdgeEntry>;
+  annotations: Map<Ulid, AnnotationEntry>;
 }
 
 /** How often a model was built: the UX baseline counts builds per snapshot (AFD-33). */
@@ -54,8 +64,14 @@ export function modelOf(doc: FlowDocument): FlowModel {
 
 export function buildModel(doc: FlowDocument): FlowModel {
   modelStats.builds++;
-  const model: FlowModel = { doc, levels: new Map(), nodes: new Map(), edges: new Map() };
-  addLevel(model, ROOT, undefined, [], doc.nodes ?? [], doc.edges ?? []);
+  const model: FlowModel = {
+    doc,
+    levels: new Map(),
+    nodes: new Map(),
+    edges: new Map(),
+    annotations: new Map(),
+  };
+  addLevel(model, ROOT, undefined, [], doc);
   return model;
 }
 
@@ -64,12 +80,24 @@ function addLevel(
   id: string,
   parent: Ulid | undefined,
   base: Path,
-  nodes: FlowNode[],
-  edges: Edge[],
+  body: { nodes?: FlowNode[]; edges?: Edge[]; annotations?: Annotation[] },
 ): void {
+  const nodes = Array.isArray(body.nodes) ? body.nodes : [];
+  const edges = Array.isArray(body.edges) ? body.edges : [];
+  const annotations = Array.isArray(body.annotations) ? body.annotations : [];
   const nodesPath = [...base, 'nodes'];
   const edgesPath = [...base, 'edges'];
-  model.levels.set(id, { id, parent, nodesPath, edgesPath, nodes, edges });
+  const annotationsPath = [...base, 'annotations'];
+  model.levels.set(id, {
+    id,
+    parent,
+    nodesPath,
+    edgesPath,
+    annotationsPath,
+    nodes,
+    edges,
+    annotations,
+  });
   nodes.forEach((node, i) => {
     if (!node || typeof node !== 'object') return;
     const path = [...nodesPath, i];
@@ -77,21 +105,22 @@ function addLevel(
     if (typeof node.id !== 'string') return;
     // First occurrence wins; duplicates are reported by the validator.
     if (!model.nodes.has(node.id)) model.nodes.set(node.id, { node, level: id, path });
-    if (node.subflow && typeof node.subflow === 'object') {
-      addLevel(
-        model,
-        node.id,
-        node.id,
-        [...path, 'subflow'],
-        node.subflow.nodes ?? [],
-        node.subflow.edges ?? [],
-      );
-    }
+    if (node.subflow && typeof node.subflow === 'object')
+      addLevel(model, node.id, node.id, [...path, 'subflow'], node.subflow);
   });
   edges.forEach((edge, i) => {
     if (!edge || typeof edge !== 'object' || typeof edge.id !== 'string') return;
     if (!model.edges.has(edge.id))
       model.edges.set(edge.id, { edge, level: id, path: [...edgesPath, i] });
+  });
+  annotations.forEach((annotation, i) => {
+    if (!annotation || typeof annotation !== 'object' || typeof annotation.id !== 'string') return;
+    if (!model.annotations.has(annotation.id))
+      model.annotations.set(annotation.id, {
+        annotation,
+        level: id,
+        path: [...annotationsPath, i],
+      });
   });
 }
 

@@ -8,8 +8,9 @@ import { purposeOf } from '../flow/format';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
 import { defaultPortNames, portsFor } from '../flow/ports';
-import type { ContractField, FlowNode, Position } from '../flow/types';
+import type { Annotation, ContractField, FlowNode, Position } from '../flow/types';
 import type { Finding } from '../flow/validate';
+import { plainText } from '../view/markdown';
 import { keyPath, levelName, withoutIds } from './refs';
 import { LAYOUT_RULES } from './specs';
 
@@ -97,7 +98,19 @@ export function formatFindings(model: FlowModel, findings: readonly Finding[], m
 
 export function countFindings(findings: readonly Finding[]): string {
   const n = (s: Finding['severity']) => findings.filter((f) => f.severity === s).length;
-  return `${n('error')} error(s), ${n('warning')} warning(s), ${n('info')} note(s)`;
+  return `${n('error')} error(s), ${n('warning')} warning(s), ${n('info')} info`;
+}
+
+/** `note-1 (note on precheck, green, at 232,0 from it): "first line…"`, without IDs. */
+function annotationLine(model: FlowModel, a: Annotation, layout?: ShownLayout): string {
+  const kind = a.kind ?? 'note';
+  const first = plainText(a.text).split('\n')[0] ?? '';
+  const words = first.length > 80 ? `${first.slice(0, 79)}…` : first;
+  const lines = a.text.split('\n').length;
+  const on = a.on && model.nodes.has(a.on) ? ` on ${keyPath(model, a.on)}` : '';
+  const look = [a.color, a.size].filter(Boolean).join(', ');
+  const at = layout ? `, at ${a.x},${a.y}${on ? ' from it' : ''}` : '';
+  return `${a.key} (${kind}${on}${look ? `, ${look}` : ''}${at}): "${words}"${lines > 1 ? ` (+${lines - 1} line(s))` : ''}`;
 }
 
 /** The flow by key: header, then each level's nodes, wires, boundary and open fail ports. */
@@ -152,6 +165,12 @@ export function describeFlow(
       out.push(
         `    ${keyPath(model, e.from.node)}.${e.from.port} -> ${keyPath(model, e.to.node)}${e.to.port === 'in' ? '' : `.${e.to.port}`}`,
       );
+    // AFD-64: annotations explain the level; they never run.
+    const notes = lv.annotations.filter((a) => a?.id && typeof a.text === 'string');
+    if (notes.length) {
+      out.push('  annotations:');
+      for (const a of notes) out.push(`    ${annotationLine(model, a, layout)}`);
+    }
     const here = open.filter((o) => o.level === lv.id);
     if (here.length)
       out.push(
