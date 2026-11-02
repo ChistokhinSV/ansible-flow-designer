@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.42.1 — AFD-67
+
+- **Fix:** the Details, Run and lens panels show the lines between their sections again; they had been lost in 0.41.0, when canvas sections took the panels' class name. Canvas sections no longer get the panels' extra spacing either.
+
 ## 0.42.0 — AFD-66
 
 - **Annotations in exports, reviews and code**: draw.io diagrams and images include notes (draw.io notes tied to their steps), sections and text. The Changes lens outlines the annotations added or changed and lists those removed. A note on a step becomes `# Note:` comments above that step's play in the generated code (the flow's version stays).

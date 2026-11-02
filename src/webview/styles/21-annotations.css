@@ -48,7 +48,7 @@
 }
 
 /* Notes: a sticky card in its colour. */
-.afd-note {
+.afd-kind-note {
   height: 100%;
   padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--afd-ink) 35%, transparent);
@@ -58,18 +58,18 @@
 }
 
 /* Sections: a titled region; only the title takes the pointer (it is the drag handle). */
-.react-flow__node-annotation:has(.afd-section) {
+.react-flow__node-annotation:has(.afd-kind-section) {
   pointer-events: none;
 }
 
-.afd-section {
+.afd-kind-section {
   height: 100%;
   border: 2px solid color-mix(in srgb, var(--afd-ink) 55%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--afd-ink) 6%, transparent);
 }
 
-.afd-section-title {
+.afd-annotation-title {
   display: inline-block;
   max-width: calc(100% - 16px);
   margin: 6px 8px;
@@ -83,38 +83,38 @@
   background: color-mix(in srgb, var(--afd-ink) 12%, var(--afd-bg));
 }
 
-.afd-section-title p {
+.afd-annotation-title p {
   margin: 0;
 }
 
-.afd-section .react-flow__resize-control {
+.afd-kind-section .react-flow__resize-control {
   pointer-events: all;
 }
 
 /* Text: words on the canvas, in three sizes. */
-.afd-text {
+.afd-kind-text {
   color: var(--afd-ink);
   font-weight: 600;
 }
 
-.afd-text.size-s {
+.afd-kind-text.size-s {
   font-size: var(--afd-fs-13);
 }
 
-.afd-text.size-m {
+.afd-kind-text.size-m {
   font-size: var(--afd-fs-18);
 }
 
-.afd-text.size-l {
+.afd-kind-text.size-l {
   font-size: var(--afd-fs-26);
 }
 
-.afd-annotation.selected:not(.afd-section) {
+.afd-annotation.selected:not(.afd-kind-section) {
   outline: 2px solid var(--afd-accent);
   outline-offset: 2px;
 }
 
-.afd-section.selected .afd-section-title {
+.afd-kind-section.selected .afd-annotation-title {
   outline: 2px solid var(--afd-accent);
 }
 

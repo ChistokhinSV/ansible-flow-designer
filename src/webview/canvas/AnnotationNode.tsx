@@ -94,7 +94,7 @@ export const AnnotationNodeView = memo(function AnnotationNodeView({
   }
   const classes = [
     'afd-annotation',
-    `afd-${view.kind}`,
+    `afd-kind-${view.kind}`,
     `color-${a.color ?? (view.kind === 'note' ? 'yellow' : 'gray')}`,
     view.kind === 'text' ? `size-${a.size ?? 'm'}` : '',
     selected ? 'selected' : '',
@@ -142,14 +142,14 @@ export const AnnotationNodeView = memo(function AnnotationNodeView({
       ) : null}
       {view.kind === 'section' ? (
         <>
-          <div className="afd-section-title">
+          <div className="afd-annotation-title">
             {editing ? (
               <Editor id={id} text={a.text} done={stop} />
             ) : (
               <MarkdownView text={a.text} />
             )}
           </div>
-          <div className="afd-section-body" />
+          <div className="afd-annotation-body" />
         </>
       ) : (
         body

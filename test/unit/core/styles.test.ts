@@ -24,4 +24,20 @@ describe('webview styles', () => {
     expect(base).toContain('--afd-font-node-title:');
     expect(base).toContain('--afd-right-width: 320px;');
   });
+
+  it('keeps every annotation rule on annotations (AFD-67: a bare .afd-section hid the panel dividers)', () => {
+    const css = readFileSync(join(DIR, '21-annotations.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const selectors = [...css.matchAll(/([^{}]+)\{/g)].flatMap((m) =>
+      (m[1] ?? '').split(',').map((s) => s.trim()),
+    );
+    const loose = selectors.filter(
+      (s) =>
+        !/afd-annotation|afd-kind-|react-flow__node-annotation|afd-tie|afd-dim-annotations/.test(s),
+    );
+    expect(selectors.length).toBeGreaterThan(20);
+    expect(loose).toEqual([]);
+  });
 });

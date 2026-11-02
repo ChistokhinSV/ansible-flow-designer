@@ -106,7 +106,7 @@ function toAnnotationNode(
     selected,
     zIndex: v.kind === 'section' ? Z.section : tied ? Z.tied : Z.note,
     ...(v.kind === 'section'
-      ? { dragHandle: '.afd-section-title', style: { pointerEvents: 'none' as const } }
+      ? { dragHandle: '.afd-annotation-title', style: { pointerEvents: 'none' as const } }
       : {}),
     ariaLabel: annotationName(v),
     // The Changes lens outlines what was added or changed (AFD-66).
