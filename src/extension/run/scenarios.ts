@@ -15,6 +15,7 @@ import {
 import { parseYaml } from '../../core/yaml/parse';
 import { describeResults, runScenarios } from '../../node/scenario/runner';
 import { environmentFor } from '../env/environment';
+import { showEnvironmentError } from '../env/setupEnvironment';
 import type { Host } from '../host';
 
 const SUFFIX = '.scenarios.yaml';
@@ -72,7 +73,7 @@ export async function runScenariosCommand(
   }
   const env = environmentFor(folder.uri);
   if (!env.ok) {
-    void vscode.window.showErrorMessage(env.error);
+    showEnvironmentError(env.error);
     return undefined;
   }
   const scenarios = parsed.file;

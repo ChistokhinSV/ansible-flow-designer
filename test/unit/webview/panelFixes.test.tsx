@@ -283,7 +283,7 @@ describe('Details content (AFD-44)', () => {
       </>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'tested' }));
-    const dialog = screen.getByRole('dialog', { name: 'Accept with Reason' });
+    const dialog = screen.getByRole('dialog', { name: 'Mark Tested' });
     fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Ran by hand' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Mark Tested' }));
     expect(commands()).toEqual([{ kind: 'markTested', id: task.id, reason: 'Ran by hand' }]);

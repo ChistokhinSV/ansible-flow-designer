@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.46.0 — AFD-71
+
+Wave 7, a gentler first hour, part 1: the dead ends a newcomer hit.
+
+- **Set Up Ansible Environment…** (new command): a run with nowhere to run (native Windows with no image set) no longer stops at an error. The error offers the setup: it finds Docker or Podman and proposes the public Ansible dev tools image (`ghcr.io/ansible/community-ansible-dev-tools`, editable; the first run pulls it), or reopens the folder in WSL, then offers the run again. The error is shown once, not twice.
+- **A first skeleton run suggests `localhost`** for the hosts (real runs suggest nothing).
+- **Add Next Node (N) continues on the main path:** after a step whose `ok_hosts` already leads on, the new step goes onto that wire, between them, instead of off the step's `always` port.
+- **The Execution tab shows what the code uses:** decision, approval, parallel and join steps show batches, privilege and tags (an approval also its AWX timeout); a subflow with steps inside shows rolling, privilege and inventory target. A setting set where it does nothing still shows, with "Not used on a … node: clear it."
+- **Fix:** the Details stayed blank after adding a step with Quick Add (Add a Step, N) until another node was clicked.
+- **Fix:** Quick Add's Extra ports offered `undo` and `cancelled`, ports that were never built and raise a warning; the AI tools could add them too.
+- Peek Code on a flow not saved yet offers Generate Code instead of a dead end. New Flow and Open Sample Flow with no folder open offer Open Folder….
+- Design, Code, Run and each lens say in their tooltips what they are for. The Mark Tested dialog is titled Mark Tested. An empty subflow shows one "no steps" message, not two. The selection panel's button reads Extract into Subflow.
+
 ## 0.45.0 — AFD-70
 
 - **Wires go round steps:** a wire that would run through a step (one that skips a step, such as several failure wires into one rescue step, or one back up the flow) now goes round the steps in its way, on the canvas while you drag and in draw.io, SVG and PNG exports. Wires into one port share their last stretch, and a label sits where it covers no step.

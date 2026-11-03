@@ -697,9 +697,18 @@ export class FlowSession implements vscode.Disposable {
     try {
       await vscode.workspace.fs.stat(uri);
     } catch {
-      void vscode.window.showInformationMessage(
-        'Save the flow to generate its code (or run Generate Code)',
+      // AFD-71: a new flow has no code on disk until it is saved; offer to write it now.
+      const pick = await vscode.window.showInformationMessage(
+        "This flow's code is not written yet: saving writes it.",
+        'Generate Code',
       );
+      if (!pick) return;
+      await vscode.commands.executeCommand(CMD.generateCode, this.uri, QUIET);
+      const written = await vscode.workspace.fs.stat(uri).then(
+        () => true,
+        () => false,
+      );
+      if (written) await this.peekCode(node);
       return;
     }
     const editor = await vscode.window.showTextDocument(uri, {

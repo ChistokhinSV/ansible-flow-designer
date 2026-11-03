@@ -13,15 +13,28 @@ import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
-import { keysOf } from '../shortcuts';
+import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
 
+/** AFD-71: each mode says what it is for. */
 const MODES = [
-  { id: 'design', label: 'Design' },
-  { id: 'code', label: 'Code' },
-  { id: 'run', label: 'Run' },
-] as { id: Mode; label: string; soon?: string }[];
+  {
+    id: 'design',
+    label: 'Design',
+    hint: 'Draw the flow: steps, wires, and what happens when a step fails',
+  },
+  {
+    id: 'code',
+    label: 'Code',
+    hint: 'What each step runs, and where the code differs from the design',
+  },
+  {
+    id: 'run',
+    label: 'Run',
+    hint: 'The last run on the canvas: how many hosts took each wire, and which steps failed',
+  },
+] as { id: Mode; label: string; hint: string; soon?: string }[];
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);
@@ -95,7 +108,11 @@ export function TopBar() {
             aria-pressed={m.id === mode}
             disabled={!!m.soon}
             onClick={() => chooseMode(m.id)}
-            title={m.soon ? `${m.label} mode arrives in ${m.soon}` : undefined}
+            title={
+              m.soon
+                ? `${m.label} mode arrives in ${m.soon}`
+                : `${m.hint} (${IS_MAC ? '⌥' : 'Alt+'}${MODES.indexOf(m) + 1})`
+            }
           >
             {m.label}
           </button>
@@ -174,7 +191,7 @@ function LensPick({
               type: 'item',
               label: l.label,
               checked: l.id === lens,
-              title: `${l.label} lens: chips, wires and findings across the flow`,
+              title: l.hint,
               onSelect: () => pick(l.id),
             }),
           ),

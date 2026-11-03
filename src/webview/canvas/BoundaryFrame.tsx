@@ -59,11 +59,7 @@ function BoundaryFrameImpl({ data }: NodeProps<FrameRFNode>) {
   return (
     <div className="afd-frame" data-frame={boundary.subflow.id}>
       <span className="afd-frame-title">Subflow boundary · {boundary.subflow.title}</span>
-      {empty ? (
-        <p className="afd-frame-empty">
-          No steps yet. Add one from the palette: the first step becomes the entry.
-        </p>
-      ) : null}
+      {empty ? <p className="afd-frame-empty">No steps yet.</p> : null}
       {boundary.ports.map((p) => (
         <FramePort key={p.name} port={p} />
       ))}

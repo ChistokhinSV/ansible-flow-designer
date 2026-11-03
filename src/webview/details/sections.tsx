@@ -15,15 +15,17 @@ import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core
 import { fieldLabel } from '../../core/lens/changes';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import {
+  appliesTo,
   EXECUTION_SETTINGS,
   SETTING_GROUPS,
+  type SettingGroup,
   type SettingKey,
   settingProblem,
   settingText,
   settingValue,
 } from '../../core/view/settings';
 import { run } from '../actions';
-import { STATE_LABEL } from '../constants';
+import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { ContractEditor } from '../panels/ContractEditor';
 import { CommitField, ReadOnly } from '../panels/fields';
 import { runPortItem } from '../portActions';
@@ -451,47 +453,64 @@ export function ExecutionSection({
     void updatePatch(node.id, { settings: { [key]: value } });
   const settings = node.settings ?? {};
   const format = useUi((s) => (s.snapshot?.doc ? formatOf(s.snapshot.doc) : 1));
+  // AFD-71: task keywords go on the task a binding generates.
+  const keywords =
+    node.type === 'task' || (node.type === 'subflow' && !node.subflow?.nodes?.length);
   // AFD-44: grouped as an operator reads a play: where it runs, as whom, when, and its tags.
+  // AFD-71: only what the code uses on this node, and anything already set (to clear it).
+  const fields = (group: SettingGroup) =>
+    EXECUTION_SETTINGS.filter(
+      (s) =>
+        s.group === group &&
+        (s.format ?? 1) <= format &&
+        format <= (s.formatMax ?? format) &&
+        (appliesTo(s, node) || settings[s.key] !== undefined),
+    );
   return (
     <div className="afd-details-page">
-      {SETTING_GROUPS.map((group) => (
-        <section className="afd-section" key={group} data-setting-group={group}>
-          <h3>{group}</h3>
-          {EXECUTION_SETTINGS.filter(
-            (s) =>
-              s.group === group &&
-              (s.format ?? 1) <= format &&
-              format <= (s.formatMax ?? format) &&
-              (!s.types || s.types.includes(node.type)),
-          ).map((s) => {
-            const value = settings[s.key];
-            if (s.kind === 'bool')
-              return (
-                <label key={s.key} className="afd-check">
-                  <input
-                    type="checkbox"
-                    checked={value === true}
-                    onChange={(e) => set(s.key, e.target.checked ? true : null)}
-                  />
-                  {s.label} <span className="muted">{s.help}</span>
-                </label>
+      {SETTING_GROUPS.filter((g) => fields(g).length > 0 || (g === 'Tags' && keywords)).map(
+        (group) => (
+          <section className="afd-section" key={group} data-setting-group={group}>
+            <h3>{group}</h3>
+            {fields(group).map((s) => {
+              const value = settings[s.key];
+              const unused = appliesTo(s, node) ? undefined : (
+                <p className="muted" data-setting-unused={s.key}>
+                  Not used on a {TYPE_LABEL[node.type].toLowerCase()} node: clear it.
+                </p>
               );
-            return (
-              <div key={s.key}>
-                <CommitField
-                  label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.help}`}
-                  value={settingText(value)}
-                  mono
-                  problem={fieldProblem(problems, `settings.${s.key}`)}
-                  validate={(v) => settingProblem(s, v)}
-                  onCommit={(v) => set(s.key, settingValue(s, v))}
-                />
-              </div>
-            );
-          })}
-          {group === 'Tags' ? <TaskKeywords node={node} /> : null}
-        </section>
-      ))}
+              if (s.kind === 'bool')
+                return (
+                  <div key={s.key}>
+                    <label className="afd-check">
+                      <input
+                        type="checkbox"
+                        checked={value === true}
+                        onChange={(e) => set(s.key, e.target.checked ? true : null)}
+                      />
+                      {s.label} <span className="muted">{s.help}</span>
+                    </label>
+                    {unused}
+                  </div>
+                );
+              return (
+                <div key={s.key}>
+                  <CommitField
+                    label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
+                    value={settingText(value)}
+                    mono
+                    problem={fieldProblem(problems, `settings.${s.key}`)}
+                    validate={(v) => settingProblem(s, v)}
+                    onCommit={(v) => set(s.key, settingValue(s, v))}
+                  />
+                  {unused}
+                </div>
+              );
+            })}
+            {group === 'Tags' && keywords ? <TaskKeywords node={node} /> : null}
+          </section>
+        ),
+      )}
     </div>
   );
 }

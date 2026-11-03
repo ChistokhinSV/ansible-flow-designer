@@ -110,28 +110,28 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 
 ![The keyboard shortcuts sheet](../images/cheat-sheet-light.png)
 
-| Keys                     | Action                                                  |
-| ------------------------ | ------------------------------------------------------- |
-| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                                  |
-| Ctrl+D                   | Duplicate the selection                                 |
-| Delete / Backspace       | Delete the selection                                    |
-| F2                       | Rename (the Title in the Details), or edit a note       |
-| N                        | Add a node: after the selected one, else at the pointer |
-| Shift+N                  | Add a note: on the selected node, else at the pointer   |
-| Ctrl+Z / Ctrl+Y          | Undo / Redo                                             |
-| Enter                    | Open the selected subflow, or go to the node's Details  |
-| Alt+↑                    | Back to the parent level                                |
-| Alt+1 / Alt+2 / Alt+3    | Design / Code / Run mode                                |
-| Ctrl+A                   | Select every node of the level                          |
-| Ctrl+F                   | Find a node on any level                                |
-| Shift+1                  | Fit the whole level in view                             |
-| Arrow keys               | Nudge the focused node                                  |
-| Esc                      | Close the menu or dialog; else clear the selection      |
-| Shift+F10                | Context menu for the selection                          |
-| Ctrl+F5 / Shift+F5       | Run as Skeleton / Stop Run                              |
-| Ctrl+Shift+B             | Generate Code                                           |
-| Shift+Alt+F              | Tidy Up                                                 |
-| F7                       | Check Flow                                              |
+| Keys                     | Action                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                                                                         |
+| Ctrl+D                   | Duplicate the selection                                                                        |
+| Delete / Backspace       | Delete the selection                                                                           |
+| F2                       | Rename (the Title in the Details), or edit a note                                              |
+| N                        | Add a node: after the selected one, else at the pointer (on its wire when it already leads on) |
+| Shift+N                  | Add a note: on the selected node, else at the pointer                                          |
+| Ctrl+Z / Ctrl+Y          | Undo / Redo                                                                                    |
+| Enter                    | Open the selected subflow, or go to the node's Details                                         |
+| Alt+↑                    | Back to the parent level                                                                       |
+| Alt+1 / Alt+2 / Alt+3    | Design / Code / Run mode                                                                       |
+| Ctrl+A                   | Select every node of the level                                                                 |
+| Ctrl+F                   | Find a node on any level                                                                       |
+| Shift+1                  | Fit the whole level in view                                                                    |
+| Arrow keys               | Nudge the focused node                                                                         |
+| Esc                      | Close the menu or dialog; else clear the selection                                             |
+| Shift+F10                | Context menu for the selection                                                                 |
+| Ctrl+F5 / Shift+F5       | Run as Skeleton / Stop Run                                                                     |
+| Ctrl+Shift+B             | Generate Code                                                                                  |
+| Shift+Alt+F              | Tidy Up                                                                                        |
+| F7                       | Check Flow                                                                                     |
 
 While the designer has the focus, Alt+1 to Alt+3 switch its modes instead of VS Code's editor tabs.
 

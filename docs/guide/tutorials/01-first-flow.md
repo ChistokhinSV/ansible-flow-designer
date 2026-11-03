@@ -66,7 +66,7 @@ Handle the three ports:
 | Verify sync      | `failed_hosts` | **Accept with Reason…**, reason "Verification only reports" | the run should fail for them, and that is expected    |
 
 Each choice is **one undo step** (Ctrl+Z). A pattern adds a handler node and an end node, or
-reuses an end node of the same kind on this level. _Leave open on purpose_ records your reason
+reuses an end node of the same kind on this level. _Accept with Reason…_ records your reason
 and your Git user name in the flow. The banner is gone when every fail port is handled. More in
 [ports and failure patterns](../how-to/ports-and-failure-patterns.md).
 

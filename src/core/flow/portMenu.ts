@@ -2,7 +2,7 @@
 // actions for a connected one. Pure, so the canvas menu and the inspector list the same items.
 import type { FlowModel } from './model';
 import { findRollback, isRollback, PATTERNS, type PatternId, patternFits } from './patterns';
-import { isFailPort, legalPorts, portDirection } from './ports';
+import { isFailPort, legalPorts, mainOutputs, portDirection } from './ports';
 import type { FlowNode, PortRef, Ulid } from './types';
 
 export type PortMenuItem =
@@ -135,6 +135,26 @@ export function portMenu(model: FlowModel, ref: PortRef): PortMenu | undefined {
   if (!legal.enabled) items.unshift({ kind: 'enable', label: 'Enable Port' });
   else if (legal.optional && !decided) items.push({ kind: 'disable', label: 'Remove Port' });
   return { ref, node, enabled: legal.enabled, connected: false, decided, items };
+}
+
+/**
+ * Where Add Next Node goes after a node (AFD-71): from its first main output not wired yet, else
+ * onto the wire its first main output has, so the new node lands between it and the next. Never
+ * from a side port such as `always`.
+ */
+export function nextFrom(
+  model: FlowModel,
+  nodeId: Ulid,
+): { port: string; insertOn?: Ulid } | undefined {
+  const entry = model.nodes.get(nodeId);
+  if (!entry) return undefined;
+  const edges = model.levels.get(entry.level)?.edges ?? [];
+  const wire = (p: string) => edges.find((e) => e?.from?.node === nodeId && e.from.port === p);
+  const mains = mainOutputs(entry.node);
+  const free = mains.find((p) => !wire(p));
+  if (free) return { port: free };
+  const first = mains[0] ? wire(mains[0]) : undefined;
+  return first && mains[0] ? { port: mains[0], insertOn: first.id } : undefined;
 }
 
 /** Output a node continues on when another node's input is wired from it ("Connect from…"). */

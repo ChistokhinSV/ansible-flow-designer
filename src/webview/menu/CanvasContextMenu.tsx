@@ -29,7 +29,7 @@ import {
   startExtract,
   upLevel,
 } from '../editActions';
-import { runPortItem } from '../portActions';
+import { addNextNode, runPortItem } from '../portActions';
 import { keysOf } from '../shortcuts';
 import { type ContextMenuState, useUi } from '../store';
 import { Menu, type UiMenuEntry } from './Menu';
@@ -81,7 +81,7 @@ export function runCanvasAction(
       void runPortItem(action.item, action.ref);
       return;
     case 'addNext':
-      void runPortItem({ kind: 'quickAdd', label: 'Add Next Node' }, action.from);
+      addNextNode(action.from, action.insertOn);
       return;
     case 'cut':
       void cutNodes(action.nodes, action.annotations);

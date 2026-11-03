@@ -73,6 +73,10 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
       setRestageAfter(null);
     }
   }, [restageAfter, version, node]);
+  // Quick Add selects a new step on the ack, which can come before the snapshot that has it.
+  useEffect(() => {
+    if (node && !draft) setDraft(draftOf(node));
+  }, [node, draft]);
 
   const bindable = node?.type === 'task' || node?.type === 'subflow';
   const dirty = !!node && !!draft && bindable && isDirty(node, draft);

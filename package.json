@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.45.0",
+  "version": "0.46.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -203,6 +203,11 @@
       {
         "command": "afd.ai.remove",
         "title": "Remove AI Assistant Setup…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.environment.setup",
+        "title": "Set Up Ansible Environment…",
         "category": "Ansible Flow"
       },
       {
@@ -2651,7 +2656,7 @@
           {
             "id": "handle-failures",
             "title": "Handle every failure",
-            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or leave it open on purpose with a reason.\n[How-to: ports and failure patterns](command:afd.help.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
+            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or keep it open with Accept with Reason….\n[How-to: ports and failure patterns](command:afd.help.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/port-menu-light.png",

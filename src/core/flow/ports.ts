@@ -82,6 +82,26 @@ export function optionalPortNames(type: NodeType): readonly string[] {
   return OPTIONAL[type];
 }
 
+const MAIN: Partial<Record<NodeType, readonly string[]>> = {
+  start: ['ok_hosts'],
+  task: ['ok_hosts'],
+  subflow: ['ok_hosts'],
+  join: ['ok_hosts'],
+  decision: ['true', 'false'],
+  approval: ['approved'],
+};
+
+/** The outputs the normal path leaves a node by, in order (never a fail or side port). */
+export function mainOutputs(node: Pick<FlowNode, 'type' | 'branches'>): readonly string[] {
+  if (node.type !== 'parallel') return MAIN[node.type] ?? [];
+  return Array.from({ length: branchCount(node) }, (_, i) => `branch_${i + 1}`);
+}
+
+/** The optional ports a new node can be given: never the legacy ones. */
+export function offeredPortNames(type: NodeType): readonly string[] {
+  return OPTIONAL[type].filter((p) => !LEGACY_PORTS.has(p));
+}
+
 export function portDirection(name: string): PortDirection {
   return name === 'in' || name === 'undo' ? 'in' : 'out';
 }

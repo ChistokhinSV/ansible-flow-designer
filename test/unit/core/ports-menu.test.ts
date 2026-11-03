@@ -6,7 +6,7 @@ import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import { PATTERN_IDS, patternFits } from '../../../src/core/flow/patterns';
-import { patternTarget, portMenu } from '../../../src/core/flow/portMenu';
+import { nextFrom, patternTarget, portMenu } from '../../../src/core/flow/portMenu';
 import { legalPorts, portsFor } from '../../../src/core/flow/ports';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import { semanticKey } from '../../../src/core/flow/semantic';
@@ -476,5 +476,48 @@ describe('validator (M2 additions)', () => {
     const codes = validateFlow(doc).findings.map((f) => f.code);
     expect(codes).toContain('duplicate-decision');
     expect(codes).toContain('decision-not-fail');
+  });
+});
+
+describe('Add Next Node (AFD-71)', () => {
+  const doc = (nodes: string, edges: string) =>
+    buildModel(
+      docOf(
+        [
+          'schema_version: 2',
+          'flow: { id: 01JDGKS0000000000000000001, key: f, name: F, version: 1 }',
+          `nodes: ${nodes}`,
+          `edges: ${edges}`,
+        ].join('\n'),
+      ),
+    );
+  const A = '01JDGKS00000000000000000A0';
+  const B = '01JDGKS00000000000000000B0';
+  const W = '01JDGKS00000000000000000W0';
+  const node = (type: string, extra = '') =>
+    `{ id: ${A}, key: a, type: ${type}, title: A${extra} }`;
+  const end = `{ id: ${B}, key: b, type: end, title: B }`;
+  const wire = (port: string) =>
+    `[{ id: ${W}, from: { node: ${A}, port: '${port}' }, to: { node: ${B}, port: in } }]`;
+
+  it.each([
+    ['task', '', 'ok_hosts', 'ok_hosts', W],
+    ['task, ports: [always]', '', 'always', 'ok_hosts', undefined],
+    ['decision', '', 'true', 'false', undefined],
+    ['approval', '', 'approved', 'approved', W],
+    ['parallel', ', branches: 3', 'branch_1', 'branch_2', undefined],
+    ['start', '', 'ok_hosts', 'ok_hosts', W],
+  ])('%s with %s', (type, extra, wired, port, insertOn) => {
+    const [t, ports] = type.split(', ');
+    const m = doc(
+      `[${node(t as string, `${extra}${ports ? `, ${ports}` : ''}`)}, ${end}]`,
+      wire(wired),
+    );
+    expect(nextFrom(m, A)).toEqual(insertOn ? { port, insertOn } : { port });
+  });
+
+  it('an unwired task continues on ok_hosts; an end node has nowhere to go', () => {
+    expect(nextFrom(doc(`[${node('task')}, ${end}]`, '[]'), A)).toEqual({ port: 'ok_hosts' });
+    expect(nextFrom(doc(`[${node('task')}, ${end}]`, '[]'), B)).toBeUndefined();
   });
 });

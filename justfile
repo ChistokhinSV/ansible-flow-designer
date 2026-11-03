@@ -144,6 +144,7 @@ docs-shots *names:
 # UX baseline (AFD-33): screenshots in every mode at two sizes and canvas metrics into docs/ux/<label>/
 ux-baseline label="baseline":
     node scripts/ux-baseline.mjs {{ label }}
+    npx --no-install biome format --write docs/ux/{{ label }}
 
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
 package:

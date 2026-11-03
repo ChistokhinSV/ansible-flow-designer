@@ -38,7 +38,12 @@ export type Environment =
     }
   | { kind: 'local'; python: string; source: 'afd' | 'redhat.ansible' | 'default'; label: string };
 
-export type EnvironmentResult = { ok: true; env: Environment } | { ok: false; error: string };
+/** Why no environment resolves; set up with Set Up Ansible Environment… (AFD-71). */
+export type EnvironmentProblem = 'no-image' | 'windows-native';
+
+export type EnvironmentResult =
+  | { ok: true; env: Environment }
+  | { ok: false; error: string; code?: EnvironmentProblem };
 
 /** Splits a container options string the way a shell would for simple quoted words. */
 export function splitOptions(text: string | undefined): string[] {
@@ -59,7 +64,11 @@ export function resolveEnvironment(
   if (container) {
     const image = afd.image || redhatImage;
     if (!image)
-      return { ok: false, error: 'Set afd.environment.image to the execution environment image' };
+      return {
+        ok: false,
+        error: 'Set afd.environment.image to the execution environment image',
+        code: 'no-image',
+      };
     const fromRedhat = !afd.image;
     const engine =
       afd.containerEngine !== 'auto'
@@ -91,7 +100,8 @@ export function resolveEnvironment(
     return {
       ok: false,
       error:
-        'Ansible cannot run natively on Windows: set afd.environment.image (Docker or Podman) or open the folder through VS Code Remote',
+        'Runs need an Ansible environment. On Windows that is Docker or Podman with an execution environment image, or this folder opened in WSL.',
+      code: 'windows-native',
     };
   const python = afd.python || redhat.interpreterPath || 'python3';
   const source = afd.python ? 'afd' : redhat.interpreterPath ? 'redhat.ansible' : 'default';

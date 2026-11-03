@@ -4,7 +4,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { slugify, uniqueKey } from '../../core/flow/ids';
 import { modelOf, ROOT } from '../../core/flow/model';
 import { findRollback } from '../../core/flow/patterns';
-import { optionalPortNames, portsFor } from '../../core/flow/ports';
+import { offeredPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { run } from '../actions';
 import { TYPE_LABEL } from '../constants';
@@ -200,10 +200,10 @@ function QuickAddDialog() {
             ))}
           </fieldset>
         ) : null}
-        {optionalPortNames(type).length > 0 ? (
+        {offeredPortNames(type).length > 0 ? (
           <fieldset className="afd-fieldset">
             <legend>Extra ports</legend>
-            {optionalPortNames(type).map((p) => (
+            {offeredPortNames(type).map((p) => (
               <label key={p} className="afd-check">
                 <input
                   type="checkbox"

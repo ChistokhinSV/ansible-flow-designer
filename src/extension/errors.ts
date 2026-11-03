@@ -23,7 +23,8 @@ export async function showOutcomeError(
   code: RunErrorCode | undefined,
   scope?: vscode.Uri,
 ): Promise<void> {
-  if (code === 'cancelled' || isCancelled(message)) return;
+  // A missing environment was shown with Set Up Ansible Environment… already (AFD-71).
+  if (code === 'cancelled' || code === 'environment' || isCancelled(message)) return;
   const fix = code ? FIXES[code] : undefined;
   const pick = await vscode.window.showErrorMessage(
     message ?? 'It did not work',

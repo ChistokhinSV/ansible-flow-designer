@@ -4,6 +4,7 @@
 import * as vscode from 'vscode';
 import type { FlowDocument } from '../../core/flow/types';
 import { SECRET } from '../../core/import/secrets';
+import { inputPrompt, inputSuggestion } from '../../core/run/prompt';
 
 export const inputsKey = (flowId: string) => `afd.inputs.${flowId}`;
 
@@ -37,11 +38,15 @@ function showInput(value: unknown): string {
   return value === undefined ? '' : String(value);
 }
 
-/** Flow inputs: given values, else remembered ones (per flow, this workspace), else prompted. */
+/**
+ * Flow inputs: given values, else remembered ones (per flow, this workspace), else prompted. A
+ * skeleton run (`check`) suggests localhost for hosts nobody gave yet (AFD-71).
+ */
 export async function collectInputs(
   doc: FlowDocument,
   given: Record<string, unknown> | undefined,
   state: vscode.Memento,
+  check = false,
 ): Promise<Record<string, unknown> | undefined> {
   const remembered = state.get<Record<string, unknown>>(inputsKey(doc.flow.id), {});
   const values: Record<string, unknown> = {};
@@ -63,11 +68,8 @@ export async function collectInputs(
     const secret = SECRET.test(name);
     const text = await vscode.window.showInputBox({
       title: `Run ${doc.flow.name}: input "${name}"`,
-      prompt:
-        field?.type === 'host_list'
-          ? 'Hosts or groups, comma-separated'
-          : `${field?.type ?? 'value'}${secret ? ' (not remembered)' : ''}`,
-      value: secret ? '' : showInput(remembered[name] ?? field?.default),
+      prompt: inputPrompt(field?.type, secret, check),
+      value: secret ? '' : showInput(inputSuggestion(field, remembered[name], check)),
       password: secret,
       ignoreFocusOut: true,
       validateInput: (v) => (v.trim() ? undefined : 'Required'),

@@ -271,7 +271,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [snapshot, view, level],
   );
   const frameKey = boundary
-    ? JSON.stringify([boundary.frame, boundary.ports, view.nodes.length])
+    ? JSON.stringify([boundary.frame, boundary.ports, view.nodes.length, empty])
     : '';
   // biome-ignore lint/correctness/useExhaustiveDependencies: the frame object changes only with frameKey
   const frame = useMemo<FrameRFNode | undefined>(
@@ -283,7 +283,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
             position: { x: boundary.frame.x, y: boundary.frame.y },
             width: boundary.frame.width,
             height: boundary.frame.height,
-            data: { boundary, empty: view.nodes.length === 0 },
+            // AFD-71: the empty-level card says how to begin; the frame only when it is not shown.
+            data: { boundary, empty: view.nodes.length === 0 && !empty },
             draggable: false,
             selectable: false,
             deletable: false,

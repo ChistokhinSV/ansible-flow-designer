@@ -280,7 +280,7 @@ describe('shortcuts', () => {
 });
 
 describe('core tasks with the keyboard only', () => {
-  it('1. add a step after another: select, N, type the title, Enter', async () => {
+  it('1. add a step after another: select, N, type the title, Enter (lands on its wire, AFD-71)', async () => {
     render(<App />);
     act(() => useUi.getState().select({ node: id('validate') }));
     key(document.body, 'n');
@@ -296,7 +296,12 @@ describe('core tasks with the keyboard only', () => {
       { kind: 'addNode' }
     >;
     expect(add.title).toBe('Notify the owner');
-    expect(add.connectFrom?.node).toBe(id('validate'));
+    // Validate already continues to Done: the new step goes between them, not off `always`.
+    const onward = model.levels
+      .get(model.nodes.get(id('validate'))?.level as string)
+      ?.edges.find((e) => e.from.node === id('validate') && e.from.port === 'ok_hosts');
+    expect(add.insertOn).toBe(onward?.id);
+    expect(add.connectFrom).toBeUndefined();
   });
 
   it('2. wire a failure path: Tab to the open port, Enter, a pattern, Enter', () => {

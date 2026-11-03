@@ -92,7 +92,7 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
         </p>
         <button type="button" disabled={busy} onClick={() => void extract()}>
           <span className="codicon codicon-type-hierarchy-sub" aria-hidden="true" /> Extract into
-          subflow
+          Subflow
         </button>
         {error ? (
           <p className="afd-run-warning" role="alert" data-extract-error>

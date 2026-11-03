@@ -31,6 +31,7 @@ import {
   isFailPort,
   isPortLegal,
   LEGACY_PORTS,
+  offeredPortNames,
   optionalPortNames,
   portDirection,
   portsFor,
@@ -615,8 +616,8 @@ function nodeItem(
   if (spec.intent) node.intent = spec.intent;
   if (spec.type === 'end') node.outcome = spec.outcome ?? 'success';
   if (spec.purpose) node[purpose] = spec.purpose;
-  const optional = optionalPortNames(spec.type);
-  const ports = (spec.ports ?? []).filter((p) => optional.includes(p));
+  const offered = offeredPortNames(spec.type);
+  const ports = (spec.ports ?? []).filter((p) => offered.includes(p));
   if (ports.length > 0) node.ports = ports;
   if (spec.inputs && Object.keys(spec.inputs).length > 0) {
     node.inputs = Object.fromEntries(Object.entries(spec.inputs).map(([k, v]) => [k, contract(v)]));

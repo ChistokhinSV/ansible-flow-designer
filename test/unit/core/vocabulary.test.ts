@@ -74,6 +74,14 @@ describe('vocabulary (AFD-41)', () => {
         for (const code of CODES)
           if (code.test(text)) found.push(`${relative(ROOT, path)}:${line} ${code}`);
       }
+    // AFD-71: a phrase a formatter wrapped over two lines counts too.
+    for (const path of SOURCES) {
+      const lines = uiStrings(path);
+      const joined = lines.map((l) => l.text.trim()).join(' ');
+      for (const { word, rule } of banned)
+        if (rule.test(joined) && !lines.some((l) => rule.test(l.text)))
+          found.push(`${relative(ROOT, path)} "${word}" (over two lines)`);
+    }
     const pkg = readFileSync(join(ROOT, 'package.json'), 'utf8');
     for (const { word, rule } of banned) if (rule.test(pkg)) found.push(`package.json "${word}"`);
     for (const code of CODES) if (code.test(pkg)) found.push(`package.json ${code}`);
@@ -92,7 +100,8 @@ describe('vocabulary (AFD-41)', () => {
   it('the guide and the walkthrough use the glossary words', () => {
     const found: string[] = [];
     for (const path of PAGES) {
-      const text = readFileSync(path, 'utf8');
+      // AFD-71: wrapped lines (and quoted ones) read as one, so a phrase split over two counts.
+      const text = readFileSync(path, 'utf8').replace(/[ \t]*\r?\n[ \t]*(?:>[ \t]*)?/g, ' ');
       for (const { word, rule } of banned)
         if (rule.test(text)) found.push(`${relative(ROOT, path)} "${word}"`);
     }

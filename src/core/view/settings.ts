@@ -1,7 +1,7 @@
 // The node settings the properties page edits (Execution tab), and how typed text becomes a
 // setting value (AFD-34: out of the component, shared and tested). Settings the flow models as
 // fields; other task keywords live in impl.keywords (AFD-26).
-import type { NodeSettings, NodeType } from '../flow/types';
+import type { FlowNode, NodeSettings, NodeType } from '../flow/types';
 
 export type SettingKey = keyof NodeSettings;
 
@@ -113,6 +113,38 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     help: 'Run the work on these hosts (an inventory pattern) instead of the arriving ones; steps inside a subflow inherit it',
   },
 ];
+
+/** Steps that run no task of their own: their play takes only these (AFD-71). */
+const ROUTING_KEYS: readonly SettingKey[] = [
+  'serial',
+  'become',
+  'become_user',
+  'tags',
+  'credential',
+];
+/** What a subflow with steps inside uses: the rest belongs on the steps (AFD-71). */
+const LEVEL_KEYS: readonly SettingKey[] = [
+  'rolling',
+  'become',
+  'become_user',
+  'inventory_target',
+  'credential',
+];
+
+/**
+ * Whether the generated code uses the setting on this node (AFD-71), so the Execution tab shows
+ * only those. Decision, approval, parallel and join plays route hosts and run no task; an approval's
+ * timeout is the AWX approval's. A subflow with steps inside hands privilege and targets to them.
+ */
+export function appliesTo(field: SettingField, node: Pick<FlowNode, 'type' | 'subflow'>): boolean {
+  if (field.types && !field.types.includes(node.type)) return false;
+  if (node.type === 'subflow' && (node.subflow?.nodes?.length ?? 0) > 0)
+    return LEVEL_KEYS.includes(field.key);
+  if (node.type === 'approval' && field.key === 'timeout') return true;
+  if (['decision', 'approval', 'parallel', 'join'].includes(node.type))
+    return ROUTING_KEYS.includes(field.key);
+  return true;
+}
 
 /** Why typed text is not a valid value for the field, or undefined. */
 export function settingProblem(field: SettingField, text: string): string | undefined {

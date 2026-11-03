@@ -5,6 +5,14 @@ Designing needs no Ansible. Runs, syntax checks, the module catalog and Code mod
 
 ## Choose an environment
 
+The quickest way: **Set Up Ansible Environment…** (Command Palette, or the button on the error a
+run shows when it has nowhere to run). It looks for Docker and Podman and proposes the public
+Ansible dev tools image, `ghcr.io/ansible/community-ansible-dev-tools:latest` (ansible-core 2.21
+at the time of writing; replace it with your organisation's image if you have one). The first run
+pulls it, which takes a few minutes. On Windows with the WSL extension it can also reopen the
+folder in WSL instead, where you install Ansible yourself (`pipx install ansible-core`). Or set it
+by hand:
+
 | You have                                                              | Set                                                                                                  |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Docker or Podman (the only option on native Windows)                  | `afd.environment.image` = an execution environment image, e.g. `registry.example.net/ee/netops:2.19` |
@@ -23,7 +31,8 @@ library, so any image with ansible-core works.
 
 **Run as Skeleton** (top bar, or the play button in the editor title bar):
 1. generates the code;
-2. asks for the flow inputs (remembered per flow; host lists are hosts or groups, comma-separated);
+2. asks for the flow inputs (remembered per flow; host lists are hosts or groups, comma-separated;
+   the first skeleton run suggests `localhost`);
 3. runs `ansible-playbook --check` in a terminal, in your environment.
 
 Unbound steps print `TODO: <intent>`. Bound modules run in check mode; the catalog badges say which

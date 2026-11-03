@@ -36,7 +36,8 @@ export interface Snapshot {
 
 /** A skeleton or real run of the flow and what it did per node (M3; full Run mode is M7). */
 /** Why a run did not start or stopped, when a command can fix it (AFD-37). */
-export type RunErrorCode = 'cancelled' | 'awx-url' | 'awx-token' | 'awx-template';
+/** `environment`: no Ansible environment; the runner offers the setup itself (AFD-71). */
+export type RunErrorCode = 'cancelled' | 'environment' | 'awx-url' | 'awx-token' | 'awx-template';
 
 export interface RunView {
   id: string;

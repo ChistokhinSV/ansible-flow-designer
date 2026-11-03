@@ -7,6 +7,7 @@ import { type FlowCommand, planCommand } from '../../../src/core/flow/commands';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { upgradeNotes } from '../../../src/core/flow/migrate';
 import { buildModel } from '../../../src/core/flow/model';
+import { offeredPortNames } from '../../../src/core/flow/ports';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { readExample } from './helpers';
@@ -20,6 +21,17 @@ const node = (text: string, key: string) =>
 const id = (text: string, key: string) => node(text, key)?.id as string;
 
 describe('undo and cancelled ports (AFD-54)', () => {
+  it('a new node never gets one, from Quick Add or the AI tools (AFD-71)', () => {
+    const r = plan(OS, {
+      kind: 'addNode',
+      type: 'task',
+      title: 'Check NTP',
+      ports: ['undo', 'cancelled', 'always'],
+    });
+    expect(node(r.text, 'check-ntp')?.ports).toEqual(['always']);
+    expect(offeredPortNames('task')).toEqual(['unreachable', 'unchanged', 'always', 'timeout']);
+  });
+
   it('the upgrade removes them and their wires, keeps the undo binding, and says so', () => {
     // Nothing enables them any more; a file written before does.
     expect(() =>

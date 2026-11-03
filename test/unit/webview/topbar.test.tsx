@@ -59,6 +59,20 @@ describe('top bar', () => {
     expect(seen[2]).toEqual(seen[0]);
   });
 
+  it('modes and lenses say what they are for (AFD-71)', () => {
+    render(<TopBar />);
+    const mode = (name: string) => screen.getByRole('button', { name }).getAttribute('title');
+    expect(mode('Design')).toMatch(/^Draw the flow: .* \((Alt\+|⌥)1\)$/);
+    expect(mode('Code')).toMatch(/^What each step runs/);
+    expect(mode('Run')).toMatch(/^The last run on the canvas/);
+    fireEvent.click(screen.getByRole('button', { name: /^Lens/ }));
+    const lens = (name: string) =>
+      screen.getByRole('menuitemradio', { name }).getAttribute('title') ??
+      screen.getByRole('menuitemradio', { name }).closest('[title]')?.getAttribute('title');
+    expect(lens('Inventory')).toBe('Which hosts each step runs on, counted in your inventory');
+    expect(lens('Changes')).toMatch(/^What changed since another version/);
+  });
+
   it('runs, exports and the "…" menu; what cannot run says why', () => {
     act(() => useUi.getState().setMode('design'));
     render(<TopBar />);

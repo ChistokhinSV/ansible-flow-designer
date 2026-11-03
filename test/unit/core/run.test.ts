@@ -12,6 +12,11 @@ import {
   splitOptions,
 } from '../../../src/core/run/environment';
 import { summarizeRun } from '../../../src/core/run/events';
+import {
+  DEV_TOOLS_IMAGE,
+  environmentChoices,
+  type MachineFindings,
+} from '../../../src/core/run/setup';
 
 const afd = (over: Partial<AfdEnvSettings> = {}): AfdEnvSettings => ({
   kind: 'auto',
@@ -65,10 +70,41 @@ describe('environment', () => {
     });
   });
 
-  it('refuses native Windows and a container without an image', () => {
-    expect(resolveEnvironment(afd(), {}, 'win32').ok).toBe(false);
-    expect(resolveEnvironment(afd({ kind: 'container' }), {}, 'linux').ok).toBe(false);
+  it('refuses native Windows and a container without an image, saying which (AFD-71)', () => {
+    expect(resolveEnvironment(afd(), {}, 'win32')).toMatchObject({
+      ok: false,
+      code: 'windows-native',
+      error: expect.stringMatching(/^Runs need an Ansible environment/),
+    });
+    expect(resolveEnvironment(afd({ kind: 'container' }), {}, 'linux')).toMatchObject({
+      ok: false,
+      code: 'no-image',
+    });
     expect(splitOptions(undefined)).toEqual([]);
+  });
+});
+
+describe('Set Up Ansible Environment… (AFD-71)', () => {
+  const kinds = (m: Partial<MachineFindings>) =>
+    environmentChoices({
+      platform: 'win32',
+      docker: false,
+      podman: false,
+      remoteWsl: false,
+      ...m,
+    }).map((c) => (c.kind === 'container' ? c.engine : c.kind));
+  it.each([
+    ['Docker found', { docker: true }, ['docker', 'read']],
+    ['both engines', { docker: true, podman: true }, ['docker', 'podman', 'read']],
+    ['WSL extension on Windows', { remoteWsl: true }, ['wsl', 'read']],
+    ['WSL is no choice off Windows', { platform: 'linux', remoteWsl: true }, ['install', 'read']],
+    ['nothing yet', {}, ['install', 'read']],
+  ])('%s', (_, m, want) => {
+    expect(kinds(m)).toEqual(want);
+  });
+
+  it('proposes the public dev tools image, the last release', () => {
+    expect(DEV_TOOLS_IMAGE).toBe('ghcr.io/ansible/community-ansible-dev-tools:latest');
   });
 });
 

@@ -71,7 +71,7 @@ describe('Extract into subflow', () => {
     expect(screen.getByText('2 nodes selected')).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText('Subflow'), { target: { value: 'Prepare' } });
     expect(screen.getByText('prepare')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Extract into subflow/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Extract into Subflow/ }));
     // os-upgrade has no layout block: the panel uses the auto positions the canvas shows, and
     // writes them for every node of the level so the rest does not get stacked (product owner).
     const auto = useUi.getState().snapshot?.autoPositions ?? {};
@@ -92,7 +92,7 @@ describe('Extract into subflow', () => {
 
   it('a refusal stays in the panel', async () => {
     render(<SelectionPanel ids={[id('pre-checks'), id('rollback')]} />);
-    fireEvent.click(screen.getByRole('button', { name: /Extract into subflow/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Extract into Subflow/ }));
     await answer(false, {
       error: 'The selection is not connected: Rollback is apart from the rest',
     });

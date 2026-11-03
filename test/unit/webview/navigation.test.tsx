@@ -179,7 +179,7 @@ describe('a level with only Start and End', () => {
     const card = screen.getByRole('region', { name: 'Start this level' });
     fireEvent.click(within(card).getByRole('button', { name: /Add a Step/ }));
     const wire = empty.edges?.[0];
-    expect(useUi.getState().quickAdd).toEqual({ type: 'task', insertOn: wire?.id });
+    expect(useUi.getState().quickAdd).toMatchObject({ type: 'task', insertOn: wire?.id });
     act(() => useUi.getState().openQuickAdd(null));
     fireEvent.click(within(card).getByRole('button', { name: 'Import Ansible Playbooks…' }));
     fireEvent.click(within(card).getByRole('button', { name: /Import AWX Workflow/ }));

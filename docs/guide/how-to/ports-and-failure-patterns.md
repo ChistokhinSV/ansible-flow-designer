@@ -38,9 +38,9 @@ Click a port.
 
 ![The port menu](../images/port-menu-light.png)
 
-- **An open fail port** offers suggestions for its kind. `failed_hosts`: Rollback, Notify on-call
-  and stop, Exclude and Report, Retry, Stop flow, Connect to Another Node…, Leave open
-  on purpose…. `unreachable` never offers Rollback: an unreachable host cannot be rolled back.
+- **An open fail port** offers suggestions for its kind. `failed_hosts`: Rollback, Notify On-Call
+  and Stop, Exclude and Report, Retry, Stop Flow, Connect to Another Node…, Accept with Reason….
+  `unreachable` never offers Rollback: an unreachable host cannot be rolled back.
 - **A wired port** offers Insert Node on This Wire, Rewire to Another Node… and Disconnect.
 - **An optional port** that is off shows, dotted, when you hover or select the node. Its menu
   starts with **Enable Port**; dragging a wire from it enables it too. The **Ports** tab of the
@@ -56,7 +56,7 @@ A pattern adds a handler node and the wires around it, in one undo step (Retry a
 | Notify On-Call and Stop       | a notify handler                                         | `stopped`       |
 | Exclude and Report            | an exclude handler                                       | `excluded`      |
 | Retry (module steps)          | retries 3, delay 10 s on the step itself                 | (the same port) |
-| Stop flow                     | nothing but the wire                                     | `stopped`       |
+| Stop Flow                     | nothing but the wire                                     | `stopped`       |
 | Escalate Approval (approvals) | a second approval                                        | `stopped`       |
 
 You can also drag a pattern from the palette onto an open fail port or a node.
@@ -71,7 +71,7 @@ undo). The next failure port on the level reuses the same Rollback.
 does not land in "Rolled back" just because both end with outcome failed. To merge two ends,
 rewire one port to the other end.
 
-## Leave open on purpose
+## Keep a fail port open
 
 Some failures should just fail the run, for example a read-only check during a change window.
 Choose **Accept with Reason…** and give the reason. The flow records it with your Git user name

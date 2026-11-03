@@ -146,6 +146,15 @@ async function samples(root: vscode.Uri): Promise<Sample[]> {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** No folder is open: say why one is needed and offer to open one (AFD-71). */
+export async function askForFolder(why: string): Promise<void> {
+  const pick = await vscode.window.showInformationMessage(
+    `Open a folder first: your automation repository, or an empty folder to try things out. ${why}`,
+    'Open Folder…',
+  );
+  if (pick) await vscode.commands.executeCommand('workbench.action.files.openFolder');
+}
+
 /**
  * Copies a bundled sample to `flows/<key>/<key>.flow.yaml` in the workspace and opens it. A sample
  * that is there already is opened as it is: it may have been changed while following a tutorial.
@@ -157,14 +166,7 @@ async function openSample(
   into?: vscode.Uri,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
-  if (folders.length === 0) {
-    const pick = await vscode.window.showInformationMessage(
-      'Open a folder (your automation repository, or an empty folder to try things out) first: the sample is copied into it.',
-      'Open Folder…',
-    );
-    if (pick) await vscode.commands.executeCommand('workbench.action.files.openFolder');
-    return;
-  }
+  if (folders.length === 0) return askForFolder('The sample is copied into it.');
   const all = await samples(root);
   const books = await playbookSamples(root);
   const given = all.find((s) => s.key === key);

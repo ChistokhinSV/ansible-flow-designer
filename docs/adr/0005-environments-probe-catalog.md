@@ -20,3 +20,12 @@ Found in the improvement review (KB AFD-A-17): the probe serves one request at a
 - **Log:** the _Ansible Flow_ `LogOutputChannel` (`extension/log.ts`) gets the probe lifecycle at Info and stderr lines at Debug.
 - **Catalog:** `CatalogService.environmentChanged()` marks loaded indexes stale when `afd.environment.*` or `ansible.*` change; validation keeps the last index until the next search reloads.
 - **AWX client (same resilience pass):** a GET failing with ECONNRESET, EPIPE or ECONNABORTED (a kept-alive socket closed while idle) is retried once; seen as intermittent lab failures through the SSH tunnel.
+
+## Amendment: Set Up Ansible Environment… (AFD-71, 2026-11-03)
+
+Wave 7 (learnability): a newcomer on native Windows met a bare error on the first Run as Skeleton and had to find the right setting by name.
+
+- **Error codes:** `resolveEnvironment` says why it failed (`no-image`, `windows-native`). The Windows message names what is needed (Docker or Podman with an image, or WSL) instead of a setting.
+- **Setup command** `afd.environment.setup` (`extension/env/setupEnvironment.ts`, choices from the pure `core/run/setup.ts`): Docker and Podman found on the PATH become choices; on Windows the WSL extension adds Reopen the Folder in WSL, opened through the Command Palette by its title (the extension's command ID is not public API). With none, it points at the guide.
+- **Proposed image:** `ghcr.io/ansible/community-ansible-dev-tools:latest`, the last ansible-dev-tools release, which its project documents as usable as an execution environment. Checked 2026-11-03: ansible-core 2.21.5, runs as root, 1.37 GB. The user can replace it before it is saved. The setup writes `afd.environment.image` and `containerEngine` at user level and never pulls: the first run does, as before.
+- **One message:** a run with no environment shows its error once, with Set Up Ansible Environment… and Open Settings (Manage Workspace Trust when untrusted); after a setup it offers the run again. The run carries `errorCode: 'environment'` so the command does not repeat it.

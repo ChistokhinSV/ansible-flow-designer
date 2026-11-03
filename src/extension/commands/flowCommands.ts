@@ -7,6 +7,7 @@ import { newFlowText } from '../../core/flow/template';
 import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
+import { askForFolder } from '../help';
 import type { Host } from '../host';
 import { insertShared, SharedSubflowActions, unlinkShared, updateShared } from '../sharedSubflows';
 import { CMD } from './ids';
@@ -126,18 +127,16 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
 
 async function newFlow(host: Host): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 0) return askForFolder('A flow is a file in it.');
   const folder =
     folders.length > 1
       ? await vscode.window.showWorkspaceFolderPick({ placeHolder: 'Repository for the new flow' })
       : folders[0];
-  if (!folder) {
-    void vscode.window.showErrorMessage('Open a folder (the automation repository) first.');
-    return;
-  }
+  if (!folder) return;
   const name = await vscode.window.showInputBox({
-    title: 'New flow',
-    prompt: 'Flow name',
-    placeHolder: 'Edge baseline',
+    title: 'New Flow',
+    prompt: 'Name the flow after what it does',
+    placeHolder: 'NTP baseline',
     validateInput: (v) => (v.trim() ? undefined : 'Enter a name'),
   });
   if (!name) return;

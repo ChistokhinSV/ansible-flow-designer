@@ -4,13 +4,7 @@
 import schema from '../../../schema/flow.schema.json';
 import { FINDING_CODES } from '../flow/findingCodes';
 import { PATTERNS } from '../flow/patterns';
-import {
-  defaultPortNames,
-  FAIL_PORTS,
-  LEGACY_PORTS,
-  optionalPortNames,
-  portDirection,
-} from '../flow/ports';
+import { defaultPortNames, FAIL_PORTS, offeredPortNames, portDirection } from '../flow/ports';
 import type { NodeType } from '../flow/types';
 import { OP_SPECS } from './specs';
 
@@ -135,10 +129,7 @@ const PORT_MEANING: Record<string, string> = {
 export function portsReference(): string {
   const rows = TYPES.map((t) => {
     const defaults = defaultPortNames({ type: t }).join(', ');
-    const optional =
-      optionalPortNames(t)
-        .filter((p) => !LEGACY_PORTS.has(p))
-        .join(', ') || '-';
+    const optional = offeredPortNames(t).join(', ') || '-';
     return `| ${t} | ${defaults} | ${optional} |`;
   });
   return [

@@ -5,7 +5,7 @@
 import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
-import { freeOutput, type PortMenuItem, portMenu } from './portMenu';
+import { nextFrom, type PortMenuItem, portMenu } from './portMenu';
 import { canMarkTested, contentStatus } from './status';
 import {
   ANNOTATION_COLORS,
@@ -57,7 +57,7 @@ export type CanvasAction =
   | { do: 'rename'; node: Ulid }
   | { do: 'setStatus'; node: Ulid; status: NodeStatus }
   | { do: 'port'; ref: PortRef; item: PortMenuItem }
-  | { do: 'addNext'; from: PortRef }
+  | { do: 'addNext'; from: PortRef; insertOn?: Ulid }
   | {
       do: 'cut' | 'copy' | 'duplicate' | 'delete';
       nodes: Ulid[];
@@ -237,12 +237,12 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         icon: 'warning',
         items: portItems(model, { node: id, port: p.port }),
       });
-  const next = edit ? freeOutput(model, id) : undefined;
+  const next = edit ? nextFrom(model, id) : undefined;
   if (next)
     design.push(
       item(
         'Add Next Node…',
-        { do: 'addNext', from: { node: id, port: next } },
+        { do: 'addNext', from: { node: id, port: next.port }, insertOn: next.insertOn },
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );

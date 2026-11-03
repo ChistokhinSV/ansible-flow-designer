@@ -6,13 +6,38 @@ import type { FlowDocument, NodeType, Position, Ulid } from '../flow/types';
 
 export type LensId = 'inventory' | 'data' | 'code' | 'access' | 'timing' | 'changes';
 
-export const LENSES: readonly { id: LensId; label: string }[] = [
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'data', label: 'Data' },
-  { id: 'code', label: 'Code' },
-  { id: 'access', label: 'Access' },
-  { id: 'timing', label: 'Timing' },
-  { id: 'changes', label: 'Changes' },
+/** Each lens with what it shows, in a newcomer's words (AFD-71: its tooltip). */
+export const LENSES: readonly { id: LensId; label: string; hint: string }[] = [
+  {
+    id: 'inventory',
+    label: 'Inventory',
+    hint: 'Which hosts each step runs on, counted in your inventory',
+  },
+  {
+    id: 'data',
+    label: 'Data',
+    hint: 'What each step reads and sets, with dotted wires from where each input comes',
+  },
+  {
+    id: 'code',
+    label: 'Code',
+    hint: 'What each step runs (module, role or playbook) and whether your environment has it',
+  },
+  {
+    id: 'access',
+    label: 'Access',
+    hint: 'Who each step acts as: credential, user, become, vaulted variables',
+  },
+  {
+    id: 'timing',
+    label: 'Timing',
+    hint: 'Batches, timeouts and measured durations, against the maintenance window',
+  },
+  {
+    id: 'changes',
+    label: 'Changes',
+    hint: 'What changed since another version of the flow: HEAD, a branch or a commit',
+  },
 ];
 
 export interface LensChip {

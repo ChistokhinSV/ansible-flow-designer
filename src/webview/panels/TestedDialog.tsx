@@ -14,7 +14,7 @@ export function TestedDialog() {
   return (
     <ReasonDialog
       id="afd-tested"
-      title="Accept with Reason"
+      title="Mark Tested"
       placeholder="e.g. Ran by hand on sw-lab-01 with the same parameters"
       submit="Mark Tested"
       target={target}

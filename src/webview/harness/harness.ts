@@ -54,7 +54,7 @@ const FLOWS: Record<string, string> = {
   // AFD-22: the bundled sample, and a flow as New Flow makes it (screenshots for the guides).
   'firewall-upgrade': firewallUpgrade,
   // Fixed IDs: the screenshots come out the same on every run.
-  new: newFlowText('Firewall upgrade', 'firewall-upgrade', fixedIds()),
+  new: newFlowText('NTP baseline', 'ntp-baseline', fixedIds()),
   'hand-written': handWritten,
   'edge-drift': edgeDrift,
   'awx-e2e': awxE2e,

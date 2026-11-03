@@ -31,9 +31,7 @@ export function EmptyLevel({ at }: { at: { x: number; y: number } }) {
   if (!shown) return null;
   const start = view.nodes.find((n) => n.node.type === 'start')?.node.id;
   // A new flow wires Start to End: the first step goes on that wire, between them.
-  const wire = view.edges.find((e) => e.source === start);
-  const addStep = () =>
-    wire ? useUi.getState().openQuickAdd({ type: 'task', insertOn: wire.id }) : addNode(start);
+  const addStep = () => addNode(start);
   const top = level === ROOT;
   return (
     <section

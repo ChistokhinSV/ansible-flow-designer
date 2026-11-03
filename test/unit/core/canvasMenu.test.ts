@@ -76,6 +76,13 @@ describe('canvas menu', () => {
     const portLabels = port?.type === 'submenu' ? labels(port.items) : [];
     expect(portLabels.some((l) => l.startsWith('Rollback'))).toBe(true);
     expect(portLabels).toContain('Accept with Reason…');
+    // AFD-71: precheck already continues on ok_hosts, so the next node goes onto that wire.
+    const next = find(entries, 'Add Next Node…');
+    expect(next?.type === 'item' && next.action).toMatchObject({
+      do: 'addNext',
+      from: { node: id('precheck'), port: 'ok_hosts' },
+      insertOn: expect.any(String),
+    });
   });
 
   it('a subflow opens first; start has no status, cut or duplicate', () => {

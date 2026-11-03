@@ -283,10 +283,6 @@
       "canvas": 12,
       "total": 41
     },
-    "actionsToFirstStep": [
-      "Add a Step",
-      "type the title",
-      "Enter"
-    ]
+    "actionsToFirstStep": ["Add a Step", "type the title", "Enter"]
   }
 }

@@ -247,3 +247,60 @@ describe('Details: Execution (AFD-26)', () => {
     ).toEqual(['Targeting', 'Privilege', 'Timing', 'Tags']);
   });
 });
+
+describe('Details: Execution per node kind (AFD-71)', () => {
+  it('a decision shows only what its play uses, no task keywords, and flags a set field it ignores', () => {
+    const decision = nodeOf('upgrade-needed');
+    const withRetries = {
+      ...doc,
+      nodes: doc.nodes.map((n) =>
+        n.id === decision.id ? { ...n, settings: { ...n.settings, retries: 3 } } : n,
+      ),
+    };
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(withRetries), docVersion: 2 }));
+    act(() => useUi.getState().openDetails(decision.id, 'execution'));
+    render(<Details id={decision.id} />);
+    expect(
+      [...document.querySelectorAll('[data-setting-group]')].map((g) =>
+        g.getAttribute('data-setting-group'),
+      ),
+    ).toEqual(['Targeting', 'Privilege', 'Timing', 'Tags']);
+    expect(screen.getByLabelText(/^Serial/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Max fail percentage/)).toBeNull();
+    expect(screen.queryByLabelText(/^Until/)).toBeNull();
+    // Timing has only the retries set by hand, with how to fix it.
+    expect(screen.getByLabelText(/^Retries/)).toBeTruthy();
+    expect(screen.getByText('Not used on a decision node: clear it.')).toBeTruthy();
+    expect(screen.queryByText(/Task keywords/)).toBeNull();
+  });
+
+  it('an approval keeps its timeout, as the AWX approval timeout', () => {
+    const approval = nodeOf('change-approval');
+    act(() => useUi.getState().openDetails(approval.id, 'execution'));
+    render(<Details id={approval.id} />);
+    expect(screen.getByLabelText(/How long the AWX approval waits/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Retries/)).toBeNull();
+  });
+});
+
+describe('Details: a step selected before it arrives (AFD-71)', () => {
+  it('fills in once the snapshot with the step comes, instead of staying blank', () => {
+    // Quick Add selects the new step on the ack; the snapshot that has it can come after.
+    const added: FlowNode = {
+      id: '01JDGKS00000000000000000NW',
+      key: 'check-ntp',
+      type: 'task',
+      title: 'Check NTP',
+    };
+    act(() => useUi.getState().openDetails(added.id, 'general'));
+    render(<Details id={added.id} />);
+    expect(screen.queryByRole('heading', { name: 'Check NTP' })).toBeNull();
+    act(() =>
+      useUi
+        .getState()
+        .setSnapshot({ ...snapshotOf({ ...doc, nodes: [...doc.nodes, added] }), docVersion: 2 }),
+    );
+    expect(screen.getByRole('heading', { name: 'Check NTP' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'General' })).toBeTruthy();
+  });
+});

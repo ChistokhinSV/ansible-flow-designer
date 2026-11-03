@@ -13,7 +13,8 @@ import { runProcess, splitInputs } from '../../core/run/command';
 import { summarizeRun } from '../../core/run/events';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { TIMEOUTS } from '../../node/timeouts';
-import { environmentFor, type ProbeManager, UNTRUSTED } from '../env/environment';
+import { environmentFor, type ProbeManager } from '../env/environment';
+import { showEnvironmentError } from '../env/setupEnvironment';
 import { CANCELLED } from '../errors';
 import { appendAudit } from './audit';
 import { collectInputs, targetsOf } from './inputs';
@@ -121,19 +122,10 @@ export async function runFlow(
 
   const env = environmentFor(folder.uri);
   if (!env.ok) {
-    const trust = env.error === UNTRUSTED;
-    void vscode.window
-      .showErrorMessage(env.error, trust ? 'Manage Workspace Trust' : 'Open Settings')
-      .then((pick) =>
-        !pick
-          ? undefined
-          : trust
-            ? vscode.commands.executeCommand('workbench.trust.manage')
-            : vscode.commands.executeCommand('workbench.action.openSettings', 'afd.environment'),
-      );
-    return fail(env.error);
+    showEnvironmentError(env.error, () => runFlow(document, deps, options));
+    return fail(env.error, 'environment');
   }
-  const inputs = await collectInputs(doc, options.inputs, deps.state);
+  const inputs = await collectInputs(doc, options.inputs, deps.state, options.mode === 'check');
   if (!inputs) return fail(CANCELLED, 'cancelled');
   const targets = targetsOf(doc, inputs);
   if (targets.length === 0) return fail('No target hosts: the targets input is empty');
