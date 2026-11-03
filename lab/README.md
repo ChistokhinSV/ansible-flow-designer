@@ -18,16 +18,20 @@ The inventory `AFD lab` holds fictional hosts: `h01`–`h06` and `sw-edge-01`–
 ## Setup
 
 1. Start the `snow_AWX` project and `ops1` (GNS3 MCP), then wait for AWX to answer.
-2. Tunnel the NodePort to Windows (keep it running):
+2. Tunnel the NodePort to Windows (keep it running). The loop reconnects after the PC sleeps, which drops the tunnel:
 
    ```bash
-   ssh -N -J gns3 -i ~/.ssh/fwup_lab -L 127.0.0.1:30080:localhost:30080 ubuntu@192.168.122.72
+   while true; do ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -J gns3 -i ~/.ssh/fwup_lab -L 127.0.0.1:30080:localhost:30080 ubuntu@192.168.122.72; sleep 10; done
    ```
 
-3. Git server on ops1 (once):
+3. Git server and clock sync on ops1 (once). While the PC sleeps the VM is paused and its clock falls behind; `ops1-timesync.sh` makes it resync within 2 minutes of a wake:
 
    ```bash
    ssh -J gns3 -i ~/.ssh/fwup_lab ubuntu@192.168.122.72 'sh -s' < lab/ops1-git-daemon.sh
+   ```
+
+   ```bash
+   ssh -J gns3 -i ~/.ssh/fwup_lab ubuntu@192.168.122.72 'sh -s' < lab/ops1-timesync.sh
    ```
 
 4. The EE image, built on the GNS3 VM's Docker engine and imported into k3s (Docker Desktop is off while GNS3 runs):
