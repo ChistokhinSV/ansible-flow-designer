@@ -18,8 +18,17 @@ Nothing here ships in the extension.
   `tasks.md` with the eight tasks counted again. Every node readable where it opens (62 of 62, was
   50; smallest title 13.2 px, was 6.2), wire labels at rest 24 (was 88, −73%), no overlapping
   labels (was 2), two labels on a node (was 3), every task doable with the keyboard only.
+- `wave4/` to `wave6/`: the same matrix after format 2, scenarios and shared subflows, and
+  annotations; nothing measured changed.
+- `wave7-start/` and `wave7/`: the first hour (AFD-71..74), before (0.45.0) and after (0.49.0).
+  `metrics.md` adds **Learnability**: the controls a newcomer takes in on a new flow, per region,
+  before and after the first step, and nodes the minimap covers. `wave7/tasks.md` counts the first
+  hour's tasks and the eight core tasks; `compare-*.png` put the screens side by side (`node
+  scripts/ux-baseline.mjs --compare wave7-start wave7`). A new flow shows 35 controls (was 46: top
+  bar 7, was 10; palette 10, was 17); readability, overlaps and builds are unchanged; the minimap
+  covers no node (was 1).
 - `a11y-checklist.md`: the accessibility checks for each surface, with the baseline and wave 3
-  results.
+  results, the annotations (wave 6) and the first hour (wave 7).
 
 Regenerate with `just ux-baseline <label>` (the harness in the installed Edge, fixed clock). After
 a UI change, write a new label (for example `just ux-baseline wave3`) and compare it with

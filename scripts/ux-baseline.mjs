@@ -4,10 +4,44 @@
 // adds learnability: the controls a newcomer takes in on a new flow, before and after a first step.
 // `just ux-baseline [label]` writes docs/ux/<label>/ (default `baseline`): PNGs, metrics.json and
 // metrics.md. Uses the webview harness in the installed Edge, with a fixed clock.
-import { mkdirSync, writeFileSync } from 'node:fs';
+// `node scripts/ux-baseline.mjs --compare <before> <after>` writes side-by-side images of the
+// first-hour screens into docs/ux/<after>/compare-*.png (wave 7).
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { host, log, openFlow, settle, startHarness, ui } from './harness-lib.mjs';
+
+/** The screens a newcomer meets, before and after, side by side (wave 7). */
+async function compare(before, after) {
+  const names = ['new-design-1280', 'new-first-step-1280', 'edge-baseline-design-1280'];
+  const browser = await chromium.launch({ channel: process.env.AFD_SHOTS_BROWSER ?? 'msedge' });
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 2600, height: 900 },
+      deviceScaleFactor: 1,
+    });
+    for (const name of names) {
+      const files = [before, after].map((l) => join('docs', 'ux', l, `${name}.png`));
+      if (!files.every((f) => existsSync(f))) continue;
+      const img = (f) => `data:image/png;base64,${readFileSync(f).toString('base64')}`;
+      const cell = (l, f) =>
+        `<figure><figcaption>${l}</figcaption><img src="${img(f)}" width="1280"></figure>`;
+      await page.setContent(
+        `<body style="margin:0;display:flex;gap:20px;padding:10px;font:16px sans-serif;background:#fff">${cell(before, files[0])}${cell(after, files[1])}</body>`,
+      );
+      const file = join('docs', 'ux', after, `compare-${name}.png`);
+      await page.screenshot({ path: file, fullPage: true });
+      log(`Wrote ${file}`);
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+if (process.argv[2] === '--compare') {
+  await compare(process.argv[3], process.argv[4]);
+  process.exit(0);
+}
 
 const label = process.argv[2] ?? 'baseline';
 const OUT = join('docs', 'ux', label);

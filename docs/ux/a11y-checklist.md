@@ -55,3 +55,20 @@ Notes, Sections and Text (AFD-65, ADR-0028). Checked with jsdom (`test/unit/webv
 | links open only through the host                                       | ✅ http(s) links found in the flow's annotations                                         |
 | colours meet contrast; forced colours show a border, not a tint        | ✅ theme token check; `19-motion-and-forced-colours.css`                                 |
 | a Section's body lets clicks, pan and box select through to the steps  | ✅ only its title bar and resize handles take the pointer                                |
+
+## First hour (wave 7, 0.49)
+
+Folds, the open-port banner, the Wire panel, the first-flow checklist and the Ansible Flows view
+(AFD-72, AFD-73). Checked with jsdom (`navigation`, `properties`, `canvas`, `firstFlow` tests) and in
+the harness.
+
+| Check                                                                     | Wave 7 (0.49)                                                                                                              |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| folds open and close with the keyboard; their summary says what is inside | ✅ native `<details>`: Tab to the summary, Enter or Space                                                                  |
+| a fold that holds a problem or a value opens by itself                    | ✅ an invalid key, a set setting, the branching types on a level that has them                                             |
+| the banner's question and choices are reached with Tab and named          | ✅ the step title is a link; patterns, Accept with Reason…, Other Choices and Next are buttons; `role=status`              |
+| the Wire panel says which hosts take the wire, in words                   | ✅ "Hosts that leave X by `port` go to Y", with the port's meaning                                                         |
+| the checklist is reached with Tab; Show Me says what it does              | ✅ `<details>` summary "Your first flow · n of 4"; each button is labelled "Show me: …"                                    |
+| "?" links are named                                                       | ✅ "Help: the General tab", "Help: failure patterns"…                                                                      |
+| the Ansible Flows view and its welcome are VS Code's own tree and links   | ✅                                                                                                                         |
+| port hints reach screen readers                                           | ⚠ in the tooltip (`title`) and the port menu header; a port's accessible name stays "Port failed_hosts, open: not handled" |
