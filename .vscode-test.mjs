@@ -32,6 +32,12 @@ for (const key of ['edge-baseline', 'os-upgrade']) {
     join(workspace, 'flows', key, `${key}.flow.yaml`),
   );
 }
+// AFD-74: the Hello sample, as Open Sample Flow… copies it.
+mkdirSync(join(workspace, 'flows', 'hello'), { recursive: true });
+copyFileSync(
+  join('samples', 'hello.flow.yaml'),
+  join(workspace, 'flows', 'hello', 'hello.flow.yaml'),
+);
 // M3: an Ansible repository around the flows (fictional inventory, stub roles), and the Docker
 // image for runs when AFD_TEST_IMAGE is set (run tests are skipped without it).
 cpSync('test/fixtures/engine/content', workspace, { recursive: true });

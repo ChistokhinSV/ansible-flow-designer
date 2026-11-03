@@ -29,6 +29,8 @@ async function portBox(page, node, port) {
 const SHOTS = {
   'new-flow': { flow: 'new' },
   canvas: { flow: 'firewall-upgrade', walk: true },
+  // AFD-74: the Hello sample, for the README and How flows work.
+  hello: { flow: 'hello' },
   'quick-add': {
     flow: 'new',
     walk: true,

@@ -10,6 +10,7 @@ import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers
 
 const EDGE = flowUri('edge-baseline');
 const OS = flowUri('os-upgrade');
+const HELLO = flowUri('hello');
 const docOf = (text: string) => parse(text) as FlowDocument;
 const generatedOf = (flow: vscode.Uri, name: string) =>
   vscode.Uri.joinPath(flow, '..', 'generated', name);
@@ -129,6 +130,24 @@ describe('M3 acceptance: code generation', () => {
     const both = ['sw-edge-01', 'sw-edge-02'];
     for (const key of ['precheck', 'backup-config', 'push-baseline', 'validate'])
       assert.deepEqual(run.summary?.nodes[id(key)]?.ok_hosts, both, key);
+    assert.deepEqual(run.summary?.outcome, {});
+  }).timeout(300_000);
+
+  it('AFD-74: the Hello sample runs as a skeleton on localhost, every step passing', async () => {
+    const doc = await openDesigner(HELLO);
+    const api = await testApi();
+    const run = await withTimeout(
+      api.runFlow(HELLO, { mode: 'check', inputs: { devices: ['localhost'] } }),
+      240_000,
+      'Hello skeleton run',
+    );
+    if (run.state !== 'done') throw new Error(JSON.stringify(run));
+    assert.equal(run.rc, 0);
+    const flow = docOf(doc.getText());
+    for (const key of ['ping', 'facts', 'say-hello']) {
+      const id = flow.nodes.find((n) => n.key === key)?.id as string;
+      assert.deepEqual(run.summary?.nodes[id]?.ok_hosts, ['localhost'], key);
+    }
     assert.deepEqual(run.summary?.outcome, {});
   }).timeout(300_000);
 

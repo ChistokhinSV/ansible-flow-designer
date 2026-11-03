@@ -142,7 +142,7 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'shared-edited': {
     meaning:
-      "A shared subflow (a copy of another flow's subflow, AFD-60) was changed here, so it no longer matches the version it was copied from; or it sits in a format 1 flow.",
+      "A shared subflow (a copy of another flow's subflow) was changed here, so it no longer matches the version it was copied from; or it sits in a format 1 flow.",
     fix: "Edit the source flow and Update, or Unlink to make the copy this flow's own.",
   },
   'shared-source': {

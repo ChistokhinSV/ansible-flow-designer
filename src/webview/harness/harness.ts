@@ -4,6 +4,7 @@
 import edgeBaseline from '../../../examples/edge-baseline.flow.yaml?raw';
 import osUpgrade from '../../../examples/os-upgrade.flow.yaml?raw';
 import firewallUpgrade from '../../../samples/firewall-upgrade.flow.yaml?raw';
+import hello from '../../../samples/hello.flow.yaml?raw';
 import awxImport from '../../../test/fixtures/awx/import/edge-upgrade.flow.yaml?raw';
 import awxJob from '../../../test/fixtures/awx/job-events.json';
 import awxE2e from '../../../test/fixtures/awx/repo/flows/awx-e2e/awx-e2e.flow.yaml?raw';
@@ -53,6 +54,8 @@ const FLOWS: Record<string, string> = {
   'os-upgrade': osUpgrade,
   // AFD-22: the bundled sample, and a flow as New Flow makes it (screenshots for the guides).
   'firewall-upgrade': firewallUpgrade,
+  // AFD-74: the smallest sample, for the README and How flows work.
+  hello,
   // Fixed IDs: the screenshots come out the same on every run.
   new: newFlowText('NTP baseline', 'ntp-baseline', fixedIds()),
   'hand-written': handWritten,

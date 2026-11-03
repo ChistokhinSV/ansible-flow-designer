@@ -90,3 +90,12 @@ Improvement program wave 3. The designer, the Command Palette and the guide used
 The hidden aliases for the ids before 0.25 (`ALIASES`, `registerAliases`) were removed in 0.28, as
 decided: two minor versions (0.25 to 0.27) of overlap. The commands reference lists the old ids
 with their new ones.
+
+## Amendment: a first hour (AFD-74, 2026-11-03)
+
+Wave 7 (ADR-0029, ADR-0030):
+- **Tutorials show the result first.** Tutorial 1 gets to a playbook after two steps, then the failures and a skeleton run, with about 12 concepts before the first output (about 45 before). Subflows open Tutorial 2.
+- **An explanation page,** `docs/guide/explanation/how-flows-work.md`, is linked from the index ("Understand") and the end of Tutorial 1. It explains the model: hosts on wires, a step is a play, the outcome, levels, skeleton runs.
+- **The smallest sample first:** `samples/hello.flow.yaml`, bound to builtin modules with no problems, sorts first in Open Sample Flow…. An integration test runs it as a skeleton on `localhost` in the Docker image. It was also checked in the public dev tools image (rc 0).
+- **One word list:** the glossary. The guide index links it, and the vocabulary test keeps ticket and milestone codes out of the guide, the walkthrough and the README's newcomer part.
+- **The README is the first page a newcomer reads** (and the Marketplace page). It covers what the extension is, a first flow in three steps, links and ten plain features; the complete list is `docs/guide/reference/features.md`.

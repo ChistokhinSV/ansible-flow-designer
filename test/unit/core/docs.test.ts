@@ -207,6 +207,12 @@ describe('samples', () => {
         .findings.filter((f) => f.severity === 'warning')
         .map((f) => f.code);
     expect(problems('firewall-upgrade.flow.yaml')).toEqual([]);
+    // AFD-74: the first sample a newcomer opens shows no problem at all.
+    const hello = parse(
+      readFileSync(join(ROOT, 'samples', 'hello.flow.yaml'), 'utf8'),
+    ) as FlowDocument;
+    expect(validateFlow(hello).findings).toEqual([]);
+    expect(hello.nodes.filter((n) => n.type === 'task').every((n) => n.impl?.ref)).toBe(true);
     // Tutorial 1 and the walkthrough's "handle every failure" step use these open ports.
     expect(problems('edge-baseline.flow.yaml')).toEqual([
       'open-fail-port',

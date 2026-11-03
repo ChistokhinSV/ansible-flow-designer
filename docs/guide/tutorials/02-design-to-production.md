@@ -1,13 +1,34 @@
 # Tutorial 2: from design to production
 
-**Goal:** take a designed flow to code that runs for real. You will bind steps to modules from your
-environment's catalog, pass data between steps (also across subflows), make a step poll until a
+**Goal:** take a designed flow to code that runs for real. You will group steps into a subflow,
+bind steps to modules from your environment's catalog, pass data between steps (also across subflows), make a step poll until a
 device is back, compare the design with the code, and run the flow for real.
 
 **Time:** 30 minutes. **You need:**
 - an Ansible environment with ansible-core 2.19 or later ([runs and
   environments](../how-to/runs-and-environments.md)), for the catalog and the runs;
 - [Tutorial 1](01-first-flow.md), or the basics of the canvas.
+
+## Group steps into a subflow
+
+Start with the NTP baseline flow from Tutorial 1. Keep a level short: "push" and "verify" belong
+together, so put them in one subflow.
+
+1. Add a step `Verify sync` after **Push NTP servers** (select it, press N).
+2. Click **Verify sync**, then Ctrl+click **Push NTP servers**.
+3. In the right panel, under **Extract into Subflow**, type the title `Apply baseline` and click
+   **Extract into Subflow**.
+
+![Two selected steps and Extract into Subflow](../images/extract-selection-light.png)
+
+The two steps move into a new **subflow** node, with their IDs, in one undo step. Wires that left
+them become the subflow's exits: hosts that fail in _Push NTP servers_ now leave through the
+subflow's `failed_hosts` to the notify handler. Double-click the subflow (or press Enter) to open
+it; **Back** (or Alt+↑) returns to the top. Saving now writes a second playbook,
+`generated/ntp-baseline.apply-baseline.yml`, for the subflow's level. See
+[subflows](../how-to/subflows.md).
+
+![The inner level of a subflow](../images/subflow-level-light.png)
 
 ## 1. Open the sample
 

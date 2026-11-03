@@ -10,12 +10,13 @@ playbooks are generated from it.
 
 ## Start here
 
-- New to the designer? Follow **[Tutorial 1: your first flow](tutorials/01-first-flow.md)** (15
-  minutes, no Ansible needed until the last step).
-- Prefer to click through? **Ansible Flow: Get Started** in the Command Palette opens the
-  walkthrough on VS Code's Welcome page.
-- Want something to look at first? **Ansible Flow: Open Sample Flow…** copies a sample into your
-  folder.
+- New to the designer? Follow **[Tutorial 1: your first flow](tutorials/01-first-flow.md)** (10
+  minutes: a playbook after two steps, no Ansible needed until the last step).
+- Prefer to click through? The **Ansible Flows** icon in the Activity Bar, or **Ansible Flow: Get
+  Started** in the Command Palette, which opens the walkthrough on VS Code's Welcome page.
+- Want something to look at first? **Open Sample Flow…** → **Hello, Ansible**: three steps that
+  run on `localhost`.
+- What is going on? **[How flows work](explanation/how-flows-work.md)**: hosts, wires, plays.
 - Already have playbooks? Follow **[Tutorial 5: bring existing playbooks into flows](tutorials/05-import-playbooks.md)**,
   or right-click a playbook or folder → **Import Ansible Playbooks…**.
 
@@ -23,11 +24,16 @@ playbooks are generated from it.
 
 | Tutorial                                                                   | You will                                                                                                        | Time   |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------ |
-| [1. Your first flow](tutorials/01-first-flow.md)                           | create a flow, add steps, handle failures, use a subflow, run a skeleton                                        | 15 min |
-| [2. From design to production](tutorials/02-design-to-production.md)       | bind modules, pass data between steps, poll a device, compare with the code, run for real                       | 30 min |
+| [1. Your first flow](tutorials/01-first-flow.md)                           | create a flow, add two steps, see the playbook, handle failures, run a skeleton                                 | 10 min |
+| [2. From design to production](tutorials/02-design-to-production.md)       | use a subflow, bind modules, pass data between steps, poll a device, compare with the code, run for real        | 30 min |
 | [3. AWX end to end](tutorials/03-awx-end-to-end.md)                        | set up a template, run approvals as an AWX workflow, follow the run, import a workflow                          | 30 min |
 | [4. With an AI assistant](tutorials/04-ai-assistant.md)                    | let Copilot or Claude Code build and fix a flow                                                                 | 20 min |
 | [5. Bring existing playbooks into flows](tutorials/05-import-playbooks.md) | import playbooks as is, find blocks, roles and handlers on the canvas, run them, let an assistant redesign them | 25 min |
+
+## Understand
+
+- [How flows work](explanation/how-flows-work.md): hosts travel along wires, a step is a play, how
+  failures end, what a skeleton run is.
 
 ## How-to pages
 
@@ -66,18 +72,6 @@ playbooks are generated from it.
 - [Settings](reference/settings.md)
 - [Problem codes](reference/problems.md)
 - [Flow file format](reference/flow-format.md)
+- [Glossary](reference/glossary.md): every word the designer and this guide use
+- [Features](reference/features.md): everything the extension does, in one list
 - [Troubleshooting](troubleshooting.md)
-
-## Words used in this guide
-
-| Word                | Meaning                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **flow**            | One `*.flow.yaml` file: the diagram, its inputs and its decisions                                                        |
-| **node** / **step** | A box on the canvas: task, subflow, decision, approval, parallel, join, start or end                                     |
-| **port**            | Where hosts leave a node (`ok_hosts`, `failed_hosts`, `unreachable`, `true`, `approved`, …) or enter it (`in`)           |
-| **wire**            | Hosts that leave one port go to the next node                                                                            |
-| **fail port**       | A port for hosts that failed: `failed_hosts`, `unreachable`, `timeout`, `rejected`. Each one needs a handler or a reason |
-| **level**           | The top of the flow, or the inside of a subflow                                                                          |
-| **binding**         | The module, role or playbook a step runs                                                                                 |
-| **skeleton run**    | `ansible-playbook --check` of the generated code; unbound steps print TODO                                               |
-| **status**          | draft → specified (has inputs or outputs) → implemented (bound) → tested (a real run passed, or a reason by hand)        |

@@ -143,7 +143,10 @@ async function samples(root: vscode.Uri): Promise<Sample[]> {
     const flow = parseFlow(text).doc?.flow;
     if (flow?.key) out.push({ file, key: flow.key, name: flow.name, goal: flow.goal ?? '' });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  // AFD-74: Hello, Ansible first: the smallest flow, the one to start with.
+  return out.sort(
+    (a, b) => Number(b.key === 'hello') - Number(a.key === 'hello') || a.name.localeCompare(b.name),
+  );
 }
 
 /** No folder is open: say why one is needed and offer to open one (AFD-71). */

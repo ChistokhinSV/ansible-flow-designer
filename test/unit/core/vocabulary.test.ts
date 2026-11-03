@@ -97,6 +97,19 @@ describe('vocabulary (AFD-41)', () => {
     }
   });
 
+  it('no ticket or milestone codes in the guide, the walkthrough or the README a newcomer reads (AFD-74)', () => {
+    const codes = [/\bAFD-\d+\b/, ...CODES];
+    const found: string[] = [];
+    for (const path of PAGES) {
+      let text = readFileSync(path, 'utf8');
+      // The README's developer part (Repository, Development) may name tickets and decisions.
+      if (path.endsWith('README.md') && !path.includes('docs'))
+        text = text.split('## Repository')[0] ?? '';
+      for (const code of codes) if (code.test(text)) found.push(`${relative(ROOT, path)} ${code}`);
+    }
+    expect(found.join('\n')).toBe('');
+  });
+
   it('the guide and the walkthrough use the glossary words', () => {
     const found: string[] = [];
     for (const path of PAGES) {

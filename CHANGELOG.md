@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.49.0 — AFD-74
+
+Wave 7, a gentler first hour, part 4: docs and samples for a newcomer.
+
+- **Hello, Ansible:** a new sample, first in Open Sample Flow…: three steps bound to builtin modules (reach each host, read a few facts, say hello), every failure handled, no problems, and it runs on `localhost` as a skeleton.
+- **Tutorial 1 shows the result first:** a playbook after two steps, then the banner's question about failures, then a skeleton run on `localhost`, in about ten minutes. Subflows moved to the start of Tutorial 2.
+- **How flows work:** a new page on what happens to the hosts: they travel along wires, a step is a play, how failures end, what a skeleton run is, with the Hello flow, its YAML and its play.
+- **The glossary** has the words the designer uses (node kinds, fail port, failure pattern, intent, key, skeleton run, Ansible environment, palette, banner, Quick Add, Peek Code and more), and the guide's index links it instead of its own word list.
+- **The README starts with a first flow** in three steps; the full feature list moved to the guide (Reference › Features), without ticket codes.
+
 ## 0.48.0 — AFD-73
 
 Wave 7, a gentler first hour, part 3: a guided first flow.
