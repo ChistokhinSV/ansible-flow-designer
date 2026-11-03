@@ -478,13 +478,13 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "markdownDescription": "Python with ansible-core 2.19+ for local mode (and inside WSL). Empty: `ansible.python.interpreterPath`, else `python3`."
+          "markdownDescription": "Python with ansible-core 2.19+ for local mode and inside WSL. Empty: local mode uses `ansible.python.interpreterPath`, else `python3`; WSL uses the Python that runs `ansible-playbook` there (a pipx venv too)."
         },
         "afd.environment.wslDistro": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "markdownDescription": "The WSL distribution that runs Ansible when `afd.environment.kind` is `wsl` (as `wsl -l` lists it, e.g. `Ubuntu-24.04`). Empty: WSL's default distribution."
+          "markdownDescription": "The WSL distribution that runs Ansible when `afd.environment.kind` is `wsl` (as `wsl -l` lists it, e.g. `Ubuntu-24.04`). Empty: WSL's default distribution, which may be Docker Desktop's `docker-desktop`, with no Ansible."
         },
         "afd.run.inventory": {
           "type": "string",

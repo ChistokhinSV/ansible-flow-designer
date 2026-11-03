@@ -9,13 +9,13 @@ import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
 import type { DomSummary } from '../../src/core/protocol';
-import { closeAll, openDesigner, testApi, withTimeout } from './helpers';
+import { closeAll, openDesigner, runEnvironment, testApi, withTimeout } from './helpers';
 
 /** The repository (the bundle runs from out/test/integration). */
 const REPO = resolve(__dirname, '../../..');
 const EXPORT = join(REPO, 'test/fixtures/awx/import/export.json');
 const OUTER = 'AFD fixture · edge upgrade';
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 const url = process.env.AFD_AWX_URL;
 const token = process.env.AFD_AWX_TOKEN;
 const root = () => vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;

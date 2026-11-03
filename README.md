@@ -122,6 +122,7 @@ just install
 | `just fmt`                       | Apply Biome formatting and safe fixes                                                |
 | `just test [args]`               | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer          |
 | `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)            |
+| `just test-wsl distro [version]` | The integration tests with their run tests in a WSL distribution (Windows, AFD-75)   |
 | `just perf [version]`            | Performance suite on the production bundle                                           |
 | `just test-yaml [version]`       | With the Red Hat YAML extension installed: flows are validated by our schema (AFD-5) |
 | `just test-engine [images]`      | Generated code runs with simulated outcomes in each Ansible image (Docker)           |
@@ -145,7 +146,7 @@ just install
 | `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |
 | `just package`                   | Build the VSIX into `out/`                                                           |
 
-`AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration tests that need the image: real skeleton runs (M3), the real catalog dump (M5) and a real Re-sync (M6); they are skipped without it. The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
+`AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration tests that need the image: real skeleton runs (M3), the real catalog dump (M5) and a real Re-sync (M6); they are skipped without it. `just test-wsl Ubuntu-24.04` runs the same tests in that WSL distribution instead (`AFD_TEST_WSL`); it needs ansible-core there. The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
 
 Press F5 in VS Code to start an Extension Development Host with `examples/` open. _Run Extension (other extensions off)_ starts faster: only this extension runs. The debugger reads the host bundles' source maps only, so the first start under the debugger stays well within VS Code's 10-second limit (AFD-18 follow-up). The harness runs the real webview against an in-page fake host (`?flow=edge-baseline|os-upgrade`, `&theme=light|dark|hc`) for visual checks without VS Code.
 

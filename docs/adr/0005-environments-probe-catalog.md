@@ -34,10 +34,13 @@ Wave 7 (learnability): a newcomer on native Windows met a bare error on the firs
 
 The product owner asked for WSL next to the Docker EE. Before this, WSL worked only through VS Code's WSL extension, with the whole extension host inside WSL (local mode).
 
-- **A third kind:** `afd.environment.kind: wsl`, with `afd.environment.wslDistro` (empty: WSL's default distribution). It is chosen only when set, by hand or by the setup; `auto` never picks it. On another platform it fails with `wsl-not-windows`. `afd.environment.python` is the interpreter inside the distribution.
+- **A third kind:** `afd.environment.kind: wsl`, with `afd.environment.wslDistro` (empty: WSL's default distribution). It is chosen only when set, by hand or by the setup; `auto` never picks it. On another platform it fails with `wsl-not-windows`. `afd.environment.python`, when set, is the interpreter inside the distribution.
 - **Command lines** (`core/run/command.ts`):
-  - the probe is `wsl.exe [-d <distro>] --cd <root> -- env PYTHONPATH=… python3 -m afd_probe serve --root <root>`;
-  - runs are the same `sh -c` script as local and container runs, behind `wsl.exe … -- env <the run's variables>`.
+  - the probe is `wsl.exe [-d <distro>] --cd <root> -e sh -c '<profile>; <python>; exec env PYTHONPATH=… $p -m afd_probe serve --root <root>'`;
+  - runs are the same `sh -c` script as local and container runs, after `<profile>`, behind `wsl.exe … -e env <the run's variables>`;
+  - `-e`, not `--`: after `--`, wsl.exe hands the words to the default shell, which parses them again (`$vp` in the vault script expanded too early, quotes in secret JSON lost; found on the first real run, 2026-11-03);
+  - `<profile>` sources `/etc/profile` and `~/.profile` with their output discarded: the login PATH (pipx's `~/.local/bin`) without text on the probe's protocol channel;
+  - `<python>` reads the interpreter from `ansible-playbook`'s `#!` line (else `python3`): pipx keeps ansible-core in its own venv, where plain `python3` cannot import it. `afd.environment.python` replaces it.
 - **Paths:** `wslPath` turns `C:\x` into `/mnt/c/x` and `\\wsl$\<distro>\x` (or `wsl.localhost`) into `/x`. `insidePaths(env, …)` gives the repository, probe, run and cache folders as each kind sees them (the container's fixed mounts, WSL's `/mnt`, or as they are). It serves the probe's path mapping back to the host (`ProbeClient` gets the inside root), the catalog cache, and the scenario runner.
 - **Secrets:** a vault password and secret inputs stay environment variables only. `WSLENV` lists just those names (`AFD_VAULT_PASSWORD/u`, `AFD_SECRET_VARS/u`), joined to a `WSLENV` already set. No value is ever an argument.
 - **`ansible.cfg`:** DrvFs makes Windows drives world-writable inside WSL, and Ansible would ignore the file there; `ANSIBLE_CONFIG` names it, as for Docker Desktop mounts.

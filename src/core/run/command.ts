@@ -66,10 +66,27 @@ export function insidePaths(
   return paths;
 }
 
-/** `wsl.exe` up to the command it runs: the distribution, and the folder to start in. */
+/**
+ * `wsl.exe` up to the command it runs: the distribution, the folder to start in, and `-e`, which
+ * passes the words as they are (after `--` the default shell parses them again, so `$x` in our
+ * scripts would expand too early).
+ */
 function wslArgs(env: Extract<Environment, { kind: 'wsl' }>, cwd: string): string[] {
-  return [...(env.distro ? ['-d', env.distro] : []), '--cd', cwd, '--'];
+  return [...(env.distro ? ['-d', env.distro] : []), '--cd', cwd, '-e'];
 }
+
+/**
+ * The login PATH (pipx puts ansible in ~/.local/bin) without a login shell's output, which would
+ * garble the probe's protocol on stdout.
+ */
+const WSL_PROFILE =
+  'for f in /etc/profile "$HOME/.profile"; do [ -r "$f" ] && . "$f"; done >/dev/null 2>&1';
+
+/**
+ * `$p`: the interpreter on ansible-playbook's #! line, else python3. Used unquoted, so a line like
+ * `/usr/bin/env python3` stays two words.
+ */
+const WSL_ANSIBLE_PYTHON = `p=$(sed -n '1s/^#! *//p' "$(command -v ansible-playbook)" 2>/dev/null); [ -n "$p" ] || p=python3`;
 
 /** Shell-quotes one word for `sh -c`. */
 export function shQuote(word: string): string {
@@ -99,11 +116,17 @@ export function probeProcess(env: Environment, paths: Paths, name: string): Proc
     return { command: env.engine, args, env: {} };
   }
   if (env.kind === 'wsl') {
-    // `env` sets the variables inside the distribution; WSLENV is only for values from Windows.
+    // The variables are set inside the distribution; WSLENV is only for values from Windows.
     const inside = insidePaths(env, paths);
-    const vars = [`PYTHONPATH=${inside.probe}`, 'PYTHONDONTWRITEBYTECODE=1'];
-    const args = [...wslArgs(env, inside.root), 'env', ...vars, env.python, ...tail, inside.root];
-    return { command: 'wsl.exe', args, env: {} };
+    const python = env.python ? shQuote(env.python) : '$p';
+    const vars = `PYTHONPATH=${shQuote(inside.probe)} PYTHONDONTWRITEBYTECODE=1`;
+    const serve = `exec env ${vars} ${python} ${[...tail, inside.root].map(shQuote).join(' ')}`;
+    const script = [WSL_PROFILE, ...(env.python ? [] : [WSL_ANSIBLE_PYTHON]), serve].join('; ');
+    return {
+      command: 'wsl.exe',
+      args: [...wslArgs(env, inside.root), 'sh', '-c', script],
+      env: {},
+    };
   }
   return {
     command: env.python,
@@ -213,7 +236,7 @@ export function runProcess(
     const vars = Object.entries(variables).map(([k, v]) => `${k}=${v}`);
     return {
       command: 'wsl.exe',
-      args: [...wslArgs(env, root), 'env', ...vars, 'sh', '-c', script],
+      args: [...wslArgs(env, root), 'env', ...vars, 'sh', '-c', `${WSL_PROFILE}; ${script}`],
       env: pass.length ? { WSLENV: pass.join(':') } : {},
     };
   }

@@ -9,10 +9,10 @@ import { parse } from 'yaml';
 import { computeDrift } from '../../src/core/drift/drift';
 import type { CodeScan } from '../../src/core/drift/types';
 import type { FlowDocument } from '../../src/core/flow/types';
-import { closeAll, flowUri, openDesigner, testApi } from './helpers';
+import { closeAll, flowUri, openDesigner, runEnvironment, testApi } from './helpers';
 
 const DRIFT = flowUri('edge-drift');
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 const root = () => vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
 const at = (path: string) => vscode.Uri.joinPath(root(), path);
 const docOf = (text: string) => parse(text) as FlowDocument;

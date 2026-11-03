@@ -55,7 +55,12 @@ test-yaml $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label yaml
 
-# Run mode against the lab AWX (M7): AFD_AWX_* from the environment or .env, the tunnel to AWX open
+# The integration suite with its run tests in a WSL distribution with Ansible (AFD-75; Windows)
+test-wsl $AFD_TEST_WSL $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label integration
+
+# Run mode against the lab AWX (M7): AFD_AWX_* from the environment or .env (the VM afd-awx)
 test-awx $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label m7

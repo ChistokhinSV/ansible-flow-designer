@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { optionA } from '../../src/core/engine/optionA';
 import type { FlowDocument } from '../../src/core/flow/types';
-import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers';
+import { closeAll, flowUri, openDesigner, runEnvironment, testApi, withTimeout } from './helpers';
 
 const EDGE = flowUri('edge-baseline');
 const OS = flowUri('os-upgrade');
@@ -14,7 +14,7 @@ const HELLO = flowUri('hello');
 const docOf = (text: string) => parse(text) as FlowDocument;
 const generatedOf = (flow: vscode.Uri, name: string) =>
   vscode.Uri.joinPath(flow, '..', 'generated', name);
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 
 async function saveAndGenerate(uri: vscode.Uri) {
   const api = await testApi();

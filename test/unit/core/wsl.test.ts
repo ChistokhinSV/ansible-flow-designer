@@ -35,7 +35,7 @@ describe('the WSL environment (AFD-75)', () => {
   it('is for Windows, and names its distribution or WSL default one', () => {
     expect(resolved).toEqual({
       ok: true,
-      env: { kind: 'wsl', distro: 'Debian', python: 'python3', label: 'wsl: Debian' },
+      env: { kind: 'wsl', distro: 'Debian', python: undefined, label: 'wsl: Debian' },
     });
     expect(resolveEnvironment(afd(), {}, 'win32')).toMatchObject({
       ok: true,
@@ -47,27 +47,34 @@ describe('the WSL environment (AFD-75)', () => {
     });
   });
 
-  it('probe: wsl.exe in the distribution, from the repository, the probe on /mnt', () => {
-    expect(probeProcess(env, paths, 'n')).toEqual({
-      command: 'wsl.exe',
-      args: [
-        '-d',
-        'Debian',
-        '--cd',
-        '/mnt/c/HOME/my repo',
-        '--',
-        'env',
-        'PYTHONPATH=/mnt/c/ext/probe',
-        'PYTHONDONTWRITEBYTECODE=1',
-        'python3',
-        '-m',
-        'afd_probe',
-        'serve',
-        '--root',
-        '/mnt/c/HOME/my repo',
-      ],
-      env: {},
-    });
+  // wsl.exe -e passes the words as they are; after `--` bash would parse the script once more.
+  const START = ['-d', 'Debian', '--cd', '/mnt/c/HOME/my repo', '-e'];
+  const PROFILE =
+    'for f in /etc/profile "$HOME/.profile"; do [ -r "$f" ] && . "$f"; done >/dev/null 2>&1; ';
+
+  it('probe: from the repository, with the login PATH and the Python of ansible-playbook', () => {
+    const spec = probeProcess(env, paths, 'n');
+    expect(spec).toMatchObject({ command: 'wsl.exe', env: {} });
+    expect(spec.args.slice(0, 7)).toEqual([...START, 'sh', '-c']);
+    expect(spec.args).toHaveLength(8);
+    const script = spec.args[7] ?? '';
+    expect(script.startsWith(PROFILE)).toBe(true);
+    // pipx keeps ansible-core in its own venv: its python is on ansible-playbook's #! line.
+    expect(script).toContain(
+      `p=$(sed -n '1s/^#! *//p' "$(command -v ansible-playbook)" 2>/dev/null); [ -n "$p" ] || p=python3; `,
+    );
+    expect(
+      script.endsWith(
+        "; exec env PYTHONPATH=/mnt/c/ext/probe PYTHONDONTWRITEBYTECODE=1 $p -m afd_probe serve --root '/mnt/c/HOME/my repo'",
+      ),
+    ).toBe(true);
+  });
+
+  it('probe: afd.environment.python names the interpreter instead', () => {
+    const own = resolveEnvironment(afd({ python: '/opt/ansible/bin/python' }), {}, 'win32');
+    const script = (own.ok ? probeProcess(own.env, paths, 'n') : undefined)?.args.at(-1) ?? '';
+    expect(script).not.toContain('sed -n');
+    expect(script).toContain(' PYTHONDONTWRITEBYTECODE=1 /opt/ansible/bin/python -m afd_probe ');
   });
 
   it('run: the same script, its paths on /mnt, secrets only through WSLENV', () => {
@@ -85,14 +92,9 @@ describe('the WSL environment (AFD-75)', () => {
       'n',
     );
     expect(spec.command).toBe('wsl.exe');
-    expect(spec.args.slice(0, 6)).toEqual([
-      '-d',
-      'Debian',
-      '--cd',
-      '/mnt/c/HOME/my repo',
-      '--',
-      'env',
-    ]);
+    expect(spec.args.slice(0, 6)).toEqual([...START, 'env']);
+    expect(spec.args.slice(-3, -1)).toEqual(['sh', '-c']);
+    expect(spec.args.at(-1)?.startsWith(PROFILE)).toBe(true);
     expect(spec.args).toContain('AFD_EVENTS=/mnt/c/runs/1/events.jsonl');
     expect(spec.args).toContain('ANSIBLE_CONFIG=/mnt/c/HOME/my repo/ansible.cfg');
     expect(spec.args).toContain('ANSIBLE_CALLBACK_PLUGINS=/mnt/c/ext/probe/callback_plugins');

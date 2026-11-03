@@ -9,10 +9,10 @@ import { parse } from 'yaml';
 import type { CollectionFile, SearchHit } from '../../src/core/catalog/types';
 import type { FlowDocument } from '../../src/core/flow/types';
 import type { CatalogDoc, CatalogStatus } from '../../src/core/protocol';
-import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers';
+import { closeAll, flowUri, openDesigner, runEnvironment, testApi, withTimeout } from './helpers';
 
 const EDGE = flowUri('edge-baseline');
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 const FIXTURES = join(__dirname, '../../../test/fixtures/catalog/files');
 const files = readdirSync(FIXTURES)
   .filter((f) => f.endsWith('.json'))

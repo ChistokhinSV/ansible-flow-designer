@@ -39,8 +39,11 @@ export type Environment =
       label: string;
     }
   | { kind: 'local'; python: string; source: 'afd' | 'redhat.ansible' | 'default'; label: string }
-  /** AFD-75: Ansible inside a WSL distribution, started with wsl.exe from Windows. */
-  | { kind: 'wsl'; distro?: string; python: string; label: string };
+  /**
+   * AFD-75: Ansible inside a WSL distribution, started with wsl.exe from Windows. Without `python`
+   * the probe uses the Python that runs ansible-playbook (pipx keeps ansible-core in its own venv).
+   */
+  | { kind: 'wsl'; distro?: string; python?: string; label: string };
 
 /** Why no environment resolves; set up with Set Up Ansible Environment… (AFD-71). */
 export type EnvironmentProblem = 'no-image' | 'windows-native' | 'wsl-not-windows';
@@ -70,11 +73,8 @@ export function resolveEnvironment(
         code: 'wsl-not-windows',
       };
     const distro = afd.wslDistro.trim() || undefined;
-    const python = afd.python || 'python3';
-    return {
-      ok: true,
-      env: { kind: 'wsl', distro, python, label: `wsl: ${distro ?? 'the default distribution'}` },
-    };
+    const label = `wsl: ${distro ?? 'the default distribution'}`;
+    return { ok: true, env: { kind: 'wsl', distro, python: afd.python || undefined, label } };
   }
   const redhatImage = redhat.eeEnabled && redhat.image ? redhat.image : undefined;
   const container =

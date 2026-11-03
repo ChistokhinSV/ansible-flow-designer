@@ -26,10 +26,20 @@ are empty. `afd.environment.containerOptions` adds `docker run` arguments, e.g. 
 keys: `["-v", "/home/jane/.ssh:/home/ansible/.ssh:ro"]`.
 
 **WSL:** the distribution sees your drives under `/mnt` (`C:\repo` is `/mnt/c/repo`), so the
-repository stays on Windows. WSL 1 and WSL 2 both work. Runs on `/mnt` are slower than on Linux
-disks, and SSH keys and `~/.ansible` come from your home folder in the distribution, not from
-Windows. Because Windows drives look writable to everyone inside WSL, Ansible would ignore the
-repository's `ansible.cfg`; the extension names it explicitly, as it does for containers.
+repository stays on Windows. WSL 1 and WSL 2 both work. Install Ansible there as on Linux, e.g.
+`pipx install ansible-core`, and the collections your flows use (`ansible-galaxy collection
+install cisco.ios`): an image brings them, a distribution does not. The extension uses the PATH of
+a login shell (so `~/.local/bin` counts) and the Python on the first line of `ansible-playbook`,
+so a pipx venv needs no setting (`afd.environment.python` overrides it). Name the distribution:
+with Docker Desktop, WSL's default may be `docker-desktop`, which has no Ansible.
+
+Runs on `/mnt` are slower than on Linux disks. SSH keys and `~/.ansible` come from your home folder
+in the distribution, not from Windows: keep keys there with `chmod 600`, as ssh refuses a key under
+`/mnt/c`, which looks readable to everyone. For the same reason Ansible would ignore the
+repository's `ansible.cfg`; the extension names it explicitly, as it does for containers. WSL 1
+shares the network of Windows: an antivirus that inspects HTTPS breaks downloads in WSL 1 (apt,
+`ansible-galaxy`, `get_url`) until the distribution trusts the antivirus's root certificate. WSL 2
+is not affected.
 
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.

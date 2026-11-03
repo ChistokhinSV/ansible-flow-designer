@@ -10,12 +10,12 @@ import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
 import type { LensId } from '../../src/core/lens/types';
 import type { DomSummary } from '../../src/core/protocol';
-import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers';
+import { closeAll, flowUri, openDesigner, runEnvironment, testApi, withTimeout } from './helpers';
 
 const LENS = flowUri('lens-e2e');
 /** The repository (the bundle runs from out/test/integration). */
 const REPO = resolve(__dirname, '../../..');
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function idOf(key: string): Promise<string> {

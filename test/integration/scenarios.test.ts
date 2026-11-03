@@ -5,9 +5,9 @@ import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import type { ScenarioResult } from '../../src/core/scenario/scenarios';
-import { closeAll, withTimeout } from './helpers';
+import { closeAll, runEnvironment, withTimeout } from './helpers';
 
-const image = process.env.AFD_TEST_IMAGE;
+const image = runEnvironment;
 /** The repository (the bundle runs from out/test/integration). */
 const REPO = resolve(__dirname, '../../..');
 

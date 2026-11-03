@@ -62,8 +62,12 @@ writeFileSync(
     '',
   ].join('\n'),
 );
+// AFD-75: or in the WSL distribution AFD_TEST_WSL (just test-wsl <distro>).
 const settings = {
   ...(process.env.AFD_TEST_IMAGE ? { 'afd.environment.image': process.env.AFD_TEST_IMAGE } : {}),
+  ...(process.env.AFD_TEST_WSL
+    ? { 'afd.environment.kind': 'wsl', 'afd.environment.wslDistro': process.env.AFD_TEST_WSL }
+    : {}),
   ...(process.env.AFD_AWX_URL ? { 'afd.awx.url': process.env.AFD_AWX_URL } : {}),
 };
 if (Object.keys(settings).length > 0) {

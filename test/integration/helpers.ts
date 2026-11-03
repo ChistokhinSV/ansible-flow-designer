@@ -6,6 +6,14 @@ import type { AfdTestApi } from '../../src/extension/extension';
 export const VIEW_TYPE = 'afd.flowEditor';
 let api: AfdTestApi | undefined;
 
+/**
+ * Where the run tests run: the Docker image AFD_TEST_IMAGE, or the WSL distribution AFD_TEST_WSL
+ * (AFD-75; .vscode-test.mjs sets the environment). Neither set skips them.
+ */
+export const runEnvironment =
+  process.env.AFD_TEST_IMAGE ??
+  (process.env.AFD_TEST_WSL ? `WSL ${process.env.AFD_TEST_WSL}` : undefined);
+
 export async function testApi(): Promise<AfdTestApi> {
   if (api) return api;
   const ext = vscode.extensions.getExtension<AfdTestApi>('afd-dev.ansible-flow-designer');
