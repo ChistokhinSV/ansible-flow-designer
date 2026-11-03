@@ -61,7 +61,7 @@ All commands run in Git Bash on the Windows host, from the repository root.
 
    The AWX project reads the Git server at the AWX host (`git://192.168.0.152/afd-lab.git`); `AFD_AWX_GIT_URL` names another one.
 
-5. AWX objects:
+5. AWX objects. On a new VM the lab Git repository is empty: the first `--sync` creates the objects, but its project update fails. Run `just test-awx` once (it pushes the test workspace to the lab remote), then `--sync` again:
 
    ```bash
    just awx-lab --sync
