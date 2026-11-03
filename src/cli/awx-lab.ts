@@ -10,7 +10,7 @@ const EE = {
   image: 'docker.io/library/afd-awx-ee:2.19',
   pull: 'never',
 };
-const PROJECT = { name: 'AFD lab', scm_url: 'git://10.10.10.10/afd-lab.git', scm_branch: 'main' };
+const PROJECT = { name: 'AFD lab', scm_branch: 'main' };
 const INVENTORY = 'AFD lab';
 const LOCAL =
   'ansible_connection: local\nansible_python_interpreter: "{{ ansible_playbook_python }}"\n';
@@ -67,14 +67,18 @@ async function main() {
     organization: null,
     description: 'afd-ee + ansible-runner (docker/afd-awx-ee.Dockerfile)',
   });
+  // AFD-76: the lab Git server runs on the AWX VM itself, so its pods reach it at the AWX host;
+  // AFD_AWX_GIT_URL names it otherwise.
+  const scmUrl = process.env.AFD_AWX_GIT_URL ?? `git://${new URL(url).hostname}/afd-lab.git`;
   const project = await upsert<AwxProject>(awx, 'projects', {
     ...PROJECT,
+    scm_url: scmUrl,
     scm_type: 'git',
     organization: org.id,
     scm_update_on_launch: true,
     scm_clean: true,
     default_environment: ee.id,
-    description: 'Lab Git server on ops1 (lab/ops1-git-daemon.sh)',
+    description: 'Lab Git server on the AWX VM (lab/ops1-git-daemon.sh)',
   });
   const inv = await upsert<AwxNamed>(awx, 'inventories', {
     name: INVENTORY,

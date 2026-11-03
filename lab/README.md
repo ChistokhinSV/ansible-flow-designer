@@ -1,62 +1,74 @@
-# Lab: AWX and Docker suites in GNS3 (M7)
+# Lab: AWX and Docker suites (M7)
 
-Run mode is tested against a real AWX in the GNS3 lab (ADR-0013). Everything here is lab-only: fictional hosts, no production data.
+Run mode is tested against a real AWX (ADR-0013). Everything here is lab-only: fictional hosts, no production data.
+
+Since AFD-76 the AWX is its own VMware Workstation VM, `afd-awx`, outside GNS3. AWX needs no nested virtualization (k3s runs containers), so it keeps running while Hyper-V is on for WSL 2, when GNS3's KVM nodes cannot start. `ops1` in the GNS3 project `snow_AWX` stays as it is for the FortiGate work of the 119 project.
 
 ## Pieces
 
-| What                                                                  | Where                                                                                          |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| AWX 24.6.1 on k3s (awx-operator 2.19.1), NodePort 30080               | `ops1` in the GNS3 project `snow_AWX` (management network `10.10.10.0/24`, ops1 `10.10.10.10`) |
-| Git server for the AWX project (`git daemon`, port 9418, `/srv/git`)  | `ops1`, set up by `lab/ops1-git-daemon.sh`                                                     |
-| `afd-awx-ee:2.19` (ansible-core 2.19 + ansible-runner)                | built with `just awx-ee-build`, imported into k3s                                              |
-| EE, project `AFD lab` and inventory `AFD lab`                         | `just awx-lab [--sync]`                                                                        |
-| Import fixtures (M9): `AFD fixture ·` job templates and two workflows | `just awx-lab --fixtures`; `--record-import test/fixtures/awx/import/api.json` re-records      |
-| Docker suites                                                         | `just test-docker-lab` (throwaway container on the GNS3 VM)                                    |
+| What                                                                  | Where                                                                                     |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| AWX 24.6.1 on k3s v1.31 (awx-operator 2.19.1), NodePort 30080         | the VM `afd-awx` (Ubuntu 24.04, 4 vCPU, 8 GB, bridged on the LAN with DHCP)               |
+| Git server for the AWX project (`git daemon`, port 9418, `/srv/git`)  | `afd-awx`, set up by `lab/ops1-git-daemon.sh`                                             |
+| Clock sync after the PC sleeps (`PollIntervalMaxSec=120`)             | `afd-awx`, set up by `lab/ops1-timesync.sh`                                               |
+| `afd-awx-ee:2.19` (ansible-core 2.19 + ansible-runner)                | built with `just awx-ee-build` on the GNS3 VM's Docker engine, imported into k3s          |
+| EE, project `AFD lab` and inventory `AFD lab`                         | `just awx-lab [--sync]`                                                                   |
+| Import fixtures (M9): `AFD fixture ·` job templates and two workflows | `just awx-lab --fixtures`; `--record-import test/fixtures/awx/import/api.json` re-records |
+| Docker suites                                                         | `just test-docker-lab` (throwaway container on the GNS3 VM)                               |
 
 The inventory `AFD lab` holds fictional hosts: `h01`–`h06` and `sw-edge-01`–`04` use the local connection; `h07` points at `127.0.0.1:1` and is always unreachable.
 
 ## Setup
 
-1. Start the `snow_AWX` project and `ops1` (GNS3 MCP), then wait for AWX to answer.
-2. Tunnel the NodePort to Windows (keep it running). The loop reconnects after the PC sleeps, which drops the tunnel:
+All commands run in Git Bash on the Windows host, from the repository root.
+
+1. The VM, from the Ubuntu 24.04 server cloud image (`noble-server-cloudimg-amd64.ova` from cloud-images.ubuntu.com; check it against `SHA256SUMS`). It goes to `F:\VMs\afd-awx`, gets the lab SSH key through cloud-init and prints its address:
 
    ```bash
-   while true; do ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -J gns3 -i ~/.ssh/fwup_lab -L 127.0.0.1:30080:localhost:30080 ubuntu@192.168.122.72; sleep 10; done
+   bash lab/afd-awx/create-vm.sh /c/DOWNLOADS_TEMP/afd-awx/noble-server-cloudimg-amd64.ova
    ```
 
-3. Git server and clock sync on ops1 (once). While the PC sleeps the VM is paused and its clock falls behind; `ops1-timesync.sh` makes it resync within 2 minutes of a wake:
+   Give its MAC address (`ethernet0.generatedAddress` in `afd-awx.vmx`) a DHCP reservation in the router, so the address stays the same. The examples below use `192.168.0.152`.
+
+2. k3s and AWX, the Git server and clock sync (the first start pulls images and migrates the database, about 15 minutes):
 
    ```bash
-   ssh -J gns3 -i ~/.ssh/fwup_lab ubuntu@192.168.122.72 'sh -s' < lab/ops1-git-daemon.sh
+   ssh -i ~/.ssh/fwup_lab ubuntu@192.168.0.152 'mkdir -p afd-lab' && scp -i ~/.ssh/fwup_lab lab/afd-awx/install-awx.sh lab/afd-awx/awx.yaml lab/ops1-git-daemon.sh lab/ops1-timesync.sh ubuntu@192.168.0.152:afd-lab/
    ```
 
    ```bash
-   ssh -J gns3 -i ~/.ssh/fwup_lab ubuntu@192.168.122.72 'sh -s' < lab/ops1-timesync.sh
+   ssh -i ~/.ssh/fwup_lab ubuntu@192.168.0.152 'sh afd-lab/ops1-timesync.sh && sh afd-lab/ops1-git-daemon.sh && bash afd-lab/install-awx.sh'
    ```
 
-4. The EE image, built on the GNS3 VM's Docker engine and imported into k3s (Docker Desktop is off while GNS3 runs):
+3. The EE image, built on the GNS3 VM's Docker engine and imported into k3s:
 
    ```bash
    DOCKER_HOST=ssh://gns3 just awx-ee-build 2.19
    ```
 
    ```bash
-   DOCKER_HOST=ssh://gns3 docker save afd-awx-ee:2.19 | ssh -J gns3 -i ~/.ssh/fwup_lab ubuntu@192.168.122.72 'sudo k3s ctr -n k8s.io images import -'
+   DOCKER_HOST=ssh://gns3 docker save afd-awx-ee:2.19 | ssh -i ~/.ssh/fwup_lab ubuntu@192.168.0.152 'sudo k3s ctr -n k8s.io images import -'
    ```
 
-5. A personal access token for an AWX user with write access (AWX → Users → Tokens) goes into the gitignored `.env` together with the lab Git remote:
+4. Sign in to `http://192.168.0.152:30080` as `admin` (the password is in the Kubernetes secret `awx-admin-password` on the VM). Create a personal access token with write access (Users → admin → Tokens) and put it into the gitignored `.env` with the address and the lab Git remote:
 
    ```ini
-   AFD_AWX_URL=http://127.0.0.1:30080
+   AFD_AWX_URL=http://192.168.0.152:30080
    AFD_AWX_TOKEN=<token>
-   AFD_AWX_GIT_REMOTE=ssh://ubuntu@192.168.122.72/srv/git/afd-lab.git
-   AFD_AWX_GIT_SSH=ssh -o BatchMode=yes -J gns3 -i ~/.ssh/fwup_lab
+   AFD_AWX_GIT_REMOTE=ssh://ubuntu@192.168.0.152/srv/git/afd-lab.git
+   AFD_AWX_GIT_SSH=ssh -o BatchMode=yes -i ~/.ssh/fwup_lab
    ```
 
-6. AWX objects:
+   The AWX project reads the Git server at the AWX host (`git://192.168.0.152/afd-lab.git`); `AFD_AWX_GIT_URL` names another one.
+
+5. AWX objects:
 
    ```bash
    just awx-lab --sync
+   ```
+
+   ```bash
+   just awx-lab --fixtures
    ```
 
 ## Tests
@@ -68,7 +80,7 @@ The inventory `AFD lab` holds fictional hosts: `h01`–`h06` and `sw-edge-01`–
 
 ```json
 {
-  "afd.awx.url": "http://127.0.0.1:30080"
+  "afd.awx.url": "http://192.168.0.152:30080"
 }
 ```
 
