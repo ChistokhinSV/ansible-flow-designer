@@ -57,8 +57,10 @@ adds.
 
 ## During the session
 
-- The runner shows one task at a time. **Start** starts the clock, **Done** or **Give Up** stops it,
-  **Pause** stops it for an interruption.
+- The runner opens on **Start Session**; nothing is timed before it, nor on the questionnaires.
+- It shows one task at a time. Each task's **Start** starts its clock, **Done** or **Give Up** stops
+  it, **Pause** stops it for an interruption. A task left running when the page closes comes back
+  paused at the last moment the page was open (it notes that every 15 seconds), with **Resume**.
 - Tasks say what to achieve, never which control to use. The user guide, the Command Palette and web
   search are allowed; the rating asks which were used.
 - Think aloud into the notes box (Ctrl+Enter adds a note with the time). Short notes are enough: "I

@@ -74,6 +74,14 @@
     session: S.id, version: S.version, variant: S.variant, participant: 'P1',
     screen: 'intro', index: 0, tasks: {}, answers: {}, notes: [], background: {}, sus: [], open: {},
   }, S.progress || loadLocal() || {});
+  // The clock never runs without a press: a task left running when the page closed comes back
+  // paused at the last moment the page was seen, so the time away does not count.
+  for (const r of Object.values(state.tasks)) {
+    if (!r.startedAt || r.endedAt || r.pauseStart) continue;
+    const seen = state.lastSeen && state.lastSeen > r.startedAt ? state.lastSeen : r.startedAt;
+    r.pauseStart = seen;
+    r.reopened = true;
+  }
 
   function loadLocal() {
     try { const x = localStorage.getItem(KEY); return x ? JSON.parse(x) : null; } catch { return null; }
@@ -133,12 +141,12 @@
         <ul>
           <li>We test the product, not you. Giving up on a task is useful information.</li>
           <li>Work as you normally would: the user guide, the Command Palette and web search are all fine. Note when you use them.</li>
-          <li>Keep this page beside VS Code. Press <b>Start</b> when you begin a task and <b>Done</b> when you think it is done.</li>
+          <li>Keep this page beside VS Code. Nothing is timed yet: each task's clock runs only from its <b>Start</b> to <b>Done</b> or <b>Give Up</b>, and <b>Pause</b> stops it.</li>
           <li>Write what you think in the notes box as you go.</li>
           <li>The repository, hosts and names are fictional. Runs use the local connection only.</li>
         </ul>
         <p class="meta">Your answers stay on this computer, in the session folder. Only "P1" identifies you.</p>
-        <div class="row"><button class="primary" id="next">Begin</button></div></div>`;
+        <div class="row"><button class="primary" id="next">Start Session</button></div></div>`;
     },
     background() {
       const b = state.background;
@@ -169,10 +177,13 @@
         ${r.edit ? `<p class="done" role="status">${esc(r.edit)}</p>` : ''}
         ${answer}
         <div class="row">
-          ${running ? `<span class="timer" role="timer" aria-label="Time on this task">${clock(elapsed(r))}</span>
-            <button class="primary" id="done">Done</button><button id="giveup">Give Up</button>
-            <button id="pause">${r.pauseStart ? 'Resume' : 'Pause'}</button>` : `<button class="primary" id="start">Start</button>`}
+          ${!running ? `<button class="primary" id="start">Start</button><span class="meta">The clock starts when you press Start.</span>`
+            : r.pauseStart ? `<span class="timer" role="timer" aria-label="Time on this task, paused">${clock(elapsed(r))}</span><span class="meta">paused</span>
+            <button class="primary" id="pause">Resume</button><button id="done">Done</button><button id="giveup">Give Up</button>`
+            : `<span class="timer" role="timer" aria-label="Time on this task">${clock(elapsed(r))}</span>
+            <button class="primary" id="done">Done</button><button id="giveup">Give Up</button><button id="pause">Pause</button>`}
         </div>
+        ${r.reopened && r.pauseStart ? `<p class="hint">This page was closed while the task ran. Its clock stopped at ${esc(new Date(r.pauseStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}; press Resume when you are back at it.</p>` : ''}
         ${over ? `<p class="hint">You have spent more than ${x.softLimit} minutes. It is fine to give up and move on.</p>` : ''}
         ${r.error ? `<p class="hint" role="alert">${esc(r.error)}</p>` : ''}
         </div>${running ? notesBox() : ''}`;
@@ -261,7 +272,7 @@
       on('done', () => stop('done'));
       on('giveup', () => stop('gave-up'));
       on('pause', () => {
-        if (r.pauseStart) { r.pausedMs += Date.now() - Date.parse(r.pauseStart); r.pauseStart = undefined; }
+        if (r.pauseStart) { r.pausedMs = (r.pausedMs || 0) + Date.now() - Date.parse(r.pauseStart); r.pauseStart = undefined; r.reopened = undefined; }
         else r.pauseStart = now();
         save(); render();
       });
@@ -323,6 +334,16 @@
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
+  // While a task's clock runs, note every 15 s that the page is open: if it closes, the task comes
+  // back paused at that moment (see above).
+  setInterval(() => {
+    const r = state.screen === 'task' && state.tasks[t().id];
+    if (r?.startedAt && !r.endedAt && !r.pauseStart) {
+      state.lastSeen = now();
+      save();
+    }
+  }, 15000);
 
   // The clock and the soft-limit hint refresh without moving focus or typing.
   setInterval(() => {
