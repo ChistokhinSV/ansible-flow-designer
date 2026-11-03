@@ -114,37 +114,39 @@ Requires Node 24+, npm, Git and [just](https://github.com/casey/just).
 just install
 ```
 
-| Recipe                           | Does                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------ |
-| `just build` / `just build-prod` | Build extension host (esbuild) and webview (Vite); production is minified            |
-| `just watch`                     | Rebuild on change                                                                    |
-| `just check`                     | Type-check (TypeScript 7) and lint/format check (Biome)                              |
-| `just fmt`                       | Apply Biome formatting and safe fixes                                                |
-| `just test [args]`               | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer          |
-| `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)            |
-| `just test-wsl distro [version]` | The integration tests with their run tests in a WSL distribution (Windows, AFD-75)   |
-| `just perf [version]`            | Performance suite on the production bundle                                           |
-| `just test-yaml [version]`       | With the Red Hat YAML extension installed: flows are validated by our schema (AFD-5) |
-| `just test-engine [images]`      | Generated code runs with simulated outcomes in each Ansible image (Docker)           |
-| `just probe-test [images]`       | Probe contract tests (pytest via uv) in each image                                   |
-| `just test-catalog dir`          | Search quality and latency gates on a full catalog dump (`<cache>/<core-minor>`)     |
-| `just ee-build [core]`           | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                |
-| `just awx-ee-build [core]`       | Build `afd-awx-ee:<core>` (adds ansible-runner) for AWX                              |
-| `just awx-lab [--sync]`          | Create the lab AWX objects (EE, project, inventory); `--sync` updates the project    |
-| `just awx-lab --fixtures`        | Also the M9 import fixture workflows; `--record-import f` records their API answers  |
-| `just test-awx [version]`        | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)      |
-| `just test-lens [version]`       | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)            |
-| `just test-extract [version]`    | Extract into Subflow inside VS Code (AFD-7)                                          |
-| `just test-clipboard [version]`  | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards  |
-| `just test-edit [version]`       | One undo step per selection edit inside VS Code (AFD-18)                             |
-| `just test-ai [version]`         | AI assistants inside VS Code: Complete IDs, Copilot tools, setup (AFD-19)            |
-| `just test-mcp`                  | The MCP server end to end over stdio on the production bundle (AFD-19)               |
-| `just gen-ai`                    | Regenerate the skill references and the Copilot tool entries in `package.json`       |
-| `just test-import [version]`     | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)    |
-| `just test-docker-lab [suites]`  | Engine, probe and Docker integration suites in a container on the GNS3 VM            |
-| `just codegen [--check] flows…`  | Generate (or check) `generated/` for flow files from the command line                |
-| `just harness`                   | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade          |
-| `just package`                   | Build the VSIX into `out/`                                                           |
+| Recipe                                    | Does                                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `just build` / `just build-prod`          | Build extension host (esbuild) and webview (Vite); production is minified                       |
+| `just watch`                              | Rebuild on change                                                                               |
+| `just check`                              | Type-check (TypeScript 7) and lint/format check (Biome)                                         |
+| `just fmt`                                | Apply Biome formatting and safe fixes                                                           |
+| `just test [args]`                        | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer                     |
+| `just test-int [version]`                 | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)                       |
+| `just test-wsl distro [version]`          | The integration tests with their run tests in a WSL distribution (Windows, AFD-75)              |
+| `just perf [version]`                     | Performance suite on the production bundle                                                      |
+| `just test-yaml [version]`                | With the Red Hat YAML extension installed: flows are validated by our schema (AFD-5)            |
+| `just test-engine [images]`               | Generated code runs with simulated outcomes in each Ansible image (Docker)                      |
+| `just probe-test [images]`                | Probe contract tests (pytest via uv) in each image                                              |
+| `just test-catalog dir`                   | Search quality and latency gates on a full catalog dump (`<cache>/<core-minor>`)                |
+| `just ee-build [core]`                    | Build `afd-ee:<core>` from `docker/afd-ee.Dockerfile`                                           |
+| `just awx-ee-build [core]`                | Build `afd-awx-ee:<core>` (adds ansible-runner) for AWX                                         |
+| `just awx-lab [--sync]`                   | Create the lab AWX objects (EE, project, inventory); `--sync` updates the project               |
+| `just awx-lab --fixtures`                 | Also the M9 import fixture workflows; `--record-import f` records their API answers             |
+| `just test-awx [version]`                 | Run mode against the lab AWX (needs `AFD_AWX_URL`, `AFD_AWX_TOKEN`; see `lab/`)                 |
+| `just test-lens [version]`                | The lens suite inside VS Code (its inventory test needs `AFD_TEST_IMAGE`)                       |
+| `just test-extract [version]`             | Extract into Subflow inside VS Code (AFD-7)                                                     |
+| `just test-clipboard [version]`           | Copy and paste of nodes inside VS Code (AFD-17); restores your clipboard afterwards             |
+| `just test-edit [version]`                | One undo step per selection edit inside VS Code (AFD-18)                                        |
+| `just test-ai [version]`                  | AI assistants inside VS Code: Complete IDs, Copilot tools, setup (AFD-19)                       |
+| `just test-mcp`                           | The MCP server end to end over stdio on the production bundle (AFD-19)                          |
+| `just gen-ai`                             | Regenerate the skill references and the Copilot tool entries in `package.json`                  |
+| `just test-import [version]`              | AWX workflow import inside VS Code (skeleton run: `AFD_TEST_IMAGE`; API: lab AWX)               |
+| `just test-docker-lab [suites]`           | Engine, probe and Docker integration suites in a container on the GNS3 VM                       |
+| `just codegen [--check] flows…`           | Generate (or check) `generated/` for flow files from the command line                           |
+| `just harness`                            | Webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade                     |
+| `just usability-kit r v vsix`             | A usability session: clean VS Code, fictional lab repo, task runner (`docs/ux/wave8-usability`) |
+| `just usability serve\|verify\|solve dir` | Reopen a session's runner, check its results again, or self-test the kit                        |
+| `just package`                            | Build the VSIX into `out/`                                                                      |
 
 `AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration tests that need the image: real skeleton runs (M3), the real catalog dump (M5) and a real Re-sync (M6); they are skipped without it. `just test-wsl Ubuntu-24.04` runs the same tests in that WSL distribution instead (`AFD_TEST_WSL`); it needs ansible-core there. The engine and probe suites default to the `ps-probe-env:2.19/2.20/2.21` stand-in images. Pass `afd-ee:<core>` images to use the ones built here.
 

@@ -5,9 +5,18 @@ import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
-import { closeAll, documentOf, flowUri, openDesigner, testApi, withTimeout } from './helpers';
+import {
+  closeAll,
+  documentOf,
+  flowUri,
+  openDesigner,
+  runEnvironment,
+  testApi,
+  withTimeout,
+} from './helpers';
 
 const OS = flowUri('os-upgrade');
+const HELLO = flowUri('hello');
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
 
 describe('M1 performance (production bundle)', () => {
@@ -73,4 +82,34 @@ describe('M1 performance (production bundle)', () => {
     console.log(`[perf] ${JSON.stringify({ patternRoundTripMedianMs: ms })}`);
     assert.ok(ms <= 100, `pattern round trip ${ms} ms`);
   });
+
+  // Wave 8 (AFD-78): how long after a skeleton run starts the canvas shows the first node's result,
+  // against the run's own length. Measured, not asserted: before wave 8 both are the whole run.
+  (runEnvironment ? it : it.skip)('first node result on the canvas during a run', async () => {
+    const api = await testApi();
+    await openDesigner(HELLO);
+    api.setMode(HELLO, 'run');
+    const t0 = performance.now();
+    let firstNodeMs: number | undefined;
+    let finished = false;
+    const run = api.runFlow(HELLO, { mode: 'check', inputs: { devices: ['localhost'] } });
+    void run.finally(() => {
+      finished = true;
+    });
+    while (!finished && performance.now() - t0 < 240_000) {
+      const states = Object.values((await api.inspect(HELLO)).run?.nodes ?? {});
+      if (firstNodeMs === undefined && states.some((s) => s && s !== 'idle'))
+        firstNodeMs = Math.round(performance.now() - t0);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const done = await withTimeout(run, 10_000, 'Hello skeleton run');
+    const runMs = Math.round(performance.now() - t0);
+    if (firstNodeMs === undefined) {
+      await api.rendered(HELLO, documentOf(HELLO).version);
+      const states = Object.values((await api.inspect(HELLO)).run?.nodes ?? {});
+      if (states.some((s) => s && s !== 'idle')) firstNodeMs = runMs;
+    }
+    console.log(`[perf] ${JSON.stringify({ firstNodeResultMs: firstNodeMs ?? null, runMs })}`);
+    assert.equal(done.state, 'done', JSON.stringify(done));
+  }).timeout(300_000);
 });

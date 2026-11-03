@@ -151,6 +151,16 @@ ux-baseline label="baseline":
     node scripts/ux-baseline.mjs {{ label }}
     npx --no-install biome format --write docs/ux/{{ label }}
 
+# Usability session (AFD-78): a clean VS Code with the VSIX, the fictional lab workspace and the task runner (round, variant a|b)
+usability-kit round variant vsix *args:
+    node scripts/usability/bundle.mjs
+    node out/usability/kit.cjs {{ round }} {{ variant }} {{ vsix }} {{ args }}
+
+# A usability session folder again: serve (reopen the runner), verify (check again) or solve (kit self-test)
+usability action session:
+    node scripts/usability/bundle.mjs
+    node out/usability/kit.cjs {{ action }} {{ session }}
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
 package:
     npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --out out/

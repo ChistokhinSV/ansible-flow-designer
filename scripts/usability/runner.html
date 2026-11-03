@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AFD Usability Session</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #5d5d58; --line: #d9d9d3;
+    --accent: #1f5fbf; --accent-text: #ffffff; --warn: #8a5a00; --warn-bg: #fff4d6; --ok: #1d6b35;
+    --focus: #1f5fbf;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1c1e; --panel: #24262a; --text: #ecece8; --muted: #a9aaa4; --line: #3a3d42;
+      --accent: #6ea4ff; --accent-text: #0d1b33; --warn: #ffd27a; --warn-bg: #3a2f14; --ok: #7fd49a;
+      --focus: #9cc2ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; color: var(--muted); font-size: 13px; margin-bottom: 12px; flex-wrap: wrap; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  h1:focus, h2:focus { outline: none; }
+  .goal { font-size: 17px; line-height: 1.55; margin: 10px 0 14px; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button[disabled] { opacity: .5; cursor: default; }
+  label { display: block; margin: 10px 0 4px; font-weight: 600; }
+  textarea, input[type=text], select { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  textarea { min-height: 72px; resize: vertical; }
+  fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 12px 0; padding: 8px 12px 12px; }
+  legend { font-weight: 600; padding: 0 4px; }
+  .scale { display: flex; flex-wrap: wrap; gap: 6px; }
+  .scale label { display: inline-flex; flex-direction: column; align-items: center; font-weight: 400; margin: 0; min-width: 38px; font-size: 13px; }
+  .scale-ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  .choice label { display: inline-flex; gap: 6px; font-weight: 400; margin: 4px 14px 4px 0; }
+  .timer { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; }
+  .hint { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 10px; margin-top: 10px; }
+  .done { color: var(--ok); font-weight: 600; }
+  .progress { display: flex; gap: 4px; flex-wrap: wrap; }
+  .progress span { width: 26px; height: 6px; border-radius: 3px; background: var(--line); }
+  .progress span.on { background: var(--accent); }
+  .progress span.now { outline: 2px solid var(--accent); outline-offset: 1px; }
+  pre { white-space: pre-wrap; font-size: 12px; background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .notes li { margin: 4px 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main id="app" aria-live="off"></main>
+<script id="session" type="application/json">"__SESSION__"</script>
+<script>
+(() => {
+  'use strict';
+  const S = JSON.parse(document.getElementById('session').textContent);
+  const app = document.getElementById('app');
+  if (typeof S === 'string') {
+    app.innerHTML = '<div class="card"><h1>Start this page through the kit</h1><p>Run <code>just usability-kit</code>: it serves this page with the session\'s tasks.</p></div>';
+    return;
+  }
+  const KEY = `afd-usability-${S.id}`;
+  const now = () => new Date().toISOString();
+  const tasks = S.tasks;
+  // Saved progress (the kit's copy first, else this browser's) over a fresh state, so a partial
+  // save never leaves a field missing.
+  const state = Object.assign({
+    session: S.id, version: S.version, variant: S.variant, participant: 'P1',
+    screen: 'intro', index: 0, tasks: {}, answers: {}, notes: [], background: {}, sus: [], open: {},
+  }, S.progress || loadLocal() || {});
+
+  function loadLocal() {
+    try { const x = localStorage.getItem(KEY); return x ? JSON.parse(x) : null; } catch { return null; }
+  }
+  let saveTimer;
+  function save(immediate) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private window */ }
+    clearTimeout(saveTimer);
+    const send = () => api('/api/progress', state).catch(() => {});
+    if (immediate) send(); else saveTimer = setTimeout(send, 400);
+  }
+  async function api(path, data) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-kit-token': S.token },
+      body: JSON.stringify(data),
+    });
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || r.statusText);
+    return out;
+  }
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const t = () => tasks[state.index];
+  const rec = (id) => (state.tasks[id] ??= {});
+  const elapsed = (r) => {
+    if (!r.startedAt) return 0;
+    const end = r.endedAt ? Date.parse(r.endedAt) : Date.now();
+    const paused = (r.pausedMs || 0) + (r.pauseStart ? Date.now() - Date.parse(r.pauseStart) : 0);
+    return Math.max(0, end - Date.parse(r.startedAt) - paused);
+  };
+  const clock = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+  function go(screen, extra) { Object.assign(state, { screen }, extra || {}); save(); render(); }
+
+  function header() {
+    const bars = tasks.map((x, i) => {
+      const r = state.tasks[x.id];
+      const cls = [r?.endedAt ? 'on' : '', i === state.index && ['task', 'rate'].includes(state.screen) ? 'now' : ''].join(' ');
+      return `<span class="${cls}" title="${esc(x.id)}"></span>`;
+    }).join('');
+    return `<header><span>Session ${esc(S.id)} · build ${esc(S.version)}</span><div class="progress" aria-hidden="true">${bars}</div></header>`;
+  }
+
+  function notesBox() {
+    const mine = state.notes.filter((n) => n.task === (t()?.id)).map((n) => `<li><span class="meta">${esc(n.at.slice(11, 19))}</span> ${esc(n.text)}</li>`).join('');
+    return `<div class="card"><h2>Notes while you work</h2>
+      <p class="meta">Think aloud here: what you expect, what surprises you, where you get stuck. Ctrl+Enter adds the note.</p>
+      <label for="note" class="sr">Note</label><textarea id="note" placeholder="I expected…"></textarea>
+      <div class="row"><button id="add-note">Add Note</button></div>
+      ${mine ? `<ul class="notes">${mine}</ul>` : ''}</div>`;
+  }
+
+  const screens = {
+    intro() {
+      return `<div class="card"><h1 tabindex="-1">Usability session</h1>
+        <p>Thank you for taking part. You will do ${tasks.length} tasks in Ansible Flow Designer, in two parts with a break between them. It takes about an hour.</p>
+        <ul>
+          <li>We test the product, not you. Giving up on a task is useful information.</li>
+          <li>Work as you normally would: the user guide, the Command Palette and web search are all fine. Note when you use them.</li>
+          <li>Keep this page beside VS Code. Press <b>Start</b> when you begin a task and <b>Done</b> when you think it is done.</li>
+          <li>Write what you think in the notes box as you go.</li>
+          <li>The repository, hosts and names are fictional. Runs use the local connection only.</li>
+        </ul>
+        <p class="meta">Your answers stay on this computer, in the session folder. Only "P1" identifies you.</p>
+        <div class="row"><button class="primary" id="next">Begin</button></div></div>`;
+    },
+    background() {
+      const b = state.background;
+      const opt = (name, value, label) => `<label><input type="radio" name="${name}" value="${value}" ${b[name] === value ? 'checked' : ''}> ${label}</label>`;
+      return `<div class="card"><h1 tabindex="-1">About you</h1>
+        <fieldset class="choice"><legend>Ansible experience</legend>${opt('ansible', 'none', 'None')}${opt('ansible', 'lt1', 'Under a year')}${opt('ansible', '1-3', '1 to 3 years')}${opt('ansible', 'gt3', 'More than 3 years')}</fieldset>
+        <fieldset class="choice"><legend>VS Code</legend>${opt('vscode', 'rarely', 'Rarely')}${opt('vscode', 'weekly', 'Weekly')}${opt('vscode', 'daily', 'Daily')}</fieldset>
+        <fieldset class="choice"><legend>Ansible Flow Designer before today</legend>${opt('afd', 'never', 'Never used it')}${opt('afd', 'tried', 'Tried it')}${opt('afd', 'regular', 'Use it regularly')}${opt('afd', 'builder', 'I work on it')}</fieldset>
+        <label for="bg-notes">Anything else we should know? (optional)</label><textarea id="bg-notes">${esc(b.notes)}</textarea>
+        <div class="row"><button class="primary" id="next">Continue</button></div></div>`;
+    },
+    part() {
+      const part = t().part;
+      const n = tasks.filter((x) => x.part === part).length;
+      return `<div class="card"><h1 tabindex="-1">Part ${part}: ${part === 1 ? 'build and run' : 'find and review'}</h1>
+        <p>${n} tasks. ${part === 2 ? 'Take a short break first if you like: the clock only runs inside a task.' : 'VS Code is open on the lab repository.'}</p>
+        <div class="row"><button class="primary" id="next">Show the first task</button></div></div>`;
+    },
+    task() {
+      const x = t();
+      const r = rec(x.id);
+      const running = r.startedAt && !r.endedAt;
+      const over = running && elapsed(r) > x.softLimit * 60000;
+      const answer = x.answer ? `<label for="answer">${esc(x.answer)}</label><textarea id="answer" ${running ? '' : 'disabled'}>${esc(state.answers[x.id])}</textarea>` : '';
+      return `<div class="card"><p class="meta">${esc(x.id)} of ${tasks.length} · about ${x.softLimit} min</p>
+        <h1 tabindex="-1">${esc(x.title)}</h1>
+        <p class="goal">${esc(x.goal)}</p>
+        ${r.edit ? `<p class="done" role="status">${esc(r.edit)}</p>` : ''}
+        ${answer}
+        <div class="row">
+          ${running ? `<span class="timer" role="timer" aria-label="Time on this task">${clock(elapsed(r))}</span>
+            <button class="primary" id="done">Done</button><button id="giveup">Give Up</button>
+            <button id="pause">${r.pauseStart ? 'Resume' : 'Pause'}</button>` : `<button class="primary" id="start">Start</button>`}
+        </div>
+        ${over ? `<p class="hint">You have spent more than ${x.softLimit} minutes. It is fine to give up and move on.</p>` : ''}
+        ${r.error ? `<p class="hint" role="alert">${esc(r.error)}</p>` : ''}
+        </div>${running ? notesBox() : ''}`;
+    },
+    rate() {
+      const x = t();
+      const r = rec(x.id);
+      const opt = (name, value, label) => `<label><input type="radio" name="${name}" value="${value}" ${r[name] === value ? 'checked' : ''}> ${label}</label>`;
+      const seq = [1, 2, 3, 4, 5, 6, 7].map((n) => `<label><input type="radio" name="seq" value="${n}" ${r.seq === n ? 'checked' : ''}>${n}</label>`).join('');
+      const help = [['guide', 'User guide'], ['palette', 'Command Palette search'], ['web', 'Web search'], ['other', 'Something else']]
+        .map(([v, l]) => `<label><input type="checkbox" name="help" value="${v}" ${(r.help || []).includes(v) ? 'checked' : ''}> ${l}</label>`).join('');
+      return `<div class="card"><p class="meta">${esc(x.id)} · ${r.outcome === 'gave-up' ? 'given up' : 'done'} after ${clock(r.ms || 0)}</p>
+        <h1 tabindex="-1">How did "${esc(x.title)}" go?</h1>
+        <fieldset class="choice"><legend>Did you achieve the goal?</legend>${opt('success', 'yes', 'Yes')}${opt('success', 'partly', 'Partly')}${opt('success', 'no', 'No')}</fieldset>
+        <fieldset><legend>Overall, this task was…</legend><div class="scale">${seq}</div><div class="scale-ends"><span>1 very difficult</span><span>7 very easy</span></div></fieldset>
+        <fieldset class="choice"><legend>Help you used</legend>${help}</fieldset>
+        <label for="obstacle">What got in the way? (optional)</label><textarea id="obstacle">${esc(r.obstacle)}</textarea>
+        <div class="row"><button class="primary" id="next">${state.index + 1 < tasks.length ? 'Next Task' : 'Last Questions'}</button></div></div>`;
+    },
+    sus() {
+      const items = S.sus.map((q, i) => {
+        const v = state.sus[i];
+        const scale = [1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="sus${i}" value="${n}" ${v === n ? 'checked' : ''}>${n}</label>`).join('');
+        return `<fieldset><legend>${i + 1}. ${esc(q)}</legend><div class="scale">${scale}</div><div class="scale-ends"><span>1 strongly disagree</span><span>5 strongly agree</span></div></fieldset>`;
+      }).join('');
+      return `<div class="card"><h1 tabindex="-1">About Ansible Flow Designer as a whole</h1>
+        <p class="meta">"The system" means Ansible Flow Designer. Answer quickly; your first reaction is the useful one.</p>
+        ${items}<div class="row"><button class="primary" id="next">Continue</button></div></div>`;
+    },
+    open() {
+      const o = state.open;
+      const q = (id, label) => `<label for="${id}">${label}</label><textarea id="${id}">${esc(o[id])}</textarea>`;
+      return `<div class="card"><h1 tabindex="-1">Three last questions</h1>
+        ${q('confusing', 'What was the most confusing moment?')}${q('liked', 'What did you like most?')}${q('change', 'If you could change one thing, what would it be?')}
+        <div class="row"><button class="primary" id="finish">Finish and Send to the Kit</button></div></div>`;
+    },
+    done() {
+      return `<div class="card"><h1 tabindex="-1">Thank you</h1>
+        <p class="done" role="status">${state.sent ? 'Results saved in the session folder.' : 'Saving…'}</p>
+        ${state.summary ? `<pre>${esc(state.summary)}</pre>` : ''}
+        ${state.sendError ? `<p class="hint" role="alert">The kit did not answer (${esc(state.sendError)}). Download the results and keep the file.</p>` : ''}
+        <div class="row"><button id="json">Download JSON</button><button id="csv">Download CSV</button></div></div>`;
+    },
+  };
+
+  function render() {
+    if (!screens[state.screen]) state.screen = 'intro';
+    app.innerHTML = header() + screens[state.screen]();
+    const h = app.querySelector('h1');
+    if (h && state.focus !== false) h.focus();
+    bind();
+  }
+
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  const checked = (name) => app.querySelector(`input[name="${name}"]:checked`)?.value;
+
+  function bind() {
+    const x = t();
+    if (state.screen === 'intro') on('next', () => go('background'));
+    if (state.screen === 'background') on('next', () => {
+      state.background = { ansible: checked('ansible'), vscode: checked('vscode'), afd: checked('afd'), notes: document.getElementById('bg-notes').value };
+      go('part');
+    });
+    if (state.screen === 'part') on('next', () => go('task'));
+    if (state.screen === 'task') {
+      const r = rec(x.id);
+      on('start', async () => {
+        r.startedAt = now(); r.endedAt = undefined; r.pausedMs = 0; delete r.error;
+        save(true); render();
+        if (x.outsideEdit && !r.edit) {
+          try {
+            const out = await api('/api/outside-edit', {});
+            r.edit = `The agent has changed ${out.file}. Look at it in VS Code now.`;
+          } catch (e) { r.error = `The kit could not make the change: ${e.message}`; }
+          save(true); render();
+        }
+      });
+      const answer = document.getElementById('answer');
+      if (answer) answer.addEventListener('input', () => { state.answers[x.id] = answer.value; save(); });
+      const stop = (outcome) => {
+        if (r.pauseStart) { r.pausedMs += Date.now() - Date.parse(r.pauseStart); r.pauseStart = undefined; }
+        r.endedAt = now(); r.outcome = outcome; r.ms = elapsed(r);
+        if (answer) state.answers[x.id] = answer.value;
+        go('rate');
+      };
+      on('done', () => stop('done'));
+      on('giveup', () => stop('gave-up'));
+      on('pause', () => {
+        if (r.pauseStart) { r.pausedMs += Date.now() - Date.parse(r.pauseStart); r.pauseStart = undefined; }
+        else r.pauseStart = now();
+        save(); render();
+      });
+      const note = document.getElementById('note');
+      const addNote = () => {
+        const text = note.value.trim();
+        if (!text) return;
+        state.notes.push({ at: now(), task: x.id, ms: elapsed(r), text });
+        save(); state.focus = false; render(); state.focus = true;
+        document.getElementById('note')?.focus();
+      };
+      on('add-note', addNote);
+      if (note) note.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); addNote(); } });
+    }
+    if (state.screen === 'rate') on('next', () => {
+      const r = rec(x.id);
+      r.success = checked('success');
+      r.seq = Number(checked('seq')) || undefined;
+      r.help = [...app.querySelectorAll('input[name="help"]:checked')].map((i) => i.value);
+      r.obstacle = document.getElementById('obstacle').value;
+      if (state.index + 1 >= tasks.length) return go('sus');
+      const nextPart = tasks[state.index + 1].part !== x.part;
+      go(nextPart ? 'part' : 'task', { index: state.index + 1 });
+    });
+    if (state.screen === 'sus') on('next', () => {
+      state.sus = S.sus.map((_, i) => Number(checked(`sus${i}`)) || undefined);
+      go('open');
+    });
+    if (state.screen === 'open') on('finish', async () => {
+      for (const id of ['confusing', 'liked', 'change']) state.open[id] = document.getElementById(id).value;
+      state.finishedAt = now();
+      go('done');
+      try {
+        const out = await api('/api/finish', state);
+        state.sent = true; state.summary = out.summary;
+      } catch (e) { state.sendError = e.message; }
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignore */ }
+      render();
+    });
+    if (state.screen === 'done') {
+      on('json', () => download(`afd-usability-${S.id}.json`, JSON.stringify(state, null, 2), 'application/json'));
+      on('csv', () => download(`afd-usability-${S.id}.csv`, csv(), 'text/csv'));
+    }
+  }
+
+  function csv() {
+    const q = (v) => `"${String(v ?? '').replaceAll('"', '""')}"`;
+    const rows = [['task', 'title', 'outcome', 'seconds', 'self_rated', 'ease_1_7', 'help', 'answer', 'obstacle'].join(',')];
+    for (const x of tasks) {
+      const r = state.tasks[x.id] || {};
+      rows.push([x.id, x.title, r.outcome, r.ms ? Math.round(r.ms / 1000) : '', r.success, r.seq, (r.help || []).join(' '), state.answers[x.id], r.obstacle].map(q).join(','));
+    }
+    return `${rows.join('\n')}\n`;
+  }
+
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // The clock and the soft-limit hint refresh without moving focus or typing.
+  setInterval(() => {
+    if (state.screen !== 'task') return;
+    const r = state.tasks[t().id];
+    if (!r?.startedAt || r.endedAt) return;
+    const el = app.querySelector('.timer');
+    if (el) el.textContent = clock(elapsed(r));
+    if (!app.querySelector('.hint') && elapsed(r) > t().softLimit * 60000) {
+      const hint = Object.assign(document.createElement('p'), { className: 'hint', textContent: `You have spent more than ${t().softLimit} minutes. It is fine to give up and move on.` });
+      app.querySelector('.card .row')?.after(hint);
+    }
+  }, 1000);
+
+  render();
+})();
+</script>
+</body>
+</html>
