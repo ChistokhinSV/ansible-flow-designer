@@ -58,5 +58,7 @@ describe('minimap corner (AFD-72)', () => {
     expect(minimapCorner([low, high], pane)).toBeNull();
     // A node right of the minimap's box is no obstacle.
     expect(minimapCorner([{ x: 200, y: 520, width: 120, height: 60 }], pane)).toBe('bottom-left');
+    // The first-flow checklist holds the bottom left (AFD-73).
+    expect(minimapCorner([], pane, true)).toBe('top-left');
   });
 });

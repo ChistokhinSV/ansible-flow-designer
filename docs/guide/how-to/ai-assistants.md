@@ -24,10 +24,11 @@ silently. A step-by-step example: [Tutorial 4](../tutorials/04-ai-assistant.md).
 | ZCode                                       | `.agents/skills/` / `~/.agents/skills/`  | `mcpServers` in `~/.agents/mcp.json`           |
 | GitHub Copilot CLI                          | `.github/skills/` / `~/.copilot/skills/` | `mcpServers` in `~/.copilot/mcp-config.json`   |
 | Cursor                                      | `.claude/skills/` / `~/.claude/skills/`  | `mcpServers` in `~/.cursor/mcp.json`           |
-- **Offered once:** after VS Code starts, the extension looks for these agents (a program on PATH,
-  their config folder, an installed app, their VS Code extension). Agents found without the setup
-  get one notice: **Set Up** (all of them, for every repository, in one click), **Choose…**, **Not
-  Now** or **Don't Ask Again**. An agent is asked about again only when it is new.
+- **Offered once:** the first time the designer shows a flow with a step, the extension looks for
+  these agents (a program on PATH, their config folder, an installed app, their VS Code extension).
+  Agents found without the setup get one notice: **Set Up…** (all of them, for every repository;
+  you see what it writes first), **Choose…**, **Not Now** or **Don't Ask Again**. An agent is asked
+  about again only when it is new.
 - **By hand:** **Ansible Flow: Set Up AI Assistants…** → pick agents → choose **This repository**
   (commit the copies for your team) or **Just me** → check the preview → apply. Restart running
   agents.

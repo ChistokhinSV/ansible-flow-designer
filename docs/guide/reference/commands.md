@@ -1,7 +1,9 @@
 # Commands
 
 All commands are in the Command Palette (Ctrl+Shift+P) under **Ansible Flow:**. Commands that act
-on a flow use the one open in the designer. The words follow the [glossary](glossary.md). Back to
+on a flow use the one open in the designer. Some show there only when they can act: the designer's
+commands with a flow open, Stop Run while a run goes, Launch in AWX, Set Up AWX Template and Clear
+AWX Token once `afd.awx.url` is set, Remove AI Assistant Setup… once there is a setup. The words follow the [glossary](glossary.md). Back to
 the [guide](../README.md).
 
 ## Getting started
@@ -11,6 +13,7 @@ the [guide](../README.md).
 | `afd.help.getStarted` · Get Started                     | opens the "Design your first Ansible flow" walkthrough                                                                       |
 | `afd.help.openGuide` · Open User Guide                  | opens this guide in the Markdown preview                                                                                     |
 | `afd.help.openSample` · Open Sample Flow…               | copies a sample flow into the workspace and opens it, or sample playbooks to import into an empty folder (Tutorial 5)        |
+| `afd.flows.refresh` · Refresh                           | reads the flows of the **Ansible Flows** view (Activity Bar) again; on the view's title bar                                  |
 | `afd.flow.new` · New Flow…                              | creates `flows/<key>/<key>.flow.yaml` with a start and a done node                                                           |
 | `afd.import.playbooks` · Import Ansible Playbooks…      | turns a playbook, or the playbooks of a folder, into new flows, one step per task (also on the Explorer's right-click)       |
 | `afd.import.awx` · Import AWX Workflow or Job Template… | turns an AWX workflow or job template (from AWX or an export file) into a new flow; playbooks in the repository become steps |

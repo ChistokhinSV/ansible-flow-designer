@@ -60,6 +60,8 @@ function useHost() {
         ui.setRun(m.run);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
+      } else if (m.type === 'firstFlow') {
+        ui.setFirstFlow({ hidden: m.hidden, done: m.done });
       } else if (m.type === 'reveal') {
         ui.reveal(m.node);
       } else if (m.type === 'setMode') {

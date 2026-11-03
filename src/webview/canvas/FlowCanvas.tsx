@@ -58,6 +58,7 @@ import { boundaryWire, upLevel } from '../editActions';
 import { useLevelView, useModel } from '../hooks';
 import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
+import { FirstFlow, useFirstFlowShown } from '../panels/FirstFlow';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -256,6 +257,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [empty, contentBounds],
   );
   // AFD-72: the minimap never covers a node; when both left corners would, a button shows it.
+  const checklist = useFirstFlowShown();
   const corner = useStore((s) => {
     const [x, y, zoom] = s.transform;
     const boxes = view.nodes.map((n) => ({
@@ -264,7 +266,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       width: n.width * zoom,
       height: n.height * zoom,
     }));
-    return minimapCorner(boxes, { width: s.width, height: s.height });
+    return minimapCorner(boxes, { width: s.width, height: s.height }, checklist);
   });
   const [miniAsked, setMiniAsked] = useState(false);
   const partly = useStore((s) => {
@@ -987,6 +989,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       proOptions={{ hideAttribution: true }}
     >
       <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+      {/* A first flow grows down from the top: the bottom left is where it leaves room. */}
+      <Panel position="bottom-left">
+        <FirstFlow />
+      </Panel>
       <Panel position="top-right">
         <FindBar />
       </Panel>

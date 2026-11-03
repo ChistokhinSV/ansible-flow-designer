@@ -231,6 +231,15 @@ function panelActions(mode: Mode): UiMenuEntry[] {
     onSelect: () => ui.setAnnotationsHidden(!ui.annotationsHidden),
   };
   if (mode !== 'design') return [panel, notes];
+  // AFD-73: the first-flow checklist, hidden for good from its card, comes back from here.
+  const hidden = ui.firstFlow?.hidden ?? false;
+  const checklist: UiMenuEntry = {
+    type: 'item',
+    label: hidden ? 'Show First-Flow Checklist' : 'Hide First-Flow Checklist',
+    icon: 'checklist',
+    title: 'Four things that make a first flow, on flows with one to five steps',
+    onSelect: () => send({ type: 'firstFlow', hidden: !hidden }),
+  };
   return [
     {
       type: 'item',
@@ -240,6 +249,7 @@ function panelActions(mode: Mode): UiMenuEntry[] {
     },
     panel,
     notes,
+    checklist,
   ];
 }
 

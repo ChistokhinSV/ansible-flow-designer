@@ -19,6 +19,7 @@ import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
 import { useUi } from '../store';
+import { HelpLink } from './HelpLink';
 
 function describe(run: RunView): string {
   if (run.source === 'awx' && run.awx)
@@ -150,7 +151,9 @@ export function RunPanel() {
   if (!run)
     return (
       <div className="afd-panel-body" data-run-panel="none">
-        <h2 className="afd-panel-title">Run</h2>
+        <h2 className="afd-panel-title">
+          Run <HelpLink topic="runs" about="runs" />
+        </h2>
         <p className="muted">
           No run of this flow yet. Launch it in AWX, or run it as a skeleton in the local
           environment; nodes and wires then show what each host did.
@@ -162,7 +165,9 @@ export function RunPanel() {
   const outcome = Object.entries(s?.outcome ?? {});
   return (
     <div className="afd-panel-body" data-run-panel={run.state}>
-      <h2 className="afd-panel-title">Run</h2>
+      <h2 className="afd-panel-title">
+        Run <HelpLink topic="runs" about="runs" />
+      </h2>
       <dl className="afd-run-facts">
         <dt>Run</dt>
         <dd>{describe(run)}</dd>

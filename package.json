@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.47.0",
+  "version": "0.48.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -61,7 +61,14 @@
       {
         "command": "afd.flow.new",
         "title": "New Flow…",
-        "category": "Ansible Flow"
+        "category": "Ansible Flow",
+        "icon": "$(add)"
+      },
+      {
+        "command": "afd.flows.refresh",
+        "title": "Refresh",
+        "category": "Ansible Flow",
+        "icon": "$(refresh)"
       },
       {
         "command": "afd.import.playbooks",
@@ -236,7 +243,48 @@
         "category": "Ansible Flow"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "afd",
+          "title": "Ansible Flows",
+          "icon": "media/flows.svg"
+        }
+      ]
+    },
+    "views": {
+      "afd": [
+        {
+          "id": "afd.flows",
+          "name": "Flows"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "afd.flows",
+        "contents": "Design Ansible automation as a diagram, then run it as a playbook. Flows are files in a folder: open one to begin (an empty folder is fine).\n[Open Folder](command:workbench.action.files.openFolder)\nNew here? [Get Started](command:afd.help.getStarted)",
+        "when": "workbenchState == empty"
+      },
+      {
+        "view": "afd.flows",
+        "contents": "No flows in this folder yet.\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\nAlready have playbooks? [Import Ansible Playbooks](command:afd.import.playbooks)\nNew here? [Get Started](command:afd.help.getStarted) · [User Guide](command:afd.help.openGuide)",
+        "when": "workbenchState != empty"
+      }
+    ],
     "menus": {
+      "view/title": [
+        {
+          "command": "afd.flow.new",
+          "when": "view == afd.flows",
+          "group": "navigation@1"
+        },
+        {
+          "command": "afd.flows.refresh",
+          "when": "view == afd.flows",
+          "group": "navigation@2"
+        }
+      ],
       "editor/title": [
         {
           "command": "afd.run.skeleton",
@@ -317,6 +365,26 @@
         {
           "command": "afd.flow.updateShared",
           "when": "false"
+        },
+        {
+          "command": "afd.flows.refresh",
+          "when": "false"
+        },
+        {
+          "command": "afd.awx.launch",
+          "when": "config.afd.awx.url"
+        },
+        {
+          "command": "afd.awx.setupTemplate",
+          "when": "config.afd.awx.url"
+        },
+        {
+          "command": "afd.awx.clearToken",
+          "when": "config.afd.awx.url"
+        },
+        {
+          "command": "afd.ai.remove",
+          "when": "afd.ai.configured"
         },
         {
           "command": "afd.flow.unlinkShared",
@@ -2596,15 +2664,15 @@
       {
         "id": "afd.firstFlow",
         "title": "Design your first Ansible flow",
-        "description": "Sketch automation as a diagram of steps wired port to port, handle every failure, and run it as a walking skeleton.",
+        "description": "Start a flow, add a step, see the playbook it makes, decide what happens when it fails, and run it as a skeleton.",
         "featuredFor": [
           "**/*.flow.yaml"
         ],
         "steps": [
           {
             "id": "open",
-            "title": "Open a sample or start a new flow",
-            "description": "A flow is a diagram kept as YAML (`*.flow.yaml`) next to your playbooks. Copy a sample into this folder, or start from scratch with a start and a done node.\n[Open Sample Flow](command:afd.help.openSample)\n[New Flow](command:afd.flow.new)\nTip: an empty folder is fine. [Tutorial: your first flow](command:afd.help.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
+            "title": "Start a flow",
+            "description": "A flow is a diagram of steps that becomes a playbook, kept as YAML (`*.flow.yaml`) next to your playbooks. Start a new one, or copy a sample into this folder.\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\nAlready have playbooks? [Import Ansible Playbooks](command:afd.import.playbooks) · Tip: an empty folder is fine. [Tutorial: your first flow](command:afd.help.openGuide?%5B%22tutorials%2F01-first-flow.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/canvas-light.png",
@@ -2616,30 +2684,14 @@
             },
             "completionEvents": [
               "onCommand:afd.help.openSample",
-              "onCommand:afd.flow.new"
-            ]
-          },
-          {
-            "id": "import",
-            "title": "Or import playbooks you already have",
-            "description": "Right-click a playbook or a folder → **Import Ansible Playbooks…**. **As is** makes one step per task, with blocks, roles and handlers in place; **With an AI assistant** redesigns them by intent.\n[Import Ansible Playbooks](command:afd.import.playbooks)\nTry it on sample playbooks (in an empty folder): [Copy the sample playbooks](command:afd.help.openSample?%5B%22playbooks%2Fedge-baseline%22%5D)\n[Tutorial: bring existing playbooks into flows](command:afd.help.openGuide?%5B%22tutorials%2F05-import-playbooks.md%22%5D)",
-            "media": {
-              "image": {
-                "light": "docs/guide/images/playbook-import-light.png",
-                "dark": "docs/guide/images/playbook-import-dark.png",
-                "hc": "docs/guide/images/playbook-import-dark.png",
-                "hcLight": "docs/guide/images/playbook-import-light.png"
-              },
-              "altText": "A playbook imported as a flow: its block, roles and handler as steps"
-            },
-            "completionEvents": [
+              "onCommand:afd.flow.new",
               "onCommand:afd.import.playbooks"
             ]
           },
           {
             "id": "add-steps",
-            "title": "Add steps",
-            "description": "Click or drag a node type from the palette, drag from a port and release on empty canvas, or right-click the canvas for **Add Node Here…**. To put a step between two nodes, click the wire's port and choose **Insert Node on This Wire**.\nWires run from an output port (`ok_hosts`, `failed_hosts`, …) to the next node's `in`. Hosts travel along them.\n[How-to: canvas basics](command:afd.help.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
+            "title": "Add a step",
+            "description": "**Add a Step** (or N) puts a step between Start and Done; N again adds the next one after it. Wires run from a port to the next step: hosts that succeed leave by `ok_hosts`, those that fail by `failed_hosts`.\n[How-to: canvas basics](command:afd.help.openGuide?%5B%22how-to%2Fcanvas-basics.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/quick-add-light.png",
@@ -2654,9 +2706,27 @@
             ]
           },
           {
+            "id": "generate",
+            "title": "See the playbook it makes",
+            "description": "Each step becomes a play in `generated/<key>.yml`, written when you save. Select a step and choose **Peek Code** to see its play.\n[Generate Code](command:afd.code.generate)\n[How-to: code generation](command:afd.help.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/details-light.png",
+                "dark": "docs/guide/images/details-dark.png",
+                "hc": "docs/guide/images/details-dark.png",
+                "hcLight": "docs/guide/images/details-light.png"
+              },
+              "altText": "A node selected, with its Details on the right"
+            },
+            "completionEvents": [
+              "onCommand:afd.code.generate",
+              "onContext:afd.tour.codeSeen"
+            ]
+          },
+          {
             "id": "handle-failures",
-            "title": "Handle every failure",
-            "description": "An amber port is a failure nobody handles yet, and the banner counts them. Click it: wire a handler with one click (rollback, notify and stop, exclude and report, retry), or keep it open with Accept with Reason….\n[How-to: ports and failure patterns](command:afd.help.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
+            "title": "Decide what happens when it fails",
+            "description": "An amber port is a failure nothing handles yet: its hosts would fail the run. The banner asks what should happen; pick a pattern (rollback, notify and stop, exclude and report, retry) in one click, or keep it open with **Accept with Reason…**.\n[How-to: ports and failure patterns](command:afd.help.openGuide?%5B%22how-to%2Fports-and-failure-patterns.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/port-menu-light.png",
@@ -2671,60 +2741,9 @@
             ]
           },
           {
-            "id": "subflow",
-            "title": "Go top-down with subflows",
-            "description": "Keep the top level short: a subflow holds the details of one phase. Add a **Subflow** node and double-click it, or select connected steps and choose **Extract into Subflow**.\n[How-to: subflows](command:afd.help.openGuide?%5B%22how-to%2Fsubflows.md%22%5D)",
-            "media": {
-              "image": {
-                "light": "docs/guide/images/subflow-level-light.png",
-                "dark": "docs/guide/images/subflow-level-dark.png",
-                "hc": "docs/guide/images/subflow-level-dark.png",
-                "hcLight": "docs/guide/images/subflow-level-light.png"
-              },
-              "altText": "The inner level of a pre-checks subflow"
-            },
-            "completionEvents": [
-              "onContext:afd.tour.subflow"
-            ]
-          },
-          {
-            "id": "validate",
-            "title": "Check the design",
-            "description": "The designer checks the flow as you edit: missing wires, unhandled failures, data a step reads that nothing provides. Problems go to the Problems panel, each with its fix.\n[Check Flow](command:afd.flow.check)\n[Reference: problem codes](command:afd.help.openGuide?%5B%22reference%2Fproblems.md%22%5D)",
-            "media": {
-              "image": {
-                "light": "docs/guide/images/open-ports-banner-light.png",
-                "dark": "docs/guide/images/open-ports-banner-dark.png",
-                "hc": "docs/guide/images/open-ports-banner-dark.png",
-                "hcLight": "docs/guide/images/open-ports-banner-light.png"
-              },
-              "altText": "The banner counting open fail ports"
-            },
-            "completionEvents": [
-              "onCommand:afd.flow.check"
-            ]
-          },
-          {
-            "id": "generate",
-            "title": "See the generated playbook",
-            "description": "Saving a flow without errors writes `generated/<key>.yml` next to it, one play per step. Select a node and use Peek Code to see its play.\n[Generate Code](command:afd.code.generate)\n[How-to: code generation](command:afd.help.openGuide?%5B%22how-to%2Fcode-generation.md%22%5D)",
-            "media": {
-              "image": {
-                "light": "docs/guide/images/details-light.png",
-                "dark": "docs/guide/images/details-dark.png",
-                "hc": "docs/guide/images/details-dark.png",
-                "hcLight": "docs/guide/images/details-light.png"
-              },
-              "altText": "A node selected, with its Details on the right"
-            },
-            "completionEvents": [
-              "onCommand:afd.code.generate"
-            ]
-          },
-          {
             "id": "skeleton-run",
-            "title": "Run it as a walking skeleton",
-            "description": "Steps without code run as TODO messages, so the whole flow runs from the first minute: `ansible-playbook --check` in your Ansible environment (an execution environment image, WSL or a venv). Run mode then shows how many hosts took each wire.\n[Run as Skeleton](command:afd.run.skeleton)\n[How-to: runs and environments](command:afd.help.openGuide?%5B%22how-to%2Fruns-and-environments.md%22%5D)",
+            "title": "Run it as a skeleton",
+            "description": "Steps without code print TODO, so the flow runs from the first minute: `ansible-playbook --check` in your Ansible environment. No environment yet? [Set Up Ansible Environment…](command:afd.environment.setup). Run mode then shows how many hosts took each wire.\n[Run as Skeleton](command:afd.run.skeleton)\n[How-to: runs and environments](command:afd.help.openGuide?%5B%22how-to%2Fruns-and-environments.md%22%5D)",
             "media": {
               "image": {
                 "light": "docs/guide/images/run-mode-light.png",
@@ -2735,13 +2754,14 @@
               "altText": "Run mode with host counts on every wire"
             },
             "completionEvents": [
-              "onCommand:afd.run.skeleton"
+              "onCommand:afd.run.skeleton",
+              "onContext:afd.tour.skeletonRun"
             ]
           },
           {
             "id": "next",
             "title": "Keep going",
-            "description": "Bind steps to modules from your environment's catalog, pass data between them, poll until a device is back, and run for real or in AWX.\n[Open the User Guide](command:afd.help.openGuide)\n[Tutorial: from design to production](command:afd.help.openGuide?%5B%22tutorials%2F02-design-to-production.md%22%5D)",
+            "description": "Split the flow into subflows (top-down), bind steps to modules from your environment's catalog, pass data between them, and run for real or in AWX.\n[Open the User Guide](command:afd.help.openGuide)\n[Tutorial: from design to production](command:afd.help.openGuide?%5B%22tutorials%2F02-design-to-production.md%22%5D)",
             "media": {
               "markdown": "media/walkthrough/guide.md"
             },

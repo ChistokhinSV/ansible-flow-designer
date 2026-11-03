@@ -37,6 +37,17 @@ const SHOTS = {
       await ui(page, 'openQuickAdd', { type: 'task', insertOn: edge, title: 'Check NTP' });
     },
   },
+  // AFD-73: the first-flow checklist on a flow with its first step; the playbook seen already.
+  'first-flow': {
+    flow: 'new',
+    act: async (page) => {
+      await ui(page, 'setFirstFlow', { hidden: false, done: ['codeSeen'] });
+      const edge = await page.evaluate(() => window.afdUi.getState().snapshot.doc.edges[0].id);
+      const command = { kind: 'addNode', type: 'task', title: 'Check NTP', insertOn: edge };
+      await host(page, { type: 'command', reqId: 950, command });
+      await settle(page, 900);
+    },
+  },
   'context-menu': {
     flow: 'firewall-upgrade',
     act: async (page) => {
@@ -45,7 +56,7 @@ const SHOTS = {
     },
   },
   'cheat-sheet': { flow: 'firewall-upgrade', act: (page) => ui(page, 'showCheatSheet', true) },
-  'open-ports-banner': { flow: 'edge-baseline', walk: true },
+  'open-ports-banner': { flow: 'edge-baseline' },
   'port-menu': {
     flow: 'edge-baseline',
     walk: true,
@@ -60,7 +71,6 @@ const SHOTS = {
   },
   'subflow-level': {
     flow: 'firewall-upgrade',
-    walk: true,
     act: async (page) => ui(page, 'setLevel', await idOf(page, 'precheck')),
   },
   // AFD-60: os-upgrade's Upgrade OS subflow inserted in edge-baseline as a shared copy, wired before
@@ -211,7 +221,6 @@ const SHOTS = {
   // AFD-28: the sample playbooks imported as is: the baseline play, and a looped step's keywords.
   'playbook-import': {
     flow: 'playbook-import',
-    walk: true,
     act: async (page) => ui(page, 'setLevel', await idOf(page, 'baseline/edge-baseline')),
   },
   'task-keywords': {

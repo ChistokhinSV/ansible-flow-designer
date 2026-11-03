@@ -12,6 +12,7 @@ import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
+import { markTourKey, SKELETON_RUN } from '../tour';
 import { CMD } from './ids';
 
 type Quiet = { quiet?: boolean };
@@ -23,7 +24,10 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     const result = await runFlow(doc, host.runDeps(doc.uri), { mode });
     if (result.state === 'error')
       void showOutcomeError(result.error ?? 'The run failed', result.errorCode, doc.uri);
-    else if (result.state === 'done') void announceRun(result);
+    else if (result.state === 'done') {
+      if (mode === 'check') markTourKey(SKELETON_RUN);
+      void announceRun(result);
+    }
     return result;
   };
   return [

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.48.0 — AFD-73
+
+Wave 7, a gentler first hour, part 3: a guided first flow.
+
+- **Your first flow:** a small checklist over the canvas, on a flow with one to five steps: add a step, see the playbook it makes, decide what happens when it fails, run it as a skeleton. Each ticks as you do it, and **Show Me** does it or opens where it is done. Hide it once and it stays hidden ("…" › Show First-Flow Checklist brings it back).
+- **Ansible Flows in the Activity Bar:** the flows of the workspace, New Flow and Refresh. With no folder it offers Open Folder and Get Started; with no flows, New Flow, Open Sample Flow, Import Ansible Playbooks, Get Started and the User Guide.
+- **"?" links** beside the Details tabs, the failure patterns and the Run, Design vs code and lens panels open the guide page about them.
+- **AI assistants are offered after you meet a flow:** the setup notice comes the first time the designer shows a flow with a step, not when VS Code starts, and **Set Up…** shows what it writes before writing it.
+- **The walkthrough** "Design your first Ansible flow" has six steps that match the checklist, with Set Up Ansible Environment… in its run step. The empty-flow card links Get Started.
+- **A quieter Command Palette:** Launch in AWX, Set Up AWX Template and Clear AWX Token show once an AWX address is set; Remove AI Assistant Setup… once there is one.
+- Your progress (the walkthrough's steps and the checklist) is kept between sessions.
+
 ## 0.47.0 — AFD-72
 
 Wave 7, a gentler first hour, part 2: a calmer first screen. Things show when they can act; rarer fields fold away behind a line that says what is inside, and open by themselves when something there needs you. Nothing is removed.

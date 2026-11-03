@@ -337,6 +337,12 @@ export class AiSetup {
       ),
     );
     await vscode.commands.executeCommand('setContext', 'afd.skillOnDisk', states.some(Boolean));
+    // AFD-73: Remove AI Assistant Setup… shows in the Command Palette once there is one.
+    await vscode.commands.executeCommand(
+      'setContext',
+      'afd.ai.configured',
+      (this.record?.agents.length ?? 0) > 0,
+    );
   }
 
   /**
@@ -373,8 +379,9 @@ export class AiSetup {
   }
 
   /**
-   * AFD-20: after VS Code starts, offer the setup once to agents found without it. Set Up does them
-   * all for just me in one click; an agent is asked about again only if it was not offered before.
+   * AFD-20: offer the setup once to agents found without it. AFD-73: only once a designer shows a
+   * flow with a step (not in any workspace at startup); Set Up… shows what it writes before writing
+   * it; an agent counts as offered once the user answered (or closed the notice).
    */
   async offer(): Promise<void> {
     if (this.context.globalState.get<boolean>(NEVER)) return;
@@ -383,21 +390,18 @@ export class AiSetup {
     const found = await this.found();
     const pending = [...found.keys()].filter((a) => !record?.agents.includes(a) && !offered.has(a));
     if (pending.length === 0) return;
-    await this.context.globalState.update(OFFERED, [...offered, ...pending]);
     const names = list(pending.map(agentLabel));
     const pick = await vscode.window.showInformationMessage(
-      `${names} ${pending.length > 1 ? 'are' : 'is'} installed but cannot read or edit Ansible flows yet. Set ${pending.length > 1 ? 'them' : 'it'} up (the ansible-flow skill and flow tools, for every repository)?`,
-      'Set Up',
+      `${names} can help you design flows once ${pending.length > 1 ? 'they have' : 'it has'} the ansible-flow skill and flow tools. Set ${pending.length > 1 ? 'them' : 'it'} up for every repository? You see what is written first.`,
+      'Set Up…',
       'Choose…',
       'Not Now',
       'Don’t Ask Again',
     );
-    if (pick === 'Set Up') {
+    await this.context.globalState.update(OFFERED, [...offered, ...pending]);
+    if (pick === 'Set Up…') {
       const agents = [...new Set([...(record?.agents ?? []), ...pending])];
-      await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Setting up ${names}…` },
-        () => this.setup({ agents, scope: 'user' }, false, true),
-      );
+      await this.setup({ agents, scope: 'user' }, true, true);
     } else if (pick === 'Choose…') await this.setup();
     else if (pick === 'Don’t Ask Again') await this.context.globalState.update(NEVER, true);
   }

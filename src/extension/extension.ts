@@ -1,6 +1,7 @@
 // Activation composes the extension (AFD-37): the shared services (Host), the flow documents'
 // lifecycle, the designer, and each area's commands. Commands live in their area's module.
 import * as vscode from 'vscode';
+import { parseFlow } from '../core/flow/document';
 import { KEEP_RUNS, sweepRuns } from '../node/run/storage';
 import { hostFlowIO, registerFlowTools } from './ai/lmTools';
 import { AiSetup } from './ai/setup';
@@ -10,17 +11,27 @@ import { registerImportCommands } from './commands/importCommands';
 import { registerRunCommands } from './commands/runCommands';
 import { registerDocuments } from './documents';
 import { registerExport } from './export';
+import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { watchScenarioFiles } from './run/scenarios';
 import { watchSharedSources } from './sharedSubflows';
 import { type AfdTestApi, createTestApi } from './testApi';
+import { initTour } from './tour';
 
 export { VIEW_TYPE } from './host';
 export type { AfdTestApi } from './testApi';
 
+/** A flow with a step of its own (more than Start and its ends), from its text (AFD-73). */
+function hasSteps(text: string): boolean {
+  const nodes = parseFlow(text).doc?.nodes ?? [];
+  return nodes.some((n) => n?.type !== 'start' && n?.type !== 'end');
+}
+
 export function activate(context: vscode.ExtensionContext): AfdTestApi | undefined {
   const host = new Host(context);
+  // AFD-73: first-flow progress for the walkthrough and the designer's checklist.
+  initTour(context.globalState);
   // No run is going yet: drop what earlier runs left behind (AFD-29), in the background.
   void sweepRuns(
     host.storage.fsPath,
@@ -61,11 +72,16 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     vscode.commands.registerCommand(CMD.setupAi, () => aiSetup.setup()),
     vscode.commands.registerCommand(CMD.removeAi, () => aiSetup.remove()),
   );
-  // AFD-20: the extension also starts after VS Code does (onStartupFinished), so agents found
-  // without the setup are offered it even in folders without flows.
-  void (
-    host.testMode ? aiSetup.refreshContext() : aiSetup.checkStale().then(() => aiSetup.offer())
-  ).catch(() => undefined);
+  // AFD-20: the extension also starts after VS Code does (onStartupFinished) and checks a setup
+  // from an older version. AFD-73: agents without it are offered it once a designer shows a flow
+  // with a step, not before anyone has seen a flow.
+  void (host.testMode ? aiSetup.refreshContext() : aiSetup.checkStale()).catch(() => undefined);
+  let offerPending = !host.testMode;
+  const offerOnce = (document: vscode.TextDocument) => {
+    if (!offerPending || !hasSteps(document.getText())) return;
+    offerPending = false;
+    void aiSetup.offer().catch(() => undefined);
+  };
   // The schema compiles on first use; where flows exist, do it now, before the first one opens.
   void vscode.workspace.findFiles('**/*.flow.yaml', '**/node_modules/**', 1).then(
     (found) => found.length > 0 && setTimeout(() => host.deps.schema({}), 0),
@@ -75,6 +91,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   const provider: vscode.CustomTextEditorProvider = {
     async resolveCustomTextEditor(document, panel) {
       host.sessionFor(document).attach(panel);
+      offerOnce(document);
     },
   };
   context.subscriptions.push(
@@ -100,6 +117,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     watchScenarioFiles(),
     watchSharedSources(host),
     ...registerImportCommands(host),
+    ...registerFlowsView(),
   );
   for (const doc of vscode.workspace.textDocuments)
     if (isFlow(doc)) void host.sessionFor(doc).refresh();

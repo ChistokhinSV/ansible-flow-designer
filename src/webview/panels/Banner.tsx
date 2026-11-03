@@ -8,9 +8,8 @@ import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
 import { run } from '../actions';
 import { send } from '../bus';
-import { menuAnchor } from '../canvas/FlowNodeView';
 import { useEditable } from '../editActions';
-import { runPortItem } from '../portActions';
+import { openPortMenuSoon, runPortItem } from '../portActions';
 import { useUi } from '../store';
 import { bannerCount } from '../viewModel';
 
@@ -86,16 +85,7 @@ function OpenPortsBanner({
     ...items.filter((i) => i.kind === 'decide'),
   ];
   // The rest of the choices: the port's own menu, beside the port once it is on screen.
-  const others = () => {
-    if (!ref) return;
-    reveal(ref.node);
-    setTimeout(() => {
-      const el = document.querySelector(
-        `.react-flow__node[data-id="${ref.node}"] [data-port="${ref.port}"]`,
-      );
-      if (el) useUi.getState().openPortMenu({ ref, ...menuAnchor(el, 'right') });
-    }, 300);
-  };
+  const others = () => ref && openPortMenuSoon(ref);
   return (
     <div className="afd-banner warning" role="status" data-banner-count={count}>
       <span className="codicon codicon-warning" aria-hidden="true" />

@@ -184,10 +184,12 @@ describe('a level with only Start and End', () => {
     fireEvent.click(within(card).getByRole('button', { name: 'Import Ansible Playbooks…' }));
     fireEvent.click(within(card).getByRole('button', { name: /Import AWX Workflow/ }));
     fireEvent.click(within(card).getByRole('button', { name: 'Open Sample Flow…' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Get Started' }));
     expect(posted.filter((m) => (m as { type: string }).type === 'startFrom')).toEqual([
       { type: 'startFrom', what: 'playbooks' },
       { type: 'startFrom', what: 'awx' },
       { type: 'startFrom', what: 'sample' },
+      { type: 'startFrom', what: 'tour' },
     ]);
   });
 

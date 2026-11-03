@@ -139,3 +139,36 @@
   color: inherit;
   opacity: 0.85;
 }
+
+/* AFD-73: the first-flow checklist, over the canvas's bottom left. */
+.afd-first-flow {
+  background: var(--vscode-editorWidget-background, var(--afd-bg));
+  border: 1px solid var(--afd-border);
+  border-radius: 4px;
+  padding: var(--afd-space-3);
+  max-width: 280px;
+  font-size: var(--afd-fs-12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.afd-first-flow > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.afd-first-flow ol {
+  list-style: none;
+  margin: var(--afd-space-3) 0;
+  padding: 0;
+}
+
+.afd-first-flow li {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--afd-space-2) var(--afd-space-3);
+  margin-bottom: var(--afd-space-2);
+}
+
+.afd-first-flow li.done .codicon {
+  color: var(--afd-ok);
+}

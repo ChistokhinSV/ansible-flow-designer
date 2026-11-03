@@ -17,6 +17,7 @@ import { useLevelView } from '../hooks';
 import { dropPattern } from '../portActions';
 import { useUi } from '../store';
 import { Fold } from './Fold';
+import { HelpLink } from './HelpLink';
 
 const PATTERN_ICON: Partial<Record<PatternId, string>> = {
   rollback: 'discard',
@@ -97,7 +98,11 @@ export function Palette() {
   );
   const patterns = (
     <>
-      {collapsed ? null : <h2>Failure patterns</h2>}
+      {collapsed ? null : (
+        <h2>
+          Failure patterns <HelpLink topic="patterns" about="failure patterns" />
+        </h2>
+      )}
       <p
         className={`afd-palette-hint muted${collapsed ? ' afd-sr-only' : ''}`}
         id="afd-pattern-hint"

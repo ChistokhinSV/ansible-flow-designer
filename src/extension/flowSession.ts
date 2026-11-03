@@ -45,7 +45,14 @@ import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
 import type { SyncDeps } from './sync/codeSync';
 import { openCode } from './sync/driftActions';
-import { markTour } from './tour';
+import {
+  CODE_SEEN,
+  firstFlowState,
+  markTour,
+  markTourKey,
+  onFirstFlow,
+  setFirstFlowHidden,
+} from './tour';
 
 /** Commands the designer runs say their outcome over its canvas, not in a notification (AFD-46). */
 const QUIET = { quiet: true };
@@ -321,8 +328,11 @@ export class FlowSession implements vscode.Disposable {
     const sub = panel.webview.onDidReceiveMessage((m: WebviewMessage) => {
       void this.onMessage(panel, m);
     });
+    // AFD-73: the first-flow checklist follows the user's progress in every open designer.
+    const progress = onFirstFlow((s) => this.post(panel, { type: 'firstFlow', ...s }));
     panel.onDidDispose(() => {
       sub.dispose();
+      progress.dispose();
       this.panels.delete(panel);
       this.readyPanels.delete(panel);
     });
@@ -347,6 +357,7 @@ export class FlowSession implements vscode.Disposable {
         this.readyPanels.add(panel);
         for (const w of this.readyWaiters.splice(0)) w();
         this.post(panel, { type: 'config', testMode: this.deps.testMode });
+        this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
         if (this.catalogFolder && this.deps.catalog)
@@ -451,8 +462,13 @@ export class FlowSession implements vscode.Disposable {
             ? CMD.importPlaybooks
             : m.what === 'awx'
               ? CMD.importAwx
-              : CMD.openSample,
+              : m.what === 'tour'
+                ? CMD.getStarted
+                : CMD.openSample,
         );
+        break;
+      case 'firstFlow':
+        setFirstFlowHidden(m.hidden);
         break;
       case 'run':
         await vscode.commands.executeCommand(
@@ -466,16 +482,16 @@ export class FlowSession implements vscode.Disposable {
       case 'stopRun':
         await vscode.commands.executeCommand(CMD.stopRun, this.uri);
         break;
-      case 'generate':
-        this.tell(
-          panel,
-          await vscode.commands.executeCommand<Notice | undefined>(
-            CMD.generateCode,
-            this.uri,
-            QUIET,
-          ),
+      case 'generate': {
+        const notice = await vscode.commands.executeCommand<Notice | undefined>(
+          CMD.generateCode,
+          this.uri,
+          QUIET,
         );
+        if (notice && notice.level !== 'error') markTourKey(CODE_SEEN);
+        this.tell(panel, notice);
         break;
+      }
       case 'showRunOutput': {
         // Only URLs the host itself got from AWX: the run, or one of its approvals (AFD-11).
         const url = m.approval
@@ -715,6 +731,7 @@ export class FlowSession implements vscode.Disposable {
       viewColumn: vscode.ViewColumn.Beside,
       preview: true,
     });
+    markTourKey(CODE_SEEN);
     if (level || !play) return;
     const range = new vscode.Range(play.start, 0, play.end, 0);
     editor.selection = new vscode.Selection(range.start, range.start);

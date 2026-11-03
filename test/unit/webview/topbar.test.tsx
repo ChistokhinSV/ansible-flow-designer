@@ -102,6 +102,8 @@ describe('top bar', () => {
       'Collapse Palette',
       'Hide Side Panel',
       'Hide Annotations',
+      // AFD-73: the first-flow checklist comes back from here once hidden.
+      'Hide First-Flow Checklist',
       'Keyboard Shortcuts',
       'User Guide',
     ]);

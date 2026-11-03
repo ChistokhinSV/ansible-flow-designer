@@ -6,6 +6,7 @@ import { freeOutput, nextFrom, type PortMenuItem, patternTarget } from '../core/
 import type { PortRef, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
 import { attachAnnotation } from './annotationActions';
+import { menuAnchor } from './canvas/FlowNodeView';
 import { canvasPlace } from './clipboard';
 import { useUi } from './store';
 import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel';
@@ -157,4 +158,15 @@ export function addNode(from?: Ulid): void {
     const position = canvasPlace();
     ui.openQuickAdd({ type: 'task', ...(position ? { position } : {}) });
   }
+}
+
+/** Shows the node, then opens the port's menu beside it once it is on screen (AFD-72, AFD-73). */
+export function openPortMenuSoon(ref: PortRef): void {
+  useUi.getState().reveal(ref.node);
+  setTimeout(() => {
+    const el = document.querySelector(
+      `.react-flow__node[data-id="${ref.node}"] [data-port="${ref.port}"]`,
+    );
+    if (el) useUi.getState().openPortMenu({ ref, ...menuAnchor(el, 'right') });
+  }, 300);
 }

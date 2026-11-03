@@ -38,7 +38,18 @@ time: the top of the flow, or the inside of one subflow.
   widens it for the catalog docs. Double-click the edge (or press Enter on it), or "…" › _Hide Side
   Panel_, to fold it to a strip; its button brings it back.
 - A level with only Start and End shows a card to begin: **Add a Step** (between Start and End), or
-  a flow from playbooks, an AWX workflow or a sample.
+  a flow from playbooks, an AWX workflow or a sample; **Get Started** opens the walkthrough.
+- **Your first flow** (bottom left, on a flow with one to five steps): four things that make a first
+  flow, ticked as you do them: add a step, see the playbook it makes, decide what happens when it
+  fails, run it as a skeleton. **Show Me** does each, or opens where it is done. **Hide Checklist**
+  hides it for good; "…" › _Show First-Flow Checklist_ brings it back.
+- **"?"** beside the Details tabs and some panel titles opens the guide page about them.
+
+![The first-flow checklist](../images/first-flow-light.png)
+
+The **Ansible Flows** icon in the Activity Bar lists the flows in the workspace; with no folder or
+no flow yet it offers Open Folder, New Flow, Open Sample Flow, Import Ansible Playbooks and Get
+Started.
 
 ## Keep a warning as it is
 

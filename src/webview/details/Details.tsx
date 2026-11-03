@@ -14,8 +14,10 @@ import { copySelection } from '../clipboard';
 import { TYPE_LABEL } from '../constants';
 import { deleteSelection, useEditable } from '../editActions';
 import { onTabListKeys, useDialogFocus } from '../focus';
+import type { HelpTopic } from '../helpPages';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
+import { HelpLink } from '../panels/HelpLink';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
 import { keysOf } from '../shortcuts';
@@ -45,6 +47,17 @@ export function detailsTabs(node: FlowNode, mode: Mode): PropTab[] {
   if (mode === 'run') return ['run', ...design];
   return design;
 }
+
+/** The guide page about each tab (AFD-73). */
+const TAB_HELP: Record<PropTab, HelpTopic> = {
+  code: 'code',
+  run: 'runs',
+  general: 'canvas',
+  binding: 'binding',
+  io: 'io',
+  ports: 'patterns',
+  execution: 'execution',
+};
 
 export function Details({ id, context }: { id: string; context?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
@@ -126,6 +139,7 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             {TYPE_LABEL[node.type]} · {node.status ?? 'draft'}
           </span>
           <div className="afd-details-actions">
+            <HelpLink topic={TAB_HELP[tab]} about={`the ${LABEL[tab]} tab`} />
             {play ? (
               <button
                 type="button"

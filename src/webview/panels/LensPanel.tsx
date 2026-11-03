@@ -2,6 +2,7 @@ import { LENSES, type LensFinding, type LensItem } from '../../core/lens/types';
 import { run } from '../actions';
 import { send } from '../bus';
 import { useUi } from '../store';
+import { HelpLink } from './HelpLink';
 import { ReasonDialog } from './ReasonDialog';
 
 const labelOf = (id: string) => LENSES.find((l) => l.id === id)?.label ?? id;
@@ -75,7 +76,9 @@ export function LensBrowser() {
   const inventory = lens === 'inventory' || lens === 'access';
   return (
     <section className="afd-panel-body afd-lens-browser" aria-label={`${labelOf(lens)} lens`}>
-      <h2 className="afd-panel-title">{labelOf(lens)}</h2>
+      <h2 className="afd-panel-title">
+        {labelOf(lens)} <HelpLink topic="lenses" about="lenses" />
+      </h2>
       {inventory ? (
         <div className="afd-lens-source">
           <p className="muted">

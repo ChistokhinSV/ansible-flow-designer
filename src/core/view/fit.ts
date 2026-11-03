@@ -96,6 +96,8 @@ export const MINIMAP = { width: 160, height: 110, margin: 15 };
 export function minimapCorner(
   boxes: readonly Rect[],
   pane: { width: number; height: number },
+  /** The bottom left is taken (the first-flow checklist, AFD-73). */
+  bottomTaken = false,
   size = MINIMAP,
 ): 'bottom-left' | 'top-left' | null {
   const corner = (top: number): Rect => ({
@@ -109,7 +111,7 @@ export function minimapCorner(
       (b) =>
         b.x < r.x + r.width && b.x + b.width > r.x && b.y < r.y + r.height && b.y + b.height > r.y,
     );
-  if (clear(corner(pane.height - size.margin - size.height))) return 'bottom-left';
+  if (!bottomTaken && clear(corner(pane.height - size.margin - size.height))) return 'bottom-left';
   if (clear(corner(size.margin))) return 'top-left';
   return null;
 }

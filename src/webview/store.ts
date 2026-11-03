@@ -137,6 +137,8 @@ export interface PickState {
 interface UiState {
   snapshot: Snapshot | null;
   testMode: boolean;
+  /** AFD-73: the user's first-flow progress from the host; null until it says. */
+  firstFlow: { hidden: boolean; done: string[] } | null;
   selection: Selection;
   quickAdd: QuickAddState | null;
   portMenu: PortMenuState | null;
@@ -210,6 +212,7 @@ interface UiState {
   testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
+  setFirstFlow(state: { hidden: boolean; done: string[] }): void;
   select(s: Selection): void;
   setAnnotationsHidden(hidden: boolean): void;
   editAnnotation(id: Ulid | null): void;
@@ -283,6 +286,7 @@ function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftRe
 export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
+  firstFlow: null,
   selection: {},
   quickAdd: null,
   portMenu: null,
@@ -379,6 +383,7 @@ export const useUi = create<UiState>((set, get) => ({
     });
   },
   setTestMode: (testMode) => set({ testMode }),
+  setFirstFlow: (firstFlow) => set({ firstFlow }),
   select(selection) {
     const pending = get().pendingBinding;
     if (pending && selection.node !== pending)

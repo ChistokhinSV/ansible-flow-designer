@@ -77,6 +77,19 @@ export function EmptyLevel({ at }: { at: { x: number; y: number } }) {
           </>
         ) : null}
       </div>
+      {top ? (
+        <p className="muted">
+          New here?{' '}
+          <button
+            type="button"
+            className="link"
+            onClick={() => send({ type: 'startFrom', what: 'tour' })}
+          >
+            Get Started
+          </button>{' '}
+          walks you through a first flow.
+        </p>
+      ) : null}
     </section>
   );
 }

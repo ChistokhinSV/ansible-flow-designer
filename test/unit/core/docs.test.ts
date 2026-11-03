@@ -15,6 +15,7 @@ import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { importPlaybook } from '../../../src/core/import/playbook';
 import { type PlaybookForm, readPlaybook, scanFolder } from '../../../src/core/import/source';
+import { HELP } from '../../../src/webview/helpPages';
 import { fsSource } from './helpers';
 
 const ROOT = resolve(__dirname, '../../..');
@@ -145,6 +146,8 @@ describe('walkthroughs', () => {
       '!docs/guide/**',
       '!samples/**',
       '!media/icon.png',
+      // AFD-73: the Ansible Flows view's Activity Bar icon.
+      '!media/flows.svg',
       '!media/walkthrough/**',
       // What the extension reads at run time beside its bundle (AFD-58: the CI runner, the schema).
       '!dist/afd-scenarios.js',
@@ -159,6 +162,32 @@ describe('walkthroughs', () => {
     const images = join(GUIDE, 'images');
     const bytes = readdirSync(images).reduce((n, f) => n + statSync(join(images, f)).size, 0);
     expect(bytes).toBeLessThan(3.5 * 1024 * 1024);
+  });
+});
+
+describe('Ansible Flows view (AFD-73)', () => {
+  it('its welcome links run commands we contribute or VS Code has', () => {
+    const welcome = pkg.contributes.viewsWelcome as {
+      view: string;
+      contents: string;
+      when: string;
+    }[];
+    expect(welcome.map((w) => w.when)).toEqual([
+      'workbenchState == empty',
+      'workbenchState != empty',
+    ]);
+    for (const w of welcome)
+      for (const [, id] of w.contents.matchAll(/\]\(command:([\w.]+)/g))
+        expect(
+          contributed.has(id as string) || id === 'workbench.action.files.openFolder',
+          id,
+        ).toBe(true);
+  });
+});
+
+describe('"?" links (AFD-73)', () => {
+  it('every page a "?" opens is in the guide', () => {
+    for (const page of Object.values(HELP)) expect(existsSync(join(GUIDE, page)), page).toBe(true);
   });
 });
 

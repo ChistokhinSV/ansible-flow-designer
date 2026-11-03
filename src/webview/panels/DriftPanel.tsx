@@ -10,6 +10,7 @@ import { send } from '../bus';
 import { ago } from '../constants';
 import { runDriftAction } from '../driftActions';
 import { useUi } from '../store';
+import { HelpLink } from './HelpLink';
 import { ReasonDialog } from './ReasonDialog';
 
 function SyncSource() {
@@ -132,7 +133,9 @@ export function DriftPanel() {
   return (
     <div className="afd-panel-body" data-drift-panel>
       <div className="afd-panel-head">
-        <h2 className="afd-panel-title">Design vs code</h2>
+        <h2 className="afd-panel-title">
+          Design vs code <HelpLink topic="code" about="Code mode" />
+        </h2>
         {/* Code mode's own action lives with its panel; the toolbar is the same in every mode (AFD-45). */}
         <button
           type="button"

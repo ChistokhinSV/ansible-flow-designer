@@ -180,3 +180,13 @@ button[aria-disabled="true"] {
 .afd-fold[open] > summary {
   margin-bottom: var(--afd-space-2);
 }
+
+/* AFD-73: a "?" to the guide beside a heading or the Details tabs. */
+.afd-help-link {
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+.afd-help-link:hover {
+  opacity: 1;
+}

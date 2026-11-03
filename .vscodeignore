@@ -9,6 +9,7 @@
 !docs/guide/**
 !samples/**
 !media/icon.png
+!media/flows.svg
 !media/walkthrough/**
 !dist/webview/**
 !dist/probe/**

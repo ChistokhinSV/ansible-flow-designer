@@ -121,6 +121,8 @@ function controls() {
 /** The new flow as a newcomer meets it, then after the first step (the card's Add a Step). */
 async function firstSteps(page) {
   await openFlow(page, 'new');
+  // A newcomer's first flow shows the first-flow checklist (AFD-73; the harness hides it).
+  await ui(page, 'setFirstFlow', { hidden: false, done: [] });
   const empty = await page.evaluate(controls);
   const actions = ['Add a Step', 'type the title', 'Enter'];
   await page.getByRole('button', { name: /Add a Step/ }).click();

@@ -163,6 +163,8 @@ export type HostMessage =
   /** Switches the canvas mode (tests and commands, M7). */
   | { type: 'setMode'; mode: 'design' | 'code' | 'run' }
   | { type: 'config'; testMode: boolean }
+  /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
+  | { type: 'firstFlow'; hidden: boolean; done: string[] }
   /** Test mode: asks the webview for a summary of its DOM. */
   | { type: 'inspect'; reqId: number }
   | { type: 'catalogStatus'; status: CatalogStatus }
@@ -199,8 +201,10 @@ export type WebviewMessage =
   | { type: 'validate' }
   /** AFD-22: a page of the user guide (docs/guide), README.md when none. */
   | { type: 'openGuide'; page?: string }
-  /** The empty-flow card (AFD-48): an import or a sample instead of the first step. */
-  | { type: 'startFrom'; what: 'playbooks' | 'awx' | 'sample' }
+  /** The empty-flow card (AFD-48): an import or a sample instead of the first step; or the tour. */
+  | { type: 'startFrom'; what: 'playbooks' | 'awx' | 'sample' | 'tour' }
+  /** AFD-73: the first-flow checklist hidden for good, or shown again. */
+  | { type: 'firstFlow'; hidden: boolean }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
   | { type: 'generate' }
