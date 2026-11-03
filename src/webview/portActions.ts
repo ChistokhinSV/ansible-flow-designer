@@ -126,14 +126,20 @@ export async function completePick(target: Ulid): Promise<void> {
   }
 }
 
-/** Add Next Node from a node's main output, or onto its wire when it has one (`nextFrom`). */
+/**
+ * Add Next Node from a node's main output, or onto its wire when it has one (`nextFrom`). On a
+ * level laid out automatically the new step gets no position, so the layout puts it in line.
+ */
 export function addNextNode(from: PortRef, insertOn?: Ulid): void {
-  void runPortItem(
-    insertOn
-      ? { kind: 'insert', label: 'Add Next Node', edge: insertOn }
-      : { kind: 'quickAdd', label: 'Add Next Node' },
-    from,
-  );
+  const auto = from.node in (useUi.getState().snapshot?.autoPositions ?? {});
+  if (insertOn && auto) useUi.getState().openQuickAdd({ type: 'task', insertOn });
+  else
+    void runPortItem(
+      insertOn
+        ? { kind: 'insert', label: 'Add Next Node', edge: insertOn }
+        : { kind: 'quickAdd', label: 'Add Next Node' },
+      from,
+    );
 }
 
 /**

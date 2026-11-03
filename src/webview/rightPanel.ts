@@ -13,6 +13,8 @@ export type RightPanel =
   | { kind: 'selection'; ids: string[] }
   | { kind: 'details'; id: string; context?: boolean }
   | { kind: 'boundary'; edge: string }
+  /** AFD-72: a plain wire selected in Design mode. */
+  | { kind: 'wire'; edge: string }
   /** AFD-65: one Note, Section or Text selected, with no node. */
   | { kind: 'annotation'; id: string }
   | { kind: 'flow' };
@@ -36,6 +38,7 @@ export function rightPanelFor(s: {
   }
   if (nodes?.length) return { kind: 'selection', ids: nodes };
   if (edge && boundaryWire(edge)) return { kind: 'boundary', edge };
+  if (edge) return { kind: 'wire', edge };
   // Inside a subflow with nothing selected: that subflow, not the whole flow (AFD-30).
   if (s.level !== ROOT) return { kind: 'details', id: s.level, context: true };
   return { kind: 'flow' };
@@ -55,6 +58,8 @@ export function rightPanelLabel(panel: RightPanel): string {
       return panel.context ? 'Subflow details' : 'Details';
     case 'boundary':
       return 'Subflow boundary';
+    case 'wire':
+      return 'Wire';
     case 'annotation':
       return 'Annotation';
     case 'flow':

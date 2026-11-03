@@ -48,8 +48,9 @@ empty canvas; right-click the canvas → **Add Node Here…**. See
 
 ## 3. Handle every failure
 
-Each task has a `failed_hosts` port. An **amber** port is a failure nobody handles yet, and the
-banner at the top counts them.
+Each task has a `failed_hosts` port. An **amber** port is a failure nobody handles yet. The
+banner at the top counts them and asks what should happen when the step fails, with the first
+fixes as buttons.
 
 ![The banner counts open fail ports](../images/open-ports-banner-light.png)
 

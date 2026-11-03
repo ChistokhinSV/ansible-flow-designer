@@ -91,7 +91,8 @@ export function validateFlow(
     add({
       code: 'open-fail-port',
       severity: 'warning',
-      message: `Open fail port: ${label(entry?.node)} · ${open.port} is not wired and not marked open on purpose`,
+      // AFD-72: what happens to the hosts, and the two ways out, in plain words.
+      message: `Open fail port: ${label(entry?.node)} · ${open.port} has nowhere to go, so its hosts fail the run. Wire a failure pattern to it, or Accept with Reason… to keep it open`,
       path: entry?.path ?? [],
       node: open.node,
       port: open.port,

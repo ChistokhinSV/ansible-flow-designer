@@ -1,7 +1,10 @@
 // Editor for a contract (flow inputs, node inputs or outputs): one row per field.
 import { useState } from 'react';
+import { modelOf } from '../../core/flow/model';
 import type { Contract, ContractField, ContractType, Ulid } from '../../core/flow/types';
+import { fromText } from '../../core/view/fromText';
 import { run } from '../actions';
+import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -13,10 +16,19 @@ interface Props {
   contract: Contract | undefined;
   /** Show the `from:` column (node contracts). */
   withFrom?: boolean;
+  /** What the contract is for, under its title (AFD-72). */
+  hint?: string;
 }
 
-export function ContractEditor({ title, target, side, contract, withFrom }: Props) {
+export function ContractEditor({ title, target, side, contract, withFrom, hint }: Props) {
   const [adding, setAdding] = useState('');
+  const doc = useUi((s) => s.snapshot?.doc);
+  // AFD-72: `from:` in words; the raw reference stays in the tooltip.
+  const fromWords = (s: 'inputs' | 'outputs', from: string) => {
+    const model = doc ? modelOf(doc) : undefined;
+    const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
+    return model && node ? fromText(model, node, s, from) : from;
+  };
   const entries = Object.entries(contract ?? {});
   const set = (name: string, field: ContractField | null, rename?: string) =>
     run({ kind: 'setContractField', target, side, name, field, rename });
@@ -28,6 +40,7 @@ export function ContractEditor({ title, target, side, contract, withFrom }: Prop
   return (
     <section className="afd-section">
       <h3>{title}</h3>
+      {hint ? <p className="muted">{hint}</p> : null}
       {entries.length === 0 ? <p className="muted">None yet.</p> : null}
       <ul className="afd-contract">
         {entries.map(([name, field]) => (
@@ -53,12 +66,15 @@ export function ContractEditor({ title, target, side, contract, withFrom }: Prop
                     void set(name, { ...field, required: e.target.checked || undefined })
                   }
                 />
-                req
+                required
               </label>
             ) : null}
             {withFrom && field?.from ? (
-              <span className="mono muted afd-contract-from" title="Source of the value">
-                ← {field.from}
+              <span
+                className="muted afd-contract-from"
+                title={`Source of the value: ${field.from}`}
+              >
+                ← {fromWords(side, field.from)}
               </span>
             ) : null}
             <button

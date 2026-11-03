@@ -2,16 +2,21 @@
 // click adds a node near the middle of the view; dragging adds it where it is dropped. A pattern
 // is dragged onto an open fail port (or a node), or clicked to resolve the selected node.
 // AFD-48: the palette folds to its icons, and the legend opens from a "?" button instead of
-// filling the column.
+// filling the column. AFD-72: the four node types a first flow needs, the rest folded; failure
+// patterns once the level has a step that can fail.
 import { useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { formatOf } from '../../core/flow/format';
 import { PATTERNS, type PatternId } from '../../core/flow/patterns';
+import { isFailPort, portsFor } from '../../core/flow/ports';
 import type { AnnotationKind, NodeType } from '../../core/flow/types';
+import { LEGEND_PORTS, portHint } from '../../core/view/portHints';
 import { addAnnotation } from '../annotationActions';
 import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
+import { useLevelView } from '../hooks';
 import { dropPattern } from '../portActions';
 import { useUi } from '../store';
+import { Fold } from './Fold';
 
 const PATTERN_ICON: Partial<Record<PatternId, string>> = {
   rollback: 'discard',
@@ -34,6 +39,8 @@ const ITEMS: { type: NodeType; icon: string; hint: string }[] = [
   { type: 'start', icon: 'debug-start', hint: 'Entry point of the flow' },
   { type: 'end', icon: 'debug-stop', hint: 'Exit of the flow' },
 ];
+/** What a first flow needs (AFD-72); the rest sit under More node types. */
+const BASIC: ReadonlySet<NodeType> = new Set(['task', 'subflow', 'decision', 'approval']);
 
 /** AFD-65: words on the canvas that explain the flow and never run. */
 const NOTES: { kind: AnnotationKind; label: string; icon: string; hint: string }[] = [
@@ -53,6 +60,9 @@ export function Palette() {
   const locked = useUi((s) => s.mode === 'run');
   const v1 = useUi((s) => !!s.snapshot?.doc && formatOf(s.snapshot.doc) < 2);
   const collapsed = useUi((s) => s.paletteCollapsed);
+  const view = useLevelView();
+  const canFail = view.nodes.some((n) => portsFor(n.node).some((p) => isFailPort(p.name)));
+  const branching = view.nodes.some((n) => n.node.type === 'parallel' || n.node.type === 'join');
   const { screenToFlowPosition } = useReactFlow();
   const addCentered = (type: NodeType) => {
     const canvas = document.querySelector('.react-flow')?.getBoundingClientRect();
@@ -67,45 +77,26 @@ export function Palette() {
   // Folded, a button is its icon: the name is its label and tooltip.
   const named = (label: string, hint: string) =>
     collapsed ? { 'aria-label': label, title: `${label}: ${hint}` } : { title: hint };
-  return (
-    <aside className={`afd-left${collapsed ? ' collapsed' : ''}`} aria-label="Palette">
-      <div className="afd-palette-head">
-        {collapsed ? null : <h2>Nodes</h2>}
-        <button
-          type="button"
-          className="icon"
-          aria-label={collapsed ? 'Expand Palette' : 'Collapse Palette'}
-          aria-expanded={!collapsed}
-          title={collapsed ? 'Show the names' : 'Icons only, for a wider canvas'}
-          onClick={() => useUi.getState().setPaletteCollapsed(!collapsed)}
-        >
-          <span
-            className={`codicon codicon-chevron-${collapsed ? 'right' : 'left'}`}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-      {locked ? <p className="afd-palette-hint muted">Run mode is read-only</p> : null}
-      <ul className="afd-palette">
-        {ITEMS.map((item) => (
-          <li key={item.type}>
-            <button
-              type="button"
-              draggable={!locked}
-              disabled={locked}
-              onDragStart={(e) => {
-                e.dataTransfer.setData(DRAG_MIME, item.type);
-                e.dataTransfer.effectAllowed = 'copy';
-              }}
-              onClick={() => addCentered(item.type)}
-              {...named(TYPE_LABEL[item.type], item.hint)}
-            >
-              <span className={`codicon codicon-${item.icon}`} aria-hidden="true" />
-              {collapsed ? null : TYPE_LABEL[item.type]}
-            </button>
-          </li>
-        ))}
-      </ul>
+  const nodeItem = (item: (typeof ITEMS)[number]) => (
+    <li key={item.type}>
+      <button
+        type="button"
+        draggable={!locked}
+        disabled={locked}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(DRAG_MIME, item.type);
+          e.dataTransfer.effectAllowed = 'copy';
+        }}
+        onClick={() => addCentered(item.type)}
+        {...named(TYPE_LABEL[item.type], item.hint)}
+      >
+        <span className={`codicon codicon-${item.icon}`} aria-hidden="true" />
+        {collapsed ? null : TYPE_LABEL[item.type]}
+      </button>
+    </li>
+  );
+  const patterns = (
+    <>
       {collapsed ? null : <h2>Failure patterns</h2>}
       <p
         className={`afd-palette-hint muted${collapsed ? ' afd-sr-only' : ''}`}
@@ -146,6 +137,37 @@ export function Palette() {
           </li>
         ))}
       </ul>
+    </>
+  );
+  return (
+    <aside className={`afd-left${collapsed ? ' collapsed' : ''}`} aria-label="Palette">
+      <div className="afd-palette-head">
+        {collapsed ? null : <h2>Nodes</h2>}
+        <button
+          type="button"
+          className="icon"
+          aria-label={collapsed ? 'Expand Palette' : 'Collapse Palette'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Show the names' : 'Icons only, for a wider canvas'}
+          onClick={() => useUi.getState().setPaletteCollapsed(!collapsed)}
+        >
+          <span
+            className={`codicon codicon-chevron-${collapsed ? 'right' : 'left'}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+      {locked ? <p className="afd-palette-hint muted">Run mode is read-only</p> : null}
+      {/* Folded to icons, every type shows: there is no room for a fold's summary. */}
+      <ul className="afd-palette">
+        {ITEMS.filter((i) => collapsed || BASIC.has(i.type)).map(nodeItem)}
+      </ul>
+      {collapsed ? null : (
+        <Fold id="palette-more" open={branching} summary="More node types">
+          <ul className="afd-palette">{ITEMS.filter((i) => !BASIC.has(i.type)).map(nodeItem)}</ul>
+        </Fold>
+      )}
+      {canFail ? patterns : null}
       {collapsed ? null : <h2>Annotate</h2>}
       <ul className="afd-palette" aria-label="Annotate">
         {NOTES.map((n) => (
@@ -270,6 +292,16 @@ function Legend({ collapsed }: { collapsed: boolean }) {
               <span className="afd-swatch wire problem" /> Problem path
             </li>
           </ul>
+          {/* AFD-72: the port names stay as in the file; here they are in plain words. */}
+          <p className="muted">Hosts travel along wires, from port to port:</p>
+          <dl className="afd-legend-ports">
+            {LEGEND_PORTS.map((p) => (
+              <div key={p}>
+                <dt className="mono">{p}</dt>
+                <dd>{portHint(p)}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       ) : null}
     </div>

@@ -118,17 +118,13 @@ export function TopBar() {
           </button>
         ))}
       </fieldset>
-      <LensPick lens={lens} pick={pickLens} />
+      {/* AFD-72: lenses show facts about steps; a flow with none has nothing to show. */}
+      {lens || doc?.nodes?.some((n) => n?.type !== 'start' && n?.type !== 'end') ? (
+        <LensPick lens={lens} pick={pickLens} />
+      ) : null}
       <div className="afd-actions">
         <RunStatus run={run} />
         <RunActions running={running} />
-        <ActionButton
-          icon="debug-stop"
-          label="Stop"
-          title="Stop the run: end the local run, or cancel the job or workflow in AWX"
-          unavailable={running ? undefined : 'No run is going'}
-          onClick={() => send({ type: 'stopRun' })}
-        />
         <ActionButton
           icon="file-code"
           label="Generate Code"
@@ -140,15 +136,6 @@ export function TopBar() {
           }
           onClick={() => send({ type: 'generate' })}
         />
-        <MenuButton
-          label="Export"
-          className="secondary"
-          title="Export the flow as a diagram"
-          items={() => exportActions(level)}
-        >
-          <span className="codicon codicon-export" aria-hidden="true" /> Export{' '}
-          <span className="codicon codicon-chevron-down" aria-hidden="true" />
-        </MenuButton>
         <MenuButton
           label="More actions"
           className="secondary icon"
@@ -288,6 +275,8 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       title: 'Find a node on any level by title, key or binding',
       onSelect: () => useUi.getState().openFind(true),
     },
+    // AFD-72: Export lives here, off the bar a newcomer reads.
+    ...exportActions(level),
     { type: 'separator' },
     ...panelActions(mode),
     { type: 'separator' },
@@ -357,24 +346,28 @@ function ActionButton({
   );
 }
 
-/** Run ▾ in every mode (AFD-45): a skeleton run up front; a real run and AWX in its menu. */
+/**
+ * Run ▾ in every mode (AFD-45): a skeleton run up front; a real run and AWX in its menu. While a
+ * run is going the button is Stop (AFD-72), so there is no greyed Stop beside it the rest of the time.
+ */
 function RunActions({ running }: { running: boolean }) {
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <div className="afd-split">
       <button
         type="button"
-        aria-disabled={busy ? true : undefined}
-        onClick={() => !busy && send({ type: 'run', mode: 'check' })}
+        onClick={() => send(running ? { type: 'stopRun' } : { type: 'run', mode: 'check' })}
         title={
-          busy ?? 'Generate the code and run it in check mode in the local Ansible environment'
+          running
+            ? 'Stop the run: end the local run, or cancel the job or workflow in AWX'
+            : 'Generate the code and run it in check mode in the local Ansible environment'
         }
       >
         <span
-          className={`codicon ${running ? 'codicon-loading codicon-modifier-spin' : 'codicon-play'}`}
+          className={`codicon ${running ? 'codicon-debug-stop' : 'codicon-play'}`}
           aria-hidden="true"
         />{' '}
-        {running ? 'Running…' : 'Run as Skeleton'}
+        {running ? 'Stop' : 'Run as Skeleton'}
       </button>
       <MenuButton
         label="More run options"

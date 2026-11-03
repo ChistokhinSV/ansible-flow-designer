@@ -9,22 +9,31 @@ time: the top of the flow, or the inside of one subflow.
 
 - **Top bar:**
   - the breadcrumb;
-  - the mode toggle: **Design**, **Code** (design vs code) and **Run** (the last run);
-  - the **Lens** dropdown;
-  - the same actions in every mode: **Run as Skeleton** (with **Run for Real…** and **Launch in
-    AWX** under its arrow), **Stop**, **Generate Code**, **Export** ▾, and a "…" menu with _Tidy
-    Up_, _Open in Text Editor_, _Check Flow_, _Find Node…_, the panel switches, _Keyboard
-    Shortcuts_ and _User Guide_. What cannot run now is greyed out; its tooltip says why.
-- **Palette** (left, Design mode): node types and failure patterns; **? Legend** shows what the port
-  and wire styles mean. The arrow at its top folds it to icons for a wider canvas. Code and Run
-  modes read the graph, so the palette folds away there.
+  - the mode toggle: **Design**, **Code** (design vs code) and **Run** (the last run); each says in
+    its tooltip what it is for;
+  - the **Lens** dropdown, once the flow has a step;
+  - the same actions in every mode: **Run as Skeleton** (with **Run for Real…**, **Run Scenarios**
+    and **Launch in AWX** under its arrow; while a run goes the button is **Stop**), **Generate
+    Code**, and a "…" menu with _Tidy Up_, _Open in Text Editor_, _Check Flow_, _Find Node…_,
+    _Export as draw.io Diagram…_, _Export as Image…_, the panel switches, _Keyboard Shortcuts_ and
+    _User Guide_. What cannot run now is greyed out; its tooltip says why.
+- **Palette** (left, Design mode): the node types a first flow needs (Task, Subflow, Decision,
+  Approval; Parallel, Join, Start and End under **More node types**), the failure patterns once
+  the level has a step that can fail, and annotations. **? Legend** shows what the port and wire
+  styles mean and what each port is for. The arrow at its top folds it to icons for a wider canvas.
+  Code and Run modes read the graph, so the palette folds away there.
+- **Folds:** rarer fields sit behind a line that says what is inside (**More details**, **More node
+  types**, Quick Add's **Extra ports**, each Execution group). A fold opens by itself when
+  something in it is set or has a problem, and otherwise stays as you left it.
 - **Canvas** (middle): nodes, ports and wires.
 - **Messages** (bottom of the canvas): what **Generate Code**, **Check Flow**, **Tidy Up**, copy and
   paste came to. They close by themselves (errors stay longer); × closes one now. **Saving…** shows
   there while an edit waits for VS Code longer than a moment.
-- **Right panel:** the flow (name, goal, owner, maintenance window, inputs, readiness) when nothing
-  is selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs,
-  Ports, Execution; Code and Run modes add theirs); or the selection panel for several nodes. Drag
+- **Right panel:** the flow (name, goal and inputs; key, ID, version, owner, runtime and
+  maintenance window under **More details**; readiness once there is a step) when nothing is
+  selected; the **Details** of the selected node (tabs General, Binding, Inputs and outputs, Ports,
+  Execution; Code and Run modes add theirs); a selected wire (which hosts take it, and Insert,
+  Rewire or Disconnect); or the selection panel for several nodes. Drag
   its left edge to resize it (or focus the edge and use the arrow keys); **Expand** in the Details
   widens it for the catalog docs. Double-click the edge (or press Enter on it), or "…" › _Hide Side
   Panel_, to fold it to a strip; its button brings it back.

@@ -84,3 +84,32 @@ export function union(a: Rect, b: Rect): Rect {
     height: Math.max(a.y + a.height, b.y + b.height) - y,
   };
 }
+
+/** The minimap's size on the canvas and its gap to the pane's edge (React Flow's default 15). */
+export const MINIMAP = { width: 160, height: 110, margin: 15 };
+
+/**
+ * Where the minimap can sit without covering a node (AFD-72): bottom left (the zoom controls are
+ * bottom right, Find is top right), else top left, else nowhere (a button shows it on demand).
+ * `boxes` and `pane` are in screen pixels.
+ */
+export function minimapCorner(
+  boxes: readonly Rect[],
+  pane: { width: number; height: number },
+  size = MINIMAP,
+): 'bottom-left' | 'top-left' | null {
+  const corner = (top: number): Rect => ({
+    x: size.margin,
+    y: top,
+    width: size.width,
+    height: size.height,
+  });
+  const clear = (r: Rect) =>
+    !boxes.some(
+      (b) =>
+        b.x < r.x + r.width && b.x + b.width > r.x && b.y < r.y + r.height && b.y + b.height > r.y,
+    );
+  if (clear(corner(pane.height - size.margin - size.height))) return 'bottom-left';
+  if (clear(corner(size.margin))) return 'top-left';
+  return null;
+}

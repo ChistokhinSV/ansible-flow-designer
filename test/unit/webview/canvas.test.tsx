@@ -201,6 +201,33 @@ describe('open-port banner (check 4)', () => {
     expect(screen.getByRole('status').dataset.bannerCount).toBe(String(count));
     expect(screen.getByRole('status').textContent).toContain(`${count} open fail ports`);
   });
+
+  it('asks what should happen when the step fails, and a fix is one command (AFD-72)', () => {
+    render(
+      <ReactFlowProvider>
+        <Banner />
+      </ReactFlowProvider>,
+    );
+    const doc = example('edge-baseline.flow.yaml');
+    const snapshot = snapshotOf(doc);
+    show(snapshot);
+    const banner = screen.getByRole('status');
+    const first = buildModel(doc).nodes.get(snapshot.openPorts[0]?.node as string)?.node;
+    expect(banner.textContent).toContain(`What should happen when "${first?.title}" fails?`);
+    expect(within(banner).getByRole('button', { name: 'Accept with Reason…' })).toBeTruthy();
+    expect(within(banner).getByRole('button', { name: 'Next (2 of 3)' })).toBeTruthy();
+    posted.length = 0;
+    const fix = within(banner)
+      .getAllByRole('button')
+      .find((b) => /Notify On-Call and Stop|Exclude and Report|Rollback/.test(b.textContent ?? ''));
+    if (!fix) throw new Error('no pattern on the banner');
+    fireEvent.click(fix);
+    expect(
+      posted
+        .filter((m) => (m as { type: string }).type === 'command')
+        .map((m) => (m as { command: FlowCommand }).command.kind),
+    ).toEqual(['applyPattern']);
+  });
 });
 
 describe('port menu and open on purpose (M2)', () => {
@@ -335,10 +362,10 @@ describe('generated code and runs (M3)', () => {
         startedAt: '2026-10-29T08:00:00Z',
       }),
     );
-    // In place while a run goes, saying why (AFD-45).
-    const busy = screen.getByRole('button', { name: /Running/ });
-    expect(busy.getAttribute('aria-disabled')).toBe('true');
-    expect(busy.getAttribute('title')).toBe('A run is going: stop it first');
+    // AFD-72: while a run goes, the Run button is Stop.
+    posted.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: /^Stop$/ }));
+    expect(posted).toEqual([{ type: 'stopRun' }]);
     act(() =>
       useUi.getState().setRun({
         id: 'r2',

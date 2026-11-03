@@ -57,3 +57,17 @@
 .afd-swatch.wire.problem {
   border-top: 2px dashed var(--afd-failed);
 }
+
+/* AFD-72: the Legend's ports, each name with what it means. */
+.afd-legend-ports {
+  margin: var(--afd-space-2) 0 0;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-legend-ports > div {
+  margin-bottom: var(--afd-space-2);
+}
+
+.afd-legend-ports dd {
+  margin: 0 0 0 var(--afd-space-3);
+}

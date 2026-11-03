@@ -6,7 +6,7 @@ stays the source: export again after a change. Edits made in draw.io do not come
 
 ## A draw.io diagram
 
-Choose **Export as draw.io…** in the designer's **…** menu, run **Ansible Flow: Export as draw.io
+Choose **Export as draw.io Diagram…** in the designer's **…** menu, run **Ansible Flow: Export as draw.io
 Diagram…**, or right-click a `*.flow.yaml` in the Explorer. Pick where to save; the default is
 `<key>.drawio` next to the flow.
 
@@ -49,7 +49,7 @@ carry `exit`, `from` and `reason`.
 
 ## An image
 
-Choose **Export as image…** in the **…** menu for the level open on the canvas. **Ansible Flow:
+Choose **Export as Image…** in the **…** menu for the level open on the canvas. **Ansible Flow:
 Export as Image (SVG, PNG)…** and the Explorer's right-click ask instead: the top level, or every
 level.
 

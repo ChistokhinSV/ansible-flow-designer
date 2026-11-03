@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FIT_MARGIN,
+  minimapCorner,
   READABLE_PX,
   READABLE_ZOOM,
   readableViewport,
@@ -44,5 +45,18 @@ describe('readableViewport (AFD-42)', () => {
     expect(v.x).toBe(400 - 1200 * READABLE_ZOOM);
     // The top node far left: the view starts at the level's left edge, not past it.
     expect(readableViewport(bounds, PANE, 0).x).toBe(FIT_MARGIN);
+  });
+});
+
+describe('minimap corner (AFD-72)', () => {
+  const pane = { width: 800, height: 600 };
+  it('bottom left when free, else top left, else nowhere', () => {
+    expect(minimapCorner([], pane)).toBe('bottom-left');
+    const low = { x: 40, y: 520, width: 120, height: 60 };
+    expect(minimapCorner([low], pane)).toBe('top-left');
+    const high = { x: 40, y: 20, width: 120, height: 60 };
+    expect(minimapCorner([low, high], pane)).toBeNull();
+    // A node right of the minimap's box is no obstacle.
+    expect(minimapCorner([{ x: 200, y: 520, width: 120, height: 60 }], pane)).toBe('bottom-left');
   });
 });

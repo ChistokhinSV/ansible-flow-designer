@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('top bar', () => {
-  it('one toolbar in every mode: Run, Stop, Generate Code, Export, "…" (AFD-45)', () => {
+  it('one toolbar in every mode: Run, Generate Code, "…" (AFD-45, AFD-72)', () => {
     const bar = () =>
       [...document.querySelectorAll('.afd-actions > button, .afd-actions > .afd-split > button')]
         .map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim())
@@ -47,12 +47,11 @@ describe('top bar', () => {
       seen.push(bar() as string[]);
       cleanup();
     }
+    // AFD-72: Stop is the Run button while a run goes; Export is in "…".
     expect(seen[0]).toEqual([
       'Run as Skeleton',
       'More run options',
-      'Stop',
       'Generate Code',
-      'Export',
       'More actions',
     ]);
     expect(seen[1]).toEqual(seen[0]);
@@ -82,18 +81,13 @@ describe('top bar', () => {
     expect(items()).toEqual(['Run for Real…', 'Run Scenarios', 'Launch in AWX']);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run for Real…' }));
     expect(posted.at(-1)).toEqual({ type: 'run', mode: 'real' });
-    // Stop is in place but unavailable with no run going.
-    const stop = screen.getByRole('button', { name: /Stop/ });
-    expect(stop.getAttribute('aria-disabled')).toBe('true');
-    expect(stop.getAttribute('title')).toBe('No run is going');
+    // No Stop with no run going (AFD-72: the Run button becomes Stop while one goes).
+    expect(screen.queryByRole('button', { name: /^Stop$/ })).toBeNull();
     posted.length = 0;
-    fireEvent.click(stop);
-    expect(posted).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: /Generate Code/ }));
     expect(posted).toEqual([{ type: 'generate' }]);
-    // AFD-25: exports run on the host; images cover the open level.
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    expect(items()).toEqual(['Export as draw.io Diagram…', 'Export as Image…']);
+    // AFD-25: exports run on the host; images cover the open level. AFD-72: in "…".
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Export as Image…' }));
     expect(posted.at(-1)).toEqual({ type: 'export', format: 'image', level: 'root' });
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
@@ -102,6 +96,8 @@ describe('top bar', () => {
       'Open in Text Editor',
       'Check Flow',
       'Find Node…',
+      'Export as draw.io Diagram…',
+      'Export as Image…',
       // The palette and the side panel fold away for room (AFD-48).
       'Collapse Palette',
       'Hide Side Panel',

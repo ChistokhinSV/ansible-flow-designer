@@ -28,7 +28,9 @@ node's `undo` binding.
 - At rest, a node shows its wired ports, its **open fail ports** (amber) and ports left open on
   purpose (gray).
 - Hover or select a node to see every port its type has, with names.
-- The banner at the top counts open fail ports; **Show** selects them one by one.
+- The banner at the top counts open fail ports and asks about one: _What should happen when
+  "Check NTP" fails?_ Its buttons are the first patterns for that port and **Accept with Reason…**;
+  **Other Choices** opens the port's menu, and **Next** goes to the next open port.
 
 ![The banner](../images/open-ports-banner-light.png)
 

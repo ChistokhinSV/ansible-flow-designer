@@ -14,6 +14,7 @@ import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
 import { fieldLabel } from '../../core/lens/changes';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
+import { portHint } from '../../core/view/portHints';
 import {
   appliesTo,
   EXECUTION_SETTINGS,
@@ -27,6 +28,7 @@ import {
 import { run } from '../actions';
 import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { ContractEditor } from '../panels/ContractEditor';
+import { Fold } from '../panels/Fold';
 import { CommitField, ReadOnly } from '../panels/fields';
 import { runPortItem } from '../portActions';
 import { YamlField } from '../properties/YamlField';
@@ -144,7 +146,10 @@ export function GeneralSection({
           </button>
         </section>
       ) : null}
-      <ReadOnly label="ID (fixed)" value={node.id} mono />
+      {/* AFD-72: the ID matters to tools and hand-written YAML, not to a first flow. */}
+      <Fold id="node-details" summary="More details: the ID">
+        <ReadOnly label="ID (fixed)" value={node.id} mono />
+      </Fold>
       <LastRun id={node.id} />
     </div>
   );
@@ -366,7 +371,7 @@ export function PortRow({
   if (wired) text = `→ ${target}`;
   else if (reason) text = `${STATE_LABEL[port.state]}: ${reason}`;
   else if (port.state === 'open-fail') text = 'open: wire it to a handler, or Accept with Reason…';
-  // Mockup 03: the first suggestions inline, plus "Leave open on purpose…".
+  // Mockup 03: the first suggestions inline, plus Accept with Reason….
   const quick =
     port.state === 'open-fail'
       ? (portMenu(model, ref)?.items ?? []).filter(
@@ -379,7 +384,9 @@ export function PortRow({
         className={`afd-swatch port state-${port.state} tone-${port.tone}`}
         aria-hidden="true"
       />
-      <span className="mono">{port.name}</span>
+      <span className="mono" title={portHint(port.name, model.nodes.get(node)?.node.type)}>
+        {port.name}
+      </span>
       <span className="muted">{text}</span>
       <button
         type="button"
@@ -466,12 +473,24 @@ export function ExecutionSection({
         format <= (s.formatMax ?? format) &&
         (appliesTo(s, node) || settings[s.key] !== undefined),
     );
+  const groups = SETTING_GROUPS.filter((g) => fields(g).length > 0 || (g === 'Tags' && keywords));
+  // AFD-72: each group folded with what is set in it; open while it has a value or a problem.
+  const setIn = (group: SettingGroup) =>
+    fields(group).filter((s) => settings[s.key] !== undefined).length +
+    (group === 'Tags' && keywords && Object.keys(node.impl?.keywords ?? {}).length ? 1 : 0);
   return (
     <div className="afd-details-page">
-      {SETTING_GROUPS.filter((g) => fields(g).length > 0 || (g === 'Tags' && keywords)).map(
-        (group) => (
-          <section className="afd-section" key={group} data-setting-group={group}>
-            <h3>{group}</h3>
+      {groups.map((group) => (
+        <section className="afd-section" key={group} data-setting-group={group}>
+          <Fold
+            id={`execution-${group}`}
+            open={
+              groups.length === 1 ||
+              setIn(group) > 0 ||
+              fields(group).some((s) => fieldProblem(problems, `settings.${s.key}`))
+            }
+            summary={`${group}${setIn(group) ? ` · ${setIn(group)} set` : ''}`}
+          >
             {fields(group).map((s) => {
               const value = settings[s.key];
               const unused = appliesTo(s, node) ? undefined : (
@@ -508,9 +527,9 @@ export function ExecutionSection({
               );
             })}
             {group === 'Tags' && keywords ? <TaskKeywords node={node} /> : null}
-          </section>
-        ),
-      )}
+          </Fold>
+        </section>
+      ))}
     </div>
   );
 }

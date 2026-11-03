@@ -29,6 +29,7 @@ import { SelectionPanel } from './panels/SelectionPanel';
 import { TestedDialog } from './panels/TestedDialog';
 import { Toasts } from './panels/Toasts';
 import { TopBar } from './panels/TopBar';
+import { WirePanel } from './panels/WirePanel';
 import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
 import { PANEL_WIDTH, useUi } from './store';
@@ -141,6 +142,8 @@ function RightPanelView({ panel }: { panel: RightPanel }) {
       return <Details key={panel.id} id={panel.id} context={panel.context} />;
     case 'boundary':
       return <BoundaryPanel edge={panel.edge} />;
+    case 'wire':
+      return <WirePanel edge={panel.edge} />;
     case 'annotation':
       return <AnnotationPanel id={panel.id} />;
     case 'flow':

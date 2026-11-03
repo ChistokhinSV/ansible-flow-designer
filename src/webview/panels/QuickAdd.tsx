@@ -6,11 +6,13 @@ import { modelOf, ROOT } from '../../core/flow/model';
 import { findRollback } from '../../core/flow/patterns';
 import { offeredPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
+import { portHint } from '../../core/view/portHints';
 import { run } from '../actions';
 import { TYPE_LABEL } from '../constants';
 import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
 import { levelView, unplacedPositions } from '../viewModel';
+import { Fold } from './Fold';
 
 /** Types that can sit on a wire: they have an input and continue on an output. */
 const INSERTABLE: readonly NodeType[] = [
@@ -163,20 +165,25 @@ function QuickAddDialog() {
             ref={titleRef}
             className="afd-input"
             value={title}
-            placeholder="e.g. Backup config"
+            placeholder="e.g. Check NTP"
             onChange={(e) => setTitle(e.target.value)}
           />
-          <div className="muted mono afd-key-preview">key: {key} · ID generated on create</div>
+          <div
+            className="muted mono afd-key-preview"
+            title="The step's name in the file and in the generated code; its ID is made when you add it"
+          >
+            Key: {key}
+          </div>
         </div>
         {type !== 'start' && type !== 'end' ? (
           <div className="afd-field">
-            <label htmlFor="afd-qa-intent">Intent</label>
+            <label htmlFor="afd-qa-intent">Intent (optional)</label>
             <textarea
               id="afd-qa-intent"
               className="afd-input"
               rows={2}
               value={intent}
-              placeholder="One or two sentences: what this step achieves"
+              placeholder="One sentence on what the step does: a skeleton run prints it"
               onChange={(e) => setIntent(e.target.value)}
             />
           </div>
@@ -201,8 +208,12 @@ function QuickAddDialog() {
           </fieldset>
         ) : null}
         {offeredPortNames(type).length > 0 ? (
-          <fieldset className="afd-fieldset">
-            <legend>Extra ports</legend>
+          // AFD-72: folded; each port says what it is for.
+          <Fold
+            id="quick-add-ports"
+            open={ports.length > 0}
+            summary={`Extra ports (optional)${ports.length ? `: ${ports.join(', ')}` : ''}`}
+          >
             {offeredPortNames(type).map((p) => (
               <label key={p} className="afd-check">
                 <input
@@ -212,10 +223,10 @@ function QuickAddDialog() {
                     setPorts((xs) => (e.target.checked ? [...xs, p] : xs.filter((x) => x !== p)))
                   }
                 />
-                <span className="mono">{p}</span>
+                <span className="mono">{p}</span> <span className="muted">{portHint(p, type)}</span>
               </label>
             ))}
-          </fieldset>
+          </Fold>
         ) : null}
         {canFail && rollback ? (
           <label className="afd-check">
@@ -232,7 +243,7 @@ function QuickAddDialog() {
             Cancel
           </button>
           <button type="submit" disabled={!title.trim()}>
-            Create draft node
+            Add {TYPE_LABEL[type]}
           </button>
         </div>
       </form>

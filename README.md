@@ -43,6 +43,7 @@ The rest of this page is the complete feature reference.
   - Files are written only when their content changed. A generated file edited by hand is never overwritten without asking.
   - The Details' Binding tab shows a node's generated task; _Peek Code_ opens its play in the generated file.
 - **Run as Skeleton (M3):** the top bar button generates the code, asks for the flow inputs (remembered per flow), and runs `ansible-playbook --check` in a terminal, in your Ansible environment.
+  - **Contextual disclosure (AFD-72, ADR-0029):** controls show when they can act (failure patterns once a step can fail, the Lens once there is a step, Stop in place of Run while a run goes); rarer fields fold behind a line that says what is inside and open by themselves when something there needs you. The open-port banner asks what should happen when the step fails, with the first fixes as buttons; ports and `from:` references are explained in plain words.
   - **Set Up Ansible Environment… (AFD-71):** with nowhere to run (native Windows, no image), the run's error offers the setup: Docker or Podman with the public Ansible dev tools image (editable), or the folder reopened in WSL. The first skeleton run suggests `localhost` for the hosts.
   - An event callback maps the run back to the flow: the top bar shows hosts, failures and the exit code, and a node's Details list the hosts that left each port.
   - _Run for Real…_ first shows a confirmation naming the inventory, host count, hosts missing from the inventory and production-looking groups.

@@ -16,6 +16,8 @@ describe('right panel', () => {
       'Selected nodes',
     ],
     [{ selection: { edge: 'entry:S' } }, { kind: 'boundary', edge: 'entry:S' }, 'Subflow boundary'],
+    // AFD-72: a plain wire says which hosts take it.
+    [{ selection: { edge: 'E1' } }, { kind: 'wire', edge: 'E1' }, 'Wire'],
     // A lens has its own tab beside the panel (AFD-45): the panel stays the mode's.
     [{ lens: 'data' }, { kind: 'flow' }, 'Flow description'],
     [{ lens: 'data', selection: { node: 'A' } }, { kind: 'details', id: 'A' }, 'Details'],

@@ -191,6 +191,33 @@ describe('a level with only Start and End', () => {
     ]);
   });
 
+  it('a calmer first screen: the basics, the rest folded, nothing about failures yet (AFD-72)', () => {
+    show(empty);
+    render(<App />);
+    const palette = screen.getByRole('complementary', { name: 'Palette' });
+    const first = within(palette)
+      .getAllByRole('button')
+      .map((b) => b.textContent?.trim())
+      .filter(Boolean);
+    expect(first.slice(0, 4)).toEqual(['Task', 'Subflow', 'Decision', 'Approval']);
+    const more = palette.querySelector('details[data-fold="palette-more"]') as HTMLDetailsElement;
+    expect(more.open).toBe(false);
+    expect(more.textContent).toMatch(/^More node types.*Parallel.*Join.*Start.*End/);
+    // No step can fail yet: no patterns, no readiness, no lens.
+    expect(within(palette).queryByText('Failure patterns')).toBeNull();
+    expect(screen.queryByText('Readiness')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Lens/ })).toBeNull();
+    // The flow's details are folded, with what they hold in the summary.
+    const details = document.querySelector(
+      'details[data-fold="flow-details"]',
+    ) as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')?.textContent).toBe(
+      'More details: edge-checks · version 1',
+    );
+    expect(screen.getByText(/What the flow asks for when it runs/)).toBeTruthy();
+  });
+
   it('is not there in Code mode, nor once the level has a step', () => {
     show(empty);
     render(<App />);

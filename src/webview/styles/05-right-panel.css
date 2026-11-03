@@ -140,3 +140,10 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* AFD-72: the actions of a selected wire. */
+.afd-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--afd-space-2);
+}

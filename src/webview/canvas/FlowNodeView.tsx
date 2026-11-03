@@ -25,11 +25,12 @@ import {
 } from 'react';
 import { purposeOf } from '../../core/flow/format';
 import type { PortSide } from '../../core/flow/ports';
-import type { FlowNode, Ulid } from '../../core/flow/types';
+import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { subLine } from '../../core/view/nodeFace';
+import { portHint } from '../../core/view/portHints';
 import { STATE_LABEL } from '../constants';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
@@ -66,10 +67,12 @@ export function menuAnchor(el: Element, side: PortSide): { x: number; y: number 
  */
 function PortHandle({
   nodeId,
+  type,
   port,
   focusable,
 }: {
   nodeId: string;
+  type: NodeType;
   port: PortView;
   focusable: boolean;
 }) {
@@ -114,7 +117,9 @@ function PortHandle({
       data-port={port.name}
       data-port-state={port.state}
       data-rest={port.rest ? 'true' : undefined}
-      title={`${port.name} · ${STATE_LABEL[port.state]} · click for options`}
+      title={[port.name, portHint(port.name, type), STATE_LABEL[port.state], 'click for options']
+        .filter(Boolean)
+        .join(' · ')}
       aria-label={`Port ${port.name}, ${STATE_LABEL[port.state]}`}
       role="button"
       aria-haspopup={locked ? undefined : 'menu'}
@@ -345,7 +350,13 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       {/* Hover margin around the node and its port labels (D-14 detail). */}
       <div className="afd-hover-zone" aria-hidden="true" />
       {ports.map((p) => (
-        <PortHandle key={p.name} nodeId={node.id} port={p} focusable={selected || active} />
+        <PortHandle
+          key={p.name}
+          nodeId={node.id}
+          type={node.type}
+          port={p}
+          focusable={selected || active}
+        />
       ))}
       {dataLens ? (
         <>

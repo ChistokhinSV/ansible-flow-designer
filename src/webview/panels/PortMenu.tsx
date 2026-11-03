@@ -4,6 +4,7 @@
 import { useMemo } from 'react';
 import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
+import { portHint } from '../../core/view/portHints';
 import { Menu } from '../menu/Menu';
 import { runPortItem } from '../portActions';
 import { useUi } from '../store';
@@ -45,6 +46,9 @@ export function PortMenu() {
               <span className="codicon codicon-close" aria-hidden="true" />
             </button>
           </div>
+          {portHint(menu.ref.port, content.node.type) ? (
+            <p className="afd-port-menu-note muted">{portHint(menu.ref.port, content.node.type)}</p>
+          ) : null}
           {reason ? <p className="afd-port-menu-note">Open on purpose: {reason}</p> : null}
         </>
       }

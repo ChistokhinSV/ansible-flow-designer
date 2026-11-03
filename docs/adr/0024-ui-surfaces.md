@@ -123,3 +123,12 @@ Notes, Sections and Text (ADR-0028) are canvas nodes of type `annotation`, witho
 - **Selection:** `Selection.annotations`, alone or with nodes; Delete, Copy, Cut, Duplicate and Select All take them.
 - **Read-only** outside Design mode, on shared levels and on broken files; faded under a lens and in Run mode.
 - **Colours:** `NOTE_COLORS` per theme, with a fill and an ink each. Note text reaches 4.5:1 on its fill and the ink 4.5:1 on the canvas (theme test); high contrast has no fills.
+
+## Amendment: contextual disclosure (AFD-72, 2026-11-03)
+
+ADR-0029 changes "one toolbar in every mode, controls stay in place":
+- Stop is no longer a separate button: while a run goes, the Run button is Stop.
+- Export ▾ moved into "…" as Export as draw.io Diagram… and Export as Image….
+- The Lens dropdown shows once the flow has a step.
+
+The bar keeps the same buttons in every mode. A plain wire selected in Design mode gets a panel of its own (`rightPanelFor` → `wire`).

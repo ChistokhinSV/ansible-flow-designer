@@ -11,6 +11,7 @@ import {
   Background,
   BackgroundVariant,
   type Connection,
+  ControlButton,
   Controls,
   type Edge,
   type EdgeChange,
@@ -45,7 +46,7 @@ import type { AnnotationKind, NodeType, Position } from '../../core/flow/types';
 import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
-import { belowNodes, FULL_FIT, readableViewport, union } from '../../core/view/fit';
+import { belowNodes, FULL_FIT, minimapCorner, readableViewport, union } from '../../core/view/fit';
 import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import type { Box } from '../../core/view/route';
@@ -254,6 +255,18 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     () => (empty ? belowNodes(contentBounds ?? { x: 0, y: 0, width: 0, height: 0 }) : null),
     [empty, contentBounds],
   );
+  // AFD-72: the minimap never covers a node; when both left corners would, a button shows it.
+  const corner = useStore((s) => {
+    const [x, y, zoom] = s.transform;
+    const boxes = view.nodes.map((n) => ({
+      x: n.position.x * zoom + x,
+      y: n.position.y * zoom + y,
+      width: n.width * zoom,
+      height: n.height * zoom,
+    }));
+    return minimapCorner(boxes, { width: s.width, height: s.height });
+  });
+  const [miniAsked, setMiniAsked] = useState(false);
   const partly = useStore((s) => {
     if (!contentBounds || s.width <= 0) return false;
     const [x, y, zoom] = s.transform;
@@ -982,10 +995,20 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           <EmptyLevel at={cardAt} />
         </ViewportPortal>
       ) : null}
-      <Controls showInteractive={false} position="bottom-right" />
-      {partly ? (
+      <Controls showInteractive={false} position="bottom-right">
+        {partly && !corner ? (
+          <ControlButton
+            onClick={() => setMiniAsked(!miniAsked)}
+            aria-label={miniAsked ? 'Hide Mini Map' : 'Show Mini Map'}
+            title={miniAsked ? 'Hide Mini Map' : 'Show Mini Map: it would cover steps here'}
+          >
+            <span className="codicon codicon-map" aria-hidden="true" />
+          </ControlButton>
+        ) : null}
+      </Controls>
+      {partly && (corner || miniAsked) ? (
         <MiniMap
-          position="bottom-left"
+          position={corner ?? 'bottom-left'}
           pannable
           zoomable
           ariaLabel="Mini map of the level"

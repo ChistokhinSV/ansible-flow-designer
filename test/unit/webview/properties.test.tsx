@@ -272,6 +272,17 @@ describe('Details: Execution per node kind (AFD-71)', () => {
     expect(screen.getByLabelText(/^Retries/)).toBeTruthy();
     expect(screen.getByText('Not used on a decision node: clear it.')).toBeTruthy();
     expect(screen.queryByText(/Task keywords/)).toBeNull();
+    // AFD-72: a group is a fold, open while something in it is set, and says how much.
+    const fold = (group: string) =>
+      document.querySelector(`[data-setting-group="${group}"] > details`) as HTMLDetailsElement;
+    expect([fold('Timing').open, fold('Timing').querySelector('summary')?.textContent]).toEqual([
+      true,
+      'Timing · 1 set',
+    ]);
+    expect([fold('Tags').open, fold('Tags').querySelector('summary')?.textContent]).toEqual([
+      false,
+      'Tags',
+    ]);
   });
 
   it('an approval keeps its timeout, as the AWX approval timeout', () => {

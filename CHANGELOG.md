@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.47.0 — AFD-72
+
+Wave 7, a gentler first hour, part 2: a calmer first screen. Things show when they can act; rarer fields fold away behind a line that says what is inside, and open by themselves when something there needs you. Nothing is removed.
+
+- **The open-port banner asks a question:** _What should happen when "Check NTP" fails?_, with the first fixes as buttons (for example Rollback from Backup, Notify On-Call and Stop, Accept with Reason…), Other Choices for the port's menu, and Next for the next open port. The problem says what happens to the hosts: they have nowhere to go, so they fail the run.
+- **Ports explained in plain words:** port names stay as in the file, and the port tooltip, the port menu, the Ports tab, Quick Add and the Legend say what each is for ("Hosts that failed this step continue here").
+- **The flow panel** shows the name, the goal and the inputs; key, ID, version, owner, runtime and maintenance window are under More details. Readiness shows once there is a step.
+- **The palette** shows Task, Subflow, Decision and Approval, with Parallel, Join, Start and End under More node types; the failure patterns appear once a step can fail.
+- **The top bar:** while a run goes, Run as Skeleton is the Stop button (no greyed Stop the rest of the time). Export as draw.io Diagram… and Export as Image… moved into "…". The Lens dropdown appears once the flow has a step.
+- **Quick Add:** Extra ports are folded and say what each is for; the button names what it adds (Add Task); Intent is marked optional.
+- **The Execution tab:** each group is a fold that says how much is set ("Timing · 2 set").
+- **A selected wire** shows which hosts take it, with Insert, Rewire and Disconnect.
+- Inputs read `from` in words ("this step's result", "flow input devices"); the reference itself is in the tooltip. "req" reads "required". A node's ID is under More details.
+- **The minimap never covers a step:** it moves to a free corner, or a Mini Map button shows it when neither corner is free.
+
 ## 0.46.0 — AFD-71
 
 Wave 7, a gentler first hour, part 1: the dead ends a newcomer hit.

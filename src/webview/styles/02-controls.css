@@ -163,3 +163,20 @@ button[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Folds (AFD-72, ADR-0029): rarer fields behind a summary that says what is inside. */
+.afd-fold > summary {
+  cursor: pointer;
+  font-size: var(--afd-fs-12);
+  color: var(--afd-muted);
+  padding: var(--afd-space-2) 0;
+  list-style-position: inside;
+}
+
+.afd-fold > summary:hover {
+  color: var(--vscode-foreground);
+}
+
+.afd-fold[open] > summary {
+  margin-bottom: var(--afd-space-2);
+}

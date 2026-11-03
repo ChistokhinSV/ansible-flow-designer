@@ -2,6 +2,7 @@
 
 .afd-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
@@ -26,6 +27,12 @@
 
 .afd-banner button.icon {
   margin-left: auto;
+}
+
+/* AFD-72: the open-port question's choices stay one line each; the row wraps instead. */
+.afd-banner > strong,
+.afd-banner > button {
+  white-space: nowrap;
 }
 
 /* Messages stack at the bottom centre of the canvas, whatever the side panels' widths (AFD-46). */

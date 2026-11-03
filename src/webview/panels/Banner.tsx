@@ -1,15 +1,26 @@
-// Open fail port banner (D-15): count of open fail-type ports not marked open on purpose. "Show"
-// selects the affected nodes one by one; dismissing hides it until the count changes. A flow
-// written by hand without IDs (AFD-19) shows Complete IDs here first: the canvas edits after it.
+// Open fail port banner (D-15): count of open fail-type ports not marked open on purpose;
+// dismissing hides it until the count changes. AFD-72: it asks what should happen when the step
+// fails, with the first fixes as buttons; Next walks the open ports. A flow written by hand without
+// IDs (AFD-19) shows Complete IDs here first: the canvas edits after it.
+import { useState } from 'react';
 import { CURRENT_FORMAT, formatOf, upgradeNotes } from '../../core/flow/migrate';
+import { modelOf } from '../../core/flow/model';
+import { portMenu } from '../../core/flow/portMenu';
 import { run } from '../actions';
 import { send } from '../bus';
+import { menuAnchor } from '../canvas/FlowNodeView';
 import { useEditable } from '../editActions';
+import { runPortItem } from '../portActions';
 import { useUi } from '../store';
 import { bannerCount } from '../viewModel';
 
-/** Module-level so cycling continues across level switches (each level remounts the canvas). */
-let cursor = 0;
+/** How the question names the failure, per port. */
+const FAILS: Record<string, string> = {
+  failed_hosts: 'fails',
+  unreachable: 'cannot reach a host',
+  timeout: 'runs out of time',
+  rejected: 'is rejected',
+};
 
 export function Banner() {
   const snapshot = useUi((s) => s.snapshot);
@@ -47,14 +58,43 @@ export function Banner() {
       </div>
     );
   }
-  const count = bannerCount(snapshot.openPorts);
-  if (count === 0 || dismissedAt === count) {
+  return <OpenPortsBanner reveal={reveal} dismiss={dismiss} dismissedAt={dismissedAt} />;
+}
+
+function OpenPortsBanner({
+  reveal,
+  dismiss,
+  dismissedAt,
+}: {
+  reveal: (node: string) => void;
+  dismiss: (count: number) => void;
+  dismissedAt: number | null;
+}) {
+  const snapshot = useUi((s) => s.snapshot);
+  const editable = useEditable();
+  const [at, setAt] = useState(0);
+  const count = snapshot ? bannerCount(snapshot.openPorts) : 0;
+  if (!snapshot?.doc || count === 0 || dismissedAt === count)
     return <span hidden data-banner-count={count} />;
-  }
-  const show = () => {
-    const open = snapshot.openPorts[cursor % snapshot.openPorts.length];
-    cursor++;
-    if (open) reveal(open.node);
+  const open = snapshot.openPorts[at % count];
+  const model = modelOf(snapshot.doc);
+  const node = open ? model?.nodes.get(open.node)?.node : undefined;
+  const ref = open ? { node: open.node, port: open.port } : undefined;
+  const items = ref && model && editable ? (portMenu(model, ref)?.items ?? []) : [];
+  const quick = [
+    ...items.filter((i) => i.kind === 'pattern').slice(0, 2),
+    ...items.filter((i) => i.kind === 'decide'),
+  ];
+  // The rest of the choices: the port's own menu, beside the port once it is on screen.
+  const others = () => {
+    if (!ref) return;
+    reveal(ref.node);
+    setTimeout(() => {
+      const el = document.querySelector(
+        `.react-flow__node[data-id="${ref.node}"] [data-port="${ref.port}"]`,
+      );
+      if (el) useUi.getState().openPortMenu({ ref, ...menuAnchor(el, 'right') });
+    }, 300);
   };
   return (
     <div className="afd-banner warning" role="status" data-banner-count={count}>
@@ -62,12 +102,44 @@ export function Banner() {
       <strong>
         {count} open fail port{count === 1 ? '' : 's'}
       </strong>
-      <span className="muted">
-        Wire them to a handler, or Accept with Reason… on a port you keep open.
+      <span title="Hosts that fail there have nowhere to go, so they fail the run">
+        What should happen when{' '}
+        <button type="button" className="link" onClick={() => open && reveal(open.node)}>
+          "{node?.title ?? open?.node}"
+        </button>{' '}
+        {FAILS[open?.port ?? ''] ?? `takes ${open?.port}`}?
       </span>
-      <button type="button" className="link" onClick={show}>
-        Show
-      </button>
+      {ref
+        ? quick.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className="secondary"
+              title={'hint' in item ? item.hint : undefined}
+              onClick={() => void runPortItem(item, ref)}
+            >
+              {item.label}
+            </button>
+          ))
+        : null}
+      {editable ? (
+        <button type="button" className="link" onClick={others}>
+          Other Choices
+        </button>
+      ) : null}
+      {count > 1 ? (
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            const next = snapshot.openPorts[(at + 1) % count];
+            setAt(at + 1);
+            if (next) reveal(next.node);
+          }}
+        >
+          Next ({((at + 1) % count) + 1} of {count})
+        </button>
+      ) : null}
       <button type="button" className="icon" aria-label="Dismiss" onClick={() => dismiss(count)}>
         <span className="codicon codicon-close" aria-hidden="true" />
       </button>
