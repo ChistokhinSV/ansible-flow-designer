@@ -7,7 +7,7 @@
 // that times out restarts the probe for the calls behind it instead of failing them too.
 import { type ChildProcess, spawn } from 'node:child_process';
 import * as readline from 'node:readline';
-import { CONTAINER, type ProcessSpec } from '../../core/run/command';
+import type { ProcessSpec } from '../../core/run/command';
 import { TIMEOUTS } from '../timeouts';
 
 export interface ProbeReady {
@@ -60,9 +60,10 @@ export class ProbeClient {
 
   constructor(
     private readonly spec: ProcessSpec,
-    /** Repository root on this machine; probe paths under /work map back to it. */
+    /** Repository root on this machine; probe paths under `inside` map back to it. */
     private readonly root: string,
-    private readonly inContainer: boolean,
+    /** The root as the probe sees it (`/work` in a container, `/mnt/c/…` in WSL); none locally. */
+    private readonly inside: string | undefined,
     /** Where the probe's stderr and its lifecycle go (the Ansible Flow log). */
     private readonly log: (line: string) => void = () => {},
   ) {}
@@ -223,10 +224,10 @@ export class ProbeClient {
     this.pump();
   }
 
-  /** A probe path (in the container) as a path on this machine. */
+  /** A probe path (in the container or the WSL distribution) as a path on this machine. */
   toHost(path: string): string {
-    if (!this.inContainer || !path.startsWith(`${CONTAINER.root}/`)) return path;
-    const rel = path.slice(CONTAINER.root.length + 1);
+    if (!this.inside || !path.startsWith(`${this.inside}/`)) return path;
+    const rel = path.slice(this.inside.length + 1);
     const sep = this.root.includes('\\') ? '\\' : '/';
     return `${this.root.replace(/[\\/]+$/, '')}${sep}${rel.split('/').join(sep)}`;
   }

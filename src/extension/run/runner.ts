@@ -251,6 +251,9 @@ export async function runFlow(
   deps.report(running);
 
   const env2: Record<string, string> = { ...spec.env };
+  // AFD-75: names WSL should take from Windows join the ones already set, if any.
+  if (spec.env.WSLENV && process.env.WSLENV)
+    env2.WSLENV = `${process.env.WSLENV}:${spec.env.WSLENV}`;
   if (vaultPassword !== undefined) env2.AFD_VAULT_PASSWORD = vaultPassword;
   if (secrets) env2.AFD_SECRET_VARS = JSON.stringify(secret);
   const task = new vscode.Task(

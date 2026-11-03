@@ -24,6 +24,7 @@ const afd = (over: Partial<AfdEnvSettings> = {}): AfdEnvSettings => ({
   image: '',
   containerOptions: [],
   python: '',
+  wslDistro: '',
   ...over,
 });
 

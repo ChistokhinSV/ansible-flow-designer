@@ -1,5 +1,6 @@
 // Command lines for the probe session and for flow runs in an environment (ADR-0005, ADR-0009).
-// Pure: the host supplies paths; container paths are fixed so generated code and events map back.
+// Pure: the host supplies paths; container paths are fixed so generated code and events map back,
+// and a WSL distribution sees this machine's drives under /mnt (AFD-75).
 import { SECRET } from '../import/secrets';
 import type { Environment } from './environment';
 
@@ -30,6 +31,46 @@ export interface Paths {
 
 const join = (a: string, b: string) => `${a.replace(/[\\/]+$/, '')}/${b}`;
 
+/**
+ * A Windows path as WSL sees it (AFD-75): `C:\x` is `/mnt/c/x`, and a path inside a distribution
+ * (`\\wsl$\Ubuntu\home`, `\\wsl.localhost\Ubuntu\home`) is `/home`. Anything else stays as it is.
+ */
+export function wslPath(path: string): string {
+  const p = path.replaceAll('\\', '/');
+  const drive = /^([A-Za-z]):(\/.*)?$/.exec(p);
+  if (drive) return `/mnt/${drive[1]?.toLowerCase()}${(drive[2] ?? '').replace(/\/+$/, '')}`;
+  const inside = /^\/\/(?:wsl\$|wsl\.localhost)\/[^/]+(\/.*)?$/i.exec(p);
+  if (inside) return inside[1] ?? '/';
+  return p;
+}
+
+/** The repository, probe, run and cache folders as the environment sees them. */
+export function insidePaths(
+  env: Environment,
+  paths: { root: string; probe: string; run?: string; cache?: string },
+): { root: string; probe: string; run?: string; cache?: string } {
+  if (env.kind === 'container')
+    return {
+      root: CONTAINER.root,
+      probe: CONTAINER.probe,
+      run: CONTAINER.run,
+      cache: CONTAINER.cache,
+    };
+  if (env.kind === 'wsl')
+    return {
+      root: wslPath(paths.root),
+      probe: wslPath(paths.probe),
+      run: paths.run && wslPath(paths.run),
+      cache: paths.cache && wslPath(paths.cache),
+    };
+  return paths;
+}
+
+/** `wsl.exe` up to the command it runs: the distribution, and the folder to start in. */
+function wslArgs(env: Extract<Environment, { kind: 'wsl' }>, cwd: string): string[] {
+  return [...(env.distro ? ['-d', env.distro] : []), '--cd', cwd, '--'];
+}
+
 /** Shell-quotes one word for `sh -c`. */
 export function shQuote(word: string): string {
   return /^[A-Za-z0-9_./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
@@ -56,6 +97,13 @@ export function probeProcess(env: Environment, paths: Paths, name: string): Proc
     args.push('-e', `PYTHONPATH=${CONTAINER.probe}`, '-e', 'PYTHONDONTWRITEBYTECODE=1');
     args.push(...env.options, env.image, 'python3', ...tail, CONTAINER.root);
     return { command: env.engine, args, env: {} };
+  }
+  if (env.kind === 'wsl') {
+    // `env` sets the variables inside the distribution; WSLENV is only for values from Windows.
+    const inside = insidePaths(env, paths);
+    const vars = [`PYTHONPATH=${inside.probe}`, 'PYTHONDONTWRITEBYTECODE=1'];
+    const args = [...wslArgs(env, inside.root), 'env', ...vars, env.python, ...tail, inside.root];
+    return { command: 'wsl.exe', args, env: {} };
   }
   return {
     command: env.python,
@@ -118,9 +166,10 @@ export function runProcess(
   name: string,
 ): ProcessSpec {
   const inContainer = env.kind === 'container';
-  const root = inContainer ? CONTAINER.root : paths.root;
-  const runDir = inContainer ? CONTAINER.run : request.runDir;
-  const probeDir = inContainer ? CONTAINER.probe : paths.probe;
+  const inside = insidePaths(env, { ...paths, run: request.runDir });
+  const root = inside.root;
+  const runDir = inside.run ?? request.runDir;
+  const probeDir = inside.probe;
   const words = ['ansible-playbook'];
   if (request.inventory) words.push('-i', request.inventory);
   words.push('-e', `@${join(runDir, 'vars.json')}`);
@@ -154,6 +203,19 @@ export function runProcess(
     if (request.secrets) args.push('-e', 'AFD_SECRET_VARS');
     args.push(...env.options, env.image, 'sh', '-c', script);
     return { command: env.engine, args, env: {} };
+  }
+  if (env.kind === 'wsl') {
+    // The secrets come from Windows in variables only: WSLENV passes just those names (AFD-29).
+    const pass = [
+      ...(request.vault ? ['AFD_VAULT_PASSWORD/u'] : []),
+      ...(request.secrets ? ['AFD_SECRET_VARS/u'] : []),
+    ];
+    const vars = Object.entries(variables).map(([k, v]) => `${k}=${v}`);
+    return {
+      command: 'wsl.exe',
+      args: [...wslArgs(env, root), 'env', ...vars, 'sh', '-c', script],
+      env: pass.length ? { WSLENV: pass.join(':') } : {},
+    };
   }
   return { command: 'sh', args: ['-c', script], env: variables, cwd: paths.root };
 }

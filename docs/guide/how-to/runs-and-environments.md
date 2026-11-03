@@ -9,13 +9,14 @@ The quickest way: **Set Up Ansible Environment…** (Command Palette, or the but
 run shows when it has nowhere to run). It looks for Docker and Podman and proposes the public
 Ansible dev tools image, `ghcr.io/ansible/community-ansible-dev-tools:latest` (ansible-core 2.21
 at the time of writing; replace it with your organisation's image if you have one). The first run
-pulls it, which takes a few minutes. On Windows with the WSL extension it can also reopen the
-folder in WSL instead, where you install Ansible yourself (`pipx install ansible-core`). Or set it
-by hand:
+pulls it, which takes a few minutes. On Windows it also lists your WSL distributions: Ansible then
+runs inside the one you pick, from Windows VS Code, and you install it there yourself
+(`pipx install ansible-core`). Or set it by hand:
 
 | You have                                                              | Set                                                                                                  |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Docker or Podman (the only option on native Windows)                  | `afd.environment.image` = an execution environment image, e.g. `registry.example.net/ee/netops:2.19` |
+| Docker or Podman                                                      | `afd.environment.image` = an execution environment image, e.g. `registry.example.net/ee/netops:2.19` |
+| a WSL distribution on Windows with Ansible installed in it            | `afd.environment.kind` = `wsl`, and `afd.environment.wslDistro` = its name (empty: WSL's default)    |
 | VS Code Remote (WSL, SSH, Dev Container) with Ansible installed there | nothing: local mode runs inside the remote                                                           |
 | a local venv with Ansible                                             | `afd.environment.python` = its interpreter, or leave it to `ansible.python.interpreterPath`          |
 
@@ -23,6 +24,12 @@ by hand:
 Ansible extension enabled, its execution environment image and container engine are used when ours
 are empty. `afd.environment.containerOptions` adds `docker run` arguments, e.g. to mount your SSH
 keys: `["-v", "/home/jane/.ssh:/home/ansible/.ssh:ro"]`.
+
+**WSL:** the distribution sees your drives under `/mnt` (`C:\repo` is `/mnt/c/repo`), so the
+repository stays on Windows. WSL 1 and WSL 2 both work. Runs on `/mnt` are slower than on Linux
+disks, and SSH keys and `~/.ansible` come from your home folder in the distribution, not from
+Windows. Because Windows drives look writable to everyone inside WSL, Ansible would ignore the
+repository's `ansible.cfg`; the extension names it explicitly, as it does for containers.
 
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.

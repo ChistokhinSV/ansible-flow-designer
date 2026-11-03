@@ -11,7 +11,7 @@ function fake(env: Record<string, string> = {}, log?: (line: string) => void): P
   const client = new ProbeClient(
     { command: process.execPath, args: [FAKE], env },
     '/repo',
-    false,
+    undefined,
     log,
   );
   clients.push(client);

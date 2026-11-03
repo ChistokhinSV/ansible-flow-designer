@@ -39,12 +39,13 @@ From a VSIX (Marketplace and Open VSX publishing follows later). Build one from 
 `just package`, then install it (the file name carries the version):
 
 ```bash
-code --install-extension out/ansible-flow-designer-0.49.0.vsix
+code --install-extension out/ansible-flow-designer-0.50.0.vsix
 ```
 
 Requires VS Code 1.140 or later. Designing needs no Ansible installation. Runs and syntax checks need an Ansible environment with ansible-core 2.19 or later, and **Set Up Ansible Environment…** helps you pick one:
 
-- an execution environment image through Docker or Podman (the only option on native Windows; the setup proposes the public `ghcr.io/ansible/community-ansible-dev-tools` image);
+- an execution environment image through Docker or Podman (the setup proposes the public `ghcr.io/ansible/community-ansible-dev-tools` image);
+- on Windows, a WSL distribution with Ansible in it (WSL 1 or 2: `afd.environment.kind: wsl`, or pick it in the setup);
 - or VS Code Remote (WSL, SSH, Dev Container), or a local venv.
 
 `docker/afd-ee.Dockerfile` builds a minimal one (`just ee-build 2.19`).

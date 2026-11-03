@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.50.0 — AFD-75
+
+- **WSL as an Ansible environment:** on Windows, runs, the module catalog, Code mode and the lenses can use Ansible inside a WSL distribution (WSL 1 or WSL 2), from Windows VS Code: no Docker and no Remote window. Set `afd.environment.kind` to `wsl` (and `afd.environment.wslDistro` to the distribution, or leave it empty for WSL's default), or pick the distribution in **Set Up Ansible Environment…**, which now lists them. The repository stays on Windows (the distribution sees it under `/mnt`); a vault password and secret inputs still travel only in environment variables.
+
 ## 0.49.0 — AFD-74
 
 Wave 7, a gentler first hour, part 4: docs and samples for a newcomer.

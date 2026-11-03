@@ -1,7 +1,7 @@
 // Settings → environment (ADR-0005, decision 6) and one probe session per repository and
 // environment, restarted when the settings change.
 import * as vscode from 'vscode';
-import { CONTAINER, probeProcess } from '../../core/run/command';
+import { insidePaths, probeProcess } from '../../core/run/command';
 import {
   type AfdEnvSettings,
   type EnvironmentResult,
@@ -23,6 +23,7 @@ export function environmentFor(scope: vscode.Uri): EnvironmentResult {
     image: c.get('environment.image', ''),
     containerOptions: c.get<string[]>('environment.containerOptions', []),
     python: c.get('environment.python', ''),
+    wslDistro: c.get('environment.wslDistro', ''),
   };
   // Soft relationship with redhat.ansible: its settings are defaults when ours are unset.
   const a = vscode.workspace.getConfiguration('ansible', scope);
@@ -70,18 +71,16 @@ export class ProbeManager implements vscode.Disposable {
     const resolved = environmentFor(folder);
     if (!resolved.ok) return { error: resolved.error };
     const env = resolved.env;
+    const paths = { root: folder.fsPath, probe: this.probeDir, cache: this.cacheDir };
     const key = this.keyOf(folder, purpose, env);
     let client = this.clients.get(key);
     if (!client) {
-      const spec = probeProcess(
-        env,
-        { root: folder.fsPath, probe: this.probeDir, cache: this.cacheDir },
-        `afd-probe-${process.pid}-${++this.seq}`,
-      );
-      client = new ProbeClient(spec, folder.fsPath, env.kind === 'container', this.log);
+      const spec = probeProcess(env, paths, `afd-probe-${process.pid}-${++this.seq}`);
+      const inside = env.kind === 'local' ? undefined : insidePaths(env, paths).root;
+      client = new ProbeClient(spec, folder.fsPath, inside, this.log);
       this.clients.set(key, client);
     }
-    const cache = this.cacheDir && (env.kind === 'container' ? CONTAINER.cache : this.cacheDir);
+    const cache = this.cacheDir && insidePaths(env, paths).cache;
     return { client, label: env.label, cache };
   }
 

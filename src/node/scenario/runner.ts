@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { basename, join } from 'node:path';
 import { engineFor } from '../../core/engine/engines';
 import type { FlowDocument } from '../../core/flow/types';
-import { CONTAINER, runProcess } from '../../core/run/command';
+import { insidePaths, runProcess } from '../../core/run/command';
 import type { Environment } from '../../core/run/environment';
 import { summarizeRun } from '../../core/run/events';
 import {
@@ -103,7 +103,10 @@ async function runOne(
     for (const f of generated.files) writeFileSync(join(dir, f.name), f.text);
     writeFileSync(join(dir, 'vars.json'), JSON.stringify(scenarioVars(s), null, 2));
     writeFileSync(join(dir, 'inventory.ini'), scenarioInventory(o.doc, s));
-    const inside = o.env.kind === 'container' ? CONTAINER.run : dir.replaceAll('\\', '/');
+    const inside =
+      o.env.kind === 'local'
+        ? dir.replaceAll('\\', '/')
+        : (insidePaths(o.env, { root: o.root, probe: o.probeDir, run: dir }).run ?? dir);
     const at = (name: string) => `${inside}/${name}`;
     const spec = runProcess(
       o.env,

@@ -1,22 +1,34 @@
 // Set Up Ansible Environment… (AFD-71): instead of a bare error when a run has nowhere to run, find
 // what this machine has and set the environment up. Nothing is pulled here: the first run pulls the
 // image. The WSL step opens the WSL extension's own command (its ID is not public API).
+import { execFile } from 'node:child_process';
 import * as vscode from 'vscode';
-import { DEV_TOOLS_IMAGE, environmentChoices } from '../../core/run/setup';
+import { DEV_TOOLS_IMAGE, environmentChoices, parseWslList } from '../../core/run/setup';
 import { programsOnPath } from '../ai/launcher';
 import { CMD } from '../commands/ids';
 import { UNTRUSTED } from './environment';
 
 const GUIDE = 'how-to/runs-and-environments.md';
 
+/** The WSL distributions on this machine (AFD-75); none when WSL is off or missing. */
+function wslDistros(): Promise<string[]> {
+  if (process.platform !== 'win32') return Promise.resolve([]);
+  return new Promise((resolve) =>
+    execFile('wsl.exe', ['-l', '-q'], { encoding: 'buffer', timeout: 10_000 }, (err, out) =>
+      resolve(err ? [] : parseWslList(out.toString('utf16le'))),
+    ),
+  );
+}
+
 /** Walks the user through it; resolves true once an environment is set. */
 export async function setUpEnvironment(retry?: () => unknown): Promise<boolean> {
-  const found = await programsOnPath(['docker', 'podman']);
+  const [found, distros] = await Promise.all([programsOnPath(['docker', 'podman']), wslDistros()]);
   const choices = environmentChoices({
     platform: process.platform,
     docker: found.has('docker'),
     podman: found.has('podman'),
     remoteWsl: !!vscode.extensions.getExtension('ms-vscode-remote.remote-wsl'),
+    distros,
   });
   const pick = await vscode.window.showQuickPick(
     choices.map((c) => ({ label: c.label, detail: c.detail, choice: c })),
@@ -30,6 +42,15 @@ export async function setUpEnvironment(retry?: () => unknown): Promise<boolean> 
       '>WSL: Reopen Folder in WSL',
     );
     return false;
+  }
+  if (choice.kind === 'wsl-distro') {
+    const afd = vscode.workspace.getConfiguration('afd');
+    await afd.update('environment.kind', 'wsl', vscode.ConfigurationTarget.Global);
+    await afd.update('environment.wslDistro', choice.distro, vscode.ConfigurationTarget.Global);
+    return done(
+      `The Ansible environment is set: WSL ${choice.distro}. It needs ansible-core 2.19 or later there (pipx install ansible-core).`,
+      retry,
+    );
   }
   if (choice.kind !== 'container') {
     await vscode.commands.executeCommand(CMD.openGuide, GUIDE);
@@ -47,12 +68,19 @@ export async function setUpEnvironment(retry?: () => unknown): Promise<boolean> 
   const afd = vscode.workspace.getConfiguration('afd');
   await afd.update('environment.image', image.trim(), vscode.ConfigurationTarget.Global);
   await afd.update('environment.containerEngine', choice.engine, vscode.ConfigurationTarget.Global);
-  if (afd.get('environment.kind') === 'local')
+  if (afd.get('environment.kind') !== 'auto' && afd.get('environment.kind') !== 'container')
     await afd.update('environment.kind', 'container', vscode.ConfigurationTarget.Global);
-  const done = `The Ansible environment is set: ${choice.engine}: ${image.trim()}. The first run pulls the image.`;
+  return done(
+    `The Ansible environment is set: ${choice.engine}: ${image.trim()}. The first run pulls the image.`,
+    retry,
+  );
+}
+
+/** Says what is set, and offers the run that asked for it again. */
+async function done(message: string, retry?: () => unknown): Promise<boolean> {
   const again = retry
-    ? await vscode.window.showInformationMessage(done, 'Run as Skeleton')
-    : await vscode.window.showInformationMessage(done);
+    ? await vscode.window.showInformationMessage(message, 'Run as Skeleton')
+    : await vscode.window.showInformationMessage(message);
   if (again && retry) await retry();
   return true;
 }

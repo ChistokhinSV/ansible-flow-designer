@@ -29,3 +29,16 @@ Wave 7 (learnability): a newcomer on native Windows met a bare error on the firs
 - **Setup command** `afd.environment.setup` (`extension/env/setupEnvironment.ts`, choices from the pure `core/run/setup.ts`): Docker and Podman found on the PATH become choices; on Windows the WSL extension adds Reopen the Folder in WSL, opened through the Command Palette by its title (the extension's command ID is not public API). With none, it points at the guide.
 - **Proposed image:** `ghcr.io/ansible/community-ansible-dev-tools:latest`, the last ansible-dev-tools release, which its project documents as usable as an execution environment. Checked 2026-11-03: ansible-core 2.21.5, runs as root, 1.37 GB. The user can replace it before it is saved. The setup writes `afd.environment.image` and `containerEngine` at user level and never pulls: the first run does, as before.
 - **One message:** a run with no environment shows its error once, with Set Up Ansible Environment… and Open Settings (Manage Workspace Trust when untrusted); after a setup it offers the run again. The run carries `errorCode: 'environment'` so the command does not repeat it.
+
+## Amendment: WSL from Windows (AFD-75, 2026-11-03)
+
+The product owner asked for WSL next to the Docker EE. Before this, WSL worked only through VS Code's WSL extension, with the whole extension host inside WSL (local mode).
+
+- **A third kind:** `afd.environment.kind: wsl`, with `afd.environment.wslDistro` (empty: WSL's default distribution). It is chosen only when set, by hand or by the setup; `auto` never picks it. On another platform it fails with `wsl-not-windows`. `afd.environment.python` is the interpreter inside the distribution.
+- **Command lines** (`core/run/command.ts`):
+  - the probe is `wsl.exe [-d <distro>] --cd <root> -- env PYTHONPATH=… python3 -m afd_probe serve --root <root>`;
+  - runs are the same `sh -c` script as local and container runs, behind `wsl.exe … -- env <the run's variables>`.
+- **Paths:** `wslPath` turns `C:\x` into `/mnt/c/x` and `\\wsl$\<distro>\x` (or `wsl.localhost`) into `/x`. `insidePaths(env, …)` gives the repository, probe, run and cache folders as each kind sees them (the container's fixed mounts, WSL's `/mnt`, or as they are). It serves the probe's path mapping back to the host (`ProbeClient` gets the inside root), the catalog cache, and the scenario runner.
+- **Secrets:** a vault password and secret inputs stay environment variables only. `WSLENV` lists just those names (`AFD_VAULT_PASSWORD/u`, `AFD_SECRET_VARS/u`), joined to a `WSLENV` already set. No value is ever an argument.
+- **`ansible.cfg`:** DrvFs makes Windows drives world-writable inside WSL, and Ansible would ignore the file there; `ANSIBLE_CONFIG` names it, as for Docker Desktop mounts.
+- **Setup:** Set Up Ansible Environment… reads `wsl.exe -l -q` (UTF-16, `parseWslList`), lists each distribution except Docker Desktop's own, and on a pick writes the kind and the distribution at user level. Installing Ansible stays the user's (`pipx install ansible-core`); the probe's version floor (2.19) says when it is missing or too old.

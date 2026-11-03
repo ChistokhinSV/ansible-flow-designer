@@ -1,13 +1,15 @@
 // Which Ansible environment runs the probe and the flows (ADR-0005): an EE image through Docker or
-// Podman, or a local interpreter (VS Code Remote, venv). Our settings win; when they are unset the
+// Podman, a WSL distribution from Windows (AFD-75), or a local interpreter (VS Code Remote, venv). Our settings win; when they are unset the
 // redhat.ansible extension's settings are read as defaults (decision 6). Pure: settings in, plan out.
 
 export interface AfdEnvSettings {
-  kind: 'auto' | 'container' | 'local';
+  kind: 'auto' | 'container' | 'local' | 'wsl';
   containerEngine: 'auto' | 'docker' | 'podman';
   image: string;
   containerOptions: string[];
   python: string;
+  /** AFD-75: the WSL distribution for `kind: wsl`; empty is WSL's default one. */
+  wslDistro: string;
 }
 
 /** The subset of redhat.ansible settings we honour (names checked against its package.json). */
@@ -36,10 +38,12 @@ export type Environment =
       source: 'afd' | 'redhat.ansible';
       label: string;
     }
-  | { kind: 'local'; python: string; source: 'afd' | 'redhat.ansible' | 'default'; label: string };
+  | { kind: 'local'; python: string; source: 'afd' | 'redhat.ansible' | 'default'; label: string }
+  /** AFD-75: Ansible inside a WSL distribution, started with wsl.exe from Windows. */
+  | { kind: 'wsl'; distro?: string; python: string; label: string };
 
 /** Why no environment resolves; set up with Set Up Ansible Environment… (AFD-71). */
-export type EnvironmentProblem = 'no-image' | 'windows-native';
+export type EnvironmentProblem = 'no-image' | 'windows-native' | 'wsl-not-windows';
 
 export type EnvironmentResult =
   | { ok: true; env: Environment }
@@ -58,6 +62,20 @@ export function resolveEnvironment(
   redhat: RedHatSettings,
   platform: string,
 ): EnvironmentResult {
+  if (afd.kind === 'wsl') {
+    if (platform !== 'win32')
+      return {
+        ok: false,
+        error: 'afd.environment.kind wsl is for Windows: here, use local (or a container image)',
+        code: 'wsl-not-windows',
+      };
+    const distro = afd.wslDistro.trim() || undefined;
+    const python = afd.python || 'python3';
+    return {
+      ok: true,
+      env: { kind: 'wsl', distro, python, label: `wsl: ${distro ?? 'the default distribution'}` },
+    };
+  }
   const redhatImage = redhat.eeEnabled && redhat.image ? redhat.image : undefined;
   const container =
     afd.kind === 'container' || (afd.kind === 'auto' && (!!afd.image || !!redhatImage));

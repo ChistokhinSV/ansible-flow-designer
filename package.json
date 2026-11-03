@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.49.0",
+  "version": "0.50.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -20,6 +20,7 @@
         "afd.environment.containerEngine",
         "afd.environment.containerOptions",
         "afd.environment.python",
+        "afd.environment.wslDistro",
         "afd.awx.url",
         "afd.awx.verifyTls"
       ]
@@ -440,11 +441,12 @@
           "enum": [
             "auto",
             "container",
-            "local"
+            "local",
+            "wsl"
           ],
           "default": "auto",
           "scope": "resource",
-          "markdownDescription": "Where Ansible runs. `auto`: a container when an image is set (here or in the Red Hat Ansible extension's execution environment settings), else a local interpreter (VS Code Remote, venv). Native Windows needs a container."
+          "markdownDescription": "Where Ansible runs. `auto`: a container when an image is set (here or in the Red Hat Ansible extension's execution environment settings), else a local interpreter (VS Code Remote, venv). `wsl`: a WSL distribution on Windows (`afd.environment.wslDistro`). Native Windows needs a container or WSL."
         },
         "afd.environment.image": {
           "type": "string",
@@ -476,7 +478,13 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "markdownDescription": "Python with ansible-core 2.19+ for local mode. Empty: `ansible.python.interpreterPath`, else `python3`."
+          "markdownDescription": "Python with ansible-core 2.19+ for local mode (and inside WSL). Empty: `ansible.python.interpreterPath`, else `python3`."
+        },
+        "afd.environment.wslDistro": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "The WSL distribution that runs Ansible when `afd.environment.kind` is `wsl` (as `wsl -l` lists it, e.g. `Ubuntu-24.04`). Empty: WSL's default distribution."
         },
         "afd.run.inventory": {
           "type": "string",
