@@ -108,7 +108,8 @@ function controls() {
     'button, input, select, textarea, summary, a[href], [role=button], [role=tab], [role=checkbox], [role=menuitem]',
   );
   for (const el of all) {
-    if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') continue;
+    // checkVisibility: a closed fold's content keeps a layout box but is not rendered.
+    if (!el.checkVisibility({ visibilityProperty: true }) || !el.getClientRects().length) continue;
     if (el.closest('[aria-hidden="true"]')) continue;
     const region = REGIONS.find(([, sel]) => el.closest(sel));
     if (region) out[region[0]]++;
