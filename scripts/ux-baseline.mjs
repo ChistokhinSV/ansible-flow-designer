@@ -228,9 +228,12 @@ async function bindingPanel(page) {
 }
 
 /**
- * Wave 8 (B): the prompts a real run from the designer asks before it starts, as 0.50.0 asks them:
- * one input box per required or host-list input, then the confirmation (plus the vault password
- * box when the flow reads vaulted data, which these samples do not).
+ * Wave 8 (B): the prompts a real run asks before it starts, as 0.50.0 asked them from the designer
+ * and the Command Palette still does: one input box per required or host-list input, then the
+ * confirmation (plus the vault password box when the flow reads vaulted data, which these samples
+ * do not). From 0.53.0 the designer opens one launch dialog instead (AFD-82; the integration tests
+ * check that the dialog's run asks nothing more). A script cannot drive VS Code's input boxes, so
+ * this is counted from the flow's inputs.
  */
 function runPrompts(flow) {
   const doc = parse(readFileSync(join('samples', `${flow}.flow.yaml`), 'utf8'));
@@ -354,11 +357,13 @@ writeFileSync(
     '',
     `Binding tab of Hello's "Say hello" (bound to ansible.builtin.debug), side panel at ${w8.binding.panelWidth} px, 1280×800: the first Configure field ${w8.binding.firstFieldTop === null ? 'is not shown' : `starts ${w8.binding.firstFieldTop} px down the panel (${w8.binding.panelHeight} px tall), ${w8.binding.firstFieldVisible ? 'visible without scrolling' : 'below the fold'}`}, with ${w8.binding.controlsAbove} controls above it (${w8.binding.findResults} search results, ${w8.binding.docRows} documentation rows). The Add a parameter picker offers ${w8.binding.addParamOptions ?? 'no'} more ${w8.binding.addParamOptions === 1 ? 'parameter' : 'parameters'}.`,
     '',
-    'Prompts before a real run from the designer starts (input boxes for required or host-list inputs, then the confirmation; the vault password box comes on top for flows that read vaulted data):',
+    'Prompts before a real run starts. From the designer (0.53.0 on): one launch dialog with every input and the confirmation, and no prompt after it. From the Command Palette, as the designer asked them up to 0.52.0: input boxes for required or host-list inputs, then the confirmation (the vault password box comes on top for flows that read vaulted data). Counted from the flow inputs:',
     '',
-    '| Flow | Input boxes | Confirmation | Prompts |',
-    '| --- | --- | --- | --- |',
-    ...w8.runPrompts.map((r) => `| ${r.flow} | ${r.inputs} | ${r.confirmation} | ${r.total} |`),
+    '| Flow | From the designer | Palette input boxes | Palette confirmation | Palette prompts |',
+    '| --- | --- | --- | --- | --- |',
+    ...w8.runPrompts.map(
+      (r) => `| ${r.flow} | 1 dialog, 0 prompts | ${r.inputs} | ${r.confirmation} | ${r.total} |`,
+    ),
     '',
   ].join('\n'),
 );

@@ -28,7 +28,7 @@ adds.
   review, not a user test; the report keeps the two apart.
 - **Round 1:** 0.50.0, workspace variant A, before any wave 8 change. Its findings can still change
   wave 8's details.
-- **Round 2:** the last wave 8 build (0.59.0), variant B. Variant B has the same flows, faults and
+- **Round 2:** the last wave 8 build (0.59.2), variant B. Variant B has the same flows, faults and
   wiring with other names (switches become routers, NTP becomes syslog), so P1 cannot answer from
   memory. Learning the product itself still carries over; the report says so.
 
@@ -40,6 +40,8 @@ adds.
    ```bash
    just usability-kit 1 a out/ansible-flow-designer-0.50.0.vsix
    ```
+
+   Round 2: `just usability-kit 2 b out/ansible-flow-designer-0.59.2.vsix`.
 
    The kit:
    - creates `C:\DOWNLOADS_TEMP\afd-usability\r<round>-<variant>-<date>-<time>\`;
