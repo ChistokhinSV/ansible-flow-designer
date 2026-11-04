@@ -6,6 +6,11 @@ mode's panel) stays in the tab beside it, and selecting a node switches to it. P
 bar's **Lens** dropdown; ✕ clears it. Lenses work in every mode and never edit the flow. Hover a row
 to highlight its nodes.
 
+A line over the canvas says which lens is on and what it shows. A chip appears only where a step
+has something for the lens. When no step on the level has one, the line says why: no step reads or
+sets data, none is bound yet, or, for the Inventory lens, the flow targets are not set (with **Set
+Targets…** beside it).
+
 ![The inventory lens](../images/inventory-lens-light.png)
 
 | Lens          | Shows                                                                                                             | Finds                                                                                                                                             |

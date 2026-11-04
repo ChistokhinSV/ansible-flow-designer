@@ -346,3 +346,19 @@
   margin: 4px 0 0;
   font-size: var(--afd-fs-12);
 }
+
+/* What the canvas shows (AFD-83): the mode in Code and Run, the lens and why it is empty here. */
+.afd-canvas-caption {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--afd-border);
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  font-size: var(--afd-fs-12);
+}
+
+.afd-canvas-caption p {
+  margin: 2px 0;
+}
+
+.afd-caption-empty {
+  color: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+}

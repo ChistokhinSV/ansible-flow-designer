@@ -104,6 +104,34 @@ def inventory(
     }
 
 
+TREE_HOSTS = 500
+
+
+def inventory_tree(root: str, inventory: str | None = None) -> dict[str, Any]:
+    """The inventory's groups, each with its own hosts and child groups (AFD-83: Inventory view)."""
+    from ansible import constants as C
+    from ansible.inventory.manager import InventoryManager
+    from ansible.parsing.dataloader import DataLoader
+
+    sources = [inventory] if inventory else C.DEFAULT_HOST_LIST
+    inv = InventoryManager(loader=DataLoader(), sources=sources)
+    groups = [
+        {
+            "name": name,
+            "hosts": sorted(h.name for h in group.hosts)[:TREE_HOSTS],
+            "children": sorted(c.name for c in group.child_groups),
+            "count": len(group.get_hosts()),
+        }
+        for name, group in sorted(inv.groups.items())
+    ]
+    source_list = sources if isinstance(sources, list) else [sources]
+    return {
+        "sources": [str(s) for s in source_list],
+        "total": len(inv.get_hosts()),
+        "groups": groups,
+    }
+
+
 def _vault_present(root: str, sources: list[Any]) -> bool:
     """Vault-encrypted files or inline !vault values near the inventory or in the repo vars."""
     places = [os.path.join(root, "group_vars"), os.path.join(root, "host_vars")]
@@ -167,6 +195,7 @@ HANDLERS = {
     "ping": ping,
     "syntax_check": syntax_check,
     "inventory": inventory,
+    "inventory_tree": inventory_tree,
     "inventory_lens": inventory_lens,
     "catalog": catalog,
     "roles": roles,

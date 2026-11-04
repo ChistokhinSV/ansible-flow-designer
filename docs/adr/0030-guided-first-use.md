@@ -59,3 +59,19 @@ Product-owner decisions (2026-11-03): an Activity Bar icon, and a first-flow che
 - People who already had flows see the checklist on a flow with 1–5 steps until they hide it once.
 - Users with an AI agent installed are offered the setup later than before, and only after they meet a flow. The setup command is unchanged.
 - An AWX user starts from Set AWX Token or the AWX walkthrough. The AWX commands appear once the URL is set.
+
+## Amendment: the Inventory view (AFD-83, 2026-11-04)
+
+Round 1's participant could not see the inventory or point a run at a group (P6). The inventory was
+their most confusing part and their one thing to change.
+
+- **The view.** The Ansible Flows view container gains **Inventory** (`afd.inventory`,
+  `extension/inventoryView.ts`): the groups and hosts the runs use, read in the run environment by
+  the probe's `inventory_tree` (each group's own hosts, child groups and host count). It starts
+  from the children of `all` (`core/view/inventoryTree.ts`), with `ungrouped` only when it has
+  hosts. It is read when first shown and again on Refresh Inventory or a change to
+  `afd.run.inventory` or the environment settings. With no environment it says so and offers Set
+  Up Ansible Environment….
+- **Run Flow on This Group…** (inline on a group or a host) opens the designer's launch dialog
+  (AFD-82) for the flow being worked on, with that name as the targets (`planLaunch` prefill). The
+  person still sees the facts and presses Run.

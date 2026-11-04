@@ -127,3 +127,18 @@ local branch, or one of the last 15 commits that touched the file (product-owner
 
 - `FlowDiff.annotations` matches annotations by ID, else by key on the matched level. It compares kind, text, color, size and the node a note is on (by key); a move is no change.
 - The lens adds `LensView.annotations` (added or changed, outlined on the canvas and not faded), an **Annotations** stat and section when there are any, and counts them in "No changes since …".
+
+## Amendment: a lens says what it shows, and why it is empty (AFD-83, 2026-11-04)
+
+Wave 8 group I, added by usability round 1. The participant turned the Inventory and Data lenses on
+and read the result as the canvas emptying (P10). A lens chips only the steps it has something for,
+and the Inventory lens without flow targets has nothing for any step.
+
+- **A caption over the canvas** (`panels/CanvasCaption.tsx`) names the lens and what it shows (the
+  `LENSES` hint), with a reason (`core/lens/caption.ts` `lensCaption`) when no step on the level
+  has a chip. The lens's own note (inventory not read, no runs) is used first, else one sentence
+  per lens. The Inventory lens without targets says so and offers Set Targets….
+- **The lens tab** starts with the same description.
+- The caption also names Code and Run mode with what each is for and that the graph only reads
+  there (P11: the switch read as stages of designing). Design without a lens shows no caption, so
+  the first screen keeps its 35 controls.

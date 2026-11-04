@@ -13,29 +13,11 @@ import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
+import { MODES } from '../modes';
 import { startRun } from '../runActions';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
-
-/** AFD-71: each mode says what it is for. */
-const MODES = [
-  {
-    id: 'design',
-    label: 'Design',
-    hint: 'Draw the flow: steps, wires, and what happens when a step fails',
-  },
-  {
-    id: 'code',
-    label: 'Code',
-    hint: 'What each step runs, and where the code differs from the design',
-  },
-  {
-    id: 'run',
-    label: 'Run',
-    hint: 'The last run on the canvas: how many hosts took each wire, and which steps failed',
-  },
-] as { id: Mode; label: string; hint: string; soon?: string }[];
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);

@@ -30,6 +30,8 @@ export async function planLaunch(
   document: vscode.TextDocument,
   deps: RunDeps,
   mode: 'check' | 'real',
+  /** AFD-83: start the targets field with this (the Inventory view's Run Flow on This Group…). */
+  prefill: { targets?: string } = {},
 ): Promise<{ ok: true; plan: LaunchPlan } | { ok: false; error: string; environment?: boolean }> {
   const doc = parseFlow(document.getText()).doc;
   if (!doc) return { ok: false, error: 'The flow does not parse: fix it before running' };
@@ -39,6 +41,11 @@ export async function planLaunch(
   if (!env.ok) return { ok: false, error: env.error, environment: true };
   const remembered = deps.state.get<Record<string, unknown>>(inputsKey(doc.flow.id), {});
   const fields = launchFields(doc, remembered, mode === 'check');
+  if (prefill.targets) {
+    const lists = fields.filter((f) => f.type === 'host_list');
+    const field = lists.find((f) => f.targets) ?? lists[0];
+    if (field) field.text = prefill.targets;
+  }
   const start = readFields(fields, {});
   const [found, groups] = await Promise.all([
     'inputs' in start

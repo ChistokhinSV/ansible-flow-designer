@@ -647,11 +647,15 @@ export class FlowSession implements vscode.Disposable {
    * AFD-82: the launch dialog in the active designer panel, with a fresh plan (single-use token).
    * `notice` says why it opens again (the inventory answered differently at Run).
    */
-  async openLaunch(mode: 'check' | 'real', notice?: string): Promise<void> {
+  async openLaunch(
+    mode: 'check' | 'real',
+    notice?: string,
+    prefill?: { targets?: string },
+  ): Promise<void> {
     const deps = this.deps.run?.(this.uri);
     const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
     if (!deps || !panel) return;
-    const r = await planLaunch(this.document, deps, mode);
+    const r = await planLaunch(this.document, deps, mode, prefill);
     if (!r.ok) {
       if (r.environment) showEnvironmentError(r.error, () => this.openLaunch(mode));
       else this.post(panel, { type: 'notify', level: 'error', text: r.error });

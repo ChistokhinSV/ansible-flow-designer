@@ -13,6 +13,7 @@ import { CanvasContextMenu } from './menu/CanvasContextMenu';
 import { AnnotationPanel } from './panels/AnnotationPanel';
 import { Banner, FormatBanner } from './panels/Banner';
 import { BoundaryPanel } from './panels/BoundaryPanel';
+import { CanvasCaption } from './panels/CanvasCaption';
 import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
 import { DriftPanel, IgnoreDialog } from './panels/DriftPanel';
@@ -333,6 +334,7 @@ export function App() {
           <Banner />
           <FormatBanner />
           <PickBar />
+          <CanvasCaption />
           <FlowCanvas />
           <Toasts />
         </main>

@@ -14,6 +14,7 @@ import { registerExport } from './export';
 import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
+import { registerInventoryView } from './inventoryView';
 import { watchScenarioFiles } from './run/scenarios';
 import { watchSharedSources } from './sharedSubflows';
 import { type AfdTestApi, createTestApi } from './testApi';
@@ -118,6 +119,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     watchSharedSources(host),
     ...registerImportCommands(host),
     ...registerFlowsView(),
+    ...registerInventoryView(host),
   );
   for (const doc of vscode.workspace.textDocuments)
     if (isFlow(doc)) void host.sessionFor(doc).refresh();

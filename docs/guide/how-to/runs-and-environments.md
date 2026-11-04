@@ -78,6 +78,14 @@ asks for each input in an input box instead.
 Unbound steps print `TODO: <intent>`. Bound modules run in check mode; the catalog badges say which
 modules support it.
 
+## The Inventory view
+
+**Inventory**, in the **Ansible Flows** view of the Activity Bar, lists the inventory the runs use
+(`afd.run.inventory`, else `ansible.cfg`'s), read in your Ansible environment. Each group shows its
+host count and opens into its child groups and its hosts. **Run Flow on This Group…** (the play
+button on a group or a host) opens the launch dialog of the flow you are working on, with that group
+as its targets. **Refresh Inventory** reads it again after you edit the inventory.
+
 ## Run for real
 
 **Run for Real…** (under the arrow of _Run as Skeleton_) opens the same dialog. It also says, in

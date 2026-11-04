@@ -120,6 +120,19 @@ def test_inventory_resolves_targets_and_flags(probe):
     assert result["vault"] is False
 
 
+def test_inventory_tree_lists_groups_hosts_and_children(probe):
+    inv = "test/fixtures/engine/content/inventory.ini"
+    result = probe.call("inventory_tree", inventory=inv)["result"]
+    groups = {g["name"]: g for g in result["groups"]}
+    assert result["total"] == 15
+    assert groups["edge"]["hosts"] == ["sw-edge-01", "sw-edge-02", "sw-edge-03", "sw-edge-04"]
+    # A parent group lists its children, not their hosts; its count has them all.
+    assert groups["edge_switches"]["hosts"] == []
+    assert groups["edge_switches"]["children"] == ["edge"]
+    assert groups["edge_switches"]["count"] == 4
+    assert "lab" in groups["all"]["children"]
+
+
 def test_inventory_detects_production_and_vault(probe):
     inv = "probe/tests/fixtures/prod/inventory.ini"
     result = probe.call("inventory", inventory=inv, targets=["core-prd-01", "lab-sw-01"])["result"]

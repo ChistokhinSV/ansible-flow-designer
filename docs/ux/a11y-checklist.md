@@ -86,3 +86,5 @@ the harness.
 | launch dialog: focus in, trapped and back; Escape cancels (AFD-82, 0.53)         | ✅ `role=dialog`, labelled by its title; first field focused; Enter runs (a form)                                                           |
 | launch dialog: fields named with their type; problems announced                  | ✅ "devices host_list *"; a field that does not read gets `aria-invalid` and its message; facts are `role=status`                           |
 | launch dialog: group buttons say whether they are in the list                    | ✅ `aria-pressed`, in a fieldset named "Inventory groups for <input>"                                                                       |
+| the canvas caption (mode, lens, why empty) is read out (AFD-83, 0.54)            | ✅ `role=status`; Set Targets… is a button                                                                                                  |
+| the Inventory view is VS Code's own tree; Run Flow on This Group… is named       | ✅ an inline action with its title; groups say their host count                                                                             |

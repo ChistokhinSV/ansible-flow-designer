@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.54.0 — AFD-83
+
+Wave 8, part 4: lenses and the inventory, explained.
+
+- **A lens says what it shows.** With a lens on, a line over the canvas names it and what it shows on each step. When no step on the level has anything for it, the line says why: no step reads or sets data, none is bound yet, none sets a credential or become. Before, the canvas just went quiet. The Inventory lens without flow targets says that the targets are not set, with **Set Targets…** beside it. The lens tab starts with the same description.
+- **The modes say what they are for:** in Code and Run, the line over the canvas says what the mode shows and that the graph only reads there.
+- **The Inventory view:** **Inventory** in the Ansible Flows view (Activity Bar) lists the groups and hosts the runs use, read in your Ansible environment, with each group's host count. **Run Flow on This Group…** on a group or a host opens the launch dialog of the flow you are working on, with it as the targets.
+
 ## 0.53.0 — AFD-82
 
 Wave 8, part 3: one dialog to start a run.

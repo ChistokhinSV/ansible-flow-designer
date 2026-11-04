@@ -79,6 +79,10 @@ export function LensBrowser() {
       <h2 className="afd-panel-title">
         {labelOf(lens)} <HelpLink topic="lenses" about="lenses" />
       </h2>
+      {/* AFD-83: what the lens shows on each step, before its rows. */}
+      <p className="muted" data-lens-what>
+        {LENSES.find((l) => l.id === lens)?.hint}.
+      </p>
       {inventory ? (
         <div className="afd-lens-source">
           <p className="muted">
