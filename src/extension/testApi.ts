@@ -8,6 +8,7 @@ import type { CodeScan, DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
+import type { OutputEntry } from '../core/run/events';
 import type { Agent, Item as SetupItem } from '../node/ai/writers';
 import type { AiSetup, SetupPicks } from './ai/setup';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
@@ -23,6 +24,7 @@ import {
 import { auditUri } from './run/audit';
 import { type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
+import { runTerminalName } from './run/terminal';
 import { tourReached } from './tour';
 
 /** Exported from activate() in ExtensionMode.Test only (integration and perf suites). */
@@ -40,6 +42,14 @@ export interface AfdTestApi {
   /** The code generation started by the last save of this flow. */
   savedCode(uri: vscode.Uri): Promise<CodegenOutcome> | undefined;
   runFlow(uri: vscode.Uri, options: RunOptions): Promise<RunView>;
+  /** AFD-81: a host's output in a node of the flow's last local run, as its Output shows it. */
+  runOutput(
+    uri: vscode.Uri,
+    node: string,
+    host: string,
+  ): Promise<{ entries?: OutputEntry[]; error?: string }>;
+  /** AFD-81: the name of the terminal the flow's last local run ran in. */
+  runTerminal(uri: vscode.Uri): string | undefined;
   syntaxCheck(uri: vscode.Uri): Promise<SyntaxOutcome>;
   auditLog(): Promise<Record<string, unknown>[]>;
   /** Serves the folder's catalog from these collection files instead of the probe (M5). */
@@ -108,6 +118,11 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
       const doc = await vscode.workspace.openTextDocument(uri);
       return runFlow(doc, host.runDeps(uri), options);
     },
+    runOutput: async (uri, node, hostName) =>
+      (await host.sessions.get(uri.toString())?.runOutput(node, hostName)) ?? {
+        error: 'No designer for this flow',
+      },
+    runTerminal: (uri) => runTerminalName(uri),
     auditLog: async () => {
       try {
         const bytes = await vscode.workspace.fs.readFile(auditUri(host.storage));

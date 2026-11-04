@@ -84,7 +84,8 @@ describe('M1 performance (production bundle)', () => {
   });
 
   // Wave 8 (AFD-78): how long after a skeleton run starts the canvas shows the first node's result,
-  // against the run's own length. Measured, not asserted: before wave 8 both are the whole run.
+  // against the run's own length. Before wave 8 both were the whole run; since AFD-81 the result
+  // comes while the run goes (a running step is not a result).
   (runEnvironment ? it : it.skip)('first node result on the canvas during a run', async () => {
     const api = await testApi();
     await openDesigner(HELLO);
@@ -98,7 +99,7 @@ describe('M1 performance (production bundle)', () => {
     });
     while (!finished && performance.now() - t0 < 240_000) {
       const states = Object.values((await api.inspect(HELLO)).run?.nodes ?? {});
-      if (firstNodeMs === undefined && states.some((s) => s && s !== 'idle'))
+      if (firstNodeMs === undefined && states.some((s) => s && s !== 'idle' && s !== 'running'))
         firstNodeMs = Math.round(performance.now() - t0);
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -111,5 +112,6 @@ describe('M1 performance (production bundle)', () => {
     }
     console.log(`[perf] ${JSON.stringify({ firstNodeResultMs: firstNodeMs ?? null, runMs })}`);
     assert.equal(done.state, 'done', JSON.stringify(done));
+    assert.ok(firstNodeMs !== undefined && firstNodeMs < runMs, 'no node result before the end');
   }).timeout(300_000);
 });

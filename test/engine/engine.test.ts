@@ -847,6 +847,12 @@ describe.each(IMAGES)('engine on %s', (image) => {
         expect(run.outcome.get(host), `${host} outcome`).toBe(want.outcome);
       }
       s.also?.(run);
+      // AFD-81: task results carry their output (a TODO step's debug msg); routing tasks do not.
+      const taskResults = run.events.filter((e) => e.event === 'result');
+      for (const e of taskResults.filter((x) => x.group || x.added))
+        expect(e.out, String(e.task)).toBeUndefined();
+      const todo = taskResults.find((e) => String(e.task).endsWith('] TODO') && e.status === 'ok');
+      if (todo) expect((todo.out as { msg?: string } | undefined)?.msg, 'TODO msg').toMatch(/TODO/);
     });
   });
 });

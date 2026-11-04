@@ -1,9 +1,11 @@
 // Run mode's right panel (04 §10, M7): the run with nothing selected (source, status, AWX job,
 // revision, failed hosts, the `tested` proposal of decision 15), a node's per-host results, or the
 // hosts that took a wire.
+import { Fragment, useEffect, useState } from 'react';
 import { modelOf } from '../../core/flow/model';
 import type { Edge, Ulid } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
+import type { OutputEntry } from '../../core/run/events';
 import {
   arrivals,
   edgeHosts,
@@ -18,6 +20,7 @@ import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
+import { requestRunOutput } from '../runOutput';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
 
@@ -29,7 +32,14 @@ function describe(run: RunView): string {
 
 function statusOf(run: RunView): { label: string; tone: 'ok' | 'warn' | 'neutral' } {
   if (run.state === 'running')
-    return { label: run.awx ? `running (${run.awx.status})` : 'running', tone: 'neutral' };
+    return {
+      label: run.awx
+        ? `running (${run.awx.status})`
+        : run.quiet
+          ? 'running · no new events for 20 s'
+          : 'running',
+      tone: run.quiet ? 'warn' : 'neutral',
+    };
   if (run.state === 'error') return { label: run.error ?? 'failed', tone: 'warn' };
   if (runPassed(run)) return { label: `passed · exit ${run.rc}`, tone: 'ok' };
   const { ok, failed } = runVerdict(run);
@@ -261,6 +271,7 @@ export function RunPanel() {
 
 /** The Run tab of a node's Details (AFD-43): each host, the port it left by, its result. */
 export function NodeRunPanel({ id }: { id: Ulid }) {
+  const [open, setOpen] = useState<string | null>(null);
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
@@ -269,6 +280,12 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
   const node = model?.nodes.get(id)?.node;
   if (!model || !node) return null;
   const s = run?.summary;
+  // AFD-81: what each host did here, read from the run's events; local runs, once ended.
+  const outputs =
+    run?.source === 'local' &&
+    run.state !== 'running' &&
+    node.type !== 'start' &&
+    node.type !== 'end';
   // Start and end nodes have no play: start sent every host, end lists the hosts that arrived.
   const rows: (HostResult & { ended?: string })[] = !s
     ? []
@@ -299,30 +316,52 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                 <th>Host</th>
                 <th>Left through</th>
                 <th>Result</th>
+                {outputs ? (
+                  <th>
+                    <span className="afd-sr-only">Output</span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
               {rows.map((h) => (
-                <tr key={h.host} data-host={h.host} data-port={h.ports.join(',')}>
-                  <td className="mono">{h.host}</td>
-                  <td className="mono afd-run-port">
-                    {h.ports.join(', ') || (h.ended ? '-' : '(no route)')}
-                  </td>
-                  <td>
-                    {h.ended ? (
-                      <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
-                        {h.ended}
-                      </span>
-                    ) : h.problem ? (
-                      <span title={h.problem.msg}>
-                        {h.problem.status} in {h.problem.task}
-                        {h.problem.msg ? <span className="muted"> · {h.problem.msg}</span> : null}
-                      </span>
-                    ) : (
-                      <span className="tone-ok">ok</span>
-                    )}
-                  </td>
-                </tr>
+                <Fragment key={h.host}>
+                  <tr data-host={h.host} data-port={h.ports.join(',')}>
+                    <td className="mono">{h.host}</td>
+                    <td className="mono afd-run-port">
+                      {h.ports.join(', ') || (h.ended ? '-' : '(no route)')}
+                    </td>
+                    <td>
+                      {h.ended ? (
+                        <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
+                          {h.ended}
+                        </span>
+                      ) : h.problem ? (
+                        <span title={h.problem.msg}>
+                          {h.problem.status} in {h.problem.task}
+                          {h.problem.msg ? <span className="muted"> · {h.problem.msg}</span> : null}
+                        </span>
+                      ) : (
+                        <span className="tone-ok">ok</span>
+                      )}
+                    </td>
+                    {outputs ? (
+                      <td>
+                        <button
+                          type="button"
+                          className="link"
+                          aria-expanded={open === h.host}
+                          aria-label={`Output of ${h.host}`}
+                          data-output-toggle={h.host}
+                          onClick={() => setOpen(open === h.host ? null : h.host)}
+                        >
+                          Output
+                        </button>
+                      </td>
+                    ) : null}
+                  </tr>
+                  {open === h.host ? <HostOutputRow node={id} host={h.host} /> : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -390,5 +429,59 @@ export function WireRunPanel({ edge }: { edge: Ulid }) {
         </>
       )}
     </div>
+  );
+}
+
+/** One host's task results in a node of the last local run (AFD-81), asked for when opened. */
+function HostOutputRow({ node, host }: { node: Ulid; host: string }) {
+  const [got, setGot] = useState<{ entries?: OutputEntry[]; error?: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void requestRunOutput(node, host).then((a) => live && setGot(a));
+    return () => {
+      live = false;
+    };
+  }, [node, host]);
+  return (
+    <tr className="afd-run-output" data-run-output={host}>
+      <td colSpan={4}>
+        {!got ? (
+          <p className="muted">Reading the output…</p>
+        ) : got.error ? (
+          <p className="muted">{got.error}</p>
+        ) : !got.entries?.length ? (
+          <p className="muted">No task results for {host} here.</p>
+        ) : (
+          got.entries.map((e, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: results have no identity besides order.
+            <div key={i} className="afd-output-entry" data-output-task={e.task}>
+              <div>
+                <span className="mono">{e.task}</span>{' '}
+                <span
+                  className={
+                    e.status === 'ok' ? 'tone-ok' : e.status === 'skipped' ? 'muted' : 'tone-warn'
+                  }
+                >
+                  {e.status}
+                  {e.changed ? ' · changed' : ''}
+                  {e.rc !== undefined ? ` · rc ${e.rc}` : ''}
+                  {e.item ? ' · loop item' : ''}
+                </span>
+              </div>
+              {e.censored ? <p className="muted">Output hidden (no_log).</p> : null}
+              {e.msg && !e.out?.msg ? <pre className="afd-code">{e.msg}</pre> : null}
+              {(['msg', 'stdout', 'stderr'] as const).map((k) =>
+                e.out?.[k] ? (
+                  <div key={k}>
+                    <span className="muted">{k}</span>
+                    <pre className="afd-code">{e.out[k]}</pre>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          ))
+        )}
+      </td>
+    </tr>
   );
 }

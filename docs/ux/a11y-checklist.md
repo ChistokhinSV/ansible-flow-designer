@@ -75,9 +75,11 @@ the harness.
 
 ## Wave 8 (0.51+)
 
-| Check                                                                            | Wave 8                                                                                                                               |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Binding tab: the parameter picker is a combobox (AFD-80, 0.51)                   | ✅ `role=combobox` with `aria-expanded`, `aria-controls`, `aria-activedescendant`; arrows, Enter, Escape; labelled "Add a parameter" |
-| Binding tab: Change module and About are folds (AFD-80)                          | ✅ native `<details>`, the summary names the module; Change module opens by itself when the binding is a problem                     |
-| leaving a staged binding by hiding the panel or the lens tab asks first (AFD-80) | ✅ the leave dialog (focus on Keep Editing)                                                                                          |
-| the side panel's resize edge is visible at rest (AFD-80)                         | ✅ a grip; `role=separator` with its value, arrows resize, Enter hides                                                               |
+| Check                                                                            | Wave 8                                                                                                                                      |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Binding tab: the parameter picker is a combobox (AFD-80, 0.51)                   | ✅ `role=combobox` with `aria-expanded`, `aria-controls`, `aria-activedescendant`; arrows, Enter, Escape; labelled "Add a parameter"        |
+| Binding tab: Change module and About are folds (AFD-80)                          | ✅ native `<details>`, the summary names the module; Change module opens by itself when the binding is a problem                            |
+| leaving a staged binding by hiding the panel or the lens tab asks first (AFD-80) | ✅ the leave dialog (focus on Keep Editing)                                                                                                 |
+| the side panel's resize edge is visible at rest (AFD-80)                         | ✅ a grip; `role=separator` with its value, arrows resize, Enter hides                                                                      |
+| a live run's step is shown without colour or motion alone (AFD-81, 0.52)         | ✅ "running…" on the card and "Running: <step>" in the top bar; the outline stops under reduced motion and uses Highlight in forced colours |
+| a host's run output opens with the keyboard (AFD-81)                             | ✅ an Output button per host with `aria-expanded`, named "Output of <host>"                                                                 |

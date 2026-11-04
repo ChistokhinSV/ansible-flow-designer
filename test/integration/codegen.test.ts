@@ -151,6 +151,49 @@ describe('M3 acceptance: code generation', () => {
     assert.deepEqual(run.summary?.outcome, {});
   }).timeout(300_000);
 
+  it('AFD-81: with the designer open, the canvas follows the run, the terminal is its own, each host keeps its output', async () => {
+    const doc = await openDesigner(HELLO);
+    const api = await testApi();
+    api.setMode(HELLO, 'run');
+    const flow = docOf(doc.getText());
+    const id = (key: string) => flow.nodes.find((n) => n.key === key)?.id as string;
+    let finished = false;
+    const states: string[][] = [];
+    const going = api.runFlow(HELLO, { mode: 'check', inputs: { devices: ['localhost'] } });
+    void going.finally(() => {
+      finished = true;
+    });
+    while (!finished) {
+      const nodes = (await api.inspect(HELLO)).run?.nodes ?? {};
+      states.push([
+        nodes[id('ping')] ?? '',
+        nodes[id('facts')] ?? '',
+        nodes[id('say-hello')] ?? '',
+      ]);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    const run = await withTimeout(going, 10_000, 'Hello skeleton run');
+    if (run.state !== 'done') throw new Error(JSON.stringify(run));
+    // Live: a step was running while the run went, and a step had its result before the run ended.
+    assert.ok(
+      states.some((row) => row.includes('running')),
+      `no running step seen: ${JSON.stringify(states)}`,
+    );
+    assert.ok(
+      states.some((row) => row.some((st) => st === 'ok')),
+      `no result before the end: ${JSON.stringify(states)}`,
+    );
+    assert.equal(run.summary?.running, undefined);
+    // The run's own terminal, found by its task's label.
+    assert.match(api.runTerminal(HELLO) ?? '', /hello \(skeleton, check mode\)/);
+    // Each host's output, from the kept events: the debug step's message.
+    const out = await api.runOutput(HELLO, id('say-hello'), 'localhost');
+    assert.equal(out.error, undefined, out.error);
+    const hello = out.entries?.find((e) => e.out?.msg?.includes('Hello'));
+    assert.ok(hello, JSON.stringify(out.entries));
+    assert.equal(hello.status, 'ok');
+  }).timeout(300_000);
+
   it('AFD-39: Stop Run ends a local run as stopped, not failed', async () => {
     const original = readFileSync(EDGE.fsPath, 'utf8');
     try {

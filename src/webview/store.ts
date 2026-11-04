@@ -178,6 +178,8 @@ interface UiState {
   saving: boolean;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
+  /** The designer asked for a run (AFD-81): when it starts, the canvas switches to Run mode. */
+  runAsked: boolean;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
   runNodes: Record<Ulid, NodeRun> | null;
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
@@ -240,6 +242,7 @@ interface UiState {
   notify(level: ToastLevel, text: string): void;
   dismissToast(id: number): void;
   setRun(r: RunView | null): void;
+  setRunAsked(on: boolean): void;
   /** Opens a level; selection, menus and picks belong to the level being left. */
   setLevel(level: string): void;
   /** Shows a node: opens its level and selects it. */
@@ -315,6 +318,7 @@ export const useUi = create<UiState>((set, get) => ({
   toasts: [],
   saving: false,
   run: null,
+  runAsked: false,
   runNodes: null,
   level: ROOT,
   preview: null,
@@ -437,12 +441,18 @@ export const useUi = create<UiState>((set, get) => ({
     setTimeout(() => get().dismissToast(id), TOAST_MS[level]);
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
-  setRun: (run) =>
+  setRun(run) {
+    const asked = get().runAsked && !!run;
     set({
       run,
       runNodes: runOf(get().snapshot, run),
       lensView: lensOf(get().snapshot, get().lens, get().lensFacts, run),
-    }),
+      ...(asked ? { runAsked: false } : {}),
+    });
+    // A run the designer started shows where it is on the canvas (AFD-81, round 1: P5).
+    if (asked && run?.state === 'running') get().setMode('run');
+  },
+  setRunAsked: (runAsked) => set({ runAsked }),
   setLens(lens) {
     set({
       lens,

@@ -7,8 +7,11 @@ import type { Edge, FlowDocument, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
 import type { RunProblem, RunSummary } from './events';
 
-/** ok: every host left through a normal port; warn: some took a fail port; failed: a failure was not routed. */
-export type NodeRunState = 'ok' | 'warn' | 'failed' | 'idle';
+/**
+ * ok: every host left through a normal port; warn: some took a fail port; failed: a failure was
+ * not routed; running (AFD-81): its play runs now, or a step inside it does (a subflow).
+ */
+export type NodeRunState = 'ok' | 'warn' | 'failed' | 'idle' | 'running';
 
 export interface HostResult {
   host: string;
@@ -88,6 +91,11 @@ export function runStates(doc: FlowDocument, s: RunSummary): Record<Ulid, NodeRu
       const failed = node.outcome === 'failed' ? n : 0;
       out[node.id] = { state: n === 0 ? 'idle' : failed ? 'failed' : 'ok', hosts: n, failed };
     } else out[node.id] = nodeRun(s, node.id);
+  }
+  // A live run (AFD-81): the running step and every subflow around it.
+  for (let at = s.running; at && at !== 'root'; at = model.nodes.get(at)?.level) {
+    const r = out[at];
+    if (r) out[at] = { ...r, state: 'running' };
   }
   return out;
 }

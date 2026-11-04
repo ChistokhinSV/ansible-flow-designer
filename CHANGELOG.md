@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.52.0 — AFD-81
+
+Wave 8, part 2: local runs you can follow on the canvas.
+
+- **The canvas follows a local run while it goes.** The step that runs now has a pulsing outline and reads "running…" (a subflow too, while a step inside it runs). Steps show their hosts as they finish, about every half second, instead of everything at the end. On the Hello sample the first result now comes before the run ends, not with it. With reduced motion the outline stays still; in Windows contrast themes it uses the system highlight.
+- **A run you start from the designer switches it to Run mode**, and the top bar names the step that runs.
+- **The terminal stays out of the way** while the flow's designer is open. It comes forward by itself when the canvas cannot explain the run: it did not start, produced no events, or failed before its first step. **Show Terminal** brings forward that run's own terminal. Without a designer open the terminal shows as before.
+- **No new events for 20 s:** a notification and the top bar say so, with Show Terminal: a step may be slow, or the run may be waiting for input there (an SSH host key question, a `pause`).
+- **Output per host:** after a local run, **Output** on a host in a step's Run tab shows what each task printed for it (msg, stdout, stderr, changed, return code). A `no_log` task says only that its output is hidden.
+- **Secret inputs stay out of the run's events**, now that they carry output: their values are replaced, both while the run goes and in the events kept after it.
+
 ## 0.51.0 — AFD-80
 
 Wave 8, part 1: the Binding tab at the side panel's width.

@@ -15,10 +15,33 @@ DOCUMENTATION = """
     description:
       - Writes play starts, task results with routing groups, and final stats to the file named
         by the AFD_EVENTS environment variable, so the designer can map a run back to flow nodes.
+      - Task results also carry changed, rc and the task's output (stdout, stderr, msg; cut), read
+        while the run goes and shown per host (AFD-81). A no_log result says only censored.
     requirements: []
 """
 
 MSG_LIMIT = 500
+OUT_LIMIT = 2000
+# The generated routing tasks: their results are the routes, not output worth showing.
+ROUTING = {
+    "add_host",
+    "group_by",
+    "meta",
+    "ansible.builtin.add_host",
+    "ansible.builtin.group_by",
+    "ansible.builtin.meta",
+}
+
+
+def _text(value: object) -> str | None:
+    """Output as text, cut at OUT_LIMIT; None when empty."""
+    if value is None or value == "" or value == []:
+        return None
+    if isinstance(value, list):
+        value = "\n".join(str(v) for v in value)
+    elif not isinstance(value, str):
+        value = json.dumps(value, default=str)
+    return value[:OUT_LIMIT]
 
 
 class CallbackModule(CallbackBase):
@@ -63,9 +86,23 @@ class CallbackModule(CallbackBase):
         added = data.get("add_host")
         if isinstance(added, dict):
             event["added"] = {"host": added.get("host_name"), "groups": added.get("groups")}
+        if "censored" in data or data.get("_ansible_no_log"):
+            event["censored"] = True
+            event.update(extra)
+            self._emit(**event)
+            return
         message = data.get("msg") or data.get("reason")
         if status in ("failed", "unreachable") and message:
             event["msg"] = str(message)[:MSG_LIMIT]
+        routing = "group" in event or "added" in event or result._task.action in ROUTING
+        if not routing:
+            if "changed" in data:
+                event["changed"] = bool(data["changed"])
+            if isinstance(data.get("rc"), int):
+                event["rc"] = data["rc"]
+            out = {k: t for k in ("stdout", "stderr", "msg") if (t := _text(data.get(k)))}
+            if out:
+                event["out"] = out
         event.update(extra)
         self._emit(**event)
 

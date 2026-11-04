@@ -25,6 +25,7 @@ import type {
   Snapshot,
   WebviewMessage,
 } from '../core/protocol';
+import { hostOutput, type OutputEntry } from '../core/run/events';
 import { isWebLink, linksOf } from '../core/view/markdown';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
@@ -40,6 +41,7 @@ import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
+import { showRunTerminal } from './run/terminal';
 import { LensController } from './session/lensController';
 import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
@@ -498,10 +500,17 @@ export class FlowSession implements vscode.Disposable {
           ? this.lastRun?.awx?.approvals?.[m.approval]?.url
           : this.lastRun?.awx?.url;
         if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
-        else if (!m.approval)
-          await vscode.commands.executeCommand('workbench.action.terminal.focus');
+        // AFD-81: the flow's own run terminal, not whichever terminal was last.
+        else if (!m.approval) await showRunTerminal(this.uri);
         break;
       }
+      case 'runOutput':
+        this.post(panel, {
+          type: 'runOutputReply',
+          reqId: m.reqId,
+          ...(await this.runOutput(m.node, m.host)),
+        });
+        break;
       case 'peekCode':
         await this.peekCode(m.node);
         break;
@@ -609,6 +618,26 @@ export class FlowSession implements vscode.Disposable {
 
   driftAction(action: DriftAction): Promise<CommandOutcome> {
     return this.code.driftAction(action);
+  }
+
+  /**
+   * AFD-81: what one host did in one node of the last local run, read from its kept events (they
+   * are redacted when the run ends, so a live run has to end first).
+   */
+  async runOutput(node: Ulid, host: string): Promise<{ entries?: OutputEntry[]; error?: string }> {
+    const run = this.lastRun;
+    const flowId = this.built?.parsed.doc?.flow.id;
+    const storage = this.deps.lens?.storage;
+    if (run?.source !== 'local' || !flowId || !storage)
+      return { error: 'Output is kept for local runs only.' };
+    if (run.state === 'running') return { error: 'The output shows once the run has ended.' };
+    try {
+      const file = vscode.Uri.joinPath(storage, 'runs', flowId, run.id, 'events.jsonl');
+      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+      return { entries: hostOutput(text, node, host) };
+    } catch {
+      return { error: 'The events of this run are no longer kept (afd.runs.keep).' };
+    }
   }
 
   setRun(run: RunView): void {

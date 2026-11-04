@@ -179,6 +179,16 @@ function RunLine({ node }: { node: FlowNode }) {
         {running ? 'waiting' : 'not reached'}
       </div>
     );
+  // AFD-81: the step a live run is in (a subflow: a step inside it), with what has happened so far.
+  if (r.state === 'running') {
+    const so = [r.hosts > 0 ? `${r.hosts} host${r.hosts === 1 ? '' : 's'}` : ''];
+    if (r.failed > 0) so.push(`${r.failed} failed`);
+    return (
+      <div className="afd-node-run tone-running" data-run-state="running">
+        {['running…', ...so.filter(Boolean)].join(' · ')}
+      </div>
+    );
+  }
   const parts = [`${r.hosts} host${r.hosts === 1 ? '' : 's'}`];
   if (r.failed > 0) parts.push(`${r.failed} failed`);
   if (r.seconds !== undefined) parts.push(formatSeconds(r.seconds));

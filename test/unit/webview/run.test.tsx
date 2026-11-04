@@ -165,3 +165,78 @@ describe('Run mode', () => {
     expect(screen.getByRole('button', { name: /AWX #31/ })).toBeTruthy();
   });
 });
+
+describe('a live local run (AFD-81)', () => {
+  const live: RunView = {
+    id: 'r2',
+    mode: 'check',
+    state: 'running',
+    startedAt: '2026-11-04T08:00:00Z',
+    source: 'local',
+    summary: { ...summary, failures: [], outcome: {}, running: id('exclude') },
+  };
+
+  it('the running step pulses and says so; the top bar names it and shows the terminal', () => {
+    act(() => useUi.getState().setRun(live));
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1600, height: 600 }}>
+          <TopBar />
+          <FlowCanvas cull={false} />
+        </div>
+      </ReactFlowProvider>,
+    );
+    const card = document.querySelector<HTMLElement>(`[data-node-id="${id('exclude')}"]`);
+    expect(card?.dataset.runState).toBe('running');
+    expect(card?.className).toContain('run-running');
+    expect(card?.querySelector('.afd-node-run')?.textContent).toMatch(/^running…/);
+    const status = document.querySelector<HTMLElement>('.afd-run-status');
+    expect(status?.textContent).toContain('Running:');
+    fireEvent.click(status as HTMLElement);
+    expect(posted).toContainEqual({ type: 'showRunOutput' });
+    // Gone quiet: the top bar says so, in words.
+    act(() => useUi.getState().setRun({ ...live, quiet: true }));
+    expect(document.querySelector('.afd-run-status')?.textContent).toContain('No new events');
+  });
+
+  it('a run the designer asked for switches the canvas to Run mode when it starts', () => {
+    act(() => {
+      useUi.setState({ mode: 'design', run: null, runAsked: false, pendingBinding: null });
+      useUi.getState().setRunAsked(true);
+    });
+    act(() => useUi.getState().setRun({ ...live, summary: undefined }));
+    expect(useUi.getState().mode).toBe('run');
+    expect(useUi.getState().runAsked).toBe(false);
+    // A run started elsewhere (the Command Palette) leaves the mode as it is.
+    act(() => useUi.setState({ mode: 'design' }));
+    act(() => useUi.getState().setRun({ ...live, id: 'r3' }));
+    expect(useUi.getState().mode).toBe('design');
+  });
+
+  it('a host opens its output, asked of the host once the local run has ended', async () => {
+    act(() => useUi.getState().setRun({ ...live, state: 'done', rc: 0, summary }));
+    render(<NodeRunPanel id={id('probe')} />);
+    const toggle = document.querySelector<HTMLButtonElement>('[data-output-toggle]');
+    expect(toggle).toBeTruthy();
+    fireEvent.click(toggle as HTMLButtonElement);
+    const ask = posted.find((m) => (m as { type: string }).type === 'runOutput') as {
+      reqId: number;
+      node: string;
+      host: string;
+    };
+    expect(ask).toMatchObject({ node: id('probe'), host: toggle?.dataset.outputToggle });
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'runOutputReply',
+            reqId: ask.reqId,
+            entries: [{ task: 'Check the host answers', status: 'ok', out: { stdout: 'pong' } }],
+          },
+        }),
+      );
+    });
+    expect(screen.getByText('pong')).toBeTruthy();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+});

@@ -1,6 +1,8 @@
 // Run as skeleton (check mode) and local real runs (decision 18, ADR-0009): regenerate, ask for the
 // flow inputs, confirm real runs with inventory facts, prompt for the vault password per run, run
-// ansible-playbook in a terminal task, audit the launch, and map the events back to nodes.
+// ansible-playbook in a terminal task, audit the launch, and map the events back to nodes. AFD-81:
+// the events are read while the run goes, so the canvas follows it; with the flow's designer open
+// the terminal stays out of the way unless the run stalls or the canvas cannot explain it.
 import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
@@ -10,8 +12,10 @@ import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RunErrorCode, RunView } from '../../core/protocol';
 import { runProcess, splitInputs } from '../../core/run/command';
-import { summarizeRun } from '../../core/run/events';
+import { createSummarizer, summarizeRun } from '../../core/run/events';
+import { redactLine, redactText, revealAfterRun, secretValues } from '../../core/run/redact';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
+import { tailFile } from '../../node/run/tail';
 import { TIMEOUTS } from '../../node/timeouts';
 import { environmentFor, type ProbeManager } from '../env/environment';
 import { showEnvironmentError } from '../env/setupEnvironment';
@@ -20,6 +24,12 @@ import { appendAudit } from './audit';
 import { collectInputs, targetsOf } from './inputs';
 import { auditHeader, prepareRun, stamp } from './prepare';
 import { runStarted } from './stop';
+import { showRunTerminal, watchRunTerminal } from './terminal';
+
+/** How often a live run updates the canvas, at most (AFD-81). */
+export const LIVE_MS = 500;
+/** No new events for this long: the run may wait for input in its quiet terminal. */
+export const STALL_MS = 20_000;
 
 export interface RunOptions {
   mode: 'check' | 'real';
@@ -37,6 +47,8 @@ export interface RunDeps {
   state: vscode.Memento;
   testMode: boolean;
   report: (run: RunView) => void;
+  /** The flow's designer is open: the canvas shows the run, the terminal stays quiet (AFD-81). */
+  designerOpen?: () => boolean;
 }
 
 interface InventoryFacts {
@@ -256,19 +268,55 @@ export async function runFlow(
     env2.WSLENV = `${process.env.WSLENV}:${spec.env.WSLENV}`;
   if (vaultPassword !== undefined) env2.AFD_VAULT_PASSWORD = vaultPassword;
   if (secrets) env2.AFD_SECRET_VARS = JSON.stringify(secret);
+  const label = `${doc.flow.key} (${options.mode === 'check' ? 'skeleton, check mode' : 'real run'})`;
   const task = new vscode.Task(
     { type: 'afd-run', flow: doc.flow.key, mode: options.mode },
     folder,
-    `${doc.flow.key} (${options.mode === 'check' ? 'skeleton, check mode' : 'real run'})`,
+    label,
     'Ansible Flow',
     new vscode.ProcessExecution(spec.command, spec.args, { cwd: spec.cwd, env: env2 }),
   );
+  const designerOpen = deps.designerOpen?.() ?? false;
   task.presentationOptions = {
-    reveal: vscode.TaskRevealKind.Always,
+    reveal: designerOpen ? vscode.TaskRevealKind.Silent : vscode.TaskRevealKind.Always,
     panel: vscode.TaskPanelKind.Dedicated,
     clear: true,
   };
   const t0 = Date.now();
+  const terminal = watchRunTerminal(document.uri, label);
+  // The events as they come: a partial summary for the canvas at most every LIVE_MS, secrets out.
+  const hidden = secretValues(secret);
+  const live = createSummarizer(generated.result.routes);
+  const eventsFile = vscode.Uri.joinPath(runDir, 'events.jsonl');
+  let lastEvent = Date.now();
+  let changed = false;
+  let quiet = false;
+  const tail = tailFile(eventsFile.fsPath, (lines) => {
+    for (const line of lines) live.push(redactLine(line, hidden));
+    lastEvent = Date.now();
+    changed = true;
+    quiet = false;
+  });
+  const ticker = setInterval(() => {
+    if (designerOpen && !quiet && Date.now() - lastEvent > STALL_MS) {
+      quiet = true;
+      changed = true;
+      const show = 'Show Terminal';
+      void vscode.window
+        .showInformationMessage(
+          `No new events from "${doc.flow.name}" for ${STALL_MS / 1000} s: a step may be slow, or waiting for input in the run's terminal.`,
+          show,
+        )
+        .then((pick) => (pick === show ? showRunTerminal(document.uri) : undefined));
+    }
+    if (!changed) return;
+    changed = false;
+    deps.report({
+      ...running,
+      summary: live.summary({ partial: true }),
+      ...(quiet ? { quiet } : {}),
+    });
+  }, LIVE_MS);
   // Stop Run (AFD-39) terminates the task; the run then ends as stopped, not as an error.
   let stopped = false;
   let registration: vscode.Disposable | undefined;
@@ -303,15 +351,23 @@ export async function runFlow(
     );
   });
   registration?.dispose();
+  clearInterval(ticker);
+  terminal.dispose();
+  await tail.stop();
 
   await dropVars(runDir.fsPath).catch(() => undefined);
   let text = '';
   try {
-    text = new TextDecoder().decode(
-      await vscode.workspace.fs.readFile(vscode.Uri.joinPath(runDir, 'events.jsonl')),
-    );
+    text = new TextDecoder().decode(await vscode.workspace.fs.readFile(eventsFile));
+    // The kept events hold no secret input value either (the output now comes with them).
+    if (hidden.length > 0) {
+      text = redactText(text, hidden);
+      await vscode.workspace.fs.writeFile(eventsFile, new TextEncoder().encode(text));
+    }
   } catch {}
   const summary = summarizeRun(text, generated.result.routes);
+  if (revealAfterRun({ designerOpen, stopped, rc, events: !!text.trim(), summary }))
+    void showRunTerminal(document.uri);
   const done: RunView = {
     ...running,
     state: rc === undefined || stopped ? 'error' : 'done',

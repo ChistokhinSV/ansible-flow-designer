@@ -131,3 +131,41 @@ A survey answers a host list as text, so the generated start play reads the targ
 comma-separated text both work. AWX checks launch variables against the survey's types, so Launch in
 AWX sends a host list as that text too (`launchVars`); a step that reads the host list then gets
 text in AWX runs.
+
+## Amendment (AFD-81, 2026-11-04): live local runs, a quiet terminal, per-host output
+
+Wave 8 group A. At 0.50.0 a local run read `events.jsonl` only after the process exited: the
+first node result reached the canvas at 11.6 s of an 11.6 s Hello run (wave8-start), and the
+terminal took the room under the canvas. Round 1's participant looked for results on the canvas,
+which stayed in Design mode.
+
+- **Events while the run goes.**
+  - The host polls `events.jsonl` (`node/run/tail.ts`, 250 ms) rather than `fs.watch`, whose change
+    events do not reach Docker bind mounts or WSL paths reliably on Windows.
+  - Lines feed `createSummarizer` (`core/run/events.ts`), which `summarizeRun` now wraps.
+  - The canvas gets a partial summary at most every 500 ms (`LIVE_MS`). A partial summary holds
+    back failures not settled yet (a rescue later in the same play routes them), never says the
+    run stopped early, and names the running play's node (`running`), so AWX-style "failed"
+    flicker cannot appear.
+  - `NodeRunState` gains `running`, for the node and every subflow around it.
+- **The callback** records `changed`, `rc` and `out` (stdout, stderr, msg; 2000 characters each)
+  on task results. A no_log result says only `censored`. Routing tasks (add_host, group_by, meta)
+  carry no output.
+- **Secrets.** The output can echo a secret input, so every string inside each event has the
+  secret values replaced (`core/run/redact.ts`): live, before the summarizer, and in the kept file
+  when the run ends.
+- **The terminal.**
+  - While the flow's designer is open the run's task reveals `Silent`; without a designer it
+    reveals `Always`, as before.
+  - `revealAfterRun` brings it forward when the canvas cannot explain the run: no start, no
+    events, or a failure the summary does not cover.
+  - After 20 s without events (`STALL_MS`), a notification and the top bar offer Show Terminal,
+    since a quiet terminal can hide an SSH host key question or a `pause`.
+  - Show Terminal reveals that run's own terminal (`extension/run/terminal.ts`, matched by the
+    task label).
+- **Run mode.** A run started from the designer's own controls switches the canvas to Run mode
+  when it starts. The Command Palette and the keybinding leave the mode alone. The top bar names
+  the running step.
+- **Per-host output.** A host's Output in a node's Run tab asks the host (`runOutput`), which
+  reads that node's results for that host from the kept, redacted events. It is offered for
+  local runs once they end; AWX has its own job output page.

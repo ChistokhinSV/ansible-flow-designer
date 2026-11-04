@@ -6,6 +6,7 @@ import { type FirstFlowId, firstFlowItems, isFirstFlowSize } from '../../core/vi
 import { send } from '../bus';
 import { canEdit } from '../editActions';
 import { addNode, openPortMenuSoon } from '../portActions';
+import { startRun } from '../runActions';
 import { useUi } from '../store';
 
 /** Whether the checklist is on the canvas (the minimap keeps out of its corner). */
@@ -39,7 +40,7 @@ export function FirstFlow() {
       ui.select({ node: firstStep.id });
       send({ type: 'peekCode', node: firstStep.id });
     } else if (id === 'failure' && snapshot.openPorts[0]) openPortMenuSoon(snapshot.openPorts[0]);
-    else if (id === 'run') send({ type: 'run', mode: 'check' });
+    else if (id === 'run') startRun('check');
   };
   return (
     <details className="afd-first-flow nodrag nopan" open data-first-flow={done}>

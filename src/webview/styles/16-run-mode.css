@@ -116,3 +116,40 @@
 .afd-node.run-mode .afd-port-label {
   visibility: hidden;
 }
+
+/* AFD-81: the step a live run is in, and the subflows around it. The outline pulses; under reduced
+   motion the animation stops at its first frame, a steady outline (19-motion-and-forced-colours). */
+.afd-node.run-running {
+  outline: 2px solid var(--afd-accent);
+  outline-offset: 2px;
+  animation: afd-run-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes afd-run-pulse {
+  50% {
+    outline-color: transparent;
+  }
+}
+
+.afd-node-run.tone-running {
+  color: var(--afd-accent);
+}
+
+/* A host's output in a node's Run tab (AFD-81). */
+.afd-run-output > td {
+  padding: 4px 0 8px;
+}
+
+.afd-output-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.afd-output-entry .afd-code {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

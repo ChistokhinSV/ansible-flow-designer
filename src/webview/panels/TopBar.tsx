@@ -5,7 +5,7 @@
 // lens is one dropdown, Run for real sits under Run as skeleton, and rarer actions (Tidy up, text,
 // Validate design, the shortcuts) are in the "…" menu: fewer controls, every action still here.
 
-import { ROOT } from '../../core/flow/model';
+import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
@@ -13,6 +13,7 @@ import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
+import { startRun } from '../runActions';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
@@ -366,7 +367,7 @@ function RunActions({ running }: { running: boolean }) {
     <div className="afd-split">
       <button
         type="button"
-        onClick={() => send(running ? { type: 'stopRun' } : { type: 'run', mode: 'check' })}
+        onClick={() => (running ? send({ type: 'stopRun' }) : startRun('check'))}
         title={
           running
             ? 'Stop the run: end the local run, or cancel the job or workflow in AWX'
@@ -389,7 +390,7 @@ function RunActions({ running }: { running: boolean }) {
             icon: 'debug-alt',
             title: 'Run for real (not check mode), after a confirmation naming inventory and hosts',
             disabled: busy,
-            onSelect: () => send({ type: 'run', mode: 'real' }),
+            onSelect: () => startRun('real'),
           },
           {
             type: 'item',
@@ -417,6 +418,37 @@ function RunActions({ running }: { running: boolean }) {
   );
 }
 
+/**
+ * A local run going (AFD-81): the step it is in, or that it has gone quiet (the terminal may wait
+ * for input); a click shows the run's terminal.
+ */
+function LiveRun({ run }: { run: RunView }) {
+  const doc = useUi((s) => s.snapshot?.doc);
+  const at = run.summary?.running;
+  const step = at && doc ? modelOf(doc).nodes.get(at)?.node.title : undefined;
+  return (
+    <button
+      type="button"
+      className={`afd-run-status${run.quiet ? ' warn' : ''}`}
+      data-run-state="running"
+      data-run-quiet={run.quiet ? 'true' : undefined}
+      onClick={() => send({ type: 'showRunOutput' })}
+      title={
+        run.quiet
+          ? 'No new events from the run for 20 s: a step may be slow, or waiting for input. Show the terminal.'
+          : 'Show the terminal of the run.'
+      }
+    >
+      <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" />{' '}
+      {run.quiet
+        ? 'No new events for 20 s · Show Terminal'
+        : step
+          ? `Running: ${step}`
+          : 'Running…'}
+    </button>
+  );
+}
+
 /** Outcome of the last run: exit code, hosts, failures; a click shows the terminal or the AWX job. */
 function RunStatus({ run }: { run: RunView | null }) {
   if (run?.state === 'running' && run.awx)
@@ -435,7 +467,8 @@ function RunStatus({ run }: { run: RunView | null }) {
           : ''}
       </button>
     );
-  if (!run || run.state === 'running') return null;
+  if (run?.state === 'running') return <LiveRun run={run} />;
+  if (!run) return null;
   if (run.state === 'error')
     return (
       <span className="afd-run-status error" title={run.error} data-run-state="error">

@@ -354,27 +354,62 @@ async function onMessage(m: WebviewMessage) {
       const doc = parseFlow(text).doc;
       if (!doc) break;
       const startedAt = new Date().toISOString();
-      const base = { id: 'harness', mode: m.mode, startedAt, environment: 'harness (fake)' };
+      const base = {
+        id: 'harness',
+        mode: m.mode,
+        startedAt,
+        environment: 'harness (fake)',
+        source: 'local' as const,
+      };
       toWebview({ type: 'run', run: { ...base, state: 'running' } });
       const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
       const hosts = ['sw-edge-01', 'sw-edge-02'];
       const nodes: Record<string, Record<string, string[]>> = {};
-      for (const r of Object.values(routes))
-        if (/^(ok_hosts|true|approved|branch_\d+)$/.test(r.port))
-          nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
-      setTimeout(() => {
-        const summary = {
-          nodes,
-          outcome: {},
-          failures: [],
-          unreachable: [],
-          hosts,
-          stoppedEarly: false,
-        };
-        toWebview({ type: 'run', run: { ...base, state: 'done', rc: 0, summary } });
-      }, 800);
+      const happy = Object.values(routes).filter((r) =>
+        /^(ok_hosts|true|approved|branch_[0-9]+)$/.test(r.port),
+      );
+      const empty = { outcome: {}, failures: [], unreachable: [], hosts, stoppedEarly: false };
+      // AFD-81: a live run, one step every 700 ms (the host pushes at most every 500 ms).
+      const order = [...new Set(happy.map((r) => r.node))];
+      order.forEach((node, i) => {
+        setTimeout(
+          () => {
+            for (const r of happy.filter((x) => x.node === order[i - 1]))
+              nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
+            const summary = { ...empty, nodes: structuredClone(nodes), running: node };
+            toWebview({ type: 'run', run: { ...base, state: 'running', summary } });
+          },
+          300 + i * 700,
+        );
+      });
+      setTimeout(
+        () => {
+          for (const r of happy) nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
+          const summary = { ...empty, nodes };
+          toWebview({
+            type: 'run',
+            run: { ...base, state: 'done', rc: 0, finishedAt: new Date().toISOString(), summary },
+          });
+        },
+        300 + order.length * 700,
+      );
       break;
     }
+    case 'runOutput':
+      toWebview({
+        type: 'runOutputReply',
+        reqId: m.reqId,
+        entries: [
+          { task: 'Gather the facts', status: 'ok', changed: false },
+          {
+            task: 'Say hello',
+            status: 'ok',
+            changed: false,
+            out: { msg: `Hello from ${m.host}` },
+          },
+        ],
+      });
+      break;
     case 'launchAwx': {
       // Replays the lab's real AWX job of awx-e2e (test/fixtures/awx) for Run mode checks.
       const doc = parseFlow(text).doc;

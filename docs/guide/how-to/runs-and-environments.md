@@ -52,6 +52,22 @@ library, so any image with ansible-core works.
    the first skeleton run suggests `localhost`);
 3. runs `ansible-playbook --check` in a terminal, in your environment.
 
+## While a run goes
+
+- **The canvas follows it.** A run started from the designer switches it to **Run** mode. The step
+  that runs now has a pulsing outline and reads "running…"; a subflow does too while a step inside
+  it runs. Steps that are done show their hosts as they finish, about every half second, and steps
+  not reached yet read "waiting". The top bar says which step runs.
+- **The terminal stays out of the way** while the flow's designer is open: the run's output goes
+  to its own terminal, which is not brought forward.
+  - It shows by itself when the canvas cannot explain the run: the run did not start, produced no
+    events, or failed before its first step (an inventory or syntax error).
+  - **Show Terminal** (top bar, run panel) brings forward that run's terminal, not just the last
+    one. With no designer open, the terminal shows as before.
+- **No new events for 20 s:** a notification and the top bar say so, with **Show Terminal**. A
+  step may be slow, or the run may be waiting for input there (an SSH host key question, a
+  `pause`).
+
 Unbound steps print `TODO: <intent>`. Bound modules run in check mode; the catalog badges say which
 modules support it.
 
@@ -73,8 +89,11 @@ when it ends.
 - While a run goes, the Run button is **Stop** (or **Ansible Flow: Stop Run**, Shift+F5): it ends
   the run, which shows as stopped, not failed.
 - The top bar shows hosts, failures and the exit code; **Show terminal** brings the output back.
-- Switch to **Run**: nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
-  Select a node or a wire to list the hosts and why they failed. With nothing selected, the panel
+- In **Run** mode, nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
+  Select a node or a wire to list the hosts and why they failed. For a local run, **Output** on a
+  host's row shows what each task of that step printed for it: `msg`, `stdout` and `stderr` (up to
+  2000 characters each), changed and the return code. A `no_log` task shows only that its output
+  is hidden. Secret inputs never appear: their values are replaced in the run's kept events. With nothing selected, the panel
   lists the **Failed steps** of every level; click one to open it where it is.
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which
   flow version, which targets, without input values. It rotates at 1 MB and keeps two older files;

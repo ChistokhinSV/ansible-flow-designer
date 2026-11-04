@@ -90,6 +90,7 @@ export class Host {
       state: this.context.workspaceState,
       testMode: this.testMode,
       report: (run) => this.sessions.get(uri.toString())?.setRun(run),
+      designerOpen: () => this.sessions.get(uri.toString())?.hasPanels ?? false,
     };
   }
 

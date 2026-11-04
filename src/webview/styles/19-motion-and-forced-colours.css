@@ -35,4 +35,10 @@
   .afd-tie line {
     stroke: CanvasText;
   }
+
+  /* The running step (AFD-81): a steady outline in the system highlight. */
+  .afd-node.run-running {
+    outline-color: Highlight;
+    animation: none;
+  }
 }

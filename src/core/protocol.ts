@@ -6,7 +6,7 @@ import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
-import type { RunSummary } from './run/events';
+import type { OutputEntry, RunSummary } from './run/events';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -58,6 +58,8 @@ export interface RunView {
   /** Each node's design fingerprint when the run started (decision 15: `tested` is for what ran). */
   design?: Record<Ulid, string>;
   awx?: AwxRunInfo;
+  /** A live local run with no new events for a while (AFD-81): it may wait for input. */
+  quiet?: boolean;
 }
 
 export interface AwxRunInfo {
@@ -177,6 +179,8 @@ export type HostMessage =
       tab?: 'general' | 'binding' | 'io' | 'ports' | 'execution';
     }
   | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string }
+  /** AFD-81: a host's output in one node of the last run, for its Output disclosure. */
+  | { type: 'runOutputReply'; reqId: number; entries?: OutputEntry[]; error?: string }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
   | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */
@@ -210,6 +214,8 @@ export type WebviewMessage =
   | { type: 'generate' }
   /** The run's output; with `approval`, that approval node's page in AWX (AFD-11). */
   | { type: 'showRunOutput'; approval?: Ulid }
+  /** AFD-81: what one host did in one node of the last local run, read from its events. */
+  | { type: 'runOutput'; reqId: number; node: Ulid; host: string }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
