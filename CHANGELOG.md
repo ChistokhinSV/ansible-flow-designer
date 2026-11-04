@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.59.3 — AFD-91
+
+Two bugs from the second usability round (`docs/ux/wave8-usability/round2.md`).
+
+- **Lens rows stay put.** In a lens list that has a step inside a subflow, every row says where its step is ("in Drain the switch", "on the top level") on every level. Before, the line showed only for a step on another level. A click that opened the step's level removed it, the row shrank, and the next row moved under the pointer, so the next click opened the other step.
+- **Hovering a row for a step inside a subflow lights that subflow.** Before, every node on the level dimmed and none lit. A step in a subflow beside the level on screen dims nothing.
+- **The launch dialog counts the hosts as soon as a host list reads,** whatever the other fields hold. Before, it waited until every required input was filled, so "devices is required" from when it opened stayed, with Run disabled, after the devices were set.
+
 ## 0.59.2 — AFD-89
 
 - The flow panel's **Flows View** link sits with the Readiness counts, so a new flow's first screen keeps its 35 controls (0.59.1 had 36).

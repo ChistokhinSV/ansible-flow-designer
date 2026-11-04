@@ -1,8 +1,10 @@
 // AFD-87 (wave 8 group F): lens findings in a step's Details, a finding that names its subflow, the
 // lens tab moving on after a fix, and its scroll kept while a step is checked (round 1: P19, W14).
+// AFD-91: the place lines no longer come and go with the level, and a nested step lights its subflow.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { FlowCommand } from '../../../src/core/flow/commands';
@@ -10,11 +12,12 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import type { InventoryFacts } from '../../../src/core/lens/types';
-import { placeOf } from '../../../src/core/view/find';
+import { namesPlaces, placeOf, shownOn } from '../../../src/core/view/find';
 import { App } from '../../../src/webview/App';
+import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { Details } from '../../../src/webview/details/Details';
 import { domSummary } from '../../../src/webview/inspect';
-import { LensPanel } from '../../../src/webview/panels/LensPanel';
+import { LensBrowser, LensPanel } from '../../../src/webview/panels/LensPanel';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -144,31 +147,94 @@ describe('Lens findings in Details (AFD-87)', () => {
   });
 });
 
-describe('placeOf (AFD-87)', () => {
+describe('places that stay put (AFD-87, AFD-91)', () => {
+  const SUB = '01JD00000000000000000000AB';
+  const INNER = '01JD00000000000000000000CD';
   const nested = {
     ...doc,
     nodes: [
       ...doc.nodes.filter((n) => n.key !== 'drain'),
       {
-        id: '01JD00000000000000000000AB',
+        id: SUB,
         key: 'drain',
         type: 'subflow',
         title: 'Drain the switch',
         subflow: {
           nodes: [
-            { id: '01JD00000000000000000000CD', key: 'inner', type: 'task', title: 'Check BGP' },
+            {
+              id: INNER,
+              key: 'inner',
+              type: 'task',
+              title: 'Check BGP',
+              settings: { become: true },
+            },
           ],
         },
       },
     ],
   } as unknown as FlowDocument;
   const model = buildModel(nested);
-  it('names the subflows around a step that is not on the level on screen', () => {
-    expect(placeOf(model, '01JD00000000000000000000CD', 'root')).toBe('in Drain the switch');
-    expect(placeOf(model, '01JD00000000000000000000CD', '01JD00000000000000000000AB')).toBe(
-      undefined,
+  const show = () =>
+    act(() => {
+      useUi.getState().setSnapshot({
+        docVersion: 2,
+        doc: nested,
+        stale: false,
+        findings: [],
+        openPorts: openFailPorts(model),
+        autoPositions: {},
+      });
+      useUi.getState().setLens('access');
+    });
+
+  it("a step's place reads the same on every level; a list of top-level rows names none", () => {
+    expect(placeOf(model, INNER)).toBe('in Drain the switch');
+    expect(placeOf(model, id('rollback'))).toBe('on the top level');
+    expect(namesPlaces(model, [[id('rollback')], [id('upgrade')]])).toBe(false);
+    expect(namesPlaces(model, [[id('rollback')], [INNER]])).toBe(true);
+    // A row about several steps has no place of its own.
+    expect(namesPlaces(model, [[id('rollback'), INNER]])).toBe(false);
+  });
+
+  it('a step inside a subflow stands for that subflow above it, for nothing beside it', () => {
+    expect(shownOn(model, [INNER], 'root')).toEqual([SUB]);
+    expect(shownOn(model, [INNER], SUB)).toEqual([INNER]);
+    expect(shownOn(model, [id('rollback')], SUB)).toEqual([]);
+  });
+
+  it("a row's click opens its step's level without moving the rows (round 2: S10)", () => {
+    show();
+    render(<LensBrowser />);
+    const lines = () =>
+      [...document.querySelectorAll('[data-lens-item^="become:"]')].map(
+        (li) => li.querySelector('[data-finding-place]')?.textContent ?? null,
+      );
+    const before = lines();
+    expect(before).toEqual(['on the top level', 'in Drain the switch']);
+    fireEvent.click(
+      document.querySelector(`[data-lens-item="become:${INNER}"] button`) as HTMLElement,
     );
-    expect(placeOf(model, id('rollback'), '01JD00000000000000000000AB')).toBe('on the top level');
-    expect(placeOf(model, id('rollback'), 'root')).toBe(undefined);
+    expect(useUi.getState().level).toBe(SUB);
+    expect(lines()).toEqual(before);
+  });
+
+  it('hovering a row for a step inside a subflow lights the subflow (round 2: S11)', () => {
+    show();
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1600, height: 900 }}>
+          <FlowCanvas cull={false} />
+        </div>
+      </ReactFlowProvider>,
+    );
+    render(<LensBrowser />);
+    fireEvent.mouseEnter(
+      document.querySelector(`[data-lens-item="become:${INNER}"]`) as HTMLElement,
+    );
+    const lit = [...document.querySelectorAll<HTMLElement>('.afd-node.lens-hit')].map(
+      (n) => n.dataset.nodeId,
+    );
+    expect(lit).toEqual([SUB]);
+    expect(document.querySelectorAll('.afd-node.lens-dim').length).toBeGreaterThan(0);
   });
 });

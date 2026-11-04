@@ -4,6 +4,7 @@
 // this component's state only: never in the store, the saved state or what `inspect` reports.
 import { useEffect, useId, useRef, useState } from 'react';
 import {
+  checkInputs,
   type LaunchField,
   type LaunchPlan,
   parsedPreview,
@@ -54,11 +55,14 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
       return;
     }
     const t = setTimeout(() => {
-      const r = readFields(
+      // AFD-91: whatever the other fields hold; a host list that does not read says so now,
+      // instead of what the dialog said when it opened (round 2: S5).
+      const r = checkInputs(
         plan.fields.filter((f) => !f.secret),
         texts,
       );
       if ('inputs' in r) send({ type: 'launchCheck', token: plan.token, inputs: r.inputs });
+      else useUi.getState().setLaunchFacts(plan.token, undefined, r.error);
     }, 400);
     return () => clearTimeout(t);
   }, [targets]);

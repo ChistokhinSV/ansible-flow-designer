@@ -193,3 +193,16 @@ Preparing round 2 showed that the AFD-86 filters could not answer T6's "which st
 implemented yet". A subflow's status is its lowest step's, so `status:draft` also lists every
 subflow that holds such a step. `has:no-binding` lists the tasks without a binding: the rule
 `nodeFace` uses for "not implemented yet". It is the Find box's first offer, ahead of `status:draft`.
+
+## Amendment: lens rows that stay put (AFD-91, 2026-11-04)
+
+Round 2's participant removed become from the wrong step (S10). AFD-87's place line showed only for
+a step on another level. A click on such a row opens that level, so the line went, the row shrank
+from 44 to 25 px, and the row below moved under the pointer: the next click opened the other step.
+
+- **Places:** `placeOf` no longer depends on the level on screen. A list names its rows' places
+  once one of its single-step rows is in a subflow (`namesPlaces`): every such row says "in ..." or
+  "on the top level". A list of top-level steps has no place lines.
+- **Light:** a highlighted node on another level lights the subflow on this level that holds it
+  (`shownOn`, in the canvas). A node in a subflow beside this level stands for nothing, so nothing
+  dims (S11). This covers the lens rows and the outside-change note's Show.

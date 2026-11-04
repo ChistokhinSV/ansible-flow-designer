@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import {
+  checkInputs,
   type LaunchFacts,
   launchFields,
   parsedPreview,
@@ -127,6 +128,17 @@ describe('readFields', () => {
         retries: 'many',
       }),
     ).toEqual({ error: 'retries: expected a whole number', field: 'retries' });
+  });
+
+  it('checkInputs counts the hosts while other fields are empty; only a host list holds it (AFD-91)', () => {
+    // Round 2 (S5): devices set, ntp_servers still empty.
+    expect(checkInputs(fields, { timezone: 'UTC', devices: 'lab' })).toEqual({
+      inputs: { timezone: 'UTC', devices: ['lab'], change_ticket: 'CHG-0000' },
+    });
+    expect(checkInputs(fields, { timezone: 'UTC', ntp_servers: 'a' })).toEqual({
+      error: 'devices is required',
+      field: 'devices',
+    });
   });
 
   it('every field read: optional empty ones left out', () => {

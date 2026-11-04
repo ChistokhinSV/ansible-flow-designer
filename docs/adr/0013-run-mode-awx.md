@@ -198,3 +198,11 @@ run went to the suggested localhost.
 - **The Command Palette** and a flow with no designer open keep the input boxes and the modal.
 - **Not in this change:** Launch in AWX keeps its prompts; input descriptions need a flow schema
   field (ADR-0004) and come later.
+
+## Amendment (AFD-91, 2026-11-04): the dialog counts hosts as soon as they read
+
+The dialog sent `launchCheck` only once every non-secret field read. In round 2 (S5) the
+participant set the host list first, and the dialog kept the opening's "devices is required", with
+Run disabled. `checkInputs` now sends every field that reads and holds the count back only for a
+host list that does not read; that problem then replaces the old one at once. Run still checks
+every field (`readFields`).

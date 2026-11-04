@@ -137,6 +137,25 @@ export function readFields(
   return { inputs };
 }
 
+/**
+ * The inputs to count the hosts with while the dialog is filled in (AFD-91): every field that
+ * reads, the others left out. Only a host list that does not read holds the count back, since the
+ * hosts come from the host lists. Round 2 (S5): with another required input still empty, the
+ * dialog kept "devices is required" from when it opened, and Run disabled, after devices was set.
+ */
+export function checkInputs(
+  fields: readonly LaunchField[],
+  texts: Record<string, string>,
+): { inputs: Record<string, unknown> } | { error: string; field: string } {
+  const inputs: Record<string, unknown> = {};
+  for (const f of fields) {
+    const r = readFields([f], texts);
+    if ('inputs' in r) Object.assign(inputs, r.inputs);
+    else if (f.type === 'host_list') return r;
+  }
+  return { inputs };
+}
+
 /** A run as the dialog starts it: its fields, the inventory's groups, the facts for the start values. */
 export interface LaunchPlan {
   /** Single-use and kept by the host (10 minutes): only Run in this dialog skips the prompts. */

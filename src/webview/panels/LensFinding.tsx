@@ -1,17 +1,21 @@
-// One lens finding (M8; AFD-87, wave 8 group F): what it says, where its step is when that is not
-// the level on screen, its fixes and Accept with Reason…. The lens tab lists every finding; a
-// step's Details list the ones on that step. Round 1: a finding did not say which subflow its step
-// is in, and after a fix the canvas kept the fixed step lit (P19); checking a step in Details showed
-// no finding (W14).
+// One lens finding (M8; AFD-87, wave 8 group F): what it says, where its step is (AFD-91: on every
+// row of a list that spans levels), its fixes and Accept with Reason…. The lens tab lists every
+// finding; a step's Details list the ones on that step. Round 1: a finding did not say which
+// subflow its step is in, and after a fix the canvas kept the fixed step lit (P19); checking a step
+// in Details showed no finding (W14).
 import { useState } from 'react';
 import { modelOf } from '../../core/flow/model';
+import type { FlowDocument } from '../../core/flow/types';
 import { LENSES, type LensFinding } from '../../core/lens/types';
-import { placeOf } from '../../core/view/find';
+import { namesPlaces, placeOf } from '../../core/view/find';
 import { run } from '../actions';
 import { useUi } from '../store';
 import { Fold } from './Fold';
 
-/** Hovering or focusing a row lights its nodes on the canvas and dims the rest (04 §7). */
+/**
+ * Hovering or focusing a row lights its nodes on the canvas and dims the rest (04 §7). A node on
+ * another level lights the subflow that holds it on this one (the canvas, `shownOn`).
+ */
 export function hoverProps(nodes: string[]) {
   const setHighlight = useUi.getState().setHighlight;
   return {
@@ -22,30 +26,49 @@ export function hoverProps(nodes: string[]) {
   };
 }
 
-/** "in Drain the switch" when the row's step is not on the level on screen. */
-export function usePlace(nodes: readonly string[]): string | undefined {
+/** The step a row is about, for its place line: a row about several has none. */
+const rowStep = (nodes: readonly string[]) => (nodes.length === 1 ? nodes[0] : undefined);
+
+/** A finding's step, or its nodes when it has no one step. */
+export const findingNodes = (f: LensFinding) => (f.node ? [f.node] : f.nodes);
+
+/**
+ * "in Drain the switch" or "on the top level" on every row of a list that `names` places. AFD-91:
+ * the same on every level, so opening a row's level does not move the rows (round 2: S10).
+ */
+export function usePlace(nodes: readonly string[], names: boolean): string | undefined {
   const doc = useUi((s) => s.snapshot?.doc);
-  const level = useUi((s) => s.level);
-  const node = nodes.length === 1 ? nodes[0] : undefined;
-  return doc && node ? placeOf(modelOf(doc), node, level) : undefined;
+  const node = rowStep(nodes);
+  return names && doc && node ? placeOf(modelOf(doc), node) : undefined;
+}
+
+/** Whether a list's rows name their places (`namesPlaces`): once one of them is in a subflow. */
+export function listNamesPlaces(
+  doc: FlowDocument | null | undefined,
+  rows: readonly (readonly string[])[],
+): boolean {
+  return doc ? namesPlaces(modelOf(doc), rows) : false;
 }
 
 export function LensFindingRow({
   f,
   onStep,
   onFixed,
+  places = false,
 }: {
   f: LensFinding;
   /** In a step's Details: its own hook, so the lens tab's findings are not counted twice. */
   onStep?: boolean;
   /** A fix went through: the caller moves on to the next finding. */
   onFixed?: (f: LensFinding) => void;
+  /** The list names its rows' places (`listNamesPlaces`). */
+  places?: boolean;
 }) {
   const setAccept = useUi((s) => s.setAccept);
   const reveal = useUi((s) => s.reveal);
   const openDetails = useUi((s) => s.openDetails);
   const setError = useUi((s) => s.setError);
-  const place = usePlace(f.node ? [f.node] : f.nodes);
+  const place = usePlace(findingNodes(f), places);
   const hook = onStep ? { 'data-node-finding': f.id } : { 'data-finding': f.id };
   return (
     <li

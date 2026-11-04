@@ -4,7 +4,14 @@ import { run } from '../actions';
 import { send } from '../bus';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
-import { hoverProps, LensFindingRow, nextOpen, usePlace } from './LensFinding';
+import {
+  findingNodes,
+  hoverProps,
+  LensFindingRow,
+  listNamesPlaces,
+  nextOpen,
+  usePlace,
+} from './LensFinding';
 import { ReasonDialog } from './ReasonDialog';
 
 /** After the last open finding is fixed, the focus goes to the Findings heading. */
@@ -12,11 +19,11 @@ const NONE_LEFT = '#none-left';
 
 const labelOf = (id: string) => LENSES.find((l) => l.id === id)?.label ?? id;
 
-function Item({ item }: { item: LensItem }) {
+function Item({ item, places }: { item: LensItem; places: boolean }) {
   const reveal = useUi((s) => s.reveal);
   const one = item.nodes.length === 1 ? item.nodes[0] : undefined;
-  // AFD-87: a row for a step on another level names its subflow (round 1: P19).
-  const place = usePlace(item.nodes);
+  // AFD-87: a row names its step's subflow (round 1: P19); AFD-91: on every level alike.
+  const place = usePlace(item.nodes, places);
   return (
     <li
       className={`afd-lens-item${item.tone ? ` tone-${item.tone}` : ''}`}
@@ -74,6 +81,7 @@ export function LensBrowser() {
   const view = useUi((s) => s.lensView);
   const lens = useUi((s) => s.lens);
   const inv = useUi((s) => s.lensFacts.inventory);
+  const doc = useUi((s) => s.snapshot?.doc);
   if (!view || !lens) return null;
   const inventory = lens === 'inventory' || lens === 'access';
   return (
@@ -108,20 +116,26 @@ export function LensBrowser() {
           {view.notes.join(' ')}
         </p>
       ) : null}
-      {view.sections.map((s) => (
-        <section key={s.title} className="afd-section">
-          <h3>{s.title}</h3>
-          {s.items.length === 0 ? (
-            <p className="muted">{s.empty}</p>
-          ) : (
-            <ul className="afd-lens-items">
-              {s.items.map((i) => (
-                <Item key={i.key} item={i} />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+      {view.sections.map((s) => {
+        const places = listNamesPlaces(
+          doc,
+          s.items.map((i) => i.nodes),
+        );
+        return (
+          <section key={s.title} className="afd-section">
+            <h3>{s.title}</h3>
+            {s.items.length === 0 ? (
+              <p className="muted">{s.empty}</p>
+            ) : (
+              <ul className="afd-lens-items">
+                {s.items.map((i) => (
+                  <Item key={i.key} item={i} places={places} />
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </section>
   );
 }
@@ -134,6 +148,7 @@ export function LensPanel() {
   // with none left, the Findings heading does.
   const [next, setNext] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const doc = useUi((s) => s.snapshot?.doc);
   useEffect(() => {
     if (!next) return;
     setNext(null);
@@ -144,6 +159,7 @@ export function LensPanel() {
   }, [next]);
   if (!view || !lens) return null;
   const open = view.findings.filter((f) => !f.accepted).length;
+  const places = listNamesPlaces(doc, view.findings.map(findingNodes));
   return (
     <div className="afd-panel-body" data-lens-panel={lens}>
       <h2 className="afd-panel-title">
@@ -184,6 +200,7 @@ export function LensPanel() {
               <LensFindingRow
                 key={f.id}
                 f={f}
+                places={places}
                 onFixed={(done) => setNext(nextOpen(view.findings, done.id)?.id ?? NONE_LEFT)}
               />
             ))}

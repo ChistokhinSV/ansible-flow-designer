@@ -52,7 +52,8 @@ library, so any image with ansible-core works.
 - host lists take hosts or groups, comma-separated; the inventory's groups are buttons under the
   field. Lists take items separated by commas (`10.20.0.10, 10.20.0.11`) or a JSON list, and the
   dialog says what the field reads as ("2 items: …"). Dicts take `key: value` lines or JSON;
-- the hosts the targets match in the inventory, counted again as you change them;
+- the hosts the targets match in the inventory, counted again as you change them, even before
+  the other inputs are filled in;
 - **Run as Skeleton**, which generates the code and runs `ansible-playbook --check` in your
   environment. Escape or Cancel closes the dialog.
 

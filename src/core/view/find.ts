@@ -33,14 +33,48 @@ export function trailOf(model: FlowModel, level: Ulid): string[] {
 }
 
 /**
- * Where a node is, said from the level on screen (AFD-87): "in Drain the switch", "on the top
- * level", or nothing when it is on that level.
+ * Where a node is (AFD-87): "in Drain the switch" or "on the top level", the same on every level.
+ * AFD-91: said only for a step on another level, the line came and went as a click opened that
+ * level, and the rows under it moved beneath the pointer (round 2: S10).
  */
-export function placeOf(model: FlowModel, node: Ulid, level: string): string | undefined {
+export function placeOf(model: FlowModel, node: Ulid): string | undefined {
   const entry = model.nodes.get(node);
-  if (!entry || entry.level === level) return undefined;
+  if (!entry) return undefined;
   const trail = trailOf(model, entry.level);
   return trail.length ? `in ${trail.join(' › ')}` : 'on the top level';
+}
+
+/**
+ * A list names its rows' places once one of its single-step rows is in a subflow; a list of
+ * top-level steps needs none. It depends on the rows only, never on the level on screen (AFD-91).
+ */
+export function namesPlaces(model: FlowModel, rows: readonly (readonly Ulid[])[]): boolean {
+  return rows.some((nodes) => {
+    const entry = nodes.length === 1 ? model.nodes.get(nodes[0] as Ulid) : undefined;
+    return !!entry && entry.level !== ROOT;
+  });
+}
+
+/**
+ * What stands for these nodes on a level (AFD-91): each one on it, or the subflow on it that holds
+ * it. A node in a subflow beside this level stands for nothing, so lighting it dims nothing (round
+ * 2: S11, every node dimmed and none lit).
+ */
+export function shownOn(model: FlowModel, nodes: readonly Ulid[], level: string): Ulid[] {
+  const shown = new Set<Ulid>();
+  for (const id of nodes) {
+    for (let at: Ulid | undefined = id; at; ) {
+      const entry = model.nodes.get(at);
+      if (!entry) break;
+      if (entry.level === level) {
+        shown.add(at);
+        break;
+      }
+      // A level's id is the subflow node that owns it; the top level has none.
+      at = entry.level === ROOT ? undefined : entry.level;
+    }
+  }
+  return [...shown];
 }
 
 export function findNodes(

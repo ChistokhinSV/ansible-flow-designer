@@ -24,11 +24,13 @@ import {
   useRef,
 } from 'react';
 import { purposeOf } from '../../core/flow/format';
+import { modelOf } from '../../core/flow/model';
 import type { PortSide } from '../../core/flow/ports';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
+import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
 import { portHint } from '../../core/view/portHints';
 import { STATE_LABEL } from '../constants';
@@ -330,9 +332,15 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const lensChips = useUi((s) =>
     s.lens ? (s.lensView?.chips[node.id] ?? []).map((c) => c.text).join('|') : undefined,
   );
-  const lit = useUi((s) =>
-    s.highlight ? (s.highlight.includes(node.id) ? 'lens-hit' : 'lens-dim') : '',
-  );
+  // AFD-91: a lit step inside a subflow lights that subflow; with nothing of it on this level,
+  // nothing dims (round 2: S11).
+  const lit = useUi((s) => {
+    if (!s.highlight) return '';
+    const doc = s.snapshot?.doc;
+    const shown = doc ? shownOn(modelOf(doc), s.highlight, s.level) : s.highlight;
+    if (shown.length === 0) return '';
+    return shown.includes(node.id) ? 'lens-hit' : 'lens-dim';
+  });
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
   // The node a keyboard pick would choose (AFD-47).

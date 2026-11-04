@@ -120,6 +120,28 @@ describe('launch dialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('a host list set while another input is empty is counted; the opening problem goes (AFD-91)', async () => {
+    // Round 2 (S5): the dialog opened with devices empty, then devices was set first.
+    const dialog = open({ ...plan, facts: undefined, factsError: 'devices is required' });
+    const run = () => within(dialog).getByRole('button', { name: 'Run for Real' });
+    expect((run() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText(/devices/), { target: { value: 'lab' } });
+    await act(() => new Promise((r) => setTimeout(r, 450)));
+    expect(sent('launchCheck').at(-1)).toMatchObject({
+      token: 't-1',
+      inputs: { devices: ['lab'] },
+    });
+    act(() => useUi.getState().setLaunchFacts('t-1', plan.facts));
+    expect(within(dialog).queryByText('devices is required')).toBeNull();
+    expect((run() as HTMLButtonElement).disabled).toBe(false);
+    // Emptied again: the dialog says so at once, without asking the host.
+    const checks = sent('launchCheck').length;
+    fireEvent.change(within(dialog).getByLabelText(/devices/), { target: { value: '' } });
+    await act(() => new Promise((r) => setTimeout(r, 450)));
+    expect(sent('launchCheck').length).toBe(checks);
+    expect(within(dialog).getByText('devices is required')).toBeTruthy();
+  });
+
   it('facts for another dialog are dropped; a notice says why the dialog opened again', () => {
     act(() =>
       useUi
