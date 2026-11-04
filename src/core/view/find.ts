@@ -1,7 +1,10 @@
 // Find a node (AFD-48): every level of the flow, by title, key or what it is bound to, best match
 // first. Each word of the query has to match somewhere; a title that starts with the query wins.
+// AFD-86: filters (`type:approval`, `status:draft`, `open:fail`, findQuery.ts) narrow it, alone or
+// with words; a query of filters only lists every node that passes them.
 import { type FlowModel, ROOT } from '../flow/model';
 import type { AnnotationKind, NodeType, Ulid } from '../flow/types';
+import { type FindContext, hasFilters, matchesFilters, parseFind } from './findQuery';
 import { plainText } from './markdown';
 
 export interface FoundNode {
@@ -29,9 +32,16 @@ export function trailOf(model: FlowModel, level: Ulid): string[] {
   return trail;
 }
 
-export function findNodes(model: FlowModel, query: string, limit = 50): FoundNode[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [];
+export function findNodes(
+  model: FlowModel,
+  query: string,
+  limit = 50,
+  ctx: FindContext = {},
+): FoundNode[] {
+  const q = parseFind(query);
+  const { words } = q;
+  const filtered = hasFilters(q);
+  if (words.length === 0 && !filtered) return [];
   const whole = words.join(' ');
   const scored: { found: FoundNode; score: number; depth: number }[] = [];
   for (const { node, level } of model.nodes.values()) {
@@ -39,15 +49,18 @@ export function findNodes(model: FlowModel, query: string, limit = 50): FoundNod
     const key = node.key?.toLowerCase() ?? '';
     const ref = node.impl?.ref?.toLowerCase() ?? '';
     if (!words.every((w) => title.includes(w) || key.includes(w) || ref.includes(w))) continue;
-    const score = title.startsWith(whole)
+    if (filtered && !matchesFilters(node, q, ctx)) continue;
+    const score = !whole
       ? 0
-      : title.split(/\W+/).some((w) => w.startsWith(words[0] ?? ''))
-        ? 1
-        : title.includes(whole)
-          ? 2
-          : key.includes(whole)
-            ? 3
-            : 4;
+      : title.startsWith(whole)
+        ? 0
+        : title.split(/\W+/).some((w) => w.startsWith(words[0] ?? ''))
+          ? 1
+          : title.includes(whole)
+            ? 2
+            : key.includes(whole)
+              ? 3
+              : 4;
     const trail = trailOf(model, level);
     scored.push({
       found: {
@@ -63,8 +76,8 @@ export function findNodes(model: FlowModel, query: string, limit = 50): FoundNod
       depth: trail.length,
     });
   }
-  // AFD-65: annotations by their words, after the nodes that match as well.
-  for (const { annotation: a, level } of model.annotations.values()) {
+  // AFD-65: annotations by their words, after the nodes that match as well (filters are for steps).
+  for (const { annotation: a, level } of filtered ? [] : model.annotations.values()) {
     const text = plainText(a.text ?? '');
     const lower = text.toLowerCase();
     if (!words.every((w) => lower.includes(w))) continue;

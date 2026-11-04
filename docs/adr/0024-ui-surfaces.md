@@ -148,3 +148,18 @@ What happens now:
   binding is pending.
 - The side panel's edge shows a grip at rest: round 1's participant did not find the 6 px edge
   that widens the panel.
+
+## Amendment: Find filters (AFD-86, 2026-11-04)
+
+Find (AFD-48) took words only. Round 1's participant spent 16.8 minutes listing the steps without an
+implementation and the approvals by opening every level (P9).
+
+- **Filters.** `core/view/findQuery.ts` parses `type:`, `status:`, `has:binding|problems|errors`,
+  `open:fail`, `tag:` and `target:`. Values may be quoted. An unknown `x:y` or a filter with no
+  value stays a word. Two values of one filter mean either. A query of filters only lists every
+  step that passes them. Annotations are searched by words only.
+- **The Find box** passes the flow's findings and open fail ports. While it is empty it offers the
+  common filters, and it completes the filter being typed.
+- **Readiness.** The flow panel's counts are buttons that open Find with their filter
+  (`status:<s>`, `open:fail`).
+- **Unbound tasks.** An unbound task's sub-line reads "Task · not implemented yet" (P12).

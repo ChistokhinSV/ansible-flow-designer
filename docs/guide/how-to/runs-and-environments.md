@@ -78,6 +78,21 @@ asks for each input in an input box instead.
 Unbound steps print `TODO: <intent>`. Bound modules run in check mode; the catalog badges say which
 modules support it.
 
+## The Flows view
+
+**Flows**, in the **Ansible Flows** view of the Activity Bar, lists the repository's flows by
+folder (a folder that only holds its own flow is not a level of its own). Each flow says what needs
+a look:
+
+- its errors and warnings (open it for the Problems panel);
+- **code out of date**: its generated playbooks do not match the flow yet, and a save writes them;
+- **code edited by hand**: a generated playbook was changed in an editor, so a save leaves it alone
+  (Generate Code asks before it writes over the change);
+- **no code yet**.
+
+The tooltip explains the state. **Run as Skeleton** (the play button on a flow) opens it with its
+launch dialog. **Peek Code** opens its generated playbook.
+
 ## The Inventory view
 
 **Inventory**, in the **Ansible Flows** view of the Activity Bar, lists the inventory the runs use

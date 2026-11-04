@@ -14,6 +14,8 @@ the [guide](../README.md).
 | `afd.help.openGuide` · Open User Guide                  | opens this guide in the Markdown preview                                                                                     |
 | `afd.help.openSample` · Open Sample Flow…               | copies a sample flow into the workspace and opens it, or sample playbooks to import into an empty folder (Tutorial 5)        |
 | `afd.flows.refresh` · Refresh                           | reads the flows of the **Ansible Flows** view (Activity Bar) again; on the view's title bar                                  |
+| `afd.flows.run` · Run as Skeleton                       | on a flow in the **Ansible Flows** view: opens it and its launch dialog                                                      |
+| `afd.flows.peekCode` · Peek Code                        | on a flow in the **Ansible Flows** view: opens its generated root playbook                                                   |
 | `afd.inventory.refresh` · Refresh Inventory             | reads the **Inventory** view again (groups and hosts the runs use); on the view's title bar                                  |
 | `afd.inventory.runOn` · Run Flow on This Group…         | the launch dialog of the flow in the designer, with that group or host as its targets                                        |
 | `afd.flow.new` · New Flow…                              | creates `flows/<key>/<key>.flow.yaml` with a start and a done node                                                           |

@@ -75,3 +75,26 @@ their most confusing part and their one thing to change.
 - **Run Flow on This Group…** (inline on a group or a host) opens the designer's launch dialog
   (AFD-82) for the flow being worked on, with that name as the targets (`planLaunch` prefill). The
   person still sees the facts and presses Run.
+
+## Amendment: the Flows view says what needs a look (AFD-86, 2026-11-04)
+
+Round 1's participant gave up getting an overview of the repository (T7, ease 1). They opened flows
+one by one, and did not know what "edited by hand" meant (P16).
+
+- **By folder.** The Flows view groups flows by folder (`core/view/flowFacts.ts` `flowTree`). A
+  folder that only holds its own flow (the New Flow layout) is not a level of its own.
+- **Per flow.** Each flow says its errors and warnings (`validateFlow`) and its code state:
+  - out of date;
+  - edited by hand;
+  - no code yet;
+  - blocked by errors.
+
+  The code state comes from the same write plan a save uses (`planGenerated`), so it matches what
+  a save does. The tooltip explains each state. An open flow answers from its editor's text.
+- **When it reads.** Facts are read lazily and cached by the flow's and its `generated/` folder's
+  modification times. A watcher on both refreshes the view, debounced by 300 ms.
+- **Excludes.** `findFiles` no longer passes a pattern that replaced `files.exclude`; node_modules is
+  filtered by hand.
+- **Actions.** Run as Skeleton (inline) opens the designer and its launch dialog (AFD-82). Peek
+  Code opens the generated root playbook.
+- **Not done.** A badge on flow files in the Explorer (a FileDecorationProvider) is left for later.

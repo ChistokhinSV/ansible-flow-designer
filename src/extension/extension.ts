@@ -118,7 +118,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     watchScenarioFiles(),
     watchSharedSources(host),
     ...registerImportCommands(host),
-    ...registerFlowsView(),
+    ...registerFlowsView(host),
     ...registerInventoryView(host),
   );
   for (const doc of vscode.workspace.textDocuments)

@@ -27,7 +27,12 @@ export function exitLabelledAtRest(e: {
 /** Under the title: the bound module or role, else what kind of node it is; a decision's test. */
 export function subLine(node: FlowNode): string {
   if (node.type === 'decision') return node.condition ? `if ${node.condition}` : 'Decision';
-  const what = node.impl?.ref ?? NODE_TYPE_LABEL[node.type];
+  // AFD-86: a task without a binding says so (round 1: "Task" told the participant nothing, P12).
+  const what =
+    node.impl?.ref ??
+    (node.type === 'task'
+      ? `${NODE_TYPE_LABEL.task} · not implemented yet`
+      : NODE_TYPE_LABEL[node.type]);
   const shared = node.ref ? `shared v${node.ref.version}` : undefined;
   return [what, shared, purposeOf(node), keywordHint(node.impl)].filter(Boolean).join(' · ');
 }

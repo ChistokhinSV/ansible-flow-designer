@@ -9,8 +9,9 @@ const node = (more: Partial<FlowNode>): FlowNode =>
 
 describe('node face (AFD-42)', () => {
   it('the sub-line names the bound module or role, else the kind of node', () => {
-    expect(subLine(node({}))).toBe('Task');
-    expect(subLine(node({ handler: 'rollback' }))).toBe('Task · rollback');
+    // AFD-86: an unbound task says it is not implemented yet (round 1: P12).
+    expect(subLine(node({}))).toBe('Task · not implemented yet');
+    expect(subLine(node({ handler: 'rollback' }))).toBe('Task · not implemented yet · rollback');
     expect(
       subLine(node({ impl: { kind: 'module', ref: 'ansible.builtin.copy', params: {} } })),
     ).toBe('ansible.builtin.copy');

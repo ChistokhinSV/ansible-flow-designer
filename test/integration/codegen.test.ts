@@ -77,6 +77,15 @@ describe('M3 acceptance: code generation', () => {
     );
   });
 
+  it("the Flows view's Peek Code opens the flow's root playbook (AFD-86)", async () => {
+    await openDesigner(EDGE);
+    await vscode.commands.executeCommand('afd.code.generate', EDGE, { quiet: true });
+    const key = docOf(readFileSync(EDGE.fsPath, 'utf8')).flow.key;
+    await vscode.commands.executeCommand('afd.flows.peekCode', { kind: 'flow', uri: EDGE });
+    const open = vscode.window.activeTextEditor?.document.uri.path ?? '';
+    assert.ok(open.endsWith(`/generated/${key}.yml`), open);
+  });
+
   it('never overwrites a generated file edited by hand on save', async () => {
     const doc = await openDesigner(EDGE);
     const api = await testApi();

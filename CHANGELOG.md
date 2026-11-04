@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.57.0 — AFD-86
+
+Wave 8, part 7: find your way through a flow and a repository.
+
+- **Find filters:** `status:draft`, `type:approval`, `open:fail`, `has:errors`, `has:binding`, `tag:` and `target:` list the matching steps on every level at once, alone or with words. Two values of one filter mean either. The Find box offers the filters and completes them. Before, listing the steps without an implementation meant opening every level.
+- **Readiness counts lead somewhere:** in the flow panel, each count (drafts, specified, open fail ports…) opens Find with its filter.
+- **"Not implemented yet":** a task without a module, role or playbook says so on its card, not only "Task".
+- **The Flows view shows the repository's health:** flows by folder. Each says its errors and warnings and whether its code is out of date, edited by hand or not generated yet, and the tooltip explains what that means and what a save will do. **Run as Skeleton** and **Peek Code** sit on each flow. The view honours `files.exclude`.
+
 ## 0.56.0 — AFD-85
 
 Wave 8, part 6: see what an agent changed.

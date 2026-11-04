@@ -71,3 +71,33 @@
 .afd-legend-ports dd {
   margin: 0 0 0 var(--afd-space-3);
 }
+
+/* AFD-86: a Readiness count is a button that lists its steps with Find. */
+.afd-readiness-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.afd-readiness-link:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.afd-readiness-link strong {
+  margin-left: auto;
+}
+
+.afd-find-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 6px 2px;
+}

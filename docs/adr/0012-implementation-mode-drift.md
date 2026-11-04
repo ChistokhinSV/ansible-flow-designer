@@ -84,3 +84,10 @@ Code-side actions:
 
 In a format 2 flow an ignored drift item is an `accepted` decision with `finding: drift:<item>`
 (ADR-0025). Drift reads both formats through `core/flow/decisions.ts`.
+
+## Note: the Flows view's code state is not drift (AFD-86, 2026-11-04)
+
+The Flows view shows "code out of date" or "edited by hand" from the write plan alone (the
+generated files' checksums against what the flow generates). It cannot run Code mode's drift
+check, which compiles the code in the environment, for every flow of a repository. So it never
+says "drift"; Code mode stays the place for that.

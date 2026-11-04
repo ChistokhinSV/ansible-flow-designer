@@ -105,24 +105,48 @@ export function FlowDescription() {
       {ready.total > 0 ? (
         <section className="afd-section">
           <h3>Readiness</h3>
+          {/* AFD-86: each count lists its steps with Find, across every level (round 1: P9). */}
           <ul className="afd-readiness">
             {STATUS_ORDER.map((s) => (
               <li key={s}>
-                <StatusIcon status={s} label={false} />
-                {s}
-                <strong>{ready.counts[s]}</strong>
+                <button
+                  type="button"
+                  className="afd-readiness-link"
+                  data-find-filter={`status:${s}`}
+                  title={`List the ${s} steps on every level (Find status:${s})`}
+                  onClick={() => findWith(`status:${s}`)}
+                >
+                  <StatusIcon status={s} label={false} />
+                  {s}
+                  <strong>{ready.counts[s]}</strong>
+                </button>
               </li>
             ))}
             <li>
-              <span className="codicon codicon-warning" aria-hidden="true" />
-              open fail ports
-              <strong>{snapshot ? bannerCount(snapshot.openPorts) : 0}</strong>
+              <button
+                type="button"
+                className="afd-readiness-link"
+                data-find-filter="open:fail"
+                title="List the steps with an open fail port (Find open:fail)"
+                onClick={() => findWith('open:fail')}
+              >
+                <span className="codicon codicon-warning" aria-hidden="true" />
+                open fail ports
+                <strong>{snapshot ? bannerCount(snapshot.openPorts) : 0}</strong>
+              </button>
             </li>
           </ul>
         </section>
       ) : null}
     </div>
   );
+}
+
+/** Opens Find with a filter (AFD-86). */
+function findWith(query: string) {
+  const ui = useUi.getState();
+  ui.openFind(true);
+  ui.setFindQuery(query);
 }
 
 const IMPORT_KIND: Record<string, string> = {

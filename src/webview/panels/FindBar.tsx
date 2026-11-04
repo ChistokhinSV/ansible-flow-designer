@@ -1,9 +1,12 @@
 // Find a node (AFD-48), Ctrl+F: one box over the canvas that searches every level by title, key or
 // binding. The arrow keys move through the results and Enter shows one, opening its level; the box
 // stays open, so the next result is one more key away. What is typed lives in the store: the
-// canvas is remade for each level, and the box with it.
+// canvas is remade for each level, and the box with it. AFD-86: filters (`status:draft`,
+// `type:approval`, `open:fail`…) narrow it; the hint under the box offers them and completes the
+// one being typed.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findNodes } from '../../core/view/find';
+import { findCompletions } from '../../core/view/findQuery';
 import { TYPE_LABEL } from '../constants';
 import { useModel } from '../hooks';
 import { useUi } from '../store';
@@ -22,7 +25,19 @@ function Find() {
   const query = useUi((s) => s.findQuery);
   const nonce = useUi((s) => s.findNonce);
   const input = useRef<HTMLInputElement>(null);
-  const results = useMemo(() => (model ? findNodes(model, query, LIMIT) : []), [model, query]);
+  const findings = useUi((s) => s.snapshot?.findings);
+  const openPorts = useUi((s) => s.snapshot?.openPorts);
+  const results = useMemo(
+    () => (model ? findNodes(model, query, LIMIT, { findings, openPorts }) : []),
+    [model, query, findings, openPorts],
+  );
+  const hints = findCompletions(query);
+  const complete = (to: string) => {
+    const before = query.replace(/\S*$/, '');
+    useUi.getState().setFindQuery(`${before}${to}${to.endsWith(':') ? '' : ' '}`);
+    setActive(0);
+    input.current?.focus();
+  };
   // The node shown last stays the current result when the box comes back on another level.
   const [active, setActive] = useState(() =>
     Math.max(
@@ -65,7 +80,7 @@ function Find() {
           aria-controls="afd-find-results"
           aria-autocomplete="list"
           aria-activedescendant={current ? `afd-find-${current.id}` : undefined}
-          placeholder="Title, key or module"
+          placeholder="Title, key or module; status:draft, type:approval…"
           value={query}
           onChange={(e) => {
             useUi.getState().setFindQuery(e.target.value);
@@ -101,6 +116,24 @@ function Find() {
           <span className="codicon codicon-close" aria-hidden="true" />
         </button>
       </div>
+      {!query.trim() || hints.length ? (
+        <div className="afd-find-hints muted" data-find-hints>
+          {(hints.length
+            ? hints
+            : ['status:draft', 'type:approval', 'open:fail', 'has:errors', 'has:binding']
+          ).map((h) => (
+            <button
+              key={h}
+              type="button"
+              className="chip-button mono"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => complete(h)}
+            >
+              {h}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {query.trim() && results.length ? (
         <div
           id="afd-find-results"
