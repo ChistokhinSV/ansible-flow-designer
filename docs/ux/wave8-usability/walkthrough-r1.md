@@ -32,17 +32,17 @@ Severity is Nielsen's 0-4 (protocol). Group is the wave 8 group that addresses t
 
 ## What round 1 changes in wave 8
 
-- **B (AFD-81):** `list` and `dict` inputs accept comma-separated text as well as JSON, and the
+- **B (launch dialog):** `list` and `dict` inputs accept comma-separated text as well as JSON, and the
   dialog shows the parsed value before the run (W10). The hosts field offers the inventory's groups
   and hosts, not only the suggestion (W6). Each field shows what the input is for when the flow says
   so (W9; a `description` on flow inputs is new, ADR-0004 amendment).
-- **D (AFD-84):** the Readiness counts in the flow panel are links that run the matching Find
+- **D (Flows view, Find):** the Readiness counts in the flow panel are links that run the matching Find
   filter (`status:draft`), so the counts lead somewhere (W11).
-- **H (AFD-83):** the outside-edit marks are kept apart from the Changes lens; the note says
+- **H (outside edits):** the outside-edit marks are kept apart from the Changes lens; the note says
   "changed outside the designer since you opened it", not "since the last commit" (W16).
 - **New, not in a wave 8 group:** W1 (a visible way to the next step) and W5 (Stop Flow among the
   banner's first choices). Both are small; they wait for the participant's round 1 before a
-  decision.
+  decision. Round 1 (`round1.md`) took W1 into G and did not see W5.
 
 ## Not a finding
 

@@ -170,14 +170,17 @@
       const r = rec(x.id);
       const running = r.startedAt && !r.endedAt;
       const over = running && elapsed(r) > x.softLimit * 60000;
-      const answer = x.answer ? `<label for="answer">${esc(x.answer)}</label><textarea id="answer" ${running ? '' : 'disabled'}>${esc(state.answers[x.id])}</textarea>` : '';
+      // Round 1: a goal shown before Start got worked on with the clock stopped. It shows on Start.
+      const started = Boolean(r.startedAt);
+      const answer = x.answer && started ? `<label for="answer">${esc(x.answer)}</label><textarea id="answer" ${running ? '' : 'disabled'}>${esc(state.answers[x.id])}</textarea>` : '';
       return `<div class="card"><p class="meta">${esc(x.id)} of ${tasks.length} · about ${x.softLimit} min</p>
         <h1 tabindex="-1">${esc(x.title)}</h1>
-        <p class="goal">${esc(x.goal)}</p>
+        ${started ? `<p class="goal">${esc(x.goal)}</p>`
+          : `<p class="meta">The goal shows when you press Start, and the clock starts with it.${x.outsideEdit ? ' Save all files in VS Code first (File > Save All): Start makes the kit edit a flow.' : ''}</p>`}
         ${r.edit ? `<p class="done" role="status">${esc(r.edit)}</p>` : ''}
         ${answer}
         <div class="row">
-          ${!running ? `<button class="primary" id="start">Start</button><span class="meta">The clock starts when you press Start.</span>`
+          ${!running ? `<button class="primary" id="start">Start</button>`
             : r.pauseStart ? `<span class="timer" role="timer" aria-label="Time on this task, paused">${clock(elapsed(r))}</span><span class="meta">paused</span>
             <button class="primary" id="pause">Resume</button><button id="done">Done</button><button id="giveup">Give Up</button>`
             : `<span class="timer" role="timer" aria-label="Time on this task">${clock(elapsed(r))}</span>

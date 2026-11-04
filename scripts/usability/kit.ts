@@ -9,7 +9,14 @@
 //   kit solve <session>                                                         self-test: solve T1-T3, T9, T10
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer, type IncomingMessage } from 'node:http';
 import { basename, join, resolve } from 'node:path';
 import { parse } from 'yaml';
@@ -208,7 +215,21 @@ function check(dir: string): { checks: Check[]; summary: string } {
   ].join('\n');
   writeFileSync(p.summary, summary);
   writeJson(p.results, { session: { ...s, token: undefined }, progress, checks, sus });
+  keepLocal(dir, s.id);
   return { checks, summary };
+}
+
+/**
+ * The raw notes and answers, copied into the checkout's `usability-sessions/` (ignored by Git) for
+ * the analysis: the repository gets them only paraphrased (protocol, Privacy). `just` runs the kit
+ * from the checkout. session.json stays behind: it holds the runner's token.
+ */
+function keepLocal(dir: string, id: string) {
+  const to = resolve('usability-sessions', id);
+  mkdirSync(to, { recursive: true });
+  const p = paths(dir);
+  for (const f of [p.progress, p.results, p.summary])
+    if (existsSync(f)) copyFileSync(f, join(to, basename(f)));
 }
 
 const body = (req: IncomingMessage) =>
@@ -356,7 +377,7 @@ async function solve(dir: string) {
           op: 'accept',
           at: `${sub(u.needsRoot)}/${u.needsRoot}`,
           finding: `lens:access:become:${rootId}`,
-          reason: 'Restarting the service needs root on the switch',
+          reason: `Restarting the service needs root on the ${v.deviceWord}`,
         },
       ],
     }),

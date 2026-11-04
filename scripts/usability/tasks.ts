@@ -79,7 +79,7 @@ export function taskCards(v: Variant): TaskCard[] {
       title: 'Find things in a large flow',
       goal: `Open "${u.name}". Look on every level of it.`,
       answer:
-        'Which steps are not implemented yet (no module, role or playbook)? Which steps are approvals?',
+        'Which steps are not implemented yet (no module, role or playbook)? Which steps are approvals? Name each one.',
       softLimit: 6,
       probes: 'D find filters',
     },

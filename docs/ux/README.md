@@ -27,14 +27,16 @@ Nothing here ships in the extension.
   scripts/ux-baseline.mjs --compare wave7-start wave7`). A new flow shows 35 controls (was 46: top
   bar 7, was 10; palette 10, was 17); readability, overlaps and builds are unchanged; the minimap
   covers no node (was 1).
-- `wave8/`: runs, binding, navigation (AFD-78..87). `proposals.md` is the proposals document
+- `wave8/`: runs, binding, navigation (AFD-78..89). `proposals.md` is the proposals document
   wave 8 started from (written by another agent for 0.50.0); `review.md` checks each proposal
   against the code and records what wave 8 takes, defers or skips. `wave8-start/` is the baseline
   on 0.50.0; its `metrics.md` adds **Wave 8 measures**: the binding panel at its default width and
   the prompts before a real run.
 - `wave8-usability/`: the usability test of wave 8, with a person instead of the harness: the
-  protocol, the task cards, and per round the session's results and the findings. The kit
-  (`just usability-kit`, `scripts/usability/`) sets up a session.
+  protocol, the task cards, and per round the session's results and the findings (`round1.md`:
+  SUS 30 on 0.50.0, which added a bug patch and group I to the wave). The kit
+  (`just usability-kit`, `scripts/usability/`) sets up a session; the raw notes stay in
+  `usability-sessions/`, which Git ignores.
 - `a11y-checklist.md`: the accessibility checks for each surface, with the baseline and wave 3
   results, the annotations (wave 6) and the first hour (wave 7).
 

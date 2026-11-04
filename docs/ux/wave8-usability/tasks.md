@@ -4,7 +4,10 @@ The cards the runner shows (`scripts/usability/tasks.ts`), with variant A's name
 (round 2) has the same flows with the names in the table at the end. Cards say what to achieve,
 never which control to use, so the same card fits 0.50.0 and the wave 8 build. The **check** is
 what the verifier (`scripts/usability/verify.ts`) looks at; **wave 8** is what the group is meant to
-change for this task.
+change for this task. A card's goal shows only after its Start (round 1: a goal shown earlier was
+worked on with the clock stopped). The verifier matches names by their words, plural and case
+aside, with one swapped letter allowed in a word of six letters or more; a renamed step counts by
+its old or new title.
 
 ## Part 1: build and run
 
@@ -20,7 +23,7 @@ change for this task.
 
 | Task | Card (variant A)                                                                                                                                                    | Limit | Check                                                                                                        | Wave 8                                         |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| T6   | In "Data centre upgrade", on every level: which steps are not implemented yet, and which steps are approvals?                                                       | 6 min | The answer names the 4 unimplemented steps and the 2 approvals                                               | D: Find filters                                |
+| T6   | In "Data centre upgrade", on every level: which steps are not implemented yet, and which steps are approvals? Name each one.                                        | 6 min | The answer names the 4 unimplemented steps and the 2 approvals                                               | D: Find filters                                |
 | T7   | Overview of the repository, opening as few flows as possible: which flow has an error that stops code generation, and whose generated playbook was changed by hand? | 5 min | The answer names "Firewall audit" and "Config backup rotation"                                               | D: the Flows view with problems and code state |
 | T8   | Run the scenario tests of "Branch health check". One fails: which switch ended where, where was it expected, and why?                                               | 6 min | The answer names lab-sw-04, Stopped, and Reported to NetOps                                                  | E: scenario results on the canvas              |
 | T9   | In "Data centre upgrade", with the Access lens: "Restart the time service" needs root (keep it, record why); "Write the drift report" does not (fix it). Save.      | 6 min | The first keeps become, its lens finding accepted with a reason; the second has no become                    | F: lens findings in Details                    |

@@ -21,13 +21,14 @@ adds.
 
 ## Participants and rounds
 
-- **P1**, the product owner, does both rounds. P1 knows the product well, so the test shows where
-  even an expert stumbles. It does not show a newcomer's first hour (wave 7 measured that).
+- **P1**, the product owner, does both rounds. Round 1's background answers (Ansible for less than
+  a year, the designer tried before) make P1 an informed newcomer, not the expert this protocol
+  first assumed: the test shows what a person with some Ansible meets in their first real hours.
 - **Claude** walks through the same tasks as a cognitive walkthrough (below). That is an expert
   review, not a user test; the report keeps the two apart.
 - **Round 1:** 0.50.0, workspace variant A, before any wave 8 change. Its findings can still change
   wave 8's details.
-- **Round 2:** the wave 8 build (0.58.0), variant B. Variant B has the same flows, faults and
+- **Round 2:** the last wave 8 build (0.59.0), variant B. Variant B has the same flows, faults and
   wiring with other names (switches become routers, NTP becomes syslog), so P1 cannot answer from
   memory. Learning the product itself still carries over; the report says so.
 
@@ -58,8 +59,8 @@ adds.
 ## During the session
 
 - The runner opens on **Start Session**; nothing is timed before it, nor on the questionnaires.
-- It shows one task at a time. Each task's **Start** starts its clock, **Done** or **Give Up** stops
-  it, **Pause** stops it for an interruption. A task left running when the page closes comes back
+- It shows one task at a time. Each task's **Start** shows its goal and starts its clock, **Done**
+  or **Give Up** stops it, **Pause** stops it for an interruption. A task left running when the page closes comes back
   paused at the last moment the page was open (it notes that every 15 seconds), with **Resume**.
 - Tasks say what to achieve, never which control to use. The user guide, the Command Palette and web
   search are allowed; the rating asks which were used.
@@ -103,8 +104,10 @@ folder>` is the kit's self-test (it solves the file-checked tasks so the verifie
 ## After the session
 
 1. The kit writes `progress.json` (everything the runner recorded), `results.json` (with the
-   checks and the SUS score) and `summary.md` into the session folder.
-2. P1 reads the notes and answers and removes anything private before they go into the repository.
+   checks and the SUS score) and `summary.md` into the session folder, and copies them to
+   `usability-sessions/<session>/` in the checkout, which Git ignores.
+2. P1 reads the analysis before it is committed. The repository gets P1's notes and answers
+   paraphrased, never word for word; the raw data stays local.
 3. The analyst writes `docs/ux/wave8-usability/round<n>.md`: each finding with its evidence (task,
    note, time, check), its severity and the wave 8 group it belongs to. Round 1 also lists what it
    changes in wave 8.
@@ -143,15 +146,16 @@ is a finding with a severity, in `walkthrough-r<n>.md`.
   are fictional ("P1 (usability session)").
 - Every repository, host, address and ticket in the workspace is fictional; hosts use the local
   connection, so no run reaches a device.
-- The session folder stays in `C:\DOWNLOADS_TEMP`. Only what P1 has reviewed is committed.
+- The session folder stays in `C:\DOWNLOADS_TEMP`, and its copy in `usability-sessions/` is
+  ignored by Git. Only the analysis P1 has reviewed is committed, with the notes paraphrased.
 - The runner talks only to the kit on 127.0.0.1, with a token of the session; nothing is sent
   elsewhere.
 
 ## Limits
 
 - One participant: the results show problems, not rates. A pass or a time is an observation.
-- P1 built the product, which hides problems a newcomer would meet and makes the SUS score an
-  owner's score.
+- P1 owns the product, which can soften the SUS score; P1 had used the designer only briefly
+  before round 1, so it does not hide a newcomer's problems the way an author's test would.
 - Round 2 follows round 1 with the same participant. The variants stop recall of answers, not of
   the product.
 - Thinking aloud and writing notes lengthen the times. Compare times between rounds, not with other

@@ -26,13 +26,35 @@ const words = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-/** The answer names the thing: every significant word of it appears (case and punctuation aside). */
+/** A word without its plural ending, so "session" matches "sessions" and "prefix" "prefixes". */
+const stem = (w: string) =>
+  /(x|ss|sh|ch|z)es$/.test(w)
+    ? w.slice(0, -2)
+    : w.length > 3 && w.endsWith('s') && !w.endsWith('ss')
+      ? w.slice(0, -1)
+      : w;
+
+/**
+ * One letter swapped in a word of six letters or more: a typo ("sercices" for "services", round 1,
+ * T11). Not an added or dropped letter, which would let "router" match "routes".
+ */
+const typo = (x: string, y: string) =>
+  x.length >= 6 && x.length === y.length && [...x].filter((c, k) => c !== y[k]).length === 1;
+
+/** Answer words, stemmed. */
+const answerWords = (answer: string) => words(answer).split(' ').map(stem);
+
+/**
+ * The answer names the thing: every significant word of it appears, case, plural and punctuation
+ * aside; a word of six letters or more may carry one swapped letter.
+ */
 const mentions = (answer: string, thing: string) => {
-  const a = ` ${words(answer)} `;
+  const a = answerWords(answer);
   const sig = words(thing)
     .split(' ')
-    .filter((w) => w.length > 2 && !['the', 'and', 'for', 'are', 'all'].includes(w));
-  return sig.length > 0 && sig.every((w) => a.includes(` ${w} `) || a.includes(` ${w}s `));
+    .filter((w) => w.length > 2 && !['the', 'and', 'for', 'are', 'all'].includes(w))
+    .map(stem);
+  return sig.length > 0 && sig.every((w) => a.some((x) => x === w || typo(x, w)));
 };
 
 /** At least one significant word of the thing appears. */
@@ -323,11 +345,22 @@ export function verify(
   }
   add('T10', t10, t10d);
 
-  // T11: the answer names what the agent did: the step added, the step renamed, the binding changed.
+  // T11: the answer names what the agent did: the step added, the step renamed (by its new or old
+  // title), the binding changed. A step added inside a subflow may be named by its subflow only.
   const o = v.outside;
-  const t11 = [o.added.title, o.renamed.title, o.rebound.title].filter((x) =>
-    mentions(answers.T11 ?? '', x.replace(/^(Check|Verify|Copy) /, '')),
+  const said = (x: string) => mentions(answers.T11 ?? '', x.replace(/^(Check|Verify|Copy) /, ''));
+  const t11 = [
+    said(o.added.title),
+    said(o.renamed.title) || said(o.renamed.was),
+    said(o.rebound.title),
+  ].filter(Boolean).length;
+  const subflow = v.upgrade.subflows.find((s) => s.key === o.added.sub)?.title;
+  const bySubflow =
+    !said(o.added.title) && subflow !== undefined && mentions(answers.T11 ?? '', subflow);
+  add(
+    'T11',
+    t11 === 3 ? 'pass' : 'review',
+    `answer names ${t11} of 3 changes${bySubflow ? `; the added step only by its subflow (${subflow})` : ''}`,
   );
-  add('T11', t11.length === 3 ? 'pass' : 'review', `answer names ${t11.length} of 3 changes`);
   return checks;
 }
