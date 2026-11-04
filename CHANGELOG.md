@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.53.0 — AFD-82
+
+Wave 8, part 3: one dialog to start a run.
+
+- **Run as Skeleton and Run for Real… in the designer open a launch dialog** (Ctrl+F5 too), instead of an input box per input and a confirmation after them. It shows every input of the flow by name and type, with its last value or default, and **Run** starts the run.
+- **Lists read as you mean them:** `10.20.0.10, 10.20.0.11` is a list of two, as is a JSON list. A dict takes `key: value` lines or JSON, and the dialog says what each reads as ("2 items: …"). Text that does not read is named before anything runs, where it used to pass as one string.
+- **Hosts and groups:** the inventory's groups are buttons under a host list. The dialog shows how many hosts the targets match, and which are not in the inventory, counted again as you change them.
+- **A real run's confirmation is in the dialog,** in the same words as before: hosts, inventory_targets, production-looking groups, environment. Just before the run starts, the hosts are counted once more: when the inventory answers differently from what the dialog showed, nothing runs and the dialog opens again with the new facts.
+- **Secret inputs and the vault password** are typed in the dialog, sent once and never kept.
+- From the Command Palette, or with no designer open, the run asks as before. Launch in AWX keeps its own prompts for now.
+
 ## 0.52.0 — AFD-81
 
 Wave 8, part 2: local runs you can follow on the canvas.

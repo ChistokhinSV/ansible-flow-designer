@@ -22,6 +22,7 @@ import {
   type PlaybookImportRequest,
 } from './import/playbookImport';
 import { auditUri } from './run/audit';
+import { checkLaunch, planLaunch } from './run/launch';
 import { type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { runTerminalName } from './run/terminal';
@@ -50,6 +51,17 @@ export interface AfdTestApi {
   ): Promise<{ entries?: OutputEntry[]; error?: string }>;
   /** AFD-81: the name of the terminal the flow's last local run ran in. */
   runTerminal(uri: vscode.Uri): string | undefined;
+  /** AFD-82: the launch dialog's plan for this flow, as the designer's Run would open it. */
+  launchPlan(
+    uri: vscode.Uri,
+    mode: 'check' | 'real',
+  ): Promise<Awaited<ReturnType<typeof planLaunch>>>;
+  /** AFD-82: the dialog's facts for these inputs; the token keeps them for Run. */
+  launchCheck(
+    uri: vscode.Uri,
+    token: string,
+    inputs: Record<string, unknown>,
+  ): Promise<Awaited<ReturnType<typeof checkLaunch>>>;
   syntaxCheck(uri: vscode.Uri): Promise<SyntaxOutcome>;
   auditLog(): Promise<Record<string, unknown>[]>;
   /** Serves the folder's catalog from these collection files instead of the probe (M5). */
@@ -123,6 +135,10 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
         error: 'No designer for this flow',
       },
     runTerminal: (uri) => runTerminalName(uri),
+    launchPlan: async (uri, mode) =>
+      planLaunch(await vscode.workspace.openTextDocument(uri), host.runDeps(uri), mode),
+    launchCheck: async (uri, token, inputs) =>
+      checkLaunch(await vscode.workspace.openTextDocument(uri), host.runDeps(uri), token, inputs),
     auditLog: async () => {
       try {
         const bytes = await vscode.workspace.fs.readFile(auditUri(host.storage));

@@ -39,6 +39,7 @@ import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
+import { type LaunchFacts, launchFields } from '../../core/run/launch';
 import { autoPositions, layoutLevel, shownLayout } from '../../node/autoLayout';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
@@ -349,14 +350,42 @@ async function onMessage(m: WebviewMessage) {
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       break;
     }
+    // AFD-82: the designer's Run opens the launch dialog; its Run starts the fake run below.
     case 'run': {
+      const doc = parseFlow(text).doc;
+      if (!doc) break;
+      launchMode = m.mode;
+      toWebview({
+        type: 'launch',
+        plan: {
+          token: 'harness',
+          mode: m.mode,
+          flow: doc.flow.name,
+          fields: launchFields(doc, {}, m.mode === 'check'),
+          groups: ['lab', 'core', 'edge'],
+          facts: harnessFacts(['localhost']),
+          vault: false,
+          environment: 'harness (fake)',
+        },
+      });
+      break;
+    }
+    case 'launchCheck': {
+      const hosts = Object.values(m.inputs).filter(Array.isArray).flat().map(String);
+      toWebview({ type: 'launchFacts', token: m.token, facts: harnessFacts(hosts) });
+      break;
+    }
+    case 'launchCancel':
+      break;
+    case 'launchRun': {
       // No Ansible in a browser: fake a happy-path run so the run UI can be looked at.
+      const mode = launchMode;
       const doc = parseFlow(text).doc;
       if (!doc) break;
       const startedAt = new Date().toISOString();
       const base = {
         id: 'harness',
-        mode: m.mode,
+        mode,
         startedAt,
         environment: 'harness (fake)',
         source: 'local' as const,
@@ -570,3 +599,20 @@ await import('../main');
 (window as unknown as { afdModelStats: unknown }).afdModelStats = (
   await import('../../core/flow/model')
 ).modelStats;
+
+/** The mode of the launch dialog the harness opened last. */
+let launchMode: 'check' | 'real' = 'check';
+
+/** The facts the harness shows for the dialog's hosts (AFD-82): every name counts as a host. */
+function harnessFacts(hosts: string[]): LaunchFacts {
+  return {
+    sources: ['inventory/lab.ini (harness)'],
+    count: hosts.length,
+    hosts,
+    unknown: [],
+    uses: [],
+    prod: hosts.filter((h) => /prod/.test(h)),
+    vault: false,
+    environment: 'harness (fake)',
+  };
+}

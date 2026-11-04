@@ -8,6 +8,7 @@ import { setUpEnvironment } from '../env/setupEnvironment';
 import { isCancelled, showOutcomeError } from '../errors';
 import type { Host } from '../host';
 import { auditUri } from '../run/audit';
+import { takeLaunch } from '../run/launch';
 import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
@@ -18,10 +19,21 @@ import { CMD } from './ids';
 type Quiet = { quiet?: boolean };
 
 export function registerRunCommands(host: Host): vscode.Disposable[] {
-  const run = async (mode: RunOptions['mode'], uri?: vscode.Uri) => {
+  const run = async (
+    mode: RunOptions['mode'],
+    uri?: vscode.Uri,
+    more: Omit<RunOptions, 'mode'> = {},
+  ) => {
     const doc = await host.resolveTargetFlow(uri);
     if (!doc) return undefined;
-    const result = await runFlow(doc, host.runDeps(doc.uri), { mode });
+    const result = await runFlow(doc, host.runDeps(doc.uri), { mode, ...more });
+    // AFD-82: the inventory answers differently from what the dialog showed: show it again.
+    if (result.errorCode === 'changed') {
+      await host.sessions
+        .get(doc.uri.toString())
+        ?.openLaunch(mode, 'The targets match other hosts now: check them, then Run again.');
+      return result;
+    }
     if (result.state === 'error')
       void showOutcomeError(result.error ?? 'The run failed', result.errorCode, doc.uri);
     else if (result.state === 'done') {
@@ -42,6 +54,46 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       copyScenarioRunner(host, uri),
     ),
     vscode.commands.registerCommand(CMD.runReal, (uri?: vscode.Uri) => run('real', uri)),
+    // AFD-82: the designer's Run (top bar, Ctrl+F5) opens its launch dialog; a flow with no
+    // designer open gets the input boxes, as Run as Skeleton from the Command Palette does.
+    vscode.commands.registerCommand(
+      CMD.runLaunch,
+      async (arg?: vscode.Uri | { mode?: RunOptions['mode'] }, given?: RunOptions['mode']) => {
+        const uri = arg instanceof vscode.Uri ? arg : undefined;
+        const mode = (arg instanceof vscode.Uri ? given : arg?.mode) ?? 'check';
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        const session = host.sessions.get(doc.uri.toString());
+        if (!session?.hasPanels) return run(mode, doc.uri);
+        await session.openLaunch(mode);
+        return undefined;
+      },
+    ),
+    // AFD-82: Run in the launch dialog. The token is the host's own and single-use: only then do
+    // the input boxes and the real-run modal stay away, and only when the dialog showed the facts.
+    vscode.commands.registerCommand(
+      CMD.runLaunched,
+      async (
+        uri: vscode.Uri,
+        token: string,
+        inputs: Record<string, unknown>,
+        vaultPassword?: string,
+      ) => {
+        const launch = takeLaunch(token, uri);
+        if (!launch) {
+          void vscode.window.showWarningMessage(
+            'That launch dialog has expired or was used: press Run again.',
+          );
+          return undefined;
+        }
+        return run(launch.mode, uri, {
+          inputs,
+          vaultPassword,
+          confirmed: launch.mode === 'check' || !!launch.facts,
+          expect: launch.facts,
+        });
+      },
+    ),
     vscode.commands.registerCommand(CMD.stopRun, async (uri?: vscode.Uri) => {
       const outcome = await stopRun(host.targetUri(uri));
       if (outcome === 'none') void vscode.window.showInformationMessage('No run is going.');

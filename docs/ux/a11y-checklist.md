@@ -83,3 +83,6 @@ the harness.
 | the side panel's resize edge is visible at rest (AFD-80)                         | ✅ a grip; `role=separator` with its value, arrows resize, Enter hides                                                                      |
 | a live run's step is shown without colour or motion alone (AFD-81, 0.52)         | ✅ "running…" on the card and "Running: <step>" in the top bar; the outline stops under reduced motion and uses Highlight in forced colours |
 | a host's run output opens with the keyboard (AFD-81)                             | ✅ an Output button per host with `aria-expanded`, named "Output of <host>"                                                                 |
+| launch dialog: focus in, trapped and back; Escape cancels (AFD-82, 0.53)         | ✅ `role=dialog`, labelled by its title; first field focused; Enter runs (a form)                                                           |
+| launch dialog: fields named with their type; problems announced                  | ✅ "devices host_list *"; a field that does not read gets `aria-invalid` and its message; facts are `role=status`                           |
+| launch dialog: group buttons say whether they are in the list                    | ✅ `aria-pressed`, in a fieldset named "Inventory groups for <input>"                                                                       |

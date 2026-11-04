@@ -19,6 +19,10 @@ export const CMD = {
   pasteNodes: 'afd.edit.paste',
   runSkeleton: 'afd.run.skeleton',
   runReal: 'afd.run.real',
+  /** AFD-82: the designer's Run and Ctrl+F5: its launch dialog; not in the Command Palette. */
+  runLaunch: 'afd.run.launch',
+  /** AFD-82: Run in a launch dialog, with its single-use token; not in the Command Palette. */
+  runLaunched: 'afd.run.launched',
   stopRun: 'afd.run.stop',
   runScenarios: 'afd.run.scenarios',
   copyScenarioRunner: 'afd.run.copyScenarioRunner',

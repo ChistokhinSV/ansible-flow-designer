@@ -169,3 +169,32 @@ which stayed in Design mode.
 - **Per-host output.** A host's Output in a node's Run tab asks the host (`runOutput`), which
   reads that node's results for that host from the kept, redacted events. It is offered for
   local runs once they end; AWX has its own job output page.
+
+## Amendment (AFD-82, 2026-11-04): one launch dialog for local runs
+
+Wave 8 group B. A real run of a flow with three inputs asked four or five times: an input box per
+input (a `list` parsed as JSON only, so `a, b` passed as one string), then the modal, then the vault
+password. Round 1's participant took about five minutes to run on the lab group, and their first
+run went to the suggested localhost.
+
+- **The designer's Run opens the launch dialog** (`panels/LaunchDialog.tsx`). This covers the top
+  bar, Run for Real…, the first-flow checklist and Ctrl+F5 (`afd.run.launch`, internal).
+  - The dialog lists every input by name and type, with the remembered value or the default
+    (`core/run/launch.ts` `launchFields`).
+  - It says what each list or dict reads as (`parseInput`: comma-separated or JSON lists, YAML or
+    JSON dicts; text that does not read is a problem, never a silent string).
+  - It offers the inventory's groups for host lists, and shows the facts for the current targets,
+    which the host counts again as they change (`launchCheck`).
+  - A real run's confirmation lines are `realRunLines`, the same words as the Command Palette's
+    modal (golden test).
+- **The token.**
+  - A plan (`extension/run/launch.ts` `planLaunch`) carries a random token the host keeps:
+    single-use, for that flow file and mode, ten minutes.
+  - Only `afd.run.launched` with a live token skips the input boxes, and the modal is skipped only
+    when the dialog showed the facts. The token is taken in the host; no command argument skips a
+    confirmation on its own.
+  - Before the run starts, `runFlow` reads the inventory again. When `sameFacts` fails, nothing
+    runs (`errorCode: 'changed'`) and the dialog opens again with the new facts and a notice.
+- **The Command Palette** and a flow with no designer open keep the input boxes and the modal.
+- **Not in this change:** Launch in AWX keeps its prompts; input descriptions need a flow schema
+  field (ADR-0004) and come later.

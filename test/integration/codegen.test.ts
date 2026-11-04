@@ -194,6 +194,52 @@ describe('M3 acceptance: code generation', () => {
     assert.equal(hello.status, 'ok');
   }).timeout(300_000);
 
+  it('AFD-82: the launch dialog runs for real with no prompt, its token once, and not on other facts', async () => {
+    await openDesigner(HELLO);
+    const api = await testApi();
+    const planned = await api.launchPlan(HELLO, 'real');
+    if (!planned.ok) throw new Error(planned.error);
+    const { plan } = planned;
+    assert.deepEqual(
+      plan.fields.map((f) => f.name),
+      ['devices'],
+    );
+    // Shown for localhost: then Run runs for real with no input box and no modal (a modal would
+    // hold this test until it times out).
+    const go = await api.launchCheck(HELLO, plan.token, { devices: ['localhost'] });
+    assert.equal(go.facts?.count, 1, JSON.stringify(go));
+    const run = (await withTimeout(
+      Promise.resolve(
+        vscode.commands.executeCommand('afd.run.launched', HELLO, plan.token, {
+          devices: ['localhost'],
+        }),
+      ),
+      240_000,
+      'Hello real run from the dialog',
+    )) as { state: string; mode: string; rc?: number } | undefined;
+    assert.equal(run?.state, 'done', JSON.stringify(run));
+    assert.equal(run?.mode, 'real');
+    assert.equal(run?.rc, 0);
+    // The token was used: a second Run with it starts nothing.
+    const again = await vscode.commands.executeCommand('afd.run.launched', HELLO, plan.token, {
+      devices: ['localhost'],
+    });
+    assert.equal(again, undefined);
+    // Shown for localhost, run for more: the inventory answers differently, nothing runs.
+    const second = await api.launchPlan(HELLO, 'real');
+    if (!second.ok) throw new Error(second.error);
+    await api.launchCheck(HELLO, second.plan.token, { devices: ['localhost'] });
+    const before = (await api.auditLog()).length;
+    const changed = (await vscode.commands.executeCommand(
+      'afd.run.launched',
+      HELLO,
+      second.plan.token,
+      { devices: ['localhost', 'no-such-host-afd82'] },
+    )) as { errorCode?: string } | undefined;
+    assert.equal(changed?.errorCode, 'changed');
+    assert.equal((await api.auditLog()).length, before);
+  }).timeout(300_000);
+
   it('AFD-39: Stop Run ends a local run as stopped, not failed', async () => {
     const original = readFileSync(EDGE.fsPath, 'utf8');
     try {

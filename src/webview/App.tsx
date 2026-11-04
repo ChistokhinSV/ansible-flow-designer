@@ -17,6 +17,7 @@ import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
 import { DriftPanel, IgnoreDialog } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
+import { LaunchDialog } from './panels/LaunchDialog';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
 import { NotAFlow } from './panels/NotAFlow';
 import { Palette } from './panels/Palette';
@@ -58,6 +59,10 @@ function useHost() {
         ui.setSnapshot(m.snapshot);
       } else if (m.type === 'run') {
         ui.setRun(m.run);
+      } else if (m.type === 'launch') {
+        ui.setLaunch(m.plan, m.notice);
+      } else if (m.type === 'launchFacts') {
+        ui.setLaunchFacts(m.token, m.facts, m.error);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'firstFlow') {
@@ -365,6 +370,7 @@ export function App() {
         <PortMenu />
         <CanvasContextMenu />
         <CheatSheet />
+        <LaunchDialog />
         <PreviewCard />
       </div>
     </ReactFlowProvider>

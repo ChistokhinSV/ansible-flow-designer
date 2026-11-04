@@ -7,6 +7,7 @@ import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
+import type { LaunchFacts, LaunchPlan } from './run/launch';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -37,7 +38,14 @@ export interface Snapshot {
 /** A skeleton or real run of the flow and what it did per node (M3; full Run mode is M7). */
 /** Why a run did not start or stopped, when a command can fix it (AFD-37). */
 /** `environment`: no Ansible environment; the runner offers the setup itself (AFD-71). */
-export type RunErrorCode = 'cancelled' | 'environment' | 'awx-url' | 'awx-token' | 'awx-template';
+export type RunErrorCode =
+  | 'cancelled'
+  | 'environment'
+  | 'awx-url'
+  | 'awx-token'
+  | 'awx-template'
+  /** AFD-82: the launch dialog's facts are not the inventory's any more. */
+  | 'changed';
 
 export interface RunView {
   id: string;
@@ -181,6 +189,10 @@ export type HostMessage =
   | { type: 'catalogReply'; reqId: number; ok: boolean; result?: unknown; error?: string }
   /** AFD-81: a host's output in one node of the last run, for its Output disclosure. */
   | { type: 'runOutputReply'; reqId: number; entries?: OutputEntry[]; error?: string }
+  /** AFD-82: opens the launch dialog with a run's plan, or closes it (null); `notice` says why. */
+  | { type: 'launch'; plan: LaunchPlan | null; notice?: string }
+  /** AFD-82: the facts for the dialog's current targets. */
+  | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
   | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */
@@ -216,6 +228,16 @@ export type WebviewMessage =
   | { type: 'showRunOutput'; approval?: Ulid }
   /** AFD-81: what one host did in one node of the last local run, read from its events. */
   | { type: 'runOutput'; reqId: number; node: Ulid; host: string }
+  /** AFD-82: the facts for these inputs (no secret inputs: they do not pick hosts). */
+  | { type: 'launchCheck'; token: string; inputs: Record<string, unknown> }
+  /** AFD-82: Run in the launch dialog; the token is single-use and the host's own. */
+  | {
+      type: 'launchRun';
+      token: string;
+      inputs: Record<string, unknown>;
+      vaultPassword?: string;
+    }
+  | { type: 'launchCancel'; token: string }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */

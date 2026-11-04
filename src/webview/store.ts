@@ -8,6 +8,7 @@ import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
+import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import { type NodeRun, runStates } from '../core/run/view';
 import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
@@ -180,6 +181,12 @@ interface UiState {
   run: RunView | null;
   /** The designer asked for a run (AFD-81): when it starts, the canvas switches to Run mode. */
   runAsked: boolean;
+  /**
+   * AFD-82: the open launch dialog's plan, and why it opened again. Never a secret: those stay in
+   * the dialog's own state.
+   */
+  launch: LaunchPlan | null;
+  launchNotice?: string;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
   runNodes: Record<Ulid, NodeRun> | null;
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
@@ -243,6 +250,9 @@ interface UiState {
   dismissToast(id: number): void;
   setRun(r: RunView | null): void;
   setRunAsked(on: boolean): void;
+  setLaunch(plan: LaunchPlan | null, notice?: string): void;
+  /** The facts for the dialog's current targets, if it is still the dialog of that token. */
+  setLaunchFacts(token: string, facts?: LaunchFacts, error?: string): void;
   /** Opens a level; selection, menus and picks belong to the level being left. */
   setLevel(level: string): void;
   /** Shows a node: opens its level and selects it. */
@@ -319,6 +329,7 @@ export const useUi = create<UiState>((set, get) => ({
   saving: false,
   run: null,
   runAsked: false,
+  launch: null,
   runNodes: null,
   level: ROOT,
   preview: null,
@@ -453,6 +464,12 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
+  setLaunch: (launch, launchNotice) => set({ launch, launchNotice }),
+  setLaunchFacts(token, facts, error) {
+    const plan = get().launch;
+    if (plan?.token !== token) return;
+    set({ launch: { ...plan, facts, factsError: facts ? undefined : error } });
+  },
   setLens(lens) {
     set({
       lens,

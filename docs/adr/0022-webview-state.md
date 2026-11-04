@@ -32,3 +32,15 @@ The webview rebuilt the flow model from the snapshot's document in 25 places, an
 - Tokens in `00-base.css`: `--afd-fs-*` for each font size in use (no literal pixel sizes elsewhere; unit-tested), `--afd-font-node-title` / `--afd-font-node-sub` for the canvas redesign, `--afd-space-*`, `--afd-left-width` / `--afd-right-width` (the grid and the toast).
 - `prefers-reduced-motion` turns animations and transitions off; `forced-colors` keeps the state colours of ports, dots and swatches and uses `Highlight` for focus.
 - The improvement review's "duplicate selectors" were grouped rules followed by one selector's additions (`button.icon, button.link` then `button.link`): normal CSS, left as they are. Merging the first pair tried changed the icon buttons, which the screenshot gate caught.
+
+## Amendment: secrets in the launch dialog (AFD-82, 2026-11-04)
+
+The launch dialog takes secret-looking inputs and the vault password. They live in the dialog
+component's own state:
+- never in the store, so `inspect`, the harness and saved state never see them;
+- sent once, in the `launchRun` message;
+- cleared when the dialog closes.
+
+`launchCheck`, which recounts the hosts as the targets change, leaves secret fields out, since they
+pick no hosts. The store holds the plan (fields, groups, facts) and the token, which is useless once
+used or ten minutes old.

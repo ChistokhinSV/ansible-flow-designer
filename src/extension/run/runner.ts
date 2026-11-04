@@ -13,6 +13,13 @@ import type { FlowDocument } from '../../core/flow/types';
 import type { RunErrorCode, RunView } from '../../core/protocol';
 import { runProcess, splitInputs } from '../../core/run/command';
 import { createSummarizer, summarizeRun } from '../../core/run/events';
+import {
+  type LaunchFacts,
+  realRunLines,
+  realRunQuestion,
+  sameFacts,
+  type TargetUse,
+} from '../../core/run/launch';
 import { redactLine, redactText, revealAfterRun, secretValues } from '../../core/run/redact';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { tailFile } from '../../node/run/tail';
@@ -37,6 +44,15 @@ export interface RunOptions {
   inputs?: Record<string, unknown>;
   /** Test mode only: answer the real-run confirmation with yes. */
   yes?: boolean;
+  /**
+   * AFD-82: the launch dialog showed the facts and the person chose Run. Set by the host only,
+   * after it checked the dialog's single-use token; never from a command argument.
+   */
+  confirmed?: boolean;
+  /** The facts the dialog showed: when the inventory answers differently now, nothing runs. */
+  expect?: LaunchFacts;
+  /** From the dialog: the vault password for this run (asked for otherwise). */
+  vaultPassword?: string;
 }
 
 export interface RunDeps {
@@ -59,16 +75,8 @@ interface InventoryFacts {
   prod_groups: string[];
   prod_hosts: string[];
   vault: boolean;
-}
-
-/** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */
-export interface TargetUse {
-  /** The pattern with flow inputs filled in; undefined when it needs Jinja beyond that. */
-  pattern?: string;
-  declared: string;
-  nodes: string[];
-  count?: number;
-  prod: string[];
+  /** Per group, how many of the matched hosts it has. */
+  groups?: Record<string, number>;
 }
 
 async function targetFacts(
@@ -93,18 +101,79 @@ async function targetFacts(
   );
 }
 
-/** Confirmation lines for the targets: pattern, host count and the nodes that run there. */
-export function targetLines(uses: TargetUse[]): string[] {
-  return uses.map((u) => {
-    const where = u.nodes.map((k) => `[${k}]`).join(', ');
-    const hosts =
-      u.count === undefined
-        ? 'resolved at run time'
-        : u.count === 0
-          ? 'matches no host, so those nodes fail every arriving host'
-          : `${u.count} host(s)`;
-    return `Also on inventory_target ${u.pattern ?? u.declared}: ${hosts} (${where})`;
-  });
+/**
+ * What a run with these inputs would touch (the real-run confirmation, the launch dialog): the
+ * hosts the targets match in the inventory, the inventory_targets, what looks like production.
+ */
+export async function launchFacts(
+  doc: FlowDocument,
+  inputs: Record<string, unknown>,
+  folder: vscode.Uri,
+  probes: ProbeManager,
+): Promise<{ ok: true; facts: LaunchFacts } | { ok: false; error: string }> {
+  const targets = targetsOf(doc, inputs);
+  if (targets.length === 0)
+    return { ok: false, error: 'No target hosts: the targets input is empty' };
+  const inventory =
+    vscode.workspace.getConfiguration('afd', folder).get<string>('run.inventory', '') || undefined;
+  const probe = probes.forFolder(folder);
+  if ('error' in probe) return { ok: false, error: probe.error };
+  let found: InventoryFacts;
+  try {
+    found = await probe.client.call<InventoryFacts>(
+      'inventory',
+      { inventory, targets },
+      TIMEOUTS.probeInventory,
+    );
+  } catch (e) {
+    return {
+      ok: false,
+      error: `The Ansible environment (${probe.label}) did not answer: ${(e as Error).message}`,
+    };
+  }
+  if (found.count === 0)
+    return { ok: false, error: `None of the targets (${targets.join(', ')}) is in the inventory` };
+  const uses = await targetFacts(doc, inputs, (pattern) =>
+    probe.client.call<InventoryFacts>(
+      'inventory',
+      { inventory, targets: [pattern] },
+      TIMEOUTS.probeInventory,
+    ),
+  );
+  const prod = [
+    ...new Set([...found.prod_groups, ...found.prod_hosts, ...uses.flatMap((u) => u.prod)]),
+  ];
+  return {
+    ok: true,
+    facts: {
+      sources: found.sources,
+      count: found.count,
+      hosts: found.hosts,
+      unknown: found.unknown,
+      uses,
+      prod,
+      vault: found.vault,
+      environment: probe.label,
+    },
+  };
+}
+
+/** The inventory's groups, for the dialog's host list suggestions (AFD-82); none when it fails. */
+export async function inventoryGroups(folder: vscode.Uri, probes: ProbeManager): Promise<string[]> {
+  const inventory =
+    vscode.workspace.getConfiguration('afd', folder).get<string>('run.inventory', '') || undefined;
+  const probe = probes.forFolder(folder);
+  if ('error' in probe) return [];
+  try {
+    const all = await probe.client.call<InventoryFacts>(
+      'inventory',
+      { inventory, targets: ['all'] },
+      TIMEOUTS.probeInventory,
+    );
+    return Object.keys(all.groups ?? {}).filter((g) => g !== 'all' && g !== 'ungrouped');
+  } catch {
+    return [];
+  }
 }
 
 export async function runFlow(
@@ -139,62 +208,32 @@ export async function runFlow(
   }
   const inputs = await collectInputs(doc, options.inputs, deps.state, options.mode === 'check');
   if (!inputs) return fail(CANCELLED, 'cancelled');
-  const targets = targetsOf(doc, inputs);
-  if (targets.length === 0) return fail('No target hosts: the targets input is empty');
 
   const config = vscode.workspace.getConfiguration('afd', document.uri);
   const inventory = config.get<string>('run.inventory', '') || undefined;
   const probe = deps.probes.forFolder(folder.uri);
   if ('error' in probe) return fail(probe.error);
-  let facts: InventoryFacts;
-  try {
-    facts = await probe.client.call<InventoryFacts>(
-      'inventory',
-      { inventory, targets },
-      TIMEOUTS.probeInventory,
-    );
-  } catch (e) {
-    return fail(`The Ansible environment (${probe.label}) did not answer: ${(e as Error).message}`);
-  }
-  if (facts.count === 0)
-    return fail(`None of the targets (${targets.join(', ')}) is in the inventory`);
-  const uses = await targetFacts(doc, inputs, (pattern) =>
-    probe.client.call<InventoryFacts>(
-      'inventory',
-      { inventory, targets: [pattern] },
-      TIMEOUTS.probeInventory,
-    ),
-  );
-  const prod = [
-    ...new Set([...facts.prod_groups, ...facts.prod_hosts, ...uses.flatMap((u) => u.prod)]),
-  ];
-  const extra = uses.reduce((n, u) => n + (u.count ?? 0), 0);
+  const found = await launchFacts(doc, inputs, folder.uri, deps.probes);
+  if (!found.ok) return fail(found.error);
+  const facts = found.facts;
+  const { uses, prod } = facts;
+  // AFD-82: the dialog showed other facts than the inventory gives now: show them again first.
+  if (options.expect && !sameFacts(options.expect, facts))
+    return fail('What the run would touch changed since the dialog showed it', 'changed');
 
-  if (options.mode === 'real' && !(deps.testMode && options.yes)) {
-    const shown = facts.hosts.slice(0, 8).join(', ') + (facts.count > 8 ? ', …' : '');
-    const detail = [
-      'This is not check mode: bound nodes change the devices.',
-      `Inventory: ${facts.sources.join(', ')}`,
-      `Hosts: ${facts.count} (${shown})`,
-      facts.unknown.length ? `Not in the inventory: ${facts.unknown.join(', ')}` : '',
-      ...targetLines(uses),
-      prod.length
-        ? `Production-looking: ${prod.slice(0, 8).join(', ')}`
-        : 'No production-looking groups or hosts',
-      `Environment: ${probe.label}`,
-    ].filter(Boolean);
+  if (options.mode === 'real' && !options.confirmed && !(deps.testMode && options.yes)) {
     const go = 'Run for real';
     const pick = await vscode.window.showWarningMessage(
-      `Run "${doc.flow.name}" for real on ${facts.count} host(s)${extra ? ` and ${extra} inventory_target host(s)` : ''}?`,
-      { modal: true, detail: detail.join('\n') },
+      realRunQuestion(doc.flow.name, facts),
+      { modal: true, detail: realRunLines(facts).join('\n') },
       go,
     );
     if (pick !== go) return fail(CANCELLED, 'cancelled');
   }
 
   const ask = config.get<'auto' | 'always' | 'never'>('run.askVaultPassword', 'auto');
-  let vaultPassword: string | undefined;
-  if (ask === 'always' || (ask === 'auto' && facts.vault)) {
+  let vaultPassword: string | undefined = options.vaultPassword;
+  if (vaultPassword === undefined && (ask === 'always' || (ask === 'auto' && facts.vault))) {
     vaultPassword = await vscode.window.showInputBox({
       title: 'Vault password',
       prompt: 'Used for this run only; never stored or logged',

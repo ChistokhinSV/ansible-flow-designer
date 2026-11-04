@@ -46,11 +46,18 @@ library, so any image with ansible-core works.
 
 ## Run as Skeleton
 
-**Run as Skeleton** (top bar, or the play button in the editor title bar):
-1. generates the code;
-2. asks for the flow inputs (remembered per flow; host lists are hosts or groups, comma-separated;
-   the first skeleton run suggests `localhost`);
-3. runs `ansible-playbook --check` in a terminal, in your environment.
+**Run as Skeleton** in the designer (top bar, or Ctrl+F5) opens the **launch dialog**:
+- every flow input, by name and type, with what it was last time (remembered per flow) or its
+  default; the first skeleton run suggests `localhost` for the hosts;
+- host lists take hosts or groups, comma-separated; the inventory's groups are buttons under the
+  field. Lists take items separated by commas (`10.20.0.10, 10.20.0.11`) or a JSON list, and the
+  dialog says what the field reads as ("2 items: …"). Dicts take `key: value` lines or JSON;
+- the hosts the targets match in the inventory, counted again as you change them;
+- **Run as Skeleton**, which generates the code and runs `ansible-playbook --check` in your
+  environment. Escape or Cancel closes the dialog.
+
+From the Command Palette (**Ansible Flow: Run as Skeleton**), or with no designer open, the run
+asks for each input in an input box instead.
 
 ## While a run goes
 
@@ -73,12 +80,18 @@ modules support it.
 
 ## Run for real
 
-**Run for Real…** (under the arrow of _Run as Skeleton_) first shows a confirmation with:
+**Run for Real…** (under the arrow of _Run as Skeleton_) opens the same dialog. It also says, in
+words, what the run touches:
 - the inventory (`afd.run.inventory`, else `ansible.cfg`'s default);
 - how many hosts match the targets, and hosts missing from the inventory;
 - groups whose names look like production.
 
-The vault password is asked per run when the inventory or repository vars contain vault data
+**Run for Real** in the dialog runs with no further question. Just before it starts, the run
+counts the hosts again: when the inventory answers differently from what the dialog showed, nothing
+runs, and the dialog opens again with the new facts. From the Command Palette the same facts come
+as a confirmation.
+
+The vault password is asked per run (in the dialog, a field) when the inventory or repository vars contain vault data
 (`afd.run.askVaultPassword`). It is passed through an environment variable, never stored or logged.
 Secret-looking inputs (names with password, secret, token, key or vault) are typed hidden, travel
 the same way and are never remembered. Other input values are written for the run only and deleted

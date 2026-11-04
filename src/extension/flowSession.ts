@@ -39,8 +39,11 @@ import { generatedDir } from './codegen';
 import { CMD } from './commands/ids';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
+import { showEnvironmentError } from './env/setupEnvironment';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
+import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
+import type { RunDeps } from './run/runner';
 import { showRunTerminal } from './run/terminal';
 import { LensController } from './session/lensController';
 import { RequestTracker } from './session/requests';
@@ -86,6 +89,8 @@ export interface SessionDeps {
   sync?: SyncDeps;
   /** Lens facts (M8): the probe for the inventory, remembered targets, the run history store. */
   lens?: { probes: ProbeManager; state: vscode.Memento; storage: vscode.Uri };
+  /** AFD-82: what a run of this flow needs, for the launch dialog's plan and facts. */
+  run?: (uri: vscode.Uri) => RunDeps;
 }
 
 export interface PerfEvent {
@@ -472,11 +477,29 @@ export class FlowSession implements vscode.Disposable {
       case 'firstFlow':
         setFirstFlowHidden(m.hidden);
         break;
+      // AFD-82: the designer's Run opens its launch dialog.
       case 'run':
+        await vscode.commands.executeCommand(CMD.runLaunch, this.uri, m.mode);
+        break;
+      case 'launchCheck': {
+        const deps = this.deps.run?.(this.uri);
+        const r = deps
+          ? await checkLaunch(this.document, deps, m.token, m.inputs)
+          : { error: 'Runs are not available here' };
+        this.post(panel, { type: 'launchFacts', token: m.token, ...r });
+        break;
+      }
+      case 'launchRun':
         await vscode.commands.executeCommand(
-          m.mode === 'check' ? CMD.runSkeleton : CMD.runReal,
+          CMD.runLaunched,
           this.uri,
+          m.token,
+          m.inputs,
+          m.vaultPassword,
         );
+        break;
+      case 'launchCancel':
+        dropLaunch(m.token);
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
@@ -618,6 +641,23 @@ export class FlowSession implements vscode.Disposable {
 
   driftAction(action: DriftAction): Promise<CommandOutcome> {
     return this.code.driftAction(action);
+  }
+
+  /**
+   * AFD-82: the launch dialog in the active designer panel, with a fresh plan (single-use token).
+   * `notice` says why it opens again (the inventory answered differently at Run).
+   */
+  async openLaunch(mode: 'check' | 'real', notice?: string): Promise<void> {
+    const deps = this.deps.run?.(this.uri);
+    const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
+    if (!deps || !panel) return;
+    const r = await planLaunch(this.document, deps, mode);
+    if (!r.ok) {
+      if (r.environment) showEnvironmentError(r.error, () => this.openLaunch(mode));
+      else this.post(panel, { type: 'notify', level: 'error', text: r.error });
+      return;
+    }
+    this.post(panel, { type: 'launch', plan: r.plan, ...(notice ? { notice } : {}) });
   }
 
   /**

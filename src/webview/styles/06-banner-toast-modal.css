@@ -179,3 +179,44 @@
   gap: 6px;
   margin-top: 12px;
 }
+
+/* The launch dialog (AFD-82): a run's inputs, the hosts it will touch, Run. */
+.afd-modal.afd-launch {
+  width: min(560px, 92vw);
+}
+
+.afd-launch form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.afd-launch.real h2 {
+  color: var(--afd-failed);
+}
+
+.afd-launch-notice {
+  border-left: 3px solid var(--afd-unreachable);
+  padding: 4px 8px;
+}
+
+.afd-launch-facts {
+  border: 1px solid var(--afd-border);
+  border-radius: 3px;
+  padding: 6px 10px;
+}
+
+.afd-launch-facts ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.afd-launch-groups {
+  margin-top: 2px;
+}
+
+fieldset.afd-launch-groups {
+  border: 0;
+  margin: 2px 0 0;
+  padding: 0;
+}

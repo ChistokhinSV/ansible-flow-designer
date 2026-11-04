@@ -60,6 +60,7 @@ export class Host {
         state: context.workspaceState,
         storage: context.globalStorageUri,
       },
+      run: (uri) => this.runDeps(uri),
     };
     this.playbookDeps = {
       newId: this.deps.newId,
