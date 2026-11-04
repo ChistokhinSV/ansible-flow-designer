@@ -9,6 +9,7 @@ import type { FlowCommand } from '../core/flow/commands';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import type { OutputEntry } from '../core/run/events';
+import type { OutsideMarks } from '../core/view/outsideChanges';
 import type { Agent, Item as SetupItem } from '../node/ai/writers';
 import type { AiSetup, SetupPicks } from './ai/setup';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
@@ -49,6 +50,8 @@ export interface AfdTestApi {
     node: string,
     host: string,
   ): Promise<{ entries?: OutputEntry[]; error?: string }>;
+  /** AFD-85: what changed outside the designer since it opened. */
+  outsideMarks(uri: vscode.Uri): OutsideMarks | undefined;
   /** AFD-81: the name of the terminal the flow's last local run ran in. */
   runTerminal(uri: vscode.Uri): string | undefined;
   /** AFD-82: the launch dialog's plan for this flow, as the designer's Run would open it. */
@@ -135,6 +138,7 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
         error: 'No designer for this flow',
       },
     runTerminal: (uri) => runTerminalName(uri),
+    outsideMarks: (uri) => host.sessions.get(uri.toString())?.outsideMarks,
     launchPlan: async (uri, mode) =>
       planLaunch(await vscode.workspace.openTextDocument(uri), host.runDeps(uri), mode),
     launchCheck: async (uri, token, inputs) =>

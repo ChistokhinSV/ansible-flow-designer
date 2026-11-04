@@ -113,3 +113,39 @@ describe('AFD-18 acceptance: one undo step per edit', () => {
     assert.equal(doc.getText(), before);
   });
 });
+
+describe('AFD-85: edits made outside the designer', () => {
+  afterEach(closeAll);
+
+  it('an edit written to disk is marked; the designer’s own edit is not', async () => {
+    const { readFileSync, writeFileSync } = await import('node:fs');
+    const original = readFileSync(EDGE.fsPath, 'utf8');
+    try {
+      const doc = await openDesigner(EDGE);
+      const api = await testApi();
+      const flow = parse(doc.getText()) as FlowDocument;
+      const precheck = flow.nodes.find((n) => n.key === 'precheck');
+      assert.ok(precheck);
+      assert.equal(api.outsideMarks(EDGE), undefined);
+      // An agent rewrites the file on disk: VS Code reloads the clean document.
+      writeFileSync(
+        EDGE.fsPath,
+        original.replace(`title: ${precheck.title}`, 'title: Pre-checks from an agent'),
+      );
+      for (let i = 0; i < 100 && !api.outsideMarks(EDGE); i++)
+        await new Promise((r) => setTimeout(r, 100));
+      assert.deepEqual(api.outsideMarks(EDGE)?.nodes, [precheck.id]);
+      // The designer's own edit adds nothing.
+      const moved = await api.run(EDGE, {
+        kind: 'moveNodes',
+        positions: { [precheck.id]: { x: 10, y: 10 } },
+      });
+      assert.ok(moved.ok, moved.error);
+      await new Promise((r) => setTimeout(r, 500));
+      assert.deepEqual(api.outsideMarks(EDGE)?.nodes, [precheck.id]);
+    } finally {
+      await closeAll();
+      writeFileSync(EDGE.fsPath, original);
+    }
+  });
+});

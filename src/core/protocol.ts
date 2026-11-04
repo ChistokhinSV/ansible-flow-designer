@@ -9,6 +9,7 @@ import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
 import type { ScenarioResult } from './scenario/scenarios';
+import type { OutsideMarks } from './view/outsideChanges';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -203,6 +204,8 @@ export type HostMessage =
   | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
   /** AFD-84: the flow's scenario results; `show` puts that one on the canvas in Run mode. */
   | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
+  /** AFD-85: what changed outside the designer since it opened; null when cleared. */
+  | { type: 'outsideMarks'; marks: OutsideMarks | null }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
   | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */
@@ -248,6 +251,8 @@ export type WebviewMessage =
       vaultPassword?: string;
     }
   | { type: 'launchCancel'; token: string }
+  /** AFD-85: Clear on the outside-edit note. */
+  | { type: 'clearOutside' }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */

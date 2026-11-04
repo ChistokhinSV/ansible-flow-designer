@@ -21,6 +21,7 @@ import { FlowDescription } from './panels/FlowDescription';
 import { LaunchDialog } from './panels/LaunchDialog';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
 import { NotAFlow } from './panels/NotAFlow';
+import { OutsideNote } from './panels/OutsideNote';
 import { Palette } from './panels/Palette';
 import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
@@ -66,6 +67,8 @@ function useHost() {
         ui.setLaunchFacts(m.token, m.facts, m.error);
       } else if (m.type === 'scenarios') {
         ui.setScenarios(m.results, m.show);
+      } else if (m.type === 'outsideMarks') {
+        ui.setOutside(m.marks);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'firstFlow') {
@@ -337,6 +340,7 @@ export function App() {
           <FormatBanner />
           <PickBar />
           <CanvasCaption />
+          <OutsideNote />
           <FlowCanvas />
           <Toasts />
         </main>

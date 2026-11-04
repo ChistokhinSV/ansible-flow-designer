@@ -28,6 +28,12 @@ import type {
 import { hostOutput, type OutputEntry } from '../core/run/events';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import { isWebLink, linksOf } from '../core/view/markdown';
+import {
+  addMarks,
+  keepMarks,
+  type OutsideMarks,
+  outsideChanges,
+} from '../core/view/outsideChanges';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
@@ -117,6 +123,15 @@ export class FlowSession implements vscode.Disposable {
   private layoutCache = new Map<string, Record<Ulid, Position>>();
   /** Typing in the text editor settles before the next snapshot (AFD-38). */
   private changeTimer?: NodeJS.Timeout;
+  /**
+   * AFD-85: edits made outside the designer since it opened. `ownText` is the text Complete IDs or
+   * Create Flow writes (the commands set `pendingParse`); `outsideEdit` waits for the rebuild that
+   * compares the flow as shown (`shownDoc`) with the flow now.
+   */
+  private ownText?: string;
+  private outsideEdit = false;
+  private shownDoc?: FlowDocument;
+  private marks?: OutsideMarks;
   private readonly inspects = new RequestTracker<DomSummary>();
   private readonly pngs = new RequestTracker<{ data?: string; error?: string }>();
   /** AFD-25: panels that have loaded, and callers waiting for one (PNG export). */
@@ -293,7 +308,32 @@ export class FlowSession implements vscode.Disposable {
     const snapshot = await this.snapshot();
     if (snapshot.docVersion !== this.document.version) return;
     this.broadcast({ type: 'snapshot', snapshot });
-    if (snapshot.doc && !snapshot.stale) this.lens.followed(snapshot.doc);
+    if (snapshot.doc && !snapshot.stale) {
+      this.lens.followed(snapshot.doc);
+      this.mark(snapshot.doc);
+    }
+  }
+
+  /** AFD-85: an outside edit adds its steps and wires; the person's own edits only drop gone ones. */
+  private mark(doc: FlowDocument): void {
+    const before = this.marks;
+    if (this.outsideEdit && this.shownDoc)
+      this.marks = addMarks(
+        this.marks,
+        outsideChanges(this.shownDoc, doc),
+        doc,
+        new Date().toISOString(),
+      );
+    else this.marks = keepMarks(this.marks, doc);
+    this.outsideEdit = false;
+    this.shownDoc = doc;
+    if (JSON.stringify(before) !== JSON.stringify(this.marks))
+      this.broadcast({ type: 'outsideMarks', marks: this.marks ?? null });
+  }
+
+  /** Test API: the outside-edit marks. */
+  get outsideMarks(): OutsideMarks | undefined {
+    return this.marks;
   }
 
   /**
@@ -301,7 +341,18 @@ export class FlowSession implements vscode.Disposable {
    * typing in a text editor settles for a moment first, instead of parsing, validating,
    * generating and laying out at every key (AFD-38).
    */
-  changed(): void {
+  changed(reason?: vscode.TextDocumentChangeReason): void {
+    // AFD-85: the designer's own edit (its commands, Complete IDs, Create Flow), an undo or redo, or
+    // typing in this file's text editor; anything else (the disk, an agent, another extension) is
+    // an outside edit, marked on the canvas.
+    const text = this.document.getText();
+    const own =
+      this.pendingParse?.text === text ||
+      this.ownText === text ||
+      reason !== undefined ||
+      vscode.window.activeTextEditor?.document === this.document;
+    if (!own) this.outsideEdit = true;
+    this.ownText = undefined;
     clearTimeout(this.changeTimer);
     const typing = vscode.window.visibleTextEditors.some((e) => e.document === this.document);
     if (!typing || this.pendingParse?.text === this.document.getText()) {
@@ -368,6 +419,7 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
+        if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
         if (this.scenarios) {
           const { results, show } = this.scenarios;
           this.post(panel, { type: 'scenarios', results, ...(show ? { show } : {}) });
@@ -506,6 +558,10 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'launchCancel':
         dropLaunch(m.token);
+        break;
+      case 'clearOutside':
+        this.marks = undefined;
+        this.broadcast({ type: 'outsideMarks', marks: null });
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
@@ -924,6 +980,7 @@ export class FlowSession implements vscode.Disposable {
         ? { ok: false, error: `Nothing to complete; still to fix by hand: ${left.join('; ')}` }
         : { ok: true };
     const edit = new vscode.WorkspaceEdit();
+    this.ownText = result.text;
     for (const e of diffEdits(text, result.text))
       edit.replace(
         this.uri,
@@ -956,6 +1013,7 @@ export class FlowSession implements vscode.Disposable {
       newFlowText(name, key, this.deps.newId);
     if (this.document.eol === vscode.EndOfLine.CRLF) body = body.replace(/\r?\n/g, '\r\n');
     const edit = new vscode.WorkspaceEdit();
+    this.ownText = body;
     edit.replace(
       this.uri,
       new vscode.Range(this.document.positionAt(0), this.document.positionAt(text.length)),

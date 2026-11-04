@@ -362,3 +362,36 @@
 .afd-caption-empty {
   color: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
 }
+
+/* Changed outside the designer (AFD-85): a dashed outline, apart from the lenses' tints. */
+.afd-node.outside-mark {
+  outline: 2px dashed var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  outline-offset: 3px;
+}
+
+.afd-node.outside-inside {
+  outline: 1px dashed var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  outline-offset: 3px;
+}
+
+.react-flow__edge.outside-mark .react-flow__edge-path {
+  stroke: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  stroke-dasharray: 6 4;
+  stroke-width: 2.5;
+}
+
+.afd-outside-note {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--afd-border);
+  border-left: 3px dashed var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  font-size: var(--afd-fs-12);
+}
+
+.afd-swatch.outside {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border: 2px dashed var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  vertical-align: middle;
+}

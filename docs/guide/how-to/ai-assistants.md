@@ -80,6 +80,20 @@ Good to know:
   changed drop back to implemented, `generated/` is refreshed. They touch only `*.flow.yaml` inside
   the agent's roots.
 
+## See what an agent changed
+
+When an agent (or a command line, a Git checkout, another extension) changes the flow file while
+the designer has it open, the canvas redraws, and a note over it says what changed outside the
+designer since you opened it: "2 steps and 1 wire changed outside the designer". The changed steps
+and wires have a dashed outline. A subflow with a changed step inside has a thin dashed outline.
+
+- **Show** lights the changed steps and opens the first.
+- **Clear** drops the marks.
+
+Your own edits are never marked: those in the designer, Undo and Redo, and typing in the flow's
+text editor. The marks stay apart from the **Changes** lens, which compares with Git and so shows
+your edits too.
+
 ## Hand-written YAML
 
 An agent without the tools can still write a flow or a snippet by key, with no `id:` lines.

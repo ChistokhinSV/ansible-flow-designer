@@ -28,3 +28,26 @@ Commands that target IDs are immune to version races. Undo, redo, revert and ext
 ## Amendment (AFD-18 follow-up, 2026-10-30): auto-layout loads on first use
 
 ELK (elkjs, the host-side auto-layout of this ADR) is three quarters of the host code and took about 160 ms to load at every activation. `autoLayout.ts` now imports it with a dynamic `import()` on the first layout. The build turns that import into a separate `dist/elk.js` (an esbuild plugin in `scripts/build.mjs`), which `.vscodeignore` ships. Vite (the harness) and Vitest resolve the package as before. A flow with a stored layout never loads ELK at all.
+
+## Amendment: edits made outside the designer are marked (AFD-85, 2026-11-04)
+
+The host stays the single writer of the designer's own edits. Other writers still change the
+document: an agent through the MCP server or its own file tools, a command line, a Git checkout,
+another extension. Round 1's participant could not see what an agent had changed, and the Changes
+lens mixed their own edits in (P21).
+
+- **Telling own edits from outside ones.** `FlowSession.changed(reason)` treats a change as the
+  designer's own when:
+  - its text is what a command wrote (`pendingParse`);
+  - it is what Complete IDs or Create Flow wrote (`ownText`);
+  - it is an undo or redo (`TextDocumentChangeEvent.reason`);
+  - the flow's text editor is the active editor (the person typing).
+
+  Anything else is an outside edit.
+- **Marking.** On the next rebuild, the session compares the flow as shown with the flow now
+  (`core/view/outsideChanges.ts`, on `diffFlows`). It adds the added or changed steps and the added
+  wires to marks kept since the session started. The person's own later edits only drop marks on
+  what is gone. The marks go to the panels (`outsideMarks`, again when a panel becomes ready), and
+  Clear drops them (`clearOutside`).
+- **Not detected.** A disk change while the flow's text editor is the active editor counts as the
+  person's own.

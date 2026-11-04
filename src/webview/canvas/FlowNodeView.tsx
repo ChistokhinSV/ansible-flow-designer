@@ -339,7 +339,16 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const pickAt = useUi((s) => s.pick !== null && s.pickAt === node.id);
   const runMode = useUi((s) => s.mode === 'run');
   const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
+  // AFD-85: changed outside the designer (a subflow: a step inside it was).
+  const outside = useUi((s) =>
+    s.outside?.nodes.includes(node.id)
+      ? 'outside-mark'
+      : s.outsideAround.includes(node.id)
+        ? 'outside-inside'
+        : '',
+  );
   const classes = [
+    outside,
     runMode ? 'run-mode' : '',
     runState ? `run-${runState}` : '',
     'afd-node',
@@ -356,7 +365,13 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     .join(' ');
   return (
     // The lens chips are also on the root, so tests read them at any zoom (far hides the body).
-    <div className={classes} data-node-id={node.id} data-run-state={runState} data-lens={lensChips}>
+    <div
+      className={classes}
+      data-node-id={node.id}
+      data-run-state={runState}
+      data-lens={lensChips}
+      data-outside={outside || undefined}
+    >
       {/* Hover margin around the node and its port labels (D-14 detail). */}
       <div className="afd-hover-zone" aria-hidden="true" />
       {ports.map((p) => (

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.56.0 — AFD-85
+
+Wave 8, part 6: see what an agent changed.
+
+- **Edits made outside the designer are marked.** When an agent, a command line, a Git checkout or another extension changes the flow while the designer has it open, a note over the canvas says what changed since you opened it ("2 steps and 1 wire changed outside the designer"). The changed steps and wires have a dashed outline; a subflow with a changed step inside has a thin one. **Show** lights them and opens the first; **Clear** drops the marks.
+- **Your own edits are never marked:** those in the designer, Undo and Redo, and typing in the flow's text editor. The marks stay apart from the Changes lens, which compares with Git and so shows your edits too.
+- The legend explains the dashed outline.
+
 ## 0.55.0 — AFD-84
 
 Wave 8, part 5: scenario results on the canvas.

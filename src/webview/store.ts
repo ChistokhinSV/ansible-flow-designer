@@ -12,6 +12,7 @@ import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import { type NodeRun, runStates } from '../core/run/view';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import { scenarioRun } from '../core/scenario/view';
+import { markedAround, type OutsideMarks } from '../core/view/outsideChanges';
 import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
 export interface QuickAddState {
@@ -193,6 +194,9 @@ interface UiState {
   scenarios: ScenarioResult[] | null;
   scenarioShown: string | null;
   runBeforeScenario: RunView | null;
+  /** AFD-85: what changed outside the designer since it opened, and the subflows around it. */
+  outside: OutsideMarks | null;
+  outsideAround: Ulid[];
   /** Run mode read-out per node for the current document and run (computed, never stored). */
   runNodes: Record<Ulid, NodeRun> | null;
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
@@ -257,6 +261,7 @@ interface UiState {
   setRun(r: RunView | null): void;
   setRunAsked(on: boolean): void;
   setScenarios(results: ScenarioResult[], show?: string): void;
+  setOutside(marks: OutsideMarks | null): void;
   /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
   showScenario(name: string | null): void;
   setLaunch(plan: LaunchPlan | null, notice?: string): void;
@@ -342,6 +347,8 @@ export const useUi = create<UiState>((set, get) => ({
   scenarios: null,
   scenarioShown: null,
   runBeforeScenario: null,
+  outside: null,
+  outsideAround: [],
   runNodes: null,
   level: ROOT,
   preview: null,
@@ -478,6 +485,10 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
+  setOutside(outside) {
+    const doc = get().snapshot?.doc;
+    set({ outside, outsideAround: outside && doc ? markedAround(outside, doc) : [] });
+  },
   setScenarios(scenarios, show) {
     set({ scenarios });
     if (show) get().showScenario(show);

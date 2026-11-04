@@ -379,6 +379,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [boxKey],
   );
 
+  // AFD-85: wires added outside the designer.
+  const outsideEdges = useUi((s) => s.outside?.edges);
   // A start node has no play: its wire carries every host of the run.
   const hostsOn = useMemo(() => {
     const starts = new Set(view.nodes.filter((v) => v.node.type === 'start').map((v) => v.node.id));
@@ -399,7 +401,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
         className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
           ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
-        }${dataLens ? ' lens-control' : ''}`,
+        }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}`,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
@@ -407,7 +409,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selected: selection.edge === e.id,
         deletable: !readOnly,
       })),
-    [view.edges, selection.edge, ran, readOnly, hostsOn, lensWires, dataLens, shows],
+    [view.edges, selection.edge, ran, readOnly, hostsOn, lensWires, dataLens, shows, outsideEdges],
   );
   const dataEdges = useMemo<Edge[]>(() => {
     if (!dataLens || !dataWires) return [];

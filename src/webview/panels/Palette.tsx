@@ -296,6 +296,9 @@ function Legend({ collapsed }: { collapsed: boolean }) {
             <li>
               <span className="afd-swatch wire problem" /> Problem path
             </li>
+            <li>
+              <span className="afd-swatch outside" /> Changed outside the designer (dashed)
+            </li>
           </ul>
           {/* AFD-72: the port names stay as in the file; here they are in plain words. */}
           <p className="muted">Hosts travel along wires, from port to port:</p>
