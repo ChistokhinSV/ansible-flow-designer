@@ -203,7 +203,9 @@ async function bindingPanel(page) {
     const above = controls.filter(
       (el) => top !== null && el.getBoundingClientRect().top - pr.top + panel.scrollTop < top - 1,
     ).length;
-    const picker = document.querySelector('.afd-impl-configure select');
+    // 0.50.0: a native select (its options less the prompt); AFD-80: the parameter picker.
+    const select = document.querySelector('#afd-add-param');
+    const picker = document.querySelector('.afd-impl-configure [data-param-picker]');
     return {
       panelWidth: Math.round(pr.width),
       panelHeight: panel.clientHeight,
@@ -212,7 +214,11 @@ async function bindingPanel(page) {
       controlsAbove: above,
       findResults: document.querySelectorAll('.afd-impl-find [data-hit]').length,
       docRows: document.querySelectorAll('.afd-params tbody tr').length,
-      addParamOptions: picker ? Math.max(0, picker.options.length - 1) : null,
+      addParamOptions: picker
+        ? Number(picker.dataset.paramPicker)
+        : select
+          ? Math.max(0, select.options.length - 1)
+          : null,
     };
   });
   const file = join(OUT, 'hello-binding-340-1280.png');

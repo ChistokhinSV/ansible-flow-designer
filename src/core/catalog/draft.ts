@@ -145,6 +145,61 @@ export function formFields(
   return { shown: all.filter(set), more: all.filter((f) => !set(f)) };
 }
 
+/** Configure's groups (AFD-80): what a module needs, what has a value, what was added, the rest. */
+export interface ParamGroups {
+  required: FormField[];
+  set: FormField[];
+  /** Added with the parameter picker or a docs row, still without a value. */
+  added: FormField[];
+  /** Offered by the parameter picker. */
+  rest: FormField[];
+}
+
+export function paramGroups(
+  options: Record<string, CatalogOption> | undefined,
+  params: Record<string, unknown>,
+  added: readonly string[] = [],
+): ParamGroups {
+  const { shown, more } = formFields(options, params);
+  return {
+    required: shown.filter((f) => f.required),
+    set: shown.filter((f) => !f.required),
+    added: added.flatMap((n) => more.filter((f) => f.name === n)),
+    rest: more.filter((f) => !added.includes(f.name)),
+  };
+}
+
+/**
+ * The parameter picker's matches (AFD-80): by name first (exact, then prefix, then inside), then
+ * by alias, then by description, each kept in the docs' order. An empty query keeps them all.
+ */
+export function filterParams(fields: readonly FormField[], query: string): FormField[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...fields];
+  const rank = (f: FormField) => {
+    const name = f.name.toLowerCase();
+    if (name === q) return 0;
+    if (name.startsWith(q)) return 1;
+    if (name.includes(q)) return 2;
+    if ((f.option.aliases ?? []).some((a) => a.toLowerCase().includes(q))) return 3;
+    if (f.option.description.toLowerCase().includes(q)) return 4;
+    return -1;
+  };
+  return fields
+    .map((f, i) => ({ f, i, r: rank(f) }))
+    .filter((x) => x.r >= 0)
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.f);
+}
+
+/** Binding problems that ask for another module, not other parameters: Change Module opens. */
+export const CHANGE_MODULE_CODES: ReadonlySet<string> = new Set([
+  'binding-not-in-ee',
+  'binding-removed',
+  'binding-redirect',
+  'binding-deprecated',
+]);
+
 const RETURN_TYPES: Record<string, ContractType> = {
   str: 'string',
   string: 'string',

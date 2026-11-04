@@ -132,3 +132,19 @@ ADR-0029 changes "one toolbar in every mode, controls stay in place":
 - The Lens dropdown shows once the flow has a step.
 
 The bar keeps the same buttons in every mode. A plain wire selected in Design mode gets a panel of its own (`rightPanelFor` → `wire`).
+
+## Amendment: the leave guard covers the whole side panel (AFD-80, 2026-11-04)
+
+A staged binding lives in the Details component; anything that unmounts it drops the draft.
+Round 1's walkthrough (W4) found three ways that did so silently:
+- hiding the side panel;
+- the lens tab;
+- turning a lens on, which opened the lens tab.
+
+What happens now:
+- `Leave` gains `collapse` and `lensTab`. `setPanelCollapsed(true)` and `showLensTab(true)` with a
+  pending binding record the request, the leave dialog asks, and `resolveLeave('go')` replays it.
+- `setLens` keeps the Details open (the lens shows on the canvas, its tab one click away) while a
+  binding is pending.
+- The side panel's edge shows a grip at rest: round 1's participant did not find the 6 px edge
+  that widens the panel.

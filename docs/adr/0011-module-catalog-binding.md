@@ -105,3 +105,24 @@ The user decided on four points:
 - A playbook binding cannot route failed or unreachable hosts. The page explains this, and the validator still treats its fail ports like any other.
 - Variable precedence: a fact (a registered result or a stub) of the same name as an input's play var wins over the play var. Inputs should not reuse another node's output names; the checklist shows where each variable comes from.
 - M6 compares compiled plays with bindings (drift). Role spec generation can build on the free-form vars.
+
+## Amendment: the Binding tab at the side panel's width (AFD-80, 2026-11-04)
+
+Wave 8 group C, with evidence from usability round 1 (`docs/ux/wave8-usability/round1.md`, P2,
+P14, P15). At the default 340 px, the first Configure field of a bound step was 1099 px down a
+762 px panel, under the module search and the docs.
+
+- **Order:** an unbound step shows Find alone. Once the draft has a ref, Configure comes first.
+  Two folds follow (ADR-0029):
+  - **Change module** holds Find. It renders lazily, so a closed fold runs no search. It opens by
+    itself while the draft's ref differs from the saved one, while the module is missing from the
+    environment, or on a finding that asks for another module (`CHANGE_MODULE_CODES`:
+    not-in-ee, removed, redirect, deprecated).
+  - **About** holds the docs, with Full Docs at its top.
+
+  Expanded (`THREE_COLUMNS_PX`, 760), the three sit side by side with both folds open.
+- **Configure** shows Required, then Optional (set, or added in this session).
+  - The **parameter picker** (`properties/ParamPicker.tsx`, ARIA combobox) offers the rest by
+    name, alias or description (`filterParams`), each with its first description line. It
+    replaces the native select of bare names.
+  - `paramGroups` and `filterParams` live in `core/catalog/draft.ts`.

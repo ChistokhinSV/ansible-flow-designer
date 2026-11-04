@@ -64,3 +64,10 @@ A pure refactor: generated code, routes, plays, findings, open ports, level and 
 ## Amendment: extension.js budget (AFD-63, 2026-11-02)
 
 After wave 5 (0.39.1), `extension.js` was 765 KB of its 768 KB budget, so the next host feature would fail the production build. The product owner raised the budget to 832 KB, as was done for `mcp.js`, rather than moving host code into a lazy chunk. The other budgets stay: `mcp.js` 1,088 KB (966 KB now), webview `index.js` 1,088 KB (1,020 KB).
+
+## Amendment: webview budget 1,152 KB (AFD-80, 2026-11-04)
+
+AFD-80 left the webview's `index.js` at 1,087 KB of its 1,088 KB budget. Wave 8 still adds a
+launch dialog, live runs, scenario results, marks and arrange tools to the webview. The wave's
+plan, approved by the product owner, raises the budget to 1,152 KB. The other budgets stay:
+`extension.js` 832 KB (809 KB now), `mcp.js` 1,088 KB (1,002 KB).

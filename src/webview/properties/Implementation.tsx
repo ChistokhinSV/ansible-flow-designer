@@ -1,14 +1,19 @@
-// Implementation tab of the properties page (mockup 11): Find a module, role or playbook in the
-// environment's catalog, Understand it from its docs, Configure the binding with input chips.
-// Everything here edits the staged draft; "Save binding" writes it as one command.
+// The Binding tab of a step's Details (mockup 11; AFD-80 for the side panel's width). An unbound
+// step starts at Find: a module, role or playbook from the environment's catalog. Once something
+// is chosen, Configure comes first (its parameters with input chips), then two folds: Change
+// Module (Find again, open by itself while another one is being chosen or the bound one is a
+// problem) and About (its docs). Everything here edits the staged draft; Save Binding writes it as
+// one command.
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import {
   type BindingDraft,
   type BindKind,
+  CHANGE_MODULE_CODES,
   checklist,
   contractTypeOf,
   type FormField,
   formFields,
+  paramGroups,
   type RefChoice,
   refChoices,
   stagedNode,
@@ -20,8 +25,10 @@ import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { catalogRequest, type Loaded, useCatalog } from '../catalog';
+import { Fold } from '../panels/Fold';
 import { useUi } from '../store';
 import { ChipField } from './ChipField';
+import { ParamPicker } from './ParamPicker';
 import { YamlField } from './YamlField';
 
 const BADGE: Record<Badge, { text: string; tone: 'ok' | 'neutral' | 'warn' }> = {
@@ -55,7 +62,7 @@ interface ExtraParams {
 
 export function Implementation(props: DraftProps) {
   const { draft } = props;
-  // AFD-44: the docs table adds a parameter to Configure as the "More parameters" list does.
+  // AFD-44: the docs table adds a parameter to Configure as the parameter picker does.
   const [extra, setExtra] = useState<string[]>([]);
   const addParam = (name: string) => {
     if (!extra.includes(name)) setExtra([...extra, name]);
@@ -78,27 +85,29 @@ export function Implementation(props: DraftProps) {
   );
   const role = roles.data?.find((r) => r.name === draft.ref);
   const playbook = playbooks.data?.find((p) => p.path === draft.ref);
+  const findings = useUi((s) => s.snapshot?.findings);
+  // Expanded, the tab shows its three parts side by side (THREE_COLUMNS_PX): both folds open.
+  const wide = useUi((s) => s.expanded);
+  const find = <Find {...props} roles={roles} playbooks={playbooks} />;
+  if (!draft.ref)
+    return (
+      <div className="afd-impl afd-impl-unbound">
+        <section className="afd-impl-find" aria-label="Find">
+          {find}
+        </section>
+      </div>
+    );
+  const { node } = props;
+  const what = draft.kind === 'module' ? 'module' : draft.kind;
+  // Change Module opens by itself while another one is being chosen (nothing saved yet, or a
+  // different ref staged) or the bound one is a problem (not in the environment, removed, moved).
+  const changing = node.impl?.kind !== draft.kind || node.impl?.ref !== draft.ref;
+  const missing = draft.kind === 'module' && !doc.loading && (!!doc.error || !doc.data);
+  const problem = (findings ?? []).some(
+    (f) => f.node === node.id && CHANGE_MODULE_CODES.has(f.code),
+  );
   return (
     <div className="afd-impl">
-      <section className="afd-impl-find" aria-label="Find">
-        <Find {...props} roles={roles} playbooks={playbooks} />
-      </section>
-      <section className="afd-impl-understand" aria-label="Understand">
-        {draft.kind === 'module' ? (
-          <ModuleDoc
-            {...props}
-            doc={doc.data ?? null}
-            loading={doc.loading}
-            error={doc.error}
-            extra={extra}
-            addParam={addParam}
-          />
-        ) : draft.kind === 'role' ? (
-          <RoleDoc {...props} role={role} />
-        ) : (
-          <PlaybookDoc playbook={playbook} />
-        )}
-      </section>
       <section className="afd-impl-configure" aria-label="Configure">
         <Configure
           {...props}
@@ -109,6 +118,46 @@ export function Implementation(props: DraftProps) {
           extra={extra}
           addParam={addParam}
         />
+      </section>
+      <section className="afd-impl-find" aria-label={`Change ${what}`}>
+        <Fold
+          id="binding-change"
+          lazy
+          open={wide || changing || missing || problem}
+          summary={
+            <>
+              Change {what} · <span className="mono">{draft.ref}</span>
+            </>
+          }
+        >
+          {find}
+        </Fold>
+      </section>
+      <section className="afd-impl-about" aria-label="About">
+        <Fold
+          id="binding-about"
+          open={wide}
+          summary={
+            <>
+              About <span className="mono">{draft.ref}</span>
+            </>
+          }
+        >
+          {draft.kind === 'module' ? (
+            <ModuleDoc
+              {...props}
+              doc={doc.data ?? null}
+              loading={doc.loading}
+              error={doc.error}
+              extra={extra}
+              addParam={addParam}
+            />
+          ) : draft.kind === 'role' ? (
+            <RoleDoc {...props} role={role} />
+          ) : (
+            <PlaybookDoc playbook={playbook} />
+          )}
+        </Fold>
       </section>
     </div>
   );
@@ -327,7 +376,7 @@ function CatalogError({ message }: { message: string }) {
   );
 }
 
-// ---- Understand ---------------------------------------------------------------------------------
+// ---- About --------------------------------------------------------------------------------------
 
 const PARAMS_SHOWN = 6;
 
@@ -380,6 +429,11 @@ function ModuleDoc({
   };
   return (
     <div className="afd-doc" data-doc={doc.fqcn}>
+      {url ? (
+        <a href={url} className="afd-docs-link">
+          Full Docs ↗
+        </a>
+      ) : null}
       <h3 className="mono">{doc.fqcn}</h3>
       <p>{doc.short_description}</p>
       <div className="afd-chips">
@@ -400,11 +454,6 @@ function ModuleDoc({
           </span>
         ) : null}
         {doc.deprecated ? <span className="afd-badge tone-warn">deprecated</span> : null}
-        {url ? (
-          <a href={url} className="afd-docs-link">
-            Full docs ↗
-          </a>
-        ) : null}
       </div>
       {doc.description ? <p className="afd-doc-text">{doc.description.split('\n')[0]}</p> : null}
       <table className="afd-params">
@@ -625,9 +674,8 @@ function Configure({
       : draft.kind === 'role'
         ? role?.entry_points[entry]?.options
         : undefined;
-  const { shown, more } = formFields(options, draft.params);
-  const visible = [...shown, ...more.filter((f) => extra.includes(f.name))];
-  const hidden = more.filter((f) => !extra.includes(f.name));
+  const groups = paramGroups(options, draft.params, extra);
+  const optional = [...groups.set, ...groups.added];
   const known = new Set(Object.keys(options ?? {}));
   const free = Object.keys(draft.params).filter((k) => !known.has(k) && k !== 'tasks_from');
   const impl = staged.impl;
@@ -641,34 +689,31 @@ function Configure({
   if (draft.kind === 'module' && !doc && docLoading)
     return <p className="muted">Reading the docs…</p>;
   const fieldProps = { choices, onAddInput: addInput };
+  const fields = (list: FormField[]) =>
+    list.map((f) => (
+      <ParamField
+        key={f.name}
+        field={f}
+        value={draft.params[f.name]}
+        onChange={(v) => setParam(f.name, v)}
+        {...fieldProps}
+      />
+    ));
   return (
     <div className="afd-configure">
-      {visible.map((f) => (
-        <ParamField
-          key={f.name}
-          field={f}
-          value={draft.params[f.name]}
-          onChange={(v) => setParam(f.name, v)}
-          {...fieldProps}
-        />
-      ))}
-      {hidden.length > 0 ? (
-        <div className="afd-field">
-          <label htmlFor="afd-add-param">More parameters</label>
-          <select
-            id="afd-add-param"
-            value=""
-            onChange={(e) => e.target.value && addParam(e.target.value)}
-          >
-            <option value="">Add a parameter…</option>
-            {hidden.map((f) => (
-              <option key={f.name} value={f.name}>
-                {f.name}
-              </option>
-            ))}
-          </select>
+      {groups.required.length > 0 ? (
+        <div className="afd-param-group" data-param-group="required">
+          <h4>Required</h4>
+          {fields(groups.required)}
         </div>
       ) : null}
+      {optional.length > 0 ? (
+        <div className="afd-param-group" data-param-group="optional">
+          <h4>Optional</h4>
+          {fields(optional)}
+        </div>
+      ) : null}
+      {groups.rest.length > 0 ? <ParamPicker fields={groups.rest} onPick={addParam} /> : null}
       {draft.kind !== 'module' || !options ? (
         <FreeVars
           names={free}

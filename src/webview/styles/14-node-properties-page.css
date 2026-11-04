@@ -94,6 +94,24 @@
   outline: none;
 }
 
+/* A grip at rest (AFD-80: round 1 did not find the edge that widens the panel). */
+.afd-resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 2px;
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 1px;
+  background: var(--vscode-scrollbarSlider-background, var(--afd-border));
+}
+
+.afd-resizer:hover::after,
+.afd-resizer:focus-visible::after {
+  background: transparent;
+}
+
 .afd-props-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -144,11 +162,16 @@
   border-bottom: 1px solid var(--afd-border);
 }
 
-/* Expanded (or dragged wide): find, understand and configure side by side, each scrolling. */
-@container afd-right (min-width: 900px) {
+/* Expanded (AFD-80: from 760 px, THREE_COLUMNS_PX; a docked panel stops at 720): Configure,
+   Change Module and About side by side, each scrolling, the folds open. */
+@container afd-right (min-width: 760px) {
   .afd-impl {
-    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(260px, 360px);
+    grid-template-columns: minmax(280px, 1.2fr) minmax(220px, 0.8fr) minmax(240px, 1fr);
     height: calc(100vh - 140px);
+  }
+
+  .afd-impl-unbound {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .afd-impl > section {
@@ -460,4 +483,31 @@
   border-radius: 50%;
   background: var(--afd-unreachable);
   margin-left: 4px;
+}
+
+/* Configure's groups and the parameter picker (AFD-80). */
+.afd-param-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.afd-param-group > h4 {
+  margin: 0;
+}
+
+.afd-param-list > div {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.afd-param-desc {
+  flex-basis: 100%;
+  color: var(--vscode-descriptionForeground, inherit);
+  white-space: normal;
+}
+
+.afd-doc > .afd-docs-link {
+  display: inline-block;
+  margin-bottom: 4px;
 }

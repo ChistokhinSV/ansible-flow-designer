@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.51.0 — AFD-80
+
+Wave 8, part 1: the Binding tab at the side panel's width.
+
+- **The parameters come first.** Once a step has a module, role or playbook, the Binding tab starts at **Configure**. **Change module** (the search) and **About** (the docs) are folded below it. In the docked panel the first parameter is now 176 px down; it was 1099 px, below the fold. A step without a binding still starts at the search. **Change module** opens by itself while you pick another one, and when the bound one is missing from the environment, removed, moved or deprecated. **Expand** shows the three side by side with both folds open.
+- **Required and Optional:** Configure groups the parameters the module needs, then those with a value or added by you.
+- **Add a parameter** replaces the bare list of names. Type a name, an alias or what the parameter does (`line`, `permissions`) and pick it from a list that shows each one's description; arrows, Enter and Escape work as in VS Code's own pickers.
+- **Full Docs** is at the top of About, not at the end of a row of badges.
+- **No silent loss of a binding change:** hiding the side panel and opening the lens tab now ask first, like choosing another node does. Turning a lens on keeps the Details open while the binding is not saved.
+- **The panel's edge has a grip:** the side panel could always be dragged wider, but its edge only showed on hover.
+
 ## 0.50.1 — AFD-79
 
 Fixes from the first usability session (wave 8, round 1).

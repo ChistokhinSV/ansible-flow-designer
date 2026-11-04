@@ -1,8 +1,10 @@
 // AFD-35: the right panel and the overlays as declared rules.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CLOSES, ESCAPE_ORDER } from '../../../src/webview/overlays';
 import { rightPanelFor, rightPanelLabel } from '../../../src/webview/rightPanel';
-import { PANEL_WIDTH, useUi } from '../../../src/webview/store';
+import { PANEL_WIDTH, THREE_COLUMNS_PX, useUi } from '../../../src/webview/store';
 
 describe('right panel', () => {
   const base = { lens: null, mode: 'design' as const, selection: {}, level: 'root' };
@@ -100,5 +102,19 @@ describe('the lens tab (AFD-45)', () => {
     ui.setLens(null);
     expect(useUi.getState().lensTab).toBe(false);
     ui.select({});
+  });
+});
+
+// AFD-80: the Binding tab lays its three parts side by side at THREE_COLUMNS_PX, which only the
+// expanded panel reaches, so the tab opens its folds exactly when expanded.
+describe('Binding tab columns', () => {
+  it('the container query is THREE_COLUMNS_PX, above the docked panel maximum', () => {
+    const css = readFileSync(
+      join(__dirname, '../../../src/webview/styles/14-node-properties-page.css'),
+      'utf8',
+    );
+    const at = [...css.matchAll(/@container afd-right \(min-width: (\d+)px\) \{\s*\.afd-impl \{/g)];
+    expect(at.map((m) => Number(m[1]))).toEqual([THREE_COLUMNS_PX]);
+    expect(PANEL_WIDTH.max).toBeLessThan(THREE_COLUMNS_PX);
   });
 });

@@ -2,10 +2,19 @@
 
 A step without a binding runs as a TODO message, which is fine while you design. Binding it says
 what it really runs. Select the node and open the **Binding** tab of its Details (right panel), or
-right-click → **Binding…**. **Expand** (top right of the Details) widens the panel so the search,
-the docs and the parameters sit side by side.
+right-click → **Binding…**.
 
-![Search, understand, configure](../images/properties-binding-light.png)
+- **A step without a binding** shows **Find** first.
+- **Once something is chosen**, **Configure** comes first, so its parameters are the first thing
+  in the panel. Two folds follow:
+  - **Change module** holds Find. It opens by itself while you choose another module, and when the
+    bound one is a problem (not in the environment, removed, moved or deprecated).
+  - **About** holds its docs.
+- **Expand** (top right of the Details) widens the panel so the three sit side by side, with both
+  folds open.
+- **The panel's left edge** has a grip; drag it to widen the panel.
+
+![Configure, Change module and About side by side in the expanded Details](../images/properties-binding-light.png)
 
 ## Find
 
@@ -22,9 +31,9 @@ The first search in a folder reads every collection's docs from the environment
 searches take milliseconds. **Ansible Flow: Rebuild Module Catalog** reads them again after you
 install collections.
 
-## Understand
+## About
 
-The docs show what you picked (beside the search when the panel is expanded, below it otherwise):
+The **About** fold shows the docs of what you picked, with **Full Docs** at its top for a module:
 - **a module:** its docs, the parameter table (**+** on a row adds that parameter to Configure),
   the returns (click one to make it a node output) and an example;
 - **a role:** its entry points and argument spec;
@@ -32,9 +41,13 @@ The docs show what you picked (beside the search when the panel is expanded, bel
 
 ## Configure
 
-A form from the argument spec: choices, booleans, one line per list item, YAML for dicts. Required
-and already-set parameters come first; **More parameters**, or **+** in the docs table, adds the
-others.
+A form from the argument spec: choices, booleans, one line per list item, YAML for dicts.
+
+- **Required** lists the parameters the module needs.
+- **Optional** lists those with a value, and those you added.
+- **Add a parameter** finds the others by name, alias or what they do (type `line`, or
+  `permissions`), each with its description. Arrows move, Enter adds it, Escape closes. **+** in
+  the docs table adds one too.
 
 - **Values are Jinja.** A value that is only `{{ name }}` shows as a purple **input chip**. Type `@`
   (or use the @ button) to insert one. Choosing a flow input, an upstream output, the subflow's
@@ -49,8 +62,9 @@ others.
 The binding is staged: while it differs from the file, a bar at the top of the Details says so,
 with **Discard** and **Save Binding**. Saving writes the binding, the inputs and outputs it added,
 and the status `implemented` in one undo step. Renaming an input later rewrites the parameters that
-read it. Leaving an unsaved binding (Esc, another node, another level or mode) asks whether to keep
-editing, discard it or save it. Esc in a field only reverts that field. Every other field of the
+read it. Leaving an unsaved binding asks whether to keep editing, discard it or save it. Leaving
+means Esc, another node, another level or mode, hiding the side panel, or the lens tab. Turning a
+lens on keeps the Details open while a binding is unsaved. Esc in a field only reverts that field. Every other field of the
 Details saves as you leave it.
 
 While the flow file has YAML errors or missing IDs, the Details are read-only; fix the text first (**Open in Text Editor**).

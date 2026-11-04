@@ -81,7 +81,10 @@ export type Leave =
   | { kind: 'level'; level: string }
   | { kind: 'mode'; mode: Mode }
   | { kind: 'reveal'; node: Ulid }
-  | { kind: 'details'; node: Ulid; tab: PropTab; bindKind?: BindKind };
+  | { kind: 'details'; node: Ulid; tab: PropTab; bindKind?: BindKind }
+  // AFD-80: hiding the side panel and opening the lens tab unmount the Details too.
+  | { kind: 'collapse' }
+  | { kind: 'lensTab' };
 
 /** A message over the canvas (AFD-46): what happened, as info, success or error. */
 export type ToastLevel = 'info' | 'success' | 'error';
@@ -96,6 +99,12 @@ let toastId = 0;
 
 /** The side panel's width when not expanded, in px (AFD-43). */
 export const PANEL_WIDTH = { min: 260, initial: 340, max: 720 };
+/**
+ * Where the Binding tab lays Configure, Change Module and About side by side (AFD-80): the
+ * container query in 14-node-properties-page.css. Above the docked panel's maximum, so only the
+ * expanded panel reaches it, and the tab opens both folds when expanded.
+ */
+export const THREE_COLUMNS_PX = 760;
 
 /**
  * Design edits the graph; Implementation shows it against the code (M6, mockup 04); Run shows what
@@ -437,13 +446,17 @@ export const useUi = create<UiState>((set, get) => ({
   setLens(lens) {
     set({
       lens,
-      // A lens opens on its tab; the mode's panel stays one click away (AFD-45).
-      lensTab: lens !== null,
+      // A lens opens on its tab; the mode's panel stays one click away (AFD-45). With a binding
+      // not saved, the Details stay and the lens shows on the canvas (AFD-80).
+      lensTab: lens !== null && !get().pendingBinding,
       highlight: null,
       lensView: lensOf(get().snapshot, lens, get().lensFacts, get().run),
     });
   },
-  showLensTab: (lensTab) => set({ lensTab }),
+  showLensTab(lensTab) {
+    if (lensTab && get().pendingBinding) return void set({ leave: { kind: 'lensTab' } });
+    set({ lensTab });
+  },
   setLensFacts(facts) {
     const lensFacts = { ...get().lensFacts, ...facts };
     set({ lensFacts, lensView: lensOf(get().snapshot, get().lens, lensFacts, get().run) });
@@ -509,13 +522,18 @@ export const useUi = create<UiState>((set, get) => ({
     else if (leave.kind === 'level') get().setLevel(leave.level);
     else if (leave.kind === 'mode') get().setMode(leave.mode);
     else if (leave.kind === 'reveal') get().reveal(leave.node);
+    else if (leave.kind === 'collapse') get().setPanelCollapsed(true);
+    else if (leave.kind === 'lensTab') get().showLensTab(true);
     else get().openDetails(leave.node, leave.tab, leave.bindKind);
   },
   setPanelWidth: (width) =>
     set({ panelWidth: Math.round(Math.min(PANEL_WIDTH.max, Math.max(PANEL_WIDTH.min, width))) }),
   setExpanded: (expanded) => set({ expanded }),
   setPaletteCollapsed: (paletteCollapsed) => set({ paletteCollapsed }),
-  setPanelCollapsed: (panelCollapsed) => set({ panelCollapsed }),
+  setPanelCollapsed(panelCollapsed) {
+    if (panelCollapsed && get().pendingBinding) return void set({ leave: { kind: 'collapse' } });
+    set({ panelCollapsed });
+  },
   openFind: (open) =>
     set(
       open ? { find: true, findNonce: get().findNonce + 1, ...closing('find') } : { find: false },

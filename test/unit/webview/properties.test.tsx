@@ -106,6 +106,18 @@ function open(key: string) {
   return id;
 }
 
+/** Opens a fold of the Binding tab by its summary (AFD-80) and waits for its toggle event. */
+async function unfold(region: string): Promise<HTMLElement> {
+  const section = screen.getByRole('region', { name: region });
+  const details = section.querySelector('details') as HTMLDetailsElement;
+  if (!details.open) {
+    fireEvent.click(details.querySelector('summary') as HTMLElement);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+  }
+  expect(details.open).toBe(true);
+  return section;
+}
+
 describe('Details: Binding (AFD-43)', () => {
   it('shows the bound module, its docs and the configured parameters with input chips', async () => {
     open('set-boot-variable');
@@ -113,7 +125,19 @@ describe('Details: Binding (AFD-43)', () => {
     // AFD-43: the Details panel, docked, on the Binding tab.
     expect(screen.getByRole('heading', { name: 'Set boot variable' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Binding' }).getAttribute('aria-selected')).toBe('true');
-    const understand = screen.getByRole('region', { name: 'Understand' });
+    // AFD-80: bound, the tab starts at Configure; Change Module and About are closed folds.
+    const regions = [...document.querySelectorAll('.afd-impl > section')].map((r) =>
+      r.getAttribute('aria-label'),
+    );
+    expect(regions).toEqual(['Configure', 'Change module', 'About']);
+    const change = screen.getByRole('region', { name: 'Change module' });
+    expect(change.querySelector('details')?.open).toBe(false);
+    // Closed, Change Module renders no search box and asks the catalog nothing.
+    expect(change.querySelector('[data-catalog-search]')).toBeNull();
+    expect(posted.some((m) => (m as { request?: CatalogRequest }).request?.op === 'search')).toBe(
+      false,
+    );
+    const understand = await unfold('About');
     expect(within(understand).getByText('cisco.ios.ios_config', { selector: 'h3' })).toBeTruthy();
     expect(within(understand).getByText(/cisco.ios 9.0.3/)).toBeTruthy();
     const configure = screen.getByRole('region', { name: 'Configure' });
@@ -140,11 +164,7 @@ describe('Details: Binding (AFD-43)', () => {
     const configure = screen.getByRole('region', { name: 'Configure' });
     const select = within(configure).getByLabelText(/save_when/) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'always' } });
-    fireEvent.click(
-      within(screen.getByRole('region', { name: 'Understand' })).getByRole('button', {
-        name: 'backup_path',
-      }),
-    );
+    fireEvent.click(within(await unfold('About')).getByRole('button', { name: 'backup_path' }));
     fireEvent.click(screen.getByText('Save Binding'));
     const sent = commands();
     expect(sent).toHaveLength(1);
@@ -171,9 +191,18 @@ describe('Details: Binding (AFD-43)', () => {
       request: { query: string };
     };
     expect(search.request.query.length).toBeGreaterThan(0);
+    // AFD-80: unbound, the tab is Find alone.
+    expect(screen.queryByRole('region', { name: 'Configure' })).toBeNull();
     fireEvent.click(screen.getByText('cisco.ios.ios_command', { selector: '.afd-result-name' }));
     await answer(catalog);
     const configure = screen.getByRole('region', { name: 'Configure' });
+    // Chosen, Configure comes first; Change Module stays open while nothing is saved.
+    expect(document.querySelector('.afd-impl > section')?.getAttribute('aria-label')).toBe(
+      'Configure',
+    );
+    expect(
+      screen.getByRole('region', { name: 'Change module' }).querySelector('details')?.open,
+    ).toBe(true);
     expect(within(configure).getByText('Required parameters missing: commands')).toBeTruthy();
     // @ on the first commands line offers the flow input target_image (not yet a node input).
     fireEvent.click(
@@ -192,6 +221,71 @@ describe('Details: Binding (AFD-43)', () => {
       },
       inputs: { target_image: { type: 'string', from: 'flow.target_image' } },
     });
+  });
+
+  it('groups Required and Optional; the picker adds a parameter by what it does (AFD-80)', async () => {
+    open('set-boot-variable');
+    await answer(catalog);
+    const configure = screen.getByRole('region', { name: 'Configure' });
+    const optional = configure.querySelector('[data-param-group="optional"]') as HTMLElement;
+    expect(optional.querySelector('[data-param="save_when"]')).toBeTruthy();
+    const box = within(configure).getByRole('combobox', { name: 'Add a parameter' });
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.change(box, { target: { value: 'backup' } });
+    const list = within(configure).getByRole('listbox', { name: 'Parameters' });
+    const first = within(list).getAllByRole('option')[0] as HTMLElement;
+    expect(first.getAttribute('aria-selected')).toBe('true');
+    expect(box.getAttribute('aria-activedescendant')).toBe(first.id);
+    const name = first.dataset.paramOption as string;
+    expect(name).toMatch(/backup/);
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(optional.querySelector(`[data-param="${name}"]`)).toBeTruthy();
+    expect(box.getAttribute('aria-expanded')).toBe('false');
+    // Escape closes the list without adding anything.
+    fireEvent.change(box, { target: { value: 'zzz' } });
+    expect(within(configure).getByText(/No parameter matches/)).toBeTruthy();
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(within(configure).queryByRole('listbox')).toBeNull();
+  });
+
+  it('expanded, both folds are open side by side (AFD-80)', async () => {
+    act(() => useUi.getState().setExpanded(true));
+    open('set-boot-variable');
+    await answer(catalog);
+    for (const name of ['Change module', 'About'])
+      expect(screen.getByRole('region', { name }).querySelector('details')?.open).toBe(true);
+    act(() => useUi.getState().setExpanded(false));
+  });
+});
+
+describe('a staged binding is never dropped without a word (AFD-80)', () => {
+  beforeEach(() => {
+    useUi.setState({ pendingBinding: nodeOf('set-boot-variable').id, panelCollapsed: false });
+  });
+  afterEach(() =>
+    useUi.setState({ pendingBinding: null, leave: null, lens: null, lensTab: false }),
+  );
+
+  it('hiding the side panel asks first, and hides it once the user chooses', () => {
+    act(() => useUi.getState().setPanelCollapsed(true));
+    expect(useUi.getState().panelCollapsed).toBe(false);
+    expect(useUi.getState().leave).toEqual({ kind: 'collapse' });
+    act(() => useUi.getState().resolveLeave('go'));
+    expect(useUi.getState().panelCollapsed).toBe(true);
+    useUi.setState({ panelCollapsed: false });
+  });
+
+  it('the lens tab asks first; turning a lens on keeps the Details', () => {
+    act(() => useUi.getState().setLens('access'));
+    expect(useUi.getState().lens).toBe('access');
+    expect(useUi.getState().lensTab).toBe(false);
+    act(() => useUi.getState().showLensTab(true));
+    expect(useUi.getState().leave).toEqual({ kind: 'lensTab' });
+    act(() => useUi.getState().resolveLeave('stay'));
+    expect(useUi.getState().lensTab).toBe(false);
+    act(() => useUi.getState().showLensTab(true));
+    act(() => useUi.getState().resolveLeave('go'));
+    expect(useUi.getState().lensTab).toBe(true);
   });
 });
 
