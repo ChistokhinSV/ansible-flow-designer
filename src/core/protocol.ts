@@ -257,6 +257,8 @@ export type WebviewMessage =
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
   | { type: 'peekCode'; node: Ulid }
+  /** AFD-89: the Flows view, from the flow panel (round 1: P16). */
+  | { type: 'showFlows' }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
   | { type: 'perf'; event: 'firstRender' | 'render' | 'roundTrip'; ms: number; docVersion: number }
   | { type: 'cspViolation'; detail: string }

@@ -476,6 +476,9 @@ export class FlowSession implements vscode.Disposable {
       case 'openText':
         await this.openText(m.path);
         break;
+      case 'showFlows':
+        await vscode.commands.executeCommand('afd.flows.focus');
+        break;
       case 'requestPaste': {
         const text = await vscode.env.clipboard.readText();
         this.post(panel, { type: 'clipboard', action: 'paste', text, at: m.at });

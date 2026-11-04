@@ -115,7 +115,8 @@ before the wave and group I after B; the tickets are renumbered:
 | AFD-86 | 0.57.0  | D: Flows view and Find filters                                                         |
 | AFD-87 | 0.58.0  | F: lens findings in Details                                                            |
 | AFD-88 | 0.59.0  | G: align, distribute, Reset Position                                                   |
-| AFD-89 | none    | Wave 8 report and round 2 (variant B, 0.59.0)                                          |
+| AFD-89 | 0.59.1  | D follow-up: `has:no-binding`, a link to the Flows view (found before round 2)         |
+| AFD-90 | none    | Wave 8 report and round 2 (variant B, 0.59.1)                                          |
 
 Additions to the groups:
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.59.1 — AFD-89
+
+Wave 8: two loose ends of 0.57.0, before the second usability round.
+
+- **`has:no-binding`** lists the steps whose card says "not implemented yet", on every level, and nothing else. `status:draft` also lists every subflow with such a step inside. It is the Find box's first offer.
+- **The flow panel leads to the Flows view:** "Other flows of this workspace, with their problems and code state: Flows View".
+
 ## 0.59.0 — AFD-88
 
 Wave 8, part 9: line steps up without dragging by eye.

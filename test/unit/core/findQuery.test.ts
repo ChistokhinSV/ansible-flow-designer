@@ -53,6 +53,16 @@ describe('findNodes with filters', () => {
     );
     expect(keys('open:fail').length).toBe(new Set(ctx.openPorts.map((p) => p.node)).size);
   });
+
+  it('has:no-binding lists the tasks the card calls "not implemented yet", no subflow (AFD-89)', () => {
+    const unbound = findNodes(model, 'has:no-binding', 200, ctx);
+    const expected = [...model.nodes.values()].filter(
+      (e) => e.node.type === 'task' && !e.node.impl,
+    );
+    expect(expected.length).toBeGreaterThan(0);
+    expect(unbound.map((r) => r.id).sort()).toEqual(expected.map((e) => e.node.id).sort());
+    expect(unbound.every((r) => r.type === 'task')).toBe(true);
+  });
 });
 
 describe('findCompletions', () => {

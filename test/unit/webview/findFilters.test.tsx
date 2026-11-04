@@ -10,6 +10,7 @@ import type { FlowDocument } from '../../../src/core/flow/types';
 import { FindBar } from '../../../src/webview/panels/FindBar';
 import { FlowDescription } from '../../../src/webview/panels/FlowDescription';
 import { useUi } from '../../../src/webview/store';
+import { posted } from './setup';
 
 const doc = parse(
   readFileSync(join(__dirname, '../../../samples/firewall-upgrade.flow.yaml'), 'utf8'),
@@ -49,5 +50,23 @@ describe('Find filters (AFD-86)', () => {
     expect(useUi.getState().findQuery).toBe('type:approval ');
     act(() => useUi.getState().setFindQuery('stat'));
     expect(screen.getByRole('button', { name: 'status:' })).toBeTruthy();
+  });
+
+  it('the first offer is has:no-binding; the flow panel leads to the Flows view (AFD-89)', () => {
+    act(() => useUi.getState().openFind(true));
+    render(<FindBar />);
+    const offers = [...document.querySelectorAll('.afd-find-hints button')].map(
+      (b) => b.textContent,
+    );
+    expect(offers[0]).toBe('has:no-binding');
+    // The syntax alone says little: each offer says what it lists.
+    expect(screen.getByRole('button', { name: 'has:no-binding' }).getAttribute('title')).toBe(
+      'Steps not implemented yet: no module, role or playbook',
+    );
+    cleanup();
+    posted.length = 0;
+    render(<FlowDescription />);
+    fireEvent.click(screen.getByRole('button', { name: 'Flows View' }));
+    expect(posted).toContainEqual({ type: 'showFlows' });
   });
 });

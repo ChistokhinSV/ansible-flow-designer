@@ -98,3 +98,9 @@ one by one, and did not know what "edited by hand" meant (P16).
 - **Actions.** Run as Skeleton (inline) opens the designer and its launch dialog (AFD-82). Peek
   Code opens the generated root playbook.
 - **Not done.** A badge on flow files in the Explorer (a FileDecorationProvider) is left for later.
+
+## Amendment: the flow panel leads to the Flows view (AFD-89, 2026-11-04)
+
+Round 1 added this to group D, and AFD-86 left it out. The flow panel now ends with "Other flows of
+this workspace, with their problems and code state: Flows View". The webview sends `showFlows`, and
+the host runs `afd.flows.focus`.

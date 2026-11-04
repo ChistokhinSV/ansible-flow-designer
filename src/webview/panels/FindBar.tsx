@@ -6,7 +6,7 @@
 // one being typed.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findNodes } from '../../core/view/find';
-import { findCompletions } from '../../core/view/findQuery';
+import { FILTER_MEANING, findCompletions } from '../../core/view/findQuery';
 import { TYPE_LABEL } from '../constants';
 import { useModel } from '../hooks';
 import { useUi } from '../store';
@@ -120,12 +120,13 @@ function Find() {
         <div className="afd-find-hints muted" data-find-hints>
           {(hints.length
             ? hints
-            : ['status:draft', 'type:approval', 'open:fail', 'has:errors', 'has:binding']
+            : ['has:no-binding', 'type:approval', 'open:fail', 'has:errors', 'status:draft']
           ).map((h) => (
             <button
               key={h}
               type="button"
               className="chip-button mono"
+              title={FILTER_MEANING[h]}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => complete(h)}
             >

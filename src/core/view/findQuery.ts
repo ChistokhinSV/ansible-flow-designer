@@ -12,10 +12,21 @@ export type FilterKey = (typeof FILTER_KEYS)[number];
 export const FILTER_VALUES: Record<FilterKey, readonly string[]> = {
   type: ['task', 'subflow', 'decision', 'approval', 'parallel', 'join', 'end'],
   status: ['draft', 'specified', 'implemented', 'tested'],
-  has: ['binding', 'problems', 'errors'],
+  has: ['no-binding', 'binding', 'problems', 'errors'],
   open: ['fail'],
   tag: [],
   target: [],
+};
+
+/** What the Find box's offers list, in words (AFD-89: the syntax alone said little). */
+export const FILTER_MEANING: Record<string, string> = {
+  'has:no-binding': 'Steps not implemented yet: no module, role or playbook',
+  'has:binding': 'Steps bound to a module, role or playbook',
+  'has:errors': 'Steps with an error',
+  'has:problems': 'Steps with an error or a warning',
+  'type:approval': 'Approval steps',
+  'open:fail': 'Steps with a fail port nothing handles',
+  'status:draft': 'Draft steps, and subflows with a draft step inside',
 };
 
 export interface FindQuery {
@@ -65,13 +76,17 @@ export function matchesFilters(node: FlowNode, q: FindQuery, ctx: FindContext = 
     // Status applies to steps; start and end nodes have none to speak of.
     any('status', (v) => node.type !== 'start' && node.type !== 'end' && status === v) &&
     any('has', (v) =>
-      v === 'binding'
-        ? !!node.impl
-        : v === 'problems'
-          ? mine.length > 0
-          : v === 'errors'
-            ? mine.some((f) => f.severity === 'error')
-            : false,
+      // AFD-89: the steps whose card says "not implemented yet" (nodeFace): `status:draft` also
+      // lists every subflow with such a step inside, so it does not answer "which steps".
+      v === 'no-binding'
+        ? node.type === 'task' && !node.impl
+        : v === 'binding'
+          ? !!node.impl
+          : v === 'problems'
+            ? mine.length > 0
+            : v === 'errors'
+              ? mine.some((f) => f.severity === 'error')
+              : false,
     ) &&
     any('open', (v) => v === 'fail' && (ctx.openPorts ?? []).some((p) => p.node === node.id)) &&
     any('tag', (v) => (node.settings?.tags ?? []).some((t) => t.toLowerCase() === v)) &&

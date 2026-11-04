@@ -6,6 +6,7 @@ import { modelOf } from '../../core/flow/model';
 import { runtimeKind } from '../../core/flow/status';
 import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
+import { send } from '../bus';
 import { StatusIcon } from '../canvas/StatusIcon';
 import { useEditable } from '../editActions';
 import { SHORTCUTS } from '../shortcuts';
@@ -147,6 +148,13 @@ export function FlowDescription() {
           ) : null}
         </section>
       ) : null}
+      {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up). */}
+      <p className="muted" data-flows-link>
+        Other flows of this workspace, with their problems and code state:{' '}
+        <button type="button" className="link" onClick={() => send({ type: 'showFlows' })}>
+          Flows View
+        </button>
+      </p>
     </div>
   );
 }

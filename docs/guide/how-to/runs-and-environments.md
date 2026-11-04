@@ -80,8 +80,8 @@ modules support it.
 
 ## The Flows view
 
-**Flows**, in the **Ansible Flows** view of the Activity Bar, lists the repository's flows by
-folder (a folder that only holds its own flow is not a level of its own). Each flow says what needs
+**Flows**, in the **Ansible Flows** view of the Activity Bar (or **Flows View** at the bottom of a
+flow's panel), lists the repository's flows by folder (a folder that only holds its own flow is not a level of its own). Each flow says what needs
 a look:
 
 - its errors and warnings (open it for the Problems panel);

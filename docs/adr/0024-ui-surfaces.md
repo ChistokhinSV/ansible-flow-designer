@@ -186,3 +186,10 @@ stayed lit, and the missing reason on the other step went unnoticed (P19).
   clears the highlight itself.
 - **Scroll:** the store keeps the lens tab's scroll position (`lensScroll`) while another panel
   shows, and restores it when the tab comes back. Details start at their top.
+
+## Amendment: has:no-binding (AFD-89, 2026-11-04)
+
+Preparing round 2 showed that the AFD-86 filters could not answer T6's "which steps are not
+implemented yet". A subflow's status is its lowest step's, so `status:draft` also lists every
+subflow that holds such a step. `has:no-binding` lists the tasks without a binding: the rule
+`nodeFace` uses for "not implemented yet". It is the Find box's first offer, ahead of `status:draft`.

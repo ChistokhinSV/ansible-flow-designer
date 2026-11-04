@@ -75,6 +75,7 @@ once:
 | `status:draft`, `status:tested`… | steps with that status (a draft is not implemented yet)           |
 | `type:approval`, `type:decision` | steps of that type (`task`, `subflow`, `decision`, `approval`, …) |
 | `open:fail`                      | steps with a fail port nobody handles                             |
+| `has:no-binding`                 | tasks not implemented yet (no module, role or playbook)           |
 | `has:binding`, `has:errors`      | steps bound to a module, role or playbook; steps with an error    |
 | `tag:backup`, `target:core`      | steps with that tag; steps whose inventory target matches         |
 
