@@ -1,0 +1,6 @@
+/*
+ * Intentionally empty (AFD-79). Contributing a Markdown preview style makes VS Code's preview load
+ * files from this extension's folder. The user guide opens in that preview from the installed
+ * extension, outside the workspace, where the preview otherwise loads only the page's own folder:
+ * a how-to page could not show ../images/*.png.
+ */

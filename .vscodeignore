@@ -10,13 +10,13 @@
 !samples/**
 !media/icon.png
 !media/flows.svg
+!media/guide-preview.css
 !media/walkthrough/**
 !dist/webview/**
 !dist/probe/**
 !schema/flow.schema.json
 !schema/scenarios.schema.json
 !package.json
-!README.md
 !CHANGELOG.md
 !LICENSE
 dist/**/*.map

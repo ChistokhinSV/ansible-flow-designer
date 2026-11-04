@@ -161,9 +161,11 @@ usability action session:
     node scripts/usability/bundle.mjs
     node out/usability/kit.cjs {{ action }} {{ session }}
 
-# Package the VSIX into out/ (vsce runs the production build through vscode:prepublish)
+# Package the VSIX into out/ (vsce runs the production build through vscode:prepublish). Its README
+# is the repository's without relative images and links, which the Extensions view cannot show (AFD-79).
 package:
-    npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --out out/
+    node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/vsix-readme.ts
+    npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --readme-path out/vsix/README.md --out out/
 
 # Remove build outputs
 [windows]

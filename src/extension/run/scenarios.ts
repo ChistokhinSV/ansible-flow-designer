@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import * as vscode from 'vscode';
 import { parseFlow, rangeOf } from '../../core/flow/document';
+import { stripAnsi } from '../../core/run/ansi';
 import {
   checkScenarios,
   parseScenarios,
@@ -96,7 +97,9 @@ export async function runScenariosCommand(
         workDir: join(host.storage.fsPath, 'scenarios', doc.flow.id ?? doc.flow.key),
         only,
         signal: abort.signal,
-        log: (line) => {
+        // The log channel shows escape codes as text: the run's colours are for a terminal.
+        log: (raw) => {
+          const line = stripAnsi(raw);
           if (line.startsWith('# Scenario: ')) progress.report({ message: line.slice(12) });
           host.log.info(line);
         },

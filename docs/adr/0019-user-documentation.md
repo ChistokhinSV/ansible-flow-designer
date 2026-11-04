@@ -99,3 +99,22 @@ Wave 7 (ADR-0029, ADR-0030):
 - **The smallest sample first:** `samples/hello.flow.yaml`, bound to builtin modules with no problems, sorts first in Open Sample Flow…. An integration test runs it as a skeleton on `localhost` in the Docker image. It was also checked in the public dev tools image (rc 0).
 - **One word list:** the glossary. The guide index links it, and the vocabulary test keeps ticket and milestone codes out of the guide, the walkthrough and the README's newcomer part.
 - **The README is the first page a newcomer reads** (and the Marketplace page). It covers what the extension is, a first flow in three steps, links and ten plain features; the complete list is `docs/guide/reference/features.md`.
+
+## Amendment: images in the guide and on the extension's page (AFD-79, 2026-11-04)
+
+Round 1 of the wave 8 usability test found broken images in both places a newcomer reads.
+
+- **Markdown preview.** The guide opens from the installed extension, outside the workspace. For
+  such a file VS Code's preview loads resources only from the file's own folder, plus the folder
+  of every extension that contributes a preview style or script. A page under `how-to/` could not
+  load `../images/`. The extension contributes `markdown.previewStyles` with an empty
+  `media/guide-preview.css`, so its folder is a preview root.
+  - The cost: one empty stylesheet in every Markdown preview.
+  - Rejected: a webview of our own for the guide (a second renderer to keep) and moving the
+    pages beside their images (it breaks the guide's structure).
+- **The extension's page in the Extensions view.** It shows only `https:` images and opens no
+  relative link (VS Code's README sanitizer and its `img-src https: data:` policy). Until the
+  repository has a public address for `--baseImagesUrl`, the VSIX carries a README made by
+  `scripts/vsix-readme.ts`: relative images are left out, the first leaves a note on where the
+  guide opens, and relative links become their text. `just package` passes it with
+  `--readme-path`. The repository's README is unchanged.

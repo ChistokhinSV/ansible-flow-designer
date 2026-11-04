@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.50.1 — AFD-79
+
+Fixes from the first usability session (wave 8, round 1).
+
+- **Ctrl+V into a parameter value works:** a path or text pasted into a module's parameter field (the field with input chips) was dropped, because VS Code pastes into the designer in a way the field's own paste could not use. The pasted text now lands at the caret, or over the selected text, as one line.
+- **Guide pages show their screenshots:** pages under How-to, Tutorials and Reference, opened with **Ansible Flow: Open User Guide** or a "?" link, showed broken images in the Markdown preview. The extension now registers an (empty) preview style, which lets the preview load the guide's images from the extension's folder.
+- **The extension's page in the Extensions view has no broken image:** that page shows only images on the web and opens no link into the extension, so the packaged README leaves out the screenshot and the guide links and says where the guide opens instead.
+- **The scenario log is readable:** Run Scenarios wrote Ansible's colour codes into the Ansible Flow log as text (`[0;31m` before every failure); they are removed there. A terminal and the scenario command line for CI keep the colours.
+
 ## 0.50.0 — AFD-75
 
 - **WSL as an Ansible environment:** on Windows, runs, the module catalog, Code mode and the lenses can use Ansible inside a WSL distribution (WSL 1 or WSL 2), from Windows VS Code: no Docker and no Remote window. Set `afd.environment.kind` to `wsl` (and `afd.environment.wslDistro` to the distribution, or leave it empty for WSL's default), or pick the distribution in **Set Up Ansible Environment…**, which now lists them. The repository stays on Windows (the distribution sees it under `/mnt`); a vault password and secret inputs still travel only in environment variables.

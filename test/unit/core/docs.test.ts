@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { GUIDE_NOTE, vsixReadme } from '../../../scripts/vsix-readme';
 import { guideReferenceFiles } from '../../../src/core/ai/reference';
 import { optionA } from '../../../src/core/engine/optionA';
 import { planCommand } from '../../../src/core/flow/commands';
@@ -162,6 +163,31 @@ describe('walkthroughs', () => {
     const images = join(GUIDE, 'images');
     const bytes = readdirSync(images).reduce((n, f) => n + statSync(join(images, f)).size, 0);
     expect(bytes).toBeLessThan(3.5 * 1024 * 1024);
+  });
+
+  // AFD-79: the guide opens in the Markdown preview from the extension folder, outside the
+  // workspace, where the preview loads only the page's own folder unless an extension contributes
+  // a preview style: then its whole folder is a root, and how-to pages show ../images.
+  it('guide pages in subfolders can show their images in the Markdown preview', () => {
+    const styles = pkg.contributes['markdown.previewStyles'] as string[];
+    expect(styles).toEqual(['./media/guide-preview.css']);
+    expect(readFileSync(join(ROOT, '.vscodeignore'), 'utf8')).toContain('!media/guide-preview.css');
+    const nested = pages.filter((p) => dirname(p) !== GUIDE && rel(p).startsWith('docs/guide/'));
+    expect(nested.some((p) => readFileSync(p, 'utf8').includes('](../images/'))).toBe(true);
+  });
+
+  // AFD-79: the extension's page in the Extensions view shows only https images and opens no
+  // relative link; the VSIX carries a README without them.
+  it('the VSIX README has no relative image or link', () => {
+    const readme = vsixReadme(readFileSync(join(ROOT, 'README.md'), 'utf8'));
+    const targets = [...readme.matchAll(/\]\(([^)\s]+)/g)].map((m) => m[1] ?? '');
+    expect(targets.filter((t) => !/^(https?:|mailto:|#)/.test(t))).toEqual([]);
+    expect(readme).toContain(GUIDE_NOTE);
+    expect(readme).toContain('**Tutorial 1: your first flow**');
+    expect(readFileSync(join(ROOT, '.vscodeignore'), 'utf8')).not.toMatch(/^!README\.md$/m);
+    expect(readFileSync(join(ROOT, 'justfile'), 'utf8')).toContain(
+      '--readme-path out/vsix/README.md',
+    );
   });
 });
 

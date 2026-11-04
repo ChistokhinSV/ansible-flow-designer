@@ -40,6 +40,31 @@ function serialize(el: HTMLElement): string {
   return joinSegments(parts);
 }
 
+/**
+ * Plain text over the selection of this field (or at its end), with the caret after it. Not
+ * `execCommand('insertText')`: VS Code pastes into a webview by running `execCommand('paste')` in
+ * it, and Chromium refuses an execCommand from inside another, so Ctrl+V did nothing (AFD-79).
+ */
+function insertText(el: HTMLElement, text: string): void {
+  const sel = window.getSelection();
+  const range =
+    sel && sel.rangeCount > 0 && el.contains(sel.getRangeAt(0).commonAncestorContainer)
+      ? sel.getRangeAt(0)
+      : undefined;
+  const node = document.createTextNode(text);
+  if (range) {
+    range.deleteContents();
+    range.insertNode(node);
+  } else {
+    el.append(node);
+  }
+  const caret = document.createRange();
+  caret.setStartAfter(node);
+  caret.collapse(true);
+  sel?.removeAllRanges();
+  sel?.addRange(caret);
+}
+
 /** The `@query` right before the caret, if the caret is in a text node of this field. */
 function atQuery(el: HTMLElement): { node: Text; start: number; query: string } | undefined {
   const sel = window.getSelection();
@@ -154,7 +179,10 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
         onPaste={(e) => {
           // Plain text only: pasted markup would carry its own elements.
           e.preventDefault();
-          document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+          const text = e.clipboardData.getData('text/plain').replaceAll('\r', '');
+          if (!text) return;
+          insertText(e.currentTarget, text);
+          onInput();
         }}
       />
       <button
