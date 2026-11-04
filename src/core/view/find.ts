@@ -32,6 +32,17 @@ export function trailOf(model: FlowModel, level: Ulid): string[] {
   return trail;
 }
 
+/**
+ * Where a node is, said from the level on screen (AFD-87): "in Drain the switch", "on the top
+ * level", or nothing when it is on that level.
+ */
+export function placeOf(model: FlowModel, node: Ulid, level: string): string | undefined {
+  const entry = model.nodes.get(node);
+  if (!entry || entry.level === level) return undefined;
+  const trail = trailOf(model, entry.level);
+  return trail.length ? `in ${trail.join(' › ')}` : 'on the top level';
+}
+
 export function findNodes(
   model: FlowModel,
   query: string,

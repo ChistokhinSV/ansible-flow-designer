@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.58.0 — AFD-87
+
+Wave 8, part 8: lens findings where you check a step.
+
+- **A step's Details show its lens findings.** With a lens on, a step that has findings shows a fold under its name ("Lens: Access · 2 on this step") with the same fixes and **Accept with Reason…** as the lens tab. The fold is open while a finding there is not accepted. After a fix leaves the step with none, **Next Finding** takes you to the step of the next open one.
+- **A finding says where its step is:** a finding or a lens row for a step on another level names its subflow ("in Drain the switch") or "on the top level".
+- **The lens tab moves on after a fix:** the next open finding gets the focus and lights its steps. Before, the fixed step stayed lit.
+- **The lens tab keeps its place:** checking a step and coming back to the tab finds it scrolled where you left it.
+
 ## 0.57.0 — AFD-86
 
 Wave 8, part 7: find your way through a flow and a repository.

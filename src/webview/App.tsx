@@ -297,6 +297,12 @@ export function App() {
   const level = useUi((s) => s.level);
   const panelWidth = useUi((s) => s.panelWidth);
   const lensTab = useUi((s) => s.lens !== null && s.lensTab);
+  // AFD-87: the lens tab keeps its place while a step's Details are checked (round 1: W14).
+  const right = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    // The step's Details start at their top.
+    if (right.current) right.current.scrollTop = lensTab ? useUi.getState().lensScroll : 0;
+  }, [lensTab]);
   const expanded = useUi((s) => s.expanded);
   const panelCollapsed = useUi((s) => s.panelCollapsed);
   const paletteCollapsed = useUi((s) => s.paletteCollapsed);
@@ -357,7 +363,14 @@ export function App() {
             </button>
           </aside>
         ) : (
-          <aside className="afd-right" aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}>
+          <aside
+            ref={right}
+            className="afd-right"
+            aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}
+            onScroll={(e) => {
+              if (lensTab) useUi.setState({ lensScroll: e.currentTarget.scrollTop });
+            }}
+          >
             <PanelResizer />
             {lens ? <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} /> : null}
             {lensTab ? (

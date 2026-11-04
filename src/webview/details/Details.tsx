@@ -18,6 +18,7 @@ import type { HelpTopic } from '../helpPages';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
 import { HelpLink } from '../panels/HelpLink';
+import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
 import { keysOf } from '../shortcuts';
@@ -254,6 +255,8 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           ))}
         </ul>
       ) : null}
+      {/* AFD-87: the lens's findings on this step, with their fixes (round 1: W14). */}
+      <StepFindings key={id} id={id} />
       <div className="afd-props-tabs" role="tablist" aria-label="Details" onKeyDown={onTabListKeys}>
         {tabs.map((t) => (
           <button

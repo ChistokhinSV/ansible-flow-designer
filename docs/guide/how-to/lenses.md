@@ -26,6 +26,12 @@ Targets…** beside it).
 - A finding's button fixes it where it can. **Accept with Reason…** keeps it, with a reason recorded in
   the flow (an `accepted` decision with `finding: lens:<id>`; `finding_accepted` in a format 1 flow);
   **Reopen** removes that.
+- With a lens on, a selected step's **Details** show the findings on that step in a fold under its
+  name (_Lens: Access · 2 on this step_), with the same buttons. The fold is open while a finding is
+  not accepted; after a fix, **Next Finding** goes to the next step that has one.
+- A finding about a step on another level names its subflow ("in Drain the switch").
+- After a fix in the Lens tab, the next open finding gets the focus. The tab keeps its scroll
+  position while you check a step.
 - Set the maintenance window in the flow panel (e.g. `4h` or `2h30m`).
 
 ## Compare with HEAD (Changes)

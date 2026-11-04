@@ -230,6 +230,8 @@ interface UiState {
   lens: LensId | null;
   /** The right panel shows the lens's tab (its browser and findings) rather than the mode's panel. */
   lensTab: boolean;
+  /** AFD-87: where the lens tab was scrolled, put back when it shows again (round 1: W14). */
+  lensScroll: number;
   lensFacts: LensFacts;
   /** The active lens for the current document, facts and run (computed, never stored). */
   lensView: LensView | null;
@@ -369,6 +371,7 @@ export const useUi = create<UiState>((set, get) => ({
   ignore: null,
   lens: null,
   lensTab: false,
+  lensScroll: 0,
   lensFacts: {},
   lensView: null,
   highlight: null,

@@ -1,25 +1,22 @@
-import { LENSES, type LensFinding, type LensItem } from '../../core/lens/types';
+import { useEffect, useRef, useState } from 'react';
+import { LENSES, type LensItem } from '../../core/lens/types';
 import { run } from '../actions';
 import { send } from '../bus';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
+import { hoverProps, LensFindingRow, nextOpen, usePlace } from './LensFinding';
 import { ReasonDialog } from './ReasonDialog';
 
-const labelOf = (id: string) => LENSES.find((l) => l.id === id)?.label ?? id;
+/** After the last open finding is fixed, the focus goes to the Findings heading. */
+const NONE_LEFT = '#none-left';
 
-function hoverProps(nodes: string[]) {
-  const setHighlight = useUi.getState().setHighlight;
-  return {
-    onMouseEnter: () => setHighlight(nodes.length ? nodes : null),
-    onMouseLeave: () => setHighlight(null),
-    onFocus: () => setHighlight(nodes.length ? nodes : null),
-    onBlur: () => setHighlight(null),
-  };
-}
+const labelOf = (id: string) => LENSES.find((l) => l.id === id)?.label ?? id;
 
 function Item({ item }: { item: LensItem }) {
   const reveal = useUi((s) => s.reveal);
   const one = item.nodes.length === 1 ? item.nodes[0] : undefined;
+  // AFD-87: a row for a step on another level names its subflow (round 1: P19).
+  const place = usePlace(item.nodes);
   return (
     <li
       className={`afd-lens-item${item.tone ? ` tone-${item.tone}` : ''}`}
@@ -38,6 +35,11 @@ function Item({ item }: { item: LensItem }) {
           <span className="afd-lens-item-value">{item.value}</span>
         ) : null}
         {item.detail ? <span className="afd-lens-item-detail muted">{item.detail}</span> : null}
+        {place ? (
+          <span className="afd-lens-item-detail muted" data-finding-place>
+            {place}
+          </span>
+        ) : null}
       </button>
     </li>
   );
@@ -124,84 +126,22 @@ export function LensBrowser() {
   );
 }
 
-function Finding({ f }: { f: LensFinding }) {
-  const setAccept = useUi((s) => s.setAccept);
-  const reveal = useUi((s) => s.reveal);
-  const openDetails = useUi((s) => s.openDetails);
-  const setError = useUi((s) => s.setError);
-  return (
-    <li
-      className={`afd-finding severity-${f.severity}${f.accepted ? ' accepted' : ''}`}
-      data-finding={f.id}
-      data-accepted={f.accepted ? 'true' : undefined}
-      {...hoverProps(f.nodes)}
-    >
-      <div className="afd-finding-title">
-        <span
-          className={`codicon ${f.accepted ? 'codicon-pass' : f.severity === 'warning' ? 'codicon-warning' : 'codicon-info'}`}
-          aria-hidden="true"
-        />{' '}
-        {f.title}
-      </div>
-      <p className="afd-finding-detail">{f.detail}</p>
-      {f.accepted ? (
-        <p className="afd-finding-accepted muted">
-          Expected: {f.accepted.reason}
-          {f.accepted.by ? ` (${f.accepted.by})` : ''}{' '}
-          <button
-            type="button"
-            className="link"
-            onClick={() => void run({ kind: 'clearFindingAccept', finding: f.id })}
-          >
-            Reopen
-          </button>
-        </p>
-      ) : (
-        <div className="afd-finding-actions">
-          {f.fixes.map((fix) =>
-            'command' in fix ? (
-              <button
-                key={fix.label}
-                type="button"
-                onClick={() =>
-                  void run(fix.command).then((ack) => {
-                    if (!ack.ok) setError(ack.error ?? 'The fix failed');
-                  })
-                }
-              >
-                {fix.label}
-              </button>
-            ) : (
-              <button
-                key={fix.label}
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  reveal(fix.properties);
-                  openDetails(fix.properties);
-                }}
-              >
-                {fix.label}
-              </button>
-            ),
-          )}
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => setAccept({ id: f.id, node: f.node, title: f.title })}
-          >
-            Accept with Reason…
-          </button>
-        </div>
-      )}
-    </li>
-  );
-}
-
 /** Right panel with nothing selected while a lens is on: summary and findings. */
 export function LensPanel() {
   const view = useUi((s) => s.lensView);
   const lens = useUi((s) => s.lens);
+  // AFD-87: after a fix, the next open finding gets the focus (and so the light on the canvas);
+  // with none left, the Findings heading does.
+  const [next, setNext] = useState<string | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (!next) return;
+    setNext(null);
+    const row = [...document.querySelectorAll<HTMLElement>('[data-finding]')].find(
+      (el) => el.dataset.finding === next,
+    );
+    (row?.querySelector<HTMLElement>('button') ?? heading.current)?.focus();
+  }, [next]);
   if (!view || !lens) return null;
   const open = view.findings.filter((f) => !f.accepted).length;
   return (
@@ -233,13 +173,19 @@ export function LensPanel() {
         </p>
       ))}
       <section className="afd-section">
-        <h3>Findings {open > 0 ? `(${open})` : ''}</h3>
+        <h3 ref={heading} tabIndex={-1}>
+          Findings {open > 0 ? `(${open})` : ''}
+        </h3>
         {view.findings.length === 0 ? (
           <p className="muted">Nothing to report for this lens.</p>
         ) : (
           <ul className="afd-findings">
             {view.findings.map((f) => (
-              <Finding key={f.id} f={f} />
+              <LensFindingRow
+                key={f.id}
+                f={f}
+                onFixed={(done) => setNext(nextOpen(view.findings, done.id)?.id ?? NONE_LEFT)}
+              />
             ))}
           </ul>
         )}

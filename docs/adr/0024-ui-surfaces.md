@@ -163,3 +163,26 @@ implementation and the approvals by opening every level (P9).
 - **Readiness.** The flow panel's counts are buttons that open Find with their filter
   (`status:<s>`, `open:fail`).
 - **Unbound tasks.** An unbound task's sub-line reads "Task · not implemented yet" (P12).
+
+## Amendment: lens findings in Details (AFD-87, 2026-11-04)
+
+AFD-45 put a lens's findings in its own tab, and selecting a step shows the step's Details instead.
+Round 1's participant checked a step from the Access lens, and its Details said nothing of the
+finding; back on the tab, the list had lost its place (W14). After Remove Become, the fixed step
+stayed lit, and the missing reason on the other step went unnoticed (P19).
+
+- **One finding component** (`panels/LensFinding.tsx`) for the lens tab and Details.
+- **Details:** with a lens on, a step with findings shows a fold "Lens: <name> · n on this step"
+  between its problems and its tabs. The findings counted are the step's own, plus any finding
+  about several steps that includes it. The fold is open while a finding there is not accepted.
+  When a fix there leaves the step with none, **Next Finding** reveals the step of the next open
+  one.
+- **Hooks:** the lens tab's rows keep `data-finding` (inspect's `lens.findings`). Details' rows
+  have `data-node-finding`, so a finding is not counted twice.
+- **Where:** a row about one step on another level names its place: "in Drain the switch" or "on the
+  top level" (`core/view/find.ts` `placeOf`).
+- **After a fix** in the lens tab, the focus goes to the next open finding, which lights its steps;
+  with none left, it goes to the Findings heading. A row that goes away fires no blur, so the fix
+  clears the highlight itself.
+- **Scroll:** the store keeps the lens tab's scroll position (`lensScroll`) while another panel
+  shows, and restores it when the tab comes back. Details start at their top.

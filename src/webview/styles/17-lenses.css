@@ -395,3 +395,21 @@
   border: 2px dashed var(--vscode-editorWarning-foreground, var(--afd-unreachable));
   vertical-align: middle;
 }
+
+/* AFD-87: a step's lens findings in its Details, and where a finding's step is. */
+.afd-step-findings {
+  margin: 0 0 8px;
+}
+
+.afd-step-findings .afd-findings {
+  margin: 4px 0 0;
+}
+
+.afd-step-findings > .link {
+  margin-top: 4px;
+  text-align: left;
+}
+
+.afd-finding-place {
+  font-weight: normal;
+}

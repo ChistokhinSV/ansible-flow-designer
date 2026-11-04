@@ -142,3 +142,9 @@ and the Inventory lens without flow targets has nothing for any step.
 - The caption also names Code and Run mode with what each is for and that the graph only reads
   there (P11: the switch read as stages of designing). Design without a lens shows no caption, so
   the first screen keeps its 35 controls.
+
+## Amendment: findings where the step is (AFD-87, 2026-11-04)
+
+A lens's findings also show in the Details of the steps they are about (ADR-0024's AFD-87
+amendment). The lens still never edits the flow by itself: the fixes are the same one-command
+fixes, and an acceptance is the same `accepted` record.
