@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.59.0 — AFD-88
+
+Wave 8, part 9: line steps up without dragging by eye.
+
+- **Arrange:** with several steps selected, **Align Centers** puts them on one flow line and **Distribute Vertically** gives three or more equal gaps, from the selection panel or Shift+Alt+A / Shift+Alt+D. The selection's right-click menu has **Arrange ▸** with left, right, top, middle and bottom edges and horizontal spacing too. Each is one move: Ctrl+Z puts them back, and the rest of the level stays where it is.
+- **Guide lines while dragging:** a dashed line shows when the step you drag shares an edge or a centre with another; release near it and the step snaps onto it. "even gaps" shows when it sits halfway between its neighbours.
+- **Reset Position:** a step you placed by hand (or a selection) goes back to automatic placement.
+- **Drop a step on a wire:** a palette step dropped on a wire goes into it; the wire lights while you drag over it.
+- **How to select several:** the flow panel says so (Ctrl+click, Shift+drag).
+
 ## 0.58.0 — AFD-87
 
 Wave 8, part 8: lens findings where you check a step.

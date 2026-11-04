@@ -15,7 +15,8 @@ import { levelView, unplacedPositions } from '../viewModel';
 import { Fold } from './Fold';
 
 /** Types that can sit on a wire: they have an input and continue on an output. */
-const INSERTABLE: readonly NodeType[] = [
+/** What a wire can take in its middle (Insert Node on This Wire; AFD-88: a drop on a wire). */
+export const INSERTABLE: readonly NodeType[] = [
   'task',
   'subflow',
   'decision',

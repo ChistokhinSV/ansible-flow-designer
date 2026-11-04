@@ -2,6 +2,7 @@
 // renders the entries and runs their actions, so tests can check every menu without React.
 // Design and Implementation offer the edits the canvas allows there; Run mode only reads.
 
+import { ALIGN_LABEL, type AlignHow, DISTRIBUTE_LABEL, type DistributeHow } from './arrange';
 import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
@@ -49,7 +50,9 @@ export type ShortcutId =
   | 'addNote'
   | 'selectAll'
   | 'fit'
-  | 'find';
+  | 'find'
+  | 'alignCenter'
+  | 'distribute';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -71,6 +74,10 @@ export type CanvasAction =
   | { do: 'attachAnnotation'; id: Ulid }
   | { do: 'detachAnnotation'; id: Ulid }
   | { do: 'extract'; nodes: Ulid[] }
+  /** AFD-88: line steps up or space them evenly (one move); placed steps back to automatic. */
+  | { do: 'align'; nodes: Ulid[]; how: AlignHow }
+  | { do: 'distribute'; nodes: Ulid[]; how: DistributeHow }
+  | { do: 'resetPosition'; nodes: Ulid[] }
   | { do: 'showInText'; node: Ulid }
   | { do: 'peekCode'; node: Ulid }
   | { do: 'find' }
@@ -246,6 +253,10 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
+  if (edit && model.doc.layout?.[id])
+    design.push(
+      item('Reset Position', { do: 'resetPosition', nodes: [id] }, { icon: 'discard', ...lock }),
+    );
   if (edit && formatOf(model.doc) >= 2)
     design.push(
       item(
@@ -324,6 +335,41 @@ function groupMenu(
         },
       ),
     );
+  }
+  if (edit && ids.length >= 2) {
+    const few = ids.length < 3 ? { disabled: 'Select three steps or more' } : lock;
+    const placed = ids.some((id) => model.doc.layout?.[id]);
+    more.push({
+      type: 'submenu',
+      label: 'Arrange',
+      icon: 'layout',
+      items: [
+        ...(['center', 'left', 'right'] as const).map((how) =>
+          item(
+            ALIGN_LABEL[how],
+            { do: 'align', nodes: ids, how },
+            { ...(how === 'center' ? { shortcut: 'alignCenter' as const } : {}), ...lock },
+          ),
+        ),
+        { type: 'separator' },
+        ...(['top', 'middle', 'bottom'] as const).map((how) =>
+          item(ALIGN_LABEL[how], { do: 'align', nodes: ids, how }, lock),
+        ),
+        { type: 'separator' },
+        item(
+          DISTRIBUTE_LABEL.vertical,
+          { do: 'distribute', nodes: ids, how: 'vertical' },
+          { shortcut: 'distribute', ...few },
+        ),
+        item(DISTRIBUTE_LABEL.horizontal, { do: 'distribute', nodes: ids, how: 'horizontal' }, few),
+        ...(placed
+          ? [
+              { type: 'separator' } as const,
+              item('Reset Position', { do: 'resetPosition', nodes: ids }, lock),
+            ]
+          : []),
+      ],
+    });
   }
   const remove = edit
     ? [

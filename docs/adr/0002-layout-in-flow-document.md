@@ -28,3 +28,32 @@ The AFD-17 rule covered the designer's own commands, which freeze what the canva
 - **New flows store no positions.** The template (`newFlowText`, also used by `flow_new` and _Create a flow here_) writes no `layout:` block. The canvas lays the flow out until the first move or _Tidy up_ writes the shown positions.
 - **The old template positions are ignored in the view.** A level whose only stored positions are the old template's (Start at 0,0, Done at 36,160) while it has other nodes is shown fully auto-laid out (`shownLayout`). The file is left as it is until the next move freezes what is shown.
 - **Unplaced nodes keep ELK's shape.** On any other partly placed level, `autoPositions` lays out the whole level with ELK. Each unplaced node goes where ELK puts it relative to a placed neighbour (its predecessor first), else by the placed nodes' median shift, and moves right while it would overlap a node. Before, each went straight below its predecessor.
+
+## Amendment (AFD-88, 2026-11-04): align, distribute, guides, Reset Position
+
+Round 1's participant lined three steps up by dragging them one at a time, by eye, and ended with
+gaps of 134 and 136 px. Nothing showed when steps lined up (T10, W15). Tidy Up was no answer,
+because it moves the whole level.
+
+- **Arrange** (`core/flow/arrange.ts`):
+  - `align` lines boxes up on the selection's left, right, top or bottom edge, or on the mean of
+    their centres ("center" is the flow line, so a pill and a step share it);
+  - `distribute` keeps the first and last of three or more and gives equal gaps, vertically or
+    across.
+
+  Each is one `moveNodes`, and the steps still at their automatic place are frozen in the same
+  command (AFD-17), so one undo restores everything and nothing else moves.
+- **Guides while dragging one step** (`guides`):
+  - a vertical or horizontal line where its left edge, centre or right edge (top, middle, bottom)
+    is within 6 px of another step's;
+  - "even gaps" when the gaps to its neighbours in the same column or row are equal within 6 px.
+
+  On release, the step snaps onto the nearest line. Nothing moves the step while it is dragged,
+  because React Flow owns the drag.
+- **Reset Position** is `unplaceNodes` (AFD-24) from a step's or a selection's menu and the
+  selection panel. It is offered only when a step has a stored position.
+- **A palette step dropped on a wire** opens Quick Add with `insertOn` (as Insert Node on This
+  Wire); the wire under the pointer has `drop-target` while dragging.
+- **Keys:** Shift+Alt+A (Align Centers) and Shift+Alt+D (Distribute Vertically) are the webview's
+  own (`keyboard.ts`, matched by `code`, since Alt changes the key on macOS). They are not VS Code
+  keybindings: VS Code's Shift+Alt+A (block comment) needs text editor focus.

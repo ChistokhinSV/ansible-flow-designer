@@ -58,6 +58,8 @@ describe('canvas menu', () => {
       'Status ▸',
       'Open Port failed_hosts ▸',
       'Add Next Node…',
+      // AFD-88: the step has a stored position.
+      'Reset Position',
       '—',
       'Cut',
       'Copy',
@@ -114,9 +116,29 @@ describe('canvas menu', () => {
       'Duplicate',
       '—',
       'Extract into Subflow…',
+      'Arrange ▸',
       '—',
       'Delete',
     ]);
+    // AFD-88: two steps line up; spacing needs three.
+    const arrange = find(group, 'Arrange');
+    const items = arrange?.type === 'submenu' ? arrange.items : [];
+    expect(labels(items)).toEqual([
+      'Align Centers (Flow Line)',
+      'Align Left Edges',
+      'Align Right Edges',
+      '—',
+      'Align Top Edges',
+      'Align Middles',
+      'Align Bottom Edges',
+      '—',
+      'Distribute Vertically',
+      'Distribute Horizontally',
+      '—',
+      'Reset Position',
+    ]);
+    const spaced = find(items, 'Distribute Vertically');
+    expect(spaced?.type === 'item' && spaced.disabled).toBe('Select three steps or more');
     const withStart = menu({ kind: 'nodes', ids: [id('start'), id('precheck')] });
     const extract = find(withStart, 'Extract into Subflow…');
     expect(extract?.type === 'item' && extract.disabled).toMatch(/Start and end/);

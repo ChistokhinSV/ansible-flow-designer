@@ -38,6 +38,7 @@ import {
   useState,
 } from 'react';
 import { type AnnotationView, sectionContents } from '../../core/flow/annotations';
+import { type Box as ArrangeBox, type Guides, guides as guidesFor } from '../../core/flow/arrange';
 import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
@@ -59,6 +60,7 @@ import { useLevelView, useModel } from '../hooks';
 import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
 import { FirstFlow, useFirstFlowShown } from '../panels/FirstFlow';
+import { INSERTABLE } from '../panels/QuickAdd';
 import { completePick, dropPattern } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -202,6 +204,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const [connecting, setConnecting] = useState(false);
   const testMode = useUi((s) => s.testMode);
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+  // The wire under a palette step being dragged: it lights, and the drop inserts the step there.
+  const dropWire = useRef<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const shows = useCallback(
     (id: string, port: string) => labelledAtRest(port) || id === hoverEdge || id === selection.edge,
     [hoverEdge, selection.edge],
@@ -401,7 +406,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
         className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
           ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
-        }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}`,
+        }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}${
+          dropTarget === e.id ? ' drop-target' : ''
+        }`,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
@@ -409,7 +416,18 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selected: selection.edge === e.id,
         deletable: !readOnly,
       })),
-    [view.edges, selection.edge, ran, readOnly, hostsOn, lensWires, dataLens, shows, outsideEdges],
+    [
+      view.edges,
+      selection.edge,
+      ran,
+      readOnly,
+      hostsOn,
+      lensWires,
+      dataLens,
+      shows,
+      outsideEdges,
+      dropTarget,
+    ],
   );
   const dataEdges = useMemo<Edge[]>(() => {
     if (!dataLens || !dataWires) return [];
@@ -534,9 +552,30 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     },
     [view],
   );
-  const onNodeDrag = useCallback((_e: unknown, n: CanvasNode) => {
+  // AFD-88: guide lines while one step is dragged: a shared edge or centre (it snaps there on
+  // release) and even gaps (round 1: T10, three steps lined up by eye).
+  const [guide, setGuide] = useState<(Guides & { box: ArrangeBox }) | null>(null);
+  const snapTo = useRef<{ id: string; at: Position } | null>(null);
+  const onNodeDrag = useCallback((_e: unknown, n: CanvasNode, dragged: CanvasNode[] = [n]) => {
     const c = carry.current;
-    if (!c || c.id !== n.id) return;
+    if (!c || c.id !== n.id) {
+      if (n.type !== 'flow' || dragged.length !== 1) return;
+      const boxOf = (m: FlowRFNode): ArrangeBox => ({
+        id: m.id,
+        x: m.position.x,
+        y: m.position.y,
+        width: m.data.view.width,
+        height: m.data.view.height,
+      });
+      const others = latest.current
+        .filter((m): m is FlowRFNode => m.type === 'flow' && m.id !== n.id)
+        .map(boxOf);
+      const g = guidesFor(boxOf(n), others);
+      const lined = g.xs.length > 0 || g.ys.length > 0;
+      snapTo.current = lined ? { id: n.id, at: g.snap } : null;
+      setGuide(lined || g.even ? { ...g, box: { ...boxOf(n), ...g.snap } } : null);
+      return;
+    }
     const dx = n.position.x - c.from.x;
     const dy = n.position.y - c.from.y;
     setNodes((ns) =>
@@ -550,8 +589,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {
       const c = carry.current;
       carry.current = null;
+      const snap = snapTo.current;
+      snapTo.current = null;
+      setGuide(null);
+      const moved = snap
+        ? dragged.map((d) => (d.id === snap.id ? { ...d, position: snap.at } : d))
+        : dragged;
       const extra = c ? latest.current.filter((m) => c.items.has(m.id)) : [];
-      saveMoves([...dragged, ...extra.filter((m) => !dragged.some((d) => d.id === m.id))]);
+      saveMoves([...moved, ...extra.filter((m) => !moved.some((d) => d.id === m.id))]);
     },
     [saveMoves],
   );
@@ -655,6 +700,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [openContextMenu, screenToFlowPosition],
   );
 
+  useEffect(() => {
+    const clear = () => {
+      dropWire.current = null;
+      setDropTarget(null);
+    };
+    window.addEventListener('dragend', clear);
+    return () => window.removeEventListener('dragend', clear);
+  }, []);
   const onDrop = useCallback(
     (e: DragEvent) => {
       const pattern = e.dataTransfer.getData(PATTERN_MIME) as PatternId;
@@ -680,9 +733,18 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         return;
       }
       const type = e.dataTransfer.getData(DRAG_MIME) as NodeType;
+      const wire = dropWire.current;
+      dropWire.current = null;
+      setDropTarget(null);
       if (!type) return;
       e.preventDefault();
-      openQuickAdd({ type, position: screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+      // AFD-88: a step dropped on a wire goes into it (round 1: P1, W1).
+      const into = wire && INSERTABLE.includes(type) ? { insertOn: wire } : {};
+      openQuickAdd({
+        type,
+        position: screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+        ...into,
+      });
     },
     [openQuickAdd, screenToFlowPosition, setError],
   );
@@ -960,6 +1022,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         .join(' ')}
       zIndexMode="manual"
       onDragOver={(e) => {
+        if (e.dataTransfer.types.includes(DRAG_MIME) && !readOnly) {
+          const hit = document.elementFromPoint(e.clientX, e.clientY);
+          const id = hit?.closest<HTMLElement>('.react-flow__edge')?.dataset.id ?? null;
+          const wire = id && view.edges.some((w) => w.id === id) ? id : null;
+          if (wire !== dropWire.current) {
+            dropWire.current = wire;
+            setDropTarget(wire);
+          }
+        }
         if (
           e.dataTransfer.types.includes(DRAG_MIME) ||
           e.dataTransfer.types.includes(PATTERN_MIME) ||
@@ -1003,6 +1074,11 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           <EmptyLevel at={cardAt} />
         </ViewportPortal>
       ) : null}
+      {guide ? (
+        <ViewportPortal>
+          <DragGuides guide={guide} />
+        </ViewportPortal>
+      ) : null}
       <Controls showInteractive={false} position="bottom-right">
         {partly && !corner ? (
           <ControlButton
@@ -1043,4 +1119,41 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     </ReactFlow>
   );
   return <NodeBoxes.Provider value={boxes}>{canvas}</NodeBoxes.Provider>;
+}
+
+/** AFD-88: the lines a dragged step shares with others, and a mark when its gaps are even. */
+function DragGuides({ guide }: { guide: Guides & { box: ArrangeBox } }) {
+  const { box } = guide;
+  const reach = 2000;
+  return (
+    <div className="afd-guides" aria-hidden="true" data-guides={guide.xs.length + guide.ys.length}>
+      {guide.xs.map((x) => (
+        <div
+          key={`x${x}`}
+          className="afd-guide v"
+          style={{ left: x, top: box.y - reach, height: 2 * reach }}
+        />
+      ))}
+      {guide.ys.map((y) => (
+        <div
+          key={`y${y}`}
+          className="afd-guide h"
+          style={{ top: y, left: box.x - reach, width: 2 * reach }}
+        />
+      ))}
+      {guide.even ? (
+        <div
+          className="afd-guide-even"
+          data-even={guide.even}
+          style={
+            guide.even === 'vertical'
+              ? { left: box.x + box.width + 8, top: box.y + box.height / 2 - 9 }
+              : { left: box.x + box.width / 2 - 30, top: box.y + box.height + 6 }
+          }
+        >
+          even gaps
+        </div>
+      ) : null}
+    </div>
+  );
 }

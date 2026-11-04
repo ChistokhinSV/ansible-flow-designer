@@ -1,12 +1,16 @@
-// Right panel for several selected nodes (AFD-7): what is selected, Copy (AFD-17) and Extract into
-// subflow. The command checks the selection (one way in, exits, connected); a refusal is shown here.
+// Right panel for several selected nodes (AFD-7): what is selected, Arrange (AFD-88), Copy (AFD-17)
+// and Extract into subflow. The command checks the selection (one way in, exits, connected); a
+// refusal is shown here.
 import { useRef, useState } from 'react';
 import { slugify } from '../../core/flow/ids';
 import { modelOf } from '../../core/flow/model';
 import type { FlowNode, Ulid } from '../../core/flow/types';
+import { alignSelection, distributeSelection, resetPositions } from '../arrangeActions';
 import { command } from '../bus';
 import { copySelection } from '../clipboard';
+import { useEditable } from '../editActions';
 import { useFocusRequest } from '../focus';
+import { keysOf } from '../shortcuts';
 import { useUi } from '../store';
 import { levelView, unplacedPositions } from '../viewModel';
 
@@ -18,6 +22,8 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
   const [busy, setBusy] = useState(false);
   const titleField = useRef<HTMLInputElement>(null);
   useFocusRequest('extractTitle', titleField);
+  const editable = useEditable();
+  const mode = useUi((s) => s.mode);
   const doc = snapshot?.doc;
   if (!doc) return null;
   const model = modelOf(doc);
@@ -59,6 +65,47 @@ export function SelectionPanel({ ids }: { ids: Ulid[] }) {
           </li>
         ))}
       </ul>
+      {editable && mode === 'design' ? (
+        <section className="afd-section" data-arrange>
+          <h3>Arrange</h3>
+          <div className="afd-arrange">
+            <button
+              type="button"
+              title={`Line them up on the flow line (${keysOf('alignCenter')})`}
+              onClick={() => void alignSelection('center', ids)}
+            >
+              <span className="codicon codicon-layout-centered" aria-hidden="true" /> Align Centers
+            </button>
+            <button
+              type="button"
+              disabled={nodes.length < 3}
+              title={
+                nodes.length < 3
+                  ? 'Select three steps or more'
+                  : `Equal gaps, top to bottom (${keysOf('distribute')})`
+              }
+              onClick={() => void distributeSelection('vertical', ids)}
+            >
+              <span className="codicon codicon-list-flat" aria-hidden="true" /> Distribute
+              Vertically
+            </button>
+            {nodes.some((n) => doc.layout?.[n.id]) ? (
+              <button
+                type="button"
+                className="secondary"
+                title="Let the canvas place them again"
+                onClick={() => void resetPositions(ids)}
+              >
+                Reset Position
+              </button>
+            ) : null}
+          </div>
+          <p className="muted">
+            The selection's menu (right-click) also aligns left, right, top, middle or bottom edges
+            and spaces them across. One undo puts them back.
+          </p>
+        </section>
+      ) : null}
       <section className="afd-section">
         <p className="muted">
           Copy takes the nodes, the wires between them and their layout as text: paste them on any

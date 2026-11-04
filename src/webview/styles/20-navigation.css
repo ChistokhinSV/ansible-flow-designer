@@ -172,3 +172,48 @@
 .afd-first-flow li.done .codicon {
   color: var(--afd-ok);
 }
+
+/* AFD-88: guide lines while a step is dragged, and the wire a palette step would go into. */
+.afd-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.afd-guide {
+  position: absolute;
+  border: 0 dashed var(--afd-focus);
+}
+
+.afd-guide.v {
+  width: 0;
+  border-left-width: 1px;
+}
+
+.afd-guide.h {
+  height: 0;
+  border-top-width: 1px;
+}
+
+.afd-guide-even {
+  position: absolute;
+  padding: 1px 6px;
+  border: 1px solid var(--afd-focus);
+  border-radius: 9px;
+  background: var(--afd-panel);
+  color: var(--afd-fg);
+  font-size: var(--afd-fs-11);
+  white-space: nowrap;
+}
+
+.react-flow__edge.drop-target .react-flow__edge-path {
+  stroke: var(--afd-focus);
+  stroke-width: 3;
+}
+
+/* The selection panel's Arrange buttons wrap at 340 px. */
+.afd-arrange {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

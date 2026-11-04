@@ -17,6 +17,7 @@ import {
   editAnnotation,
   startAttach,
 } from '../annotationActions';
+import { alignSelection, distributeSelection, resetPositions } from '../arrangeActions';
 import { send } from '../bus';
 import { copySelection } from '../clipboard';
 import {
@@ -117,6 +118,15 @@ export function runCanvasAction(
       return;
     case 'extract':
       startExtract(action.nodes);
+      return;
+    case 'align':
+      void alignSelection(action.how, action.nodes);
+      return;
+    case 'distribute':
+      void distributeSelection(action.how, action.nodes);
+      return;
+    case 'resetPosition':
+      void resetPositions(action.nodes);
       return;
     case 'showInText': {
       const path = model.nodes.get(action.node)?.path;

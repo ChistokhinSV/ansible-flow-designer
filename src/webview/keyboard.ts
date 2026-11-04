@@ -4,6 +4,7 @@
 // undo for the page. Typing in a field and keys inside menus and dialogs (`nokey`) are left alone.
 import { chooseMode } from './actions';
 import { addAnnotation, editAnnotation } from './annotationActions';
+import { alignSelection, distributeSelection } from './arrangeActions';
 import { canvasPlace } from './clipboard';
 import {
   canEdit,
@@ -152,6 +153,13 @@ export function installKeyboard(): () => void {
       if (!canEdit()) return;
       consume();
       addNode();
+    } else if (e.altKey && e.shiftKey && !mod && (e.code === 'KeyA' || e.code === 'KeyD')) {
+      // AFD-88: Align Centers (the flow line) and Distribute Vertically on the selected steps.
+      const ids = selectedNodes();
+      if (!canEdit() || ids.length < (e.code === 'KeyA' ? 2 : 3)) return;
+      consume();
+      if (e.code === 'KeyA') void alignSelection('center', ids);
+      else void distributeSelection('vertical', ids);
     } else if (e.altKey && !mod && !e.shiftKey && MODE_KEYS[e.code]) {
       consume();
       chooseMode(MODE_KEYS[e.code] as Mode);

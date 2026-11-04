@@ -104,6 +104,18 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Canvas',
   },
   { id: 'selectAll', keys: `${MOD}A`, label: 'Select every node of the level', group: 'Canvas' },
+  {
+    id: 'alignCenter',
+    keys: IS_MAC ? '⇧⌥A' : 'Shift+Alt+A',
+    label: 'Line the selected steps up on the flow line (Align Centers)',
+    group: 'Canvas',
+  },
+  {
+    id: 'distribute',
+    keys: IS_MAC ? '⇧⌥D' : 'Shift+Alt+D',
+    label: 'Space three or more selected steps evenly, top to bottom',
+    group: 'Canvas',
+  },
   { id: 'fit', keys: 'Shift+1', label: 'Fit the whole level in view', group: 'Canvas' },
   {
     id: 'escape',

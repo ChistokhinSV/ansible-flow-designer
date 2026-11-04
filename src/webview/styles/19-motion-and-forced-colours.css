@@ -36,6 +36,16 @@
     stroke: CanvasText;
   }
 
+  /* Drag guides and the drop wire (AFD-88): the system highlight. */
+  .afd-guide,
+  .afd-guide-even {
+    border-color: Highlight;
+  }
+
+  .react-flow__edge.drop-target .react-flow__edge-path {
+    stroke: Highlight;
+  }
+
   /* The running step (AFD-81): a steady outline in the system highlight. */
   .afd-node.run-running {
     outline-color: Highlight;

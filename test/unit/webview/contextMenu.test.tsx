@@ -92,6 +92,7 @@ describe('canvas context menu', () => {
       'Status',
       'Open Port failed_hosts',
       'Add Next Node…',
+      'Reset Position',
       'Cut',
       'Copy',
       'Duplicate',
@@ -143,7 +144,14 @@ describe('canvas context menu', () => {
       fireEvent.contextMenu(node('push-baseline'), { clientX: 200, clientY: 150 });
     });
     expect(useUi.getState().selection).toEqual({ nodes: group });
-    expect(items()).toEqual(['Cut', 'Copy', 'Duplicate', 'Extract into Subflow…', 'Delete']);
+    expect(items()).toEqual([
+      'Cut',
+      'Copy',
+      'Duplicate',
+      'Extract into Subflow…',
+      'Arrange',
+      'Delete',
+    ]);
     const wire = doc.edges.find((e) => e.from.node === id('precheck'))?.id as string;
     act(() =>
       useUi.getState().openContextMenu({ target: { kind: 'edge', id: wire }, x: 10, y: 10 }),

@@ -8,6 +8,7 @@ import type { FlowHeader } from '../../core/flow/types';
 import { run } from '../actions';
 import { StatusIcon } from '../canvas/StatusIcon';
 import { useEditable } from '../editActions';
+import { SHORTCUTS } from '../shortcuts';
 import { useUi } from '../store';
 import { bannerCount, readiness, STATUS_ORDER } from '../viewModel';
 import { ContractEditor } from './ContractEditor';
@@ -136,6 +137,14 @@ export function FlowDescription() {
               </button>
             </li>
           </ul>
+          {/* AFD-88: how to pick several steps, which nothing said (round 1: P20). */}
+          {ready.total >= 2 ? (
+            <p className="muted" data-select-hint>
+              To work on several steps at once, select them with{' '}
+              {SHORTCUTS.find((s) => s.id === 'select')?.keys}: then line them up, space them
+              evenly, copy them or make them a subflow.
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>

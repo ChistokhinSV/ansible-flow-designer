@@ -108,7 +108,8 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
   - click or drag a type from the palette;
   - drag from a port and release on empty canvas (Quick add);
   - right-click the canvas → **Add Node Here…**;
-  - or a port's **Insert Node on This Wire**.
+  - or a port's **Insert Node on This Wire**, or drop a palette type onto a wire (it lights while
+    you drag over it).
 
   ![Quick add](../images/quick-add-light.png)
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
@@ -116,6 +117,13 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
   **Tidy Up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
   added) are placed next to their neighbours until you move them.
+  - While you drag a step, a dashed guide line shows when it shares an edge or a centre with
+    another step; release near the line and it snaps there. "even gaps" shows when it sits halfway
+    between its neighbours.
+  - **Line up several:** select them, then **Align Centers** (Shift+Alt+A) or **Distribute
+    Vertically** (Shift+Alt+D, three or more) in the side panel, or **Arrange ▸** in their
+    right-click menu for the other edges and for spacing across. One Ctrl+Z puts them back.
+  - **Reset Position** hands a step you placed back to automatic placement.
 - **Delete:** Delete or Backspace. A whole selection is one undo step.
 - **Select several:** Ctrl+click, or Shift+drag a box.
 
@@ -129,8 +137,9 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 ![The node menu](../images/context-menu-light.png)
 
 - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
-  fail port, Add Next Node…, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
-- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Delete.
+  fail port, Add Next Node…, Reset Position (a step you placed), Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Arrange ▸ (align, distribute, Reset
+  Position), Delete.
 - **Note, section or text:** Edit Text, Color ▸, Attach to Node… or Detach from Node, Cut, Copy,
   Duplicate, Delete ([Notes, sections and text](annotations.md)).
 - **Wire:** Insert Node on This Wire, Rewire to Another Node…, Disconnect.
@@ -158,6 +167,8 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Alt+↑                    | Back to the parent level                                                                       |
 | Alt+1 / Alt+2 / Alt+3    | Design / Code / Run mode                                                                       |
 | Ctrl+A                   | Select every node of the level                                                                 |
+| Shift+Alt+A              | Line the selected steps up on the flow line (Align Centers)                                    |
+| Shift+Alt+D              | Space three or more selected steps evenly, top to bottom                                       |
 | Ctrl+F                   | Find a node on any level                                                                       |
 | Shift+1                  | Fit the whole level in view                                                                    |
 | Arrow keys               | Nudge the focused node                                                                         |
