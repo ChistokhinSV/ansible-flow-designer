@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.59.2 — AFD-89
+
+- The flow panel's **Flows View** link sits with the Readiness counts, so a new flow's first screen keeps its 35 controls (0.59.1 had 36).
+
 ## 0.59.1 — AFD-89
 
 Wave 8: two loose ends of 0.57.0, before the second usability round.

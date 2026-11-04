@@ -146,15 +146,16 @@ export function FlowDescription() {
               evenly, copy them or make them a subflow.
             </p>
           ) : null}
+          {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up); with
+            the Readiness counts, so a new flow's first screen keeps its 35 controls. */}
+          <p className="muted" data-flows-link>
+            Other flows of this workspace, with their problems and code state:{' '}
+            <button type="button" className="link" onClick={() => send({ type: 'showFlows' })}>
+              Flows View
+            </button>
+          </p>
         </section>
       ) : null}
-      {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up). */}
-      <p className="muted" data-flows-link>
-        Other flows of this workspace, with their problems and code state:{' '}
-        <button type="button" className="link" onClick={() => send({ type: 'showFlows' })}>
-          Flows View
-        </button>
-      </p>
     </div>
   );
 }
