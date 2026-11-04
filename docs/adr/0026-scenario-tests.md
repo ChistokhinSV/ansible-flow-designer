@@ -44,3 +44,19 @@ the flow, run from the designer and in CI.
   through the shared runner.
 - Not yet: running scenarios from the AI tools (agents run the command line), and scenario results
   on the canvas.
+
+## Amendment: results on the canvas (AFD-84, 2026-11-04)
+
+Wave 8 group E. Results were a notification and log lines. Round 1's participant could not tell which
+host ended where or why, and ran the flow for real while looking for them (P18).
+
+- **Results keep their runs.** `judge` keeps each scenario's run summary (`ScenarioResult.summary`).
+  `core/scenario/view.ts` turns a result into a `RunView` with source `scenario` (`scenarioRun`),
+  so Run mode shows it as it shows a run. `scenarioMisses` lists the hosts that ended elsewhere, and
+  `endRows` gives an end node's expected and ended hosts.
+- **The session** sends the results to its designer panels (`scenarios` message), again when a
+  panel becomes ready. The run panel lists them, and a click shows one on the canvas
+  (`showScenario`). Back to Last Run restores the run it hid, and a run from the host replaces it.
+- **The notification** is one line, with Show on Canvas (it opens the designer if needed, then the
+  first failing scenario) and Show Log.
+- **Test Explorer** integration is still not done.

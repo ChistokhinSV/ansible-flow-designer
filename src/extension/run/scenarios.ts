@@ -108,17 +108,28 @@ export async function runScenariosCommand(
   );
   for (const line of describeResults(results)) host.log.info(line);
   const failed = results.filter((r) => !r.passed);
+  // AFD-84: the designer's run panel lists the results; Show on Canvas opens the first failing one
+  // there in Run mode. The notification stays one line (round 1: P18).
+  host.sessions.get(text.uri.toString())?.showScenarios(results);
+  const showCanvas = 'Show on Canvas';
   const showLog = 'Show Log';
   const say = failed.length
     ? vscode.window.showWarningMessage(
-        `Scenarios: ${failed.length} of ${results.length} failed: ${describeResults(failed).slice(0, 2).join('; ')}`,
+        `Scenarios: ${failed.length} of ${results.length} failed for ${doc.flow.name} (first: ${failed[0]?.name}).`,
+        showCanvas,
         showLog,
       )
     : vscode.window.showInformationMessage(
         `Scenarios: all ${results.length} pass for ${doc.flow.name}.`,
+        showCanvas,
         showLog,
       );
-  void say.then((pick) => pick === showLog && host.log.show(true));
+  void say.then(async (pick) => {
+    if (pick === showLog) host.log.show(true);
+    if (pick !== showCanvas) return;
+    if (!host.sessions.get(text.uri.toString())?.hasPanels) await host.openDesigner(text.uri);
+    host.sessions.get(text.uri.toString())?.showScenarios(results, (failed[0] ?? results[0])?.name);
+  });
   return results;
 }
 

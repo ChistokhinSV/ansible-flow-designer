@@ -8,6 +8,7 @@ import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
+import type { ScenarioResult } from './scenario/scenarios';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -60,7 +61,7 @@ export interface RunView {
   environment?: string;
   summary?: RunSummary;
   /** Where it ran: a local terminal task (M3) or an AWX job (M7). */
-  source?: 'local' | 'awx';
+  source?: 'local' | 'awx' | 'scenario';
   /** flow.version the run executed (decision 15: `tested` is per version). */
   flowVersion?: number;
   /** Each node's design fingerprint when the run started (decision 15: `tested` is for what ran). */
@@ -68,6 +69,13 @@ export interface RunView {
   awx?: AwxRunInfo;
   /** A live local run with no new events for a while (AFD-81): it may wait for input. */
   quiet?: boolean;
+  /** AFD-84: a scenario's result shown like a run: its verdict and each host's expected end. */
+  scenario?: {
+    name: string;
+    passed: boolean;
+    error?: string;
+    hosts: { host: string; expected: string; actual: string }[];
+  };
 }
 
 export interface AwxRunInfo {
@@ -193,6 +201,8 @@ export type HostMessage =
   | { type: 'launch'; plan: LaunchPlan | null; notice?: string }
   /** AFD-82: the facts for the dialog's current targets. */
   | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
+  /** AFD-84: the flow's scenario results; `show` puts that one on the canvas in Run mode. */
+  | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
   | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */

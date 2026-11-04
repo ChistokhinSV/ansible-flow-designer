@@ -41,6 +41,8 @@ describe('AFD-58: scenario tests', () => {
             ['a failed stage is handled, a failed gate stops the host there', true, undefined],
           ],
         );
+        // AFD-84: each result keeps its run, so the designer can show it on the canvas.
+        for (const r of results ?? []) assert.ok(r.summary?.hosts.length, r.name);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

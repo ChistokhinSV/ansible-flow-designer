@@ -66,7 +66,7 @@ export function parseScenarios(text: string): { file?: ScenarioFile; error?: str
 }
 
 /** Node key paths (`sub/step` inside subflows) of a flow, by path. */
-function byPath(doc: FlowDocument): Map<string, FlowNode> {
+export function byPath(doc: FlowDocument): Map<string, FlowNode> {
   const model = modelOf(doc);
   const out = new Map<string, FlowNode>();
   const path = (id: Ulid): string => {
@@ -217,6 +217,8 @@ export interface ScenarioResult {
   hosts: { host: string; expected: string; actual: string }[];
   /** Why the run itself failed to tell (the process error, no events). */
   error?: string;
+  /** AFD-84: what the scenario's run did, for showing it on the canvas like a run. */
+  summary?: RunSummary;
 }
 
 export function judge(
@@ -236,6 +238,7 @@ export function judge(
     passed: !error && !!summary && hosts.every((h) => h.expected === h.actual),
     hosts,
     ...(error ? { error } : {}),
+    ...(summary ? { summary } : {}),
   };
 }
 

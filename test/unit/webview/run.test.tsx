@@ -240,3 +240,40 @@ describe('a live local run (AFD-81)', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
   });
 });
+
+describe('scenarios on the canvas (AFD-84)', () => {
+  const results = [
+    { name: 'all pass', passed: true, hosts: [], summary },
+    {
+      name: 'probe failure is reported',
+      passed: false,
+      hosts: [{ host: 'sw-edge-02', expected: 'done', actual: 'failed' }],
+      summary,
+    },
+  ];
+
+  it('the run panel lists the scenarios; one shows on the canvas, and Back to Last Run restores it', () => {
+    act(() => useUi.getState().setScenarios(results));
+    render(<RunPanel />);
+    const list = document.querySelector('[data-run-scenarios]') as HTMLElement;
+    expect(list.textContent).toContain('1 of 2 failed');
+    expect(list.textContent).toContain('sw-edge-02: expected done, ended at failed');
+    fireEvent.click(screen.getByRole('button', { name: /probe failure is reported/ }));
+    const state = useUi.getState();
+    expect(state.run?.source).toBe('scenario');
+    expect(state.mode).toBe('run');
+    expect(state.runNodes).not.toBeNull();
+    expect(screen.getByText(/On the canvas: scenario/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Last Run' }));
+    expect(useUi.getState().run).toBe(job);
+    expect(useUi.getState().scenarioShown).toBeNull();
+  });
+
+  it('the host can show one at once (Show on Canvas); a new run replaces it', () => {
+    act(() => useUi.getState().setScenarios(results, 'all pass'));
+    expect(useUi.getState().run?.scenario?.name).toBe('all pass');
+    act(() => useUi.getState().setRun(job));
+    expect(useUi.getState().scenarioShown).toBeNull();
+    expect(useUi.getState().run).toBe(job);
+  });
+});

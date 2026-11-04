@@ -451,6 +451,20 @@ function RunStatus({ run }: { run: RunView | null }) {
     );
   if (run?.state === 'running') return <LiveRun run={run} />;
   if (!run) return null;
+  // AFD-84: a scenario on the canvas says which one and how it went.
+  if (run.scenario)
+    return (
+      <span
+        className={`afd-run-status ${run.scenario.passed ? 'ok' : 'warn'}`}
+        data-run-state="scenario"
+      >
+        <span
+          className={`codicon ${run.scenario.passed ? 'codicon-pass' : 'codicon-warning'}`}
+          aria-hidden="true"
+        />{' '}
+        Scenario: {run.scenario.name} · {run.scenario.passed ? 'passed' : 'failed'}
+      </span>
+    );
   if (run.state === 'error')
     return (
       <span className="afd-run-status error" title={run.error} data-run-state="error">

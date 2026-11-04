@@ -22,7 +22,7 @@ export function historyEntry(run: RunView): HistoryEntry | undefined {
   return {
     id: run.id,
     at: run.finishedAt ?? run.startedAt,
-    source: run.source ?? 'local',
+    source: run.source === 'awx' ? 'awx' : 'local',
     rc: run.rc,
     timings: Object.fromEntries(
       Object.entries(t).map(([n, x]) => [n, Math.max(0, x.end - x.start)]),

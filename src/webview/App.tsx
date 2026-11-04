@@ -64,6 +64,8 @@ function useHost() {
         ui.setLaunch(m.plan, m.notice);
       } else if (m.type === 'launchFacts') {
         ui.setLaunchFacts(m.token, m.facts, m.error);
+      } else if (m.type === 'scenarios') {
+        ui.setScenarios(m.results, m.show);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'firstFlow') {

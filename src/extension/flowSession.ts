@@ -26,6 +26,7 @@ import type {
   WebviewMessage,
 } from '../core/protocol';
 import { hostOutput, type OutputEntry } from '../core/run/events';
+import type { ScenarioResult } from '../core/scenario/scenarios';
 import { isWebLink, linksOf } from '../core/view/markdown';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
@@ -367,6 +368,11 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
+        if (this.scenarios) {
+          const { results, show } = this.scenarios;
+          this.post(panel, { type: 'scenarios', results, ...(show ? { show } : {}) });
+          this.scenarios.show = undefined;
+        }
         if (this.catalogFolder && this.deps.catalog)
           this.post(panel, {
             type: 'catalogStatus',
@@ -682,6 +688,15 @@ export class FlowSession implements vscode.Disposable {
     } catch {
       return { error: 'The events of this run are no longer kept (afd.runs.keep).' };
     }
+  }
+
+  /** AFD-84: the scenario results for the run panel; `show` puts that one on the canvas. */
+  private scenarios: { results: ScenarioResult[]; show?: string } | undefined;
+
+  showScenarios(results: ScenarioResult[], show?: string): void {
+    // A designer opened for Show on Canvas gets them when it is ready.
+    this.scenarios = { results, show };
+    this.broadcast({ type: 'scenarios', results, ...(show ? { show } : {}) });
   }
 
   setRun(run: RunView): void {

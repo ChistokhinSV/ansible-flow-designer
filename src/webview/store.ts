@@ -10,6 +10,8 @@ import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import { type NodeRun, runStates } from '../core/run/view';
+import type { ScenarioResult } from '../core/scenario/scenarios';
+import { scenarioRun } from '../core/scenario/view';
 import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
 export interface QuickAddState {
@@ -187,6 +189,10 @@ interface UiState {
    */
   launch: LaunchPlan | null;
   launchNotice?: string;
+  /** AFD-84: the flow's last scenario results, the one shown on the canvas, and the run it hides. */
+  scenarios: ScenarioResult[] | null;
+  scenarioShown: string | null;
+  runBeforeScenario: RunView | null;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
   runNodes: Record<Ulid, NodeRun> | null;
   /** Level on the canvas: ROOT or the subflow node whose inner graph is open (D-23). */
@@ -250,6 +256,9 @@ interface UiState {
   dismissToast(id: number): void;
   setRun(r: RunView | null): void;
   setRunAsked(on: boolean): void;
+  setScenarios(results: ScenarioResult[], show?: string): void;
+  /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
+  showScenario(name: string | null): void;
   setLaunch(plan: LaunchPlan | null, notice?: string): void;
   /** The facts for the dialog's current targets, if it is still the dialog of that token. */
   setLaunchFacts(token: string, facts?: LaunchFacts, error?: string): void;
@@ -330,6 +339,9 @@ export const useUi = create<UiState>((set, get) => ({
   run: null,
   runAsked: false,
   launch: null,
+  scenarios: null,
+  scenarioShown: null,
+  runBeforeScenario: null,
   runNodes: null,
   level: ROOT,
   preview: null,
@@ -454,6 +466,8 @@ export const useUi = create<UiState>((set, get) => ({
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   setRun(run) {
     const asked = get().runAsked && !!run;
+    // A run from the host replaces a scenario on the canvas.
+    if (get().scenarioShown) set({ scenarioShown: null, runBeforeScenario: null });
     set({
       run,
       runNodes: runOf(get().snapshot, run),
@@ -464,6 +478,28 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
+  setScenarios(scenarios, show) {
+    set({ scenarios });
+    if (show) get().showScenario(show);
+  },
+  showScenario(name) {
+    const { scenarios, scenarioShown, snapshot, lens, lensFacts } = get();
+    const result = name ? scenarios?.find((r) => r.name === name) : undefined;
+    const run = result
+      ? scenarioRun(result, new Date().toISOString())
+      : scenarioShown
+        ? get().runBeforeScenario
+        : get().run;
+    set({
+      ...(result && !scenarioShown ? { runBeforeScenario: get().run } : {}),
+      ...(result ? {} : { runBeforeScenario: null }),
+      scenarioShown: result ? result.name : null,
+      run,
+      runNodes: runOf(snapshot, run),
+      lensView: lensOf(snapshot, lens, lensFacts, run),
+    });
+    if (result) get().setMode('run');
+  },
   setLaunch: (launch, launchNotice) => set({ launch, launchNotice }),
   setLaunchFacts(token, facts, error) {
     const plan = get().launch;

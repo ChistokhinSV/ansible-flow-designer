@@ -16,6 +16,7 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
+import { endRows, scenarioMisses } from '../../core/scenario/view';
 import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
@@ -25,6 +26,7 @@ import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
 
 function describe(run: RunView): string {
+  if (run.scenario) return `Scenario: ${run.scenario.name} (stubs, local connection)`;
   if (run.source === 'awx' && run.awx)
     return `AWX ${run.awx.workflow ? 'workflow' : 'job'} #${run.awx.jobId} · ${run.awx.template}`;
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
@@ -40,6 +42,14 @@ function statusOf(run: RunView): { label: string; tone: 'ok' | 'warn' | 'neutral
           : 'running',
       tone: run.quiet ? 'warn' : 'neutral',
     };
+  if (run.scenario)
+    return run.scenario.passed
+      ? { label: 'passed: every host ended where expected', tone: 'ok' }
+      : {
+          label:
+            run.scenario.error ?? `${scenarioMisses(run.scenario).length} host(s) ended elsewhere`,
+          tone: 'warn',
+        };
   if (run.state === 'error') return { label: run.error ?? 'failed', tone: 'warn' };
   if (runPassed(run)) return { label: `passed · exit ${run.rc}`, tone: 'ok' };
   const { ok, failed } = runVerdict(run);
@@ -155,6 +165,63 @@ function FailedSteps() {
   );
 }
 
+/**
+ * The flow's scenario results (AFD-84): one row each, a click shows it on the canvas like a run;
+ * a scenario on the canvas says so, with the way back to the last run.
+ */
+function Scenarios() {
+  const results = useUi((s) => s.scenarios);
+  const shown = useUi((s) => s.scenarioShown);
+  const show = useUi((s) => s.showScenario);
+  if (!results?.length) return null;
+  const failed = results.filter((r) => !r.passed).length;
+  return (
+    <section className="afd-section" data-run-scenarios={results.length}>
+      <h3>
+        Scenarios ·{' '}
+        {failed ? `${failed} of ${results.length} failed` : `all ${results.length} pass`}
+      </h3>
+      {shown ? (
+        <p data-scenario-shown={shown}>
+          On the canvas: scenario <strong>{shown}</strong>.{' '}
+          <button type="button" className="link" onClick={() => show(null)}>
+            Back to Last Run
+          </button>
+        </p>
+      ) : null}
+      <ul className="afd-lens-items">
+        {results.map((r) => {
+          const misses = scenarioMisses(r);
+          return (
+            <li key={r.name} className={r.passed ? 'tone-ok' : 'tone-warn'} data-scenario={r.name}>
+              <button
+                type="button"
+                className="afd-lens-item-button"
+                aria-pressed={shown === r.name}
+                onClick={() => show(r.name)}
+                title="Show this scenario on the canvas"
+              >
+                <span className="afd-lens-item-label">
+                  {r.passed ? 'pass' : 'fail'} · {r.name}
+                </span>
+                {r.error ? (
+                  <span className="afd-lens-item-detail muted">{r.error}</span>
+                ) : misses.length ? (
+                  <span className="afd-lens-item-detail muted">
+                    {misses
+                      .map((m) => `${m.host}: expected ${m.expected}, ended at ${m.actual}`)
+                      .join('; ')}
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function RunPanel() {
   const run = useUi((s) => s.run);
   const doc = useUi((s) => s.snapshot?.doc);
@@ -168,6 +235,7 @@ export function RunPanel() {
           No run of this flow yet. Launch it in AWX, or run it as a skeleton in the local
           environment; nodes and wires then show what each host did.
         </p>
+        <Scenarios />
       </div>
     );
   const st = statusOf(run);
@@ -178,6 +246,7 @@ export function RunPanel() {
       <h2 className="afd-panel-title">
         Run <HelpLink topic="runs" about="runs" />
       </h2>
+      <Scenarios />
       <dl className="afd-run-facts">
         <dt>Run</dt>
         <dd>{describe(run)}</dd>
@@ -219,7 +288,8 @@ export function RunPanel() {
           than your HEAD: push your changes to the project's remote so the run matches the design.
         </p>
       ) : null}
-      <OpenRun run={run} />
+      {/* A scenario has no terminal or AWX job of its own (AFD-84). */}
+      {run.scenario ? null : <OpenRun run={run} />}
       <FailedSteps />
       {run.awx?.segments?.length ? (
         <section className="afd-section" data-run-segments={run.awx.segments.length}>
@@ -298,6 +368,39 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
             ended: s.outcome[host] ?? (node.outcome === 'failed' ? 'failed here' : 'ended here'),
           }))
         : nodeHosts(s, id);
+  // AFD-84: an end node in a scenario: who was expected here, and where each ended.
+  if (run?.scenario && doc && node.type === 'end') {
+    const ends = endRows(doc, run.scenario, run, id);
+    return (
+      <div className="afd-panel-body" data-node-run={id} data-scenario-end={run.scenario.name}>
+        <p>
+          Scenario <strong>{run.scenario.name}</strong>
+        </p>
+        {ends.length === 0 ? (
+          <p className="muted">The scenario expected no host here, and none came.</p>
+        ) : (
+          <table className="afd-run-table" data-end-rows={ends.length}>
+            <thead>
+              <tr>
+                <th>Host</th>
+                <th>Expected</th>
+                <th>Ended</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ends.map((r) => (
+                <tr key={r.host} data-host={r.host} className={r.ok ? '' : 'tone-warn'}>
+                  <td className="mono">{r.host}</td>
+                  <td>{r.expected ? 'here' : 'elsewhere'}</td>
+                  <td className="mono">{r.ended}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="afd-panel-body" data-node-run={id}>
       {!s ? (
@@ -381,7 +484,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
           </button>
         </p>
       ) : null}
-      {run ? <OpenRun run={run} /> : null}
+      {run && !run.scenario ? <OpenRun run={run} /> : null}
     </div>
   );
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.55.0 — AFD-84
+
+Wave 8, part 5: scenario results on the canvas.
+
+- **A scenario shows on the canvas like a run.** After Run Scenarios, **Show on Canvas** in the notification opens the first failing scenario in Run mode: each step shows the hosts that took its ports, and each wire how many took it.
+- **The run panel lists the scenarios:** pass or fail, and each host that ended elsewhere ("lab-sw-04: expected reported, ended at stopped"). Click one to show it; **Back to Last Run** puts the last run back.
+- **End nodes say who was expected there:** in a scenario, an end node's Run tab lists the hosts expected there and the hosts that came, with where each ended.
+- **The notification is one line:** how many scenarios failed and the first one's name, with Show on Canvas and Show Log; before, it ran the failures together.
+
 ## 0.54.0 — AFD-83
 
 Wave 8, part 4: lenses and the inventory, explained.
