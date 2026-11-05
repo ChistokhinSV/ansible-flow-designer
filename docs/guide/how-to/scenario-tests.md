@@ -44,15 +44,18 @@ do not exist.
 
 **Run Scenarios** (Run ▾, or the Command Palette) runs every scenario in the run environment (the
 Ansible image or Python you run flows with). A notification says how many failed. Each scenario
-runs every step as its stub, so nothing reaches a device.
+runs every step as its stub, so nothing reaches a device. When one fails, the notification names
+its first miss ("lab-sw-04 ended at Stopped, expected Reported to NetOps").
 
 - **Show on Canvas** (in the notification) opens the first failing scenario in **Run** mode, like a
   run: each step shows the hosts that took its ports, and each wire how many took it.
 - **The run panel** (Run mode, nothing selected) lists every scenario: pass or fail, and each host
-  that ended elsewhere ("lab-sw-04: expected reported, ended at stopped"). Click one to show it;
+  that ended elsewhere, by the ends' titles ("lab-sw-04 ended at Stopped; the scenario expected
+  Reported to NetOps"). Click one to show it;
   **Back to Last Run** puts the last run back.
 - **An end node** in a scenario lists the hosts expected there and the hosts that came, with where
-  each ended.
+  each ended. A host's failure in a scenario reads "the scenario fails it in <step>": the steps are
+  stubs, so it is the failure the scenario planted.
 - The full output stays in the Ansible Flow log (**Show Log**).
 
 ## In CI

@@ -6,7 +6,34 @@ import { modelOf } from '../flow/model';
 import type { FlowDocument, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
 import { arrivals } from '../run/view';
-import { byPath, type ScenarioResult } from './scenarios';
+import { byPath, DROPPED, type ScenarioResult } from './scenarios';
+
+/**
+ * Where a scenario's host is, in words (AFD-94: round 2, S9, the panel said `reported` and
+ * `stopped`, the ends' keys): an end node's title, "<step>'s open <port>" for an output with no
+ * wire, "dropped out of the run", or what the runner says ("not run"). Anything else as it is.
+ */
+export function endWords(doc: FlowDocument, where: string): string {
+  if (where === DROPPED) return 'dropped out of the run';
+  const nodes = byPath(doc);
+  const node = nodes.get(where);
+  if (node) return node.title || node.key;
+  const dot = where.lastIndexOf('.');
+  const step = dot > 0 ? nodes.get(where.slice(0, dot)) : undefined;
+  if (step) return `${step.title || step.key}'s open ${where.slice(dot + 1)}`;
+  return where;
+}
+
+/** "lab-rt-14 ended at Stopped; the scenario expected Reported to NetOps". */
+export function missText(doc: FlowDocument, m: ScenarioResult['hosts'][number]): string {
+  const ended =
+    m.actual === DROPPED
+      ? `${m.host} dropped out of the run`
+      : m.actual === 'not run' || m.actual === 'no run'
+        ? `${m.host} did not run`
+        : `${m.host} ended at ${endWords(doc, m.actual)}`;
+  return `${ended}; the scenario expected ${endWords(doc, m.expected)}`;
+}
 
 /** The scenario as a run Run mode can show. */
 export function scenarioRun(r: ScenarioResult, at: string): RunView {

@@ -8,8 +8,14 @@ import { optionA } from '../../../src/core/engine/optionA';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { summarizeRun } from '../../../src/core/run/events';
 import { runStates } from '../../../src/core/run/view';
-import { hostEnds, judge } from '../../../src/core/scenario/scenarios';
-import { endRows, scenarioMisses, scenarioRun } from '../../../src/core/scenario/view';
+import { DROPPED, hostEnds, judge } from '../../../src/core/scenario/scenarios';
+import {
+  endRows,
+  endWords,
+  missText,
+  scenarioMisses,
+  scenarioRun,
+} from '../../../src/core/scenario/view';
 
 const dir = join(__dirname, '../../fixtures/engine');
 const doc = parse(readFileSync(join(dir, 'routing-ports.flow.yaml'), 'utf8')) as FlowDocument;
@@ -70,5 +76,16 @@ describe('scenario on the canvas', () => {
       expected: false,
       ended: 'stopped',
     });
+  });
+});
+
+describe('scenario ends in words (AFD-94)', () => {
+  it("an end by its title, a step's open port, a host that dropped out", () => {
+    expect(endWords(doc, 'stopped')).toBe(doc.nodes.find((n) => n.key === 'stopped')?.title);
+    expect(endWords(doc, DROPPED)).toBe('dropped out of the run');
+    expect(endWords(doc, 'no-such-end')).toBe('no-such-end');
+    expect(missText(doc, { host: 'h03', expected: 'failed', actual: DROPPED })).toMatch(
+      /^h03 dropped out of the run; the scenario expected /,
+    );
   });
 });

@@ -18,6 +18,7 @@ import {
   scenarioInventory,
   scenarioVars,
 } from '../../core/scenario/scenarios';
+import { endWords } from '../../core/scenario/view';
 
 export interface ScenarioRunOptions {
   env: Environment;
@@ -159,20 +160,31 @@ export async function runScenarios(o: ScenarioRunOptions): Promise<ScenarioResul
   return results;
 }
 
-/** A one-line verdict per scenario, and the hosts that ended elsewhere. */
-export function describeResults(results: readonly ScenarioResult[]): string[] {
+/**
+ * A one-line verdict per scenario, and the hosts that ended elsewhere. With the flow at hand, the
+ * ends by their titles with the keys a scenario file uses in brackets (AFD-94).
+ */
+export function describeResults(results: readonly ScenarioResult[], doc?: FlowDocument): string[] {
   const out: string[] = [];
+  const say = (where: string) => {
+    const words = doc ? endWords(doc, where) : where;
+    return words === where ? where : `${words} (${where})`;
+  };
   for (const r of results) {
     out.push(`${r.passed ? 'PASS' : 'FAIL'} ${r.name}${r.error ? `: ${r.error}` : ''}`);
     for (const h of r.hosts)
       if (h.expected !== h.actual)
-        out.push(`  ${h.host}: expected ${h.expected}, ended at ${h.actual}`);
+        out.push(`  ${h.host}: expected ${say(h.expected)}, ended at ${say(h.actual)}`);
   }
   return out;
 }
 
 /** JUnit XML for CI dashboards: one test case per scenario. */
-export function junitXml(flow: string, results: readonly ScenarioResult[]): string {
+export function junitXml(
+  flow: string,
+  results: readonly ScenarioResult[],
+  doc?: FlowDocument,
+): string {
   const esc = (t: string) =>
     t
       .replaceAll('&', '&amp;')
@@ -182,7 +194,7 @@ export function junitXml(flow: string, results: readonly ScenarioResult[]): stri
   const failures = results.filter((r) => !r.passed).length;
   const cases = results.map((r) => {
     if (r.passed) return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"/>`;
-    const text = describeResults([r]).join('\n');
+    const text = describeResults([r], doc).join('\n');
     return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"><failure message="${esc(r.error ?? 'hosts ended elsewhere')}">${esc(text)}</failure></testcase>`;
   });
   return [

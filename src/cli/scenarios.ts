@@ -105,9 +105,9 @@ async function main(): Promise<number> {
       keep: args.includes('--keep'),
       log: args.includes('--verbose') ? (line) => console.log(`  | ${line}`) : undefined,
     });
-    for (const line of describeResults(results)) console.log(line);
+    for (const line of describeResults(results, doc)) console.log(line);
     failed += results.filter((r) => !r.passed).length;
-    junit.push(junitXml(doc.flow.key, results));
+    junit.push(junitXml(doc.flow.key, results, doc));
   }
   const out = value('--junit');
   if (out) writeFileSync(out, junit.join('\n'));

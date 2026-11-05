@@ -60,3 +60,14 @@ host ended where or why, and ran the flow for real while looking for them (P18).
 - **The notification** is one line, with Show on Canvas (it opens the designer if needed, then the
   first failing scenario) and Show Log.
 - **Test Explorer** integration is still not done.
+
+## Amendment: results in words (AFD-94, 2026-11-05)
+
+Round 2's participant answered T8 with the host line ("[check-power] TODO · TODO: ...") and missed
+the miss line above it, which gave the ends' keys (S9). The data stays in keys (scenario files,
+`judge`, JUnit's machine side); what people read uses `endWords` and `missText`
+(`core/scenario/view.ts`): an end's title, "<step>'s open <port>", "dropped out of the run". The
+run panel, an end node's table, the notification (its first miss) and the log and command line
+(titles with the keys in brackets) use them; a scenario run's failures read "the scenario fails it
+in <step>", since its steps are stubs. The dropped-out sentinel is now `(dropped out)`: `stopped`
+was also the key of a common end, so a host that dropped out passed `expect: stopped`.

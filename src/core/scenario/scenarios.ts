@@ -185,8 +185,15 @@ export function scenarioInventory(doc: FlowDocument, s: Scenario): string {
 }
 
 /**
+ * A host that dropped out of the run. AFD-94: it was `stopped`, which an end node keyed `stopped`
+ * also reads as, so a host that dropped out passed `expect: stopped` (round 2's flows have one).
+ * Parentheses never make a key.
+ */
+export const DROPPED = '(dropped out)';
+
+/**
  * Where each host ended, as a scenario names it: the key path of the end node it reached, the
- * `<step>.<port>` it stopped at (an output without a wire), or `stopped` (dropped out of the run).
+ * `<step>.<port>` it stopped at (an output without a wire), or DROPPED (out of the run).
  */
 export function hostEnds(doc: FlowDocument, s: RunSummary): Record<string, string> {
   const model = modelOf(doc);
@@ -206,7 +213,7 @@ export function hostEnds(doc: FlowDocument, s: RunSummary): Record<string, strin
       for (const h of hosts) out[h] ??= `${paths.get(id) ?? entry.node.key}.${port}`;
     }
   }
-  for (const h of s.hosts) out[h] ??= 'stopped';
+  for (const h of s.hosts) out[h] ??= DROPPED;
   return out;
 }
 

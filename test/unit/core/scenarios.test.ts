@@ -9,6 +9,7 @@ import type { FlowDocument } from '../../../src/core/flow/types';
 import type { RunSummary } from '../../../src/core/run/events';
 import {
   checkScenarios,
+  DROPPED,
   hostEnds,
   judge,
   parseScenarios,
@@ -79,7 +80,8 @@ describe('scenario files (AFD-58)', () => {
       h01: 'done',
       h02: 'failed',
       h03: 'gate.failed_hosts',
-      h04: 'stopped',
+      // AFD-94: dropped out, which an end keyed `stopped` can no longer be taken for.
+      h04: DROPPED,
     });
     const s: Scenario = {
       name: 'x',

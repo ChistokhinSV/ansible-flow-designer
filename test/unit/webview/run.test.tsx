@@ -257,7 +257,7 @@ describe('scenarios on the canvas (AFD-84)', () => {
     render(<RunPanel />);
     const list = document.querySelector('[data-run-scenarios]') as HTMLElement;
     expect(list.textContent).toContain('1 of 2 failed');
-    expect(list.textContent).toContain('sw-edge-02: expected done, ended at failed');
+    expect(list.textContent).toContain('sw-edge-02 ended at Failed; the scenario expected Done');
     fireEvent.click(screen.getByRole('button', { name: /probe failure is reported/ }));
     const state = useUi.getState();
     expect(state.run?.source).toBe('scenario');

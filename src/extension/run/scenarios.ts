@@ -13,6 +13,7 @@ import {
   scenariosFileName,
   scenarioTemplate,
 } from '../../core/scenario/scenarios';
+import { endWords, scenarioMisses } from '../../core/scenario/view';
 import { parseYaml } from '../../core/yaml/parse';
 import { describeResults, runScenarios } from '../../node/scenario/runner';
 import { environmentFor } from '../env/environment';
@@ -106,16 +107,24 @@ export async function runScenariosCommand(
       });
     },
   );
-  for (const line of describeResults(results)) host.log.info(line);
+  for (const line of describeResults(results, doc)) host.log.info(line);
   const failed = results.filter((r) => !r.passed);
   // AFD-84: the designer's run panel lists the results; Show on Canvas opens the first failing one
   // there in Run mode. The notification stays one line (round 1: P18).
   host.sessions.get(text.uri.toString())?.showScenarios(results);
   const showCanvas = 'Show on Canvas';
   const showLog = 'Show Log';
+  // AFD-94: the first miss in words, so the line answers "which host ended where" (round 2: S9).
+  const first = failed[0];
+  const miss = first ? scenarioMisses(first)[0] : undefined;
+  const why = miss
+    ? `: ${miss.host} ended at ${endWords(doc, miss.actual)}, expected ${endWords(doc, miss.expected)}`
+    : first?.error
+      ? ` (${first.name}: ${first.error})`
+      : ` (first: ${first?.name})`;
   const say = failed.length
     ? vscode.window.showWarningMessage(
-        `Scenarios: ${failed.length} of ${results.length} failed for ${doc.flow.name} (first: ${failed[0]?.name}).`,
+        `Scenarios: ${failed.length} of ${results.length} failed for ${doc.flow.name}${why}.`,
         showCanvas,
         showLog,
       )

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.62.0 — AFD-94
+
+Wave 9, part 3: scenario results in words (`docs/ux/wave8-usability/round2.md`, S9).
+
+- **Ends by their titles:** the run panel says "lab-rt-14 ended at Stopped; the scenario expected Reported to NetOps" instead of the ends' keys, and an end node's table names where each host ended.
+- **The notification names the first miss:** "Scenarios: 1 of 2 failed for Campus health check: lab-rt-14 ended at Stopped, expected Reported to NetOps."
+- **A scenario's failures say what they are:** "lab-rt-14: the scenario fails it in Check power supplies are redundant", not the stub's "[check-power] TODO · TODO: ..."; a step's Run tab says "the scenario fails it here".
+- **The log, the command line and JUnit** give the titles with the keys a scenario file uses in brackets.
+- **Fixed:** a host that dropped out of the run passed `expect: stopped` when the flow has an end keyed `stopped`.
+
 ## 0.61.0 — AFD-93
 
 Wave 9, part 2: the workspace's state where you already look (`docs/ux/wave8-usability/round2.md`, S8, S7, X2).

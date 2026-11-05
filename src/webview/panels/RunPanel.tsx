@@ -16,7 +16,7 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
-import { endRows, scenarioMisses } from '../../core/scenario/view';
+import { endRows, endWords, missText, scenarioMisses } from '../../core/scenario/view';
 import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
@@ -173,6 +173,7 @@ function Scenarios() {
   const results = useUi((s) => s.scenarios);
   const shown = useUi((s) => s.scenarioShown);
   const show = useUi((s) => s.showScenario);
+  const doc = useUi((s) => s.snapshot?.doc);
   if (!results?.length) return null;
   const failed = results.filter((r) => !r.passed).length;
   return (
@@ -207,10 +208,15 @@ function Scenarios() {
                 {r.error ? (
                   <span className="afd-lens-item-detail muted">{r.error}</span>
                 ) : misses.length ? (
-                  <span className="afd-lens-item-detail muted">
+                  // AFD-94: the ends by their titles (round 2: S9, the keys were not read).
+                  <span className="afd-lens-item-detail muted" data-scenario-misses>
                     {misses
-                      .map((m) => `${m.host}: expected ${m.expected}, ended at ${m.actual}`)
-                      .join('; ')}
+                      .map((m) =>
+                        doc
+                          ? missText(doc, m)
+                          : `${m.host}: expected ${m.expected}, ended at ${m.actual}`,
+                      )
+                      .join('. ')}
                   </span>
                 ) : null}
               </button>
@@ -326,8 +332,18 @@ export function RunPanel() {
             <ul className="afd-run-hosts" data-run-failures={s.failures.length}>
               {s.failures.map((f) => (
                 <li key={`${f.host}|${f.task}`}>
-                  <span className="mono">{f.host}</span> failed in {f.task}
-                  {f.msg ? <span className="muted"> · {f.msg}</span> : null}
+                  {/* AFD-94: a scenario runs stubs: its failures are the ones it plants, by step. */}
+                  {run.scenario ? (
+                    <>
+                      <span className="mono">{f.host}</span>: the scenario fails it in{' '}
+                      {(f.node && doc && modelOf(doc).nodes.get(f.node)?.node.title) || f.task}
+                    </>
+                  ) : (
+                    <>
+                      <span className="mono">{f.host}</span> failed in {f.task}
+                      {f.msg ? <span className="muted"> · {f.msg}</span> : null}
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -392,7 +408,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                 <tr key={r.host} data-host={r.host} className={r.ok ? '' : 'tone-warn'}>
                   <td className="mono">{r.host}</td>
                   <td>{r.expected ? 'here' : 'elsewhere'}</td>
-                  <td className="mono">{r.ended}</td>
+                  <td title={r.ended}>{endWords(doc, r.ended)}</td>
                 </tr>
               ))}
             </tbody>
@@ -439,6 +455,8 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                         <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
                           {h.ended}
                         </span>
+                      ) : h.problem && run?.scenario ? (
+                        <span className="tone-warn">the scenario fails it here</span>
                       ) : h.problem ? (
                         <span title={h.problem.msg}>
                           {h.problem.status} in {h.problem.task}
