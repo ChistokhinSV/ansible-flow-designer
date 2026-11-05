@@ -87,6 +87,10 @@ the designer has it open, the canvas redraws, and a note over it says what chang
 designer since you opened it: "2 steps and 1 wire changed outside the designer". The changed steps
 and wires have a dashed outline. A subflow with a changed step inside has a thin dashed outline.
 
+The same goes for changes made while the flow was closed: when you open it again, the note says
+what changed "since you last had this flow open", with the day and time. The designer keeps what it
+last showed of each flow in the workspace's storage, and forgets flows not opened for 90 days.
+
 - **Show** lights the changed steps and opens the first.
 - **Clear** drops the marks.
 

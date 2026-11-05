@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
 import { planSave } from '../core/flow/save';
 import type { Notice } from '../core/protocol';
+import { applyEdits } from '../core/yaml/edits';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { announceImplementedAgain, type SessionDeps } from './flowSession';
 import { headText } from './gitHead';
@@ -27,11 +28,18 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
     }),
     vscode.workspace.onWillSaveTextDocument((e) => {
       if (isFlow(e.document))
-        e.waitUntil(saveEdits(e.document, lastSaved.get(e.document.uri.toString())));
+        e.waitUntil(
+          saveEdits(e.document, lastSaved.get(e.document.uri.toString()), (text) =>
+            sessions.get(e.document.uri.toString())?.expectOwn(text),
+          ),
+        );
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (!isFlow(doc)) return;
       lastSaved.set(doc.uri.toString(), doc.getText());
+      // AFD-92: saved in the designer, this is what it shows (save edits included).
+      const session = sessions.get(doc.uri.toString());
+      if (session?.hasPanels) void session.rememberShown();
       if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true)) {
         const code = writeCode(doc, deps, false);
         savedCode.set(doc.uri.toString(), code);
@@ -114,6 +122,7 @@ async function diskText(uri: vscode.Uri): Promise<string | undefined> {
 async function saveEdits(
   document: vscode.TextDocument,
   lastSaved: string | undefined,
+  own?: (text: string) => void,
 ): Promise<vscode.TextEdit[]> {
   const text = document.getText();
   const saved = (await diskText(document.uri)) ?? lastSaved;
@@ -125,6 +134,8 @@ async function saveEdits(
     return [];
   }
   announceImplementedAgain(parseFlow(text).doc, plan.dropped);
+  // AFD-92: the text these edits make is the save's own, not an outside edit.
+  if (plan.edits.length) own?.(applyEdits(text, plan.edits));
   return plan.edits.map((e) =>
     vscode.TextEdit.replace(
       new vscode.Range(document.positionAt(e.start), document.positionAt(e.end)),

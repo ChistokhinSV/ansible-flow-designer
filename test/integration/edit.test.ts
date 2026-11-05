@@ -120,6 +120,8 @@ describe('AFD-85: edits made outside the designer', () => {
   it('an edit written to disk is marked; the designer’s own edit is not', async () => {
     const { readFileSync, writeFileSync } = await import('node:fs');
     const original = readFileSync(EDGE.fsPath, 'utf8');
+    // AFD-92: what an earlier test left shown would come back as marks.
+    await (await testApi()).forgetShown();
     try {
       const doc = await openDesigner(EDGE);
       const api = await testApi();
@@ -146,6 +148,65 @@ describe('AFD-85: edits made outside the designer', () => {
     } finally {
       await closeAll();
       writeFileSync(EDGE.fsPath, original);
+    }
+  });
+});
+
+describe('AFD-92: edits made while the flow was closed', () => {
+  afterEach(closeAll);
+
+  it('a change made with the designer closed is marked when it opens again; none when nothing changed', async () => {
+    const { readFileSync, writeFileSync } = await import('node:fs');
+    const original = readFileSync(EDGE.fsPath, 'utf8');
+    const api = await testApi();
+    await api.forgetShown();
+    const wait = async (test: () => Promise<boolean> | boolean, what: string) => {
+      for (let i = 0; i < 100; i++) {
+        if (await test()) return;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      assert.fail(`timed out: ${what}`);
+    };
+    try {
+      const doc = await openDesigner(EDGE);
+      const flow = parse(doc.getText()) as FlowDocument;
+      const precheck = flow.nodes.find((n) => n.key === 'precheck');
+      assert.ok(precheck);
+      // The designer closes: it keeps the flow as it showed it.
+      await closeAll();
+      await wait(async () => (await api.shownFlow(EDGE))?.text === original, 'remembered');
+      // An agent edits the closed flow.
+      writeFileSync(
+        EDGE.fsPath,
+        original.replace(`title: ${precheck.title}`, 'title: Pre-checks from an agent'),
+      );
+      await openDesigner(EDGE);
+      await wait(() => !!api.outsideMarks(EDGE), 'marks');
+      assert.deepEqual(api.outsideMarks(EDGE)?.nodes, [precheck.id]);
+      assert.equal(api.outsideMarks(EDGE)?.closed, true);
+      // Clear: the flow as it is now is what the designer showed; opening again marks nothing.
+      await api.clearOutside(EDGE);
+      await closeAll();
+      const again = await openDesigner(EDGE);
+      await new Promise((r) => setTimeout(r, 500));
+      assert.equal(api.outsideMarks(EDGE), undefined);
+      // The designer's own edit and save (with its version bump) are not outside edits either.
+      const moved = await api.run(EDGE, {
+        kind: 'moveNodes',
+        positions: { [precheck.id]: { x: 40, y: 40 } },
+      });
+      assert.ok(moved.ok, moved.error);
+      await again.save();
+      await new Promise((r) => setTimeout(r, 500));
+      assert.equal(api.outsideMarks(EDGE), undefined);
+      await closeAll();
+      await openDesigner(EDGE);
+      await new Promise((r) => setTimeout(r, 500));
+      assert.equal(api.outsideMarks(EDGE), undefined);
+    } finally {
+      await closeAll();
+      writeFileSync(EDGE.fsPath, original);
+      await api.forgetShown();
     }
   });
 });

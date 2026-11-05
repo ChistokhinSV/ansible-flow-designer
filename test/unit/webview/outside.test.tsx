@@ -10,7 +10,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
-import { OutsideNote } from '../../../src/webview/panels/OutsideNote';
+import { OutsideNote, whenText } from '../../../src/webview/panels/OutsideNote';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -76,5 +76,27 @@ describe('changed outside the designer', () => {
     expect(card('ping')?.dataset.outside).toBeUndefined();
     act(() => useUi.getState().setOutside(null));
     expect(card('say-hello')?.dataset.outside).toBeUndefined();
+  });
+});
+
+describe('changed while the flow was closed (AFD-92)', () => {
+  it('the note says since when you last had the flow open, with the day when not today', () => {
+    act(() =>
+      useUi.getState().setOutside({
+        nodes: [id('say-hello')],
+        edges: [],
+        removed: 0,
+        since: '2026-11-04T19:49:00Z',
+        closed: true,
+      }),
+    );
+    render(<OutsideNote />);
+    const note = screen.getByRole('status');
+    expect(note.dataset.outsideClosed).toBe('true');
+    expect(note.textContent).toMatch(
+      /1 step changed outside the designer since you last had this flow open \(.+, .+\)\./,
+    );
+    expect(whenText('2026-11-04T19:49:00Z', new Date('2026-11-04T21:00:00Z'))).not.toMatch(/,/);
+    expect(whenText('2026-11-04T19:49:00Z', new Date('2026-11-06T09:00:00Z'))).toMatch(/,/);
   });
 });

@@ -6,7 +6,7 @@ import { engineFor } from '../core/engine/engines';
 import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { completeIds } from '../core/flow/completeIds';
-import { elementRangeOf, flowFromFile, type ParsedFlow } from '../core/flow/document';
+import { elementRangeOf, flowFromFile, type ParsedFlow, parseFlow } from '../core/flow/document';
 import { type IdFactory, slugify } from '../core/flow/ids';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
@@ -30,6 +30,7 @@ import type { ScenarioResult } from '../core/scenario/scenarios';
 import { isWebLink, linksOf } from '../core/view/markdown';
 import {
   addMarks,
+  closedMarks,
   keepMarks,
   type OutsideMarks,
   outsideChanges,
@@ -55,6 +56,7 @@ import { showRunTerminal } from './run/terminal';
 import { LensController } from './session/lensController';
 import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
+import type { ShownFlows } from './shownFlows';
 import type { SyncDeps } from './sync/codeSync';
 import { openCode } from './sync/driftActions';
 import {
@@ -98,6 +100,8 @@ export interface SessionDeps {
   lens?: { probes: ProbeManager; state: vscode.Memento; storage: vscode.Uri };
   /** AFD-82: what a run of this flow needs, for the launch dialog's plan and facts. */
   run?: (uri: vscode.Uri) => RunDeps;
+  /** AFD-92: what the designer last showed of each flow, for edits made while it was closed. */
+  shown?: ShownFlows;
 }
 
 export interface PerfEvent {
@@ -378,6 +382,8 @@ export class FlowSession implements vscode.Disposable {
   }
 
   attach(panel: vscode.WebviewPanel): void {
+    // AFD-92: the designer opens this flow: what changed since it last showed it is marked.
+    if (this.panels.size === 0) void this.markClosed();
     this.panels.add(panel);
     panel.webview.options = {
       enableScripts: true,
@@ -394,7 +400,53 @@ export class FlowSession implements vscode.Disposable {
       progress.dispose();
       this.panels.delete(panel);
       this.readyPanels.delete(panel);
+      if (this.panels.size === 0) void this.rememberShown();
     });
+  }
+
+  /**
+   * AFD-92: the flow as the designer shows it, kept for when it opens again (its last panel closes,
+   * a save while it is open, Clear). A dirty flow is kept as saved: the person's unsaved edits are
+   * not on disk, so they cannot come back as an outside change.
+   */
+  async rememberShown(): Promise<void> {
+    const shown = this.deps.shown;
+    if (!shown) return;
+    let text = this.document.getText();
+    if (this.document.isDirty) {
+      try {
+        text = new TextDecoder().decode(await vscode.workspace.fs.readFile(this.document.uri));
+      } catch {
+        return;
+      }
+    }
+    await shown.remember(this.document.uri, text);
+  }
+
+  /** AFD-92: the changes since the designer last showed this flow, as outside marks. */
+  private async markClosed(): Promise<void> {
+    const shown = await this.deps.shown?.recall(this.document.uri);
+    if (!shown || shown.text === this.document.getText()) return;
+    const before = parseFlow(shown.text).doc;
+    const snapshot = await this.snapshot();
+    if (!before || !snapshot.doc || snapshot.stale) return;
+    const marks = closedMarks(this.marks, before, snapshot.doc, shown.at);
+    if (marks === this.marks) return;
+    this.marks = marks;
+    // A panel not ready yet gets them after its snapshot ('ready').
+    for (const p of this.readyPanels) this.post(p, { type: 'outsideMarks', marks: marks ?? null });
+  }
+
+  /** Clear: the marks go, and the flow as it is now is what the designer last showed. */
+  async clearOutside(): Promise<void> {
+    this.marks = undefined;
+    this.broadcast({ type: 'outsideMarks', marks: null });
+    await this.rememberShown();
+  }
+
+  /** AFD-92: the save's own edits (the version bump, a tested step dropping back) are not outside. */
+  expectOwn(text: string): void {
+    this.ownText = text;
   }
 
   private post(panel: vscode.WebviewPanel, message: HostMessage): void {
@@ -563,8 +615,7 @@ export class FlowSession implements vscode.Disposable {
         dropLaunch(m.token);
         break;
       case 'clearOutside':
-        this.marks = undefined;
-        this.broadcast({ type: 'outsideMarks', marks: null });
+        await this.clearOutside();
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);

@@ -6,10 +6,12 @@ import { parse } from 'yaml';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import {
   addMarks,
+  closedMarks,
   keepMarks,
   markedAround,
   marksText,
   outsideChanges,
+  shownToDrop,
 } from '../../../src/core/view/outsideChanges';
 
 const base = parse(
@@ -84,5 +86,51 @@ describe('outside changes', () => {
   it('a marked step inside a subflow marks the subflows around it', () => {
     const marks = addMarks(undefined, edit, after, 'now');
     expect(markedAround(marks as NonNullable<typeof marks>, after)).toEqual([]);
+  });
+});
+
+describe('changes made while the flow was closed (AFD-92)', () => {
+  const after = agentEdit(base);
+  const at = '2026-11-04T19:49:00.000Z';
+
+  it('marks what changed since the designer last showed it, from then', () => {
+    const marks = closedMarks(undefined, base, after, at);
+    expect(marks?.closed).toBe(true);
+    expect(marks?.since).toBe(at);
+    expect(marks?.nodes).toContain(id(base, 'push-baseline'));
+    expect(marks?.removed).toBe(1);
+  });
+
+  it('nothing changed, or another flow now in the file: the marks stay as they were', () => {
+    expect(closedMarks(undefined, base, structuredClone(base), at)).toBeUndefined();
+    const other = { ...after, flow: { ...after.flow, id: '01M7OTHERFL0W0000000000000' } };
+    expect(closedMarks(undefined, base, other, at)).toBeUndefined();
+  });
+
+  it('joins marks made while the file was open without a designer; the earlier time wins', () => {
+    const open = addMarks(
+      undefined,
+      { nodes: [id(base, 'backup-config')], edges: [], removed: 0 },
+      after,
+      '2026-11-05T08:00:00.000Z',
+    );
+    const marks = closedMarks(open, base, after, at);
+    expect(marks?.nodes).toEqual(
+      expect.arrayContaining([id(base, 'backup-config'), id(base, 'push-baseline')]),
+    );
+    expect(marks?.since).toBe(at);
+  });
+
+  it('forgets flows not shown for 90 days, then all past the 300 most recent', () => {
+    const now = Date.parse('2026-11-05T00:00:00Z');
+    const day = (n: number) => new Date(now - n * 86_400_000).toISOString();
+    expect(shownToDrop({ a: { at: day(1) }, b: { at: day(91) }, c: { at: 'bad' } }, now)).toEqual([
+      'b',
+      'c',
+    ]);
+    const many = Object.fromEntries(
+      Array.from({ length: 302 }, (_, i) => [`f${i}`, { at: day(i / 100) }]),
+    );
+    expect(shownToDrop(many, now).sort()).toEqual(['f300', 'f301']);
   });
 });

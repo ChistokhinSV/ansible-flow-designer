@@ -13,6 +13,7 @@ import { FlowSession, type SessionDeps } from './flowSession';
 import type { PlaybookImportDeps } from './import/playbookImport';
 import { logChannel } from './log';
 import type { RunDeps } from './run/runner';
+import { ShownFlows } from './shownFlows';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
@@ -34,6 +35,8 @@ export class Host {
   readonly lastSaved = new Map<string, string>();
   /** The code generation started by each flow's last save (tests wait for it). */
   readonly savedCode = new Map<string, Promise<CodegenOutcome>>();
+  /** AFD-92: what the designer last showed of each flow, per workspace. */
+  readonly shown: ShownFlows;
 
   constructor(readonly context: vscode.ExtensionContext) {
     this.testMode = context.extensionMode === vscode.ExtensionMode.Test;
@@ -41,6 +44,10 @@ export class Host {
     this.probes = new ProbeManager(this.probeDir, ensureCacheDir(context.globalStorageUri), (l) =>
       l.startsWith('probe stderr:') ? this.log.debug(l) : this.log.info(l),
     );
+    this.shown = new ShownFlows(context.storageUri);
+    // Tests start with nothing shown: the test workspace's storage outlives a run, and what an
+    // earlier run showed would come back as marks.
+    void (this.testMode ? this.shown.forget() : this.shown.prune());
     this.catalog = new CatalogService({
       storage: context.globalStorageUri,
       probes: this.probes,
@@ -61,6 +68,7 @@ export class Host {
         storage: context.globalStorageUri,
       },
       run: (uri) => this.runDeps(uri),
+      shown: this.shown,
     };
     this.playbookDeps = {
       newId: this.deps.newId,

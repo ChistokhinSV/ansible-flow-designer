@@ -52,6 +52,12 @@ export interface AfdTestApi {
   ): Promise<{ entries?: OutputEntry[]; error?: string }>;
   /** AFD-85: what changed outside the designer since it opened. */
   outsideMarks(uri: vscode.Uri): OutsideMarks | undefined;
+  /** AFD-92: what the designer last showed of a flow, and when. */
+  shownFlow(uri: vscode.Uri): Promise<{ text: string; at: string } | undefined>;
+  /** AFD-92: forget what the designer showed of every flow. */
+  forgetShown(): Promise<void>;
+  /** AFD-92: Clear on the outside note. */
+  clearOutside(uri: vscode.Uri): Promise<void>;
   /** AFD-81: the name of the terminal the flow's last local run ran in. */
   runTerminal(uri: vscode.Uri): string | undefined;
   /** AFD-82: the launch dialog's plan for this flow, as the designer's Run would open it. */
@@ -139,6 +145,11 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
       },
     runTerminal: (uri) => runTerminalName(uri),
     outsideMarks: (uri) => host.sessions.get(uri.toString())?.outsideMarks,
+    shownFlow: (uri) => host.shown.recall(uri),
+    forgetShown: () => host.shown.forget(),
+    clearOutside: async (uri) => {
+      await host.sessions.get(uri.toString())?.clearOutside();
+    },
     launchPlan: async (uri, mode) =>
       planLaunch(await vscode.workspace.openTextDocument(uri), host.runDeps(uri), mode),
     launchCheck: async (uri, token, inputs) =>

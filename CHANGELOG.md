@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.60.0 — AFD-92
+
+Wave 9, part 1: what changed while a flow was closed (`docs/ux/wave8-usability/round2.md`, S12).
+
+- **Marks for a closed flow.** When you open a flow again, the steps and wires that changed since the designer last showed it get the dashed outline, and the note says "3 steps changed outside the designer since you last had this flow open (4 Nov, 20:49)". That covers an agent's edit, a text editor, a Git pull or checkout: anything the designer did not write. Before, marks counted only from the moment the designer opened.
+- **What the designer last showed** is kept per workspace, when its last panel closes, when you save in it and when you press Clear; flows not opened for 90 days are forgotten.
+- **A save's own edits** (the version bump, a tested step going back to implemented) are no longer counted as outside edits.
+- The note shows the day when the marks are not from today.
+
 ## 0.59.3 — AFD-91
 
 Two bugs from the second usability round (`docs/ux/wave8-usability/round2.md`).

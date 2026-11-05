@@ -51,3 +51,17 @@ lens mixed their own edits in (P21).
   Clear drops them (`clearOutside`).
 - **Not detected.** A disk change while the flow's text editor is the active editor counts as the
   person's own.
+
+## Amendment: marks for edits made while the flow was closed (AFD-92, 2026-11-05)
+
+Round 2's participant reopened a flow after an agent's edit and saw no mark (S12): marks counted
+from the moment the designer opened. Now the designer keeps what it last showed of each flow
+(`extension/shownFlows.ts`, the workspace's storage, `shown/<hash>.yaml` plus an index), written
+when its last panel closes, on a save while it is open, and on Clear; a dirty flow is kept as
+saved. Only those moments write, so an agent's edit to a flow nobody has open is never recorded as
+shown. When the first panel attaches, the changes from that text to the flow now become marks
+(`closedMarks`, `closed: true`): every change the designer did not write counts, a Git pull or
+checkout included (the product owner's decision). A file that now holds another flow ID is not
+compared. Entries older than 90 days, or past the 300 most recent, are pruned at activation. A
+save's own edits (the version bump, the tested drop-back) set `ownText`, so they are no longer
+outside edits.

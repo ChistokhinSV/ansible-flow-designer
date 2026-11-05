@@ -1,7 +1,8 @@
 // AFD-85 (wave 8 group H): what changed in a flow outside the designer, since it was opened. An
 // agent, a command line or another extension can rewrite the file; the canvas then rebuilt with no
 // trace of it (round 1: P21). Each outside edit adds its steps and wires to the marks, which stay
-// apart from the Changes lens (Git): the person's own edits in between never count. Pure.
+// apart from the Changes lens (Git): the person's own edits in between never count. AFD-92 (wave
+// 9): also what changed while the flow was closed, against what the designer last showed. Pure.
 
 import { modelOf } from '../flow/model';
 import { diffFlows } from '../flow/semanticDiff';
@@ -16,6 +17,11 @@ export interface OutsideMarks {
   removed: number;
   /** When the first of these edits came. */
   since: string;
+  /**
+   * AFD-92: some of them came while the flow was closed. `since` is then when the designer last
+   * showed it (round 2: S12, an agent's edit to a closed flow left no mark).
+   */
+  closed?: boolean;
 }
 
 /** One outside edit: what it added or changed between the flow as shown and the flow now. */
@@ -50,7 +56,51 @@ export function addMarks(
   );
   const removed = (marks?.removed ?? 0) + edit.removed;
   if (!nodes.length && !edges.length && !removed) return undefined;
-  return { nodes, edges, removed, since: marks?.since ?? now };
+  return {
+    nodes,
+    edges,
+    removed,
+    since: marks?.since ?? now,
+    ...(marks?.closed ? { closed: true } : {}),
+  };
+}
+
+/**
+ * AFD-92: the marks once the designer opens a flow again, against the flow it last showed
+ * (`shown`, saved when its last panel closed). Every change it did not write counts: an agent, a
+ * text editor, a Git pull or checkout. A file that now holds another flow (another ID) is not
+ * compared. `at` is when the designer last showed it.
+ */
+export function closedMarks(
+  marks: OutsideMarks | undefined,
+  shown: FlowDocument,
+  now: FlowDocument,
+  at: string,
+): OutsideMarks | undefined {
+  if (shown.flow.id && now.flow.id && shown.flow.id !== now.flow.id) return marks;
+  const edit = outsideChanges(shown, now);
+  if (!edit.nodes.length && !edit.edges.length && !edit.removed) return marks;
+  const next = addMarks(marks, edit, now, at);
+  if (!next) return marks;
+  const since = marks && marks.since < at ? marks.since : at;
+  return { ...next, since, closed: true };
+}
+
+/**
+ * The flows the designer remembers (AFD-92), oldest dropped first: those not shown for `days`, then
+ * any past the `max` most recent. Returns the keys to drop.
+ */
+export function shownToDrop(
+  entries: Readonly<Record<string, { at: string }>>,
+  now: number,
+  days = 90,
+  max = 300,
+): string[] {
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
+  // An entry whose time does not read counts as the oldest.
+  const time = (at: string) => Date.parse(at) || Number.NEGATIVE_INFINITY;
+  const byAge = Object.entries(entries).sort(([, a], [, b]) => time(b.at) - time(a.at));
+  return byAge.filter(([, e], i) => i >= max || time(e.at) < cutoff).map(([key]) => key);
 }
 
 /** The marks the flow still has, after the person's own edit. */
