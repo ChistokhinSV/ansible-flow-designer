@@ -16,12 +16,12 @@ export interface Check {
 
 type Pos = { x: number; y: number };
 
-interface Level {
+export interface Level {
   nodes: FlowNode[];
   edges: FlowDocument['edges'];
 }
 
-const words = (s: string) =>
+export const words = (s: string) =>
   s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -48,7 +48,7 @@ const answerWords = (answer: string) => words(answer).split(' ').map(stem);
  * The answer names the thing: every significant word of it appears, case, plural and punctuation
  * aside; a word of six letters or more may carry one swapped letter.
  */
-const mentions = (answer: string, thing: string) => {
+export const mentions = (answer: string, thing: string) => {
   const a = answerWords(answer);
   const sig = words(thing)
     .split(' ')
@@ -58,7 +58,7 @@ const mentions = (answer: string, thing: string) => {
 };
 
 /** At least one significant word of the thing appears. */
-const mentionsAny = (answer: string, thing: string) => {
+export const mentionsAny = (answer: string, thing: string) => {
   const a = ` ${words(answer)} `;
   return words(thing)
     .split(' ')
@@ -67,7 +67,7 @@ const mentionsAny = (answer: string, thing: string) => {
 };
 
 /** A host by name, or by its number alone (lab-sw-03: "03" or "3"). */
-const hostMentioned = (answer: string, host: string) => {
+export const hostMentioned = (answer: string, host: string) => {
   const n = /(\d+)$/.exec(host)?.[1];
   return (
     answer.toLowerCase().includes(host) ||
@@ -75,7 +75,7 @@ const hostMentioned = (answer: string, host: string) => {
   );
 };
 
-function read(file: string): FlowDocument | undefined {
+export function read(file: string): FlowDocument | undefined {
   try {
     return parse(readFileSync(file, 'utf8')) as FlowDocument;
   } catch {
@@ -83,7 +83,7 @@ function read(file: string): FlowDocument | undefined {
   }
 }
 
-function flowFiles(root: string): string[] {
+export function flowFiles(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -97,7 +97,7 @@ function flowFiles(root: string): string[] {
 }
 
 /** The level a key path names: '' is the top level, 'drain' the inside of subflow drain. */
-function level(doc: FlowDocument, path = ''): Level | undefined {
+export function level(doc: FlowDocument, path = ''): Level | undefined {
   let lv: Level = { nodes: doc.nodes ?? [], edges: doc.edges ?? [] };
   for (const key of path ? path.split('/') : []) {
     const n = lv.nodes.find((x) => x.key === key);
@@ -107,14 +107,14 @@ function level(doc: FlowDocument, path = ''): Level | undefined {
   return lv;
 }
 
-function node(doc: FlowDocument, path: string): FlowNode | undefined {
+export function node(doc: FlowDocument, path: string): FlowNode | undefined {
   const parts = path.split('/');
   const key = parts.pop() ?? '';
   return level(doc, parts.join('/'))?.nodes.find((n) => n.key === key);
 }
 
 /** Follows a port through steps (their ok_hosts) to the end node hosts reach, within 6 hops. */
-function endOf(lv: Level, from: string, port: string): FlowNode | undefined {
+export function endOf(lv: Level, from: string, port: string): FlowNode | undefined {
   let at = { node: from, port };
   for (let i = 0; i < 6; i++) {
     const e = lv.edges.find((x) => x.from.node === at.node && x.from.port === at.port);
@@ -126,7 +126,7 @@ function endOf(lv: Level, from: string, port: string): FlowNode | undefined {
   return undefined;
 }
 
-interface AuditEntry {
+export interface AuditEntry {
   event: string;
   run: string;
   mode?: string;
@@ -136,7 +136,7 @@ interface AuditEntry {
   flow?: { key: string };
 }
 
-function audit(storage: string): AuditEntry[] {
+export function audit(storage: string): AuditEntry[] {
   const file = join(storage, 'audit.jsonl');
   if (!existsSync(file)) return [];
   return readFileSync(file, 'utf8')
@@ -146,7 +146,7 @@ function audit(storage: string): AuditEntry[] {
 }
 
 /** Runs of a flow: the launch entry and its finish, if any. */
-function runs(entries: AuditEntry[], key: string, mode: string) {
+export function runs(entries: AuditEntry[], key: string, mode: string) {
   return entries
     .filter((e) => e.event === 'launch' && e.flow?.key === key && e.mode === mode)
     .map((l) => ({

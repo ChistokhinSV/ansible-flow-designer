@@ -137,7 +137,7 @@
   const screens = {
     intro() {
       return `<div class="card"><h1 tabindex="-1">Usability session</h1>
-        <p>Thank you for taking part. You will do ${tasks.length} tasks in Ansible Flow Designer, in two parts with a break between them. It takes about an hour.</p>
+        <p>Thank you for taking part. You will do ${tasks.length} tasks in Ansible Flow Designer, ${esc(S.intro || 'in two parts with a break between them. It takes about an hour.')}</p>
         <ul>
           <li>We test the product, not you. Giving up on a task is useful information.</li>
           <li>Work as you normally would: the user guide, the Command Palette and web search are all fine. Note when you use them.</li>
@@ -161,8 +161,10 @@
     part() {
       const part = t().part;
       const n = tasks.filter((x) => x.part === part).length;
-      return `<div class="card"><h1 tabindex="-1">Part ${part}: ${part === 1 ? 'build and run' : 'find and review'}</h1>
-        <p>${n} tasks. ${part === 2 ? 'Take a short break first if you like: the clock only runs inside a task.' : 'VS Code is open on the lab repository.'}</p>
+      // The study names its parts (round 3 has four); rounds 1-2 sessions saved before had none.
+      const info = S.parts?.[part] || { title: part === 1 ? 'build and run' : 'find and review', note: part === 1 ? 'VS Code is open on the lab repository.' : 'Take a short break first if you like: the clock only runs inside a task.' };
+      return `<div class="card"><h1 tabindex="-1">Part ${part}: ${esc(info.title)}</h1>
+        <p>${n} tasks. ${esc(info.note)}</p>
         <div class="row"><button class="primary" id="next">Show the first task</button></div></div>`;
     },
     task() {
@@ -176,7 +178,7 @@
       return `<div class="card"><p class="meta">${esc(x.id)} of ${tasks.length} · about ${x.softLimit} min</p>
         <h1 tabindex="-1">${esc(x.title)}</h1>
         ${started ? `<p class="goal">${esc(x.goal)}</p>`
-          : `<p class="meta">The goal shows when you press Start, and the clock starts with it.${x.outsideEdit ? ' Save all files in VS Code first (File > Save All): Start makes the kit edit a flow.' : ''}</p>`}
+          : `<p class="meta">The goal shows when you press Start, and the clock starts with it.${x.before ? '' : x.outsideEdit ? ' Save all files in VS Code first (File > Save All): Start makes the kit edit a flow.' : ''}</p>${x.before ? `<p class="hint">${esc(x.before)}</p>` : ''}`}
         ${r.edit ? `<p class="done" role="status">${esc(r.edit)}</p>` : ''}
         ${answer}
         <div class="row">
@@ -259,7 +261,7 @@
         if (x.outsideEdit && !r.edit) {
           try {
             const out = await api('/api/outside-edit', {});
-            r.edit = `The agent has changed ${out.file}. Look at it in VS Code now.`;
+            r.edit = out.message || `The agent has changed ${out.file}. Look at it in VS Code now.`;
           } catch (e) { r.error = `The kit could not make the change: ${e.message}`; }
           save(true); render();
         }

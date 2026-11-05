@@ -1,11 +1,13 @@
 // The task cards of a usability session (AFD-78), filled with a variant's names. A card says what
-// to achieve, never which control to use, so the same card fits 0.50.0 and the wave 8 build.
+// to achieve, never which control to use, so the same card fits 0.50.0 and the wave 8 build. Round
+// 3's cards (AFD-99) are in round3/cards.ts.
 
 import type { Variant } from './variants';
 
 export interface TaskCard {
   id: string;
-  part: 1 | 2;
+  /** The part the task belongs to (rounds 1-2: 1 or 2; round 3: 1 to 4). */
+  part: number;
   title: string;
   /** What to achieve, in the participant's words. */
   goal: string;
@@ -13,10 +15,12 @@ export interface TaskCard {
   answer?: string;
   /** Minutes after which the runner suggests moving on. */
   softLimit: number;
-  /** The wave 8 group the task probes (docs/ux/wave8-usability/tasks.md). */
+  /** What the task probes (docs/ux/wave8-usability/tasks.md, docs/ux/wave9-usability/tasks.md). */
   probes: string;
-  /** T11: the kit plays the coding agent when the task starts. */
+  /** The kit changes a flow outside the designer when the task starts (round 2 T11, round 3 T16). */
   outsideEdit?: boolean;
+  /** Shown before Start: what to prepare. The goal itself shows only on Start. */
+  before?: string;
 }
 
 export function taskCards(v: Variant): TaskCard[] {

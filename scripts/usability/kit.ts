@@ -1,12 +1,13 @@
 // Usability session kit (AFD-78). Prepares a session folder (a VS Code profile and extensions folder
 // of its own, the VSIX, the fictional workspace as a Git repository), starts VS Code there and serves
 // the task runner on 127.0.0.1. The runner saves progress here as it goes, asks for the coding agent's
-// edit in T11 and, at the end, gets the verifier's results. Nothing leaves the machine.
+// edit in T11 (round 3: the colleague's change in T16) and, at the end, gets the verifier's
+// results. Nothing leaves the machine. Variants A and B run rounds 1-2, C runs round 3 (studies.ts).
 //
-//   kit <round> <a|b> <vsix> [--image afd-ee:2.19] [--port 5199] [--no-launch]  new session
-//   kit serve <session>                                                         reopen a session
-//   kit verify <session>                                                        check it again
-//   kit solve <session>                                                         self-test: solve T1-T3, T9, T10
+//   kit <round> <a|b|c> <vsix> [--image afd-ee:2.19] [--port 5199] [--no-launch]  new session
+//   kit serve <session>                                                           reopen a session
+//   kit verify <session>                                                          check it again
+//   kit solve <session>                                                           self-test: the file-checked tasks
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
@@ -19,17 +20,11 @@ import {
 } from 'node:fs';
 import { createServer, type IncomingMessage } from 'node:http';
 import { basename, join, resolve } from 'node:path';
-import { parse } from 'yaml';
-import { type FlowIO, flowEdit, flowNew } from '../../src/core/ai/handlers';
-import { createIdFactory } from '../../src/core/flow/ids';
-import { createSchemaValidator } from '../../src/core/flow/schema';
-import type { FlowDocument } from '../../src/core/flow/types';
-import { FsFlowIO } from '../../src/mcp/fsIO';
 import runnerHtml from './runner.html';
-import { SUS, susScore, taskCards } from './tasks';
-import { pipelineLayout, VARIANTS } from './variants';
-import { type Check, verify } from './verify';
-import { applyOutsideEdit, buildWorkspace } from './workspace';
+import { studyOf } from './studies';
+import type { SessionDirs } from './study';
+import { SUS, susScore } from './tasks';
+import type { Check } from './verify';
 
 const EXTENSION = 'afd-dev.ansible-flow-designer';
 const SESSIONS = 'C:\\DOWNLOADS_TEMP\\afd-usability';
@@ -45,14 +40,17 @@ function log(msg: string) {
 interface Session {
   id: string;
   round: string;
-  variant: 'a' | 'b';
+  variant: string;
   vsix: string;
   version: string;
   image: string;
   port: number;
   token: string;
   created: string;
+  /** The file the kit changed outside the designer, once it has (T11, round 3 T16). */
   outsideEdit?: string;
+  outsideMessage?: string;
+  outsideFacts?: Record<string, unknown>;
 }
 
 const paths = (dir: string) => ({
@@ -65,6 +63,11 @@ const paths = (dir: string) => ({
   extensions: join(dir, 'extensions'),
   storage: join(dir, 'profile', 'User', 'globalStorage', EXTENSION),
 });
+
+const dirsOf = (dir: string): SessionDirs => {
+  const p = paths(dir);
+  return { workspace: p.workspace, profile: p.profile, storage: p.storage };
+};
 
 function writeJson(file: string, data: unknown) {
   const tmp = `${file}.tmp`;
@@ -98,8 +101,8 @@ function vsixVersion(vsix: string): string {
   return /-(\d+\.\d+\.\d+)\.vsix$/.exec(basename(vsix))?.[1] ?? 'unknown';
 }
 
-async function prepare(round: string, variant: 'a' | 'b', vsix: string, opts: Map<string, string>) {
-  if (!VARIANTS[variant]) throw new Error('variant must be a or b');
+async function prepare(round: string, variant: string, vsix: string, opts: Map<string, string>) {
+  const study = studyOf(variant);
   if (!existsSync(vsix)) throw new Error(`no VSIX at ${vsix} (just package builds one)`);
   const image = opts.get('--image') ?? 'afd-ee:2.19';
   if (spawnSync('docker', ['image', 'inspect', image], { stdio: 'ignore' }).status !== 0)
@@ -119,7 +122,7 @@ async function prepare(round: string, variant: 'a' | 'b', vsix: string, opts: Ma
   // A fictional author: decisions and audit entries name this user, never the participant.
   git(p.workspace, ['config', 'user.name', 'P1 (usability session)']);
   git(p.workspace, ['config', 'user.email', 'p1@usability.example']);
-  for (const line of await buildWorkspace(variant, p.workspace)) log(`  ${line}`);
+  for (const line of await study.build(p.workspace)) log(`  ${line}`);
   git(p.workspace, ['add', '-A']);
   git(p.workspace, [
     '-c',
@@ -193,9 +196,9 @@ function check(dir: string): { checks: Check[]; summary: string } {
   if (!s) throw new Error(`${dir} is not a session folder`);
   const p = paths(dir);
   const progress = readJson<Progress>(p.progress) ?? {};
-  const v = VARIANTS[s.variant];
-  const checks = verify(v, p.workspace, p.storage, progress.answers ?? {});
-  const cards = taskCards(v);
+  const study = studyOf(s.variant);
+  const checks = study.verify(dirsOf(dir), progress.answers ?? {});
+  const cards = study.cards;
   const sus = susScore(progress.sus ?? []);
   const rows = cards.map((c) => {
     const t = progress.tasks?.[c.id];
@@ -249,7 +252,7 @@ function serve(dir: string) {
   const p = paths(dir);
   const s = readJson<Session>(p.session);
   if (!s) throw new Error(`${dir} is not a session folder`);
-  const v = VARIANTS[s.variant];
+  const study = studyOf(s.variant);
   const page = () =>
     runnerHtml.replace('"__SESSION__"', () =>
       JSON.stringify({
@@ -258,7 +261,9 @@ function serve(dir: string) {
         variant: s.variant,
         version: s.version,
         token: s.token,
-        tasks: taskCards(v),
+        tasks: study.cards,
+        parts: study.parts,
+        intro: study.intro,
         sus: SUS,
         progress: readJson(p.progress) ?? null,
       }).replaceAll('<', '\\u003c'),
@@ -282,11 +287,22 @@ function serve(dir: string) {
       }
       if (req.url === '/api/outside-edit') {
         const now = readJson<Session>(p.session) ?? s;
-        if (now.outsideEdit) return send(200, { ok: true, file: now.outsideEdit, again: true });
-        const file = await applyOutsideEdit(s.variant, p.workspace);
-        writeJson(p.session, { ...now, outsideEdit: file });
-        log(`T11: the agent changed ${file}`);
-        return send(200, { ok: true, file });
+        if (now.outsideEdit)
+          return send(200, {
+            ok: true,
+            file: now.outsideEdit,
+            message: now.outsideMessage,
+            again: true,
+          });
+        const out = await study.outside(dirsOf(dir));
+        writeJson(p.session, {
+          ...now,
+          outsideEdit: out.file,
+          outsideMessage: out.message,
+          outsideFacts: out.facts,
+        });
+        log(`Outside change: ${out.file}${out.facts ? ` ${JSON.stringify(out.facts)}` : ''}`);
+        return send(200, { ok: true, file: out.file, message: out.message });
       }
       if (req.url === '/api/finish') {
         writeJson(p.progress, data);
@@ -314,93 +330,7 @@ function serve(dir: string) {
 async function solve(dir: string) {
   const s = readJson<Session>(paths(dir).session);
   if (!s) throw new Error(`${dir} is not a session folder`);
-  const v = VARIANTS[s.variant];
-  const root = paths(dir).workspace;
-  const io: FlowIO = new FsFlowIO([root], createSchemaValidator(), createIdFactory());
-  const run = async (what: string, r: Promise<{ text: string; isError?: boolean }>) => {
-    const x = await r;
-    if (x.isError) throw new Error(`${what}: ${x.text}`);
-  };
-  const path = 'flows/first.flow.yaml';
-  await run('T1', flowNew(io, { path, name: v.first.name }));
-  await run(
-    'T1',
-    flowEdit(io, {
-      path,
-      ops: [
-        {
-          op: 'add_node',
-          type: 'task',
-          key: 'one',
-          title: v.first.steps[0],
-          after: 'start.ok_hosts',
-        },
-        {
-          op: 'add_node',
-          type: 'task',
-          key: 'two',
-          title: v.first.steps[1],
-          after: 'one.ok_hosts',
-        },
-      ],
-    }),
-  );
-  const b = v.baseline;
-  await run(
-    'T2-T3',
-    flowEdit(io, {
-      path: `flows/network/${b.key}.flow.yaml`,
-      ops: [
-        {
-          op: 'bind',
-          node: b.draft.key,
-          impl: { kind: 'module', ref: b.bind.module, params: b.bind.params },
-        },
-        { op: 'connect', from: `${b.check.key}.failed_hosts`, to: 'stopped' },
-      ],
-    }),
-  );
-  const u = v.upgrade;
-  const sub = (key: string) => u.subflows.find((x) => x.steps.some((y) => y.key === key))?.key;
-  const upath = `flows/datacenter/${u.key}.flow.yaml`;
-  const doc = parse(readFileSync(join(root, upath), 'utf8')) as FlowDocument;
-  const rootId = doc.nodes
-    .find((n) => n.key === sub(u.needsRoot))
-    ?.subflow?.nodes?.find((n) => n.key === u.needsRoot)?.id;
-  await run(
-    'T9',
-    flowEdit(io, {
-      path: upath,
-      ops: [
-        { op: 'update_node', node: `${sub(u.noRoot)}/${u.noRoot}`, settings: { become: null } },
-        {
-          op: 'accept',
-          at: `${sub(u.needsRoot)}/${u.needsRoot}`,
-          finding: `lens:access:become:${rootId}`,
-          reason: `Restarting the service needs root on the ${v.deviceWord}`,
-        },
-      ],
-    }),
-  );
-  const lay = pipelineLayout(v.pipeline);
-  const [l, t, k] = v.pipeline.steps.slice(1, 4).map((x) => x.key) as [string, string, string];
-  await run(
-    'T10',
-    flowEdit(io, {
-      path: `flows/platform/${v.pipeline.key}.flow.yaml`,
-      ops: [
-        {
-          op: 'move',
-          nodes: {
-            [l]: { x: 320, y: lay[l]?.y ?? 0 },
-            [t]: { x: 320, y: 400 },
-            [k]: { x: 320, y: 2 * 400 - (lay[l]?.y ?? 0) },
-          },
-        },
-      ],
-    }),
-  );
-  log('Solved T1, T2, T3, T9 and T10 in the workspace');
+  log(await studyOf(s.variant).solve(paths(dir).workspace));
 }
 
 async function main() {
@@ -419,8 +349,8 @@ async function main() {
   if (cmd === 'solve' && x) return solve(resolve(x));
   const [round, variant, vsix] = plain;
   if (!round || !variant || !vsix)
-    throw new Error('usage: kit <round> <a|b> <vsix> | kit serve|verify|solve <session folder>');
-  const dir = await prepare(round, variant as 'a' | 'b', vsix, opts);
+    throw new Error('usage: kit <round> <a|b|c> <vsix> | kit serve|verify|solve <session folder>');
+  const dir = await prepare(round, variant, vsix, opts);
   const s = serve(dir);
   if (!opts.has('--no-launch')) launch(dir, s);
   log(`Session folder: ${dir}`);

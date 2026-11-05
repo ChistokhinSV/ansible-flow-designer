@@ -1,7 +1,8 @@
 // The fictional repository a usability session works in (AFD-78). Built with the flow tools' own
 // code (flow_new, flow_edit through FsFlowIO), so every flow is valid for the build under test and
 // its generated/ code comes from the same engine. Two variants with the same structure and other
-// names: A for round 1, B for round 2, so a second session does not recall answers.
+// names: A for round 1, B for round 2, so a second session does not recall answers. Round 3
+// (variant C, round3/) reuses the builders exported here.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -15,7 +16,7 @@ import { FsFlowIO } from '../../src/mcp/fsIO';
 import { pipelineLayout, VARIANTS, type Variant } from './variants';
 
 /** Seeded ULIDs: the same variant gets the same IDs every time (mulberry32). */
-function seededIds(seed: number): IdFactory {
+export function seededIds(seed: number): IdFactory {
   let s = seed >>> 0;
   const prng = () => {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -29,32 +30,32 @@ function seededIds(seed: number): IdFactory {
   return () => next(time) as Ulid;
 }
 
-const debug = (msg: string): ImplBinding => ({
+export const debug = (msg: string): ImplBinding => ({
   kind: 'module',
   ref: 'ansible.builtin.debug',
   params: { msg },
 });
 
-const assertThat = (that: string, failMsg: string): ImplBinding => ({
+export const assertThat = (that: string, failMsg: string): ImplBinding => ({
   kind: 'module',
   ref: 'ansible.builtin.assert',
   params: { that: [that], fail_msg: failMsg, quiet: true },
 });
 
-async function must(what: string, p: Promise<{ text: string; isError?: boolean }>) {
+export async function must(what: string, p: Promise<{ text: string; isError?: boolean }>) {
   const r = await p;
   if (r.isError) throw new Error(`${what}: ${r.text}`);
   return r.text;
 }
 
 /** A new flow with its steps: flow_new, then one flow_edit batch. */
-async function build(io: FlowIO, path: string, name: string, goal: string, ops: Op[]) {
+export async function build(io: FlowIO, path: string, name: string, goal: string, ops: Op[]) {
   await must(`${path} new`, flowNew(io, { path, name, goal }));
   await must(`${path} edit`, flowEdit(io, { path, ops }));
 }
 
 /** A chain of steps after `from`, each failed_hosts to `failTo`. */
-function chain(
+export function chain(
   from: string,
   steps: { key: string; title: string; intent: string; impl?: ImplBinding }[],
   failTo: string | undefined,
@@ -78,7 +79,7 @@ function chain(
   });
 }
 
-const end = (key: string, title: string, outcome: 'success' | 'failed'): Op => ({
+export const end = (key: string, title: string, outcome: 'success' | 'failed'): Op => ({
   op: 'add_node',
   type: 'end',
   key,
@@ -96,9 +97,13 @@ async function baseline(io: FlowIO, v: Variant) {
   ]);
 }
 
-async function health(io: FlowIO, v: Variant, root: string) {
+export async function health(
+  io: FlowIO,
+  v: Pick<Variant, 'health' | 'hosts' | 'deviceWord'>,
+  root: string,
+  dir = 'flows/network',
+) {
   const h = v.health;
-  const dir = 'flows/network';
   await build(io, `${dir}/${h.key}.flow.yaml`, h.name, h.goal, [
     end('reported', h.reported, 'failed'),
     end('stopped', 'Stopped', 'failed'),
@@ -116,7 +121,9 @@ async function health(io: FlowIO, v: Variant, root: string) {
       'stopped',
     ),
   ]);
-  const [one, , , four] = v.hosts.map((x) => x.name);
+  const one = v.hosts[0]?.name;
+  // The host the scenario forces through the second check (lab-sw-04 in A, lab-rt-14 in B).
+  const four = h.second.fails;
   const scenarios = [
     `# Scenario tests for ${h.name}: fictional hosts, local connection.`,
     `flow: ${h.key}`,
@@ -177,9 +184,9 @@ async function rollout(io: FlowIO, v: Variant) {
   );
 }
 
-async function upgrade(io: FlowIO, v: Variant) {
+export async function upgrade(io: FlowIO, v: Pick<Variant, 'upgrade'>, dir = 'flows/datacenter') {
   const u = v.upgrade;
-  const path = `flows/datacenter/${u.key}.flow.yaml`;
+  const path = `${dir}/${u.key}.flow.yaml`;
   const ops: Op[] = [
     end('cancelled', 'Cancelled', 'failed'),
     end('stopped', 'Stopped', 'failed'),
@@ -261,7 +268,7 @@ async function upgrade(io: FlowIO, v: Variant) {
   await build(io, path, u.name, u.goal, ops);
 }
 
-async function pipeline(io: FlowIO, v: Variant) {
+export async function pipeline(io: FlowIO, v: Pick<Variant, 'pipeline'>) {
   const p = v.pipeline;
   const path = `flows/platform/${p.key}.flow.yaml`;
   const ops: Op[] = [
@@ -287,7 +294,7 @@ async function pipeline(io: FlowIO, v: Variant) {
   await build(io, path, p.name, p.goal, ops);
 }
 
-async function audit(io: FlowIO, v: Variant, root: string) {
+export async function audit(io: FlowIO, v: Pick<Variant, 'audit'>, root: string) {
   const a = v.audit;
   const path = `flows/security/${a.key}.flow.yaml`;
   await build(io, path, a.name, a.goal, [
@@ -323,12 +330,16 @@ async function rotation(io: FlowIO, v: Variant, root: string) {
 }
 
 /** T11: what a coding agent changes in the upgrade flow while the participant is away. */
-async function outsideEdit(io: FlowIO, v: Variant) {
+export async function outsideEdit(
+  io: FlowIO,
+  v: Pick<Variant, 'outside' | 'upgrade'>,
+  dir = 'flows/datacenter',
+) {
   const o = v.outside;
   await must(
     'outside edit',
     flowEdit(io, {
-      path: `flows/datacenter/${v.upgrade.key}.flow.yaml`,
+      path: `${dir}/${v.upgrade.key}.flow.yaml`,
       ops: [
         {
           op: 'add_node',
