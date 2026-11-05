@@ -39,7 +39,8 @@ Nothing here ships in the extension.
   `usability-sessions/`, which Git ignores.
 - `wave9-usability/`: round 3, on the wave 9 build (AFD-99). It has 16 tasks in four parts, about
   90 minutes, half of them on parameters and settings. The kit runs it as variant C (`just
-  usability-kit 3 c <vsix>`). `walkthrough-r3.md` is the walkthrough before the session.
+  usability-kit 3 c <vsix>`). `walkthrough-r3.md` is the walkthrough before the session; `round3.md`
+  has the session's results (SUS 65) and findings R1-R13.
 - `a11y-checklist.md`: the accessibility checks for each surface, with the baseline and wave 3
   results, the annotations (wave 6) and the first hour (wave 7).
 
