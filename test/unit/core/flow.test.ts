@@ -272,6 +272,30 @@ describe('commands keep IDs and edges stable (check 1)', () => {
     });
     expect(docOf(flowIn.text).flow.inputs?.window).toEqual({ type: 'string', required: true });
   });
+
+  it('a flow input keeps its description; an empty one removes it (AFD-100)', () => {
+    const described = apply(EDGE, {
+      kind: 'setContractField',
+      target: 'flow',
+      side: 'inputs',
+      name: 'window',
+      field: { type: 'string', required: true, description: 'Maintenance window in UTC' },
+    });
+    expect(docOf(described.text).flow.inputs?.window).toEqual({
+      type: 'string',
+      required: true,
+      description: 'Maintenance window in UTC',
+    });
+    // The flow panel's box sends the field again with the new text, or none when emptied.
+    const cleared = apply(described.text, {
+      kind: 'setContractField',
+      target: 'flow',
+      side: 'inputs',
+      name: 'window',
+      field: { type: 'string', required: true, description: '' },
+    });
+    expect(docOf(cleared.text).flow.inputs?.window).toEqual({ type: 'string', required: true });
+  });
 });
 
 describe('moving changes only the layout block (check 2)', () => {

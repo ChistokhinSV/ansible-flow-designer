@@ -97,6 +97,26 @@ describe('AI tools', () => {
     expect((await call(io, 'flow_describe', {})).isError).toBe(true);
   });
 
+  it('set_io writes a flow input with its description (AFD-100)', async () => {
+    const io = memoryIO();
+    const r = await call(io, 'flow_edit', {
+      path: EDGE,
+      revision: revisionOf(io.files.get(EDGE) as string),
+      ops: [
+        {
+          op: 'set_io',
+          node: 'flow',
+          side: 'inputs',
+          name: 'change_ticket',
+          field: { type: 'string', required: true, description: 'Approved change ticket' },
+        },
+      ],
+    });
+    expect(r.isError, r.text).toBeUndefined();
+    const doc = parse(io.files.get(EDGE) as string) as FlowDocument;
+    expect(doc.flow.inputs?.change_ticket?.description).toBe('Approved change ticket');
+  });
+
   it('an edit batch: nodes created early are used later; one write; no new errors', async () => {
     const io = memoryIO();
     const before = io.files.get(EDGE) as string;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.64.2 — AFD-100
+
+- **Input descriptions are saved.** A description typed in the flow panel stayed in its box, but the flow never kept it, so after a reload it was gone. The same happened when an AI assistant set one through the flow tools. Descriptions (0.63.0) worked only in YAML written by hand. Now both ways save them, and emptying the box removes the description. Found by the round 3 walkthrough (`docs/ux/wave9-usability/walkthrough-r3.md`, Y6).
+
 ## 0.64.1 — AFD-97
 
 - **Tests:** the integration tests wait until the designer has drawn its wires, in a panel that is still open. A test that reopened a flow on the same version could read a designer that had not drawn yet (no wires, or no answer), and the M1 checks failed now and then (wave 9: 3 of about 12 full runs). Nothing changes for people using the designer; the perf measures stay as they were.

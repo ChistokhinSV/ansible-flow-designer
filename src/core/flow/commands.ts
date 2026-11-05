@@ -399,6 +399,9 @@ function contract(field: ContractField): YamlValue {
   if (field.default !== undefined) out.default = field.default as YamlValue;
   if (field.from !== undefined) out.from = field.from;
   if (field.targets !== undefined) out.targets = field.targets;
+  // AFD-100: AFD-95 read descriptions everywhere but this writer never kept one, so the flow
+  // panel's box and the flow tools' set_io lost it. An empty one is no description.
+  if (field.description) out.description = field.description;
   return out;
 }
 

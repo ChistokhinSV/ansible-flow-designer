@@ -119,7 +119,7 @@ the south only.
 ## Running it
 
 The kit runs round 3 as variant C (`scripts/usability/round3/`). Its setup is that of rounds 1-2
-(`../wave8-usability/protocol.md`), with a build that has the Y6 fix (below):
+(`../wave8-usability/protocol.md`), with 0.64.2, which fixes Y6 (below):
 
 ```bash
 just usability-kit 3 c out/ansible-flow-designer-0.64.2.vsix
@@ -147,12 +147,12 @@ What the kit does for round 3:
 
 ## Before the session
 
-The walkthrough (`walkthrough-r3.md`) found Y6, a bug: an input's description is lost when the
-designer or the flow tools write it. On 0.64.1, T5 fails whatever P1 does, and T11 shows no
-descriptions. The session runs on a patch with the fix. Two findings shaped the cards:
+The walkthrough (`walkthrough-r3.md`) found Y6, a bug: an input's description was lost when the
+designer or the flow tools wrote it. On 0.64.1, T5 fails whatever P1 does, and T11 shows no
+descriptions. 0.64.2 fixes it (AFD-100), so the session runs on 0.64.2 or later.
 
-- the inputs editor has no default value (Y5), so T5 asks for a required input;
-- the other predictions (Y7-Y9) are for the session to confirm or not.
+- The inputs editor has no default value (Y5), so T5 asks for a required input.
+- The other predictions (Y7-Y9) are for the session to confirm or not.
 
 ## Wave 9 coverage
 
