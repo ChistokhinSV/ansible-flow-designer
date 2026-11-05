@@ -50,6 +50,24 @@ function question(name: string, field: ContractField): AwxSurveyQuestion | undef
     required: !!field.required,
     variable: name,
   };
+  const q = questionOf(name, field, base);
+  // AFD-95: the input's description leads; the fingerprint leaves descriptions out, so a survey
+  // written before keeps counting as not edited since.
+  return q && field.description
+    ? {
+        ...q,
+        question_description: q.question_description
+          ? `${field.description} (${q.question_description})`
+          : field.description,
+      }
+    : q;
+}
+
+function questionOf(
+  name: string,
+  field: ContractField,
+  base: { question_name: string; required: boolean; variable: string },
+): AwxSurveyQuestion | undefined {
   const value = field.default;
   if (SECRET.test(name))
     return {
@@ -137,7 +155,15 @@ export function surveyAction(
   const spec = current?.spec ?? [];
   if (spec.length === 0) return 'write';
   const now = fingerprint(spec as AwxSurveyQuestion[]);
-  if (current?.description === wanted.description && now === fingerprint(wanted.spec))
+  // AFD-95: question texts are not in the fingerprint (a survey written before must not read as
+  // edited), so a new input description is a write of our own survey, not "same".
+  const said = (s: readonly Partial<AwxSurveyQuestion>[]) =>
+    s.map((q) => q.question_description ?? '').join('\n');
+  if (
+    current?.description === wanted.description &&
+    now === fingerprint(wanted.spec) &&
+    said(spec) === said(wanted.spec)
+  )
     return 'same';
   const ours = current?.description?.startsWith(MARK) && current.description.endsWith(` · ${now}`);
   return ours ? 'write' : 'ask';

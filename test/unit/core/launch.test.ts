@@ -81,6 +81,14 @@ describe('launchFields', () => {
     expect(by.enable_secret).toMatchObject({ secret: true, text: '' });
     expect(by.change_ticket?.text).toBe('CHG-0000');
   });
+
+  it('with inventory groups to pick, a skeleton run starts with no hosts (AFD-95, X5)', () => {
+    const fields = launchFields(doc, {}, true, false);
+    expect(fields.find((f) => f.name === 'devices')?.text).toBe('');
+    // What was remembered still wins.
+    const again = launchFields(doc, { devices: ['lab'] }, true, false);
+    expect(again.find((f) => f.name === 'devices')?.text).toBe('lab');
+  });
 });
 
 describe('parseInput', () => {

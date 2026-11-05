@@ -40,19 +40,27 @@ export async function planLaunch(
   const env = environmentFor(folder.uri);
   if (!env.ok) return { ok: false, error: env.error, environment: true };
   const remembered = deps.state.get<Record<string, unknown>>(inputsKey(doc.flow.id), {});
-  const fields = launchFields(doc, remembered, mode === 'check');
+  // AFD-95 (X5): the groups first; with groups to pick from, a skeleton run's hosts start empty.
+  const { groups, hosts: groupHosts } = await inventoryGroups(folder.uri, deps.probes);
+  const fields = launchFields(doc, remembered, mode === 'check', groups.length === 0);
   if (prefill.targets) {
     const lists = fields.filter((f) => f.type === 'host_list');
     const field = lists.find((f) => f.targets) ?? lists[0];
     if (field) field.text = prefill.targets;
   }
   const start = readFields(fields, {});
-  const [found, groups] = await Promise.all([
+  const empty = 'error' in start && fields.find((f) => f.name === start.field);
+  const found =
     'inputs' in start
-      ? launchFacts(doc, start.inputs, folder.uri, deps.probes)
-      : Promise.resolve({ ok: false as const, error: start.error }),
-    inventoryGroups(folder.uri, deps.probes),
-  ]);
+      ? await launchFacts(doc, start.inputs, folder.uri, deps.probes)
+      : {
+          ok: false as const,
+          // An empty host list with groups beside it asks for the hosts, it is no error yet.
+          error:
+            empty && empty.type === 'host_list' && !empty.text && groups.length
+              ? 'Pick the hosts to run on: a group below, or host names'
+              : start.error,
+        };
   const ask = vscode.workspace
     .getConfiguration('afd', document.uri)
     .get<'auto' | 'always' | 'never'>('run.askVaultPassword', 'auto');
@@ -73,6 +81,7 @@ export async function planLaunch(
       flow: doc.flow.name,
       fields,
       groups,
+      groupHosts,
       ...(facts ? { facts } : { factsError: found.ok ? undefined : found.error }),
       vault: ask === 'always' || (ask === 'auto' && !!facts?.vault),
       environment: env.env.label,

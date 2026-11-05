@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.63.0 — AFD-95
+
+Wave 9, part 4: the launch dialog, and inputs that say what they are for (`docs/ux/wave8-usability/round2.md`, S2, S6, X5; W9).
+
+- **Groups say what they hold:** each inventory group button reads "lab · 4", and its tooltip lists the hosts; the buttons are labelled "Inventory groups".
+- **Run stays in view:** the dialog's buttons stay at its bottom; only the fields and the facts scroll.
+- **A skeleton run starts with no hosts when the inventory has groups:** pick a group or type host names ("Pick the hosts to run on: a group below, or host names"). Without groups, as in the Hello sample, it still starts on `localhost`. What you entered last time still comes back.
+- **Input descriptions:** a flow input can say what it is for (`description` in the flow file; the box under each input in the flow panel, except the hosts list). The launch dialog, the run prompts and the AWX survey show it; Set Up AWX Template writes it to a survey it wrote before.
+
 ## 0.62.0 — AFD-94
 
 Wave 9, part 3: scenario results in words (`docs/ux/wave8-usability/round2.md`, S9).

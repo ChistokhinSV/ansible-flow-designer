@@ -206,3 +206,12 @@ participant set the host list first, and the dialog kept the opening's "devices 
 Run disabled. `checkInputs` now sends every field that reads and holds the count back only for a
 host list that does not read; that problem then replaces the old one at once. Run still checks
 every field (`readFields`).
+
+## Amendment (AFD-95, 2026-11-05): groups with their hosts; no localhost when there are groups
+
+Round 2: a group was a plain button (S2), and Run sat below the dialog's fold (S6). The dialog now
+reads the inventory with the probe's `inventory_tree` (one parse, as before) and shows each
+group's host count and first 20 hosts (`groupHosts`); its buttons stay at its bottom. The product
+owner decided X5: with groups to pick from, a skeleton run's host list starts empty and the dialog
+asks for the hosts; without groups it keeps `localhost` (`launchFields(..., suggestLocalhost)`),
+so the Hello sample and Tutorial 1 are unchanged. The Command Palette prompts keep `localhost`.

@@ -104,3 +104,25 @@ describe("the workspace's flows in the flow panel; what a filter lists (AFD-93)"
     expect(document.querySelector('[data-find-summary]')).toBeNull();
   });
 });
+
+describe('input descriptions in the flow panel (AFD-95)', () => {
+  it('an input other than the targets list takes a description; the targets list does not', () => {
+    render(<FlowDescription />);
+    const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-input-description]')];
+    const names = boxes.map((b) => b.dataset.inputDescription);
+    const targets = Object.entries(doc.flow.inputs ?? {}).find(([, f]) => f?.targets)?.[0];
+    expect(names).not.toContain(targets);
+    expect(names.length).toBeGreaterThan(0);
+    posted.length = 0;
+    const box = boxes[0] as HTMLInputElement;
+    fireEvent.change(box, { target: { value: 'The release to install' } });
+    fireEvent.blur(box);
+    const sent = posted.find((m) => (m as { type: string }).type === 'command') as
+      | { command: { kind: string; field: { description?: string } } }
+      | undefined;
+    expect(sent?.command).toMatchObject({
+      kind: 'setContractField',
+      field: { description: 'The release to install' },
+    });
+  });
+});

@@ -7,6 +7,41 @@ import { run } from '../actions';
 import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
+
+/**
+ * AFD-95: what a flow input is for, in words, committed when the box is left (round 1: W9). The
+ * launch dialog, the run prompts and the AWX survey show it.
+ */
+function Description({
+  name,
+  value,
+  onCommit,
+}: {
+  name: string;
+  value: string;
+  onCommit(text: string): void;
+}) {
+  const [text, setText] = useState(value);
+  const [was, setWas] = useState(value);
+  // The flow changed under the box (undo, an agent): show what it says now.
+  if (value !== was) {
+    setWas(value);
+    setText(value);
+  }
+  const commit = () => text.trim() !== value && onCommit(text.trim());
+  return (
+    <input
+      className="afd-input afd-contract-description"
+      aria-label={`What ${name} is for`}
+      placeholder="What it is for (shown when a run asks)"
+      value={text}
+      data-input-description={name}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && commit()}
+    />
+  );
+}
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 interface Props {
@@ -85,6 +120,17 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
             >
               <span className="codicon codicon-trash" aria-hidden="true" />
             </button>
+            {/* The targets list says what it is (the hosts the flow runs on): a new flow, which
+              has only that input, keeps its 35 controls. */}
+            {target === 'flow' && side === 'inputs' && !field?.targets ? (
+              <Description
+                name={name}
+                value={field?.description ?? ''}
+                onCommit={(text) =>
+                  void set(name, { ...field, description: text || undefined } as ContractField)
+                }
+              />
+            ) : null}
           </li>
         ))}
       </ul>

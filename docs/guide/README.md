@@ -15,7 +15,7 @@ playbooks are generated from it.
 - Prefer to click through? The **Ansible Flows** icon in the Activity Bar, or **Ansible Flow: Get
   Started** in the Command Palette, which opens the walkthrough on VS Code's Welcome page.
 - Want something to look at first? **Open Sample Flow…** → **Hello, Ansible**: three steps that
-  run on `localhost`.
+  run on `localhost` (with inventory groups, you pick one instead).
 - What is going on? **[How flows work](explanation/how-flows-work.md)**: hosts, wires, plays.
 - Already have playbooks? Follow **[Tutorial 5: bring existing playbooks into flows](tutorials/05-import-playbooks.md)**,
   or right-click a playbook or folder → **Import Ansible Playbooks…**.

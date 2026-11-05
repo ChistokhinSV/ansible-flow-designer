@@ -63,3 +63,25 @@ describe('AWX survey from the flow inputs (AFD-59)', () => {
     expect(surveyAction({ name: 'Hand made', description: '', spec: ours.spec }, more)).toBe('ask');
   });
 });
+
+describe('input descriptions in the survey (AFD-95)', () => {
+  it('lead the question; a survey written before is ours to update, not "edited"', () => {
+    const plain = surveyFor({
+      ...doc,
+      flow: { ...doc.flow, inputs: { ticket: { type: 'string', required: true } } },
+    });
+    const described = surveyFor({
+      ...doc,
+      flow: {
+        ...doc.flow,
+        inputs: {
+          ticket: { type: 'string', required: true, description: 'The change ticket' },
+        },
+      },
+    });
+    expect(described.spec[0]?.question_description).toBe('The change ticket');
+    // AWX has the survey we wrote before: ours and unedited, so the description is written.
+    expect(surveyAction(plain, described)).toBe('write');
+    expect(surveyAction(described, described)).toBe('same');
+  });
+});

@@ -48,9 +48,11 @@ library, so any image with ansible-core works.
 
 **Run as Skeleton** in the designer (top bar, or Ctrl+F5) opens the **launch dialog**:
 - every flow input, by name and type, with what it was last time (remembered per flow) or its
-  default; the first skeleton run suggests `localhost` for the hosts;
+  default. A first skeleton run suggests `localhost` for the hosts, or, when the inventory has
+  groups, starts empty so you pick one. An input's description, when the flow has one, says what
+  it is for;
 - host lists take hosts or groups, comma-separated; the inventory's groups are buttons under the
-  field. Lists take items separated by commas (`10.20.0.10, 10.20.0.11`) or a JSON list, and the
+  field, each with its number of hosts ("lab · 4") and their names in the tooltip. Lists take items separated by commas (`10.20.0.10, 10.20.0.11`) or a JSON list, and the
   dialog says what the field reads as ("2 items: …"). Dicts take `key: value` lines or JSON;
 - the hosts the targets match in the inventory, counted again as you change them, even before
   the other inputs are filled in;

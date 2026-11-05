@@ -220,3 +220,21 @@ fieldset.afd-launch-groups {
   margin: 2px 0 0;
   padding: 0;
 }
+
+/* AFD-95: a visible label, inline before the group buttons. */
+.afd-launch-groups-label {
+  float: left;
+  margin-right: 6px;
+  padding: 0;
+  font-size: var(--afd-fs-12);
+}
+
+/* AFD-95 (round 2: S6): Run stays in view; only the fields and facts scroll under it. */
+.afd-launch .afd-modal-actions {
+  position: sticky;
+  bottom: -12px;
+  margin: 12px -16px -12px;
+  padding: 8px 16px 12px;
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  border-top: 1px solid var(--afd-border);
+}

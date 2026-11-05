@@ -27,6 +27,8 @@ export interface ContractField {
   from?: string;
   /** Flow inputs only: this host_list seeds the start node. */
   targets?: boolean;
+  /** AFD-95: what the input is for, in words: shown when a run asks for it (round 1: W9). */
+  description?: string;
 }
 
 export type Contract = Record<string, ContractField>;

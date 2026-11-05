@@ -21,6 +21,7 @@ import {
   type TargetUse,
 } from '../../core/run/launch';
 import { redactLine, redactText, revealAfterRun, secretValues } from '../../core/run/redact';
+import { groupHosts, type InventoryTree } from '../../core/view/inventoryTree';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { tailFile } from '../../node/run/tail';
 import { TIMEOUTS } from '../../node/timeouts';
@@ -158,21 +159,28 @@ export async function launchFacts(
   };
 }
 
-/** The inventory's groups, for the dialog's host list suggestions (AFD-82); none when it fails. */
-export async function inventoryGroups(folder: vscode.Uri, probes: ProbeManager): Promise<string[]> {
+/**
+ * The inventory's groups, for the dialog's host list suggestions (AFD-82), with each group's hosts
+ * (AFD-95, from the probe's inventory_tree, one inventory parse as before); none when it fails.
+ */
+export async function inventoryGroups(
+  folder: vscode.Uri,
+  probes: ProbeManager,
+): Promise<{ groups: string[]; hosts: Record<string, { count: number; hosts: string[] }> }> {
   const inventory =
     vscode.workspace.getConfiguration('afd', folder).get<string>('run.inventory', '') || undefined;
   const probe = probes.forFolder(folder);
-  if ('error' in probe) return [];
+  if ('error' in probe) return { groups: [], hosts: {} };
   try {
-    const all = await probe.client.call<InventoryFacts>(
-      'inventory',
-      { inventory, targets: ['all'] },
+    const tree = await probe.client.call<InventoryTree>(
+      'inventory_tree',
+      { inventory },
       TIMEOUTS.probeInventory,
     );
-    return Object.keys(all.groups ?? {}).filter((g) => g !== 'all' && g !== 'ungrouped');
+    const hosts = groupHosts(tree);
+    return { groups: Object.keys(hosts).sort((a, b) => a.localeCompare(b)), hosts };
   } catch {
-    return [];
+    return { groups: [], hosts: {} };
   }
 }
 

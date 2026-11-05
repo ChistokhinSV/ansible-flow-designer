@@ -32,7 +32,8 @@ These need an Ansible environment with ansible-core 2.19 or later
 - **Hosts are unreachable in a container run:** the container needs your SSH keys and name
   resolution. Mount the keys with `afd.environment.containerOptions`.
 - **"No hosts matched":** the targets you entered are not in the inventory. Check
-  `afd.run.inventory`, or enter `localhost` for a first skeleton run.
+  `afd.run.inventory`, or enter `localhost` for a first skeleton run (the dialog suggests it when
+  the inventory has no groups).
 - **"Runs need an Ansible environment":** nothing runs Ansible yet, typically on native Windows.
   Choose **Set Up Ansible Environment…** on the error (or in the Command Palette).
 - **The module search finds nothing:** the first search reads the collection docs (about 30

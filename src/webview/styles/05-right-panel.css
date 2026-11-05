@@ -84,6 +84,16 @@
   margin-left: auto;
 }
 
+/* AFD-95: an input's description, a line of its own under its row. */
+.afd-contract li {
+  flex-wrap: wrap;
+}
+
+.afd-contract-description {
+  flex-basis: 100%;
+  font-size: var(--afd-fs-12);
+}
+
 .afd-ports li {
   flex-wrap: wrap;
 }

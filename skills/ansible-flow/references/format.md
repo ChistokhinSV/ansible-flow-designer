@@ -127,6 +127,7 @@ One input or output field.
 - `default` (any): Inputs: value used when none is given.
 - `from` (string): Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name.
 - `targets` (boolean): Flow inputs only: this host_list input seeds the start node's host set.
+- `description` (string): Flow inputs: what the input is for, in words. The launch dialog, the run prompts and the AWX survey show it.
 
 ### Binding (impl, undo)
 

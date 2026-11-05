@@ -20,3 +20,14 @@ describe('run input suggestions (AFD-71)', () => {
     expect(inputPrompt('string', true, false)).toBe('string (not remembered)');
   });
 });
+
+describe('input descriptions in the prompts (AFD-95)', () => {
+  it("an input's description leads its prompt", () => {
+    expect(inputPrompt('list', false, true, 'The log collectors to point at')).toBe(
+      'The log collectors to point at (list)',
+    );
+    expect(inputPrompt('string', true, false, 'The enable secret')).toBe(
+      'The enable secret (string, not remembered)',
+    );
+  });
+});

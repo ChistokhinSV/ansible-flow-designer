@@ -13,11 +13,22 @@ const plan: LaunchPlan = {
   flow: 'NTP rollout',
   fields: [
     { name: 'devices', type: 'host_list', required: true, secret: false, text: '', targets: true },
-    { name: 'ntp_servers', type: 'list', required: true, secret: false, text: '' },
+    {
+      name: 'ntp_servers',
+      type: 'list',
+      required: true,
+      secret: false,
+      text: '',
+      description: 'The time servers every switch syncs from',
+    },
     { name: 'enable_secret', type: 'string', required: true, secret: true, text: '' },
     { name: 'change_ticket', type: 'string', required: false, secret: false, text: 'CHG-0000' },
   ],
   groups: ['lab', 'core'],
+  groupHosts: {
+    lab: { count: 4, hosts: ['lab-sw-01', 'lab-sw-02', 'lab-sw-03', 'lab-sw-04'] },
+    core: { count: 2, hosts: ['core-sp-01', 'core-sp-02'] },
+  },
   facts: {
     sources: ['inventory/lab.ini'],
     count: 4,
@@ -52,7 +63,7 @@ describe('launch dialog', () => {
     expect(within(dialog).getByRole('heading').textContent).toBe('Run for Real: NTP rollout');
     const servers = within(dialog).getByLabelText(/ntp_servers/) as HTMLInputElement;
     fireEvent.change(servers, { target: { value: '10.20.0.10, 10.20.0.11' } });
-    expect(within(dialog).getByText('2 items: "10.20.0.10", "10.20.0.11"')).toBeTruthy();
+    expect(within(dialog).getByText(/2 items: "10.20.0.10", "10.20.0.11"$/)).toBeTruthy();
     // A group chip adds the group to the host list; again, it takes it out.
     fireEvent.click(within(dialog).getByRole('button', { name: 'lab' }));
     const devices = within(dialog).getByLabelText(/devices/) as HTMLInputElement;
@@ -154,5 +165,17 @@ describe('launch dialog', () => {
     expect(useUi.getState().launch?.facts?.count).toBe(4);
     act(() => useUi.getState().setLaunchFacts('t-1', undefined, 'No answer'));
     expect(screen.getByText('No answer')).toBeTruthy();
+  });
+
+  it('groups say how many hosts and which; an input says what it is for (AFD-95)', () => {
+    const dialog = open();
+    const lab = within(dialog).getByRole('button', { name: 'lab' });
+    expect(lab.getAttribute('title')).toBe(
+      'lab: 4 hosts: lab-sw-01, lab-sw-02, lab-sw-03, lab-sw-04',
+    );
+    expect(lab.textContent).toBe('lab · 4');
+    expect(within(dialog).getByText('Inventory groups')).toBeTruthy();
+    const help = dialog.querySelector('[data-launch-field="ntp_servers"] [data-launch-help]');
+    expect(help?.textContent).toMatch(/^The time servers every switch syncs from/);
   });
 });

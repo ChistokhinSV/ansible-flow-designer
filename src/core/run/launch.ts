@@ -17,6 +17,8 @@ export interface LaunchField {
   text: string;
   /** The host list the start node runs on (`targets`). */
   targets?: boolean;
+  /** AFD-95: what the input is for (the flow's words). */
+  description?: string;
 }
 
 /** An input's value as text in a field (the reverse of `parseInput`). */
@@ -35,6 +37,8 @@ export function launchFields(
   doc: FlowDocument,
   remembered: Record<string, unknown>,
   check: boolean,
+  /** AFD-95 (X5): with inventory groups to pick from, a skeleton run's hosts start empty. */
+  suggestLocalhost = true,
 ): LaunchField[] {
   const out: LaunchField[] = [];
   for (const [name, field] of Object.entries(doc.flow.inputs ?? {})) {
@@ -44,8 +48,11 @@ export function launchFields(
       type: field?.type,
       required: !!field?.required || field?.type === 'host_list',
       secret,
-      text: secret ? '' : inputText(inputSuggestion(field, remembered[name], check)),
+      text: secret
+        ? ''
+        : inputText(inputSuggestion(field, remembered[name], check && suggestLocalhost)),
       ...(field?.targets ? { targets: true } : {}),
+      ...(field?.description ? { description: field.description } : {}),
     });
   }
   return out.sort((a, b) => Number(b.required) - Number(a.required));
@@ -165,6 +172,8 @@ export interface LaunchPlan {
   fields: LaunchField[];
   /** The inventory's groups, offered for host lists. */
   groups: string[];
+  /** AFD-95: each group's host count and first hosts, so a group shows what it holds (S2). */
+  groupHosts?: Record<string, { count: number; hosts: string[] }>;
   facts?: LaunchFacts;
   /** Why there are no facts (the targets do not read, nothing matches, no answer). */
   factsError?: string;

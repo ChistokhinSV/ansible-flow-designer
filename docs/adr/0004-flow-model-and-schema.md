@@ -51,3 +51,13 @@ Fail-type ports (counted by the open-port banner): `failed_hosts`, `unreachable`
 
 `schema_version` 2 joins 1: format changes that are not additive go into format 2, and a format 1
 file moves to it only through the explicit Upgrade Flow Format. See ADR-0025.
+
+## Amendment: input descriptions (AFD-95, 2026-11-05)
+
+A contract field takes `description` (flow inputs): what the input is for, in words, for the
+person who runs the flow. The launch dialog shows it in the field's help line, the Command Palette
+prompt leads with it, and the AWX survey's `question_description` starts with it. The survey's
+fingerprint leaves question texts out, so a survey written before is not read as edited; a new
+description is a write of our own survey. The flow panel edits it for every flow input but the
+targets list, which the product already describes (and a new flow, which has only that input,
+keeps its 35 controls).

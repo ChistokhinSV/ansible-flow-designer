@@ -68,7 +68,7 @@ export async function collectInputs(
     const secret = SECRET.test(name);
     const text = await vscode.window.showInputBox({
       title: `Run ${doc.flow.name}: input "${name}"`,
-      prompt: inputPrompt(field?.type, secret, check),
+      prompt: inputPrompt(field?.type, secret, check, field?.description),
       value: secret ? '' : showInput(inputSuggestion(field, remembered[name], check)),
       password: secret,
       ignoreFocusOut: true,

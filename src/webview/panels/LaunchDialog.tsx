@@ -139,6 +139,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
               field={f}
               text={texts[f.name] ?? ''}
               groups={f.type === 'host_list' ? plan.groups : []}
+              groupHosts={plan.groupHosts}
               problem={problem?.field === f.name ? problem.text : undefined}
               onChange={(text) => {
                 setTexts((t) => ({ ...t, [f.name]: text }));
@@ -180,16 +181,25 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
   );
 }
 
+/** "lab: 4 hosts: lab-rt-11, lab-rt-12, …" for a group's button (AFD-95). */
+function groupTitle(name: string, info: { count: number; hosts: string[] } | undefined): string {
+  if (!info) return `Add the inventory group ${name}`;
+  const more = info.count > info.hosts.length ? ', …' : '';
+  return `${name}: ${info.count} host${info.count === 1 ? '' : 's'}: ${info.hosts.join(', ')}${more}`;
+}
+
 function Field({
   field,
   text,
   groups,
+  groupHosts,
   problem,
   onChange,
 }: {
   field: LaunchField;
   text: string;
   groups: string[];
+  groupHosts?: LaunchPlan['groupHosts'];
   problem?: string;
   onChange(text: string): void;
 }) {
@@ -228,13 +238,18 @@ function Field({
       )}
       {groups.length > 0 ? (
         <fieldset className="afd-chips afd-launch-groups">
-          <legend className="afd-sr-only">Inventory groups for {field.name}</legend>
+          {/* AFD-95: said, not only boxes; each group with its count and hosts (round 2: S2). */}
+          <legend className="muted afd-launch-groups-label">
+            Inventory groups<span className="afd-sr-only"> for {field.name}</span>
+          </legend>
           {groups.slice(0, 12).map((g) => (
             <button
               key={g}
               type="button"
               className={`chip-button mono${words.includes(g) ? ' active' : ''}`}
               aria-pressed={words.includes(g)}
+              title={groupTitle(g, groupHosts?.[g])}
+              data-group-hosts={groupHosts?.[g]?.count}
               onClick={() =>
                 onChange(
                   words.includes(g)
@@ -244,15 +259,28 @@ function Field({
               }
             >
               {g}
+              {groupHosts?.[g] ? (
+                <span className="afd-chip-count" aria-hidden="true">
+                  {' '}
+                  · {groupHosts[g].count}
+                </span>
+              ) : null}
             </button>
           ))}
         </fieldset>
       ) : null}
-      <span className={`afd-help${problem ? ' tone-warn' : ''}`}>
+      <span className={`afd-help${problem ? ' tone-warn' : ''}`} data-launch-help>
         {problem ??
-          (field.secret
-            ? 'Typed hidden; not remembered.'
-            : preview || (hint ? `${hint[0]?.toUpperCase()}${hint.slice(1)}` : ''))}
+          // AFD-95: the input's description (W9) first, then what the text reads as.
+          [
+            field.description,
+            field.secret
+              ? 'Typed hidden; not remembered.'
+              : preview ||
+                (field.description ? '' : hint ? `${hint[0]?.toUpperCase()}${hint.slice(1)}` : ''),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
       </span>
     </div>
   );

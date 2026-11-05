@@ -318,6 +318,10 @@
           "targets": {
             "type": "boolean",
             "description": "Flow inputs only: this host_list input seeds the start node's host set."
+          },
+          "description": {
+            "type": "string",
+            "description": "Flow inputs: what the input is for, in words. The launch dialog, the run prompts and the AWX survey show it."
           }
         },
         "required": [

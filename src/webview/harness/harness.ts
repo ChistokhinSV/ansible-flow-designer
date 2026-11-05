@@ -370,9 +370,15 @@ async function onMessage(m: WebviewMessage) {
           token: 'harness',
           mode: m.mode,
           flow: doc.flow.name,
-          fields: launchFields(doc, {}, m.mode === 'check'),
-          groups: ['lab', 'core', 'edge'],
-          facts: harnessFacts(['localhost']),
+          // AFD-95: with groups to pick, the hosts start empty, and each group says what it holds.
+          fields: launchFields(doc, {}, m.mode === 'check', false),
+          groups: ['core', 'edge', 'lab'],
+          groupHosts: {
+            core: { count: 2, hosts: ['core-sp-01', 'core-sp-02'] },
+            edge: { count: 3, hosts: ['edge-sw-01', 'edge-sw-02', 'edge-sw-03'] },
+            lab: { count: 4, hosts: ['lab-sw-01', 'lab-sw-02', 'lab-sw-03', 'lab-sw-04'] },
+          },
+          factsError: 'Pick the hosts to run on: a group below, or host names',
           vault: false,
           environment: 'harness (fake)',
         },
