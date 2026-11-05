@@ -25,6 +25,8 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
       sessions.get(key)?.dispose();
       sessions.delete(key);
       lastSaved.delete(key);
+      // AFD-93: closed, its Problems come from the workspace index again.
+      if (isFlow(doc)) void host.index.republish(doc.uri);
     }),
     vscode.workspace.onWillSaveTextDocument((e) => {
       if (isFlow(e.document))

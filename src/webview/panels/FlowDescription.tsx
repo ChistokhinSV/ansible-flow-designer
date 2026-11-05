@@ -5,6 +5,7 @@ import { SLUG } from '../../core/flow/ids';
 import { modelOf } from '../../core/flow/model';
 import { runtimeKind } from '../../core/flow/status';
 import type { FlowHeader } from '../../core/flow/types';
+import { needsLook, type RepoState, repoLine } from '../../core/view/flowFacts';
 import { run } from '../actions';
 import { send } from '../bus';
 import { StatusIcon } from '../canvas/StatusIcon';
@@ -16,8 +17,26 @@ import { ContractEditor } from './ContractEditor';
 import { Fold } from './Fold';
 import { CommitField, ReadOnly } from './fields';
 
+/**
+ * AFD-93: the workspace's flows in a line, with the way to them (round 2: S8, T7 given up again).
+ * Before the index has read them, the line says what the Flows view holds.
+ */
+function RepoLine({ repo, hook }: { repo: RepoState | null; hook: string }) {
+  return (
+    <p className="muted" {...{ [hook]: '' }}>
+      {repo
+        ? `${repoLine(repo)}: `
+        : 'Other flows of this workspace, with their problems and code state: '}
+      <button type="button" className="link" onClick={() => send({ type: 'showFlows' })}>
+        Flows View
+      </button>
+    </p>
+  );
+}
+
 export function FlowDescription() {
   const snapshot = useUi((s) => s.snapshot);
+  const repo = useUi((s) => s.repo);
   const editable = useEditable();
   const doc = snapshot?.doc;
   if (!doc?.flow) return <p className="muted">No flow loaded.</p>;
@@ -28,6 +47,8 @@ export function FlowDescription() {
   return (
     <div className="afd-panel-body">
       <h2>Flow</h2>
+      {/* X2: a flow that needs a look elsewhere is said at the top, not only under Readiness. */}
+      {repo && needsLook(repo) ? <RepoLine repo={repo} hook="data-repo-line" /> : null}
       <fieldset className="afd-editable" disabled={!editable}>
         <CommitField
           label="Name"
@@ -148,12 +169,7 @@ export function FlowDescription() {
           ) : null}
           {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up); with
             the Readiness counts, so a new flow's first screen keeps its 35 controls. */}
-          <p className="muted" data-flows-link>
-            Other flows of this workspace, with their problems and code state:{' '}
-            <button type="button" className="link" onClick={() => send({ type: 'showFlows' })}>
-              Flows View
-            </button>
-          </p>
+          <RepoLine repo={repo} hook="data-flows-link" />
         </section>
       ) : null}
     </div>

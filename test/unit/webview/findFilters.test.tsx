@@ -70,3 +70,37 @@ describe('Find filters (AFD-86)', () => {
     expect(posted).toContainEqual({ type: 'showFlows' });
   });
 });
+
+describe("the workspace's flows in the flow panel; what a filter lists (AFD-93)", () => {
+  it('Readiness says what the other flows need; a flow that needs a look is said at the top too', () => {
+    act(() => useUi.getState().setRepo({ flows: 7, withErrors: 0, editedByHand: 0, outOfDate: 0 }));
+    const { unmount } = render(<FlowDescription />);
+    expect(document.querySelector('[data-flows-link]')?.textContent).toMatch(
+      /^Other flows of this workspace have no problems: Flows View$/,
+    );
+    expect(document.querySelector('[data-repo-line]')).toBeNull();
+    unmount();
+    act(() => useUi.getState().setRepo({ flows: 7, withErrors: 1, editedByHand: 1, outOfDate: 0 }));
+    render(<FlowDescription />);
+    const top = document.querySelector('[data-repo-line]');
+    expect(top?.textContent).toMatch(
+      /^In this workspace: 1 flow with errors, 1 with code edited by hand: Flows View$/,
+    );
+    posted.length = 0;
+    fireEvent.click(top?.querySelector('button') as HTMLElement);
+    expect(posted).toContainEqual({ type: 'showFlows' });
+    act(() => useUi.getState().setRepo(null));
+  });
+
+  it('a query of one filter says what its results are', () => {
+    act(() => useUi.getState().openFind(true));
+    act(() => useUi.getState().setFindQuery('type:approval'));
+    render(<FindBar />);
+    const n = Number(document.querySelector('[data-find]')?.getAttribute('data-find'));
+    expect(document.querySelector('[data-find-summary]')?.textContent).toBe(
+      `${n} approval${n === 1 ? '' : 's'}`,
+    );
+    act(() => useUi.getState().setFindQuery('type:approval backup'));
+    expect(document.querySelector('[data-find-summary]')).toBeNull();
+  });
+});

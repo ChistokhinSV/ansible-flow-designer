@@ -39,12 +39,23 @@ export function documentOf(uri: vscode.Uri): vscode.TextDocument {
   return doc;
 }
 
+let warnedUnfocused = false;
+
 /** Opens the flow in the designer and waits until its webview has rendered the current version. */
 export async function openDesigner(uri: vscode.Uri): Promise<vscode.TextDocument> {
   const a = await testApi();
   await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE);
   const doc = documentOf(uri);
   await withTimeout(a.rendered(uri, doc.version), 30_000, 'first render');
+  // A view another test left focused (the chat, in VS Code 1.140) would take a test's Undo:
+  // the designer's own panel takes the focus, as a click on it would.
+  a.focusDesigner(uri);
+  // Undo reaches a webview only while the window has the OS focus: another application in front
+  // (someone using the PC during a run) fails the undo tests whatever the code does.
+  if (!vscode.window.state.focused && !warnedUnfocused) {
+    warnedUnfocused = true;
+    console.log('[afd] the test window is not focused: undo checks fail until it is');
+  }
   return doc;
 }
 

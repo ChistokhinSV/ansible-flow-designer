@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.61.0 — AFD-93
+
+Wave 9, part 2: the workspace's state where you already look (`docs/ux/wave8-usability/round2.md`, S8, S7, X2).
+
+- **The Problems panel lists every flow,** not only open ones: the errors and warnings of each flow in the workspace, checked in the background after start-up. An open flow adds its binding checks. `afd.problems.scope: open` keeps the old behaviour.
+- **A generated playbook edited by hand says so** in the Problems panel ("Edited by hand: saving ... leaves this playbook alone, and Generate Code asks before writing over it"), with **Open the Flow** as a quick fix.
+- **The flow panel says what the other flows need:** "In this workspace: 1 flow with errors, 1 with code edited by hand: Flows View". When a flow has errors or code edited by hand, the line also shows at the top of the panel.
+- **Find says what a filter lists:** "4 steps not implemented yet", "2 approvals", "8 draft steps and subflows".
+- **The Flows view** shows a root per folder in a multi-root workspace (it listed only the first folder's paths right).
+
 ## 0.60.0 — AFD-92
 
 Wave 9, part 1: what changed while a flow was closed (`docs/ux/wave8-usability/round2.md`, S12).

@@ -69,6 +69,8 @@ function useHost() {
         ui.setScenarios(m.results, m.show);
       } else if (m.type === 'outsideMarks') {
         ui.setOutside(m.marks);
+      } else if (m.type === 'repoState') {
+        ui.setRepo(m.state);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
       } else if (m.type === 'firstFlow') {

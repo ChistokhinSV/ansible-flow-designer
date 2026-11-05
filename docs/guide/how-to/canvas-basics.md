@@ -70,14 +70,14 @@ selected.
 **Filters** narrow the search, alone or with words. They list matching steps on every level at
 once:
 
-| Filter                           | Finds                                                             |
-| -------------------------------- | ----------------------------------------------------------------- |
-| `status:draft`, `status:tested`… | steps with that status (a draft is not implemented yet)           |
-| `type:approval`, `type:decision` | steps of that type (`task`, `subflow`, `decision`, `approval`, …) |
-| `open:fail`                      | steps with a fail port nobody handles                             |
-| `has:no-binding`                 | tasks not implemented yet (no module, role or playbook)           |
-| `has:binding`, `has:errors`      | steps bound to a module, role or playbook; steps with an error    |
-| `tag:backup`, `target:core`      | steps with that tag; steps whose inventory target matches         |
+| Filter                           | Finds                                                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `status:draft`, `status:tested`… | steps with that status (a draft is not implemented yet)                                                                           |
+| `type:approval`, `type:decision` | steps of that type (`task`, `subflow`, `decision`, `approval`, …)                                                                 |
+| `open:fail`                      | steps with a fail port nobody handles                                                                                             |
+| `has:no-binding`                 | tasks not implemented yet (no module, role or playbook); with one filter, Find says what it lists ("4 steps not implemented yet") |
+| `has:binding`, `has:errors`      | steps bound to a module, role or playbook; steps with an error                                                                    |
+| `tag:backup`, `target:core`      | steps with that tag; steps whose inventory target matches                                                                         |
 
 Two values of one filter mean either (`type:task type:approval`). The box offers the filters while
 it is empty and completes the one you type. In the flow panel, each **Readiness** count opens Find

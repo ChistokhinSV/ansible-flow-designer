@@ -104,3 +104,21 @@ one by one, and did not know what "edited by hand" meant (P16).
 Round 1 added this to group D, and AFD-86 left it out. The flow panel now ends with "Other flows of
 this workspace, with their problems and code state: Flows View". The webview sends `showFlows`, and
 the host runs `afd.flows.focus`.
+
+## Amendment: the workspace where people already look (AFD-93, 2026-11-05)
+
+Round 2's participant gave up T7 again (S8). The Flows view had both answers, but P1 looked in the
+guide, the Problems panel and inside flows. Three changes:
+
+- **One index of the workspace's flows** (`extension/flowIndex.ts`) for the Flows view, Problems
+  and the flow panel. Facts per flow are kept by stamp; every flow is read in the background 3 s
+  after start-up, two at a time, up to 500. A root per workspace folder.
+- **Problems for every flow:** closed flows publish their validation findings with places
+  (`flowFacts` `problems`, `lineCol`); an open flow's session owns its URI and adds binding and
+  shared-source checks. `afd.problems.scope: open` keeps Problems to open flows. A generated
+  playbook edited by hand (ours, checksum off) gets a warning in its own collection, with Open the
+  Flow.
+- **The flow panel's line** (`repoState`, `repoLine`): the Readiness link says what the workspace's
+  flows need; when one has errors or code edited by hand, the line also shows at the top of the
+  panel (X2). A new flow in a clean workspace adds nothing (35 controls).
+- **Find** says what a single filter lists (`findSummary`, S7).

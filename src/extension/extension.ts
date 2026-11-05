@@ -118,6 +118,12 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     watchScenarioFiles(),
     watchSharedSources(host),
     ...registerImportCommands(host),
+    ...host.index.start(),
+    // AFD-93: the flow panel's line about the workspace follows the index.
+    host.index.onDidChange(async () => {
+      const state = await host.index.state();
+      for (const s of host.sessions.values()) s.repoState(state);
+    }),
     ...registerFlowsView(host),
     ...registerInventoryView(host),
   );

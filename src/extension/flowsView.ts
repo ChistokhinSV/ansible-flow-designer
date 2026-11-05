@@ -3,88 +3,50 @@
 // (welcome content in package.json). AFD-86 (wave 8 group D): by folder, and each flow says its
 // problems and whether its code is out of date or edited by hand (core/view/flowFacts.ts), read
 // lazily and kept until the flow or its generated folder changes; Run as Skeleton and Peek Code
-// on each. Round 1's participant gave up getting a repository's overview (P16).
+// on each. Round 1's participant gave up getting a repository's overview (P16). AFD-93: the facts
+// come from the workspace index (flowIndex.ts), shared with Problems; a root per workspace folder.
 import * as vscode from 'vscode';
 import {
   CODE_MEANING,
   type FlowFacts,
   type FlowFolder,
   factsLine,
-  flowFacts,
   flowTree,
 } from '../core/view/flowFacts';
-import { generatedDir, rootFromGenerated } from './codegen';
+import { generatedDir } from './codegen';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
 
-const FLOWS = '**/*.flow.yaml';
-
 type Item =
+  | { kind: 'root'; folder: vscode.WorkspaceFolder }
   | { kind: 'folder'; folder: FlowFolder; base: vscode.Uri }
   | { kind: 'flow'; uri: vscode.Uri };
 
-async function stampOf(uri: vscode.Uri): Promise<string> {
-  const stat = async (u: vscode.Uri) => {
-    try {
-      return (await vscode.workspace.fs.stat(u)).mtime;
-    } catch {
-      return 0;
-    }
-  };
-  const dir = generatedDir(uri);
-  let generated = 0;
-  try {
-    for (const [name] of await vscode.workspace.fs.readDirectory(dir))
-      generated = Math.max(generated, await stat(vscode.Uri.joinPath(dir, name)));
-  } catch {}
-  return `${await stat(uri)}:${generated}`;
-}
-
-async function readFacts(uri: vscode.Uri, host: Host): Promise<FlowFacts> {
-  const dir = generatedDir(uri);
-  const read = async (u: vscode.Uri) => {
-    try {
-      return new TextDecoder().decode(await vscode.workspace.fs.readFile(u));
-    } catch {
-      return undefined;
-    }
-  };
-  // An open flow answers from its editor's text, as the Problems panel does.
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-  const text = open?.getText() ?? (await read(uri)) ?? '';
-  return flowFacts(
-    text,
-    host.deps.schema,
-    {
-      read: (name) => read(vscode.Uri.joinPath(dir, name)),
-      list: async () => {
-        try {
-          return (await vscode.workspace.fs.readDirectory(dir))
-            .filter(([, type]) => type === vscode.FileType.File)
-            .map(([name]) => name);
-        } catch {
-          return [];
-        }
-      },
-    },
-    { source: uri.path.split('/').pop() ?? 'flow.yaml', root: rootFromGenerated(uri) },
-  );
-}
-
 export function registerFlowsView(host: Host): vscode.Disposable[] {
   const changed = new vscode.EventEmitter<void>();
-  const facts = new Map<string, { stamp: string; facts: FlowFacts }>();
-  const factsOf = async (uri: vscode.Uri) => {
-    const stamp = await stampOf(uri);
-    const known = facts.get(uri.toString());
-    if (known?.stamp === stamp) return known.facts;
-    const f = await readFacts(uri, host);
-    facts.set(uri.toString(), { stamp, facts: f });
-    return f;
+  // AFD-93: the workspace index reads and keeps the facts; the view only shows them.
+  const factsOf = (uri: vscode.Uri) => host.index.facts(uri);
+  /** The flows of one workspace folder, by their folders. */
+  const treeOf = async (folder: vscode.WorkspaceFolder): Promise<Item[]> => {
+    const rel = (await host.index.list())
+      .filter((f) => f.folder.uri.toString() === folder.uri.toString())
+      .map((f) => f.rel);
+    const tree = flowTree(rel);
+    const base = folder.uri;
+    return [
+      ...tree.folders.map((f): Item => ({ kind: 'folder', folder: f, base })),
+      ...tree.flows.map((p): Item => ({ kind: 'flow', uri: vscode.Uri.joinPath(base, p) })),
+    ];
   };
   const provider: vscode.TreeDataProvider<Item> = {
     onDidChangeTreeData: changed.event,
     async getTreeItem(item) {
+      if (item.kind === 'root') {
+        const t = new vscode.TreeItem(item.folder.name, vscode.TreeItemCollapsibleState.Expanded);
+        t.iconPath = new vscode.ThemeIcon('root-folder');
+        t.contextValue = 'afd-flow-root';
+        return t;
+      }
       if (item.kind === 'folder') {
         const t = new vscode.TreeItem(item.folder.name, vscode.TreeItemCollapsibleState.Expanded);
         t.iconPath = vscode.ThemeIcon.Folder;
@@ -134,8 +96,7 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
     },
     async getChildren(parent) {
       if (parent?.kind === 'flow') return [];
-      const folder = vscode.workspace.workspaceFolders?.[0];
-      if (!folder) return [];
+      if (parent?.kind === 'root') return treeOf(parent.folder);
       if (parent?.kind === 'folder')
         return [
           ...parent.folder.folders.map(
@@ -145,47 +106,24 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
             (p): Item => ({ kind: 'flow', uri: vscode.Uri.joinPath(parent.base, p) }),
           ),
         ];
-      // `undefined` keeps files.exclude (a pattern here would replace it); node_modules is skipped.
-      const found = (await vscode.workspace.findFiles(FLOWS)).filter(
-        (u) => !u.path.includes('/node_modules/'),
-      );
-      const base = folder.uri;
-      const rel = found.map((u) => vscode.workspace.asRelativePath(u, false).replaceAll('\\', '/'));
-      const tree = flowTree(rel);
-      return [
-        ...tree.folders.map((f): Item => ({ kind: 'folder', folder: f, base })),
-        ...tree.flows.map((p): Item => ({ kind: 'flow', uri: vscode.Uri.joinPath(base, p) })),
-      ];
+      const folders = vscode.workspace.workspaceFolders ?? [];
+      // One folder: its flows at the top, as before; several: a root per folder (AFD-93).
+      if (folders.length === 1 && folders[0]) return treeOf(folders[0]);
+      return folders.map((folder): Item => ({ kind: 'root', folder }));
     },
   };
-  // Changes come in bursts (a save writes the flow and its playbooks): one refresh per burst.
-  let timer: NodeJS.Timeout | undefined;
-  const soon = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => changed.fire(), 300);
-  };
-  const flowsWatcher = vscode.workspace.createFileSystemWatcher(FLOWS);
-  const codeWatcher = vscode.workspace.createFileSystemWatcher('**/generated/*.yml');
   const openOn = async (uri: vscode.Uri) => {
     if (!host.sessions.get(uri.toString())?.hasPanels) await host.openDesigner(uri);
   };
   return [
     changed,
-    flowsWatcher,
-    codeWatcher,
     vscode.window.createTreeView('afd.flows', { treeDataProvider: provider }),
-    flowsWatcher.onDidCreate(soon),
-    flowsWatcher.onDidDelete(soon),
-    flowsWatcher.onDidChange(soon),
-    codeWatcher.onDidCreate(soon),
-    codeWatcher.onDidDelete(soon),
-    codeWatcher.onDidChange(soon),
-    // An open flow answers from its editor: its facts change as it is edited.
-    vscode.workspace.onDidSaveTextDocument((d) => d.uri.path.endsWith('.flow.yaml') && soon()),
-    vscode.workspace.onDidChangeWorkspaceFolders(soon),
+    // The index watches the flows and their code, and says once per burst.
+    host.index.onDidChange(() => changed.fire()),
     vscode.commands.registerCommand('afd.flows.refresh', () => {
-      facts.clear();
+      host.index.clear();
       changed.fire();
+      void host.index.warm();
     }),
     vscode.commands.registerCommand('afd.flows.run', async (item?: Item) => {
       if (item?.kind !== 'flow') return;

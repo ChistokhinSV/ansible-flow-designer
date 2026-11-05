@@ -7,7 +7,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { findNodes } from '../../../src/core/view/find';
-import { findCompletions, parseFind } from '../../../src/core/view/findQuery';
+import { findCompletions, findSummary, parseFind } from '../../../src/core/view/findQuery';
 
 const doc = parse(
   readFileSync(join(__dirname, '../../../samples/firewall-upgrade.flow.yaml'), 'utf8'),
@@ -71,5 +71,18 @@ describe('findCompletions', () => {
     expect(findCompletions('backup status:dr')).toEqual(['status:draft']);
     expect(findCompletions('type:')).toContain('type:approval');
     expect(findCompletions('')).toEqual([]);
+  });
+});
+
+describe('findSummary (AFD-93)', () => {
+  it('a query of one filter says what its results are; words or more filters say nothing more', () => {
+    expect(findSummary('has:no-binding', 4)).toBe('4 steps not implemented yet');
+    expect(findSummary('has:no-binding', 1)).toBe('1 step not implemented yet');
+    expect(findSummary('type:approval', 2)).toBe('2 approvals');
+    expect(findSummary('status:draft', 8)).toBe('8 draft steps and subflows');
+    expect(findSummary('open:fail', 1)).toBe('1 step with a fail port nothing handles');
+    expect(findSummary('backup has:no-binding', 1)).toBeUndefined();
+    expect(findSummary('type:task status:draft', 3)).toBeUndefined();
+    expect(findSummary('tag:pre', 3)).toBeUndefined();
   });
 });

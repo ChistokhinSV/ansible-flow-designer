@@ -29,6 +29,39 @@ export const FILTER_MEANING: Record<string, string> = {
   'status:draft': 'Draft steps, and subflows with a draft step inside',
 };
 
+/** What a single filter lists, counted (AFD-93: round 2, S7, the list did not say what it held). */
+const COUNTED: Record<string, readonly [string, string]> = {
+  'has:no-binding': ['step not implemented yet', 'steps not implemented yet'],
+  'has:binding': [
+    'step bound to a module, role or playbook',
+    'steps bound to a module, role or playbook',
+  ],
+  'has:errors': ['step with an error', 'steps with an error'],
+  'has:problems': ['step with an error or a warning', 'steps with an error or a warning'],
+  'open:fail': ['step with a fail port nothing handles', 'steps with a fail port nothing handles'],
+};
+
+/**
+ * "4 steps not implemented yet": a query of one filter says what its results are. Statuses count
+ * subflows too, since a subflow's status is its least finished step's. Words, or several filters,
+ * say nothing more than the count.
+ */
+export function findSummary(query: string, count: number): string | undefined {
+  const q = parseFind(query);
+  const filters = Object.entries(q.filters);
+  if (q.words.length || filters.length !== 1) return undefined;
+  const [key, values] = filters[0] as [FilterKey, string[]];
+  if (values.length !== 1) return undefined;
+  const value = values[0] as string;
+  const one = count === 1;
+  const counted = COUNTED[`${key}:${value}`];
+  if (counted) return `${count} ${one ? counted[0] : counted[1]}`;
+  if (key === 'type') return `${count} ${value}${one ? '' : 's'}`;
+  if (key === 'status')
+    return `${count} ${value} ${one ? 'step or subflow' : 'steps and subflows'}`;
+  return undefined;
+}
+
 export interface FindQuery {
   /** Words to match in titles, keys and bindings. */
   words: string[];

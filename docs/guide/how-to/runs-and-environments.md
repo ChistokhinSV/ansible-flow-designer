@@ -81,11 +81,13 @@ modules support it.
 
 ## The Flows view
 
-**Flows**, in the **Ansible Flows** view of the Activity Bar (or **Flows View** under the Readiness
-counts of a flow's panel), lists the repository's flows by folder (a folder that only holds its own flow is not a level of its own). Each flow says what needs
+**Flows**, in the **Ansible Flows** view of the Activity Bar (or **Flows View** in a flow's panel,
+under the Readiness counts, which says what the workspace's flows need: "In this workspace: 1 flow
+with errors, 1 with code edited by hand"; when a flow needs a look, the line shows at the top of
+the panel too), lists the repository's flows by folder (a folder that only holds its own flow is not a level of its own). Each flow says what needs
 a look:
 
-- its errors and warnings (open it for the Problems panel);
+- its errors and warnings, which the Problems panel lists too, open or not;
 - **code out of date**: its generated playbooks do not match the flow yet, and a save writes them;
 - **code edited by hand**: a generated playbook was changed in an editor, so a save leaves it alone
   (Generate Code asks before it writes over the change);
@@ -95,6 +97,11 @@ The tooltip explains the state. **Run as Skeleton** (the play button on a flow) 
 launch dialog. **Peek Code** opens its generated playbook.
 
 ## The Inventory view
+
+The **Problems** panel lists every flow's errors and warnings, read in the background after
+start-up (`afd.problems.scope: open` for open flows only). An open flow also gets the checks that
+need the module catalog, so it can list more. A generated playbook edited by hand gets a warning
+there, with **Open the Flow**.
 
 **Inventory**, in the **Ansible Flows** view of the Activity Bar, lists the inventory the runs use
 (`afd.run.inventory`, else `ansible.cfg`'s), read in your Ansible environment. Each group shows its

@@ -6,7 +6,7 @@
 // one being typed.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { findNodes } from '../../core/view/find';
-import { FILTER_MEANING, findCompletions } from '../../core/view/findQuery';
+import { FILTER_MEANING, findCompletions, findSummary } from '../../core/view/findQuery';
 import { TYPE_LABEL } from '../constants';
 import { useModel } from '../hooks';
 import { useUi } from '../store';
@@ -32,6 +32,14 @@ function Find() {
     [model, query, findings, openPorts],
   );
   const hints = findCompletions(query);
+  // At the limit the count is "50+", as in the box.
+  const summary =
+    query.trim() && results.length
+      ? findSummary(query, results.length)?.replace(
+          /^\d+/,
+          results.length === LIMIT ? `${LIMIT}+` : String(results.length),
+        )
+      : undefined;
   const complete = (to: string) => {
     const before = query.replace(/\S*$/, '');
     useUi.getState().setFindQuery(`${before}${to}${to.endsWith(':') ? '' : ' '}`);
@@ -134,6 +142,12 @@ function Find() {
             </button>
           ))}
         </div>
+      ) : null}
+      {/* AFD-93: a query of one filter says what its results are (round 2: S7). */}
+      {summary ? (
+        <p className="muted afd-find-summary" data-find-summary>
+          {summary}
+        </p>
       ) : null}
       {query.trim() && results.length ? (
         <div

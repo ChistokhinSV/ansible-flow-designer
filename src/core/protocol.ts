@@ -9,6 +9,7 @@ import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
 import type { ScenarioResult } from './scenario/scenarios';
+import type { RepoState } from './view/flowFacts';
 import type { OutsideMarks } from './view/outsideChanges';
 import type { Path } from './yaml/parse';
 
@@ -206,6 +207,8 @@ export type HostMessage =
   | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
   /** AFD-85: what changed outside the designer since it opened; null when cleared. */
   | { type: 'outsideMarks'; marks: OutsideMarks | null }
+  /** AFD-93: the workspace's flows at a glance, for the flow panel's line. */
+  | { type: 'repoState'; state: RepoState }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
   | { type: 'sync'; state: 'syncing' | 'done' | 'error'; scan?: CodeScan; error?: string }
   /** Lens facts (M8): inventory, catalog view of the bindings, run history; merged into the store. */

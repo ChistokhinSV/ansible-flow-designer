@@ -318,3 +318,77 @@ describe('M3 acceptance: code generation', () => {
     assert.ok(!JSON.stringify(mine).includes('secret-site-x'), 'no input values in the audit');
   }).timeout(300_000);
 });
+
+describe('AFD-93: the workspace in the Problems panel', () => {
+  afterEach(closeAll);
+  const errors = (uri: vscode.Uri) =>
+    vscode.languages
+      .getDiagnostics(uri)
+      .filter((d) => d.severity === vscode.DiagnosticSeverity.Error);
+  const until = async (test: () => boolean, what: string) => {
+    for (let i = 0; i < 100 && !test(); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(test(), `timed out: ${what}`);
+  };
+
+  it('a flow nobody opened shows its errors; afd.problems.scope "open" leaves it out', async () => {
+    const { mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+    const api = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
+    const dir = vscode.Uri.joinPath(root, 'flows', 'afd93-closed');
+    const uri = vscode.Uri.joinPath(dir, 'afd93-closed.flow.yaml');
+    const config = vscode.workspace.getConfiguration('afd');
+    mkdirSync(dir.fsPath, { recursive: true });
+    // A wire to a port that does not exist: an error, in a flow no editor has open.
+    writeFileSync(
+      uri.fsPath,
+      readFileSync(EDGE.fsPath, 'utf8').replace('port: ok_hosts', 'port: no_such_port'),
+    );
+    try {
+      const facts = await api.indexed(uri);
+      assert.ok(facts.errors > 0, 'the index sees the error');
+      await until(() => errors(uri).length > 0, 'the closed flow in Problems');
+      await config.update('problems.scope', 'open', vscode.ConfigurationTarget.Workspace);
+      await until(() => errors(uri).length === 0, 'left out with scope open');
+      await config.update('problems.scope', undefined, vscode.ConfigurationTarget.Workspace);
+      await until(() => errors(uri).length > 0, 'back with scope workspace');
+    } finally {
+      await config.update('problems.scope', undefined, vscode.ConfigurationTarget.Workspace);
+      rmSync(dir.fsPath, { recursive: true, force: true });
+    }
+  });
+
+  it('a generated playbook edited by hand gets a warning with Open the Flow', async () => {
+    const { writeFileSync } = await import('node:fs');
+    const api = await testApi();
+    await openDesigner(EDGE);
+    await vscode.commands.executeCommand('afd.code.generate', EDGE, { quiet: true });
+    const key = docOf(readFileSync(EDGE.fsPath, 'utf8')).flow.key;
+    const file = vscode.Uri.joinPath(EDGE, '..', 'generated', `${key}.yml`);
+    const original = readFileSync(file.fsPath, 'utf8');
+    const warned = () =>
+      vscode.languages.getDiagnostics(file).filter((d) => d.code === 'generated-edited');
+    try {
+      writeFileSync(
+        file.fsPath,
+        `${original}# fixed by hand
+`,
+      );
+      await api.indexed(EDGE);
+      await until(() => warned().length === 1, 'the warning');
+      // VS Code 1.140 asks for an open document and a Range of its own.
+      await vscode.workspace.openTextDocument(file);
+      const at = warned()[0]?.range as vscode.Range;
+      const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        'vscode.executeCodeActionProvider',
+        file,
+        new vscode.Range(at.start.line, at.start.character, at.end.line, at.end.character),
+      );
+      assert.ok(actions?.some((a) => a.title === 'Open the Flow'));
+      writeFileSync(file.fsPath, original);
+      await api.indexed(EDGE);
+      await until(() => warned().length === 0, 'the warning gone');
+    } finally {
+      writeFileSync(file.fsPath, original);
+    }
+  });
+});

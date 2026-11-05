@@ -249,6 +249,9 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
     assert.ok(r.started === 'chat' || r.started === 'clipboard', String(r.started));
     console.log(`[afd27] chat route: ${r.started}`);
     assert.equal(await vscode.env.clipboard.readText(), r.prompt);
+    // The chat keeps the focus (VS Code 1.140): a later test's Undo would go to its input box.
+    for (const command of ['workbench.action.closeAuxiliaryBar', 'workbench.action.closePanel'])
+      await Promise.resolve(vscode.commands.executeCommand(command)).catch(() => undefined);
   });
 
   it('AFD-27: AWX with an AI assistant writes a sanitized export for the assistant to read', async () => {

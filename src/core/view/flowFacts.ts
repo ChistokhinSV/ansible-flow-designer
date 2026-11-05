@@ -2,11 +2,13 @@
 // its generated code, so a repository's health shows without opening every flow (round 1: P16, T7
 // given up). The code state uses the same write plan a save does (ADR-0009), so "edited by hand"
 // here is what a save would leave alone. Pure, with the generated folder read through GeneratedDir.
+// AFD-93 (wave 9): each flow's problems with their places, for the Problems panel of flows that are
+// not open, and the workspace's state in a line for the flow panel (round 2: S8, T7 given up).
 
 import { type GeneratedDir, planGenerated } from '../engine/writePlan';
-import { parseFlow } from '../flow/document';
+import { parseFlow, rangeOf } from '../flow/document';
 import type { SchemaValidator } from '../flow/schema';
-import { validateFlow } from '../flow/validate';
+import { type Finding, validateFlow } from '../flow/validate';
 
 export type CodeState = 'current' | 'out of date' | 'edited by hand' | 'no code yet' | 'blocked';
 
@@ -20,6 +22,31 @@ export interface FlowFacts {
   kept: string[];
   /** The flow does not parse. */
   broken?: string;
+  /** AFD-93: its errors and warnings with their places (validation only: no catalog, no files). */
+  problems: FlowProblem[];
+}
+
+/** A line and character, both from 0, as VS Code counts them (UTF-16, like JS strings). */
+export interface LinePos {
+  line: number;
+  character: number;
+}
+
+export interface FlowProblem {
+  start: LinePos;
+  end: LinePos;
+  message: string;
+  severity: Finding['severity'];
+  code: string;
+}
+
+/** Where an offset of the text is, as a line and character. */
+export function lineCol(text: string, offset: number): LinePos {
+  const at = Math.max(0, Math.min(offset, text.length));
+  const before = text.lastIndexOf('\n', at - 1);
+  let line = 0;
+  for (let i = text.indexOf('\n'); i !== -1 && i < at; i = text.indexOf('\n', i + 1)) line++;
+  return { line, character: at - before - 1 };
 }
 
 export async function flowFacts(
@@ -30,7 +57,9 @@ export async function flowFacts(
 ): Promise<FlowFacts> {
   const parsed = parseFlow(text);
   const doc = parsed.doc;
-  if (!doc)
+  if (!doc) {
+    const broken = parsed.errors[0]?.message ?? 'The file does not parse';
+    const at = lineCol(text, parsed.errors[0]?.offset ?? 0);
     return {
       name: options.source.replace(/\.flow\.ya?ml$/, ''),
       key: '',
@@ -38,12 +67,32 @@ export async function flowFacts(
       warnings: 0,
       code: 'blocked',
       kept: [],
-      broken: parsed.errors[0]?.message ?? 'The file does not parse',
+      broken,
+      problems: [
+        {
+          start: at,
+          end: { line: at.line, character: at.character + 1 },
+          message: broken,
+          severity: 'error',
+          code: 'yaml',
+        },
+      ],
     };
+  }
   const findings = validateFlow(doc, schema(doc)).findings;
   const errors = findings.filter((f) => f.severity === 'error').length;
   const warnings = findings.filter((f) => f.severity === 'warning').length;
-  const base = { name: doc.flow.name, key: doc.flow.key, errors, warnings };
+  const problems = findings.map((f): FlowProblem => {
+    const [start, end] = rangeOf(parsed.file, f.path);
+    return {
+      start: lineCol(text, start),
+      end: lineCol(text, end),
+      message: f.message,
+      severity: f.severity,
+      code: f.code,
+    };
+  });
+  const base = { name: doc.flow.name, key: doc.flow.key, errors, warnings, problems };
   if (errors > 0) return { ...base, code: 'blocked', kept: [] };
   const plan = await planGenerated(text, schema, dir, options);
   if (plan.kept.length > 0) return { ...base, code: 'edited by hand', kept: plan.kept };
@@ -113,4 +162,42 @@ export function flowTree(paths: readonly string[]): FlowFolder {
     at.flows.push(path);
   }
   return root;
+}
+
+/** AFD-93: the workspace's flows at a glance, for the flow panel. */
+export interface RepoState {
+  /** Flows found in the workspace. */
+  flows: number;
+  withErrors: number;
+  editedByHand: number;
+  outOfDate: number;
+}
+
+export function repoState(all: readonly FlowFacts[], flows = all.length): RepoState {
+  return {
+    flows,
+    withErrors: all.filter((f) => f.broken || f.errors > 0).length,
+    editedByHand: all.filter((f) => f.code === 'edited by hand').length,
+    outOfDate: all.filter((f) => f.code === 'out of date').length,
+  };
+}
+
+/** Some flow needs a look: errors, or generated code changed by hand (out of date is routine). */
+export const needsLook = (s: RepoState) => s.withErrors + s.editedByHand > 0;
+
+/** "In this workspace: 1 flow with errors, 1 with code edited by hand", or that all is well. */
+export function repoLine(s: RepoState): string {
+  const parts: string[] = [];
+  const add = (count: number, what: string) => {
+    if (!count) return;
+    const noun = parts.length ? '' : count === 1 ? 'flow ' : 'flows ';
+    parts.push(`${count} ${noun}${what}`);
+  };
+  add(s.withErrors, 'with errors');
+  add(s.editedByHand, 'with code edited by hand');
+  add(s.outOfDate, 'with code out of date');
+  if (parts.length) return `In this workspace: ${parts.join(', ')}`;
+  return s.flows > 1
+    ? 'Other flows of this workspace have no problems'
+    : 'No other flows in this workspace';
 }

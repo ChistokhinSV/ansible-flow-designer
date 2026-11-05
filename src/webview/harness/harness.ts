@@ -320,6 +320,15 @@ async function onMessage(m: WebviewMessage) {
         status: { state: 'ready', environment: 'harness fixture', platforms: CTX.platforms },
       });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      // AFD-93: a clean workspace, so the first screen is measured as a newcomer sees it;
+      // `?repo=problems` shows the line a workspace with problems gets.
+      toWebview({
+        type: 'repoState',
+        state:
+          params.get('repo') === 'problems'
+            ? { flows: 7, withErrors: 1, editedByHand: 1, outOfDate: 2 }
+            : { flows: 7, withErrors: 0, editedByHand: 0, outOfDate: 0 },
+      });
       break;
     case 'completeIds': {
       const done = completeIds(text, newId);

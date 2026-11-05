@@ -1,5 +1,6 @@
 // The test API activate() returns in ExtensionMode.Test (integration and perf suites), out of
 // activate (AFD-37). Production code never calls it.
+
 import * as vscode from 'vscode';
 import type { ToolResult } from '../core/ai/handlers';
 import { type FlowIO, runTool } from '../core/ai/handlers';
@@ -9,6 +10,7 @@ import type { FlowCommand } from '../core/flow/commands';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import type { OutputEntry } from '../core/run/events';
+import type { FlowFacts } from '../core/view/flowFacts';
 import type { OutsideMarks } from '../core/view/outsideChanges';
 import type { Agent, Item as SetupItem } from '../node/ai/writers';
 import type { AiSetup, SetupPicks } from './ai/setup';
@@ -58,6 +60,10 @@ export interface AfdTestApi {
   forgetShown(): Promise<void>;
   /** AFD-92: Clear on the outside note. */
   clearOutside(uri: vscode.Uri): Promise<void>;
+  /** The designer of a flow takes the keyboard focus, so a test's Undo reaches it. */
+  focusDesigner(uri: vscode.Uri): void;
+  /** AFD-93: the workspace index's facts for a flow, read and published now. */
+  indexed(uri: vscode.Uri): Promise<FlowFacts>;
   /** AFD-81: the name of the terminal the flow's last local run ran in. */
   runTerminal(uri: vscode.Uri): string | undefined;
   /** AFD-82: the launch dialog's plan for this flow, as the designer's Run would open it. */
@@ -149,6 +155,11 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
     forgetShown: () => host.shown.forget(),
     clearOutside: async (uri) => {
       await host.sessions.get(uri.toString())?.clearOutside();
+    },
+    focusDesigner: (uri) => host.sessions.get(uri.toString())?.focusPanel(),
+    indexed: async (uri) => {
+      await host.index.republish(uri);
+      return host.index.facts(uri);
     },
     launchPlan: async (uri, mode) =>
       planLaunch(await vscode.workspace.openTextDocument(uri), host.runDeps(uri), mode),

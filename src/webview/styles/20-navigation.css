@@ -28,6 +28,12 @@
   white-space: nowrap;
 }
 
+/* AFD-93: what a filter's results are, between the box and the list. */
+.afd-find-summary {
+  margin: 0;
+  padding: 2px 8px 4px;
+}
+
 .afd-find-results {
   max-height: 280px;
   overflow: auto;

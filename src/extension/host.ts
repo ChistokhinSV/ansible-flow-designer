@@ -9,6 +9,7 @@ import { CatalogService, ensureCacheDir } from './catalog/catalogService';
 import type { CodegenOutcome } from './codegen';
 import { CMD } from './commands/ids';
 import { ProbeManager } from './env/environment';
+import { FlowIndex } from './flowIndex';
 import { FlowSession, type SessionDeps } from './flowSession';
 import type { PlaybookImportDeps } from './import/playbookImport';
 import { logChannel } from './log';
@@ -37,6 +38,8 @@ export class Host {
   readonly savedCode = new Map<string, Promise<CodegenOutcome>>();
   /** AFD-92: what the designer last showed of each flow, per workspace. */
   readonly shown: ShownFlows;
+  /** AFD-93: the workspace's flows, for the Flows view, Problems and the flow panel. */
+  readonly index: FlowIndex;
 
   constructor(readonly context: vscode.ExtensionContext) {
     this.testMode = context.extensionMode === vscode.ExtensionMode.Test;
@@ -69,7 +72,9 @@ export class Host {
       },
       run: (uri) => this.runDeps(uri),
       shown: this.shown,
+      repo: () => this.index.state(),
     };
+    this.index = new FlowIndex(this);
     this.playbookDeps = {
       newId: this.deps.newId,
       resolveModule: (folder) => {

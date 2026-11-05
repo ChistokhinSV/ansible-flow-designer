@@ -5,7 +5,14 @@ import { describe, expect, it } from 'vitest';
 import { engineFor } from '../../../src/core/engine/engines';
 import { parseFlow } from '../../../src/core/flow/document';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
-import { factsLine, flowFacts, flowTree } from '../../../src/core/view/flowFacts';
+import {
+  factsLine,
+  flowFacts,
+  flowTree,
+  lineCol,
+  needsLook,
+  repoLine,
+} from '../../../src/core/view/flowFacts';
 
 const schema = createSchemaValidator();
 const text = readFileSync(join(__dirname, '../../../samples/hello.flow.yaml'), 'utf8');
@@ -67,5 +74,43 @@ describe('flowTree', () => {
     expect(flows?.name).toBe('flows');
     expect(flows?.flows).toEqual(['flows/hello/hello.flow.yaml']);
     expect(flows?.folders.map((f) => [f.path, f.flows.length])).toEqual([['flows/network', 2]]);
+  });
+});
+
+describe('the workspace at a glance (AFD-93)', () => {
+  it("a flow's problems carry their line and character, for the Problems panel of closed flows", async () => {
+    // A wire to a port the step does not have: an error, placed on that wire.
+    const bad = text.replace(/port: ok_hosts/, 'port: no_such_port');
+    const f = await facts(current, bad);
+    expect(f.errors).toBeGreaterThan(0);
+    const p = f.problems.find((x) => x.severity === 'error');
+    expect(p).toBeTruthy();
+    const line = bad.split('\n')[p?.start.line ?? -1] ?? '';
+    expect(line.length).toBeGreaterThan(0);
+    const broken = await facts({}, 'flow: [unclosed');
+    expect(broken.problems).toEqual([expect.objectContaining({ code: 'yaml', severity: 'error' })]);
+  });
+
+  it('lineCol counts lines and characters from 0', () => {
+    expect(lineCol('ab\ncd\r\nef', 0)).toEqual({ line: 0, character: 0 });
+    expect(lineCol('ab\ncd\r\nef', 4)).toEqual({ line: 1, character: 1 });
+    expect(lineCol('ab\ncd\r\nef', 7)).toEqual({ line: 2, character: 0 });
+  });
+
+  it('the line says what needs a look, or that the other flows are fine', () => {
+    const state = { flows: 7, withErrors: 1, editedByHand: 1, outOfDate: 2 };
+    expect(repoLine(state)).toBe(
+      'In this workspace: 1 flow with errors, 1 with code edited by hand, 2 with code out of date',
+    );
+    expect(needsLook(state)).toBe(true);
+    const clean = { flows: 7, withErrors: 0, editedByHand: 0, outOfDate: 3 };
+    expect(needsLook(clean)).toBe(false);
+    expect(repoLine(clean)).toBe('In this workspace: 3 flows with code out of date');
+    expect(repoLine({ ...clean, outOfDate: 0 })).toBe(
+      'Other flows of this workspace have no problems',
+    );
+    expect(repoLine({ flows: 1, withErrors: 0, editedByHand: 0, outOfDate: 0 })).toBe(
+      'No other flows in this workspace',
+    );
   });
 });

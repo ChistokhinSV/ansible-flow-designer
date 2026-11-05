@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.60.0",
+  "version": "0.61.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -497,6 +497,19 @@
           "default": true,
           "scope": "resource",
           "markdownDescription": "Write generated code to `generated/` next to the flow whenever a flow without errors is saved. Files edited by hand are never overwritten without asking."
+        },
+        "afd.problems.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "open"
+          ],
+          "enumDescriptions": [
+            "Every flow in the workspace, checked in the background",
+            "Only flows open in an editor"
+          ],
+          "default": "workspace",
+          "markdownDescription": "Which flows the Problems panel lists. `workspace`: every flow, checked in the background after start-up (open flows also get their binding checks). `open`: only flows open in an editor."
         },
         "afd.canvas.direction": {
           "type": "string",

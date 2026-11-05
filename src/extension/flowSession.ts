@@ -27,6 +27,7 @@ import type {
 } from '../core/protocol';
 import { hostOutput, type OutputEntry } from '../core/run/events';
 import type { ScenarioResult } from '../core/scenario/scenarios';
+import type { RepoState } from '../core/view/flowFacts';
 import { isWebLink, linksOf } from '../core/view/markdown';
 import {
   addMarks,
@@ -102,6 +103,8 @@ export interface SessionDeps {
   run?: (uri: vscode.Uri) => RunDeps;
   /** AFD-92: what the designer last showed of each flow, for edits made while it was closed. */
   shown?: ShownFlows;
+  /** AFD-93: the workspace's flows at a glance, for the flow panel. */
+  repo?: () => Promise<RepoState>;
 }
 
 export interface PerfEvent {
@@ -444,6 +447,16 @@ export class FlowSession implements vscode.Disposable {
     await this.rememberShown();
   }
 
+  /** Test API: the designer's panel takes the keyboard focus (a test's Undo goes to it). */
+  focusPanel(): void {
+    for (const p of this.panels) p.reveal(p.viewColumn, false);
+  }
+
+  /** AFD-93: the workspace's flows changed: the flow panel's line follows. */
+  repoState(state: RepoState): void {
+    for (const p of this.readyPanels) this.post(p, { type: 'repoState', state });
+  }
+
   /** AFD-92: the save's own edits (the version bump, a tested step dropping back) are not outside. */
   expectOwn(text: string): void {
     this.ownText = text;
@@ -472,6 +485,10 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
+        // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
+        void this.deps.repo?.().then((state) => {
+          if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
+        });
         if (this.scenarios) {
           const { results, show } = this.scenarios;
           this.post(panel, { type: 'scenarios', results, ...(show ? { show } : {}) });
