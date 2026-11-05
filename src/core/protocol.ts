@@ -263,7 +263,13 @@ export type WebviewMessage =
   /** AFD-89: the Flows view, from the flow panel (round 1: P16). */
   | { type: 'showFlows' }
   | { type: 'inspectResult'; reqId: number; result: DomSummary }
-  | { type: 'perf'; event: 'firstRender' | 'render' | 'roundTrip'; ms: number; docVersion: number }
+  | {
+      type: 'perf';
+      /** `drawn` (AFD-97, test mode): the nodes are measured and their wires drawn. */
+      event: 'firstRender' | 'render' | 'roundTrip' | 'drawn';
+      ms: number;
+      docVersion: number;
+    }
   | { type: 'cspViolation'; detail: string }
   | { type: 'catalog'; reqId: number; request: CatalogRequest }
   /** Re-sync from git (M6). */

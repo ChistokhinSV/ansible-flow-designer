@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.64.1 — AFD-97
+
+- **Tests:** the integration tests wait until the designer has drawn its wires, in a panel that is still open. A test that reopened a flow on the same version could read a designer that had not drawn yet (no wires, or no answer), and the M1 checks failed now and then (wave 9: 3 of about 12 full runs). Nothing changes for people using the designer; the perf measures stay as they were.
+
 ## 0.64.0 — AFD-96
 
 Wave 9, part 5: what round 2 and the walkthroughs left (`docs/ux/wave8-usability/round2.md`, S3, S4, S1; walkthroughs W1, W5, X3, X4).

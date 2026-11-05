@@ -131,12 +131,24 @@ function useHost() {
   useLayoutEffect(() => {
     if (!snapshot || !received.current || received.current.version !== snapshot.docVersion) return;
     const { at, version } = received.current;
-    // After React committed, the next frame is when the canvas is painted.
+    // After React committed, the next frame is when the canvas is painted (the perf measure).
     requestAnimationFrame(() => {
       if (!testMode) return;
       const event = firstDone.current ? 'render' : 'firstRender';
       firstDone.current = true;
       send({ type: 'perf', event, ms: performance.now() - at, docVersion: version });
+      // AFD-97: React Flow shows a node, and draws the wires to it, only once it has measured it
+      // (hidden until then), a frame or more later. Tests wait for "drawn", so they never read a
+      // canvas with its nodes and none of their wires.
+      let frames = 0;
+      const drawn = () => {
+        const measuring = document.querySelector('.react-flow__node[style*="visibility: hidden"]');
+        if (measuring && frames++ < 60) return requestAnimationFrame(drawn);
+        requestAnimationFrame(() =>
+          send({ type: 'perf', event: 'drawn', ms: performance.now() - at, docVersion: version }),
+        );
+      };
+      drawn();
     });
   }, [snapshot, testMode]);
 }

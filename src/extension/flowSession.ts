@@ -145,6 +145,12 @@ export class FlowSession implements vscode.Disposable {
   private readonly readyPanels = new Set<vscode.WebviewPanel>();
   private readyWaiters: (() => void)[] = [];
   private readonly renderWaiters: { version: number; resolve: () => void }[] = [];
+  /**
+   * Test mode (AFD-97): the latest version each open panel has drawn. The session outlives its
+   * panels, so a render of a closed one must not count: a test that reopened the designer on the
+   * same version read a panel that had not drawn yet (no wires, or no answer to inspect).
+   */
+  private readonly drawn = new Map<vscode.WebviewPanel, number>();
   readonly perf: PerfEvent[] = [];
   readonly cspViolations: string[] = [];
   /** Last skeleton or real run of this flow (shown in the top bar and inspector). */
@@ -403,6 +409,7 @@ export class FlowSession implements vscode.Disposable {
       progress.dispose();
       this.panels.delete(panel);
       this.readyPanels.delete(panel);
+      this.drawn.delete(panel);
       if (this.panels.size === 0) void this.rememberShown();
     });
   }
@@ -692,7 +699,9 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'perf':
         this.perf.push({ event: m.event, ms: m.ms, docVersion: m.docVersion });
-        if (m.event === 'render' || m.event === 'firstRender') {
+        if (m.event === 'drawn') {
+          if (this.panels.has(panel))
+            this.drawn.set(panel, Math.max(m.docVersion, this.drawn.get(panel) ?? 0));
           for (const w of this.renderWaiters.filter((x) => m.docVersion >= x.version)) w.resolve();
           this.renderWaiters.splice(
             0,
@@ -996,7 +1005,8 @@ export class FlowSession implements vscode.Disposable {
 
   /** Test mode: the first panel's DOM summary. */
   inspect(): Promise<DomSummary> {
-    const panel = [...this.panels][0];
+    // AFD-97: a panel that has drawn (the newest), not one still loading.
+    const panel = [...this.drawn.keys()].at(-1) ?? [...this.panels][0];
     if (!panel) return Promise.reject(new Error('no panel'));
     return this.inspects.request(
       (reqId) => this.post(panel, { type: 'inspect', reqId }),
@@ -1095,15 +1105,9 @@ export class FlowSession implements vscode.Disposable {
       : { ok: false, error: 'VS Code did not apply the edit' };
   }
 
-  /** Test mode: resolves once a panel has rendered `version` or later. */
+  /** Test mode: resolves once an open panel has rendered `version` or later. */
   rendered(version: number): Promise<void> {
-    if (
-      this.perf.some(
-        (p) => (p.event === 'render' || p.event === 'firstRender') && p.docVersion >= version,
-      )
-    ) {
-      return Promise.resolve();
-    }
+    if ([...this.drawn.values()].some((v) => v >= version)) return Promise.resolve();
     return new Promise((resolve) => this.renderWaiters.push({ version, resolve }));
   }
 

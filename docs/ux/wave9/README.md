@@ -29,5 +29,5 @@ Wave 9 worked from usability round 2 (`docs/ux/wave8-usability/round2.md`):
 - **Perf** ran green on an idle PC in every wave 9 ticket (CPU 1-34%).
 - **Integration tests:**
   - **Undo checks** need the test window to keep the OS focus. They fail whenever another application is in front during a run (AFD-93).
-  - **M1 ports-at-rest check:** it fails now and then in a full run and never alone. That is **AFD-97**, open.
+  - **M1 checks:** they failed now and then in a full run (AFD-97). A reopened designer was read before it had drawn. Fixed in 0.64.1: 20 of 20 runs and four full runs green.
 - **Not in the numbers.** Wave 9 added a choice to the dialog (a group's hosts, before it is picked) and to the Problems panel (every flow). Neither shows on a new flow's first screen.
