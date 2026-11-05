@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { formatOf } from '../../core/flow/format';
+import type { FlowModel } from '../../core/flow/model';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems } from '../../core/view/nodeProblems';
 import { run } from '../actions';
@@ -17,6 +18,7 @@ import { onTabListKeys, useDialogFocus } from '../focus';
 import type { HelpTopic } from '../helpPages';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
+import { SelectHint } from '../panels/FlowDescription';
 import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
@@ -63,6 +65,7 @@ const TAB_HELP: Record<PropTab, HelpTopic> = {
 export function Details({ id, context }: { id: string; context?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
   const mode = useUi((s) => s.mode);
+  const hasRun = useUi((s) => !!s.run);
   const wanted = useUi((s) => s.detailsTab);
   const setTab = useUi((s) => s.setDetailsTab);
   const expanded = useUi((s) => s.expanded);
@@ -130,6 +133,15 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
 
   return (
     <div className="afd-details" data-details={id} data-inspector={id}>
+      {/* AFD-96 (S3): from a step's run results back to the whole run's (round 2: P1 clicked step
+        after step once the run panel was gone). */}
+      {mode === 'run' && hasRun ? (
+        <div className="afd-inspector-head" data-back-to-run>
+          <button type="button" className="link" onClick={() => useUi.getState().select({})}>
+            <span className="codicon codicon-arrow-left" aria-hidden="true" /> Run Results
+          </button>
+        </div>
+      ) : null}
       <header className="afd-details-head">
         <div className="afd-details-name">
           <StatusIcon status={node.status ?? 'draft'} />
@@ -255,8 +267,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           ))}
         </ul>
       ) : null}
-      {/* AFD-87: the lens's findings on this step, with their fixes (round 1: W14). */}
-      <StepFindings key={id} id={id} />
       <div className="afd-props-tabs" role="tablist" aria-label="Details" onKeyDown={onTabListKeys}>
         {tabs.map((t) => (
           <button
@@ -285,6 +295,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
         id="afd-details-panel"
         aria-labelledby={`afd-tab-${tab}`}
       >
+        {/* AFD-87: the lens's findings on this step, with their fixes (round 1: W14). AFD-96 (X4):
+          under the tabs, so they stay where they are. */}
+        <StepFindings key={id} id={id} />
         {tab === 'code' ? (
           <NodeCodePanel id={id} />
         ) : tab === 'run' ? (
@@ -305,11 +318,22 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           </fieldset>
         )}
       </div>
+      {/* AFD-96 (X3): how to pick more steps, said where one is picked (AFD-88 said it only
+        with nothing selected). */}
+      {mode === 'design' && model && stepsBeside(model, id) >= 3 ? <SelectHint /> : null}
       {leave && dirty ? (
         <LeaveDialog title={node.title} saving={saving} save={save} discard={discard} />
       ) : null}
     </div>
   );
+}
+
+/** The steps on a node's level, itself included (start and end nodes are not steps). */
+function stepsBeside(model: FlowModel, id: string): number {
+  const level = model.nodes.get(id)?.level;
+  return [...model.nodes.values()].filter(
+    (e) => e.level === level && e.node.type !== 'start' && e.node.type !== 'end',
+  ).length;
 }
 
 /** Leaving with a staged binding asks first (AFD-43); the safe choice has the focus. */

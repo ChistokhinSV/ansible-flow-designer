@@ -3,11 +3,12 @@
 import { modelOf } from '../core/flow/model';
 import type { PatternId } from '../core/flow/patterns';
 import { freeOutput, nextFrom, type PortMenuItem, patternTarget } from '../core/flow/portMenu';
-import type { PortRef, Position, Ulid } from '../core/flow/types';
+import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
 import { attachAnnotation } from './annotationActions';
 import { menuAnchor } from './canvas/FlowNodeView';
 import { canvasPlace } from './clipboard';
+import { INSERTABLE } from './panels/QuickAdd';
 import { useUi } from './store';
 import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel';
 
@@ -158,6 +159,40 @@ export function addNode(from?: Ulid): void {
     const position = canvasPlace();
     ui.openQuickAdd({ type: 'task', ...(position ? { position } : {}) });
   }
+}
+
+/**
+ * AFD-96 (W1): a palette click adds its step where the flow goes on: after the one selected step,
+ * wired (onto its wire when it has one), or onto Start → Done on a level with nothing else. False
+ * when neither applies, and the caller places it as before.
+ */
+export function addFromPalette(type: NodeType): boolean {
+  const ui = useUi.getState();
+  const doc = ui.snapshot?.doc;
+  if (!doc || !INSERTABLE.includes(type)) return false;
+  const model = modelOf(doc);
+  const steps = model.levels.get(ui.level)?.nodes ?? [];
+  const onlyEnds = steps.every((n) => n.type === 'start' || n.type === 'end');
+  const from =
+    ui.selection.node ?? (onlyEnds ? steps.find((n) => n.type === 'start')?.id : undefined);
+  const next = from ? nextFrom(model, from) : undefined;
+  if (!from || !next) return false;
+  const auto = from in (ui.snapshot?.autoPositions ?? {});
+  if (next.insertOn)
+    ui.openQuickAdd({
+      type,
+      insertOn: next.insertOn,
+      ...(auto ? {} : { position: insertPosition(next.insertOn) }),
+    });
+  else {
+    const ctx = currentView();
+    ui.openQuickAdd({
+      type,
+      connectFrom: { node: from, port: next.port },
+      position: ctx ? besidePort(ctx.view, from, next.port) : undefined,
+    });
+  }
+  return true;
 }
 
 /** Shows the node, then opens the port's menu beside it once it is on screen (AFD-72, AFD-73). */

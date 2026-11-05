@@ -468,15 +468,17 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                     </td>
                     {outputs ? (
                       <td>
+                        {/* AFD-96 (S4): an icon, which a 340 px panel does not wrap. */}
                         <button
                           type="button"
-                          className="link"
+                          className="icon"
                           aria-expanded={open === h.host}
                           aria-label={`Output of ${h.host}`}
+                          title={`Output of ${h.host}`}
                           data-output-toggle={h.host}
                           onClick={() => setOpen(open === h.host ? null : h.host)}
                         >
-                          Output
+                          <span className="codicon codicon-output" aria-hidden="true" />
                         </button>
                       </td>
                     ) : null}

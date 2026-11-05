@@ -140,7 +140,8 @@ when it ends.
   host's row shows what each task of that step printed for it: `msg`, `stdout` and `stderr` (up to
   2000 characters each), changed and the return code. A `no_log` task shows only that its output
   is hidden. Secret inputs never appear: their values are replaced in the run's kept events. With nothing selected, the panel
-  lists the **Failed steps** of every level; click one to open it where it is.
+  lists the **Failed steps** of every level; click one to open it where it is, and **‹ Run
+  Results** at the top of its Details brings the list back.
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which
   flow version, which targets, without input values. It rotates at 1 MB and keeps two older files;
   each flow keeps the event logs of its last 30 runs (`afd.runs.keep`).

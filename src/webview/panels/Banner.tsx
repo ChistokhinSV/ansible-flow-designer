@@ -80,8 +80,13 @@ function OpenPortsBanner({
   const node = open ? model?.nodes.get(open.node)?.node : undefined;
   const ref = open ? { node: open.node, port: open.port } : undefined;
   const items = ref && model && editable ? (portMenu(model, ref)?.items ?? []) : [];
+  // AFD-96 (W5): Stop Flow, the plain answer, among the buttons, not only under Other Choices.
+  const patterns = items.filter((i) => i.kind === 'pattern');
+  const stop = patterns.find((i) => i.kind === 'pattern' && i.pattern === 'stop');
+  const firstTwo = patterns.slice(0, 2);
   const quick = [
-    ...items.filter((i) => i.kind === 'pattern').slice(0, 2),
+    ...firstTwo,
+    ...(stop && !firstTwo.includes(stop) ? [stop] : []),
     ...items.filter((i) => i.kind === 'decide'),
   ];
   // The rest of the choices: the port's own menu, beside the port once it is on screen.

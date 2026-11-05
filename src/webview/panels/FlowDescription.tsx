@@ -160,19 +160,24 @@ export function FlowDescription() {
             </li>
           </ul>
           {/* AFD-88: how to pick several steps, which nothing said (round 1: P20). */}
-          {ready.total >= 2 ? (
-            <p className="muted" data-select-hint>
-              To work on several steps at once, select them with{' '}
-              {SHORTCUTS.find((s) => s.id === 'select')?.keys}: then line them up, space them
-              evenly, copy them or make them a subflow.
-            </p>
-          ) : null}
+          {ready.total >= 2 ? <SelectHint /> : null}
           {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up); with
             the Readiness counts, so a new flow's first screen keeps its 35 controls. */}
           <RepoLine repo={repo} hook="data-flows-link" />
         </section>
       ) : null}
     </div>
+  );
+}
+
+/** How to select several steps (AFD-88), with nothing selected and in a step's Details (AFD-96). */
+export function SelectHint() {
+  return (
+    <p className="muted" data-select-hint>
+      To work on several steps at once, select them with{' '}
+      {SHORTCUTS.find((s) => s.id === 'select')?.keys}: then line them up, space them evenly, copy
+      them or make them a subflow.
+    </p>
   );
 }
 

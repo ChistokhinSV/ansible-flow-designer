@@ -206,3 +206,15 @@ from 44 to 25 px, and the row below moved under the pointer: the next click open
 - **Light:** a highlighted node on another level lights the subflow on this level that holds it
   (`shownOn`, in the canvas). A node in a subflow beside this level stands for nothing, so nothing
   dims (S11). This covers the lens rows and the outside-change note's Show.
+
+## Amendment: the way back, and what stays put (AFD-96, 2026-11-05)
+
+- **Run Results:** in Run mode a step's Details start with a link back to the run panel
+  (`select({})`), as Code mode's drift Details lead back to all drift (S3).
+- **Lens fold:** a step's lens findings sit in the Details tab panel, under the tabs, so the tabs
+  do not move with the number of findings (X4).
+- **Selecting several:** the hint (AFD-88) is also in a selected step's Details when its level has
+  three steps or more (X3).
+- **Preview card:** no card while the pointer is on a port (`portHover`): it covered the port's
+  label (S1).
+- **Banner:** Stop Flow is one of its buttons (W5).

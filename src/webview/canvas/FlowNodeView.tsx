@@ -34,6 +34,7 @@ import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
 import { portHint } from '../../core/view/portHints';
 import { STATE_LABEL } from '../constants';
+import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
 import { StatusIcon } from './StatusIcon';
@@ -72,11 +73,14 @@ function PortHandle({
   type,
   port,
   focusable,
+  preview,
 }: {
   nodeId: string;
   type: NodeType;
   port: PortView;
   focusable: boolean;
+  /** The step has a preview card, which comes back once the pointer leaves the port. */
+  preview: boolean;
 }) {
   const openPortMenu = useUi((s) => s.openPortMenu);
   const along = `${Math.round(port.offset * 100)}%`;
@@ -129,6 +133,18 @@ function PortHandle({
       tabIndex={focusable && !locked ? 0 : -1}
       onClick={(e: MouseEvent<HTMLDivElement>) => open(e.currentTarget)}
       onKeyDown={onKeyDown}
+      // AFD-96 (S1): the card would cover the port's label; it waits until the pointer is back on
+      // the step's body.
+      onPointerEnter={() => useUi.getState().portHover(true)}
+      onPointerLeave={(e) => {
+        const ui = useUi.getState();
+        ui.portHover(false);
+        const box = (e.currentTarget as Element)
+          .closest('.react-flow__node')
+          ?.getBoundingClientRect();
+        if (preview && box)
+          ui.hoverNode(nodeId, { left: box.left, right: box.right, top: box.top });
+      }}
     >
       <span className="afd-port-label" aria-hidden="true">
         {port.name}
@@ -389,6 +405,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           type={node.type}
           port={p}
           focusable={selected || active}
+          preview={hasPreview(node)}
         />
       ))}
       {dataLens ? (

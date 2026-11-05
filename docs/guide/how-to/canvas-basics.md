@@ -106,7 +106,8 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
 ## Add, wire, move, delete
 
 - **Add:**
-  - click or drag a type from the palette;
+  - click or drag a type from the palette; a click with one step selected adds the new one after
+    it, wired, and on a flow with no steps yet it goes between Start and Done;
   - drag from a port and release on empty canvas (Quick add);
   - right-click the canvas → **Add Node Here…**;
   - or a port's **Insert Node on This Wire**, or drop a palette type onto a wire (it lights while

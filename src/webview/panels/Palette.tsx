@@ -14,7 +14,7 @@ import { LEGEND_PORTS, portHint } from '../../core/view/portHints';
 import { addAnnotation } from '../annotationActions';
 import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { useLevelView } from '../hooks';
-import { dropPattern } from '../portActions';
+import { addFromPalette, dropPattern } from '../portActions';
 import { useUi } from '../store';
 import { Fold } from './Fold';
 import { HelpLink } from './HelpLink';
@@ -88,7 +88,7 @@ export function Palette() {
           e.dataTransfer.setData(DRAG_MIME, item.type);
           e.dataTransfer.effectAllowed = 'copy';
         }}
-        onClick={() => addCentered(item.type)}
+        onClick={() => addFromPalette(item.type) || addCentered(item.type)}
         {...named(TYPE_LABEL[item.type], item.hint)}
       >
         <span className={`codicon codicon-${item.icon}`} aria-hidden="true" />

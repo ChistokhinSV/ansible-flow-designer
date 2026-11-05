@@ -73,6 +73,8 @@ export const PREVIEW_DELAY = 400;
 let openTimer: ReturnType<typeof setTimeout> | undefined;
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
 let onCard = false;
+/** AFD-96: the pointer is on a port, whose label the card would cover (round 2: S1). */
+let overPort = false;
 
 /** Tabs of the Details panel (AFD-43); Code and Run modes add their own first. */
 export type PropTab = 'general' | 'binding' | 'io' | 'ports' | 'execution' | 'code' | 'run';
@@ -278,6 +280,8 @@ interface UiState {
   /** Shows a node: opens its level and selects it. */
   reveal(node: Ulid): void;
   setPreview(p: PreviewState | null): void;
+  /** AFD-96: the pointer entered or left a port: no step card over its label. */
+  portHover(on: boolean): void;
   /** Pointer entered a node with a card (with its box) or left it (null). */
   hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
   /** Pointer on the card keeps it open. */
@@ -574,8 +578,15 @@ export const useUi = create<UiState>((set, get) => ({
       const s = get();
       // Menus, picks and dialogs own the pointer; no card on top of them.
       if (HOLDS_POINTER.some((o) => isOpen(s, o))) return;
+      if (overPort) return;
       set({ preview: { node, x: box.right + 12, y: box.top, left: box.left } });
     }, PREVIEW_DELAY);
+  },
+  portHover(on) {
+    overPort = on;
+    if (!on) return;
+    clearTimeout(openTimer);
+    if (!onCard) set({ preview: null });
   },
   holdPreview(on) {
     onCard = on;

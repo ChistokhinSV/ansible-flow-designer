@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.64.0 — AFD-96
+
+Wave 9, part 5: what round 2 and the walkthroughs left (`docs/ux/wave8-usability/round2.md`, S3, S4, S1; walkthroughs W1, W5, X3, X4).
+
+- **Back to the run's results:** in Run mode, a step's Details start with **‹ Run Results**, so a click on a failed step no longer loses the whole run's list.
+- **Output** in a step's hosts table is an icon button, which a narrow panel no longer breaks over three lines.
+- **Port labels stay readable:** the step's preview card waits while the pointer is on a port.
+- **Stop Flow** is one of the failure banner's buttons, not only under Other Choices.
+- **A palette click adds where the flow goes on:** after the one selected step, wired (onto its wire when it has one), or onto Start → Done in a flow with no steps yet. With nothing selected on a level with steps, it is placed as before.
+- **How to select several steps** is also said in a step's Details, on a level with three steps or more.
+- **A step's lens findings** sit under the Details tabs, so the tabs stay where they are.
+
 ## 0.63.0 — AFD-95
 
 Wave 9, part 4: the launch dialog, and inputs that say what they are for (`docs/ux/wave8-usability/round2.md`, S2, S6, X5; W9).

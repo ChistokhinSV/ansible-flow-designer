@@ -57,3 +57,10 @@ because it moves the whole level.
 - **Keys:** Shift+Alt+A (Align Centers) and Shift+Alt+D (Distribute Vertically) are the webview's
   own (`keyboard.ts`, matched by `code`, since Alt changes the key on macOS). They are not VS Code
   keybindings: VS Code's Shift+Alt+A (block comment) needs text editor focus.
+
+## Amendment: a palette click adds where the flow goes on (AFD-96, 2026-11-05)
+
+A palette click with one step selected adds the new step after it, wired (Add Next Node's path,
+onto its wire when it has one); on a level that is only Start and Done, onto their wire. With
+nothing selected on a level with steps, the click places the step as before, unwired. On a level
+laid out automatically the new step gets no position (W1).
