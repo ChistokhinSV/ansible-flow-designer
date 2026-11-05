@@ -71,6 +71,15 @@
   padding: 10px 12px;
 }
 
+/* The multi-select hint under a step's Details (AFD-96, round 3: R13). */
+.afd-details-hint {
+  padding-top: 0;
+}
+
+.afd-details-hint > p {
+  margin: 0;
+}
+
 /* The side panel's left edge (AFD-43): drag or arrow keys. */
 .afd-right {
   position: relative;
@@ -81,8 +90,10 @@
 .afd-resizer {
   position: absolute;
   left: -3px;
-  top: 0;
-  bottom: 0;
+  /* The panel scrolls: the edge stays where it is in view (round 3: R11). The containing block is
+     the panel's unscrolled padding box, so 100% is its visible height. */
+  top: var(--afd-right-scroll, 0px);
+  height: 100%;
   width: 6px;
   cursor: col-resize;
   z-index: 5;
@@ -277,6 +288,12 @@
 
 .afd-empty {
   margin-top: 24px;
+}
+
+/* A module's badges and Returns wrap, so the panel never scrolls sideways (round 3: R12). Not on
+   node cards, whose chips stay on one line. */
+.afd-doc .afd-chips {
+  flex-wrap: wrap;
 }
 
 .afd-doc h3 {

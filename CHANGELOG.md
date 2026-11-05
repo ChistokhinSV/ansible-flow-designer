@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.64.3 — AFD-102
+
+What usability round 3 found that a patch can fix (`docs/ux/wave9-usability/round3.md`, R5, R11-R13).
+
+- **The @ button inserts where you are:** at the cursor, or in place of the selected text. Before, it always added the input at the end of the value. Typing `@` already worked this way.
+- **The side panel's edge** can be dragged anywhere along it. When the panel was scrolled, only its top part still resized it.
+- **A module's Returns** (and its badges) wrap in the About section, so a module with many returns no longer makes the panel scroll sideways.
+- **The tip on selecting several steps** under a step's Details lines up with the text above it.
+
 ## 0.64.2 — AFD-100
 
 - **Input descriptions are saved.** A description typed in the flow panel stayed in its box, but the flow never kept it, so after a reload it was gone. The same happened when an AI assistant set one through the flow tools. Descriptions (0.63.0) worked only in YAML written by hand. Now both ways save them, and emptying the box removes the description. Found by the round 3 walkthrough (`docs/ux/wave9-usability/walkthrough-r3.md`, Y6).

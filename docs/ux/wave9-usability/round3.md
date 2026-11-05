@@ -159,8 +159,8 @@ fell short (R8, R9). One participant cannot say more.
 
 ## What round 3 changes
 
-- **Patch candidates (bugs):** R5 (the @ button inserts at the cursor or over the selection), R11
-  (the resize handle along the whole edge), R12 (Returns chips wrap), R13 (the hint's gap).
+- **Patch 0.64.3 (AFD-102), done:** R5 (the @ button inserts at the cursor or over the selection),
+  R11 (the resize handle along the whole edge), R12 (Returns chips wrap), R13 (the hint's gap).
 - **Wave 10 candidates, by severity:**
   - **C, the Execution tab (R1, R2, R3, R4):**
     - say what is set in each fold, and open Timing (or every fold with a value) for a step

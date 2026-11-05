@@ -50,7 +50,7 @@ A form from the argument spec: choices, booleans, one line per list item, YAML f
   the docs table adds one too.
 
 - **Values are Jinja.** A value that is only `{{ name }}` shows as a purple **input chip**. Type `@`
-  (or use the @ button) to insert one. Choosing a flow input, an upstream output, the subflow's
+  (or use the @ button) to insert one where the cursor is; selected text is replaced. Choosing a flow input, an upstream output, the subflow's
   input or a step inside an earlier subflow that is not an input yet adds it, with its `from:`
   ([data between steps](data-between-steps.md)).
 - **Register result as** names the variable the module result is registered in (default

@@ -382,6 +382,12 @@ export function App() {
             className="afd-right"
             aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}
             onScroll={(e) => {
+              // The resizer follows the scroll, so it spans the panel's whole visible edge (round
+              // 3: R11; it scrolled away with the content and was left on the top part).
+              e.currentTarget.style.setProperty(
+                '--afd-right-scroll',
+                `${e.currentTarget.scrollTop}px`,
+              );
               if (lensTab) useUi.setState({ lensScroll: e.currentTarget.scrollTop });
             }}
           >

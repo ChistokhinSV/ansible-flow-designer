@@ -74,3 +74,55 @@ describe('ChipField paste (AFD-79)', () => {
     expect(value).toMatch(/^copy \{\{ ?image ?\}\} to ?flash$/);
   });
 });
+
+// Round 3 (R5, AFD-102): the @ button put the chip at the end of the value, even when the
+// participant had selected the text the input should replace.
+describe('ChipField @ button (AFD-102)', () => {
+  const server = { name: 'archive_server', label: 'flow.archive_server', detail: 'flow input' };
+
+  function withChoice(value: string) {
+    const onChange = vi.fn();
+    render(
+      <ChipField
+        id="u"
+        label="url"
+        value={value}
+        onChange={onChange}
+        choices={[server]}
+        onAddInput={() => {}}
+      />,
+    );
+    const el = screen.getByRole('textbox', { name: 'url' });
+    const pickVia = () => {
+      const at = screen.getByRole('button', { name: 'Insert an input into url' });
+      fireEvent.mouseDown(at);
+      fireEvent.click(at);
+      fireEvent.mouseDown(screen.getByRole('option'));
+    };
+    return { el, onChange, pickVia };
+  }
+
+  it('replaces the selected text', () => {
+    const url = 'https://archive-01.lab.example/upload';
+    const { el, onChange, pickVia } = withChoice(url);
+    const text = el.firstChild as Text;
+    const from = url.indexOf('archive-01');
+    select(text, from, text, from + 'archive-01.lab.example'.length);
+    pickVia();
+    expect(onChange).toHaveBeenLastCalledWith('https://{{ archive_server }}/upload');
+  });
+
+  it('inserts at the caret', () => {
+    const { el, onChange, pickVia } = withChoice('https:///upload');
+    select(el.firstChild as Text, 8, el.firstChild as Text, 8);
+    pickVia();
+    expect(onChange).toHaveBeenLastCalledWith('https://{{ archive_server }}/upload');
+  });
+
+  it('adds at the end when the caret is not in the field', () => {
+    const { onChange, pickVia } = withChoice('host ');
+    window.getSelection()?.removeAllRanges();
+    pickVia();
+    expect(onChange).toHaveBeenLastCalledWith('host {{ archive_server }}');
+  });
+});

@@ -320,7 +320,12 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
       </div>
       {/* AFD-96 (X3): how to pick more steps, said where one is picked (AFD-88 said it only
         with nothing selected). */}
-      {mode === 'design' && model && stepsBeside(model, id) >= 3 ? <SelectHint /> : null}
+      {mode === 'design' && model && stepsBeside(model, id) >= 3 ? (
+        // Round 3 (R13): with the page's own gutter, like the text above it.
+        <div className="afd-details-page afd-details-hint">
+          <SelectHint />
+        </div>
+      ) : null}
       {leave && dirty ? (
         <LeaveDialog title={node.title} saving={saving} save={save} discard={discard} />
       ) : null}

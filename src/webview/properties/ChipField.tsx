@@ -65,6 +65,24 @@ function insertText(el: HTMLElement, text: string): void {
   sel?.addRange(caret);
 }
 
+/** The selection (or caret) when it is in this field. */
+function selectionIn(el: HTMLElement): Range | undefined {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return undefined;
+  const r = sel.getRangeAt(0);
+  return el.contains(r.startContainer) && el.contains(r.endContainer) ? r.cloneRange() : undefined;
+}
+
+/** The caret right after `node`. */
+function caretAfter(node: Node): void {
+  const caret = document.createRange();
+  caret.setStartAfter(node);
+  caret.collapse(true);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(caret);
+}
+
 /** The `@query` right before the caret, if the caret is in a text node of this field. */
 function atQuery(el: HTMLElement): { node: Text; start: number; query: string } | undefined {
   const sel = window.getSelection();
@@ -81,6 +99,11 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
   const ref = useRef<HTMLDivElement>(null);
   const emitted = useRef<string | null>(null);
   const [menu, setMenu] = useState<{ query: string; active: number; caret: boolean } | null>(null);
+  /**
+   * Where the caret or selection was when the @ button opened the list (round 3: R5). Without it,
+   * a chip from the button always went to the end of the value, even over selected text.
+   */
+  const opened = useRef<Range | undefined>(undefined);
 
   // Re-render only for values that did not come from typing here (the caret would jump).
   useLayoutEffect(() => {
@@ -110,17 +133,26 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
     if (!el) return;
     const at = menu?.caret ? atQuery(el) : undefined;
     const node = chip(c.name);
+    const place =
+      !at && opened.current && el.contains(opened.current.startContainer)
+        ? opened.current
+        : undefined;
     if (at) {
       const rest = at.node.splitText(at.start);
       rest.textContent = (rest.textContent ?? '').slice(1 + at.query.length);
       el.insertBefore(node, rest);
+    } else if (place) {
+      place.deleteContents();
+      place.insertNode(node);
     } else {
       el.append(node);
     }
+    opened.current = undefined;
     if (c.field) onAddInput(c);
     setMenu(null);
     emit();
     el.focus();
+    caretAfter(node);
   };
 
   useEffect(() => {
@@ -190,7 +222,11 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
         className="icon afd-chipfield-at"
         title="Insert an input (@)"
         aria-label={`Insert an input into ${label ?? 'the value'}`}
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => {
+          // Keep the focus, and remember where in the value the chip goes.
+          e.preventDefault();
+          opened.current = ref.current ? selectionIn(ref.current) : undefined;
+        }}
         onClick={() => setMenu(menu ? null : { query: '', active: 0, caret: false })}
       >
         @
