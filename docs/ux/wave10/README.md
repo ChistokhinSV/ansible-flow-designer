@@ -49,4 +49,5 @@ Round 4 is the product owner's call (decided after wave 10). A proposal:
   - passing a step's result on, and an input given at run time with a default;
   - keeping a privileged step with its reason;
   - two of round 3's passes as controls (the workspace's state, a check run on a group).
-- **When:** after a decision on Z1 (`walkthrough.md`), which round 4's data task would meet.
+- **When:** any time; Z1 (`walkthrough.md`), which round 4's data task would meet, is patched in
+  0.68.1 (AFD-108). Round 4 should run on 0.68.1 or later.

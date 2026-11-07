@@ -1,6 +1,7 @@
 // Catalog requests to the extension host (M5): search, docs, roles, playbooks, rebuild. Each is a
 // request answered by `catalogReply`; the host loads the catalog on first use.
 import { useEffect, useState } from 'react';
+import { type ResultField, resultFields } from '../core/catalog/draft';
 import type { CatalogRequest, CatalogResults } from '../core/protocol';
 import { onHostMessage, send } from './bus';
 
@@ -64,4 +65,25 @@ export function useCatalog<K extends Op>(
     };
   }, [key]);
   return state;
+}
+
+/**
+ * The documented fields of each module's result, by FQCN (AFD-108): the @ list offers them after
+ * an upstream step's result. Modules whose docs are missing have no entry.
+ */
+export function useResultFields(fqcns: string[]): Record<string, ResultField[]> {
+  const key = [...new Set(fqcns)].sort().join(',');
+  const [fields, setFields] = useState<Record<string, ResultField[]>>({});
+  useEffect(() => {
+    let live = true;
+    for (const fqcn of key ? key.split(',') : [])
+      catalogRequest({ op: 'doc', fqcn }).then(
+        (doc) => live && setFields((f) => ({ ...f, [fqcn]: resultFields(doc?.returns) })),
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  return fields;
 }

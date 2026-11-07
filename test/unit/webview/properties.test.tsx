@@ -540,4 +540,50 @@ describe('the @ list offers upstream results (AFD-106)', () => {
       field: { type: 'dict', from: 'impl.register' },
     });
   });
+
+  // AFD-108 (wave 10: Z1): the result's fields come from the upstream module's docs.
+  it('then offers the fields of the result, and a field is one chip', async () => {
+    const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
+    const walk = (nodes: FlowNode[] = []) => {
+      for (const n of nodes) {
+        if (n.key === 'verify-version') n.impl = undefined;
+        walk(n.subflow?.nodes);
+      }
+    };
+    walk(copy.nodes);
+    const withReturns = (r: CatalogRequest): unknown =>
+      r.op === 'doc' && r.fqcn === 'ansible.builtin.wait_for_connection'
+        ? {
+            fqcn: r.fqcn,
+            returns: {
+              elapsed: {
+                type: 'float',
+                description: 'The number of seconds that elapsed waiting for the connection.',
+              },
+            },
+          }
+        : catalog(r);
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(copy), docVersion: 3 }));
+    open('verify-version');
+    await answer(withReturns);
+    fireEvent.click(screen.getByText('cisco.ios.ios_command', { selector: '.afd-result-name' }));
+    await answer(withReturns);
+    const configure = screen.getByRole('region', { name: 'Configure' });
+    fireEvent.click(
+      within(configure).getByRole('button', { name: /Insert an input into commands 1/ }),
+    );
+    fireEvent.mouseDown(
+      within(configure).getByRole('option', { name: /wait-for-ssh\.wait_for_ssh_result/ }),
+    );
+    const list = within(configure).getByRole('listbox', { name: 'Fields of wait_for_ssh_result' });
+    fireEvent.mouseDown(
+      within(list).getByRole('option', { name: /^wait_for_ssh_result\.elapsed / }),
+    );
+    expect(
+      configure.querySelector('[data-param="commands"] [data-ref="wait_for_ssh_result.elapsed"]'),
+    ).toBeTruthy();
+    expect(configure.querySelector('[data-binding-preview]')?.textContent).toContain(
+      '{{ wait_for_ssh_result.elapsed }}',
+    );
+  });
 });

@@ -4,7 +4,7 @@
 
 import type { FlowCommand } from '../flow/commands';
 import { registerName } from '../flow/dataNames';
-import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
+import { enclosing, liftOf, resolveFrom, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
 import type { ContractField, ContractType, FlowNode, ImplBinding, Ulid } from '../flow/types';
@@ -308,7 +308,42 @@ export interface RefChoice {
    * there. The participant typed the register name, since nothing in the list offered the result.
    */
   expose?: { node: Ulid; output: string };
+  /**
+   * AFD-108 (wave 10: Z1): set when the choice is a module step's whole result: the fields its
+   * docs list, which the list offers next (`read_version_result.stdout`).
+   */
+  fields?: ResultField[];
 }
+
+/** A documented field of a module's result (its RETURN section). */
+export interface ResultField {
+  name: string;
+  /** The first sentence of the docs' description. */
+  detail: string;
+}
+
+// The fields people read most come first; the rest keep the order of the docs.
+const FIRST_FIELDS = ['stdout', 'stdout_lines', 'rc', 'stderr', 'json', 'status', 'content', 'msg'];
+
+function firstSentence(text: string): string {
+  const line = (text.split('\n')[0] ?? '').trim();
+  return (/^(.*?[.!?])(\s|$)/.exec(line)?.[1] ?? line).slice(0, 120);
+}
+
+/** The fields of a module's result a reference can read, from the docs' returns. */
+export function resultFields(returns: Record<string, CatalogReturn> | undefined): ResultField[] {
+  const rank = (name: string) => {
+    const i = FIRST_FIELDS.indexOf(name);
+    return i < 0 ? FIRST_FIELDS.length : i;
+  };
+  return Object.entries(returns ?? {})
+    .filter(([name]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([name, r]) => ({ name, detail: firstSentence(String(r?.description ?? '')) }));
+}
+
+/** The fields of a step's result, by the step (the webview has the module docs). */
+export type FieldsOf = (step: FlowNode) => ResultField[] | undefined;
 
 function freeName(base: string, taken: Set<string>): string {
   if (!taken.has(base)) return base;
@@ -317,15 +352,31 @@ function freeName(base: string, taken: Set<string>): string {
   return `${base}_${i}`;
 }
 
-/** What `@` offers (D-26): node inputs, then flow inputs and upstream outputs as new inputs. */
-export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
+/**
+ * What `@` offers (D-26): node inputs, then flow inputs and upstream outputs as new inputs. With
+ * `fieldsOf`, a choice that is a module step's whole result carries the fields of it (AFD-108).
+ */
+export function refChoices(model: FlowModel, node: FlowNode, fieldsOf?: FieldsOf): RefChoice[] {
   const inputs = node.inputs ?? {};
   const taken = new Set(Object.keys(inputs));
   const sources = new Set(Object.values(inputs).map((f) => f?.from));
+  const level = model.nodes.get(node.id)?.level;
+  const fieldsFrom = (step: FlowNode): { fields?: ResultField[] } => {
+    const fields = step.impl?.kind === 'module' ? fieldsOf?.(step) : undefined;
+    return fields && fields.length > 0 ? { fields } : {};
+  };
+  // A node input that reads an upstream step's whole result (`<key>.<output>`, the register).
+  const resultOf = (from: string | undefined): { fields?: ResultField[] } => {
+    if (!from || !level || !fieldsOf) return {};
+    const src = resolveFrom(model, node, level, 'inputs', from);
+    if (src.kind !== 'output' || !src.name || src.path.length > 0) return {};
+    return src.node.outputs?.[src.name]?.from === 'impl.register' ? fieldsFrom(src.node) : {};
+  };
   const out: RefChoice[] = Object.entries(inputs).map(([name, f]) => ({
     name,
     label: name,
     detail: f?.from ? `input from ${f.from}` : 'node input',
+    ...resultOf(f?.from),
   }));
   for (const [name, f] of Object.entries(model.doc.flow?.inputs ?? {})) {
     const from = `flow.${name}`;
@@ -339,12 +390,18 @@ export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
       field: { type: f?.type ?? 'any', from },
     });
   }
-  const offer = (name: string, from: string, detail: string, type: ContractField['type']) => {
+  const offer = (
+    name: string,
+    from: string,
+    detail: string,
+    type: ContractField['type'],
+    extra: { fields?: ResultField[] } = {},
+  ) => {
     if (sources.has(from)) return;
     sources.add(from);
     const as = freeName(name, taken);
     taken.add(as);
-    out.push({ name: as, label: from, detail, field: { type, from } });
+    out.push({ name: as, label: from, detail, field: { type, from }, ...extra });
   };
   // Inside a subflow, `<subflow>.<input>` reads the subflow's input (AFD-21).
   const at = model.nodes.get(node.id)?.level;
@@ -364,6 +421,7 @@ export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
         `${up.key}.${name}`,
         `output of "${up.title}" · adds a node input`,
         f?.type ?? 'any',
+        f?.from === 'impl.register' ? fieldsFrom(up) : {},
       );
   // Outputs of steps inside earlier subflows: choosing one lifts it to the subflow (AFD-21).
   const inside = (sub: FlowNode, path: string): void => {
@@ -404,6 +462,7 @@ export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
       detail: `result of "${up.title}" · makes it an output there`,
       field: { type: 'dict', from },
       expose: { node: up.id, output: result },
+      ...fieldsFrom(up),
     });
   }
   return out;

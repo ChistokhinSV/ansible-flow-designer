@@ -58,6 +58,21 @@ describe('Jinja chips', () => {
     expect(joinSegments(segments('{{target_image}}'))).toBe('{{ target_image }}');
   });
 
+  it('a field of a result is one chip (AFD-108)', () => {
+    const value = 'echo {{ read_version_result.stdout }} {{ r.json.items | length }}';
+    expect(segments(value)).toEqual([
+      { text: 'echo ' },
+      { ref: 'read_version_result.stdout', raw: '{{ read_version_result.stdout }}' },
+      { text: ' {{ r.json.items | length }}' },
+    ]);
+    expect(joinSegments(segments(value))).toBe(value);
+    // Still one variable read, and a rename keeps the field.
+    expect(parseRefs(value)).toEqual(['read_version_result', 'r']);
+    expect(renameRef(value, 'read_version_result', 'version')).toBe(
+      'echo {{ version.stdout }} {{ r.json.items | length }}',
+    );
+  });
+
   it('finds variables, not attributes, filters, kwargs, functions or literals', () => {
     expect(
       parseRefs("{{ a.b | default(c, d=1) }} {{ 'e' ~ f is defined }} {{ lookup('env', 'H') }}"),

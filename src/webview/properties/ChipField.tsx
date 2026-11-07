@@ -1,8 +1,17 @@
 // A one-line parameter value with input chips (D-26, mockup 11): the stored text is Jinja,
 // `{{ name }}` shows as a chip, typing @ (or the @ button) offers node inputs, flow inputs and
-// upstream outputs. Choosing one that is not an input yet stages it as a new node input.
-import { type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { RefChoice } from '../../core/catalog/draft';
+// upstream outputs. Choosing one that is not an input yet stages it as a new node input. A chip can
+// read a field of a step's result, `{{ name.field }}` (AFD-108): the list offers the fields after
+// a result is chosen, when `.` is typed right after its chip, and for `@name.field`.
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import type { RefChoice, ResultField } from '../../core/catalog/draft';
 import { joinSegments, type Segment, segments } from '../../core/flow/jinja';
 
 interface Props {
@@ -15,6 +24,20 @@ interface Props {
   placeholder?: string;
   label?: string;
 }
+
+type Menu =
+  | { kind: 'refs'; query: string; active: number; caret: boolean }
+  | {
+      kind: 'fields';
+      /** The result whose fields are offered. */
+      of: RefChoice;
+      query: string;
+      active: number;
+      /** The result's chip; none while `@name.` is typed, whose pick inserts it. */
+      chip?: HTMLElement;
+      /** Whether the person typed the dot (else the list opened when the result was chosen). */
+      typed: boolean;
+    };
 
 function chip(name: string): HTMLSpanElement {
   const el = document.createElement('span');
@@ -95,10 +118,43 @@ function atQuery(el: HTMLElement): { node: Text; start: number; query: string } 
     : undefined;
 }
 
+/**
+ * `.query` typed right after a chip, up to the caret (round 3's participant typed `.stdout` after
+ * the result's chip, and it stayed text outside the braces).
+ */
+function dotAfterChip(
+  el: HTMLElement,
+): { chip: HTMLElement; node: Text; query: string } | undefined {
+  const sel = window.getSelection();
+  const node = sel?.anchorNode;
+  if (!sel || !node || node.nodeType !== Node.TEXT_NODE || !el.contains(node)) return undefined;
+  // Chromium types after a chip into a new text node, past any empty one left beside it.
+  let before = node.previousSibling;
+  while (before instanceof Text && !before.textContent) before = before.previousSibling;
+  if (!(before instanceof HTMLElement) || !before.dataset.ref) return undefined;
+  const m = /^\.([A-Za-z0-9_]*)$/.exec((node.textContent ?? '').slice(0, sel.anchorOffset));
+  return m ? { chip: before, node: node as Text, query: m[1] ?? '' } : undefined;
+}
+
+/** The chip in place of the `@query` typed before the caret, with no empty text node after it. */
+function replaceQuery(
+  el: HTMLElement,
+  at: { node: Text; start: number; query: string },
+  node: Node,
+) {
+  const rest = at.node.splitText(at.start);
+  rest.textContent = (rest.textContent ?? '').slice(1 + at.query.length);
+  el.insertBefore(node, rest);
+  if (!rest.textContent) rest.remove();
+}
+
+const matches = (text: string, query: string) => text.toLowerCase().includes(query.toLowerCase());
+
 export function ChipField({ id, value, onChange, choices, onAddInput, placeholder, label }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const emitted = useRef<string | null>(null);
-  const [menu, setMenu] = useState<{ query: string; active: number; caret: boolean } | null>(null);
+  const [menu, setMenu] = useState<Menu | null>(null);
   /**
    * Where the caret or selection was when the @ button opened the list (round 3: R5). Without it,
    * a chip from the button always went to the end of the value, even over selected text.
@@ -120,27 +176,35 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
     if (next !== value) onChange(next);
   };
 
-  const shown = menu
-    ? choices.filter(
-        (c) =>
-          c.name.toLowerCase().includes(menu.query.toLowerCase()) ||
-          c.label.toLowerCase().includes(menu.query.toLowerCase()),
-      )
-    : [];
+  const shown =
+    menu?.kind === 'refs'
+      ? choices.filter((c) => matches(c.name, menu.query) || matches(c.label, menu.query))
+      : [];
+  const fields: ResultField[] =
+    menu?.kind === 'fields'
+      ? (menu.of.fields ?? []).filter((f) => matches(f.name, menu.query))
+      : [];
+  const count = menu?.kind === 'fields' ? fields.length : shown.length;
+
+  /** The fields list for a result: for its chip, or for `@name.` typed before a chip exists. */
+  const fieldsMenu = (
+    of: RefChoice,
+    query: string,
+    chipEl: HTMLElement | undefined,
+    typed: boolean,
+  ) => setMenu({ kind: 'fields', of, query, active: 0, chip: chipEl, typed });
 
   const pick = (c: RefChoice) => {
     const el = ref.current;
     if (!el) return;
-    const at = menu?.caret ? atQuery(el) : undefined;
+    const at = menu?.kind === 'refs' && menu.caret ? atQuery(el) : undefined;
     const node = chip(c.name);
     const place =
       !at && opened.current && el.contains(opened.current.startContainer)
         ? opened.current
         : undefined;
     if (at) {
-      const rest = at.node.splitText(at.start);
-      rest.textContent = (rest.textContent ?? '').slice(1 + at.query.length);
-      el.insertBefore(node, rest);
+      replaceQuery(el, at, node);
     } else if (place) {
       place.deleteContents();
       place.insertNode(node);
@@ -149,28 +213,77 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
     }
     opened.current = undefined;
     if (c.field) onAddInput(c);
-    setMenu(null);
+    // A whole result: its fields come next; typing on (or Esc) keeps the whole result.
+    if (c.fields) fieldsMenu(c, '', node, false);
+    else setMenu(null);
     emit();
     el.focus();
     caretAfter(node);
   };
 
+  const pickField = (f: ResultField) => {
+    const el = ref.current;
+    if (!el || menu?.kind !== 'fields') return;
+    const name = `${menu.of.name}.${f.name}`;
+    let target = menu.chip && el.contains(menu.chip) ? menu.chip : undefined;
+    if (target) {
+      // The `.query` typed after the chip goes into it.
+      const dot = dotAfterChip(el);
+      if (dot && dot.chip === target) {
+        dot.node.textContent = (dot.node.textContent ?? '').slice(1 + dot.query.length);
+        if (!dot.node.textContent) dot.node.remove();
+      }
+      target.dataset.ref = name;
+      target.textContent = name;
+    } else {
+      // `@name.query` typed: the chip takes its place, and the input is added as for the result.
+      const at = atQuery(el);
+      target = chip(name);
+      if (at) {
+        replaceQuery(el, at, target);
+      } else {
+        el.append(target);
+      }
+      if (menu.of.field) onAddInput(menu.of);
+    }
+    setMenu(null);
+    emit();
+    el.focus();
+    caretAfter(target);
+  };
+
+  const pickActive = () => {
+    if (!menu) return;
+    if (menu.kind === 'fields') {
+      const f = fields[menu.active];
+      if (f) pickField(f);
+    } else {
+      const c = shown[menu.active];
+      if (c) pick(c);
+    }
+  };
+
   useEffect(() => {
-    if (menu && shown.length > 0 && menu.active >= shown.length) setMenu({ ...menu, active: 0 });
-  }, [menu, shown.length]);
+    if (menu && count > 0 && menu.active >= count) setMenu({ ...menu, active: 0 });
+  }, [menu, count]);
+
+  // A long list scrolls: keep the row the arrow keys reached in view.
+  useEffect(() => {
+    if (menu)
+      list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [menu]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (menu && shown.length > 0) {
+    if (menu && count > 0) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
-        const step = e.key === 'ArrowDown' ? 1 : shown.length - 1;
-        setMenu({ ...menu, active: (menu.active + step) % shown.length });
+        const step = e.key === 'ArrowDown' ? 1 : count - 1;
+        setMenu({ ...menu, active: (menu.active + step) % count });
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        const c = shown[menu.active];
-        if (c) pick(c);
+        pickActive();
         return;
       }
     }
@@ -187,9 +300,40 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
   const onInput = () => {
     emit();
     const el = ref.current;
-    const at = el ? atQuery(el) : undefined;
-    setMenu(at ? { query: at.query, active: 0, caret: true } : null);
+    if (!el) return;
+    const at = atQuery(el);
+    if (at) {
+      // `@read_version_result.std`: the fields of that result.
+      const dot = at.query.lastIndexOf('.');
+      const base = dot > 0 ? at.query.slice(0, dot) : '';
+      const of = base
+        ? choices.find((c) => c.fields && (c.name === base || c.label === base))
+        : undefined;
+      if (of) fieldsMenu(of, at.query.slice(dot + 1), undefined, true);
+      else setMenu({ kind: 'refs', query: at.query, active: 0, caret: true });
+      return;
+    }
+    const dot = dotAfterChip(el);
+    const of = dot ? choices.find((c) => c.fields && c.name === dot.chip.dataset.ref) : undefined;
+    if (dot && of) fieldsMenu(of, dot.query, dot.chip, true);
+    else setMenu(null);
   };
+
+  const option = (key: string, i: number, onPick: () => void, body: ReactNode) => (
+    <div
+      key={key}
+      role="option"
+      tabIndex={-1}
+      aria-selected={i === menu?.active}
+      className={i === menu?.active ? 'active' : ''}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onPick();
+      }}
+    >
+      {body}
+    </div>
+  );
 
   return (
     <div className="afd-chipfield">
@@ -227,32 +371,57 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
           e.preventDefault();
           opened.current = ref.current ? selectionIn(ref.current) : undefined;
         }}
-        onClick={() => setMenu(menu ? null : { query: '', active: 0, caret: false })}
+        onClick={() => setMenu(menu ? null : { kind: 'refs', query: '', active: 0, caret: false })}
       >
         @
       </button>
-      {menu ? (
-        <div className="afd-ref-menu" role="listbox" aria-label="Inputs">
+      {menu?.kind === 'refs' ? (
+        <div ref={list} className="afd-ref-menu" role="listbox" aria-label="Inputs">
           {shown.length === 0 ? (
             <div className="muted">No inputs match. Add inputs on the Inputs and outputs tab.</div>
           ) : (
-            shown.map((c, i) => (
-              <div
-                key={`${c.label}|${c.name}`}
-                role="option"
-                tabIndex={-1}
-                aria-selected={i === menu.active}
-                className={i === menu.active ? 'active' : ''}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  pick(c);
-                }}
-              >
-                <span className="afd-ref-chip">{c.name}</span>
-                <span className="mono">{c.label !== c.name ? c.label : ''}</span>
-                <span className="muted">{c.detail}</span>
-              </div>
-            ))
+            shown.map((c, i) =>
+              option(
+                `${c.label}|${c.name}`,
+                i,
+                () => pick(c),
+                <>
+                  <span className="afd-ref-chip">{c.name}</span>{' '}
+                  <span className="mono">{c.label !== c.name ? c.label : ''}</span>{' '}
+                  <span className="muted">{c.detail}</span>
+                </>,
+              ),
+            )
+          )}
+        </div>
+      ) : null}
+      {menu?.kind === 'fields' ? (
+        <div
+          ref={list}
+          className="afd-ref-menu"
+          role="listbox"
+          aria-label={`Fields of ${menu.of.name}`}
+          data-ref-fields={menu.of.name}
+        >
+          <p className="afd-ref-menu-head muted">
+            {menu.typed
+              ? `Fields of ${menu.of.name}`
+              : `Read one field of ${menu.of.name}, or go on typing to keep the whole result`}
+          </p>
+          {fields.length === 0 ? (
+            <div className="muted">No documented field matches.</div>
+          ) : (
+            fields.map((f, i) =>
+              option(
+                f.name,
+                i,
+                () => pickField(f),
+                <>
+                  <span className="afd-ref-chip">{`${menu.of.name}.${f.name}`}</span>{' '}
+                  <span className="muted">{f.detail}</span>
+                </>,
+              ),
+            )
           )}
         </div>
       ) : null}

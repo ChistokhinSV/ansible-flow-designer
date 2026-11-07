@@ -17,6 +17,7 @@ import {
   type RefChoice,
   refChoices,
   stagedNode,
+  upstreamNodes,
 } from '../../core/catalog/draft';
 import type { Badge, CatalogOption, SearchHit } from '../../core/catalog/types';
 import { bindingTaskText } from '../../core/engine/binding';
@@ -25,7 +26,7 @@ import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { run } from '../actions';
-import { catalogRequest, type Loaded, useCatalog } from '../catalog';
+import { catalogRequest, type Loaded, useCatalog, useResultFields } from '../catalog';
 import { Fold } from '../panels/Fold';
 import { useUi } from '../store';
 import { ChipField } from './ChipField';
@@ -651,7 +652,15 @@ function Configure({
     playbook?: PlaybookInfo;
   }) {
   const staged = stagedNode(node, draft);
-  const choices = refChoices(model, staged);
+  // AFD-108 (wave 10: Z1): the fields of upstream module results, offered after a result in @.
+  const fieldsByModule = useResultFields(
+    upstreamNodes(model, node.id).flatMap((n) =>
+      n.impl?.kind === 'module' && n.impl.ref ? [n.impl.ref] : [],
+    ),
+  );
+  const choices = refChoices(model, staged, (step) =>
+    step.impl?.ref ? fieldsByModule[step.impl.ref] : undefined,
+  );
   // Inserting a chip stages an input and changes a value in one gesture: both see the latest.
   const latest = { current: draft };
   const update = (d: BindingDraft) => {

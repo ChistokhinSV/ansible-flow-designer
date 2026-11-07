@@ -2,7 +2,7 @@
 // local approvals. The fixture is written by key; Complete IDs fills the IDs first.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { refChoices } from '../../../src/core/catalog/draft';
+import { refChoices, resultFields } from '../../../src/core/catalog/draft';
 import { inputVars } from '../../../src/core/engine/binding';
 import { optionA } from '../../../src/core/engine/optionA';
 import { type FlowCommand, planCommand } from '../../../src/core/flow/commands';
@@ -418,5 +418,53 @@ describe('inputs nothing feeds (AFD-106)', () => {
       field: { type: 'dict', from: 'restore.restore_result' },
       expose: { node: restore.id, output: 'restore_result' },
     });
+  });
+
+  // AFD-108 (wave 10: Z1): the fields of a result, so `.stdout` is offered, not typed by hand.
+  it('a result carries the documented fields of its module, most read first', () => {
+    const fields = resultFields({
+      cmd: { type: 'list', description: 'The command executed by the task.' },
+      msg: { type: 'str', description: 'Changed. The reason, if any.\nMore text.' },
+      stdout: { type: 'str', description: 'The command standard output. Can be long.' },
+      rc: { type: 'int', description: 'The command return code (0 means success)' },
+      'not-a-name': { type: 'str', description: 'skipped' },
+    });
+    expect(fields).toEqual([
+      { name: 'stdout', detail: 'The command standard output.' },
+      { name: 'rc', detail: 'The command return code (0 means success)' },
+      { name: 'msg', detail: 'Changed.' },
+      { name: 'cmd', detail: 'The command executed by the task.' },
+    ]);
+    const doc = docOf(fixture());
+    const fieldsOf = (step: FlowNode) => (step.key === 'restore' ? fields : undefined);
+    const offered = entry(doc, 'rollback/wait');
+    expect(refChoices(offered.model, offered.node, fieldsOf).find((c) => c.expose)?.fields).toBe(
+      fields,
+    );
+    // Once the result is an output there and an input here, the input carries the fields.
+    const restore = entry(doc, 'rollback/restore').node;
+    restore.outputs = {
+      ...restore.outputs,
+      restore_result: { type: 'dict', from: 'impl.register' },
+    };
+    const wait = entry(doc, 'rollback/wait').node;
+    wait.inputs = {
+      ...wait.inputs,
+      restore_result: { type: 'dict', from: 'restore.restore_result' },
+    };
+    const now = entry(doc, 'rollback/wait');
+    const choices = refChoices(now.model, now.node, fieldsOf);
+    expect(choices.filter((c) => c.name === 'restore_result')).toEqual([
+      {
+        name: 'restore_result',
+        label: 'restore_result',
+        detail: 'input from restore.restore_result',
+        fields,
+      },
+    ]);
+    // Without the docs, no fields.
+    expect(refChoices(now.model, now.node).find((c) => c.name === 'restore_result')?.fields).toBe(
+      undefined,
+    );
   });
 });

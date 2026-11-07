@@ -49,10 +49,12 @@ A form from the argument spec: choices, booleans, one line per list item, YAML f
   `permissions`), each with its description. Arrows move, Enter adds it, Escape closes. **+** in
   the docs table adds one too.
 
-- **Values are Jinja.** A value that is only `{{ name }}` shows as a purple **input chip**. Type `@`
-  (or use the @ button) to insert one where the cursor is; selected text is replaced. Choosing a flow input, an upstream output, the subflow's
+- **Values are Jinja.** A value that is only `{{ name }}`, or a field of it such as
+  `{{ read_version_result.stdout }}`, shows as a purple **input chip**. Type `@` (or use the @
+  button) to insert one where the cursor is; selected text is replaced. Choosing a flow input, an upstream output, the subflow's
   input or a step inside an earlier subflow that is not an input yet adds it, with its `from:`
-  ([data between steps](data-between-steps.md)).
+  ([data between steps](data-between-steps.md)). After a step's result, the list offers the fields
+  its module documents; `.` typed right after a result's chip offers them too.
 - **Register result as** names the variable the module result is registered in (default
   `<key>_result`). **Expose as node output** makes the whole result an output.
 - **The checklist** shows required parameters, where each variable comes from, check mode support

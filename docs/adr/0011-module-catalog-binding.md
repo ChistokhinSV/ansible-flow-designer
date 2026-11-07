@@ -126,3 +126,28 @@ P14, P15). At the default 340 px, the first Configure field of a bound step was 
     name, alias or description (`filterParams`), each with its first description line. It
     replaces the native select of bare names.
   - `paramGroups` and `filterParams` live in `core/catalog/draft.ts`.
+
+## Amendment: a field of a result in a chip (AFD-108, wave 10 Z1, 2026-11-07)
+
+The wave 10 walkthrough (`docs/ux/wave10/walkthrough.md`, Z1) found that the @ list offered a
+step's whole result (AFD-106, ADR-0018) but not its fields. A chip was `{{ name }}` only, so
+`.stdout` typed after one stayed text outside the braces, and the task got the whole result
+followed by ".stdout". Round 3's participant typed exactly that.
+
+- **A chip can read a field:** an expression that is only a dotted path, `{{ name.field.sub }}`,
+  is one chip (`core/flow/jinja.ts`, `segments`). It still reads one variable, `name`, so
+  `parseRefs`, the checklist and renaming an input work as before. Filters, indexes and other
+  expressions stay text.
+- **The fields come from the module's docs:** `resultFields` (`core/catalog/draft.ts`) lists the
+  RETURN keys, most read first (stdout, stdout_lines, rc, stderr, json, status, content, msg), each
+  with the first sentence of its description. `refChoices(model, node, fieldsOf)` adds them to a
+  choice that is a module step's whole result: a node input whose `from` reads an upstream
+  register output, an upstream output with `from: impl.register`, and AFD-106's result choice.
+  The webview asks the catalog for the upstream modules' docs (`useResultFields`); without docs a
+  result has no fields and the list is as before.
+- **Where the list offers them** (`properties/ChipField.tsx`): right after a result is picked,
+  when `.` is typed right after a result's chip, and for `@<result>.<query>`. Picking one sets
+  the chip to `<name>.<field>` and removes the typed `.query`; for `@` it also adds the input (and
+  the output there) as picking the result would. The list is a `listbox` named `Fields of <result>`. Typing anything but `.` after the chip, or Escape, keeps the whole result.
+- **Not done:** a field the docs do not list can still be typed inside the braces by hand, and
+  fields of nested returns (`contains`) are not offered.

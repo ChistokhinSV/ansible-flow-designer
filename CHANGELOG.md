@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.68.1 — AFD-108
+
+Wave 10 walkthrough, Z1 (`docs/ux/wave10/walkthrough.md`): the @ list offered a step's whole result, and `.stdout` typed after its chip stayed text outside the braces, so the task got the whole result followed by ".stdout".
+
+- **A field of a result is one chip:** `{{ read_version_result.stdout }}` shows as one chip, including a value written by hand or by an AI assistant.
+- **The @ list offers the fields:** for a result (an input that reads one, an output that is a step's register, or the result 0.68.0 offers), the fields its module documents come next: stdout, stdout_lines, rc and the rest, each with the docs' first sentence. They come right after you pick the result, when you type `.` right after its chip, or when you type `@read_version_result.std`. Picking one puts it into the chip.
+- **The list fits a narrow panel:** rows wrap and long names break instead of scrolling the list sideways, and the arrow keys keep the active row in view.
+
 ## 0.68.0 — AFD-106
 
 Wave 10, part 4: data in and out (`docs/ux/wave9-usability/round3.md`, R7, R6, R10).

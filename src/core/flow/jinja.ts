@@ -4,8 +4,12 @@
 
 export type Segment = { text: string } | { ref: string; raw: string };
 
-/** `{{ name }}` or `{{ name.attr }}`: an expression that is only a variable reference (a chip). */
-const SIMPLE = /^\{\{-?\s*([A-Za-z_][A-Za-z0-9_]*)\s*-?\}\}$/;
+/**
+ * `{{ name }}` or `{{ name.field }}`: an expression that is only a variable reference (a chip).
+ * A dotted path reads a field of a step's result (AFD-108, wave 10: Z1); before, only the bare
+ * name was a chip, so `.stdout` typed after one stayed text outside the braces.
+ */
+const SIMPLE = /^\{\{-?\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*-?\}\}$/;
 const EXPRESSION = /\{\{[\s\S]*?\}\}/g;
 
 /** Text and chip segments of a parameter value; complex expressions stay text. */

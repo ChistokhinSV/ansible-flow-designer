@@ -36,6 +36,12 @@ steps, and outputs of steps inside earlier subflows. An upstream module step's r
 an output yet is offered too ("result of Read the software version · makes it an output there"):
 picking it makes the result an output of that step and an input of this one, with its `from`.
 
+A result is a map. To read one field of it, such as the standard output, pick the field: once you
+pick a result, the list offers the fields its module documents (`read_version_result.stdout`,
+`.stdout_lines`, `.rc`, each with what the docs say). Typing `.` right after a result's chip, or
+`@read_version_result.std`, offers them too. The field goes into the chip,
+`{{ read_version_result.stdout }}`; text typed after a chip stays outside the braces.
+
 A step input needs a source: a `from:` or a default. One with neither (`input-unfed`) is a warning,
 and its message names where the value is: the step that registers a result of that name, or the
 flow input of that name.

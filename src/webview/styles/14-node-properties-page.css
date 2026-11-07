@@ -412,8 +412,22 @@
   overflow: auto;
 }
 
+/* AFD-108: the fields list says whose fields it offers. */
+.afd-ref-menu-head {
+  margin: 0;
+  padding: 3px 8px;
+  font-size: var(--afd-fs-12);
+}
+
+/* A row wraps in a narrow panel, and a long name breaks, instead of scrolling the list sideways. */
+.afd-ref-menu .afd-ref-chip {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .afd-ref-menu > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: baseline;
   padding: 3px 8px;
