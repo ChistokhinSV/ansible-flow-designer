@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.65.0 — AFD-103
+
+Wave 10, part 1: the Execution tab explains itself (`docs/ux/wave9-usability/round3.md`, R1-R4: the session's hardest task was setting retries on a step).
+
+- **Folds say what they hold:** "Timing: timeout, retries, until, delay · 2 set", "Targeting: serial, max fail percentage, inventory target". On a step bound to a module, Timing is open until you close it.
+- **Timing in one sentence:** under the fields, what the generated task will do with them: "Tries up to 10 times, 15 s apart, until …; each try at most 15s". Timeout now reads as the limit for one try, Delay as the time between tries.
+- **Until helps:** it offers the result's fields from the module's returns (`<result>.stdout`, `<result>.rc`, …) and shows an example. A new warning, `until-whole-result`, catches a test that compares the whole result with a value (`result == "installed"`), which never holds.
+- **Timeout is checked:** the field takes `30s`, `15m` or `1h30m`; a timeout the generated code cannot read used to be left out without a word, and is now a warning (`timeout-unreadable`).
+- **Task keywords have a fold of their own,** out of Tags, with one-click buttons for when, loop, no_log, ignore_errors, delegate_to, run_once and changed_when.
+- **The YAML box helps as an editor does** (task keywords and every YAML field): coloured keys, strings and comments; the line with a YAML error underlined as you type; Enter keeps the indent, indents after `loop:` and continues or ends a list.
+
 ## 0.64.3 — AFD-102
 
 What usability round 3 found that a patch can fix (`docs/ux/wave9-usability/round3.md`, R5, R11-R13).

@@ -71,10 +71,18 @@ While the flow file has YAML errors or missing IDs, the Details are read-only; f
 
 ## Task keywords
 
-The **Execution** tab has **Task keywords**: a YAML map written on the generated task as is, for
-what a playbook task would say. Examples: `when`, `loop` (or `with_items`), `ignore_errors`,
-`changed_when`, `failed_when`, `delegate_to`, `run_once`, `no_log`, `become_user`, `environment`.
-Imported playbooks keep their tasks' keywords here.
+The **Execution** tab has a fold of its own, **Task keywords**: a YAML map written on the generated
+task as is, for what a playbook task would say. Examples: `when`, `loop` (or `with_items`),
+`ignore_errors`, `changed_when`, `failed_when`, `delegate_to`, `run_once`, `no_log`,
+`become_user`, `environment`. Imported playbooks keep their tasks' keywords here.
+
+- **One click for the common ones:** `+ no_log`, `+ ignore_errors` and `+ run_once` add their line
+  and save it; `+ when`, `+ loop`, `+ delegate_to` and `+ changed_when` add theirs and put the
+  cursor where the value goes. A keyword already set has its button greyed out.
+- **The box helps as an editor does:** keys, strings, values and comments are coloured; the line a
+  YAML error names is underlined while you type (nothing is saved until you leave the box); Enter
+  keeps the indent, indents after `loop:`, continues a list after `- item`, and ends the list on an
+  empty item.
 
 ```yaml
 when: version_check.stdout is version('17.9', '<')

@@ -371,7 +371,8 @@ describe('Details: Execution per node kind (AFD-71)', () => {
       document.querySelector(`[data-setting-group="${group}"] > details`) as HTMLDetailsElement;
     expect([fold('Timing').open, fold('Timing').querySelector('summary')?.textContent]).toEqual([
       true,
-      'Timing · 1 set',
+      // AFD-103 (round 3: R1): a fold says what it holds.
+      'Timing: retries · 1 set',
     ]);
     expect([fold('Tags').open, fold('Tags').querySelector('summary')?.textContent]).toEqual([
       false,
@@ -407,5 +408,100 @@ describe('Details: a step selected before it arrives (AFD-71)', () => {
     );
     expect(screen.getByRole('heading', { name: 'Check NTP' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'General' })).toBeTruthy();
+  });
+});
+
+// AFD-103 (round 3: R1-R4): the Execution tab says what it holds and how its fields combine.
+describe('Details: Execution explains itself (AFD-103)', () => {
+  const KEY = 'set-boot-variable';
+  function withSettings(settings: FlowNode['settings']) {
+    const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
+    const walk = (nodes: FlowNode[] = []) => {
+      for (const n of nodes) {
+        if (n.key === KEY) n.settings = settings;
+        walk(n.subflow?.nodes);
+      }
+    };
+    walk(copy.nodes);
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(copy), docVersion: 2 }));
+  }
+  async function openExecution() {
+    const id = nodeOf(KEY).id;
+    act(() => useUi.getState().openDetails(id, 'execution'));
+    render(<Details id={id} />);
+    await answer(catalog);
+    return id;
+  }
+  const fold = (group: string) =>
+    document.querySelector(`[data-setting-group="${group}"] > details`) as HTMLDetailsElement;
+
+  it('names what each fold holds; Timing opens on a module step and can be closed', async () => {
+    await openExecution();
+    expect(fold('Timing').querySelector('summary')?.textContent).toBe(
+      'Timing: timeout, retries, until, delay',
+    );
+    expect(fold('Targeting').querySelector('summary')?.textContent).toBe(
+      'Targeting: serial, max fail percentage, inventory target',
+    );
+    expect([fold('Timing').open, fold('Targeting').open]).toEqual([true, false]);
+    const keywords = document.querySelector('[data-keywords] > details') as HTMLDetailsElement;
+    expect(keywords.querySelector('summary')?.textContent).toBe(
+      'Task keywords: when, loop, no_log…',
+    );
+    // Open by default, not held open: the person can close it.
+    act(() => {
+      fold('Timing').open = false;
+      fireEvent(fold('Timing'), new Event('toggle'));
+    });
+    expect(fold('Timing').open).toBe(false);
+  });
+
+  it('says how the Timing fields combine and offers the result fields to Until', async () => {
+    withSettings({
+      retries: 10,
+      delay: 15,
+      until: "'x' in set_boot_variable_result.updates",
+      timeout: '15s',
+    });
+    await openExecution();
+    expect(document.querySelector('[data-timing-text]')?.textContent).toBe(
+      "Tries up to 10 times, 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s.",
+    );
+    const until = screen.getByLabelText(/^Until/) as HTMLInputElement;
+    const options = [
+      ...(document.getElementById(until.getAttribute('list') ?? '')?.querySelectorAll('option') ??
+        []),
+    ].map((o) => o.getAttribute('value'));
+    expect(options).toEqual([
+      'boot_result is succeeded',
+      'boot_result.commands',
+      'boot_result.updates',
+      'boot_result.backup_path',
+    ]);
+    // A timeout the generated code cannot read is refused in the field.
+    const timeout = screen.getByLabelText(/^Timeout/) as HTMLInputElement;
+    fireEvent.change(timeout, { target: { value: '15 sec' } });
+    expect(screen.getByText('A duration: 30s, 15m, 1h30m')).toBeTruthy();
+  });
+
+  it('adds a common keyword in one click; the YAML box marks a wrong line and indents', async () => {
+    const id = await openExecution();
+    fireEvent.click(document.querySelector('[data-keyword-chip="no_log"]') as HTMLElement);
+    expect(commands()).toEqual([{ kind: 'updateNode', id, patch: { keywords: { no_log: true } } }]);
+    // A keyword that needs a value puts the caret where it goes.
+    fireEvent.click(document.querySelector('[data-keyword-chip="when"]') as HTMLElement);
+    const box = screen.getByLabelText(/Task keywords/) as HTMLTextAreaElement;
+    // (No host here to echo the saved no_log back: the box keeps it and adds the new line.)
+    expect([box.value, document.activeElement === box]).toEqual(['no_log: true\nwhen: ', true]);
+    // Enter after `loop:` indents the list's first item.
+    fireEvent.change(box, { target: { value: 'loop:' } });
+    box.setSelectionRange(5, 5);
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(box.value).toBe('loop:\n  ');
+    // A wrong line is marked as the person types, before anything is saved.
+    fireEvent.change(box, { target: { value: 'when: [x' } });
+    await act(() => new Promise((r) => setTimeout(r, 350)));
+    expect(box.getAttribute('aria-invalid')).toBe('true');
+    expect(document.querySelector('.afd-yaml-line.error')?.textContent?.trim()).toBe('when: [x');
   });
 });

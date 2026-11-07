@@ -218,3 +218,28 @@ from 44 to 25 px, and the row below moved under the pointer: the next click open
 - **Preview card:** no card while the pointer is on a port (`portHover`): it covered the port's
   label (S1).
 - **Banner:** Stop Flow is one of its buttons (W5).
+
+## Amendment: the Execution tab explains itself (AFD-103, wave 10, 2026-11-07)
+
+Usability round 3 (`docs/ux/wave9-usability/round3.md`) found the Execution tab the hardest part
+of the designer: four closed folds that named only their group (R1), Timing fields that did not
+say how they combine (R2), task keywords under Tags (R3), and a YAML box with no help (R4).
+
+- **Folds say what they hold:** "Timing: timeout, retries, until, delay · 2 set". `Fold` has
+  `defaultOpen` beside `open`: open until the person closes it (their choice is kept), where `open`
+  holds it open. Timing is open by default on a step bound to a module.
+- **Timing in one sentence:** `timingText()` (`core/view/settings.ts`) says what the generated task
+  does, mirroring `core/engine/binding.ts`: "Tries up to 10 times, 15 s apart, until …; each try at
+  most 15s". Timeout is "limit for one try", Delay "seconds between tries".
+- **Until** offers the result's fields (a datalist from the module's returns, read with
+  `useCatalog`) and shows an example. The validator warns `until-whole-result` when the test
+  compares the whole result with a value (`core/flow/until.ts`), and `timeout-unreadable` when a
+  timeout is not a duration; the Timeout field refuses one. `durationSeconds` moved to
+  `core/flow/duration.ts` so the validator can read it (the flow model does not import an engine,
+  AFD-40); `core/engine/util.ts` re-exports it.
+- **Task keywords** have a fold of their own ("Task keywords: when, loop, no_log…"), with a chip
+  per common keyword: a complete line (`no_log: true`) is saved at once, one that needs a value
+  puts the caret there.
+- **The YAML box** (every YAML field) colours keys, strings, scalars and comments on a layer under
+  a transparent textarea, marks the line a parse error names while the person types (saving stays
+  on blur), and indents on Enter as an editor does (`core/view/yamlText.ts`).

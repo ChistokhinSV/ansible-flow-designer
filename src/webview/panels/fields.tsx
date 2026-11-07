@@ -17,6 +17,8 @@ interface CommitProps {
   focusKey?: FocusRequest['field'];
   /** A problem the flow check found with the stored value (AFD-44), shown under the field. */
   problem?: string;
+  /** Values the browser offers as the person types (a datalist; AFD-103: Until's fields). */
+  suggestions?: readonly string[];
 }
 
 export function CommitField({
@@ -29,6 +31,7 @@ export function CommitField({
   validate,
   focusKey,
   problem,
+  suggestions,
 }: CommitProps) {
   const id = useId();
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
@@ -80,8 +83,19 @@ export function CommitField({
       {multiline ? (
         <textarea {...common} rows={3} onChange={(e) => setDraft(e.target.value)} />
       ) : (
-        <input {...common} onChange={(e) => setDraft(e.target.value)} />
+        <input
+          {...common}
+          list={suggestions?.length ? `${id}-list` : undefined}
+          onChange={(e) => setDraft(e.target.value)}
+        />
       )}
+      {suggestions?.length ? (
+        <datalist id={`${id}-list`}>
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      ) : null}
       {error ? (
         <div className="afd-field-error" id={`${id}-error`}>
           {error}

@@ -528,3 +528,83 @@
   display: inline-block;
   margin-bottom: 4px;
 }
+
+/* AFD-103 (round 3: R4): the YAML box. A coloured layer sits under a textarea whose own text is
+   transparent; both have the same box, font and wrapping, so the caret lands on the layer's text. */
+.afd-yaml-box {
+  position: relative;
+}
+
+.afd-yaml-layer,
+.afd-yaml-text {
+  /* .afd-input sets font: inherit, which would undo .mono. */
+  font-family: var(--afd-mono);
+  line-height: 18px;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.afd-yaml-layer {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.afd-yaml-text {
+  position: relative;
+  display: block;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--vscode-editorCursor-foreground, var(--afd-input-fg));
+  resize: vertical;
+}
+
+.afd-yaml-text::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--afd-muted));
+}
+
+.afd-yaml-text::selection {
+  color: var(--afd-input-fg);
+}
+
+.afd-yaml-key {
+  color: var(--vscode-debugTokenExpression-name, #0451a5);
+}
+
+.afd-yaml-string {
+  color: var(--vscode-debugTokenExpression-string, #a31515);
+}
+
+.afd-yaml-scalar {
+  color: var(--vscode-debugTokenExpression-number, #098658);
+}
+
+.afd-yaml-comment,
+.afd-yaml-dash,
+.afd-yaml-punct {
+  color: var(--afd-muted);
+}
+
+.afd-yaml-line.error {
+  text-decoration: wavy underline var(--vscode-errorForeground, var(--afd-failed));
+  text-decoration-skip-ink: none;
+}
+
+/* The common task keywords, one click each (AFD-103, round 3: R3). */
+.afd-keyword-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 4px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+/* How the Timing fields combine, in one sentence (AFD-103, round 3: R2). */
+.afd-timing-text {
+  margin: 4px 0 0;
+}

@@ -1,6 +1,7 @@
 // The node settings the properties page edits (Execution tab), and how typed text becomes a
 // setting value (AFD-34: out of the component, shared and tested). Settings the flow models as
 // fields; other task keywords live in impl.keywords (AFD-26).
+import { durationSeconds } from '../flow/duration';
 import type { FlowNode, NodeSettings, NodeType } from '../flow/types';
 
 export type SettingKey = keyof NodeSettings;
@@ -29,28 +30,29 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     group: 'Timing',
     label: 'Timeout',
     kind: 'text',
-    help: '30s, 15m, 1h30m: the task timeout keyword (timeout port)',
+    // AFD-103 (round 3: R2): "15 seconds apart" went here; it is the limit of one try.
+    help: 'Limit for one try: 30s, 15m, 1h30m (hosts that run over take the timeout port)',
   },
   {
     key: 'retries',
     group: 'Timing',
     label: 'Retries',
     kind: 'int',
-    help: 'Module nodes retry until the result succeeds, or until Until holds',
+    help: 'How many tries at most: until Until holds, or until the step succeeds',
   },
   {
     key: 'until',
     group: 'Timing',
     label: 'Until',
     kind: 'text',
-    help: 'Poll until this Jinja test holds',
+    help: 'Try again until this test holds (Jinja, no braces)',
   },
   {
     key: 'delay',
     group: 'Timing',
     label: 'Delay',
     kind: 'int',
-    help: 'Seconds between retries (Ansible default 5)',
+    help: 'Seconds between tries (Ansible default 5)',
   },
   {
     key: 'serial',
@@ -150,6 +152,9 @@ export function appliesTo(field: SettingField, node: Pick<FlowNode, 'type' | 'su
 export function settingProblem(field: SettingField, text: string): string | undefined {
   const t = text.trim();
   if (field.kind === 'int' && t && !/^[0-9]+$/.test(t)) return 'A whole number';
+  // AFD-103: what codegen cannot read it leaves out of the task without a word.
+  if (field.key === 'timeout' && t && durationSeconds(t) === undefined)
+    return 'A duration: 30s, 15m, 1h30m';
   if (field.key === 'rolling' && t && !/^[1-9][0-9]*%?$/.test(t))
     return 'A number of hosts, or a percentage like 25%';
   return undefined;
@@ -171,4 +176,36 @@ export function settingValue(field: SettingField, text: string): unknown {
 /** A setting value as the text its field shows. */
 export function settingText(value: unknown): string {
   return Array.isArray(value) ? value.join(', ') : value === undefined ? '' : String(value);
+}
+
+/**
+ * How a step's Timing settings combine, in one sentence (AFD-103, round 3: R2): the participant
+ * put "15 seconds apart" into Timeout, since nothing said what each field does to the others.
+ * Mirrors codegen (core/engine/binding.ts): with Retries or Until the task retries (Ansible's
+ * defaults: 3 tries, 5 s apart); Delay alone does nothing; Timeout limits each try.
+ */
+export function timingText(s: NodeSettings, result: string): string | undefined {
+  const until = s.until?.trim();
+  const retries = s.retries;
+  const timeout = typeof s.timeout === 'string' ? s.timeout.trim() : s.timeout;
+  if (!until && !retries && s.delay === undefined && !timeout) return undefined;
+  const parts: string[] = [];
+  if (until || retries) {
+    const tries = retries ?? 3;
+    const apart = s.delay ?? 5;
+    parts.push(
+      `Tries up to ${tries} time${tries === 1 ? '' : 's'}${retries ? '' : " (Ansible's default)"}, ${apart} s apart, ${until ? `until ${until}` : `until it succeeds (${result} is succeeded)`}`,
+    );
+  } else {
+    parts.push('Runs once');
+    if (s.delay !== undefined) parts.push('Delay applies only with Retries or Until');
+  }
+  if (timeout !== undefined && timeout !== '') {
+    parts.push(
+      durationSeconds(timeout) === undefined
+        ? `"${timeout}" is not a duration, so no try has a limit`
+        : `each try at most ${timeout}`,
+    );
+  }
+  return `${parts.join('; ')}.`;
 }

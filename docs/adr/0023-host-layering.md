@@ -76,3 +76,12 @@ plan, approved by the product owner, raises the budget to 1,152 KB. The other bu
 
 AFD-92 took the host bundle to 835 KB, past 832. As wave 8's plan allowed, the budget is now
 864 KB.
+
+## Amendment: webview budget 1,216 KB (AFD-103, 2026-11-07)
+
+Wave 9 left the webview's `index.js` at about 1,140 KB of 1,152. Wave 10 adds to it: the
+Execution tab's folds, Timing sentence, keyword chips and YAML box (AFD-103), the outside-change
+list (AFD-104) and the inputs editor's default (AFD-106). The product owner chose to raise the
+budget to 1,216 KB rather than cut any of it, with no new library: the YAML box colours its lines
+with its own small tokenizer (`core/view/yamlText.ts`), not an editor component. The other budgets
+stay: `extension.js` 864 KB, `mcp.js` 1,088 KB.

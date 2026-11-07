@@ -14,19 +14,8 @@ export function checksum(text: string): string {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0');
 }
 
-const UNIT: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-
-/** `90`, `30s`, `15m`, `4h`, `1h30m` → seconds; undefined when the text is not a duration. */
-export function durationSeconds(text: string | number | undefined): number | undefined {
-  if (typeof text === 'number') return text > 0 ? Math.round(text) : undefined;
-  const s = text?.trim().toLowerCase();
-  if (!s) return undefined;
-  if (/^[0-9]+$/.test(s)) return Number(s) || undefined;
-  const parts = [...s.matchAll(/([0-9]+)\s*([smhd])/g)];
-  if (parts.length === 0 || parts.map((p) => p[0]).join('') !== s.replaceAll(/\s+/g, ''))
-    return undefined;
-  return parts.reduce((sum, p) => sum + Number(p[1]) * (UNIT[p[2] as string] ?? 0), 0) || undefined;
-}
+// AFD-103: the parser lives in core/flow, so the validator can check a timeout too.
+export { durationSeconds } from '../flow/duration';
 
 /** `1h30m`, `15m`, `45s`: the duration format settings and the Timing lens read. */
 export function duration(seconds: number): string {

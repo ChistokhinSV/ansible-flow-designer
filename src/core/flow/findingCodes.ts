@@ -160,6 +160,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       'A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host.',
     fix: 'Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps.',
   },
+  'timeout-unreadable': {
+    meaning:
+      'settings.timeout is not a duration the generated code can read, so the step runs without a timeout.',
+    fix: 'Write it as 30s, 15m or 1h30m (update_node settings.timeout).',
+  },
   'timeout-without-setting': {
     meaning: 'The timeout port is enabled but settings.timeout is not set.',
     fix: 'Set settings.timeout (update_node settings).',
@@ -203,6 +208,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning:
       'A subflow output names no inner output, and no single inner step has one of that name.',
     fix: 'Set its from to <inner_step>.<output> (set_io).',
+  },
+  'until-whole-result': {
+    meaning:
+      'settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds.',
+    fix: 'Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until).',
   },
   'until-not-module': {
     meaning: 'settings.until on a role or playbook step, where Ansible cannot retry.',

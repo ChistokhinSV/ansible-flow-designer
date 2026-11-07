@@ -208,6 +208,25 @@ describe('polling and bare expressions', () => {
     expect(codes(doc, 'until-not-module')).toHaveLength(1);
   });
 
+  it('flags an until that compares the whole result, and a timeout codegen cannot read (AFD-103)', () => {
+    const doc = docOf(fixture());
+    const wait = entry(doc, 'rollback/wait').node;
+    // Round 3 (R2): the whole registered result never equals a string.
+    wait.settings = { retries: 10, delay: 15, until: 'wait_result == "installed"' };
+    expect(codes(doc, 'until-whole-result').map((f) => f.message)).toEqual([
+      '"Wait for the version" until compares the whole result wait_result with a value, so it never holds: test a field of it, like wait_result.stdout or wait_result.rc',
+    ]);
+    wait.settings = { retries: 10, delay: 15, until: "'installed' in wait_result.stdout" };
+    expect(codes(doc, 'until-whole-result')).toEqual([]);
+    expect(codes(doc, 'timeout-unreadable')).toEqual([]);
+    wait.settings = { timeout: '15 sec' };
+    expect(codes(doc, 'timeout-unreadable').map((f) => f.message)).toEqual([
+      '"Wait for the version" timeout "15 sec" is not a duration (30s, 15m, 1h30m), so the step runs without one',
+    ]);
+    wait.settings = { timeout: '1h30m' };
+    expect(codes(doc, 'timeout-unreadable')).toEqual([]);
+  });
+
   it('plain retries keep stopping on success', () => {
     const doc = docOf(fixture());
     const wait = entry(doc, 'rollback/wait').node;

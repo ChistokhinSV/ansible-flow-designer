@@ -1,7 +1,7 @@
 // The sections of a node's Details (AFD-43): General (identity, lifecycle, what the type adds, the
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
-import { useId, useMemo } from 'react';
+import { useId, useMemo, useRef } from 'react';
 import { registerName } from '../../core/flow/dataNames';
 import { formatOf, purposeOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
@@ -24,14 +24,16 @@ import {
   settingProblem,
   settingText,
   settingValue,
+  timingText,
 } from '../../core/view/settings';
 import { run } from '../actions';
+import { useCatalog } from '../catalog';
 import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { ContractEditor } from '../panels/ContractEditor';
 import { Fold } from '../panels/Fold';
 import { CommitField, ReadOnly } from '../panels/fields';
 import { runPortItem } from '../portActions';
-import { YamlField } from '../properties/YamlField';
+import { YamlField, type YamlFieldHandle } from '../properties/YamlField';
 import { useUi } from '../store';
 import type { PortView } from '../viewModel';
 import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
@@ -449,6 +451,18 @@ export function PortsSection({ id }: { id: string }) {
   );
 }
 
+/** A label as it reads inside a sentence: "Max fail percentage" → "max fail percentage". */
+const inline = (label: string) => label.charAt(0).toLowerCase() + label.slice(1);
+
+/**
+ * A fold's summary: what it holds and how much is set (AFD-103, round 3: R1). The participant did
+ * not find Timing behind four closed folds that said only their group names.
+ */
+function groupSummary(group: string, names: readonly string[], set: number): string {
+  const only = names.length === 1 && names[0]?.toLowerCase() === group.toLowerCase();
+  return `${group}${only ? '' : `: ${names.join(', ')}`}${set ? ` · ${set} set` : ''}`;
+}
+
 export function ExecutionSection({
   node,
   problems = [],
@@ -473,23 +487,40 @@ export function ExecutionSection({
         format <= (s.formatMax ?? format) &&
         (appliesTo(s, node) || settings[s.key] !== undefined),
     );
-  const groups = SETTING_GROUPS.filter((g) => fields(g).length > 0 || (g === 'Tags' && keywords));
-  // AFD-72: each group folded with what is set in it; open while it has a value or a problem.
+  const groups = SETTING_GROUPS.filter((g) => fields(g).length > 0);
   const setIn = (group: SettingGroup) =>
-    fields(group).filter((s) => settings[s.key] !== undefined).length +
-    (group === 'Tags' && keywords && Object.keys(node.impl?.keywords ?? {}).length ? 1 : 0);
+    fields(group).filter((s) => settings[s.key] !== undefined).length;
+  // AFD-103 (round 3: R2): Until offers the result's fields, from the module's returns.
+  const module = node.impl?.kind === 'module' && node.impl.ref ? node.impl.ref : undefined;
+  const doc = useCatalog(module ? { op: 'doc', fqcn: module } : null, `doc:module:${module}`);
+  const result = registerName(node);
+  const returns = Object.keys(doc.data?.returns ?? {});
+  const untilChoices = [`${result} is succeeded`, ...returns.map((r) => `${result}.${r}`)];
+  const untilExample = returns.includes('stdout')
+    ? `'ready' in ${result}.stdout`
+    : returns.includes('rc')
+      ? `${result}.rc == 0`
+      : `${result} is succeeded`;
+  const timing = timingText(settings, result);
   return (
     <div className="afd-details-page">
       {groups.map((group) => (
         <section className="afd-section" key={group} data-setting-group={group}>
           <Fold
             id={`execution-${group}`}
+            // AFD-72: each group folded with what is set in it; open while it has a value or a
+            // problem. AFD-103: Timing is open on a module step until the person closes it.
             open={
               groups.length === 1 ||
               setIn(group) > 0 ||
               fields(group).some((s) => fieldProblem(problems, `settings.${s.key}`))
             }
-            summary={`${group}${setIn(group) ? ` · ${setIn(group)} set` : ''}`}
+            defaultOpen={group === 'Timing' && !!module}
+            summary={groupSummary(
+              group,
+              fields(group).map((s) => inline(s.label)),
+              setIn(group),
+            )}
           >
             {fields(group).map((s) => {
               const value = settings[s.key];
@@ -512,12 +543,15 @@ export function ExecutionSection({
                     {unused}
                   </div>
                 );
+              const until = s.key === 'until';
               return (
                 <div key={s.key}>
                   <CommitField
-                    label={`${s.label} · ${s.key === 'until' ? `${s.help}; it reads ${registerName(node)} (the result) and the inputs` : s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
+                    label={`${s.label} · ${until ? `${s.help}; it reads ${result} (the result) and the inputs` : s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
                     value={settingText(value)}
                     mono
+                    placeholder={until ? untilExample : undefined}
+                    suggestions={until ? untilChoices : undefined}
                     problem={fieldProblem(problems, `settings.${s.key}`)}
                     validate={(v) => settingProblem(s, v)}
                     onCommit={(v) => set(s.key, settingValue(s, v))}
@@ -526,70 +560,149 @@ export function ExecutionSection({
                 </div>
               );
             })}
-            {group === 'Tags' && keywords ? <TaskKeywords node={node} /> : null}
+            {/* AFD-103 (round 3: R2): how the fields combine, as the generated task runs. */}
+            {group === 'Timing' && timing ? (
+              <p className="muted afd-timing-text" data-timing-text>
+                {timing}
+              </p>
+            ) : null}
           </Fold>
         </section>
       ))}
+      {keywords ? <TaskKeywords node={node} /> : null}
     </div>
   );
 }
 
 /**
+ * The common task keywords, one click each (AFD-103, round 3: R3). A complete line is saved at
+ * once; one that needs a value puts the caret there (or selects the value to replace).
+ */
+const KEYWORD_CHIPS: readonly {
+  key: string;
+  line: string;
+  help: string;
+  commit?: boolean;
+  select?: number;
+}[] = [
+  { key: 'when', line: 'when: ', help: 'Run only on hosts where this test holds (no braces)' },
+  {
+    key: 'loop',
+    line: 'loop:\n  - ',
+    help: 'Run once for each item of a list: parameters read the item as {{ item }}',
+  },
+  {
+    key: 'no_log',
+    line: 'no_log: true',
+    help: 'Keep what the step reads and returns out of logs and run output',
+    commit: true,
+  },
+  {
+    key: 'ignore_errors',
+    line: 'ignore_errors: true',
+    help: 'A failure does not stop the host: it goes on through ok_hosts',
+    commit: true,
+  },
+  {
+    key: 'delegate_to',
+    line: 'delegate_to: localhost',
+    help: 'Run the task on another host (like localhost), once for each host that arrives',
+    select: 'localhost'.length,
+  },
+  {
+    key: 'run_once',
+    line: 'run_once: true',
+    help: 'Run the task on one host only, for all of them',
+    commit: true,
+  },
+  {
+    key: 'changed_when',
+    line: 'changed_when: false',
+    help: 'When the step counts as changed (false: never, for a step that only reads)',
+    select: 'false'.length,
+  },
+];
+
+/**
  * Ansible task keywords on the binding (AFD-26): when, loop, ignore_errors and the like, written on
  * the generated task as they are. What the flow models itself is refused with where it goes.
+ * AFD-103 (round 3: R3): a fold of their own, out of Tags, named by what they hold.
  */
 function TaskKeywords({ node }: { node: FlowNode }) {
   const id = useId();
+  const box = useRef<YamlFieldHandle>(null);
   const impl = node.impl;
+  const present = Object.keys(impl?.keywords ?? {});
   // AFD-44: shown, disabled, with why, rather than missing.
   const blocked = !impl?.ref
     ? 'Bind a module or role first: task keywords go on the task the binding generates.'
     : impl.kind === 'playbook'
       ? 'A playbook binding takes no task keywords (import_playbook has none).'
       : undefined;
-  if (blocked || !impl)
-    return (
-      <div className="afd-field" data-keywords-blocked>
-        <label htmlFor={id}>Task keywords</label>
-        <textarea
-          id={id}
-          className="afd-input mono"
-          rows={2}
-          disabled
-          aria-describedby={`${id}-why`}
-        />
-        <p id={`${id}-why`} className="muted">
-          {blocked}
-        </p>
-      </div>
-    );
   return (
-    <div className="afd-field">
-      <label htmlFor={id}>
-        Task keywords ·{' '}
-        <span className="muted">
-          YAML map written on the generated task: when, loop, ignore_errors, changed_when,
-          delegate_to, run_once, no_log...
-        </span>
-      </label>
-      <YamlField
-        // Remount when the file changes underneath (undo, another editor).
-        key={JSON.stringify(impl.keywords ?? null)}
-        id={id}
-        rows={4}
-        value={impl.keywords}
-        placeholder={`when: version_check.stdout is version("17.9", "<")\nloop: "{{ interfaces }}"`}
-        validate={(v) => {
-          if (v === null || v === undefined) return undefined;
-          if (typeof v !== 'object' || Array.isArray(v)) return 'A map of keyword: value';
-          for (const k of Object.keys(v)) {
-            const problem = keywordProblem(k);
-            if (problem) return problem;
-          }
-          return undefined;
-        }}
-        onChange={(v) => void updatePatch(node.id, { keywords: v ?? null })}
-      />
-    </div>
+    <section className="afd-section" data-keywords>
+      <Fold
+        id="execution-keywords"
+        open={present.length > 0}
+        summary={`Task keywords: when, loop, no_log…${present.length ? ` · ${present.length} set` : ''}`}
+      >
+        {blocked || !impl ? (
+          <div className="afd-field" data-keywords-blocked>
+            <label htmlFor={id}>Task keywords</label>
+            <textarea
+              id={id}
+              className="afd-input mono"
+              rows={2}
+              disabled
+              aria-describedby={`${id}-why`}
+            />
+            <p id={`${id}-why`} className="muted">
+              {blocked}
+            </p>
+          </div>
+        ) : (
+          <div className="afd-field">
+            <label htmlFor={id}>
+              Task keywords · <span className="muted">YAML written on the generated task</span>
+            </label>
+            <fieldset className="afd-keyword-chips">
+              <legend className="afd-sr-only">Add a task keyword</legend>
+              {KEYWORD_CHIPS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className="chip-button mono"
+                  title={c.help}
+                  data-keyword-chip={c.key}
+                  disabled={present.includes(c.key)}
+                  onClick={() => box.current?.add(c.line, { commit: c.commit, select: c.select })}
+                >
+                  + {c.key}
+                </button>
+              ))}
+            </fieldset>
+            <YamlField
+              ref={box}
+              // Remount when the file changes underneath (undo, another editor).
+              key={JSON.stringify(impl.keywords ?? null)}
+              id={id}
+              rows={4}
+              value={impl.keywords}
+              placeholder={`when: version_check.stdout is version("17.9", "<")\nloop: "{{ interfaces }}"`}
+              validate={(v) => {
+                if (v === null || v === undefined) return undefined;
+                if (typeof v !== 'object' || Array.isArray(v)) return 'A map of keyword: value';
+                for (const k of Object.keys(v)) {
+                  const problem = keywordProblem(k);
+                  if (problem) return problem;
+                }
+                return undefined;
+              }}
+              onChange={(v) => void updatePatch(node.id, { keywords: v ?? null })}
+            />
+          </div>
+        )}
+      </Fold>
+    </section>
   );
 }

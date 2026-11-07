@@ -41,6 +41,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | shared-source | A shared subflow's source is missing (the file or the subflow key), or has a newer version than the copy. | Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone. |
 | rolling-unsupported | A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow. | Move that step out of the subflow, or remove rolling: without it the steps run play by play. |
 | legacy-port | A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host. | Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps. |
+| timeout-unreadable | settings.timeout is not a duration the generated code can read, so the step runs without a timeout. | Write it as 30s, 15m or 1h30m (update_node settings.timeout). |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
@@ -51,6 +52,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. |
 | condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
 | subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
+| until-whole-result | settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds. | Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until). |
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become AWX segments. | Keep approvals on the top level, one at a time. |

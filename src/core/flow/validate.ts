@@ -6,6 +6,7 @@ import { idGaps, withIds } from './completeIds';
 import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
+import { durationSeconds } from './duration';
 import { exprRefs, refsIn } from './jinja';
 import { keywordReads } from './keywords';
 import { formatOf } from './migrate';
@@ -19,6 +20,7 @@ import type { SchemaIssue } from './schema';
 import { planSegments } from './segments';
 import { hasStatus, runtimeKind, statusFor } from './status';
 import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
+import { comparesWholeResult } from './until';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -484,6 +486,22 @@ function checkEnginePorts(
       });
     }
   }
+  // AFD-103: a timeout codegen cannot read is left out of the task without a word.
+  const timeout = node.settings?.timeout;
+  if (
+    !hasInner &&
+    timeout !== undefined &&
+    String(timeout).trim() &&
+    durationSeconds(timeout) === undefined
+  ) {
+    add({
+      code: 'timeout-unreadable',
+      severity: 'warning',
+      message: `${label(node)} timeout "${timeout}" is not a duration (30s, 15m, 1h30m), so the step runs without one`,
+      path: [...path, 'settings', 'timeout'],
+      node: node.id,
+    });
+  }
   if (enabled.has('timeout') && !hasInner && !node.settings?.timeout) {
     add({
       code: 'timeout-without-setting',
@@ -681,7 +699,19 @@ function checkConditions(
       path: [...path, 'settings', 'until'],
       node: node.id,
     });
-  else check(until, [...path, 'settings', 'until'], 'until', registerName(node));
+  else {
+    const result = registerName(node);
+    check(until, [...path, 'settings', 'until'], 'until', result);
+    // AFD-103 (round 3: R2): the whole result is a dict, so comparing it with a value never holds.
+    if (comparesWholeResult(until, result))
+      add({
+        code: 'until-whole-result',
+        severity: 'warning',
+        message: `${label(node)} until compares the whole result ${result} with a value, so it never holds: test a field of it, like ${result}.stdout or ${result}.rc`,
+        path: [...path, 'settings', 'until'],
+        node: node.id,
+      });
+  }
 }
 
 /** A subflow output without from lifts the inner output of the same name (AFD-21). */

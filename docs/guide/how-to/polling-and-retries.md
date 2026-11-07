@@ -1,7 +1,10 @@
 # Retries and polling
 
-Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details
-(the tab groups settings as Targeting, Privilege, Timing and Tags):
+Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details.
+Each group's fold names what it holds ("Timing: timeout, retries, until, delay · 2 set"); on a
+step bound to a module, Timing is open until you close it. Under the fields, one sentence says what
+the generated task will do with them, for example "Tries up to 10 times, 15 s apart, until 'ready'
+in wait_up_result.stdout; each try at most 30s.
 
 | You want                                                          | Set                                  |
 | ----------------------------------------------------------------- | ------------------------------------ |
@@ -19,7 +22,9 @@ success: the generated task gets `until: <register> is succeeded`.
 ## Polling with Until
 
 **Until** is a Jinja test without braces. It reads the step's registered result by its name (the
-field's label shows it, default `<key with _>_result`) and the step's inputs:
+field's label shows it, default `<key with _>_result`) and the step's inputs. As you type, the field
+offers the result's fields from the module's documented returns (`wait_up_result.status`,
+`wait_up_result.stdout`, …):
 
 ```yaml
 settings:
@@ -33,12 +38,17 @@ fails (`failed_hosts`) when it never does.
 
 - `target_version` here is an input of the step (`from: flow.target_version`). The validator
   checks every name in Until (`condition-unknown-var`).
+- Test a **field** of the result, not the whole result: `wait_up_result == "ready"` compares a dict
+  with a string and never holds, so the step polls to the end every time. The validator warns
+  (`until-whole-result`); `'ready' in wait_up_result.stdout` is what was meant.
 - Until applies to **module** steps. On a role or a playbook it is ignored, with a warning
   (`until-not-module`): put the polling in its own module step.
 - A failed attempt, such as connection refused during a reboot, counts as "not yet": the step
   keeps polling.
-- **Timeout** (Execution tab) limits one attempt. With the optional `timeout` port enabled, hosts
-  that time out leave through it.
+- **Timeout** (Execution tab) limits one attempt, not the time between attempts (that is
+  **Delay**). Write it as `30s`, `15m` or `1h30m`: the field refuses anything else, and a timeout
+  written otherwise in the file is left out of the task, with a warning (`timeout-unreadable`). With
+  the optional `timeout` port enabled, hosts that time out leave through it.
 
 ## Retry (pattern)
 

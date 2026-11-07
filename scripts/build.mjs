@@ -20,7 +20,7 @@ const MCP_BUDGET = 1088 * 1024;
 // raises the webview's to 1,152 KB (approved with the wave); AFD-80 left it at 1,087 of 1,088.
 // AFD-92 (wave 9) crossed the host's at 835 KB: raised to 864 KB, as wave 8's plan allowed.
 const EXTENSION_BUDGET = 864 * 1024;
-const WEBVIEW_BUDGET = 1152 * 1024;
+const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */
 function checkBudget(file, budget) {
