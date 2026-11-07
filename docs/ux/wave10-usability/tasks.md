@@ -3,7 +3,8 @@
 AFD-109. Round 4 tests the wave 10 build (0.68.1) with a person, as round 3 tested wave 9
 (`../wave9-usability/`). The method, measures, severity scale and privacy rules are the same
 (`../wave8-usability/protocol.md`). This page says what changes and lists the tasks. The kit runs it
-as variant D; the walkthrough is `walkthrough-r4.md`.
+as variant D; the walkthrough is `walkthrough-r4.md`, and the session's results are `round4.md`.
+D2's "up to 12 times" with Retries 12 follows the designer's count, which is one try short (Q1).
 
 ## Why round 4
 

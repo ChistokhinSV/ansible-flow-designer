@@ -46,7 +46,7 @@ Nothing here ships in the extension.
 - `wave10-usability/`: round 4, on 0.68.1 (AFD-109). It has 10 tasks in three parts, about 45
   minutes, each a round 3 task whose finding wave 10 changed, plus two controls. The kit runs it as
   variant D (`just usability-kit 4 d <vsix>`). `walkthrough-r4.md` is the walkthrough before the
-  session.
+  session; `round4.md` has the session's results (SUS 82.5) and findings Q1-Q6 (AFD-110).
 - `a11y-checklist.md`: the accessibility checks for each surface, with the baseline and wave 3
   results, the annotations (wave 6) and the first hour (wave 7).
 
