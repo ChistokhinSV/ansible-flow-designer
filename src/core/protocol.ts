@@ -8,6 +8,7 @@ import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
+import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
 import type { RepoState } from './view/flowFacts';
 import type { OutsideMarks } from './view/outsideChanges';
@@ -207,6 +208,8 @@ export type HostMessage =
   | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
   /** AFD-84: the flow's scenario results; `show` puts that one on the canvas in Run mode. */
   | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
+  /** AFD-115: the live check of the flow's scenarios (simulated), with the last Ansible verdicts. */
+  | { type: 'scenarioCheck'; check: ScenarioCheck }
   /** AFD-85: what changed outside the designer since it opened; null when cleared. */
   | { type: 'outsideMarks'; marks: OutsideMarks | null }
   /** AFD-93: the workspace's flows at a glance, for the flow panel's line. */

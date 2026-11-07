@@ -19,7 +19,9 @@ const MCP_BUDGET = 1088 * 1024;
 // At 765 KB after wave 5, the product owner raised the host's to 832 KB (AFD-63). Wave 8's plan
 // raises the webview's to 1,152 KB (approved with the wave); AFD-80 left it at 1,087 of 1,088.
 // AFD-92 (wave 9) crossed the host's at 835 KB: raised to 864 KB, as wave 8's plan allowed.
-const EXTENSION_BUDGET = 864 * 1024;
+// AFD-115 (wave 11) crossed it at 869 KB with the scenario simulator and the live check: the product
+// owner raised it to 928 KB, room for the rest of wave 11 (canvas authoring, the scenario tool).
+const EXTENSION_BUDGET = 928 * 1024;
 const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */

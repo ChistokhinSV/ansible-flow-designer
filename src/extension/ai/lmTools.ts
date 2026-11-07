@@ -10,6 +10,7 @@ import { type FlowIO, runTool } from '../../core/ai/handlers';
 import { type Op, opLabel } from '../../core/ai/ops';
 import { isSourceFile, SKIP_GLOB, SOURCE_MAX_BYTES } from '../../core/ai/sourceRules';
 import { TOOL_SPECS, type ToolSpec } from '../../core/ai/specs';
+import { parseFlow } from '../../core/flow/document';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
@@ -17,6 +18,7 @@ import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
 import { authorName } from '../gitHead';
 import { workspaceSource } from '../import/common';
+import { followScenarios } from '../run/scenarioFollow';
 
 const FLOWS = '**/*.flow.yaml';
 const SKIP = SKIP_GLOB;
@@ -135,14 +137,27 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
           new vscode.Range(doc.positionAt(e.start), doc.positionAt(e.end)),
           e.newText,
         );
+      // AFD-115: steps renamed or moved are renamed in the flow's scenarios file too.
+      const follow = await followScenarios(uri, parseFlow(before).doc, parseFlow(after).doc).catch(
+        () => undefined,
+      );
+      follow?.apply(edit);
+      const followed = follow ? [`Scenarios updated: ${follow.notes.join(', ')}.`] : [];
       if (!(await vscode.workspace.applyEdit(edit))) throw new Error('VS Code rejected the edit');
       if (wasDirty)
         return {
           text: doc.getText(),
-          notes: ['Not saved: the file had unsaved changes before the edit; the user saves it.'],
+          notes: [
+            'Not saved: the file had unsaved changes before the edit; the user saves it.',
+            ...followed,
+          ],
         };
+      // Saving the flow saves a scenarios file its edit changed (saveFollowed).
       await doc.save();
-      return { text: doc.getText(), notes: ['Saved (Ctrl+Z in the editor undoes the edit).'] };
+      return {
+        text: doc.getText(),
+        notes: ['Saved (Ctrl+Z in the editor undoes the edit).', ...followed],
+      };
     },
     async create(path, text) {
       const uri = await resolve(path, false);

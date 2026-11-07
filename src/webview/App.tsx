@@ -67,6 +67,8 @@ function useHost() {
         ui.setLaunchFacts(m.token, m.facts, m.error);
       } else if (m.type === 'scenarios') {
         ui.setScenarios(m.results, m.show);
+      } else if (m.type === 'scenarioCheck') {
+        ui.setScenarioCheck(m.check);
       } else if (m.type === 'outsideMarks') {
         ui.setOutside(m.marks);
       } else if (m.type === 'repoState') {

@@ -14,6 +14,7 @@ import { FlowSession, type SessionDeps } from './flowSession';
 import type { PlaybookImportDeps } from './import/playbookImport';
 import { logChannel } from './log';
 import type { RunDeps } from './run/runner';
+import type { ScenarioLive } from './run/scenarioLive';
 import { ShownFlows } from './shownFlows';
 
 export const VIEW_TYPE = 'afd.flowEditor';
@@ -40,6 +41,8 @@ export class Host {
   readonly shown: ShownFlows;
   /** AFD-93: the workspace's flows, for the Flows view, Problems and the flow panel. */
   readonly index: FlowIndex;
+  /** AFD-115: the live check of every flow's scenarios (set when the extension activates). */
+  scenarioLive?: ScenarioLive;
 
   constructor(readonly context: vscode.ExtensionContext) {
     this.testMode = context.extensionMode === vscode.ExtensionMode.Test;

@@ -112,6 +112,38 @@ describe('MCP server', () => {
     expect((parse(disk()) as FlowDocument).flow.version).toBe(4);
   });
 
+  it('AFD-115: renaming a step renames it in the scenarios file too', async () => {
+    const scenarios = join(repo, 'flows/edge-baseline/edge-baseline.scenarios.yaml');
+    const text = [
+      '# A comment the edit keeps.',
+      'flow: edge-baseline',
+      'scenarios:',
+      '  - name: a failed validation rolls back',
+      '    inputs: { devices: [sw-01, sw-02], site: lab }',
+      '    force:',
+      '      validate:',
+      '        failed: [sw-02]',
+      '    expect:',
+      '      sw-01: done',
+      '      sw-02: failed',
+      '',
+    ].join('\n');
+    writeFileSync(scenarios, text);
+    const r = await call('flow_edit', {
+      ops: [{ op: 'update_node', node: 'validate', key: 'validate-config' }],
+    });
+    expect(r.isError).toBe(false);
+    expect(r.text).toContain('Scenarios updated: validate → validate-config.');
+    expect(readFileSync(scenarios, 'utf8')).toBe(
+      text.replace('      validate:', '      validate-config:'),
+    );
+    await call('flow_edit', {
+      ops: [{ op: 'update_node', node: 'validate-config', key: 'validate' }],
+    });
+    expect(readFileSync(scenarios, 'utf8')).toBe(text);
+    rmSync(scenarios);
+  });
+
   it('wave 4: a format 1 file explains the upgrade, is upgraded by an op and edited in format 2', async () => {
     const refused = await call('flow_edit', {
       ops: [

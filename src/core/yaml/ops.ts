@@ -307,7 +307,8 @@ export function renameKey(file: YamlFile, mapPath: Path, key: string, next: stri
   if (loc.ancestors.some(hasAnchor) || hasAnchor(map) || hasRefs(pair.key)) {
     return fail('unsupported', 'edit touches YAML anchors or aliases');
   }
-  const plain = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(next);
+  // A slash is plain in YAML: scenario files name steps inside subflows `sub/step` (AFD-115).
+  const plain = /^[A-Za-z0-9][A-Za-z0-9_./-]*$/.test(next);
   return ok([{ start: range[0], end: range[1], newText: plain ? next : JSON.stringify(next) }]);
 }
 

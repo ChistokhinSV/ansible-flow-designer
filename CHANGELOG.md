@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.71.0 — AFD-115
+
+Wave 11, part 2: scenarios stay current with their flow.
+
+- **Renames follow:** renaming a step or an end, renaming a subflow, or extracting steps into a new subflow changes the key paths a scenarios file names them by. The designer, the Copilot flow tools and the MCP server now rewrite the scenarios file in the same edit. The designer saves the scenarios file when you save the flow; the tools say what they renamed. A step you delete is left for the check to name.
+- **Checked as you type:** shortly after you change a flow or its scenarios file, the scenarios are checked and simulated, even when the file is not open. Problems shows:
+  - a host the simulation sends elsewhere, on its `expect` line: "Simulated: h03 ended at Gate's open failed_hosts; the scenario expected Done";
+  - a failing scenario on the flow (`scenario-miss`);
+  - a note on a scenario the simulator can model only as a best effort.
+- **Verdicts from Ansible are kept:** Run Scenarios results are stored per flow with when they ran. A result is out of date once the flow's routing or that scenario changes; a status, a position or a note does not count. The canvas shows them in the next version.
+- **For the canvas and the tools:** scenario files can be changed by commands, each one edit: add, rename, duplicate or delete a scenario, set its hosts, force an outcome, set an approval or an expectation. A new file lists hosts on one line, as people write them.
+
 ## 0.70.0 — AFD-114
 
 Wave 11 starts: scenarios you can write without typing YAML. First, an answer in milliseconds instead of minutes, which the canvas, the AI tools and the Testing view will use.

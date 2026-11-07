@@ -93,7 +93,7 @@ function nodeDesign(node: FlowNode): unknown {
 }
 
 /** FNV-1a: a short fingerprint is enough to tell a node's design apart (no crypto in the webview). */
-function fnv1a(text: string): string {
+export function fnv1a(text: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i);
@@ -107,6 +107,23 @@ export function nodeDesigns(doc: FlowDocument): Record<Ulid, string> {
   const out: Record<Ulid, string> = {};
   for (const n of walkNodes(doc.nodes)) out[n.id] = fnv1a(JSON.stringify(canonical(nodeDesign(n))));
   return out;
+}
+
+/**
+ * What decides where hosts go (AFD-115): every node's design, the top-level wires and the flow's
+ * inputs. A scenario verdict made on another routing design is out of date; statuses, positions
+ * and notes do not count.
+ */
+export function routingDesign(doc: FlowDocument): string {
+  return fnv1a(
+    JSON.stringify(
+      canonical({
+        nodes: nodeDesigns(doc),
+        edges: doc.edges ?? [],
+        inputs: doc.flow?.inputs ?? {},
+      }),
+    ),
+  );
 }
 
 /**

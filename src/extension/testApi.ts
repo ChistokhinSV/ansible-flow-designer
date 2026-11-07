@@ -10,6 +10,7 @@ import type { FlowCommand } from '../core/flow/commands';
 import type { LensFacts, LensId } from '../core/lens/types';
 import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
 import type { OutputEntry } from '../core/run/events';
+import type { ScenarioCheck } from '../core/scenario/live';
 import type { FlowFacts } from '../core/view/flowFacts';
 import type { OutsideMarks } from '../core/view/outsideChanges';
 import type { Agent, Item as SetupItem } from '../node/ai/writers';
@@ -34,6 +35,8 @@ import { tourReached } from './tour';
 /** Exported from activate() in ExtensionMode.Test only (integration and perf suites). */
 export interface AfdTestApi {
   run(uri: vscode.Uri, command: FlowCommand): Promise<CommandOutcome>;
+  /** AFD-115: the last live check of a flow's scenarios. */
+  scenarioCheck(uri: vscode.Uri): Promise<ScenarioCheck | undefined>;
   inspect(uri: vscode.Uri): Promise<DomSummary>;
   openLevel(uri: vscode.Uri, level: string): void;
   /** Selects a node on the canvas (opening its level), as a click would. */
@@ -125,6 +128,7 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
   };
   return {
     run: (uri, command) => get(uri).runCommand(command),
+    scenarioCheck: async (uri) => host.scenarioLive?.checks.get(uri.toString()),
     aiTool: (name, input) => runTool(flowIO, name, input),
     setupAi: (picks) => aiSetup.setup(picks, false),
     removeAi: (picks) => aiSetup.remove(picks),

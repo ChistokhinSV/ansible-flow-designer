@@ -11,10 +11,13 @@ import type { FlowIO } from '../core/ai/handlers';
 import type { OpsContext } from '../core/ai/ops';
 import { isSourceFile, SKIP_DIRS, SOURCE_MAX_BYTES } from '../core/ai/sourceRules';
 import { planGenerated } from '../core/engine/writePlan';
+import { parseFlow } from '../core/flow/document';
 import type { IdFactory } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
+import { followPaths, pathChanges } from '../core/scenario/follow';
+import { scenariosFileName } from '../core/scenario/scenarios';
 import { applyEdits } from '../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../node/autoLayout';
 
@@ -211,7 +214,23 @@ export class FsFlowIO implements FlowIO {
     const plan = planSave(after, before, head ?? before);
     const text = applyEdits(after, plan.edits);
     await this.replace(file, text);
-    return { text, notes: await this.generate(file, text) };
+    const followed = await this.followScenarios(file, before, text);
+    return { text, notes: [...followed, ...(await this.generate(file, text))] };
+  }
+
+  /** AFD-115: steps renamed or moved are renamed in the scenarios file next to the flow too. */
+  private async followScenarios(file: string, before: string, after: string): Promise<string[]> {
+    const was = parseFlow(before).doc;
+    const now = parseFlow(after).doc;
+    if (!was?.flow?.key || !now) return [];
+    const changes = pathChanges(was, now);
+    if (changes.moved.size === 0) return [];
+    const scenarios = join(dirname(file), scenariosFileName(was.flow.key));
+    const current = await fs.readFile(scenarios, 'utf8').catch(() => undefined);
+    const result = current === undefined ? undefined : followPaths(current, changes);
+    if (!result) return [];
+    await this.replace(scenarios, result.text);
+    return [`Scenarios updated: ${result.notes.join(', ')}.`];
   }
 
   /** AFD-25: a .drawio or .svg export inside the roots (folders created); the shown path. */

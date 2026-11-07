@@ -10,6 +10,7 @@ import { type CodegenOutcome, generateFlow } from './codegen';
 import { announceImplementedAgain, type SessionDeps } from './flowSession';
 import { headText } from './gitHead';
 import { type Host, isFlow } from './host';
+import { saveFollowed } from './run/scenarioFollow';
 
 export function registerDocuments(host: Host): vscode.Disposable[] {
   const { sessions, lastSaved, savedCode, deps } = host;
@@ -39,6 +40,8 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (!isFlow(doc)) return;
       lastSaved.set(doc.uri.toString(), doc.getText());
+      // AFD-115: a scenarios file the flow's edits changed is saved with it.
+      void saveFollowed(doc.uri);
       // AFD-92: saved in the designer, this is what it shows (save edits included).
       const session = sessions.get(doc.uri.toString());
       if (session?.hasPanels) void session.rememberShown();

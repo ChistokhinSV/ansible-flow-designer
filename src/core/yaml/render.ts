@@ -21,7 +21,12 @@ export class Literal {
   constructor(readonly text: string) {}
 }
 
-export type YamlValue = Plain | Literal | YamlValue[] | { [key: string]: YamlValue };
+/** A short list written inline (`[host-01, host-02]`), as people write lists of names (AFD-115). */
+export class FlowList {
+  constructor(readonly items: readonly Plain[]) {}
+}
+
+export type YamlValue = Plain | Literal | FlowList | YamlValue[] | { [key: string]: YamlValue };
 
 /** `|-` / `|` and the content lines at `col`, or undefined where a literal block would not fit. */
 export function literalLines(
@@ -115,6 +120,7 @@ function isEmptyCollection(v: YamlValue): boolean {
  */
 export function renderInline(v: YamlValue, hint?: QuoteHint): string | undefined {
   if (v instanceof Literal && literalLines(v.text, 2)) return undefined;
+  if (v instanceof FlowList) return renderFlow([...v.items]);
   if (isPlainValue(v)) return renderScalar(plainOf(v), hint);
   if (isEmptyCollection(v)) return Array.isArray(v) ? '[]' : '{}';
   return undefined;
@@ -128,6 +134,7 @@ function flowSafe(rendered: string): string {
 /** Flow style for a value inside a flow collection (`[a, b]`, `{x: 1}`). */
 export function renderFlow(v: YamlValue, hint?: QuoteHint): string {
   if (isPlainValue(v)) return flowSafe(renderScalar(plainOf(v), hint));
+  if (v instanceof FlowList) return renderFlow([...v.items]);
   if (Array.isArray(v)) return `[${v.map((x) => renderFlow(x)).join(', ')}]`;
   return `{${Object.entries(v)
     .map(([k, x]) => `${flowSafe(renderKey(k))}: ${renderFlow(x)}`)

@@ -94,3 +94,43 @@ Usability round 4 (Q5): the participant answered from a step's forced row, which
 where the host ended or where the scenario expected it; that was only in the miss line and the
 row's tooltip. When the host missed, the row adds `missWords` ("ended at Stopped; the scenario
 expected Reported to the NOC"), `missText` without the host's name, which the row already shows.
+
+## Amendment: scenarios stay current (AFD-115, wave 11, 2026-11-07)
+
+A scenarios file was text that nothing kept in step with its flow:
+
+- renaming a step broke the scenarios that named it, silently;
+- errors showed only while the file was open;
+- a verdict lived until VS Code closed, and never said when the flow had changed since.
+
+- **The file is a document** (`core/scenario/edit.ts`). The canvas and the tools change it through
+  byte-preserving commands: add, rename, duplicate and delete a scenario; set its hosts (a host
+  taken out loses its expectation and forced outcomes); force or unforce an outcome; set an
+  approval; set expectations. Each is one edit, so one undo.
+  - A first scenario creates the file, with the list indented and host lists on one line, as the
+    hand-written files have them.
+  - `FlowList` in the YAML renderer writes a short list inline.
+- **Key paths follow the flow** (`core/scenario/follow.ts`).
+  - `pathChanges(before, after)` matches nodes by ID: a step or end renamed, a subflow renamed
+    (every path inside it), or a step moved into a subflow by an extraction.
+  - `followPaths` rewrites `force` and `approvals` keys and `expect` values (`<step>.<port>`
+    included).
+  - Where it runs:
+    - the designer adds the edit to the flow's `WorkspaceEdit`, and saves the scenarios file with
+      the flow (`saveFollowed`);
+    - the Copilot tools do the same, and their answer says what followed;
+    - the MCP server writes the file next to the flow.
+  - A key path whose node was deleted stays; the check names it.
+- **The live check** (`core/scenario/live.ts`, `extension/run/scenarioLive.ts`) runs about 200 ms
+  after a flow or its scenarios file changes, on the open buffers when there are any:
+  - `checkScenarios`, then the simulator (ADR-0032) for each scenario when the file has no errors;
+  - Problems shows the file's errors and warnings;
+  - a host the simulation sends elsewhere gets a warning on its `expect` line ("Simulated: h03
+    ended at Gate's open failed_hosts; the scenario expected Done");
+  - a failing scenario gets a `scenario-miss` warning on the flow;
+  - a scenario the simulator models only as a best effort gets an information line;
+  - the designer gets the whole check (`scenarioCheck` message), for the canvas (AFD-116).
+- **Verdicts from Ansible are kept** in workspace storage per flow. Each keeps when it ran,
+  `routingDesign(doc)` (node designs, top-level wires and flow inputs; statuses, positions and notes
+  do not count), and the scenario's hash. A verdict is out of date when either changed. Verdicts of
+  scenarios no longer in the file are dropped.

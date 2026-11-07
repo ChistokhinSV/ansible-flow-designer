@@ -26,6 +26,7 @@ import type {
   WebviewMessage,
 } from '../core/protocol';
 import { hostOutput, type OutputEntry } from '../core/run/events';
+import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import type { RepoState } from '../core/view/flowFacts';
 import { isWebLink, linksOf } from '../core/view/markdown';
@@ -53,6 +54,7 @@ import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
 import type { RunDeps } from './run/runner';
+import { announceFollow, followScenarios } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
 import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
@@ -511,6 +513,8 @@ export class FlowSession implements vscode.Disposable {
         void this.deps.repo?.().then((state) => {
           if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
         });
+        if (this.scenarioCheck)
+          this.post(panel, { type: 'scenarioCheck', check: this.scenarioCheck });
         if (this.scenarios) {
           const { results, show } = this.scenarios;
           this.post(panel, { type: 'scenarios', results, ...(show ? { show } : {}) });
@@ -844,6 +848,18 @@ export class FlowSession implements vscode.Disposable {
   /** AFD-84: the scenario results for the run panel; `show` puts that one on the canvas. */
   private scenarios: { results: ScenarioResult[]; show?: string } | undefined;
 
+  /** AFD-115: the live check of the flow's scenarios, sent to every designer and kept for new ones. */
+  private scenarioCheck: ScenarioCheck | undefined;
+
+  setScenarioCheck(check: ScenarioCheck): void {
+    this.scenarioCheck = check;
+    this.broadcast({ type: 'scenarioCheck', check });
+  }
+
+  get scenarioState(): ScenarioCheck | undefined {
+    return this.scenarioCheck;
+  }
+
   showScenarios(results: ScenarioResult[], show?: string): void {
     // A designer opened for Show on Canvas gets them when it is ready.
     this.scenarios = { results, show };
@@ -903,6 +919,13 @@ export class FlowSession implements vscode.Disposable {
     if (result.edits.length === 0 && !extra) return { ok: true, ...made };
     const edit = new vscode.WorkspaceEdit();
     extra?.(edit);
+    // AFD-115: renamed or moved steps are renamed in the scenarios file too, in the same edit.
+    const follow = await followScenarios(
+      this.uri,
+      snapshot.doc,
+      flowFromFile(result.file).doc,
+    ).catch(() => undefined);
+    follow?.apply(edit);
     for (const e of result.edits) {
       edit.replace(
         this.uri,
@@ -914,6 +937,7 @@ export class FlowSession implements vscode.Disposable {
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) return { ok: false, error: 'VS Code rejected the edit' };
     markTour(command);
+    if (follow) announceFollow(follow);
     if (result.dropped) announceImplementedAgain(flowFromFile(result.file).doc, result.dropped);
     return { ok: true, ...made };
   }

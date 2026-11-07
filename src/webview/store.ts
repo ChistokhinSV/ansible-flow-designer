@@ -10,6 +10,7 @@ import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import { type NodeRun, runStates } from '../core/run/view';
+import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import { scenarioRun } from '../core/scenario/view';
 import type { RepoState } from '../core/view/flowFacts';
@@ -195,6 +196,8 @@ interface UiState {
   launchNotice?: string;
   /** AFD-84: the flow's last scenario results, the one shown on the canvas, and the run it hides. */
   scenarios: ScenarioResult[] | null;
+  /** AFD-115: the live check of the flow's scenarios (simulated), with the last Ansible verdicts. */
+  scenarioCheck: ScenarioCheck | null;
   scenarioShown: string | null;
   runBeforeScenario: RunView | null;
   /** AFD-85: what changed outside the designer since it opened, and the subflows around it. */
@@ -268,6 +271,7 @@ interface UiState {
   setRun(r: RunView | null): void;
   setRunAsked(on: boolean): void;
   setScenarios(results: ScenarioResult[], show?: string): void;
+  setScenarioCheck(check: ScenarioCheck): void;
   setOutside(marks: OutsideMarks | null): void;
   setRepo(state: RepoState | null): void;
   /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
@@ -355,6 +359,7 @@ export const useUi = create<UiState>((set, get) => ({
   runAsked: false,
   launch: null,
   scenarios: null,
+  scenarioCheck: null,
   scenarioShown: null,
   runBeforeScenario: null,
   outside: null,
@@ -502,6 +507,7 @@ export const useUi = create<UiState>((set, get) => ({
     const doc = get().snapshot?.doc;
     set({ outside, outsideAround: outside && doc ? markedAround(outside, doc) : [] });
   },
+  setScenarioCheck: (scenarioCheck) => set({ scenarioCheck }),
   setScenarios(scenarios, show) {
     set({ scenarios });
     if (show) get().showScenario(show);

@@ -39,9 +39,21 @@ scenarios:
       sw-02: failed
 ```
 
-The Problems panel checks the file against the flow as you type: steps, ports, hosts and ends that
-do not exist are errors. A host that runs but has no expectation is a warning: nothing checks where
-it ends, and the scenarios still run.
+The Problems panel checks the file against the flow as you type, open or not: steps, ports, hosts
+and ends that do not exist are errors. A host that runs but has no expectation is a warning: nothing
+checks where it ends, and the scenarios still run.
+
+Each scenario is also simulated as you change the flow or the file. The simulation works out where
+each host goes from the flow itself, in milliseconds, without Ansible. A host that would end
+elsewhere gets a warning on its `expect` line, and the flow gets one per failing scenario (with
+"(simulated)"). Run Scenarios still runs them in Ansible: that is the verdict to trust, and the
+designer keeps it until the flow's routing or the scenario changes.
+
+## When the flow changes
+
+Renaming a step, an end or a subflow, or extracting steps into a subflow, renames them in the
+scenarios file too, in the same edit. The flow tools of AI assistants do the same. Deleting a step
+leaves its name in the file, and Problems says it is gone.
 
 ## Run them
 
