@@ -153,3 +153,31 @@ describe('the scenarios file as a document (AFD-115)', () => {
     );
   });
 });
+
+describe('the flow tools replace a scenario whole (AFD-117)', () => {
+  it('writes it in place, renamed if asked, and keeps the other scenarios', () => {
+    const out = edit({
+      kind: 'replace',
+      name: 'every host goes through',
+      scenario: {
+        name: 'one host fails the gate',
+        inputs: { devices: ['h01', 'h02'] },
+        force: { gate: { failed: ['h02'] } },
+        expect: { h01: 'done', h02: 'gate.failed_hosts' },
+      },
+    });
+    expect(scenarios(out).map((s) => s.name)).toEqual([
+      'one host fails the gate',
+      'hosts as comma-separated text, as an AWX survey answers',
+      THIRD,
+    ]);
+    expect(out).toContain('devices: [h01, h02]');
+    expect(() =>
+      edit({
+        kind: 'replace',
+        name: THIRD,
+        scenario: { name: 'every host goes through', expect: {} },
+      }),
+    ).toThrow('already there');
+  });
+});

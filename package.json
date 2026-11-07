@@ -7,7 +7,7 @@
     "color": "#14B8A6",
     "theme": "dark"
   },
-  "version": "0.72.0",
+  "version": "0.73.0",
   "publisher": "chistokhinsv",
   "license": "MIT",
   "repository": {
@@ -747,8 +747,8 @@
         "tags": [
           "ansible-flow"
         ],
-        "userDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops and the problem codes.",
-        "modelDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops and the problem codes. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "userDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops, the problem codes and scenario tests.",
+        "modelDescription": "The flow format, the ports of each node type, the failure patterns, the edit ops, the problem codes and scenario tests. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -759,7 +759,8 @@
                 "ports",
                 "patterns",
                 "ops",
-                "problems"
+                "problems",
+                "scenarios"
               ],
               "description": "Part to return (default all)."
             }
@@ -2833,6 +2834,84 @@
           "required": [
             "source"
           ]
+        }
+      },
+      {
+        "name": "afd_flow_scenarios",
+        "displayName": "Scenario tests",
+        "toolReferenceName": "flowScenarios",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "Scenario tests of a flow (<key>.scenarios.yaml): which hosts fail where, and the end each host must reach. list (default) and check show each scenario's verdict in a simulation of the generated code, in milliseconds; add, update and delete write the file (expectations default to where the simulation sends each host); verify runs them in Ansible with every step as its stub. Name steps by key, or subflow/step inside a subflow.",
+        "modelDescription": "Scenario tests of a flow (<key>.scenarios.yaml): which hosts fail where, and the end each host must reach. list (default) and check show each scenario's verdict in a simulation of the generated code, in milliseconds; add, update and delete write the file (expectations default to where the simulation sends each host); verify runs them in Ansible with every step as its stub. Name steps by key, or subflow/step inside a subflow. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            },
+            "action": {
+              "enum": [
+                "list",
+                "check",
+                "add",
+                "update",
+                "delete",
+                "verify"
+              ],
+              "description": "What to do (default list)."
+            },
+            "name": {
+              "type": "string",
+              "description": "The scenario (add, update, delete)."
+            },
+            "rename": {
+              "type": "string",
+              "description": "update: a new name."
+            },
+            "hosts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Host names to run on (any names: they run on this machine). They go on the flow's host-list input."
+            },
+            "inputs": {
+              "type": "object",
+              "description": "Other flow inputs for the run, by name (merged on update)."
+            },
+            "groups": {
+              "type": "object",
+              "description": "Inventory groups for an inventory_target pattern: {lb: [lb-01, lb-02]}."
+            },
+            "force": {
+              "type": "object",
+              "description": "Per step key (or subflow/step): {failed|unreachable|timeout|unchanged: [hosts]}, or {false: [hosts]} on a decision. Only ports the step has. Replaces the whole map on update; {} clears it."
+            },
+            "approvals": {
+              "type": "object",
+              "description": "Per approval key: approved (default), rejected or timeout, for the whole run."
+            },
+            "expect": {
+              "type": "object",
+              "description": "Per host: the end node key (or subflow/end) it must reach, or <step>.<port> for an output with no wire. Leave it out on add to take the simulated ends."
+            },
+            "accept_ends": {
+              "type": "boolean",
+              "description": "update: set the expectations to where the simulation sends each host now."
+            },
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "verify: only these scenarios (default all)."
+            }
+          }
         }
       }
     ],

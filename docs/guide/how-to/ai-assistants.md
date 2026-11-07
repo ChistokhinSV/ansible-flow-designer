@@ -58,6 +58,7 @@ Good to know:
 | `flow_export`       | writes a draw.io file (a page per level, node details as data) or SVG images of the flow ([export](export.md))                     |
 | `source_outline`    | reads a playbook, a folder, a role or an AWX export: its structure, and per task the binding to copy ([import](import.md))         |
 | `flow_import`       | imports a playbook or an AWX template one to one, one step per task ([import](import.md))                                          |
+| `flow_scenarios`    | lists, checks, adds, updates and deletes [scenario tests](scenario-tests.md), and verifies them in Ansible                         |
 - **Answers:** a `flow_edit` answer lists the nodes created, the problems it added or solved
   (counted one by one), and what it did besides the ops: a node put on a wire, an output lifted
   into a subflow, the end node a pattern used.

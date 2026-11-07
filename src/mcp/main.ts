@@ -22,7 +22,8 @@ Layout: leave positions out unless the user asks for an arrangement; the canvas 
 Notes, sections and text on the canvas (annotate, update_annotation; format 2) explain a flow and never run: a note on a node moves with it and becomes a comment above its code.
 A draw.io file or an image of a flow: flow_export (draw.io with a page per level and the node details, or SVG), never a drawing by hand.
 Existing playbooks, roles or AWX templates: read them with source_outline (each task's impl to copy), then design the flow by intent with flow_new and flow_edit; flow_import only for an exact copy.
-flow_reference explains the format, ports, patterns and ops. The ansible-flow skill has the full rules and examples.`;
+Scenario tests (<key>.scenarios.yaml: which hosts fail where, and where each must end): flow_scenarios lists and checks them in a simulation, adds or updates them (expectations default to where the simulation sends each host) and verifies them in Ansible; after changing a flow's wiring, check its scenarios.
+flow_reference explains the format, ports, patterns, ops and scenarios. The ansible-flow skill has the full rules and examples.`;
 
 const io = new FsFlowIO([process.cwd()], createSchemaValidator(), createIdFactory());
 const server = new Server(

@@ -71,6 +71,7 @@ describe('MCP server', () => {
         'flow_new',
         'flow_import',
         'flow_reference',
+        'flow_scenarios',
         'flow_validate',
         'source_outline',
       ].sort(),
@@ -141,6 +142,32 @@ describe('MCP server', () => {
       ops: [{ op: 'update_node', node: 'validate-config', key: 'validate' }],
     });
     expect(readFileSync(scenarios, 'utf8')).toBe(text);
+    rmSync(scenarios);
+  });
+
+  it('AFD-117: flow_scenarios adds a scenario from the simulation, lists and deletes it', async () => {
+    const scenarios = join(repo, 'flows/edge-baseline/edge-baseline.scenarios.yaml');
+    const add = await call('flow_scenarios', {
+      action: 'add',
+      name: 'a failed push rolls back that switch only',
+      hosts: ['sw-01', 'sw-02'],
+      inputs: { site: 'lab' },
+      force: { 'push-baseline': { failed: ['sw-02'] } },
+    });
+    expect(add.isError, add.text).toBe(false);
+    expect(add.text).toContain('Expect: sw-01 → done (Done), sw-02 → failed (Failed).');
+    expect(readFileSync(scenarios, 'utf8')).toContain('push-baseline:');
+    expect((await call('flow_describe', {})).text).toContain(
+      'Scenarios: 1 (all pass, simulated); flow_scenarios lists them.',
+    );
+    expect((await call('flow_scenarios', {})).text).toContain(
+      '- "a failed push rolls back that switch only": pass. Hosts: sw-01, sw-02.',
+    );
+    const del = await call('flow_scenarios', {
+      action: 'delete',
+      name: 'a failed push rolls back that switch only',
+    });
+    expect(del.text).toContain('Deleted');
     rmSync(scenarios);
   });
 

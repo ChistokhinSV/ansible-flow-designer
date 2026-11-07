@@ -174,13 +174,13 @@ node type; `patterns` the failure patterns. See [examples.md](examples.md) for w
 
 ## Scenario tests
 
-A flow can have `<flow key>.scenarios.yaml` next to it: per scenario, `inputs` (the targets input
-lists the hosts), `force` (step key or `sub/step` -> `failed`, `unreachable`, `timeout`, `unchanged`,
-or `false` on a decision -> hosts), optional `approvals` and `groups`, and `expect` (host -> end node
-key, or `<step>.<port>` for an unwired output). Every step runs as its stub on local hosts; decisions
-take true unless forced. Write it with your file tools; run it with Ansible Flow: Run Scenarios, or
-`node .afd/afd-scenarios.js --image <EE image> flows` (exit 1 when a scenario fails). When you
-change a flow's wiring, run its scenarios.
+A scenario plants failures for chosen hosts and says where each host must end. Use
+`flow_scenarios`: `list` shows each one's verdict in a simulation (milliseconds), `add` takes a
+name, `hosts` and `force` (step key or `sub/step` -> `failed`, `unreachable`, `timeout`,
+`unchanged`, or `false` on a decision -> hosts) and expects where the simulation sends each host
+unless you give `expect`; `update` with `accept_ends: true` takes the new ends; `verify` runs them
+in Ansible. After changing a flow's wiring, `check` its scenarios. See
+[references/scenarios.md](references/scenarios.md).
 
 ## Without the tools
 
@@ -195,4 +195,4 @@ Edit the YAML directly, by key:
   refuses canvas edits, runs and code generation.
 
 The full format is in [references/format.md](references/format.md); ops and problem codes are in
-[references/ops.md](references/ops.md).
+[references/ops.md](references/ops.md); scenario tests in [references/scenarios.md](references/scenarios.md).

@@ -182,3 +182,36 @@ Two more tools, ten in all:
 - Copilot asks for confirmation before `flow_import`: "Create … from …, one step per task"; the source is only read.
 - The skill (183 lines), the MCP instructions and the Copilot instructions send import requests to `source_outline` and an intent-based design, with `flow_import` for an exact copy.
 - `dist/mcp.js` is 926 KB with the import reader and mappers; the budget in `scripts/build.mjs` is 960 KB.
+
+## Amendment: scenario tests for agents (AFD-117, wave 11, 2026-11-07)
+
+Agents could not read, write, check or run scenario tests: no tool covered them, and the MCP file IO
+refused the file type. An eleventh tool, `flow_scenarios`, does it by key, as the designer's
+Scenarios tab does by title (ADR-0026 and ADR-0032 amendments):
+
+- **Actions:**
+  - `list` (the default) and `check`: each scenario's verdict in the simulation, what it plants, the
+    hosts that moved (`gate.failed_hosts (Gate's open failed_hosts)`), best-effort notes, and the
+    last Ansible verdict with "out of date";
+  - `add` and `update`: `hosts` go on the targets input; `force`, `approvals` and `groups` replace;
+    `expect` defaults to the simulated ends on add, and `accept_ends` takes them on update;
+  - `delete`;
+  - `verify`.
+
+  A scenario with errors against the flow is not written; its problems come back instead.
+- **`FlowIO`** gets three optional methods:
+  - `readScenarios` and `writeScenarios`. The write refuses when the file changed since it was read.
+  - `verifyScenarios`. Copilot runs Run Scenarios. The MCP server resolves the environment from the
+    workspace's `.vscode/settings.json` (`settingsFromJson`, then `resolveEnvironment`) and uses the
+    CLI's runner, at most 3 minutes per scenario. User settings are not visible there; the error
+    says where to set it.
+- **`flow_describe`** adds "Scenarios: 3 (1 failing, simulated)". **`flow_validate`** adds the
+  file's problems and a `scenario-miss` line per failing scenario.
+- **`flow_reference`** has a `scenarios` topic. The skill gains `references/scenarios.md`, a short
+  pointer, and a worked example. The examples test runs `flow_scenarios` calls and checks what the
+  prose promises.
+- **Instructions:** the MCP instructions and the Copilot instructions say to check scenarios after
+  a wiring change.
+- **Found while writing the example:** the guide's scenario example since AFD-58 forced a failed
+  Validate and expected a rollback. In edge-baseline, Validate's failed_hosts is open; the rollback
+  hangs off Push baseline. The guide and the reference now force `push-baseline`.

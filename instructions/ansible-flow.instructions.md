@@ -15,5 +15,8 @@ This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes w
 - For a draw.io file or an image of a flow use `#flowExport`, not a drawing by hand.
 - To import playbooks, roles or AWX templates, read them with `#sourceOutline` and build the flow by
   intent (copying each task's `impl`); `#flowImport` only for an exact copy.
+- Scenario tests (`<key>.scenarios.yaml`) say which hosts fail where and where each must end. Use
+  `#flowScenarios` to list, check, add, update or verify them; after changing a flow's wiring,
+  check its scenarios.
 - Do not change `flow.version` or files under `generated/`. Leave positions out unless asked: the
   canvas places nodes; to arrange them use `position` on `add_node`, `move` or `unplace`.

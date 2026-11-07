@@ -14,8 +14,10 @@ import { parseFlow } from '../../core/flow/document';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
+import { type ScenarioResult, scenariosFileName } from '../../core/scenario/scenarios';
 import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
+import { CMD } from '../commands/ids';
 import { authorName } from '../gitHead';
 import { workspaceSource } from '../import/common';
 import { followScenarios } from '../run/scenarioFollow';
@@ -110,9 +112,58 @@ async function resolve(path: string, mustExist = true, exportFile = false): Prom
   );
 }
 
+/** AFD-117: the scenarios file next to a flow; its open document when it has one. */
+async function scenariosOf(
+  path: string,
+  key: string,
+): Promise<{ uri: vscode.Uri; text?: string; doc?: vscode.TextDocument }> {
+  const uri = vscode.Uri.joinPath(await resolve(path), '..', scenariosFileName(key));
+  const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+  if (doc) return { uri, text: doc.getText(), doc };
+  try {
+    return { uri, text: new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)) };
+  } catch {
+    return { uri };
+  }
+}
+
 export function hostFlowIO(deps: HostToolDeps): FlowIO {
   let sourceFolder: vscode.WorkspaceFolder | undefined;
   return {
+    async readScenarios(path, key) {
+      return (await scenariosOf(path, key)).text;
+    },
+    async writeScenarios(path, key, before, after) {
+      const s = await scenariosOf(path, key);
+      if (s.text !== before)
+        throw new Error('the scenarios file changed while the tool worked; list them again');
+      const edit = new vscode.WorkspaceEdit();
+      const doc =
+        s.doc ??
+        (before === undefined ? undefined : await vscode.workspace.openTextDocument(s.uri));
+      if (!doc) edit.createFile(s.uri, { contents: new TextEncoder().encode(after) });
+      else
+        for (const e of diffEdits(before ?? '', after))
+          edit.replace(
+            s.uri,
+            new vscode.Range(doc.positionAt(e.start), doc.positionAt(e.end)),
+            e.newText,
+          );
+      const wasDirty = doc?.isDirty ?? false;
+      if (!(await vscode.workspace.applyEdit(edit))) throw new Error('VS Code rejected the edit');
+      if (wasDirty)
+        return ['Not saved: the scenarios file had unsaved changes; the user saves it.'];
+      if (doc) await doc.save();
+      return ['Saved.'];
+    },
+    async verifyScenarios(path, names) {
+      const results = await vscode.commands.executeCommand<ScenarioResult[] | undefined>(
+        CMD.runScenarios,
+        await resolve(path),
+        names,
+      );
+      return results ?? 'The scenarios did not run: the notification in VS Code says why';
+    },
     async list() {
       const uris = await vscode.workspace.findFiles(FLOWS, SKIP, 500);
       return uris.map(relative).sort();

@@ -5,7 +5,7 @@ import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import type { ScenarioResult } from '../../src/core/scenario/scenarios';
-import { closeAll, runEnvironment, withTimeout } from './helpers';
+import { closeAll, runEnvironment, testApi, withTimeout } from './helpers';
 
 const image = runEnvironment;
 /** The repository (the bundle runs from out/test/integration). */
@@ -49,6 +49,19 @@ describe('AFD-58: scenario tests', () => {
           { host: 'h03', step: 'gate', outcome: 'failed', port: 'failed_hosts' },
         ]);
         assert.equal(results?.[0]?.forced, undefined);
+        // AFD-117: the flow tools verify them in Ansible through the same runner.
+        const api = await testApi();
+        const verified = await withTimeout(
+          api.aiTool('flow_scenarios', {
+            path: 'flows/routing-levels/routing-levels.flow.yaml',
+            action: 'verify',
+            names: ['every host goes through'],
+          }),
+          300_000,
+          'verify through the tool',
+        );
+        assert.ok(!verified.isError, verified.text);
+        assert.match(verified.text, /1 of 1 pass in Ansible/);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

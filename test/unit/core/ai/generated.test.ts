@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { languageModelTools } from '../../../../src/core/ai/contributions';
+import type { FlowIO } from '../../../../src/core/ai/handlers';
 import { applyOps, type Op } from '../../../../src/core/ai/ops';
 import { referenceFiles } from '../../../../src/core/ai/reference';
+import { type ScenariosInput, scenariosTool } from '../../../../src/core/ai/scenarios';
 import { checkOps } from '../../../../src/core/ai/specs';
 import { createIdFactory } from '../../../../src/core/flow/ids';
 import { createSchemaValidator } from '../../../../src/core/flow/schema';
@@ -70,7 +72,27 @@ describe('AI assistant files', () => {
     const blocks = [...read('skills/ansible-flow/examples.md').matchAll(/```json\n([\s\S]*?)```/g)];
     expect(blocks.length).toBeGreaterThanOrEqual(5);
     for (const [, block] of blocks) {
-      const { ops } = JSON.parse(block as string) as { ops: Op[] };
+      const call = JSON.parse(block as string) as { ops?: Op[]; action?: string };
+      // AFD-117: a flow_scenarios call; its answer lists what the example's prose promises.
+      if (call.action) {
+        let written = '';
+        const answer = await scenariosTool(
+          {
+            readScenarios: async () => undefined,
+            writeScenarios: async (_p: string, _k: string, _b: unknown, after: string) => {
+              written = after;
+              return [];
+            },
+          } as unknown as FlowIO,
+          { path: 'edge-baseline.flow.yaml', doc: parse(flow) as FlowDocument },
+          call as ScenariosInput,
+        );
+        expect(answer.isError, answer.text).toBeUndefined();
+        expect(answer.text).toContain('Expect: sw-01 → done (Done), sw-02 → failed (Failed).');
+        expect(written).toContain('push-baseline:');
+        continue;
+      }
+      const { ops } = call as { ops: Op[] };
       expect(checkOps(ops)).toEqual([]);
       const r = await applyOps(flow, ops, {
         newId: createIdFactory(),

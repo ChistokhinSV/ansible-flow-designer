@@ -125,3 +125,42 @@ export function resolveEnvironment(
   const source = afd.python ? 'afd' : redhat.interpreterPath ? 'redhat.ansible' : 'default';
   return { ok: true, env: { kind: 'local', python, source, label: `local: ${python}` } };
 }
+
+/**
+ * AFD-117: the environment settings from a workspace's `.vscode/settings.json` (its flat
+ * `afd.environment.*` and `ansible.*` keys), for hosts without VS Code's configuration (the MCP
+ * server). User settings are not there: a workspace that relies on them says so in the error.
+ */
+export function settingsFromJson(json: Record<string, unknown>): {
+  afd: AfdEnvSettings;
+  redhat: RedHatSettings;
+} {
+  const get = <T>(key: string, fallback: T): T => {
+    const v = json[key];
+    return v === undefined || v === null || typeof v !== typeof fallback ? fallback : (v as T);
+  };
+  const list = json['afd.environment.containerOptions'];
+  return {
+    afd: {
+      kind: get('afd.environment.kind', 'auto') as AfdEnvSettings['kind'],
+      containerEngine: get(
+        'afd.environment.containerEngine',
+        'auto',
+      ) as AfdEnvSettings['containerEngine'],
+      image: get('afd.environment.image', ''),
+      containerOptions: Array.isArray(list) ? list.map(String) : [],
+      python: get('afd.environment.python', ''),
+      wslDistro: get('afd.environment.wslDistro', ''),
+    },
+    redhat: {
+      eeEnabled: json['ansible.executionEnvironment.enabled'] as boolean | undefined,
+      image: json['ansible.executionEnvironment.image'] as string | undefined,
+      containerEngine: json['ansible.executionEnvironment.containerEngine'] as string | undefined,
+      containerOptions: json['ansible.executionEnvironment.containerOptions'] as string | undefined,
+      volumeMounts: json[
+        'ansible.executionEnvironment.volumeMounts'
+      ] as RedHatSettings['volumeMounts'],
+      interpreterPath: json['ansible.python.interpreterPath'] as string | undefined,
+    },
+  };
+}

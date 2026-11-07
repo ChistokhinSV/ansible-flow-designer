@@ -627,13 +627,13 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'flow_reference',
     title: 'Flow reference',
     description:
-      'The flow format, the ports of each node type, the failure patterns, the edit ops and the problem codes.',
+      'The flow format, the ports of each node type, the failure patterns, the edit ops, the problem codes and scenario tests.',
     readOnly: true,
     inputSchema: {
       type: 'object',
       properties: {
         topic: {
-          enum: ['all', 'format', 'ports', 'patterns', 'ops', 'problems'],
+          enum: ['all', 'format', 'ports', 'patterns', 'ops', 'problems', 'scenarios'],
           description: 'Part to return (default all).',
         },
       },
@@ -787,6 +787,63 @@ export const TOOL_SPECS: ToolSpec[] = [
         },
       },
       required: ['source'],
+    },
+  },
+  {
+    name: 'flow_scenarios',
+    title: 'Scenario tests',
+    description:
+      "Scenario tests of a flow (<key>.scenarios.yaml): which hosts fail where, and the end each host must reach. list (default) and check show each scenario's verdict in a simulation of the generated code, in milliseconds; add, update and delete write the file (expectations default to where the simulation sends each host); verify runs them in Ansible with every step as its stub. Name steps by key, or subflow/step inside a subflow.",
+    readOnly: false,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: PATH,
+        action: {
+          enum: ['list', 'check', 'add', 'update', 'delete', 'verify'],
+          description: 'What to do (default list).',
+        },
+        name: { type: 'string', description: 'The scenario (add, update, delete).' },
+        rename: { type: 'string', description: 'update: a new name.' },
+        hosts: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            "Host names to run on (any names: they run on this machine). They go on the flow's host-list input.",
+        },
+        inputs: {
+          type: 'object',
+          description: 'Other flow inputs for the run, by name (merged on update).',
+        },
+        groups: {
+          type: 'object',
+          description: 'Inventory groups for an inventory_target pattern: {lb: [lb-01, lb-02]}.',
+        },
+        force: {
+          type: 'object',
+          description:
+            'Per step key (or subflow/step): {failed|unreachable|timeout|unchanged: [hosts]}, or {false: [hosts]} on a decision. Only ports the step has. Replaces the whole map on update; {} clears it.',
+        },
+        approvals: {
+          type: 'object',
+          description:
+            'Per approval key: approved (default), rejected or timeout, for the whole run.',
+        },
+        expect: {
+          type: 'object',
+          description:
+            'Per host: the end node key (or subflow/end) it must reach, or <step>.<port> for an output with no wire. Leave it out on add to take the simulated ends.',
+        },
+        accept_ends: {
+          type: 'boolean',
+          description: 'update: set the expectations to where the simulation sends each host now.',
+        },
+        names: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'verify: only these scenarios (default all).',
+        },
+      },
     },
   },
 ];

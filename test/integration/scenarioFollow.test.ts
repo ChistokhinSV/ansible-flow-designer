@@ -126,6 +126,32 @@ describe('AFD-115: scenarios stay current', () => {
     assert.equal((await api.scenarioUndo(flow)).ok, false);
   });
 
+  it('AFD-117: flow_scenarios through Copilot adds a scenario to a new file, saved', async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    dir = join(root, 'flows', 'routing-levels-ai');
+    mkdirSync(dir, { recursive: true });
+    cpSync(
+      join(REPO, 'test/fixtures/engine/routing-levels.flow.yaml'),
+      join(dir, 'routing-levels.flow.yaml'),
+    );
+    const api = await testApi();
+    const r = await api.aiTool('flow_scenarios', {
+      path: 'flows/routing-levels-ai/routing-levels.flow.yaml',
+      action: 'add',
+      name: 'gate fails',
+      hosts: ['h01', 'h02'],
+      force: { gate: { failed: ['h02'] } },
+    });
+    assert.ok(!r.isError, r.text);
+    assert.match(r.text, /Expect: h01 → done \(Done\), h02 → gate\.failed_hosts/);
+    const file = join(dir, 'routing-levels.scenarios.yaml');
+    assert.match(readFileSync(file, 'utf8'), /gate:\s+failed: \[h02\]/);
+    const list = await api.aiTool('flow_scenarios', {
+      path: 'flows/routing-levels-ai/routing-levels.flow.yaml',
+    });
+    assert.match(list.text, /"gate fails": pass/);
+  });
+
   it('a rename through the flow tools renames it in the scenarios file and saves both', async () => {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
     dir = join(root, 'flows', 'routing-levels-tools');

@@ -5,6 +5,7 @@
 
 import { execFile } from 'node:child_process';
 import { promises as fs, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { findNodeAtLocation, getNodeValue, parseTree } from 'jsonc-parser';
 import type { FlowIO } from '../core/ai/handlers';
@@ -16,10 +17,12 @@ import type { IdFactory } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
+import { resolveEnvironment, settingsFromJson } from '../core/run/environment';
 import { followPaths, pathChanges } from '../core/scenario/follow';
-import { scenariosFileName } from '../core/scenario/scenarios';
+import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
 import { applyEdits } from '../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../node/autoLayout';
+import { runScenarios } from '../node/scenario/runner';
 
 const MAX_BYTES = SOURCE_MAX_BYTES;
 const SKIP = new Set(SKIP_DIRS);
@@ -289,6 +292,69 @@ export class FsFlowIO implements FlowIO {
   }
 
   /** The workspace setting afd.codegen.onSave (.vscode/settings.json), default on. */
+  /** AFD-117: the scenarios file next to a flow, or undefined when there is none. */
+  async readScenarios(path: string, key: string): Promise<string | undefined> {
+    const file = await this.locate(path);
+    return fs.readFile(join(dirname(file), scenariosFileName(key)), 'utf8').catch(() => undefined);
+  }
+
+  async writeScenarios(
+    path: string,
+    key: string,
+    before: string | undefined,
+    after: string,
+  ): Promise<string[]> {
+    const file = await this.locate(path);
+    const target = join(dirname(file), scenariosFileName(key));
+    const now = await fs.readFile(target, 'utf8').catch(() => undefined);
+    if (now !== before)
+      throw new Error('the scenarios file changed while the tool worked; list them again');
+    await this.replace(target, after);
+    return [`Wrote ${this.show(target)}.`];
+  }
+
+  /**
+   * AFD-117: the scenarios in Ansible, in the environment the workspace's .vscode/settings.json
+   * sets (as the designer would run them), with the CLI's runner; each scenario at most 3 minutes.
+   */
+  async verifyScenarios(path: string, names?: string[]): Promise<ScenarioResult[] | string> {
+    const file = await this.locate(path);
+    const root = this.roots.find((r) => inside(r, file)) ?? dirname(file);
+    let json: Record<string, unknown> = {};
+    try {
+      const tree = parseTree(await fs.readFile(join(root, '.vscode', 'settings.json'), 'utf8'));
+      json = (tree ? getNodeValue(tree) : {}) ?? {};
+    } catch {}
+    const { afd, redhat } = settingsFromJson(json);
+    const env = resolveEnvironment(afd, redhat, process.platform);
+    if (!env.ok)
+      return `No Ansible environment to run in: ${env.error}. Set afd.environment.* in ${this.show(join(root, '.vscode', 'settings.json'))}, or run them with Run Scenarios in VS Code.`;
+    const doc = parseFlow(await fs.readFile(file, 'utf8')).doc;
+    if (!doc?.flow?.key) return 'The flow does not read';
+    const parsed = parseScenarios(
+      (await fs
+        .readFile(join(dirname(file), scenariosFileName(doc.flow.key)), 'utf8')
+        .catch(() => '')) || '',
+    );
+    if (!parsed.file) return parsed.error ?? 'No scenarios';
+    const work = await fs.mkdtemp(join(tmpdir(), 'afd-mcp-scenarios-'));
+    try {
+      return await runScenarios({
+        env: env.env,
+        root,
+        probeDir: join(__dirname, 'probe'),
+        flowFile: file,
+        doc,
+        file: parsed.file,
+        workDir: work,
+        only: names,
+        timeoutMs: 180_000,
+      });
+    } finally {
+      await fs.rm(work, { recursive: true, force: true });
+    }
+  }
+
   private async codegenOnSave(root: string): Promise<boolean> {
     try {
       const tree = parseTree(await fs.readFile(join(root, '.vscode', 'settings.json'), 'utf8'));

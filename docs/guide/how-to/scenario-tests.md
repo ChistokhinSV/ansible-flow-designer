@@ -53,12 +53,12 @@ where every host reaches the end. A scenario has:
 ```yaml
 flow: edge-baseline
 scenarios:
-  - name: a failed validation rolls back that switch only
+  - name: a failed push rolls back that switch only
     inputs:
       devices: [sw-01, sw-02]
       site: lab
     force:
-      validate:
+      push-baseline:
         failed: [sw-02]
     expect:
       sw-01: done

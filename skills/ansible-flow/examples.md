@@ -253,3 +253,22 @@ so this flow is upgraded first; on a format 2 flow leave `upgrade_format` out.)
   ]
 }
 ```
+
+## Guard the rollback with a scenario
+
+"Make sure a failed push only rolls back that switch." One `flow_scenarios` call; the expectations
+come from the simulation, so check them in the answer:
+
+```json
+{
+  "action": "add",
+  "name": "a failed push rolls back that switch only",
+  "hosts": ["sw-01", "sw-02"],
+  "inputs": { "site": "lab" },
+  "force": { "push-baseline": { "failed": ["sw-02"] } }
+}
+```
+
+The answer lists `Expect: sw-01 → done (Done), sw-02 → failed (Failed)`. After a later change to
+the flow, `{"action": "check"}` says whether each host still ends there; `{"action": "verify"}` runs
+the scenarios in Ansible.

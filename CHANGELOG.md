@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.73.0 — AFD-117
+
+Wave 11, part 4: AI assistants work with scenario tests.
+
+- **A new flow tool, `flow_scenarios`,** for Copilot (`#flowScenarios`) and the MCP server. An assistant can:
+  - list and check a flow's scenarios in the simulation;
+  - add one by step key (the expectations default to where the simulation sends each host);
+  - update one, or take the new ends with `accept_ends`;
+  - delete one;
+  - verify them in Ansible.
+
+  A scenario that does not fit the flow is not written; the assistant gets its problems instead.
+- **`flow_describe`** says how a flow's scenarios stand, and **`flow_validate`** names a scenario the simulation fails.
+- **The MCP server verifies in the environment** your workspace's `.vscode/settings.json` sets (`afd.environment.*`, or the Red Hat Ansible extension's settings). Copilot runs Run Scenarios.
+- **The `ansible-flow` skill** has a scenarios reference and a worked example, and the assistants' instructions say to check scenarios after a wiring change.
+- **Fixed:** the guide's scenario example forced Validate to fail and expected the switch to roll back. In that flow the rollback follows a failed push, so the example now forces Push baseline.
+
 ## 0.72.0 — AFD-116
 
 Wave 11, part 3: write scenarios on the canvas instead of in YAML.

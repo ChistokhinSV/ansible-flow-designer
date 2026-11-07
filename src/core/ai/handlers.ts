@@ -28,11 +28,19 @@ import { importPlaybook } from '../import/playbook';
 import type { SourceIO } from '../import/read';
 import type { ImportResult } from '../import/result';
 import { type PlaybookForm, readPlaybook } from '../import/source';
+import { checkLive } from '../scenario/live';
+import type { ScenarioResult } from '../scenario/scenarios';
 import { diffEdits } from '../yaml/edits';
 import { countFindings, describeFlow, formatFindings } from './describe';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
 import { type ReferenceTopic, reference } from './reference';
 import { keyPath, RefError, resolveNode, withoutIds } from './refs';
+import {
+  type ScenariosInput,
+  scenarioProblemLines,
+  scenariosLine,
+  scenariosTool,
+} from './scenarios';
 import { checkOps, dropNulls } from './specs';
 
 export interface FlowIO {
@@ -63,6 +71,20 @@ export interface FlowIO {
   source?(path: string): { io: SourceIO; path: string; prefix: string } | undefined;
   /** Short module name + the play's collections → FQCN, where a catalog is loaded. */
   resolveModule?(name: string, collections: string[]): string | undefined;
+  /** AFD-117: the scenarios file next to a flow (`<key>.scenarios.yaml`); undefined if none. */
+  readScenarios?(flowPath: string, flowKey: string): Promise<string | undefined>;
+  /** AFD-117: writes that file (creating it when `before` is undefined); notes for the answer. */
+  writeScenarios?(
+    flowPath: string,
+    flowKey: string,
+    before: string | undefined,
+    after: string,
+  ): Promise<string[]>;
+  /**
+   * AFD-117: runs scenarios in Ansible (every step its stub) in the configured environment; all
+   * when `names` is absent. Absent where the host cannot run them.
+   */
+  verifyScenarios?(flowPath: string, names?: string[]): Promise<ScenarioResult[] | string>;
 }
 
 export interface ToolResult {
@@ -176,19 +198,34 @@ export async function flowDescribe(
     shown && complete
       ? flowLayoutProblems(l.model, shown, level ? new Set([level]) : undefined)
       : undefined;
+  // AFD-117: one line on the flow's scenarios, so an agent knows they are there.
+  const scenarios = complete ? await scenarioCheckOf(io, l) : undefined;
+  const line = scenarios ? scenariosLine(scenarios) : undefined;
   return {
-    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues)}`,
+    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues)}${line ? `\n${line}` : ''}`,
   };
+}
+
+/** AFD-117: the live check of a loaded flow's scenarios, where the host reads them. */
+async function scenarioCheckOf(io: FlowIO, l: Loaded) {
+  const key = l.model.doc.flow?.key;
+  if (!io.readScenarios || !key) return undefined;
+  const text = await io.readScenarios(l.path, key).catch(() => undefined);
+  return text === undefined ? undefined : checkLive(l.model.doc, text);
 }
 
 export async function flowValidate(io: FlowIO, input: { path?: string }): Promise<ToolResult> {
   const l = await load(io, input.path);
   if (isResult(l)) return l;
   const gaps = l.findings.some((f) => f.code === 'missing-id');
+  // AFD-117: the scenarios file's problems and the scenarios the simulation fails.
+  const scenarios = gaps ? undefined : await scenarioCheckOf(io, l);
+  const extra = scenarios ? scenarioProblemLines(l.model.doc, scenarios) : [];
   return {
     text: [
       `${l.path}: ${countFindings(l.findings)}`,
       formatFindings(l.model, l.findings),
+      ...(extra.length ? ['Scenarios:', ...extra] : []),
       ...(gaps ? ['', 'The file was written by hand: run flow_complete_ids first.'] : []),
       `Revision: ${revisionOf(l.text)}`,
     ].join('\n'),
@@ -196,7 +233,7 @@ export async function flowValidate(io: FlowIO, input: { path?: string }): Promis
 }
 
 export function flowReference(input: { topic?: ReferenceTopic }): ToolResult {
-  const topics = ['all', 'format', 'ports', 'patterns', 'ops', 'problems'];
+  const topics = ['all', 'format', 'ports', 'patterns', 'ops', 'problems', 'scenarios'];
   const topic = input.topic ?? 'all';
   if (!topics.includes(topic)) return fail(`topic is one of ${topics.join(', ')}`);
   return { text: reference(topic) };
@@ -653,6 +690,13 @@ export async function runTool(io: FlowIO, name: string, input: unknown): Promise
       return sourceOutlineTool(io, args);
     case 'flow_import':
       return flowImport(io, args);
+    case 'flow_scenarios': {
+      const l = await load(io, (args as { path?: string }).path);
+      if (isResult(l)) return l;
+      if (l.findings.some((f) => f.code === 'missing-id'))
+        return fail(`${l.path} was written by hand: run flow_complete_ids first`);
+      return scenariosTool(io, { path: l.path, doc: l.model.doc }, args as ScenariosInput);
+    }
   }
   return fail(`Unknown tool ${name}`);
 }

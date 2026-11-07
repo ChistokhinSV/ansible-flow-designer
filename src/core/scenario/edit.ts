@@ -17,6 +17,8 @@ export type ScenarioCommand =
   | { kind: 'rename'; name: string; to: string }
   | { kind: 'duplicate'; name: string; to: string }
   | { kind: 'delete'; name: string }
+  /** AFD-117: the whole scenario written anew (the flow tools' update); comments in it go. */
+  | { kind: 'replace'; name: string; scenario: Scenario }
   /** The hosts to run on; a host taken out loses its expectation and forced outcomes. */
   | { kind: 'setHosts'; name: string; hosts: string[] }
   /** The hosts sent down `outcome` at `step` (key path); none removes the entry. */
@@ -169,6 +171,16 @@ export function planScenarioEdit(
     case 'delete': {
       const i = indexOf(list, cmd.name);
       tx.apply((f) => removeItem(f, ['scenarios'], i));
+      break;
+    }
+    case 'replace': {
+      const i = indexOf(list, cmd.name);
+      if (cmd.scenario.name !== cmd.name)
+        unique(
+          list.filter((_, j) => j !== i),
+          cmd.scenario.name,
+        );
+      tx.apply((f) => setIn(f, ['scenarios', i], render(cmd.scenario)));
       break;
     }
     case 'setHosts': {
