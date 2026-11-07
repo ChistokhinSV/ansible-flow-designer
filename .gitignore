@@ -22,3 +22,5 @@ usability-sessions/
 .claude/
 article/
 media/afd-icon-set/
+# Personal GNS3 lab scripts (removed from the public tree in AFD-113), kept locally
+lab/

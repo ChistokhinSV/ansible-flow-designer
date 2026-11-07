@@ -32,7 +32,7 @@ export interface Scenario {
   /** Per step (key, or path `sub/step` inside subflows): the hosts sent down each port. */
   force?: Record<string, Partial<Record<Forced, string[]>>>;
   /** Per approval key: the outcome a local run takes (default approved). */
-  approvals?: Record<string, 'approved' | 'rejected'>;
+  approvals?: Record<string, 'approved' | 'rejected' | 'timeout'>;
   /** Per host: the end node it must reach (key or path), or `<step>.<port>` it must stop at. */
   expect: Record<string, string>;
 }
@@ -48,6 +48,8 @@ export interface ScenarioProblem {
   /** YAML path inside the file, for the editor. */
   path: (string | number)[];
   message: string;
+  /** A warning does not stop a run (AFD-114); an error does. */
+  severity?: 'warning';
 }
 
 export const scenariosFileName = (flowKey: string) => `${flowKey}.scenarios.yaml`;
@@ -79,11 +81,13 @@ export function byPath(doc: FlowDocument): Map<string, FlowNode> {
   return out;
 }
 
-/** The flow input that lists the hosts a run targets. */
+/**
+ * The flow input that lists the hosts a run targets: `targets: true`, else the first host_list,
+ * as the generated start play reads it (AFD-114: a host_list before the targets input was taken).
+ */
 export function targetsInput(doc: FlowDocument): string | undefined {
-  return Object.entries(doc.flow.inputs ?? {}).find(
-    ([, f]) => f?.targets || f?.type === 'host_list',
-  )?.[0];
+  const lists = Object.entries(doc.flow.inputs ?? {}).filter(([, f]) => f?.type === 'host_list');
+  return (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
 }
 
 /** The hosts a scenario runs on: the targets input's list. */
@@ -128,6 +132,11 @@ export function checkScenarios(doc: FlowDocument, file: ScenarioFile): ScenarioP
         continue;
       }
       for (const [port, list] of Object.entries(ports ?? {})) {
+        // AFD-114: a string or null here is no list; the run would read it as no host.
+        if (!Array.isArray(list)) {
+          add(at('force', path, port), `${path}.${port}: give a list of hosts, like [host-01]`);
+          continue;
+        }
         const name = PORT_OF[port as Forced];
         if (!name)
           add(at('force', path, port), `${port} cannot be forced: use ${FORCEABLE.join(', ')}`);
@@ -142,9 +151,19 @@ export function checkScenarios(doc: FlowDocument, file: ScenarioFile): ScenarioP
           if (!known.has(h)) add(at('force', path, port), `${h} is not a host of this scenario`);
       }
     }
-    for (const key of Object.keys(s.approvals ?? {}))
-      if (nodes.get(key)?.type !== 'approval')
+    for (const [key, pick] of Object.entries(s.approvals ?? {})) {
+      const gate = nodes.get(key);
+      if (gate?.type !== 'approval')
         add(at('approvals', key), `No approval ${key} on the top level`);
+      else {
+        // AFD-114: the run stops at an outcome the approval has no port for.
+        const ports = portsFor(gate)
+          .filter((p) => p.direction === 'out')
+          .map((p) => p.name);
+        if (!ports.includes(String(pick)))
+          add(at('approvals', key), `${key}: give one of ${ports.join(', ')}`);
+      }
+    }
     if (!s.expect || Object.keys(s.expect).length === 0)
       add(at('expect'), 'Say where each host must end (expect: host: end key)');
     for (const [host, where] of Object.entries(s.expect ?? {})) {
@@ -159,9 +178,43 @@ export function checkScenarios(doc: FlowDocument, file: ScenarioFile): ScenarioP
           at('expect', host),
           `${where} is neither an end node nor a step's output port (<step>.<port>)`,
         );
+      // AFD-114: a host on a wired port goes on, so it never stops there.
+      else if (wired(doc, step.id, port))
+        add(
+          at('expect', host),
+          `${where} is wired: a host goes on from there; expect the end it reaches`,
+        );
     }
+    // AFD-114: a host with no expectation is never checked.
+    if (s.expect && typeof s.expect === 'object')
+      for (const host of hosts)
+        if (!(host in s.expect))
+          out.push({
+            scenario: i,
+            path: at('expect'),
+            message: `${host} runs but has no expectation, so where it ends is not checked`,
+            severity: 'warning',
+          });
   });
   return out;
+}
+
+/** Whether a node's output port has a wire on its level. */
+function wired(doc: FlowDocument, node: Ulid, port: string): boolean {
+  const model = modelOf(doc);
+  const level = model.levels.get(model.nodes.get(node)?.level ?? '');
+  return !!level?.edges.some((e) => e?.from?.node === node && e.from.port === port);
+}
+
+/** Errors stop a run; warnings only show (AFD-114). */
+export const blocking = (problems: ScenarioProblem[]) =>
+  problems.filter((p) => p.severity !== 'warning');
+
+/** Something in the flow or the scenario the simulator does not model: check it in Ansible. */
+export interface Unsupported {
+  code: 'serial-max-fail' | 'target-pattern' | 'jinja-text' | 'start-pattern';
+  message: string;
+  node?: Ulid;
 }
 
 /** The extra vars of a scenario run: its inputs, the forced outcomes and the approvals. */
@@ -255,6 +308,10 @@ export interface ScenarioResult {
   error?: string;
   /** AFD-84: what the scenario's run did, for showing it on the canvas like a run. */
   summary?: RunSummary;
+  /** AFD-114: computed by the simulator, or by an Ansible stub run (the default). */
+  engine?: 'simulated' | 'ansible';
+  /** AFD-114: what the simulator does not model in this scenario: check it in Ansible. */
+  needsAnsible?: Unsupported[];
 }
 
 export function judge(

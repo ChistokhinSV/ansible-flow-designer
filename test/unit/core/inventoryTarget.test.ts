@@ -68,7 +68,8 @@ describe('inventory_target in Option A', () => {
       'ansible.builtin.set_fact': {
         announce_out: '{{ hostvars[afd_target_done | first].announce_out }}',
       },
-      when: 'afd_target_done | length > 0',
+      // AFD-114: only when the target host set it (a stub registers nothing).
+      when: 'afd_target_done | length > 0 and hostvars[afd_target_done | first].announce_out is defined',
     });
     // The consumer reads the copied register as usual.
     const [consume] = of(find(doc, 'consume'));

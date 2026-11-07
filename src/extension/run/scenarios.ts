@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { parseFlow, rangeOf } from '../../core/flow/document';
 import { stripAnsi } from '../../core/run/ansi';
 import {
+  blocking,
   checkScenarios,
   parseScenarios,
   type ScenarioResult,
@@ -63,7 +64,7 @@ export async function runScenariosCommand(
     return undefined;
   }
   const parsed = parseScenarios(new TextDecoder().decode(await vscode.workspace.fs.readFile(file)));
-  const problems = parsed.file ? checkScenarios(doc, parsed.file) : [];
+  const problems = parsed.file ? blocking(checkScenarios(doc, parsed.file)) : [];
   if (!parsed.file || problems.length > 0) {
     const open = 'Open Scenarios File';
     const pick = await vscode.window.showErrorMessage(
@@ -193,7 +194,9 @@ export function watchScenarioFiles(): vscode.Disposable {
         const diag = new vscode.Diagnostic(
           new vscode.Range(d.positionAt(start), d.positionAt(end)),
           p.message,
-          vscode.DiagnosticSeverity.Error,
+          p.severity === 'warning'
+            ? vscode.DiagnosticSeverity.Warning
+            : vscode.DiagnosticSeverity.Error,
         );
         diag.source = 'Ansible Flow';
         return diag;

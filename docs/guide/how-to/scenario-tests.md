@@ -17,10 +17,12 @@ where every host reaches the end. A scenario has:
   `failed` (failed_hosts), `unreachable`, `timeout` and `unchanged` when the step has that port, and
   `false` on a decision. A decision sends every other host to `true`: the steps that feed its
   condition are stubs.
-- `approvals`: per approval, `approved` (the default) or `rejected`.
+- `approvals`: per approval, `approved` (the default), `rejected`, or `timeout` when the approval
+  has that port.
 - `groups`: hosts for the patterns an `inventory_target` names.
 - `expect`: per host, the end node it reaches (`done`, or `subflow/end`), or `<step>.<port>` for an
-  output nobody wired, where the host stops.
+  output nobody wired, where the host stops. A wired port is no place to stop: the host goes on, so
+  expect the end it reaches.
 
 ```yaml
 flow: edge-baseline
@@ -38,7 +40,8 @@ scenarios:
 ```
 
 The Problems panel checks the file against the flow as you type: steps, ports, hosts and ends that
-do not exist.
+do not exist are errors. A host that runs but has no expectation is a warning: nothing checks where
+it ends, and the scenarios still run.
 
 ## Run them
 
@@ -75,3 +78,14 @@ node .afd/afd-scenarios.js --image ghcr.io/example/netops-ee:2.19 --junit scenar
 
 It exits 1 when a scenario fails and writes JUnit XML for the CI's test report. Without `--image`
 it uses `ansible-playbook` on the runner (Linux, with `--python` for the interpreter).
+
+Two options need no Ansible:
+
+- `--simulate` works out where each host goes in a few milliseconds, the way the generated code
+  routes them (ADR-0032). A scenario that uses something the simulator does not model is skipped
+  (`SKIP`, and `<skipped/>` in JUnit), with the reason. Such a scenario has a host pattern among
+  its hosts, a regex or slice in an `inventory_target`, Jinja in a title, intent or output default
+  that a stub run renders, or `serial` with `max_fail_percentage`. Run those with Ansible.
+- `--check` only checks the scenario files against their flows.
+
+`--help` lists every option.

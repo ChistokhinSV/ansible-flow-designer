@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { engineFor } from '../../core/engine/engines';
+import type { GenerateResult } from '../../core/engine/types';
 import type { FlowDocument } from '../../core/flow/types';
 import { insidePaths, runProcess } from '../../core/run/command';
 import type { Environment } from '../../core/run/environment';
@@ -82,6 +83,25 @@ function exec(
   });
 }
 
+/**
+ * A scenario's folder: the scenario build of the flow, its extra vars and inventory (AFD-114: the
+ * simulator's parity suite stages many into one container). Undefined when the flow does not
+ * generate.
+ */
+export function stageScenario(
+  doc: FlowDocument,
+  s: Scenario,
+  dir: string,
+  source: string,
+): GenerateResult | undefined {
+  const generated = engineFor(doc).generate(doc, { source, simulate: true, stubAll: true });
+  if (!generated.ok || generated.files.length === 0) return undefined;
+  for (const f of generated.files) writeFileSync(join(dir, f.name), f.text);
+  writeFileSync(join(dir, 'vars.json'), JSON.stringify(scenarioVars(s), null, 2));
+  writeFileSync(join(dir, 'inventory.ini'), scenarioInventory(doc, s));
+  return generated;
+}
+
 async function runOne(
   o: ScenarioRunOptions,
   s: Scenario,
@@ -94,16 +114,9 @@ async function runOne(
   // An EE image runs as its own user, which writes the events here (umask leaves it read-only).
   chmodSync(dir, 0o777);
   try {
-    const generated = engineFor(o.doc).generate(o.doc, {
-      source: basename(o.flowFile),
-      simulate: true,
-      stubAll: true,
-    });
-    if (!generated.ok || generated.files.length === 0)
+    const generated = stageScenario(o.doc, s, dir, basename(o.flowFile));
+    if (!generated)
       return judge(o.doc, s, undefined, 'The flow does not generate: fix its errors first');
-    for (const f of generated.files) writeFileSync(join(dir, f.name), f.text);
-    writeFileSync(join(dir, 'vars.json'), JSON.stringify(scenarioVars(s), null, 2));
-    writeFileSync(join(dir, 'inventory.ini'), scenarioInventory(o.doc, s));
     const inside =
       o.env.kind === 'local'
         ? dir.replaceAll('\\', '/')
@@ -136,13 +149,16 @@ async function runOne(
     if (o.signal?.aborted) return judge(o.doc, s, undefined, 'Cancelled');
     // 2: hosts failed in the outcome play, as a scenario with failures expects.
     if (!text.trim() || rc === null || ![0, 2, 4].includes(rc))
-      return judge(
-        o.doc,
-        s,
-        text.trim() ? summarizeRun(text, generated.routes) : undefined,
-        `ansible-playbook ended with ${rc ?? 'an error'}${text.trim() ? '' : ' before any routing event'}`,
-      );
-    return judge(o.doc, s, summarizeRun(text, generated.routes));
+      return {
+        ...judge(
+          o.doc,
+          s,
+          text.trim() ? summarizeRun(text, generated.routes) : undefined,
+          `ansible-playbook ended with ${rc ?? 'an error'}${text.trim() ? '' : ' before any routing event'}`,
+        ),
+        engine: 'ansible',
+      };
+    return { ...judge(o.doc, s, summarizeRun(text, generated.routes)), engine: 'ansible' };
   } finally {
     if (!o.keep) rmSync(dir, { recursive: true, force: true });
   }
@@ -168,12 +184,29 @@ export async function runScenarios(o: ScenarioRunOptions): Promise<ScenarioResul
 export function describeResults(results: readonly ScenarioResult[], doc?: FlowDocument): string[] {
   const out: string[] = [];
   for (const r of results) {
-    out.push(`${r.passed ? 'PASS' : 'FAIL'} ${r.name}${r.error ? `: ${r.error}` : ''}`);
+    if (skipped(r)) {
+      out.push(`SKIP ${r.name}: the simulator does not model this; verify it with a run`);
+      for (const u of r.needsAnsible ?? []) out.push(`  ${u.message}`);
+      continue;
+    }
+    const how = r.engine === 'simulated' ? ' (simulated)' : '';
+    out.push(`${r.passed ? 'PASS' : 'FAIL'} ${r.name}${how}${r.error ? `: ${r.error}` : ''}`);
     for (const h of r.hosts)
       if (h.expected !== h.actual) out.push(`  ${missWhy(doc, h, r.forced, true)}`);
   }
   return out;
 }
+
+/**
+ * AFD-114: a simulated scenario that has what the simulator does not model is not judged on the
+ * command line: its verdict is a best effort, so CI skips it rather than pass or fail on a guess.
+ */
+export const skipped = (r: ScenarioResult) =>
+  r.engine === 'simulated' && (r.needsAnsible?.length ?? 0) > 0;
+
+/** Scenarios that failed, leaving out the skipped. */
+export const failedCount = (results: readonly ScenarioResult[]) =>
+  results.filter((r) => !r.passed && !skipped(r)).length;
 
 /** JUnit XML for CI dashboards: one test case per scenario. */
 export function junitXml(
@@ -187,15 +220,18 @@ export function junitXml(
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;');
-  const failures = results.filter((r) => !r.passed).length;
+  const failures = failedCount(results);
+  const skips = results.filter(skipped).length;
   const cases = results.map((r) => {
+    if (skipped(r))
+      return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"><skipped message="${esc(`Verify with a run: ${(r.needsAnsible ?? []).map((u) => u.message).join('; ')}`)}"/></testcase>`;
     if (r.passed) return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"/>`;
     const text = describeResults([r], doc).join('\n');
     return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"><failure message="${esc(r.error ?? 'hosts ended elsewhere')}">${esc(text)}</failure></testcase>`;
   });
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<testsuites><testsuite name="${esc(flow)}" tests="${results.length}" failures="${failures}">`,
+    `<testsuites><testsuite name="${esc(flow)}" tests="${results.length}" failures="${failures}"${skips ? ` skipped="${skips}"` : ''}>`,
     ...cases,
     '  </testsuite></testsuites>',
     '',

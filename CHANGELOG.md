@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.70.0 — AFD-114
+
+Wave 11 starts: scenarios you can write without typing YAML. First, an answer in milliseconds instead of minutes, which the canvas, the AI tools and the Testing view will use.
+
+- **The scenario simulator:** works out where each host of a scenario goes without running Ansible. The code generator records the plays it writes, with where each port leads; the simulator treats each play as the generated tasks do. That covers stubs forced to fail, `max_fail_percentage`, decisions, approvals, branches and joins, and `inventory_target`. A suite runs the same flows in Ansible and requires the same result: the engine fixtures, the examples and seeded random flows (ADR-0032).
+- **What it does not model is named:** a host pattern among the hosts, a regex or slice in an `inventory_target`, Jinja that a stub run renders, and `serial` with `max_fail_percentage`. Run those scenarios with Ansible.
+- **The command line:** `node afd-scenarios.js --simulate flows` needs no Ansible and skips a scenario the simulator cannot model (JUnit `<skipped/>`). `--check` checks the files only. An unknown option is named, `--help` lists them all, and a folder without scenarios says so instead of passing silently.
+- **Scenario file checks:**
+  - A `force` list that is not a list is an error.
+  - So is an expectation on a wired port (a host never stops there).
+  - So is an approval choice the approval has no port for. `timeout` is allowed when it has one.
+  - A host that runs without an expectation is a warning, and warnings no longer stop a run.
+- **Fixed:**
+  - A flow with two host-list inputs read its scenario hosts from the first one, while the run started from the one marked as the targets.
+  - A scenario run stopped every host at a step that runs on its `inventory_target` when the step's output comes from its result: the stub registers nothing, and copying the output back failed. The copy now happens only when the target host set it, as for other steps. The simulator's Ansible suite found it.
+
 ## 0.69.1 — AFD-113
 
 Ready to publish.

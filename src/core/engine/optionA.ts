@@ -31,8 +31,11 @@ import type {
   GeneratedFile,
   GenerateOptions,
   GenerateResult,
+  HostTerm,
+  PlanStep,
   PlayRange,
   Route,
+  RunPlan,
   SegmentFile,
 } from './types';
 import { checksum, timeoutValue } from './util';
@@ -85,6 +88,11 @@ class Generator {
   private approvals: string[] = [];
   /** Work nodes that run on an inventory_target (AFD-14). */
   private readonly overrides: Map<Ulid, string>;
+  /** AFD-114: the plays of a scenario build, as the simulator runs them. */
+  private readonly steps: PlanStep[] = [];
+  private startInput?: string;
+  /** The rolling subflow whose play the steps are blocks of (AFD-55): events land on it. */
+  private rollingSub?: Ulid;
 
   constructor(
     private readonly doc: FlowDocument,
@@ -266,6 +274,7 @@ class Generator {
     }
     // A list from the run inputs, or the comma-separated text an AWX survey answers (AFD-59).
     const name = chosen[0];
+    this.startInput = name;
     return `{{ ${name} if ${name} is string else ${name} | join(',') }}`;
   }
 
@@ -462,6 +471,7 @@ class Generator {
       return false;
     }
     const blocks: Out[] = [];
+    this.rollingSub = sub.id;
     for (const node of order) {
       this.order++;
       if (node.type === 'start') continue;
@@ -496,6 +506,7 @@ class Generator {
           : `inventory_hostname in (${groups.map((g) => `groups['${g}'] | default([])`).join(' + ')})`,
       });
     }
+    this.rollingSub = undefined;
     this.files.push({
       ctx,
       chunks: [
@@ -720,13 +731,13 @@ class Generator {
         run_once: true,
       },
     ];
-    if (outputs.length > 0)
+    // One per variable, only when the target host set it, as a step's captures (AFD-53): a stub
+    // registers nothing, and an unguarded read failed every arriving host (found by AFD-114).
+    for (const o of outputs)
       tasks.push({
-        name: `[${node.key}] outputs from the target`,
-        'ansible.builtin.set_fact': Object.fromEntries(
-          outputs.map((o) => [o, `{{ hostvars[afd_target_done | first].${o} }}`]),
-        ),
-        when: 'afd_target_done | length > 0',
+        name: `[${node.key}] outputs from the target (${o})`,
+        'ansible.builtin.set_fact': { [o]: `{{ hostvars[afd_target_done | first].${o} }}` },
+        when: `afd_target_done | length > 0 and hostvars[afd_target_done | first].${o} is defined`,
       });
     tasks.push(...failPorts.flatMap((p) => this.portComment(ctx, node, p)), {
       name: `[${node.key}] route ${['ok_hosts', ...failPorts].join(', ')}`,
@@ -749,7 +760,86 @@ class Generator {
       },
       tasks,
     });
+    if (this.planning)
+      this.steps.push({
+        ...this.stepBase(ctx, node, hosts),
+        kind: 'target',
+        pattern: target,
+        todo: `TODO: ${oneLine(node.intent || node.title)}`,
+        ...(typeof limit === 'number' ? { maxFail: limit } : {}),
+      });
     return plays;
+  }
+
+  // ---- the plan of a scenario build (AFD-114) ------------------------------------------------
+
+  /** A scenario build (simulate, every step a stub) of the whole flow records its plan. */
+  private get planning(): boolean {
+    return !!this.opts.simulate && !!this.opts.stubAll && !this.segment;
+  }
+
+  /** The output ports of a node the generator routed, with their (resolved) groups. */
+  private routedPorts(node: FlowNode): Record<string, string> {
+    const out: Record<string, string> = {};
+    const prefix = `${node.id}|`;
+    for (const [memo, group] of this.targets)
+      if (memo.startsWith(prefix)) out[memo.slice(prefix.length)] = group;
+    return out;
+  }
+
+  private stepBase(ctx: LevelCtx, node: FlowNode, hosts: string[]) {
+    const terms: HostTerm[] = hosts
+      .flatMap((h) => h.split(':'))
+      .filter(Boolean)
+      .map((h) => (h.startsWith('{{') ? { start: true as const } : { group: h }));
+    return {
+      node: node.id,
+      attribute: this.rollingSub ?? node.id,
+      key: [...ctx.path, node.key].join('/'),
+      label: `[${node.key}] ${oneLine(node.title)}`,
+      hosts: terms,
+      ports: this.routedPorts(node),
+      serial: node.settings?.serial !== undefined,
+    };
+  }
+
+  private record(ctx: LevelCtx, node: FlowNode, hosts: string[], edges: Edge[]): void {
+    if (!this.planning) return;
+    const base = this.stepBase(ctx, node, hosts);
+    switch (node.type) {
+      case 'decision':
+      case 'approval':
+      case 'parallel':
+        this.steps.push({ ...base, kind: node.type });
+        return;
+      case 'join': {
+        const members: string[] = [];
+        for (const e of edges) {
+          const from = e.to.node === node.id ? this.model.nodes.get(e.from.node)?.node : undefined;
+          const group =
+            from && from.type !== 'start' && this.targets.get(`${from.id}|${e.from.port}`);
+          if (group) members.push(group);
+        }
+        this.steps.push({
+          ...base,
+          kind: 'join',
+          mode: node.join_mode === 'any' ? 'any' : 'all',
+          members,
+        });
+        return;
+      }
+      default: {
+        const limit = node.settings?.max_fail_percentage;
+        const p = base.ports;
+        const counted = [p.failed_hosts, p.unreachable, p.timeout].filter((g): g is string => !!g);
+        this.steps.push({
+          ...base,
+          kind: 'task',
+          todo: `TODO: ${oneLine(node.intent || node.title)}`,
+          ...(typeof limit === 'number' ? { maxFail: { limit, groups: counted } } : {}),
+        });
+      }
+    }
   }
 
   // ---- plays -----------------------------------------------------------------------------------
@@ -841,6 +931,7 @@ class Generator {
       default:
         tasks = this.taskTasks(ctx, node);
     }
+    this.record(ctx, node, hosts, edges);
     return {
       name: `[${node.key}] ${oneLine(node.title)}`,
       hosts: hosts.join(':'),
@@ -1160,7 +1251,24 @@ class Generator {
         files.push({ name: ctx.file, text: lines.join(eol) + eol, level: ctx.level.id });
       }
     }
-    return { ok, files, findings: this.findings, routes: this.routes, plays };
+    const plan: RunPlan | undefined =
+      ok && this.planning
+        ? {
+            ...(this.startInput ? { start: this.startInput } : {}),
+            steps: this.steps,
+            outcome: [...this.outcome]
+              .sort((a, b) => a.order - b.order)
+              .map(({ groups, name, msg }) => ({ groups, name, msg })),
+          }
+        : undefined;
+    return {
+      ok,
+      files,
+      findings: this.findings,
+      routes: this.routes,
+      plays,
+      ...(plan ? { plan } : {}),
+    };
   }
 
   private header(ctx: LevelCtx): string[] {
