@@ -2,9 +2,10 @@
 // of its own, the VSIX, the fictional workspace as a Git repository), starts VS Code there and serves
 // the task runner on 127.0.0.1. The runner saves progress here as it goes, asks for the coding agent's
 // edit in T11 (round 3: the colleague's change in T16) and, at the end, gets the verifier's
-// results. Nothing leaves the machine. Variants A and B run rounds 1-2, C runs round 3 (studies.ts).
+// results. Nothing leaves the machine. Variants A and B run rounds 1-2, C round 3, D round 4
+// (studies.ts).
 //
-//   kit <round> <a|b|c> <vsix> [--image afd-ee:2.19] [--port 5199] [--no-launch]  new session
+//   kit <round> <a|b|c|d> <vsix> [--image afd-ee:2.19] [--port 5199] [--no-launch]  new session
 //   kit serve <session>                                                           reopen a session
 //   kit verify <session>                                                          check it again
 //   kit solve <session>                                                           self-test: the file-checked tasks
@@ -349,7 +350,9 @@ async function main() {
   if (cmd === 'solve' && x) return solve(resolve(x));
   const [round, variant, vsix] = plain;
   if (!round || !variant || !vsix)
-    throw new Error('usage: kit <round> <a|b|c> <vsix> | kit serve|verify|solve <session folder>');
+    throw new Error(
+      'usage: kit <round> <a|b|c|d> <vsix> | kit serve|verify|solve <session folder>',
+    );
   const dir = await prepare(round, variant, vsix, opts);
   const s = serve(dir);
   if (!opts.has('--no-launch')) launch(dir, s);

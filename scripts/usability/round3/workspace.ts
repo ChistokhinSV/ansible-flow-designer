@@ -1,8 +1,7 @@
 // Round 3's fictional workspace (AFD-99, variant C), built with the flow tools' own code as rounds 1
 // and 2 are, so every flow is valid for the build under test and generated/ comes from its engine.
 // The health, upgrade, audit and pipeline flows reuse round 2's builders with variant C's names.
-import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type FlowIO, flowEdit, flowNew, flowValidate } from '../../../src/core/ai/handlers';
@@ -11,6 +10,7 @@ import { createIdFactory } from '../../../src/core/flow/ids';
 import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { ImplBinding } from '../../../src/core/flow/types';
 import { FsFlowIO } from '../../../src/mcp/fsIO';
+import { colleagueCommit } from '../git';
 import type { OutsideChange, SessionDirs } from '../study';
 import {
   audit,
@@ -184,63 +184,21 @@ export async function buildRound3(root: string): Promise<string[]> {
   return lines;
 }
 
-function git(cwd: string, args: string[]) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr.trim()}`);
-  return r.stdout;
-}
-
-/**
- * When the designer last remembered the upgrade flow (its shown store, AFD-92), or undefined if it
- * never did: then reopening it marks nothing, and the analysis has to know.
- */
-function shownAt(dirs: SessionDirs, file: string): string | undefined {
-  const base = join(dirs.profile, 'User', 'workspaceStorage');
-  if (!existsSync(base)) return undefined;
-  const tail = file.replaceAll('\\', '/').toLowerCase();
-  for (const ws of readdirSync(base)) {
-    const index = join(base, ws, 'afd-dev.ansible-flow-designer', 'shown', 'index.json');
-    if (!existsSync(index)) continue;
-    const entries = JSON.parse(readFileSync(index, 'utf8')) as Record<
-      string,
-      { uri: string; at: string }
-    >;
-    const hit = Object.values(entries).find((e) =>
-      decodeURIComponent(e.uri).toLowerCase().endsWith(tail),
-    );
-    if (hit) return hit.at;
-  }
-  return undefined;
-}
-
 /**
  * T16: the participant's work so far is committed, then a colleague's change to the upgrade flow
  * arrives as a commit of theirs, the way a Git pull brings it: the file changes on disk and the
  * history shows who changed what.
  */
 export async function colleagueChange(dirs: SessionDirs): Promise<OutsideChange> {
-  const root = dirs.workspace;
   const file = `${SECURITY}/${C.upgrade.key}.flow.yaml`;
-  const seen = shownAt(dirs, file);
-  git(root, ['add', '-A']);
-  // Nothing to commit is fine: the participant may have saved nothing since the start.
-  spawnSync('git', ['commit', '-q', '-m', 'Work so far'], { cwd: root });
-  const io = new FsFlowIO([root], createSchemaValidator(), createIdFactory());
-  await outsideEdit(io, C, SECURITY);
-  git(root, ['add', '-A']);
-  git(root, [
-    '-c',
-    `user.name=${C.colleague.name}`,
-    '-c',
-    `user.email=${C.colleague.email}`,
-    'commit',
-    '-q',
-    '-m',
-    'Firewall upgrade: check the session table after failover; policy check covers NAT',
-  ]);
-  return {
+  return colleagueCommit(
+    dirs,
     file,
-    message: `A colleague's change to ${file} has arrived, as a Git pull would bring it. Look at it in VS Code now.`,
-    facts: { shownAt: seen ?? 'never', at: new Date().toISOString() },
-  };
+    C.colleague,
+    'Firewall upgrade: check the session table after failover; policy check covers NAT',
+    async () => {
+      const io = new FsFlowIO([dirs.workspace], createSchemaValidator(), createIdFactory());
+      await outsideEdit(io, C, SECURITY);
+    },
+  );
 }

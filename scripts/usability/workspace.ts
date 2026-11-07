@@ -294,9 +294,14 @@ export async function pipeline(io: FlowIO, v: Pick<Variant, 'pipeline'>) {
   await build(io, path, p.name, p.goal, ops);
 }
 
-export async function audit(io: FlowIO, v: Pick<Variant, 'audit'>, root: string) {
+export async function audit(
+  io: FlowIO,
+  v: Pick<Variant, 'audit'>,
+  root: string,
+  dir = 'flows/security',
+) {
   const a = v.audit;
-  const path = `flows/security/${a.key}.flow.yaml`;
+  const path = `${dir}/${a.key}.flow.yaml`;
   await build(io, path, a.name, a.goal, [
     end('stopped', 'Stopped', 'failed'),
     ...chain(
