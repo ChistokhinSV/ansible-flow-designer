@@ -126,3 +126,46 @@ describe('input descriptions in the flow panel (AFD-95)', () => {
     });
   });
 });
+
+// AFD-106 (round 3: R6, Y5): a flow input gets a default; a new one starts as required.
+describe('flow input defaults in the flow panel (AFD-106)', () => {
+  const sentCommand = () =>
+    (
+      posted.filter((m) => (m as { type: string }).type === 'command').at(-1) as
+        | { command: { kind: string; name: string; field: Record<string, unknown> } }
+        | undefined
+    )?.command;
+
+  it('a default is read by the type and clears required; a wrong one is refused', () => {
+    render(<FlowDescription />);
+    const box = document.querySelector<HTMLInputElement>('[data-input-default]');
+    expect(box).toBeTruthy();
+    const name = box?.dataset.inputDefault as string;
+    const field = doc.flow.inputs?.[name];
+    posted.length = 0;
+    fireEvent.change(box as HTMLInputElement, { target: { value: 'fra1' } });
+    fireEvent.blur(box as HTMLInputElement);
+    if (field?.type === 'integer' || field?.type === 'boolean') {
+      expect(sentCommand()).toBeUndefined();
+      expect(box?.getAttribute('aria-invalid')).toBe('true');
+    } else {
+      expect(sentCommand()?.field).toMatchObject({
+        default: field?.type === 'list' ? ['fra1'] : 'fra1',
+      });
+      expect(sentCommand()?.field.required).toBeUndefined();
+    }
+  });
+
+  it('a new flow input starts as required', () => {
+    render(<FlowDescription />);
+    const name = screen.getByRole('textbox', { name: 'New input name' });
+    fireEvent.change(name, { target: { value: 'archive_server' } });
+    posted.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(sentCommand()).toMatchObject({
+      kind: 'setContractField',
+      name: 'archive_server',
+      field: { type: 'string', required: true },
+    });
+  });
+});

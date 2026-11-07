@@ -32,7 +32,13 @@ An input is a value a step reads. Its `from:` says where it comes from:
 Parameters read inputs by name, `{{ fw_version }}`. So do `assert` `that:` lists, decision
 conditions and `until`, without braces. The easy way to add an input is the **@** picker in a
 parameter: it offers node inputs, flow inputs, the enclosing subflows' inputs, outputs of upstream
-steps, and outputs of steps inside earlier subflows.
+steps, and outputs of steps inside earlier subflows. An upstream module step's result that is not
+an output yet is offered too ("result of Read the software version · makes it an output there"):
+picking it makes the result an output of that step and an input of this one, with its `from`.
+
+A step input needs a source: a `from:` or a default. One with neither (`input-unfed`) is a warning,
+and its message names where the value is: the step that registers a result of that name, or the
+flow input of that name.
 
 ![Inputs and outputs of a step inside a subflow](../images/properties-io-light.png)
 
@@ -74,6 +80,7 @@ reads.
 | `binding-unknown-var`   | a parameter (or an `assert` `that:`) reads a name that is not an input |
 | `condition-unknown-var` | a decision condition or `until` reads a name that is not an input      |
 | `subflow-output-unset`  | a subflow output that nothing inside sets                              |
+| `input-unfed`           | a step input with no `from:` and no default: nothing gives it a value  |
 | `register-collision`    | (error) the register another step registers too, or a flow input name  |
 | `ref-may-be-undefined`  | the producing step does not run (or succeed) for every host that reads |
 

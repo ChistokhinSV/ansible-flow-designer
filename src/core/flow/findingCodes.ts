@@ -209,6 +209,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       'A subflow output names no inner output, and no single inner step has one of that name.',
     fix: 'Set its from to <inner_step>.<output> (set_io).',
   },
+  'input-unfed': {
+    meaning:
+      'A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any.',
+    fix: 'Set its from to an upstream output or a flow input (set_io), or give it a default; for the result of a step, make it an output there first.',
+  },
   'until-whole-result': {
     meaning:
       'settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds.',

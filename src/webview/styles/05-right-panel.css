@@ -94,6 +94,16 @@
   font-size: var(--afd-fs-12);
 }
 
+/* AFD-106: an input's default, a line of its own under its description. */
+.afd-contract-default {
+  flex-basis: 100%;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-contract li > .afd-field-error {
+  flex-basis: 100%;
+}
+
 .afd-ports li {
   flex-wrap: wrap;
 }

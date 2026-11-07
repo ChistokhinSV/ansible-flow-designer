@@ -7,7 +7,7 @@ import { registerName } from '../flow/dataNames';
 import { enclosing, liftOf, upstreamNodes } from '../flow/dataRefs';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
-import type { ContractField, ContractType, FlowNode, ImplBinding } from '../flow/types';
+import type { ContractField, ContractType, FlowNode, ImplBinding, Ulid } from '../flow/types';
 import { MAGIC_VARS } from '../flow/validate';
 import type { CatalogOption, CatalogPlugin, CatalogReturn } from './types';
 
@@ -303,6 +303,11 @@ export interface RefChoice {
   detail: string;
   /** Set when choosing it adds a node input. */
   field?: ContractField;
+  /**
+   * AFD-106 (round 3: R7): choosing it also makes this upstream step's registered result an output
+   * there. The participant typed the register name, since nothing in the list offered the result.
+   */
+  expose?: { node: Ulid; output: string };
 }
 
 function freeName(base: string, taken: Set<string>): string {
@@ -383,5 +388,23 @@ export function refChoices(model: FlowModel, node: FlowNode): RefChoice[] {
     }
   };
   for (const up of upstream) if (up.type === 'subflow') inside(up, up.key);
+  // AFD-106: an upstream module step's registered result that is no output yet.
+  for (const up of upstream) {
+    if (up.impl?.kind !== 'module') continue;
+    if (Object.values(up.outputs ?? {}).some((f) => f?.from === 'impl.register')) continue;
+    const result = registerName(up);
+    const from = `${up.key}.${result}`;
+    if (sources.has(from)) continue;
+    sources.add(from);
+    const as = freeName(result, taken);
+    taken.add(as);
+    out.push({
+      name: as,
+      label: from,
+      detail: `result of "${up.title}" · makes it an output there`,
+      field: { type: 'dict', from },
+      expose: { node: up.id, output: result },
+    });
+  }
   return out;
 }

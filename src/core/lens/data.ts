@@ -39,13 +39,14 @@ export function dataLens(doc: FlowDocument): LensView {
     for (const [name, field] of Object.entries(node.inputs ?? {})) {
       const from = field?.from;
       if (!from) {
-        if (field?.required && field.default === undefined)
+        // AFD-106 (round 3: R7): required or not, nothing feeds it (the validator's input-unfed).
+        if (field?.default === undefined && field?.type !== 'host_list')
           findings.push({
-            id: `data:unresolved:${node.id}.${name}`,
+            id: `data:unfed:${node.id}.${name}`,
             lens: 'data',
             severity: 'warning',
             title: `${node.title} has no value for ${name}`,
-            detail: `The input ${name} is required, has no default and no \`from:\`. Wire it to a flow input or an upstream output.`,
+            detail: `The input ${name} has no default and no \`from:\`. Wire it to a flow input or an upstream output.`,
             node: node.id,
             nodes: [node.id],
             fixes: [{ label: 'Open Details', properties: node.id }],

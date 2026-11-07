@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { modelOf } from '../../core/flow/model';
 import type { Contract, ContractField, ContractType, Ulid } from '../../core/flow/types';
 import { fromText } from '../../core/view/fromText';
+import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
 import { useUi } from '../store';
 
@@ -42,6 +43,54 @@ function Description({
     />
   );
 }
+/**
+ * AFD-106 (round 3: R6, Y5): a flow input's default, read by its type. A default feeds a run that
+ * gives no value, so setting one clears required; the launch dialog and the prompts pre-fill it.
+ */
+function DefaultBox({
+  name,
+  type,
+  value,
+  onCommit,
+}: {
+  name: string;
+  type: ContractType;
+  value: unknown;
+  onCommit(value: unknown): void;
+}) {
+  const shown = defaultText(value);
+  const [text, setText] = useState(shown);
+  const [was, setWas] = useState(shown);
+  const [problem, setProblem] = useState<string>();
+  // The flow changed under the box (undo, an agent): show what it says now.
+  if (shown !== was) {
+    setWas(shown);
+    setText(shown);
+  }
+  const commit = () => {
+    if (text.trim() === shown) return setProblem(undefined);
+    const read = defaultValue(type, text);
+    setProblem(read.problem);
+    if (!read.problem) onCommit(read.value);
+  };
+  return (
+    <>
+      <input
+        className={`afd-input mono afd-contract-default${problem ? ' invalid' : ''}`}
+        aria-label={`Default for ${name}`}
+        aria-invalid={!!problem}
+        placeholder="Default (when a run gives none)"
+        value={text}
+        data-input-default={name}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && commit()}
+      />
+      {problem ? <span className="afd-field-error">{problem}</span> : null}
+    </>
+  );
+}
+
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 interface Props {
@@ -70,7 +119,12 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   const add = () => {
     const name = adding.trim();
     if (!NAME.test(name) || name in (contract ?? {})) return;
-    void set(name, { type: 'string' }).then((a) => a.ok && setAdding(''));
+    // AFD-106 (round 3: R6): a run must give a new flow input until it has a default.
+    const field: ContractField =
+      target === 'flow' && side === 'inputs'
+        ? { type: 'string', required: true }
+        : { type: 'string' };
+    void set(name, field).then((a) => a.ok && setAdding(''));
   };
   return (
     <section className="afd-section">
@@ -123,13 +177,29 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
             {/* The targets list says what it is (the hosts the flow runs on): a new flow, which
               has only that input, keeps its 35 controls. */}
             {target === 'flow' && side === 'inputs' && !field?.targets ? (
-              <Description
-                name={name}
-                value={field?.description ?? ''}
-                onCommit={(text) =>
-                  void set(name, { ...field, description: text || undefined } as ContractField)
-                }
-              />
+              <>
+                <Description
+                  name={name}
+                  value={field?.description ?? ''}
+                  onCommit={(text) =>
+                    void set(name, { ...field, description: text || undefined } as ContractField)
+                  }
+                />
+                <DefaultBox
+                  name={name}
+                  type={field?.type ?? 'any'}
+                  value={field?.default}
+                  onCommit={(value) => {
+                    const next = { ...field } as ContractField;
+                    if (value === undefined) delete next.default;
+                    else {
+                      next.default = value;
+                      delete next.required;
+                    }
+                    void set(name, next);
+                  }}
+                />
+              </>
             ) : null}
           </li>
         ))}

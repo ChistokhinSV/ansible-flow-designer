@@ -714,6 +714,43 @@ function checkConditions(
   }
 }
 
+/**
+ * AFD-106 (round 3: R7): a step input that nothing feeds. The participant typed a step's register
+ * name into a later step; that step got an input with no `from`, and the flow validated clean while
+ * the value never passed the designer's way. A default feeds it; a host list is the targets'; a
+ * subflow's input feeds its inner steps.
+ */
+function checkUnfed(
+  model: FlowModel,
+  node: FlowNode,
+  level: string,
+  path: Path,
+  name: string,
+  flowInputs: Set<string>,
+  add: (f: Finding) => void,
+): void {
+  if (node.type !== 'task' && node.type !== 'approval') return;
+  const field = node.inputs?.[name];
+  if (!field || field.default !== undefined || field.type === 'host_list') return;
+  const flow = flowInputs.has(name);
+  const registers = upstreamNodes(model, node.id).find(
+    (up) => up.impl?.kind === 'module' && registerName(up) === name,
+  );
+  const hint = flow
+    ? `: flow input "${name}" has the same name: set from: flow.${name}`
+    : registers
+      ? `: ${label(registers)} registers ${name}: make it an output there (Expose as node output) and pick it with @`
+      : hintFor(model, node, level, name);
+  add({
+    code: 'input-unfed',
+    severity: flow ? 'info' : 'warning',
+    message: `${label(node)} inputs.${name}: nothing gives it a value (no from, no default)${hint}`,
+    path: [...path, 'inputs', name],
+    node: node.id,
+    subject: name,
+  });
+}
+
 /** A subflow output without from lifts the inner output of the same name (AFD-21). */
 function checkLifts(node: FlowNode, path: Path, add: (f: Finding) => void): void {
   if (node.type !== 'subflow' || !node.subflow?.nodes?.length) return;
@@ -739,7 +776,10 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
     for (const side of ['inputs', 'outputs'] as const) {
       for (const [name, field] of Object.entries(node[side] ?? {})) {
         const from = field?.from;
-        if (typeof from !== 'string' || !from) continue;
+        if (typeof from !== 'string' || !from) {
+          if (side === 'inputs') checkUnfed(model, node, level, path, name, flowInputs, add);
+          continue;
+        }
         const src = resolveFrom(model, node, level, side, from);
         if (src.kind === 'output' && side === 'inputs') {
           const at: Path = [...path, side, name, 'from'];

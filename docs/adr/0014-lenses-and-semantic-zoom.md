@@ -156,3 +156,12 @@ A change pulled with Git is in HEAD, so the Changes lens, comparing with HEAD, s
 "the flow as you last had it open (time)", or "the flow before the outside changes (time)" for
 marks made while it was open, from the session's `outsideBase`; it is the default until the person
 picks another version. Clear, or marks that go, return a lens left on the default to HEAD.
+
+## Amendment: keeping a flagged become asks for a reason (AFD-106, 2026-11-07)
+
+Usability round 3 (R10): the participant kept a step's become that the Access lens flags and
+recorded no reason; nothing said one was needed. The finding's detail says "Needs root? Accept it
+with a reason, so others know why", and `acceptFirst` puts Accept with Reason before its fix. A
+step's Privilege fold says the same, with Accept with Reason, until the finding is accepted; it asks
+`becomeStandsOut` (`core/lens/access.ts`), so it works with the lens off. The finding stays a lens
+finding (info), not a validator problem.

@@ -357,6 +357,31 @@ describe('AFD-93: the workspace in the Problems panel', () => {
     }
   });
 
+  it('AFD-106: a step input nothing feeds is in the Problems panel', async () => {
+    const { mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+    const { parseDocument } = await import('yaml');
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
+    const dir = vscode.Uri.joinPath(root, 'flows', 'afd106-unfed');
+    const uri = vscode.Uri.joinPath(dir, 'afd106-unfed.flow.yaml');
+    mkdirSync(dir.fsPath, { recursive: true });
+    const yaml = parseDocument(readFileSync(EDGE.fsPath, 'utf8'));
+    const flow = yaml.toJS() as FlowDocument;
+    yaml.setIn(['flow', 'key'], 'afd106-unfed');
+    yaml.setIn(['flow', 'id'], '01M7AFD106UNFED00000000000');
+    const at = flow.nodes.findIndex((n) => n.key === 'validate');
+    yaml.setIn(['nodes', at, 'inputs'], { report_result: { type: 'string', required: true } });
+    writeFileSync(uri.fsPath, yaml.toString());
+    const unfed = () =>
+      vscode.languages.getDiagnostics(uri).filter((d) => d.code === 'input-unfed');
+    try {
+      await until(() => unfed().length === 1, 'the unfed input in Problems');
+      assert.match(unfed()[0]?.message ?? '', /inputs\.report_result: nothing gives it a value/);
+      assert.equal(unfed()[0]?.severity, vscode.DiagnosticSeverity.Warning);
+    } finally {
+      rmSync(dir.fsPath, { recursive: true, force: true });
+    }
+  });
+
   it('a generated playbook edited by hand gets a warning with Open the Flow', async () => {
     const { writeFileSync } = await import('node:fs');
     const api = await testApi();

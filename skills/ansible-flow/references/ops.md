@@ -392,6 +392,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. |
 | condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
 | subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
+| input-unfed | A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any. | Set its from to an upstream output or a flow input (set_io), or give it a default; for the result of a step, make it an output there first. |
 | until-whole-result | settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds. | Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until). |
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |

@@ -3,7 +3,7 @@
 // AFD-91: the place lines no longer come and go with the level, and a nested step lights its subflow.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -236,5 +236,34 @@ describe('places that stay put (AFD-87, AFD-91)', () => {
     );
     expect(lit).toEqual([SUB]);
     expect(document.querySelectorAll('.afd-node.lens-dim').length).toBeGreaterThan(0);
+  });
+});
+
+// AFD-106 (round 3: R10): keeping a step the Access lens flags never asked for a reason.
+describe('keeping a flagged become asks for a reason (AFD-106)', () => {
+  it("the step's Privilege fold says so with the lens off, and opens Accept with Reason", () => {
+    act(() => useUi.getState().openDetails(id('upgrade'), 'execution'));
+    render(<Details id={id('upgrade')} />);
+    const note = document.querySelector('[data-become-flagged]');
+    expect(note?.textContent).toMatch(/^The Access lens flags this step's Become/);
+    fireEvent.click(
+      within(note as HTMLElement).getByRole('button', { name: 'Accept with Reason…' }),
+    );
+    expect(useUi.getState().accept).toEqual({
+      id: `access:become:${id('upgrade')}`,
+      node: id('upgrade'),
+      title: 'Upgrade OS escalates privileges, unlike its neighbours',
+    });
+  });
+
+  it('the finding puts Accept with Reason before its fix, and says why', () => {
+    act(() => useUi.getState().setLens('access'));
+    render(<Details id={id('upgrade')} />);
+    const row = document.querySelector(`[data-node-finding="access:become:${id('upgrade')}"]`);
+    expect(row?.textContent).toMatch(/Needs root\? Accept it with a reason, so others know why\./);
+    const buttons = [...(row?.querySelectorAll('.afd-finding-actions button') ?? [])].map(
+      (b) => b.textContent,
+    );
+    expect(buttons).toEqual(['Accept with Reason…', 'Remove Become']);
   });
 });

@@ -79,6 +79,11 @@ export interface LensFinding {
   nodes: Ulid[];
   fixes: FindingFix[];
   accepted?: { reason: string; by?: string };
+  /**
+   * AFD-106 (round 3: R10): Accept with Reason comes before the fixes. Keeping become needs a
+   * reason; the participant kept it and recorded none.
+   */
+  acceptFirst?: boolean;
 }
 
 /** Data lens (decision 14): derived from `from:` references, never stored as edges. */

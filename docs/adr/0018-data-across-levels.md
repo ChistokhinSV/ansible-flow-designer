@@ -64,3 +64,18 @@ Found in the improvement review (KB AFD-A-17): a `from:` looks scoped to a node,
 - `ref-may-be-undefined` (warning, at the reader): on the producer's level, the reader (or the subflow holding it) is reachable from the level's entry (the start nodes, or the subflow's `boundary.in`) without passing the producer, or is reachable from the producer's fail-port wires. Skipped when the input has a `default` or every use in the binding goes through `| default(…)` (imported handlers).
 - The generated code is unchanged; AFD-53 (per-node capture) removes the collision itself.
 - **AFD-53 amendment:** outputs other than registers are captured into the step's own variable (`afd_<key>__<output>`, ADR-0009), so `output-name-collision` is gone. A register read by another step's input that another step also registers, or that a flow input names, is the error `register-collision`.
+
+## Amendment: an input nothing feeds (AFD-106, wave 10, 2026-11-07)
+
+Usability round 3 (R7): the participant typed a step's register name into a later step's
+parameter. The step got an input with no `from:`, the flow validated clean, and the generated task
+read the host variable directly, not the designer's way.
+
+- The validator warns `input-unfed` for a task or approval input with no `from:` and no default
+  (a host list is the targets'; a subflow's input feeds its inner steps). The message names where
+  the value is: an upstream module step that registers that name ("make it an output there and
+  pick it with @"), or the flow input of that name (`from: flow.<name>`, info). The Data lens
+  flags the same inputs, required or not (`data:unfed:`).
+- The @ list (`refChoices`) offers an upstream module step's registered result that is not an
+  output yet: picking it stages the input here (`from: <step>.<register>`) and makes the result an
+  output there (`setContractField`, `from: impl.register`), so the input has a source.

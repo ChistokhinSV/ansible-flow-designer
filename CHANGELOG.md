@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.68.0 — AFD-106
+
+Wave 10, part 4: data in and out (`docs/ux/wave9-usability/round3.md`, R7, R6, R10).
+
+- **An input nothing feeds is a warning** (`input-unfed`): a step input with no `from:` and no default. The message says where the value is: the step that registers it ("make it an output there and pick it with @") or the flow input of that name. The Data lens flags it too.
+- **The @ list offers an upstream step's result:** "result of Read the software version · makes it an output there". Picking it makes the result an output of that step and an input of this one, so the value passes the designer's way.
+- **Flow inputs get a Default** in the flow panel, read by the input's type. A new input starts as required; a default makes it optional.
+- **Keeping a flagged become asks for a reason:** the Access lens's finding says "Needs root? Accept it with a reason, so others know why", with Accept with Reason first, and the step's Privilege fold says the same, with the lens off too.
+
 ## 0.67.0 — AFD-105
 
 Wave 10, part 3: scenario results say why (`docs/ux/wave9-usability/round3.md`, R8: "the scenario fails it here" was not understood, and the participant went to the step's binding and the inventory to find out why a host failed).

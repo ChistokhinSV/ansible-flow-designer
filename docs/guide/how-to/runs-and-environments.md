@@ -50,7 +50,9 @@ library, so any image with ansible-core works.
 - every flow input, by name and type, with what it was last time (remembered per flow) or its
   default. A first skeleton run suggests `localhost` for the hosts, or, when the inventory has
   groups, starts empty so you pick one. An input's description, when the flow has one, says what
-  it is for;
+  it is for. In the flow panel, each input has its description and a **Default** (read by its
+  type: text, a whole number, true or false, a list with commas). A new input starts as required;
+  giving it a default makes it optional, since the default then fills it;
 - host lists take hosts or groups, comma-separated; the inventory's groups are buttons under the
   field, each with its number of hosts ("lab · 4") and their names in the tooltip. Lists take items separated by commas (`10.20.0.10, 10.20.0.11`) or a JSON list, and the
   dialog says what the field reads as ("2 items: …"). Dicts take `key: value` lines or JSON;

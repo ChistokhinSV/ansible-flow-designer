@@ -26,6 +26,9 @@ Targets…** beside it).
 - A finding's button fixes it where it can. **Accept with Reason…** keeps it, with a reason recorded in
   the flow (an `accepted` decision with `finding: lens:<id>`; `finding_accepted` in a format 1 flow);
   **Reopen** removes that.
+- **A step that sets become unlike its neighbours** is flagged by **Access**. If it really needs
+  root, keep it and record why: the finding says so and puts **Accept with Reason…** first. The
+  step's **Execution › Privilege** fold says the same, with the lens off too, until it is accepted.
 - With a lens on, a selected step's **Details** show the findings on that step in a fold under its
   name (_Lens: Access · 2 on this step_), with the same buttons. The fold is open while a finding is
   not accepted; after a fix, **Next Finding** goes to the next step that has one.

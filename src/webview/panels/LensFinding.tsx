@@ -105,6 +105,16 @@ export function LensFindingRow({
         </p>
       ) : (
         <div className="afd-finding-actions">
+          {/* AFD-106 (round 3: R10): keeping it needs a reason; say so before the fix. */}
+          {f.acceptFirst ? (
+            <button
+              type="button"
+              data-accept-first
+              onClick={() => setAccept({ id: f.id, node: f.node, title: f.title })}
+            >
+              Accept with Reason…
+            </button>
+          ) : null}
           {f.fixes.map((fix) =>
             'command' in fix ? (
               <button
@@ -135,13 +145,15 @@ export function LensFindingRow({
               </button>
             ),
           )}
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => setAccept({ id: f.id, node: f.node, title: f.title })}
-          >
-            Accept with Reason…
-          </button>
+          {f.acceptFirst ? null : (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setAccept({ id: f.id, node: f.node, title: f.title })}
+            >
+              Accept with Reason…
+            </button>
+          )}
         </div>
       )}
     </li>

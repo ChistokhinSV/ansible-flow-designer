@@ -61,3 +61,11 @@ fingerprint leaves question texts out, so a survey written before is not read as
 description is a write of our own survey. The flow panel edits it for every flow input but the
 targets list, which the product already describes (and a new flow, which has only that input,
 keeps its 35 controls).
+
+## Amendment: defaults in the inputs editor (AFD-106, wave 10, 2026-11-07)
+
+A flow input's `default` could only be written by hand (usability round 3: R6, walkthrough Y5),
+and a new input was optional, so a run could go without a value the flow needed. The flow panel's
+inputs editor has a Default box per input but the targets list, read by the input's type
+(`core/view/inputDefault.ts`); a new flow input starts as `required: true`, and setting a default
+clears `required` (the launch dialog, the prompts and the AWX survey already use defaults).

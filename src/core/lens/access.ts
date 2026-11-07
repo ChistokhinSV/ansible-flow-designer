@@ -4,6 +4,7 @@
 
 import { formatOf } from '../flow/format';
 import { refsIn } from '../flow/jinja';
+import type { FlowModel } from '../flow/model';
 import { modelOf } from '../flow/model';
 import { runtimeKind } from '../flow/status';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
@@ -108,15 +109,16 @@ export function accessLens(
         nodes: [node.id, ...near.map((n) => n.id)],
         fixes: [],
       });
-    if (node.settings?.become && near.length > 0 && !near.some((n) => n.settings?.become))
+    if (becomeStandsOut(model, node))
       findings.push({
         id: `access:become:${node.id}`,
         lens: 'access',
         severity: 'info',
         title: `${node.title} escalates privileges, unlike its neighbours`,
-        detail: `${node.title} sets become; none of the nodes wired to it do.`,
+        detail: `${node.title} sets become; none of the nodes wired to it do. Needs root? Accept it with a reason, so others know why.`,
         node: node.id,
         nodes: [node.id],
+        acceptFirst: true,
         fixes: [
           {
             label: 'Remove Become',
@@ -215,4 +217,14 @@ export function accessLens(
     findings,
     notes,
   };
+}
+
+/**
+ * The Access lens's become finding (AFD-106): the step sets become and none of the work steps wired
+ * to it do. Also asked without the lens, by a step's Privilege fold.
+ */
+export function becomeStandsOut(model: FlowModel, node: FlowNode): boolean {
+  if (!node.settings?.become || !isWork(node)) return false;
+  const near = neighbours(model, node.id).filter(isWork);
+  return near.length > 0 && !near.some((n) => n.settings?.become);
 }

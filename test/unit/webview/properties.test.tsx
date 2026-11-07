@@ -505,3 +505,39 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     expect(document.querySelector('.afd-yaml-line.error')?.textContent?.trim()).toBe('when: [x');
   });
 });
+
+// AFD-106 (round 3: R7): the @ list offers an upstream step's result; picking it makes it an
+// output there, so the input has a source (the participant typed the register name instead).
+describe('the @ list offers upstream results (AFD-106)', () => {
+  it('picking a result adds the input here and the output on the step that registers it', async () => {
+    const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
+    const walk = (nodes: FlowNode[] = []) => {
+      for (const n of nodes) {
+        if (n.key === 'verify-version') n.impl = undefined;
+        walk(n.subflow?.nodes);
+      }
+    };
+    walk(copy.nodes);
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(copy), docVersion: 3 }));
+    open('verify-version');
+    await answer(catalog);
+    fireEvent.click(screen.getByText('cisco.ios.ios_command', { selector: '.afd-result-name' }));
+    await answer(catalog);
+    const configure = screen.getByRole('region', { name: 'Configure' });
+    fireEvent.click(
+      within(configure).getByRole('button', { name: /Insert an input into commands 1/ }),
+    );
+    const option = within(configure).getByRole('option', {
+      name: /wait-for-ssh\.wait_for_ssh_result/,
+    });
+    expect(option.textContent).toMatch(/makes it an output there/);
+    fireEvent.mouseDown(option);
+    expect(commands()).toContainEqual({
+      kind: 'setContractField',
+      target: nodeOf('wait-for-ssh').id,
+      side: 'outputs',
+      name: 'wait_for_ssh_result',
+      field: { type: 'dict', from: 'impl.register' },
+    });
+  });
+});

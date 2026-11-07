@@ -370,3 +370,53 @@ describe('approvals in local runs', () => {
     expect(whole).toContain("when: afd_approval not in ['approved', 'rejected', 'timeout']");
   });
 });
+
+// AFD-106 (round 3: R7): a step input that nothing feeds is a problem, with where to get it.
+describe('inputs nothing feeds (AFD-106)', () => {
+  it('warns, and names the step that registers the value', () => {
+    const doc = docOf(fixture());
+    const wait = entry(doc, 'rollback/wait').node;
+    wait.inputs = { ...wait.inputs, restore_result: { type: 'string', required: true } };
+    const found = codes(doc, 'input-unfed');
+    expect(found.map((f) => [f.severity, f.message, f.subject])).toEqual([
+      [
+        'warning',
+        '"Wait for the version" inputs.restore_result: nothing gives it a value (no from, no default): "Restore config" registers restore_result: make it an output there (Expose as node output) and pick it with @',
+        'restore_result',
+      ],
+    ]);
+  });
+
+  it('a flow input of that name is a hint; a default, a host list or a subflow input is fed', () => {
+    const doc = docOf(fixture());
+    const wait = entry(doc, 'rollback/wait').node;
+    wait.inputs = { ...wait.inputs, devices: { type: 'list' } };
+    expect(codes(doc, 'input-unfed').map((f) => [f.severity, f.message])).toEqual([
+      [
+        'info',
+        '"Wait for the version" inputs.devices: nothing gives it a value (no from, no default): flow input "devices" has the same name: set from: flow.devices',
+      ],
+    ]);
+    wait.inputs = {
+      ...wait.inputs,
+      devices: { type: 'list', default: ['a'] },
+      hosts: { type: 'host_list' },
+    };
+    const rollback = entry(doc, 'rollback').node;
+    rollback.inputs = { ...rollback.inputs, extra: { type: 'string' } };
+    expect(codes(doc, 'input-unfed')).toEqual([]);
+  });
+
+  it('the @ list offers an upstream step result, and making it an output there', () => {
+    const doc = docOf(fixture());
+    const { model, node } = entry(doc, 'rollback/wait');
+    const restore = entry(doc, 'rollback/restore').node;
+    const choice = refChoices(model, node).find((c) => c.expose);
+    expect(choice).toMatchObject({
+      name: 'restore_result',
+      label: 'restore.restore_result',
+      field: { type: 'dict', from: 'restore.restore_result' },
+      expose: { node: restore.id, output: 'restore_result' },
+    });
+  });
+});

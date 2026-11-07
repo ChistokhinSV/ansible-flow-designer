@@ -3,6 +3,7 @@
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
 import { useId, useMemo, useRef } from 'react';
 import { registerName } from '../../core/flow/dataNames';
+import { acceptedAll } from '../../core/flow/decisions';
 import { formatOf, purposeOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
 import { keywordProblem } from '../../core/flow/keywords';
@@ -12,6 +13,7 @@ import { portMenu } from '../../core/flow/portMenu';
 import { diffFlows } from '../../core/flow/semanticDiff';
 import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
+import { becomeStandsOut } from '../../core/lens/access';
 import { fieldLabel } from '../../core/lens/changes';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import { changeWords } from '../../core/view/outsideChanges';
@@ -516,6 +518,15 @@ export function ExecutionSection({
       ? `${result}.rc == 0`
       : `${result} is succeeded`;
   const timing = timingText(settings, result);
+  const flowDoc = useUi((s) => s.snapshot?.doc);
+  // AFD-106: what the Access lens would flag, asked here with the lens off too.
+  const becomeFlagged = useMemo(
+    () =>
+      !!flowDoc &&
+      becomeStandsOut(modelOf(flowDoc), node) &&
+      !acceptedAll(flowDoc).some((a) => a.area === 'lens' && a.what === `access:become:${node.id}`),
+    [flowDoc, node],
+  );
   return (
     <div className="afd-details-page">
       {groups.map((group) => (
@@ -574,6 +585,26 @@ export function ExecutionSection({
                 </div>
               );
             })}
+            {/* AFD-106 (round 3: R10): keeping a become the Access lens flags needs a reason. */}
+            {group === 'Privilege' && becomeFlagged ? (
+              <p className="muted" data-become-flagged>
+                The Access lens flags this step's Become: none of the steps wired to it run as root.
+                If it needs root, accept the finding with a reason, so others know why.{' '}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() =>
+                    useUi.getState().setAccept({
+                      id: `access:become:${node.id}`,
+                      node: node.id,
+                      title: `${node.title} escalates privileges, unlike its neighbours`,
+                    })
+                  }
+                >
+                  Accept with Reason…
+                </button>
+              </p>
+            ) : null}
             {/* AFD-103 (round 3: R2): how the fields combine, as the generated task runs. */}
             {group === 'Timing' && timing ? (
               <p className="muted afd-timing-text" data-timing-text>

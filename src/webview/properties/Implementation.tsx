@@ -24,6 +24,7 @@ import { registerName } from '../../core/flow/dataNames';
 import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
+import { run } from '../actions';
 import { catalogRequest, type Loaded, useCatalog } from '../catalog';
 import { Fold } from '../panels/Fold';
 import { useUi } from '../store';
@@ -660,6 +661,15 @@ function Configure({
   const addInput = (c: RefChoice) => {
     if (c.field)
       update({ ...latest.current, inputs: { ...latest.current.inputs, [c.name]: c.field } });
+    // AFD-106: the upstream step's result becomes its output now, so this input has a source.
+    if (c.expose)
+      void run({
+        kind: 'setContractField',
+        target: c.expose.node,
+        side: 'outputs',
+        name: c.expose.output,
+        field: { type: 'dict', from: 'impl.register' },
+      });
   };
   const setParam = (name: string, value: unknown) => {
     const params = { ...latest.current.params };
