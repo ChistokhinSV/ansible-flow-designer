@@ -2,11 +2,13 @@
 // renders the entries and runs their actions, so tests can check every menu without React.
 // Design and Implementation offer the edits the canvas allows there; Run mode only reads.
 
+import type { Forced } from '../scenario/scenarios';
 import { ALIGN_LABEL, type AlignHow, DISTRIBUTE_LABEL, type DistributeHow } from './arrange';
 import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
 import { nextFrom, type PortMenuItem, portMenu } from './portMenu';
+import { portsFor } from './ports';
 import { canMarkTested, contentStatus } from './status';
 import {
   ANNOTATION_COLORS,
@@ -56,6 +58,10 @@ export type ShortcutId =
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
+  /** AFD-116: what-if in the scenario being edited: pick the hosts sent down `outcome`. */
+  | { do: 'scenarioForce'; step: string; outcome: Forced; title: string }
+  | { do: 'scenarioApproval'; approval: string; pick: 'approved' | 'rejected' | 'timeout' }
+  | { do: 'scenarioExpect'; host: string; where: string }
   | { do: 'properties'; node: Ulid; tab?: 'binding' }
   | { do: 'rename'; node: Ulid }
   | { do: 'setStatus'; node: Ulid; status: NodeStatus }
@@ -122,6 +128,90 @@ export interface CanvasMenuContext {
   hasPlay: (node: Ulid) => boolean;
   /** The file's format (default: the model's): annotations need 2 (AFD-65). */
   format?: number;
+  /** AFD-116: the scenario being edited on the canvas: its what-if items join a step's menu. */
+  scenario?: ScenarioMenu;
+}
+
+/** What a step's menu needs of the scenario being edited (AFD-116). */
+export interface ScenarioMenu {
+  name: string;
+  hosts: readonly string[];
+  /** The key path the scenarios file names a node by. */
+  path(node: Ulid): string | undefined;
+  /** The hosts forced down an outcome at a step (key path). */
+  forced(step: string, outcome: Forced): readonly string[];
+  /** The outcome an approval (key path) takes in this scenario. */
+  approval(path: string): 'approved' | 'rejected' | 'timeout';
+  /** Where the scenario expects each host. */
+  expect: Readonly<Record<string, string>>;
+}
+
+const FORCE_LABEL: Partial<Record<Forced, string>> = {
+  failed: 'Fail for',
+  unreachable: 'Unreachable for',
+  timeout: 'Time Out for',
+  unchanged: 'Unchanged for',
+};
+
+/** "In <scenario>": what this step does to which hosts, as the scenario plants it (AFD-116). */
+function scenarioItems(model: FlowModel, id: Ulid, s: ScenarioMenu): CanvasMenuEntry[] {
+  const node = model.nodes.get(id)?.node;
+  const path = s.path(id);
+  if (!node || !path) return [];
+  const label = (text: string, hosts: readonly string[]) =>
+    `${text}…${hosts.length ? ` (${hosts.join(', ')})` : ''}`;
+  const ports = new Set(portsFor(node).map((p) => p.name));
+  const items: CanvasMenuEntry[] = [];
+  const force = (outcome: Forced, text: string, icon: string) => {
+    const hosts = s.forced(path, outcome);
+    items.push(
+      item(
+        label(text, hosts),
+        { do: 'scenarioForce', step: path, outcome, title: text },
+        {
+          icon,
+          checked: hosts.length > 0,
+        },
+      ),
+    );
+  };
+  // A subflow with steps is forced through its steps.
+  const steps = node.type === 'subflow' && (node.subflow?.nodes?.length ?? 0) > 0;
+  if (node.type === 'task' || (node.type === 'subflow' && !steps)) {
+    force('failed', FORCE_LABEL.failed as string, 'error');
+    for (const o of ['unreachable', 'timeout', 'unchanged'] as const)
+      if (ports.has(o)) force(o, FORCE_LABEL[o] as string, 'warning');
+  } else if (node.type === 'decision') force('false', 'Take False for', 'git-compare');
+  else if (node.type === 'approval') {
+    const pick = s.approval(path);
+    for (const [p, text] of [
+      ['approved', 'Approved'],
+      ['rejected', 'Rejected'],
+      ['timeout', 'Timed Out'],
+    ] as const)
+      if (p === 'approved' || ports.has(p))
+        items.push(
+          item(
+            `${text} in This Scenario`,
+            { do: 'scenarioApproval', approval: path, pick: p },
+            {
+              checked: pick === p,
+            },
+          ),
+        );
+  } else if (node.type === 'end')
+    for (const host of s.hosts)
+      items.push(
+        item(
+          `Expect ${host} Here`,
+          { do: 'scenarioExpect', host, where: path },
+          {
+            checked: s.expect[host] === path,
+          },
+        ),
+      );
+  if (items.length === 0) return [];
+  return [{ type: 'submenu', label: `In "${s.name}"`, icon: 'beaker', items }];
 }
 
 const STALE = 'Fix the YAML errors first';
@@ -288,7 +378,8 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   const remove = edit
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
     : [];
-  return groups(open, design, clip, code, remove);
+  const what = ctx.scenario ? scenarioItems(model, id, ctx.scenario) : [];
+  return groups(what, open, design, clip, code, remove);
 }
 
 function groupMenu(

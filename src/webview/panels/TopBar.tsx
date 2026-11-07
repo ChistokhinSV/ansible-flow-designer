@@ -9,6 +9,7 @@ import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
+import { scenarioChip } from '../../core/scenario/authoring';
 import { chooseMode } from '../actions';
 import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
@@ -81,6 +82,7 @@ export function TopBar() {
             {flow.key} · v{flow.version}
           </span>
         ) : null}
+        <ScenarioChip />
       </nav>
       <fieldset className="afd-segmented" aria-label="Mode">
         {MODES.map((m) => (
@@ -129,6 +131,31 @@ export function TopBar() {
         </MenuButton>
       </div>
     </header>
+  );
+}
+
+/**
+ * AFD-116: the way in to scenarios: how they stand in the simulation, or an offer to add some.
+ * A flow with no step yet has nothing to test, so it shows nothing.
+ */
+function ScenarioChip() {
+  const check = useUi((s) => s.scenarioCheck);
+  const open = useUi((s) => s.openScenarios);
+  const steps = useUi((s) =>
+    s.snapshot?.doc?.nodes?.some((n) => n?.type !== 'start' && n?.type !== 'end'),
+  );
+  if (!steps && !check?.file) return null;
+  const chip = scenarioChip(check);
+  return (
+    <button
+      type="button"
+      className={`afd-chip afd-scenario-chip tone-${chip.tone}`}
+      title={chip.title}
+      data-scenario-chip={chip.tone}
+      onClick={open}
+    >
+      <span className="codicon codicon-beaker" aria-hidden="true" /> {chip.label}
+    </button>
   );
 }
 

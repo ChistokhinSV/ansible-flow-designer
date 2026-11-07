@@ -2,6 +2,7 @@
 import type { DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import type { HostMessage, WebviewMessage } from '../core/protocol';
+import type { ScenarioRequest } from '../core/scenario/edit';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -62,6 +63,22 @@ export function hostAction(action: DriftAction): Promise<Ack> {
     send({ type: 'driftAction', reqId, action });
   });
 }
+
+function request(make: (reqId: number) => WebviewMessage): Promise<Ack> {
+  const reqId = nextReq++;
+  return new Promise((resolve) => {
+    pending.set(reqId, resolve);
+    told();
+    send(make(reqId));
+  });
+}
+
+/** AFD-116: a change to the flow's scenarios file, one edit, answered by `ack`. */
+export const scenarioRequest = (req: ScenarioRequest) =>
+  request((reqId) => ({ type: 'scenarioEdit', reqId, request: req }));
+
+/** AFD-116: takes back the last scenario change made from the designer. */
+export const scenarioUndo = () => request((reqId) => ({ type: 'scenarioUndo', reqId }));
 
 export function command(cmd: FlowCommand): Promise<Ack> {
   const reqId = nextReq++;

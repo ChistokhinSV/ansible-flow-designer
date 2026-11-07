@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.72.0 — AFD-116
+
+Wave 11, part 3: write scenarios on the canvas instead of in YAML.
+
+- **The Scenarios chip** in the top bar says how they stand ("Scenarios · 3 pass", "1 failing") or offers to add some, and opens the **Scenarios** tab in the side panel.
+- **New Scenario**: a name and a number of hosts. It starts with every host where the flow sends it now, so it passes, and it guards that routing from then on.
+- **Show on Canvas, then right-click a step:** "In <scenario>" offers Fail for…, Unreachable for…, Time Out for… or Unchanged for… (the ports the step has) with a host checklist; Take False for… on a decision; Approved, Rejected or Timed Out on an approval; Expect <host> Here on an end. The simulated run on the canvas changes as you choose.
+- **Each row in words:** what the scenario plants ("Gate fails for h03"), where hosts now end ("h03 now ends at Gate's open failed_hosts; expected Done"), and the last run in Ansible with when it ran, marked out of date when the flow or the scenario changed since.
+- **Accept New Ends** writes the ends the flow now gives as the expectations. **Verify in Ansible** runs one scenario, **Verify All** runs all, and **Undo** takes back the last change made in the tab or on the canvas. Rename, Duplicate and Delete are on each row.
+
 ## 0.71.0 — AFD-115
 
 Wave 11, part 2: scenarios stay current with their flow.

@@ -27,6 +27,12 @@ export type ScenarioCommand =
   | { kind: 'setExpect'; name: string; expect: Record<string, string> }
   | { kind: 'expectHost'; name: string; host: string; where: string };
 
+/**
+ * What the designer asks for (AFD-116): a command, or one the host completes from the simulation.
+ * `add` with no expectations gets where the simulation sends its hosts; `acceptEnds` writes them.
+ */
+export type ScenarioRequest = ScenarioCommand | { kind: 'acceptEnds'; name: string };
+
 export class ScenarioEditError extends Error {
   constructor(message: string) {
     super(message);

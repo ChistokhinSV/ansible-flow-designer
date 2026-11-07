@@ -9,14 +9,21 @@ import * as vscode from 'vscode';
 import { parseFlow, rangeOf } from '../../core/flow/document';
 import type { FlowDocument } from '../../core/flow/types';
 import {
+  planScenarioEdit,
+  ScenarioEditError,
+  type ScenarioRequest,
+} from '../../core/scenario/edit';
+import {
   checkLive,
   type ScenarioCheck,
   type StoredVerdict,
+  simulatedEnds,
   storedVerdict,
 } from '../../core/scenario/live';
 import type { Scenario, ScenarioResult } from '../../core/scenario/scenarios';
 import { missText, scenarioMisses } from '../../core/scenario/view';
 import { parseYaml } from '../../core/yaml/parse';
+import type { CommandOutcome } from '../flowSession';
 import type { Host } from '../host';
 import { scenariosUri } from './scenarioFollow';
 
@@ -58,6 +65,11 @@ export class ScenarioLive implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[];
   /** The last check per flow URI (tests, the tools). */
   readonly checks = new Map<string, ScenarioCheck>();
+  /**
+   * AFD-116: per flow URI, the scenarios file before each change made from the designer, newest
+   * last; undefined where the change created the file. The canvas's Undo covers the flow only.
+   */
+  private readonly undos = new Map<string, (string | undefined)[]>();
 
   constructor(private readonly host: Host) {
     const watcher = vscode.workspace.createFileSystemWatcher(`**/*${SUFFIX}`);
@@ -110,8 +122,102 @@ export class ScenarioLive implements vscode.Disposable {
     const check = checkLive(doc, text, this.verdicts(flow));
     this.checks.set(flow.toString(), check);
     this.publish(flow, flowText ?? '', doc, uri, text, check);
-    this.host.sessions.get(flow.toString())?.setScenarioCheck(check);
+    this.host.sessions
+      .get(flow.toString())
+      ?.setScenarioCheck(check, this.undos.get(flow.toString())?.length ?? 0);
     return check;
+  }
+
+  /**
+   * AFD-116: a change from the designer as one edit of the scenarios file, saved unless the file
+   * had unsaved edits. `add` with no expectations and `acceptEnds` take the simulation's ends.
+   */
+  async edit(
+    flow: vscode.Uri,
+    doc: FlowDocument,
+    request: ScenarioRequest,
+  ): Promise<CommandOutcome> {
+    const uri = scenariosUri(flow, doc);
+    const before = await textOf(uri);
+    let cmd = request;
+    if (request.kind === 'acceptEnds') {
+      const s = this.checks.get(flow.toString())?.scenarios.find((x) => x.name === request.name);
+      if (!s) return { ok: false, error: `No scenario named "${request.name}"` };
+      cmd = { kind: 'setExpect', name: s.name, expect: simulatedEnds(doc, s) };
+    } else if (request.kind === 'add' && Object.keys(request.scenario.expect ?? {}).length === 0)
+      cmd = {
+        ...request,
+        scenario: { ...request.scenario, expect: simulatedEnds(doc, request.scenario) },
+      };
+    if (cmd.kind === 'acceptEnds') return { ok: false, error: 'Nothing to accept' };
+    let plan: ReturnType<typeof planScenarioEdit>;
+    try {
+      plan = planScenarioEdit(before, cmd, doc);
+    } catch (e) {
+      if (e instanceof ScenarioEditError) return { ok: false, error: e.message };
+      return { ok: false, error: 'The scenarios file does not read: fix it in the text editor' };
+    }
+    if (!plan.created && plan.edits.length === 0) return { ok: true };
+    const edit = new vscode.WorkspaceEdit();
+    let open: vscode.TextDocument | undefined;
+    if (plan.created)
+      edit.createFile(uri, {
+        contents: new TextEncoder().encode(plan.text),
+        ignoreIfExists: false,
+      });
+    else {
+      open = await vscode.workspace.openTextDocument(uri);
+      for (const e of plan.edits)
+        edit.replace(
+          uri,
+          new vscode.Range(open.positionAt(e.start), open.positionAt(e.end)),
+          e.newText,
+        );
+    }
+    const wasDirty = open?.isDirty ?? false;
+    if (!(await vscode.workspace.applyEdit(edit)))
+      return { ok: false, error: 'VS Code rejected the edit' };
+    if (open && !wasDirty) await open.save();
+    const stack = this.undos.get(flow.toString()) ?? [];
+    stack.push(before);
+    if (stack.length > 30) stack.shift();
+    this.undos.set(flow.toString(), stack);
+    await this.refresh(flow);
+    return { ok: true };
+  }
+
+  /** AFD-116: takes back the last change made from the designer (a created file is deleted). */
+  async undo(flow: vscode.Uri): Promise<CommandOutcome> {
+    const stack = this.undos.get(flow.toString());
+    if (!stack?.length) return { ok: false, error: 'No scenario change to undo' };
+    const flowText = await textOf(flow);
+    const doc = flowText === undefined ? undefined : parseFlow(flowText).doc;
+    if (!doc?.flow?.key) return { ok: false, error: 'The flow does not read: fix it first' };
+    const uri = scenariosUri(flow, doc);
+    const before = stack.pop();
+    if (before === undefined) {
+      // The change created the file: taking it back removes it. Not to the trash, which some
+      // mounts lack (a WorkspaceEdit delete uses it and then fails).
+      try {
+        await vscode.workspace.fs.delete(uri, { useTrash: false });
+      } catch (e) {
+        if (!(e instanceof vscode.FileSystemError && e.code === 'FileNotFound'))
+          return { ok: false, error: 'The scenarios file could not be removed' };
+      }
+    } else {
+      const open = await vscode.workspace.openTextDocument(uri);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(
+        uri,
+        new vscode.Range(open.positionAt(0), open.positionAt(open.getText().length)),
+        before,
+      );
+      if (!(await vscode.workspace.applyEdit(edit)))
+        return { ok: false, error: 'VS Code rejected the edit' };
+      if (open.isDirty) await open.save();
+    }
+    await this.refresh(flow);
+    return { ok: true };
   }
 
   private publish(

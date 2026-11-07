@@ -26,6 +26,7 @@ import type {
   WebviewMessage,
 } from '../core/protocol';
 import { hostOutput, type OutputEntry } from '../core/run/events';
+import type { ScenarioRequest } from '../core/scenario/edit';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import type { RepoState } from '../core/view/flowFacts';
@@ -54,7 +55,7 @@ import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
 import type { RunDeps } from './run/runner';
-import { announceFollow, followScenarios } from './run/scenarioFollow';
+import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
 import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
@@ -107,6 +108,11 @@ export interface SessionDeps {
   shown?: ShownFlows;
   /** AFD-93: the workspace's flows at a glance, for the flow panel. */
   repo?: () => Promise<RepoState>;
+  /** AFD-116: changes to a flow's scenarios file from the designer, and taking them back. */
+  scenarios?: {
+    edit(flow: vscode.Uri, doc: FlowDocument, request: ScenarioRequest): Promise<CommandOutcome>;
+    undo(flow: vscode.Uri): Promise<CommandOutcome>;
+  };
 }
 
 export interface PerfEvent {
@@ -513,8 +519,7 @@ export class FlowSession implements vscode.Disposable {
         void this.deps.repo?.().then((state) => {
           if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
         });
-        if (this.scenarioCheck)
-          this.post(panel, { type: 'scenarioCheck', check: this.scenarioCheck });
+        if (this.scenarioCheck) this.post(panel, { type: 'scenarioCheck', ...this.scenarioCheck });
         if (this.scenarios) {
           const { results, show } = this.scenarios;
           this.post(panel, { type: 'scenarios', results, ...(show ? { show } : {}) });
@@ -539,8 +544,33 @@ export class FlowSession implements vscode.Disposable {
         await this.lens.compareWith(m.ref);
         break;
       case 'runScenarios':
-        void vscode.commands.executeCommand(CMD.runScenarios, this.uri);
+        void vscode.commands.executeCommand(CMD.runScenarios, this.uri, m.names);
         break;
+      // AFD-116: scenarios changed from the designer, each one edit of the scenarios file.
+      case 'scenarioEdit': {
+        const doc = (await this.snapshot()).doc;
+        const outcome =
+          doc && this.deps.scenarios
+            ? await this.deps.scenarios.edit(this.uri, doc, m.request)
+            : { ok: false, error: 'The flow does not read: fix it first' };
+        this.post(panel, { type: 'ack', reqId: m.reqId, ...outcome });
+        break;
+      }
+      case 'scenarioUndo': {
+        const outcome = this.deps.scenarios
+          ? await this.deps.scenarios.undo(this.uri)
+          : { ok: false, error: 'Nothing to undo' };
+        this.post(panel, { type: 'ack', reqId: m.reqId, ...outcome });
+        break;
+      }
+      case 'openScenarios': {
+        const doc = (await this.snapshot()).doc;
+        if (doc?.flow?.key)
+          await vscode.window.showTextDocument(scenariosUri(this.uri, doc), {
+            viewColumn: vscode.ViewColumn.Beside,
+          });
+        break;
+      }
       case 'insertShared':
         void vscode.commands.executeCommand(CMD.insertShared, this.uri, {
           level: m.level,
@@ -849,15 +879,15 @@ export class FlowSession implements vscode.Disposable {
   private scenarios: { results: ScenarioResult[]; show?: string } | undefined;
 
   /** AFD-115: the live check of the flow's scenarios, sent to every designer and kept for new ones. */
-  private scenarioCheck: ScenarioCheck | undefined;
+  private scenarioCheck: { check: ScenarioCheck; undo: number } | undefined;
 
-  setScenarioCheck(check: ScenarioCheck): void {
-    this.scenarioCheck = check;
-    this.broadcast({ type: 'scenarioCheck', check });
+  setScenarioCheck(check: ScenarioCheck, undo = 0): void {
+    this.scenarioCheck = { check, undo };
+    this.broadcast({ type: 'scenarioCheck', check, undo });
   }
 
   get scenarioState(): ScenarioCheck | undefined {
-    return this.scenarioCheck;
+    return this.scenarioCheck?.check;
   }
 
   showScenarios(results: ScenarioResult[], show?: string): void {

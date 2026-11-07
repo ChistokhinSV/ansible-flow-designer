@@ -48,6 +48,7 @@ describe('the live scenario check (AFD-115)', () => {
       file: false,
       problems: [],
       names: [],
+      scenarios: [],
       results: [],
       verified: {},
     });

@@ -40,6 +40,9 @@ import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
 import { type LaunchFacts, launchFields } from '../../core/run/launch';
+import { planScenarioEdit, type ScenarioRequest } from '../../core/scenario/edit';
+import { followPaths, pathChanges } from '../../core/scenario/follow';
+import { checkLive, simulatedEnds } from '../../core/scenario/live';
 import { autoPositions, layoutLevel, shownLayout } from '../../node/autoLayout';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
@@ -142,6 +145,43 @@ function setTheme(name: string) {
   }
 }
 
+/**
+ * AFD-116: the flow's scenarios file, as the host keeps it: none until New Scenario.
+ */
+let scenarios: string | undefined;
+const scenarioUndo: (string | undefined)[] = [];
+
+/** The live check the host sends after each change (AFD-115). */
+function sendCheck(): void {
+  const doc = parseFlow(text).doc;
+  if (!doc) return;
+  toWebview({ type: 'scenarioCheck', check: checkLive(doc, scenarios), undo: scenarioUndo.length });
+}
+
+function scenarioEdit(request: ScenarioRequest): { ok: boolean; error?: string } {
+  const doc = parseFlow(text).doc;
+  if (!doc) return { ok: false, error: 'The flow does not read' };
+  let cmd = request;
+  if (request.kind === 'acceptEnds') {
+    const s = checkLive(doc, scenarios).scenarios.find((x) => x.name === request.name);
+    if (!s) return { ok: false, error: `No scenario named "${request.name}"` };
+    cmd = { kind: 'setExpect', name: s.name, expect: simulatedEnds(doc, s) };
+  } else if (request.kind === 'add' && Object.keys(request.scenario.expect ?? {}).length === 0)
+    cmd = {
+      ...request,
+      scenario: { ...request.scenario, expect: simulatedEnds(doc, request.scenario) },
+    };
+  if (cmd.kind === 'acceptEnds') return { ok: false, error: 'Nothing to accept' };
+  try {
+    const plan = planScenarioEdit(scenarios, cmd, doc);
+    scenarioUndo.push(scenarios);
+    scenarios = plan.text;
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 function toWebview(m: HostMessage) {
   window.postMessage(m, '*');
 }
@@ -195,6 +235,11 @@ function apply(input: FlowCommand): {
   try {
     const r = planCommand(text, cmd, { newId });
     if (r.edits.length > 0) {
+      // AFD-115: renamed and moved steps are renamed in the scenarios file too.
+      const before = parseFlow(text).doc;
+      const after = parseFlow(r.text).doc;
+      if (scenarios !== undefined && before && after)
+        scenarios = followPaths(scenarios, pathChanges(before, after))?.text ?? scenarios;
       undo.push(text);
       text = r.text;
       version++;
@@ -320,6 +365,7 @@ async function onMessage(m: WebviewMessage) {
         status: { state: 'ready', environment: 'harness fixture', platforms: CTX.platforms },
       });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      sendCheck();
       // AFD-93: a clean workspace, so the first screen is measured as a newcomer sees it;
       // `?repo=problems` shows the line a workspace with problems gets.
       toWebview({
@@ -350,8 +396,32 @@ async function onMessage(m: WebviewMessage) {
       const result = apply(m.command);
       toWebview({ type: 'ack', reqId: m.reqId, ...result });
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
+      sendCheck();
       break;
     }
+    // AFD-116: scenario changes from the designer, as the host makes them.
+    case 'scenarioEdit': {
+      const result = scenarioEdit(m.request);
+      sendCheck();
+      toWebview({ type: 'ack', reqId: m.reqId, ...result });
+      break;
+    }
+    case 'scenarioUndo': {
+      const had = scenarioUndo.length > 0;
+      if (had) scenarios = scenarioUndo.pop();
+      sendCheck();
+      toWebview({
+        type: 'ack',
+        reqId: m.reqId,
+        ok: had,
+        ...(had ? {} : { error: 'No scenario change to undo' }),
+      });
+      break;
+    }
+    case 'openScenarios':
+      // The harness shows the file in the console, as a text editor would.
+      console.log(scenarios);
+      break;
     case 'tidyUp': {
       const doc = parseFlow(text).doc;
       const level = doc ? buildModel(doc).levels.get(m.level ?? ROOT) : undefined;

@@ -6,12 +6,15 @@ import type { FlowDocument } from '../flow/types';
 import {
   blocking,
   checkScenarios,
+  DROPPED,
+  hostEnds,
   parseScenarios,
   type Scenario,
   type ScenarioProblem,
   type ScenarioResult,
+  scenarioHosts,
 } from './scenarios';
-import { simulateScenario } from './simulate';
+import { simulateRun, simulateScenario } from './simulate';
 
 /** A verdict from a stub run in Ansible, kept with what it was made on. */
 export interface StoredVerdict {
@@ -38,6 +41,8 @@ export interface ScenarioCheck {
   problems: ScenarioProblem[];
   /** The scenarios' names in file order. */
   names: string[];
+  /** AFD-116: the scenarios as written, in file order (hosts, forced outcomes, approvals). */
+  scenarios: Scenario[];
   /** Simulated verdicts, in file order; empty while the file has errors. */
   results: ScenarioResult[];
   /** The last verdict from Ansible per scenario name. */
@@ -64,7 +69,7 @@ export function checkLive(
   stored: Record<string, StoredVerdict> = {},
 ): ScenarioCheck {
   if (text === undefined)
-    return { file: false, problems: [], names: [], results: [], verified: {} };
+    return { file: false, problems: [], names: [], scenarios: [], results: [], verified: {} };
   const parsed = parseScenarios(text);
   if (!parsed.file)
     return {
@@ -72,6 +77,7 @@ export function checkLive(
       error: parsed.error ?? 'Not a scenarios file',
       problems: [],
       names: [],
+      scenarios: [],
       results: [],
       verified: {},
     };
@@ -87,7 +93,32 @@ export function checkLive(
     if (v)
       verified[s.name] = { ...v, stale: v.design !== design || v.scenario !== scenarioHash(s) };
   }
-  return { file: true, problems, names: scenarios.map((s) => s.name), results, verified };
+  return {
+    file: true,
+    problems,
+    names: scenarios.map((s) => s.name),
+    scenarios,
+    results,
+    verified,
+  };
+}
+
+/**
+ * Where the simulation sends each host of a scenario, as `expect` writes it (AFD-116): a new
+ * scenario starts from them, and Accept New Ends writes them. Hosts it cannot place are left out.
+ */
+export function simulatedEnds(
+  doc: FlowDocument,
+  s: Omit<Scenario, 'expect'>,
+): Record<string, string> {
+  const sim = simulateRun(doc, s);
+  if (!sim.summary) return {};
+  const ends = hostEnds(doc, sim.summary);
+  const out: Record<string, string> = {};
+  // A host that dropped out of the run has no place an expectation can name.
+  for (const h of scenarioHosts(doc, { ...s, expect: {} }))
+    if (ends[h] && ends[h] !== DROPPED) out[h] = ends[h];
+  return out;
 }
 
 /** One line for the flow's Problems and a status: how the scenarios stand. */

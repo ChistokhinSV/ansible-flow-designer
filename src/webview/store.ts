@@ -11,7 +11,7 @@ import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import { type NodeRun, runStates } from '../core/run/view';
 import type { ScenarioCheck } from '../core/scenario/live';
-import type { ScenarioResult } from '../core/scenario/scenarios';
+import type { Forced, ScenarioResult } from '../core/scenario/scenarios';
 import { scenarioRun } from '../core/scenario/view';
 import type { RepoState } from '../core/view/flowFacts';
 import { markedAround, type OutsideMarks } from '../core/view/outsideChanges';
@@ -37,6 +37,16 @@ export interface Selection {
 }
 
 /** Port menu (04 §3), anchored at a point in the window. */
+/** AFD-116: hosts being picked for a forced outcome of a step in a scenario. */
+export interface HostPick {
+  scenario: string;
+  /** The step's key path, as the scenarios file names it. */
+  step: string;
+  outcome: Forced;
+  /** The dialog's title: "Fail for…" on a step, in words. */
+  title: string;
+}
+
 export interface PortMenuState {
   ref: PortRef;
   x: number;
@@ -198,6 +208,14 @@ interface UiState {
   scenarios: ScenarioResult[] | null;
   /** AFD-115: the live check of the flow's scenarios (simulated), with the last Ansible verdicts. */
   scenarioCheck: ScenarioCheck | null;
+  /** AFD-116: how many scenario changes from the designer can be taken back. */
+  scenarioUndo: number;
+  /** AFD-116: the Scenarios tab is on the right side (opened from the chip), and whether it shows. */
+  scenariosOpen: boolean;
+  scenariosTab: boolean;
+  /** AFD-116: the scenario shown on the canvas from the live check, the one what-if edits change. */
+  scenarioEditing: string | null;
+  hostPick: HostPick | null;
   scenarioShown: string | null;
   runBeforeScenario: RunView | null;
   /** AFD-85: what changed outside the designer since it opened, and the subflows around it. */
@@ -271,7 +289,14 @@ interface UiState {
   setRun(r: RunView | null): void;
   setRunAsked(on: boolean): void;
   setScenarios(results: ScenarioResult[], show?: string): void;
-  setScenarioCheck(check: ScenarioCheck): void;
+  setScenarioCheck(check: ScenarioCheck, undo?: number): void;
+  /** AFD-116: the Scenarios tab, opened and shown (false: back to the panel). */
+  openScenarios(): void;
+  showScenariosTab(on: boolean): void;
+  closeScenarios(): void;
+  /** AFD-116: shows a scenario's simulation on the canvas to edit it; null goes back. */
+  editScenario(name: string | null): void;
+  setHostPick(p: HostPick | null): void;
   setOutside(marks: OutsideMarks | null): void;
   setRepo(state: RepoState | null): void;
   /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
@@ -360,6 +385,11 @@ export const useUi = create<UiState>((set, get) => ({
   launch: null,
   scenarios: null,
   scenarioCheck: null,
+  scenarioUndo: 0,
+  scenariosOpen: false,
+  scenariosTab: false,
+  scenarioEditing: null,
+  hostPick: null,
   scenarioShown: null,
   runBeforeScenario: null,
   outside: null,
@@ -491,7 +521,8 @@ export const useUi = create<UiState>((set, get) => ({
   setRun(run) {
     const asked = get().runAsked && !!run;
     // A run from the host replaces a scenario on the canvas.
-    if (get().scenarioShown) set({ scenarioShown: null, runBeforeScenario: null });
+    if (get().scenarioShown || get().scenarioEditing)
+      set({ scenarioShown: null, scenarioEditing: null, runBeforeScenario: null });
     set({
       run,
       runNodes: runOf(get().snapshot, run),
@@ -507,23 +538,60 @@ export const useUi = create<UiState>((set, get) => ({
     const doc = get().snapshot?.doc;
     set({ outside, outsideAround: outside && doc ? markedAround(outside, doc) : [] });
   },
-  setScenarioCheck: (scenarioCheck) => set({ scenarioCheck }),
+  setScenarioCheck(scenarioCheck, undo = 0) {
+    set({ scenarioCheck, scenarioUndo: undo });
+    // The scenario on the canvas follows the check: every change shows at once.
+    const editing = get().scenarioEditing;
+    if (editing) get().editScenario(scenarioCheck.names.includes(editing) ? editing : null);
+  },
+  openScenarios() {
+    set({ scenariosOpen: true, scenariosTab: true, lensTab: false, panelCollapsed: false });
+  },
+  showScenariosTab(scenariosTab) {
+    set({ scenariosTab, ...(scenariosTab ? { lensTab: false } : {}) });
+  },
+  closeScenarios() {
+    if (get().scenarioEditing) get().editScenario(null);
+    set({ scenariosOpen: false, scenariosTab: false });
+  },
+  editScenario(name) {
+    const { scenarioCheck, scenarioEditing, scenarioShown, snapshot, lens, lensFacts } = get();
+    const i = name ? (scenarioCheck?.names.indexOf(name) ?? -1) : -1;
+    const result = i >= 0 ? scenarioCheck?.results[i] : undefined;
+    const showing = scenarioEditing !== null || scenarioShown !== null;
+    const run = result ? scenarioRun(result, new Date().toISOString()) : get().runBeforeScenario;
+    if (!result && !showing) return;
+    set({
+      ...(result && !showing ? { runBeforeScenario: get().run } : {}),
+      ...(result ? {} : { runBeforeScenario: null }),
+      scenarioEditing: result ? result.name : null,
+      scenarioShown: null,
+      run,
+      runNodes: runOf(snapshot, run),
+      lensView: lensOf(snapshot, lens, lensFacts, run),
+    });
+    if (result && !scenarioEditing) get().setMode('run');
+  },
+  setHostPick: (hostPick) => set({ hostPick }),
   setScenarios(scenarios, show) {
     set({ scenarios });
     if (show) get().showScenario(show);
   },
   showScenario(name) {
-    const { scenarios, scenarioShown, snapshot, lens, lensFacts } = get();
+    const { scenarios, scenarioShown, scenarioEditing, snapshot, lens, lensFacts } = get();
     const result = name ? scenarios?.find((r) => r.name === name) : undefined;
+    // AFD-116: a scenario being edited on the canvas hides the last run the same way.
+    const showing = scenarioShown !== null || scenarioEditing !== null;
     const run = result
       ? scenarioRun(result, new Date().toISOString())
-      : scenarioShown
+      : showing
         ? get().runBeforeScenario
         : get().run;
     set({
-      ...(result && !scenarioShown ? { runBeforeScenario: get().run } : {}),
+      ...(result && !showing ? { runBeforeScenario: get().run } : {}),
       ...(result ? {} : { runBeforeScenario: null }),
       scenarioShown: result ? result.name : null,
+      scenarioEditing: null,
       run,
       runNodes: runOf(snapshot, run),
       lensView: lensOf(snapshot, lens, lensFacts, run),
@@ -548,7 +616,7 @@ export const useUi = create<UiState>((set, get) => ({
   },
   showLensTab(lensTab) {
     if (lensTab && get().pendingBinding) return void set({ leave: { kind: 'lensTab' } });
-    set({ lensTab });
+    set({ lensTab, ...(lensTab ? { scenariosTab: false } : {}) });
   },
   setLensFacts(facts) {
     const lensFacts = { ...get().lensFacts, ...facts };

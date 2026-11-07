@@ -134,3 +134,38 @@ A scenarios file was text that nothing kept in step with its flow:
   `routingDesign(doc)` (node designs, top-level wires and flow inputs; statuses, positions and notes
   do not count), and the scenario's hash. A verdict is out of date when either changed. Verdicts of
   scenarios no longer in the file are dropped.
+
+## Amendment: scenarios authored on the canvas (AFD-116, wave 11, 2026-11-07)
+
+Writing a scenario meant typing keys, outcome words and where each host ends. The designer now
+writes the file:
+
+- **The way in.** The top bar's chip says "Add Scenarios", "Scenarios · 3 pass", "Scenarios · 1
+  failing" or "fix the file" (`scenarioChip`). It opens a **Scenarios** tab beside the panel and the
+  lens tab.
+- **The tab** (`ScenariosPanel`) shows each scenario: the simulated verdict, what it plants in words
+  ("Gate fails for h03"), the hosts that moved ("h03 now ends at Gate's open failed_hosts; expected
+  Done"), best-effort notes, and the last Ansible verdict with "out of date". Its actions are:
+  - Show on Canvas;
+  - Accept New Ends;
+  - Verify in Ansible (`runScenarios` with `names`) and Verify All in Ansible;
+  - Rename, Duplicate, Delete;
+  - New Scenario;
+  - Undo.
+- **What-if.** Show on Canvas makes the scenario the one being edited (`scenarioEditing`). The canvas
+  shows its simulated run in Run mode and follows every new check. A step's right-click menu gets
+  "In "<scenario>"" items from the canvas menu model (`CanvasMenuContext.scenario`):
+  - steps: Fail / Unreachable / Time Out / Unchanged for… (only the ports the step has), opening a
+    host checklist;
+  - decisions: Take False for…;
+  - approvals: Approved / Rejected / Timed Out for the run;
+  - ends: Expect <host> Here.
+
+  Run mode stays read-only for the flow; only the scenarios file changes.
+- **Expectations without typing.** The host completes two requests from the simulation
+  (`ScenarioRequest`, `simulatedEnds`):
+  - `add` with no expectations gets the ends the simulation gives;
+  - `acceptEnds` writes them.
+- **Undo.** The canvas's Undo covers the flow's document. So each scenario change is one edit of
+  the scenarios file, saved, and the host keeps the file's text before each change (30 deep, per
+  flow). The tab's Undo puts it back, or deletes a file the change created.

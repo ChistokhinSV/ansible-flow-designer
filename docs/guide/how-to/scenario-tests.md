@@ -6,7 +6,33 @@ machine), the outcomes you force send hosts down other ports, and each host must
 scenario says. Scenarios live next to the flow, in `<flow key>.scenarios.yaml`, so a pull request
 that changes the routing shows the scenarios it changes.
 
-## Write one
+## On the canvas
+
+The **Scenarios** chip in the top bar says how the flow's scenarios stand ("Scenarios · 3 pass",
+"Scenarios · 1 failing") or offers to add some. It opens the **Scenarios** tab in the side panel.
+
+1. **New Scenario**: give it a name and a number of hosts (`host-01`, `host-02`, …: names only, they
+   run on this machine). It starts with every host where the flow sends it now, so it passes, and it
+   guards that routing from then on.
+2. **Show on Canvas**: the canvas shows the scenario's simulated run in Run mode, with hosts on the
+   wires and where each one ended.
+3. **Plant what goes wrong:** right-click a step, then **In "<scenario>"**:
+   - **Fail for…**, **Unreachable for…**, **Time Out for…** or **Unchanged for…**, for the ports
+     the step has, then tick the hosts;
+   - **Take False for…** on a decision;
+   - **Approved**, **Rejected** or **Timed Out** for the run, on an approval;
+   - **Expect host-0x Here** on an end node.
+
+   The simulation updates as you choose, and the row says where each host now ends ("host-02 now
+   ends at Validate's open failed_hosts; expected Done").
+4. **Accept New Ends** writes those ends as the expectations, when the new routing is what you want.
+
+Each change is one edit of the scenarios file; **Undo** in the tab takes the last one back. A
+row also shows the last run in Ansible ("Ansible: passed 5 min ago"), marked out of date once the
+flow's routing or the scenario changes. **Verify in Ansible** runs one; **Verify All in Ansible**
+runs them all.
+
+## Write one by hand
 
 **Run ▾ › Run Scenarios** on a flow without scenarios offers **Create Scenarios File**: one scenario
 where every host reaches the end. A scenario has:

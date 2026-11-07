@@ -18,6 +18,7 @@ import { CheatSheet } from './panels/CheatSheet';
 import { DecisionDialog } from './panels/DecisionDialog';
 import { DriftPanel, IgnoreDialog } from './panels/DriftPanel';
 import { FlowDescription } from './panels/FlowDescription';
+import { HostPickDialog } from './panels/HostPickDialog';
 import { LaunchDialog } from './panels/LaunchDialog';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
 import { NotAFlow } from './panels/NotAFlow';
@@ -28,6 +29,7 @@ import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
 import { QuickAdd } from './panels/QuickAdd';
 import { RunPanel, WireRunPanel } from './panels/RunPanel';
+import { ScenariosPanel } from './panels/ScenariosPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
 import { TestedDialog } from './panels/TestedDialog';
 import { Toasts } from './panels/Toasts';
@@ -68,7 +70,7 @@ function useHost() {
       } else if (m.type === 'scenarios') {
         ui.setScenarios(m.results, m.show);
       } else if (m.type === 'scenarioCheck') {
-        ui.setScenarioCheck(m.check);
+        ui.setScenarioCheck(m.check, m.undo);
       } else if (m.type === 'outsideMarks') {
         ui.setOutside(m.marks);
       } else if (m.type === 'repoState') {
@@ -269,7 +271,17 @@ function PanelResizer() {
 function RightTabs({ label, lensTab }: { label: string; lensTab: boolean }) {
   const lens = useUi((s) => s.lens);
   const findings = useUi((s) => s.lensView?.findings.length ?? 0);
-  const show = useUi((s) => s.showLensTab);
+  const showLens = useUi((s) => s.showLensTab);
+  // AFD-116: the Scenarios tab, once opened from the top bar's chip.
+  const scenarios = useUi((s) => s.scenariosOpen);
+  const scenariosTab = useUi((s) => s.scenariosTab);
+  const showScenarios = useUi((s) => s.showScenariosTab);
+  const failing = useUi((s) => s.scenarioCheck?.results.filter((r) => !r.passed).length ?? 0);
+  const show = (on: boolean) => {
+    showScenarios(false);
+    showLens(on);
+  };
+  const panel = !lensTab && !scenariosTab;
   const name = LENSES.find((l) => l.id === lens)?.label ?? lens;
   return (
     <div
@@ -281,23 +293,38 @@ function RightTabs({ label, lensTab }: { label: string; lensTab: boolean }) {
       <button
         type="button"
         role="tab"
-        aria-selected={!lensTab}
-        tabIndex={lensTab ? -1 : 0}
-        className={lensTab ? '' : 'active'}
+        aria-selected={panel}
+        tabIndex={panel ? 0 : -1}
+        className={panel ? 'active' : ''}
         onClick={() => show(false)}
       >
         {label}
       </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={lensTab}
-        tabIndex={lensTab ? 0 : -1}
-        className={lensTab ? 'active' : ''}
-        onClick={() => show(true)}
-      >
-        Lens: {name} {findings ? <span className="afd-chip">{findings}</span> : null}
-      </button>
+      {lens ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={lensTab}
+          tabIndex={lensTab ? 0 : -1}
+          className={lensTab ? 'active' : ''}
+          onClick={() => show(true)}
+        >
+          Lens: {name} {findings ? <span className="afd-chip">{findings}</span> : null}
+        </button>
+      ) : null}
+      {scenarios ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scenariosTab}
+          tabIndex={scenariosTab ? 0 : -1}
+          className={scenariosTab ? 'active' : ''}
+          data-tab="scenarios"
+          onClick={() => showScenarios(true)}
+        >
+          Scenarios {failing ? <span className="afd-chip">{failing}</span> : null}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -313,6 +340,8 @@ export function App() {
   const level = useUi((s) => s.level);
   const panelWidth = useUi((s) => s.panelWidth);
   const lensTab = useUi((s) => s.lens !== null && s.lensTab);
+  const scenariosOpen = useUi((s) => s.scenariosOpen);
+  const scenariosTab = useUi((s) => s.scenariosOpen && s.scenariosTab);
   // AFD-87: the lens tab keeps its place while a step's Details are checked (round 1: W14).
   const right = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -382,7 +411,7 @@ export function App() {
           <aside
             ref={right}
             className="afd-right"
-            aria-label={lensTab ? 'Lens' : rightPanelLabel(panel)}
+            aria-label={lensTab ? 'Lens' : scenariosTab ? 'Scenarios' : rightPanelLabel(panel)}
             onScroll={(e) => {
               // The resizer follows the scroll, so it spans the panel's whole visible edge (round
               // 3: R11; it scrolled away with the content and was left on the top part).
@@ -394,12 +423,16 @@ export function App() {
             }}
           >
             <PanelResizer />
-            {lens ? <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} /> : null}
+            {lens || scenariosOpen ? (
+              <RightTabs label={rightPanelLabel(panel)} lensTab={lensTab} />
+            ) : null}
             {lensTab ? (
               <>
                 <LensBrowser />
                 <LensPanel />
               </>
+            ) : scenariosTab ? (
+              <ScenariosPanel />
             ) : (
               <RightPanelView panel={panel} />
             )}
@@ -410,6 +443,7 @@ export function App() {
         <IgnoreDialog />
         <AcceptDialog />
         <TestedDialog />
+        <HostPickDialog />
         <PortMenu />
         <CanvasContextMenu />
         <CheatSheet />

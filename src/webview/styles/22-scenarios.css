@@ -1,0 +1,123 @@
+/* ---------- scenarios (AFD-116): the top-bar chip, the Scenarios tab, the host checklist ---------- */
+
+.afd-chip.afd-scenario-chip {
+  cursor: pointer;
+  border: 1px solid var(--afd-border);
+  background: transparent;
+  color: var(--afd-fg);
+}
+
+/* Over `button:hover`, which would paint it as a primary button. */
+button.afd-chip.afd-scenario-chip:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.afd-chip.afd-scenario-chip.tone-ok {
+  color: var(--afd-ok);
+}
+
+.afd-chip.afd-scenario-chip.tone-warn {
+  color: var(--afd-unreachable);
+}
+
+.afd-chip.afd-scenario-chip.tone-error {
+  color: var(--afd-failed);
+}
+
+.afd-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 6px 0;
+}
+
+.afd-scenario-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.afd-scenario {
+  border-left: 3px solid var(--afd-border);
+  padding: 4px 0 4px 8px;
+  margin: 6px 0;
+}
+
+.afd-scenario.tone-ok {
+  border-left-color: var(--afd-ok);
+}
+
+.afd-scenario.tone-warn {
+  border-left-color: var(--afd-unreachable);
+}
+
+.afd-scenario.tone-error {
+  border-left-color: var(--afd-failed);
+}
+
+.afd-scenario.active {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+}
+
+.afd-scenario p {
+  margin: 2px 0;
+}
+
+.afd-scenario-verdict {
+  text-transform: uppercase;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+
+.afd-scenario.tone-ok .afd-scenario-verdict {
+  color: var(--afd-ok);
+}
+
+.afd-scenario.tone-warn .afd-scenario-verdict {
+  color: var(--afd-unreachable);
+}
+
+.afd-scenario.tone-error .afd-scenario-verdict,
+.afd-section.tone-error h3,
+.afd-scenario .tone-error {
+  color: var(--afd-failed);
+}
+
+.afd-scenario-misses {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+.afd-scenario-editing {
+  border: 1px solid var(--afd-accent);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.afd-inline-form {
+  display: flex;
+  gap: 4px;
+}
+
+.afd-inline-form .afd-input {
+  flex: 1;
+}
+
+.afd-host-pick {
+  border: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 4px 12px;
+}
+
+.afd-subtitle {
+  margin: 10px 0 2px;
+}
+
+.afd-tab-close {
+  float: right;
+}

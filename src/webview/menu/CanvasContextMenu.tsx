@@ -8,6 +8,7 @@ import {
   canvasMenu,
 } from '../../core/flow/canvasMenu';
 import { type FlowModel, modelOf } from '../../core/flow/model';
+import { scenarioMenu } from '../../core/scenario/authoring';
 import { FULL_FIT } from '../../core/view/fit';
 import { run } from '../actions';
 import {
@@ -18,7 +19,7 @@ import {
   startAttach,
 } from '../annotationActions';
 import { alignSelection, distributeSelection, resetPositions } from '../arrangeActions';
-import { send } from '../bus';
+import { scenarioRequest, send } from '../bus';
 import { copySelection } from '../clipboard';
 import {
   cutNodes,
@@ -66,6 +67,34 @@ export function runCanvasAction(
   switch (action.do) {
     case 'openSubflow':
       ui.setLevel(action.node);
+      return;
+    // AFD-116: what-if in the scenario being edited, each one edit of the scenarios file.
+    case 'scenarioForce':
+      if (ui.scenarioEditing)
+        ui.setHostPick({
+          scenario: ui.scenarioEditing,
+          step: action.step,
+          outcome: action.outcome,
+          title: action.title,
+        });
+      return;
+    case 'scenarioApproval':
+      if (ui.scenarioEditing)
+        void scenarioRequest({
+          kind: 'setApproval',
+          name: ui.scenarioEditing,
+          approval: action.approval,
+          pick: action.pick,
+        }).then((a) => ui.setError(a.ok ? null : (a.error ?? 'The scenario did not change')));
+      return;
+    case 'scenarioExpect':
+      if (ui.scenarioEditing)
+        void scenarioRequest({
+          kind: 'expectHost',
+          name: ui.scenarioEditing,
+          host: action.host,
+          where: action.where,
+        }).then((a) => ui.setError(a.ok ? null : (a.error ?? 'The scenario did not change')));
       return;
     case 'properties':
       ui.openDetails(action.node, action.tab);
@@ -183,9 +212,12 @@ export function CanvasContextMenu() {
   const mode = useUi((s) => s.mode);
   const level = useUi((s) => s.level);
   const close = useUi((s) => s.openContextMenu);
+  const editing = useUi((s) => s.scenarioEditing);
+  const check = useUi((s) => s.scenarioCheck);
   const flow = useReactFlow();
   if (!menu || !snapshot?.doc) return null;
   const model = modelOf(snapshot.doc);
+  const scenario = editing && check ? scenarioMenu(snapshot.doc, check, editing) : undefined;
   const entries = canvasMenu(model, menu.target, {
     mode,
     level,
@@ -193,6 +225,7 @@ export function CanvasContextMenu() {
     ...(snapshot.idGaps ? { why: 'Complete IDs first (the banner above the canvas)' } : {}),
     openPorts: snapshot.openPorts,
     hasPlay: (id) => !!snapshot.plays?.[id],
+    ...(scenario ? { scenario } : {}),
   });
   if (entries.length === 0) return null;
   const fitView = () => void flow.fitView(FULL_FIT);

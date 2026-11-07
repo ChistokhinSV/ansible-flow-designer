@@ -76,6 +76,15 @@ export class Host {
       run: (uri) => this.runDeps(uri),
       shown: this.shown,
       repo: () => this.index.state(),
+      // AFD-116: the live check owns the scenarios file's changes (set when the extension starts).
+      scenarios: {
+        edit: (flow, doc, request) =>
+          this.scenarioLive?.edit(flow, doc, request) ??
+          Promise.resolve({ ok: false, error: 'Scenarios are not ready yet' }),
+        undo: (flow) =>
+          this.scenarioLive?.undo(flow) ??
+          Promise.resolve({ ok: false, error: 'Scenarios are not ready yet' }),
+      },
     };
     this.index = new FlowIndex(this);
     this.playbookDeps = {

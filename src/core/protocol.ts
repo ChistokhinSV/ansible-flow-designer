@@ -8,6 +8,7 @@ import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
+import type { ScenarioRequest } from './scenario/edit';
 import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
 import type { RepoState } from './view/flowFacts';
@@ -208,8 +209,11 @@ export type HostMessage =
   | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
   /** AFD-84: the flow's scenario results; `show` puts that one on the canvas in Run mode. */
   | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
-  /** AFD-115: the live check of the flow's scenarios (simulated), with the last Ansible verdicts. */
-  | { type: 'scenarioCheck'; check: ScenarioCheck }
+  /**
+   * AFD-115: the live check of the flow's scenarios (simulated), with the last Ansible verdicts.
+   * AFD-116: `undo`, how many scenario changes from the designer can be taken back.
+   */
+  | { type: 'scenarioCheck'; check: ScenarioCheck; undo: number }
   /** AFD-85: what changed outside the designer since it opened; null when cleared. */
   | { type: 'outsideMarks'; marks: OutsideMarks | null }
   /** AFD-93: the workspace's flows at a glance, for the flow panel's line. */
@@ -291,8 +295,17 @@ export type WebviewMessage =
   | { type: 'lens'; lens: LensId | null; refresh?: boolean }
   /** Canvas menu › Insert Shared Subflow… (AFD-60): the host picks the subflow. */
   | { type: 'insertShared'; level: string; at?: Position }
-  /** Run ▾ › Run Scenarios (AFD-58): the flow's scenario tests in the run environment. */
-  | { type: 'runScenarios' }
+  /**
+   * Run ▾ › Run Scenarios (AFD-58): the flow's scenario tests in the run environment. AFD-116:
+   * `names` runs only those (Verify in Ansible).
+   */
+  | { type: 'runScenarios'; names?: string[] }
+  /** AFD-116: a change to the flow's scenarios file, answered by `ack`. */
+  | { type: 'scenarioEdit'; reqId: number; request: ScenarioRequest }
+  /** AFD-116: the last scenario change made from the designer, taken back; answered by `ack`. */
+  | { type: 'scenarioUndo'; reqId: number }
+  /** AFD-116: the scenarios file in the text editor. */
+  | { type: 'openScenarios' }
   /** The Changes lens's base picker (AFD-57): HEAD, a branch or a commit. */
   | { type: 'compareWith'; ref: string }
   /** Asks for the flow targets the Inventory lens counts (remembered with the run inputs). */

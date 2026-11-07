@@ -2,7 +2,7 @@
 // same edit, saved with the flow; the live check simulates the scenarios and shows a host that
 // would end elsewhere on its expect line, and on the flow. No Ansible needed.
 import * as assert from 'node:assert/strict';
-import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as vscode from 'vscode';
 import { closeAll, openDesigner, testApi } from './helpers';
@@ -80,6 +80,50 @@ describe('AFD-115: scenarios stay current', () => {
     );
     await until(() => onFlow().length === 1, 'the miss on the flow');
     assert.match(onFlow()[0]?.message ?? '', /^Scenario "a failed stage is handled/);
+  });
+
+  it('AFD-116: a scenario made from the designer starts at the simulated ends; Undo takes each change back', async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    dir = join(root, 'flows', 'routing-levels-new');
+    mkdirSync(dir, { recursive: true });
+    cpSync(
+      join(REPO, 'test/fixtures/engine/routing-levels.flow.yaml'),
+      join(dir, 'routing-levels.flow.yaml'),
+    );
+    const flow = vscode.Uri.file(join(dir, 'routing-levels.flow.yaml'));
+    const file = join(dir, 'routing-levels.scenarios.yaml');
+    const api = await testApi();
+    await openDesigner(flow);
+    const add = await api.scenarioEdit(flow, {
+      kind: 'add',
+      scenario: { name: 'gate fails', inputs: { devices: ['host-01', 'host-02'] }, expect: {} },
+    });
+    assert.equal(add.ok, true, add.error);
+    // Created, with every host where the flow sends it now.
+    assert.match(readFileSync(file, 'utf8'), /host-01: done\s+host-02: done/);
+    const force = await api.scenarioEdit(flow, {
+      kind: 'force',
+      name: 'gate fails',
+      step: 'gate',
+      outcome: 'failed',
+      hosts: ['host-02'],
+    });
+    assert.equal(force.ok, true, force.error);
+    await until(
+      async () => (await api.scenarioCheck(flow))?.results[0]?.passed === false,
+      'failing in the simulation',
+    );
+    const accept = await api.scenarioEdit(flow, { kind: 'acceptEnds', name: 'gate fails' });
+    assert.equal(accept.ok, true, accept.error);
+    assert.match(readFileSync(file, 'utf8'), /host-02: gate\.failed_hosts/);
+    await until(
+      async () => (await api.scenarioCheck(flow))?.results[0]?.passed === true,
+      'passing',
+    );
+    // Three changes, three undos: the last one deletes the file it created.
+    for (let i = 0; i < 3; i++) assert.equal((await api.scenarioUndo(flow)).ok, true);
+    await until(() => !existsSync(file), 'the file is gone');
+    assert.equal((await api.scenarioUndo(flow)).ok, false);
   });
 
   it('a rename through the flow tools renames it in the scenarios file and saves both', async () => {
