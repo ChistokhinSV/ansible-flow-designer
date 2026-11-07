@@ -7,7 +7,7 @@ import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { durationSeconds } from './duration';
-import { exprRefs, refsIn } from './jinja';
+import { exprRefs, refsIn, singleRef, templated } from './jinja';
 import { keywordReads } from './keywords';
 import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
@@ -486,12 +486,14 @@ function checkEnginePorts(
       });
     }
   }
-  // AFD-103: a timeout codegen cannot read is left out of the task without a word.
+  // AFD-103: a timeout codegen cannot read is left out of the task without a word. AFD-112: a
+  // template is read at run time (an approval's: checkTimingInputs).
   const timeout = node.settings?.timeout;
   if (
     !hasInner &&
     timeout !== undefined &&
     String(timeout).trim() &&
+    !templated(timeout) &&
     durationSeconds(timeout) === undefined
   ) {
     add({
@@ -714,6 +716,67 @@ function checkConditions(
   }
 }
 
+/** The Timing settings a step may take at run time (AFD-112, round 4: Q4). */
+const RUN_TIME_TIMING = ['retries', 'delay', 'timeout'] as const;
+
+/**
+ * AFD-112 (round 4: Q4): Retries, Delay and Timeout given at run time read the step's inputs, as
+ * Until does: a name that is no input is not there when Ansible renders the template, and an
+ * input that holds no number fails the task.
+ */
+function checkTimingInputs(
+  model: FlowModel,
+  node: FlowNode,
+  level: string,
+  path: Path,
+  flowInputs: Set<string>,
+  add: (f: Finding) => void,
+): void {
+  if (node.type === 'approval') {
+    const timeout = node.settings?.timeout;
+    if (templated(timeout))
+      add({
+        code: 'timeout-unreadable',
+        severity: 'warning',
+        message: `${label(node)} timeout "${timeout}" is given at run time, but an AWX approval needs a fixed duration (30m, 4h), so it gets none`,
+        path: [...path, 'settings', 'timeout'],
+        node: node.id,
+      });
+    return;
+  }
+  const inputs = node.inputs ?? {};
+  for (const key of RUN_TIME_TIMING) {
+    const value = node.settings?.[key];
+    if (!templated(value)) continue;
+    const where = [...path, 'settings', key];
+    for (const name of exprRefs(value)) {
+      if (name in inputs || MAGIC_VARS.test(name)) continue;
+      const flow = flowInputs.has(name);
+      add({
+        code: 'setting-unknown-var',
+        severity: flow ? 'info' : 'warning',
+        message: flow
+          ? `${label(node)} ${key} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
+          : `${label(node)} ${key} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
+        path: where,
+        node: node.id,
+        subject: name,
+      });
+    }
+    const one = singleRef(value);
+    const type = one ? inputs[one]?.type : undefined;
+    if (type && ['boolean', 'list', 'dict', 'host_list'].includes(type))
+      add({
+        code: 'setting-input-type',
+        severity: 'warning',
+        message: `${label(node)} ${key} reads ${one}, a ${type.replace('_', ' ')}: Ansible needs a whole number${key === 'retries' ? '' : ' of seconds'} there, so the task fails`,
+        path: where,
+        node: node.id,
+        subject: one,
+      });
+  }
+}
+
 /**
  * AFD-106 (round 3: R7): a step input that nothing feeds. The participant typed a step's register
  * name into a later step; that step got an input with no `from`, and the flow validated clean while
@@ -803,6 +866,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   for (const { node, path, level } of model.nodes.values()) {
     checkBindingVars(model, node, level, path, flowInputs, add);
     checkConditions(model, node, level, path, flowInputs, add);
+    checkTimingInputs(model, node, level, path, flowInputs, add);
   }
   const runtime = model.doc.flow?.runtime?.kind;
   const v2 = formatOf(model.doc) >= 2;

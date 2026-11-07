@@ -2,8 +2,9 @@
 // `from:` references. A reference into another level is drawn from the producer to the subflow
 // that contains the consumer, on the producer's level.
 import { liftOf, resolveFrom } from '../flow/dataRefs';
+import { exprRefs, templated } from '../flow/jinja';
 import { modelOf, ROOT } from '../flow/model';
-import type { FlowDocument, Ulid } from '../flow/types';
+import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { isWork, listChip, title, visibleAt } from './common';
 import type { DataWire, LensChip, LensFinding, LensItem, LensView } from './types';
 
@@ -36,8 +37,12 @@ export function dataLens(doc: FlowDocument): LensView {
     chips[node.id] = [listChip('in: ', ins), listChip('out: ', outs)].filter(
       (c): c is LensChip => !!c,
     );
+    // AFD-112: an input a Timing setting reads at run time says so on its wire.
+    const timing = timingReads(node);
     for (const [name, field] of Object.entries(node.inputs ?? {})) {
       const from = field?.from;
+      const readBy = timing.get(name)?.join(', ');
+      const by = readBy ? ` · ${readBy}` : '';
       if (!from) {
         // AFD-106 (round 3: R7): required or not, nothing feeds it (the validator's input-unfed).
         if (field?.default === undefined && field?.type !== 'host_list')
@@ -64,7 +69,7 @@ export function dataLens(doc: FlowDocument): LensView {
         const out = src.name;
         inputUse.set(out, (inputUse.get(out) ?? new Set()).add(node.id));
         const to = start ? visibleAt(model, node.id, ROOT) : undefined;
-        if (start && to) wire(start, to, out, `flow.${out} → ${node.title}.${name}`);
+        if (start && to) wire(start, to, out, `flow.${out} → ${node.title}.${name}${by}`);
         continue;
       }
       const producer = src.node.id;
@@ -80,7 +85,7 @@ export function dataLens(doc: FlowDocument): LensView {
           producer,
           to,
           out === name ? out : `${out} → ${name}`,
-          `${from} → ${node.title}.${name}`,
+          `${from} → ${node.title}.${name}${by}`,
         );
     }
   }
@@ -174,4 +179,21 @@ function unresolved(
     nodes: [node],
     fixes: [{ label: 'Open Details', properties: node }],
   };
+}
+
+const TIMING_WORDS: Record<string, string> = {
+  retries: 'Retries',
+  delay: 'Delay',
+  timeout: 'Timeout',
+};
+
+/** AFD-112: each input the step's Timing reads at run time, with the fields that read it. */
+function timingReads(node: FlowNode): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const [key, word] of Object.entries(TIMING_WORDS)) {
+    const v = node.settings?.[key as keyof NonNullable<FlowNode['settings']>];
+    if (!templated(v)) continue;
+    for (const name of exprRefs(v)) out.set(name, [...(out.get(name) ?? []), word]);
+  }
+  return out;
 }

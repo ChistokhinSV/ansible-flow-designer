@@ -162,8 +162,8 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'timeout-unreadable': {
     meaning:
-      'settings.timeout is not a duration the generated code can read, so the step runs without a timeout.',
-    fix: 'Write it as 30s, 15m or 1h30m (update_node settings.timeout).',
+      'settings.timeout is not a duration the generated code can read, so the step runs without a timeout. A template ({{ … }}) is read at run time on a step, but not on an approval, whose AWX template needs a number.',
+    fix: 'Write it as 30s, 15m or 1h30m (update_node settings.timeout); on a step, a template of whole seconds reading an input works too.',
   },
   'timeout-without-setting': {
     meaning: 'The timeout port is enabled but settings.timeout is not set.',
@@ -213,6 +213,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning:
       'A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any.',
     fix: 'Set its from to an upstream output or a flow input (set_io), or give it a default; for the result of a step, make it an output there first.',
+  },
+  'setting-unknown-var': {
+    meaning:
+      'settings.retries, delay or timeout is given at run time ({{ … }}) and reads a variable that is not an input of the step.',
+    fix: 'Add the input the message names (set_io, from: flow.<name>), or use ask_at_run_time, which adds the flow input and the node input.',
+  },
+  'setting-input-type': {
+    meaning:
+      'settings.retries, delay or timeout reads an input of a type that holds no number (boolean, list, dict, host_list), so the task fails when Ansible renders it.',
+    fix: 'Read an integer input (set_io type integer), or write a number.',
   },
   'until-whole-result': {
     meaning:

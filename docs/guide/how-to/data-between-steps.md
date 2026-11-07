@@ -90,6 +90,10 @@ reads.
 | `register-collision`    | (error) the register another step registers too, or a flow input name  |
 | `ref-may-be-undefined`  | the producing step does not run (or succeed) for every host that reads |
 
+A step's Retries, Delay and Timeout can read an input too, as a value given at run time: see
+[Retries and polling](polling-and-retries.md#a-wait-the-operator-sets-at-run-time). Renaming the
+input renames it there and in Until.
+
 A flow input read directly is only a note: add it as an input to show the dependency. Full list:
 [problem codes](../reference/problems.md).
 

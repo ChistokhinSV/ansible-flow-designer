@@ -4,6 +4,7 @@
 // read in. What a flow cannot hold is listed per item, so the mapper can say so.
 // Ansible's own loader (the probe, ADR-0012) needs an environment, flattens blocks and drops
 // arguments, conditions and loops; this reader works anywhere and keeps them.
+import { templated } from '../flow/jinja';
 import { isAllowedKeyword } from '../flow/keywords';
 import { builtinFqcn, shortName } from './builtins';
 import {
@@ -46,9 +47,10 @@ export interface TaskForm {
   listen: string[];
   tags: string[];
   become?: boolean;
-  timeout?: number;
-  retries?: number;
-  delay?: number;
+  /** Whole seconds, or a template given at run time (AFD-112). */
+  timeout?: number | string;
+  retries?: number | string;
+  delay?: number | string;
   until?: string;
   ignoreUnreachable?: boolean;
   /** Keywords with no place in a flow. */
@@ -306,6 +308,13 @@ const asInt = (v: unknown): number | undefined =>
     : typeof v === 'string' && /^[0-9]+$/.test(v.trim())
       ? Number(v)
       : undefined;
+
+/**
+ * A number, or a whole template the flow keeps as a value given at run time (AFD-112: a templated
+ * retries, delay or timeout used to be dropped on import).
+ */
+const asIntOrTemplate = (v: unknown): number | string | undefined =>
+  asInt(v) ?? (templated(v) ? v.trim() : undefined);
 
 /** A block's or play's own keys added to what its parent handed down. */
 function narrow(parent: Scope, raw: PlainMap, own: 'block' | 'play'): Scope {
@@ -762,17 +771,22 @@ class Reader {
       listen: asList(raw.listen),
       tags,
       ...(become !== undefined ? { become } : {}),
-      ...(asInt(raw.timeout) ? { timeout: asInt(raw.timeout) } : {}),
-      ...(asInt(raw.retries) !== undefined ? { retries: asInt(raw.retries) } : {}),
-      ...(asInt(raw.delay) !== undefined ? { delay: asInt(raw.delay) } : {}),
+      ...(asIntOrTemplate(raw.timeout) ? { timeout: asIntOrTemplate(raw.timeout) } : {}),
+      ...(asIntOrTemplate(raw.retries) !== undefined
+        ? { retries: asIntOrTemplate(raw.retries) }
+        : {}),
+      ...(asIntOrTemplate(raw.delay) !== undefined ? { delay: asIntOrTemplate(raw.delay) } : {}),
       ...(typeof raw.until === 'string' ? { until: raw.until } : {}),
       ...((asBool(raw.ignore_unreachable) ?? scope.ignoreUnreachable)
         ? { ignoreUnreachable: true }
         : {}),
       dropped: [
         ...dropped,
-        ...(raw.retries !== undefined && asInt(raw.retries) === undefined ? ['retries'] : []),
-        ...(raw.timeout !== undefined && !asInt(raw.timeout) ? ['timeout'] : []),
+        ...(raw.retries !== undefined && asIntOrTemplate(raw.retries) === undefined
+          ? ['retries']
+          : []),
+        ...(raw.delay !== undefined && asIntOrTemplate(raw.delay) === undefined ? ['delay'] : []),
+        ...(raw.timeout !== undefined && !asIntOrTemplate(raw.timeout) ? ['timeout'] : []),
       ],
       files: await this.localFiles(found.module, params, dir, playDir),
       origin,

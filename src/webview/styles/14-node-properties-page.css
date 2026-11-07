@@ -622,3 +622,28 @@
 .afd-timing-text {
   margin: 4px 0 0;
 }
+
+/* A Timing field given at run time (AFD-112, round 4: Q4): its note, link and the ask form. */
+.afd-timing-asked,
+.afd-timing-ask {
+  margin: 2px 0 0;
+  font-size: var(--afd-fs-11);
+}
+
+.afd-timing-askform {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--afd-border);
+  border-radius: 2px;
+  min-width: 0;
+}
+
+.afd-timing-askform legend {
+  padding: 0 4px;
+}
+
+.afd-timing-askform-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

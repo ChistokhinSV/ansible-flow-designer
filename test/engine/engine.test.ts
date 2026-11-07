@@ -67,6 +67,14 @@ const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
 const ACROSS = 'test/fixtures/engine/data-across.flow.yaml';
 const SAME_FACT = 'test/fixtures/engine/same-fact.flow.yaml';
+/** AFD-112: retries, delay and timeout given at run time through flow inputs. */
+const RUN_TIME = 'test/fixtures/engine/run-time-timing.flow.yaml';
+/** The line count Count the tries printed for a host: how many tries the poll made. */
+const tries = (run: Run, host: string) =>
+  run.events
+    // The step's own task; its routing tasks print nothing.
+    .filter((e) => e.event === 'result' && e.host === host && e.task === '[count] Count the tries')
+    .map((e) => Number(String((e.out as { stdout?: string } | undefined)?.stdout).split(' ')[0]));
 /** AFD-66: notes on nodes become comments in the code. */
 const ANNOTATED = 'test/fixtures/flows/annotated.flow.yaml';
 /** Every YAML line break, in a note that tries to end its comment and become code. */
@@ -655,6 +663,40 @@ const SCENARIOS: Scenario[] = [
     vars: { devices: LAB },
     rc: 0,
     root: '../../content',
+  },
+  // AFD-112 (round 4: Q4): Ansible renders retries, delay and timeout before the task runs, so a
+  // flow input drives them; the poll fails on every try, so it makes 1 + retries tries.
+  {
+    name: 'Timing given at run time: retries 3 from a flow input makes 4 tries',
+    flow: RUN_TIME,
+    transform: byKey,
+    // Flow input defaults reach a run through the launcher or the AWX survey, so all are given.
+    vars: {
+      devices: ['h01'],
+      poll_tries: 3,
+      poll_pause: 0,
+      poll_limit: 5,
+      poll_sleep: 0,
+      poll_case: 'tries',
+    },
+    expect: { h01: { ports: ['poll.failed_hosts', 'count.ok_hosts'] } },
+    also: (run) => expect(tries(run, 'h01')).toEqual([4]),
+  },
+  // A try that runs over the timeout given at run time ends the step: no more tries.
+  {
+    name: 'Timing given at run time: a try over the timeout ends the step after 1 try',
+    flow: RUN_TIME,
+    transform: byKey,
+    vars: {
+      devices: ['h01'],
+      poll_tries: 3,
+      poll_pause: 0,
+      poll_limit: 1,
+      poll_sleep: 3,
+      poll_case: 'timeout',
+    },
+    expect: { h01: { ports: ['poll.timeout', 'count.ok_hosts'] } },
+    also: (run) => expect(tries(run, 'h01')).toEqual([1]),
   },
   // AFD-53: two steps set the same fact; each reader gets the step's own value (the assert fails
   // when it reads whichever ran last).

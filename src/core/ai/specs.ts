@@ -343,6 +343,35 @@ export const OP_SPECS: OpSpec[] = [
     },
   },
   {
+    op: 'ask_at_run_time',
+    summary:
+      'Let whoever runs the flow set a step\'s retries, delay or timeout: adds an integer flow input (or reuses one of that name), a node input reading it (from: flow.<name>), and sets the setting to "{{ <name> }}", in one edit. Delay and timeout are whole seconds. Not for an approval, whose timeout AWX needs as a fixed duration.',
+    properties: {
+      node: NODE,
+      setting: { enum: ['retries', 'delay', 'timeout'], description: 'Which setting.' },
+      name: { type: 'string', description: 'The input name (snake_case), e.g. drain_tries.' },
+      description: {
+        type: 'string',
+        description: 'What the value is for, shown to whoever runs the flow.',
+      },
+      default: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          "The flow input's default (retries as a count, delay and timeout in seconds); without one the input is required.",
+      },
+    },
+    required: ['node', 'setting', 'name'],
+    example: {
+      op: 'ask_at_run_time',
+      node: 'wait-drain',
+      setting: 'retries',
+      name: 'drain_tries',
+      description: 'How many more times to check that the pool has drained',
+      default: 12,
+    },
+  },
+  {
     op: 'update_flow',
     summary: 'Change the flow header; null removes a field.',
     properties: {

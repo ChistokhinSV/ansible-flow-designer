@@ -23,6 +23,14 @@ interface Props {
   onAddInput(choice: RefChoice): void;
   placeholder?: string;
   label?: string;
+  /**
+   * AFD-112: a field that saves as a whole (a Timing setting) commits on Enter and when the focus
+   * leaves it, and takes back the typing on Escape, as CommitField does. The binding's parameters
+   * have none: the binding saves them.
+   */
+  onEnter?(): void;
+  onEscape?(): void;
+  onLeave?(): void;
 }
 
 type Menu =
@@ -150,7 +158,18 @@ function replaceQuery(
 
 const matches = (text: string, query: string) => text.toLowerCase().includes(query.toLowerCase());
 
-export function ChipField({ id, value, onChange, choices, onAddInput, placeholder, label }: Props) {
+export function ChipField({
+  id,
+  value,
+  onChange,
+  choices,
+  onAddInput,
+  placeholder,
+  label,
+  onEnter,
+  onEscape,
+  onLeave,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const emitted = useRef<string | null>(null);
@@ -293,8 +312,18 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
       setMenu(null);
       return;
     }
+    if (e.key === 'Escape' && onEscape) {
+      // The field handles it: the page around it stays open.
+      e.preventDefault();
+      e.stopPropagation();
+      onEscape();
+      return;
+    }
     // One line: Enter does not insert a line break.
-    if (e.key === 'Enter') e.preventDefault();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEnter?.();
+    }
   };
 
   const onInput = () => {
@@ -351,7 +380,10 @@ export function ChipField({ id, value, onChange, choices, onAddInput, placeholde
         data-placeholder={placeholder}
         onInput={onInput}
         onKeyDown={onKeyDown}
-        onBlur={() => setTimeout(() => setMenu(null), 150)}
+        onBlur={() => {
+          setTimeout(() => setMenu(null), 150);
+          onLeave?.();
+        }}
         onPaste={(e) => {
           // Plain text only: pasted markup would carry its own elements.
           e.preventDefault();

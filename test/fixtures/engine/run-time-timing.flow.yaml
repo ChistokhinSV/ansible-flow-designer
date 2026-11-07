@@ -1,0 +1,103 @@
+# Engine test flow (AFD-112, written by key): a step's retries, delay and timeout given at run time
+# through flow inputs. The poll always fails and writes a line per try, so Count the tries says how
+# many tries Ansible made; a try that runs over the timeout ends the step, with no more tries.
+schema_version: 2
+flow:
+  key: run-time-timing
+  name: Engine test · Timing given at run time
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    poll_tries:
+      type: integer
+      default: 2
+    poll_pause:
+      type: integer
+      default: 0
+    poll_limit:
+      type: integer
+      default: 5
+    poll_sleep:
+      type: integer
+      default: 0
+    poll_case:
+      type: string
+      default: plain
+nodes:
+  - key: start
+    type: start
+    title: Start
+  - key: poll
+    type: task
+    title: Poll until it works
+    status: implemented
+    ports: [timeout]
+    inputs:
+      poll_tries:
+        type: integer
+        from: flow.poll_tries
+      poll_pause:
+        type: integer
+        from: flow.poll_pause
+      poll_limit:
+        type: integer
+        from: flow.poll_limit
+      poll_sleep:
+        type: integer
+        from: flow.poll_sleep
+      poll_case:
+        type: string
+        from: flow.poll_case
+    settings:
+      retries: "{{ poll_tries }}"
+      delay: "{{ poll_pause }}"
+      timeout: "{{ poll_limit }}"
+      until: poll_result.rc == 0
+    impl:
+      kind: module
+      ref: ansible.builtin.shell
+      register: poll_result
+      params:
+        cmd: "echo try >> /tmp/afd-poll-{{ poll_case }}-{{ inventory_hostname }}; sleep {{ poll_sleep }}; exit 1"
+  - key: count
+    type: task
+    title: Count the tries
+    status: implemented
+    inputs:
+      poll_case:
+        type: string
+        from: flow.poll_case
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: "wc -l /tmp/afd-poll-{{ poll_case }}-{{ inventory_hostname }}"
+  - key: done
+    type: end
+    title: Done
+    outcome: success
+  - key: counted
+    type: end
+    title: Counted
+    outcome: success
+  - key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - from: {node: start, port: ok_hosts}
+    to: {node: poll, port: in}
+  - from: {node: poll, port: ok_hosts}
+    to: {node: done, port: in}
+  - from: {node: poll, port: failed_hosts}
+    to: {node: count, port: in}
+  - from: {node: poll, port: timeout}
+    to: {node: count, port: in}
+  - from: {node: count, port: ok_hosts}
+    to: {node: counted, port: in}
+  - from: {node: count, port: failed_hosts}
+    to: {node: failed, port: in}

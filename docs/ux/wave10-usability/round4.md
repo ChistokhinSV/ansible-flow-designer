@@ -151,7 +151,10 @@ show direction, not size.
 ## What round 4 changes
 
 Patched in 0.68.2 (AFD-111): Q1, Q2, Q3, Q5 and Q6, as proposed below. D2's card now says "check
-again up to 12 more times".
+again up to 12 more times". Q4 is answered in 0.69.0 (AFD-112, ADR-0031):
+- Retries, Delay and Timeout take an input with @.
+- "Ask at Run Time…" makes the flow input in one edit.
+- A total wait is an expression in Retries.
 
 - **Patch, proposed:** Q1. Count the first try: "Tries up to 13 times (once, then 12 retries)", the
   Retries hint "Tries again up to this many times", the guide's example. With it, D2's card and

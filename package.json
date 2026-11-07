@@ -3,7 +3,7 @@
   "displayName": "Ansible Flow Designer",
   "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
   "icon": "media/icon.png",
-  "version": "0.68.2",
+  "version": "0.69.0",
   "publisher": "afd-dev",
   "license": "MIT",
   "private": true,
@@ -1002,16 +1002,24 @@
                           },
                           "timeout": {
                             "type": "string",
-                            "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
+                            "description": "Limit for one try, e.g. 300, 30s or 5m; a try that runs over ends the step, and its hosts leave through the timeout port. On a step it may be given at run time as a Jinja template of whole seconds, e.g. \"{{ drain_limit }}\" reading a node input; an approval's timeout is always a duration."
                           },
                           "retries": {
-                            "type": "integer",
-                            "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success."
+                            "type": [
+                              "integer",
+                              "string"
+                            ],
+                            "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+                            "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success. A number, or a Jinja template given at run time, e.g. \"{{ drain_tries }}\" reading a node input."
                           },
                           "delay": {
-                            "type": "integer",
+                            "type": [
+                              "integer",
+                              "string"
+                            ],
                             "minimum": 0,
-                            "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay."
+                            "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+                            "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay. A number, or a Jinja template given at run time, e.g. \"{{ drain_delay }}\" reading a node input."
                           },
                           "until": {
                             "type": "string",
@@ -1329,22 +1337,26 @@
                               "string",
                               "null"
                             ],
-                            "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
+                            "description": "Limit for one try, e.g. 300, 30s or 5m; a try that runs over ends the step, and its hosts leave through the timeout port. On a step it may be given at run time as a Jinja template of whole seconds, e.g. \"{{ drain_limit }}\" reading a node input; an approval's timeout is always a duration."
                           },
                           "retries": {
                             "type": [
                               "integer",
+                              "string",
                               "null"
                             ],
-                            "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success."
+                            "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+                            "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success. A number, or a Jinja template given at run time, e.g. \"{{ drain_tries }}\" reading a node input."
                           },
                           "delay": {
                             "type": [
                               "integer",
+                              "string",
                               "null"
                             ],
                             "minimum": 0,
-                            "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay."
+                            "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+                            "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay. A number, or a Jinja template given at run time, e.g. \"{{ drain_delay }}\" reading a node input."
                           },
                           "until": {
                             "type": [
@@ -1888,6 +1900,47 @@
                       "side",
                       "name",
                       "field"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Let whoever runs the flow set a step's retries, delay or timeout: adds an integer flow input (or reuses one of that name), a node input reading it (from: flow.<name>), and sets the setting to \"{{ <name> }}\", in one edit. Delay and timeout are whole seconds. Not for an approval, whose timeout AWX needs as a fixed duration.",
+                    "properties": {
+                      "op": {
+                        "const": "ask_at_run_time"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                      },
+                      "setting": {
+                        "enum": [
+                          "retries",
+                          "delay",
+                          "timeout"
+                        ],
+                        "description": "Which setting."
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The input name (snake_case), e.g. drain_tries."
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "What the value is for, shown to whoever runs the flow."
+                      },
+                      "default": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "The flow input's default (retries as a count, delay and timeout in seconds); without one the input is required."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node",
+                      "setting",
+                      "name"
                     ],
                     "additionalProperties": false
                   },

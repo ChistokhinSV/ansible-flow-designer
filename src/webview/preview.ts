@@ -1,5 +1,6 @@
 // Content of the hover preview card (D-22, mockup 10): what a subflow runs inside, step by step
 // with its exits and last-run results, or what a bound node runs. Pure, so it is testable.
+import { singleRef } from '../core/flow/jinja';
 import { modelOf } from '../core/flow/model';
 import type { FlowDocument, FlowNode, ImplBinding, NodeSettings, Ulid } from '../core/flow/types';
 import type { RunView } from '../core/protocol';
@@ -42,7 +43,10 @@ function settingBadges(s: NodeSettings | undefined): string[] {
   if (!s) return [];
   const out: string[] = [];
   // AFD-111 (round 4: Q1): a poll counts tries, the first one too; a retry counts retries.
-  if (s.retries) out.push(s.until ? `poll ×${s.retries + 1}` : `retry ×${s.retries}`);
+  // AFD-112: retries given at run time show the input they read.
+  if (typeof s.retries === 'string')
+    out.push(`${s.until ? 'poll' : 'retry'} (${singleRef(s.retries) ?? 'at run time'})`);
+  else if (s.retries) out.push(s.until ? `poll ×${s.retries + 1}` : `retry ×${s.retries}`);
   else if (s.until) out.push('poll');
   if (s.serial !== undefined) out.push(`serial ${s.serial}`);
   if (s.timeout) out.push(`timeout ${s.timeout}`);

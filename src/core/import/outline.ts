@@ -91,7 +91,7 @@ export function taskBinding(
   const settings: NodeSettings = {};
   if (t.become) settings.become = true;
   if (t.tags.length) settings.tags = [...new Set(t.tags)];
-  if (t.timeout) settings.timeout = duration(t.timeout);
+  if (t.timeout) settings.timeout = typeof t.timeout === 'number' ? duration(t.timeout) : t.timeout;
   if (t.retries !== undefined) settings.retries = t.retries;
   if (t.delay !== undefined) settings.delay = t.delay;
   if (t.until) settings.until = t.until;

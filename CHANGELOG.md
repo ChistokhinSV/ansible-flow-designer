@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.69.0 — AFD-112
+
+A step's Timing given at run time (`docs/ux/wave10-usability/round4.md`, Q4). The round 4 participant was asked to let the operator set how long to wait for a pool to drain, and wrote it into the flow's goal instead. Retries and Delay took only numbers, so no input could drive the wait.
+
+- **Retries, Delay and Timeout take an input:** type `@` (or press the @ button) in the field and pick a step input or a flow input that can hold a number. Picking a flow input adds the step input in the same edit. The flow keeps `retries: "{{ drain_tries }}"`, and Ansible renders it before the task runs.
+- **Ask at Run Time…** under each of the three fields makes an integer flow input (with the field's value as its default, and what it is for), the step input that reads it, and the field's template, in one edit. Whoever runs the flow sets the value in the launch dialog or the AWX survey. The field then says "Asked at run time: the flow input drain_tries, default 12".
+- **The Timing sentence reads it with the defaults:** "Tries up to drain_tries + 1 times (13 with its default 12), 10 s apart, …; the step takes at most 8 min 30 s in all with the defaults". An expression such as `{{ (drain_wait / 10) | int }}` is "worked out at run time". The sentence also says that a try that runs over its Timeout ends the step, as Ansible makes no more tries after it.
+- **The check:**
+  - `setting-unknown-var`: a template reads something that is not an input of the step.
+  - `setting-input-type`: it reads an input that holds no number.
+  - An approval's timeout stays a duration (`timeout-unreadable`), because AWX needs a number.
+- **Renaming an input** renames it in Retries, Delay, Timeout and Until too. Until did not follow a rename before.
+- **Imported playbooks** keep a templated `retries`, `delay` or `timeout` instead of dropping it, and the imported step gets the inputs it reads.
+- **The flow tools** have `ask_at_run_time`, and the schema takes a template for `retries` and `delay`. A designer before 0.69 shows a schema error on a flow that uses one (ADR-0031).
+
 ## 0.68.2 — AFD-111
 
 What usability round 4 found that a patch can fix (`docs/ux/wave10-usability/round4.md`, Q1-Q3, Q5, Q6).

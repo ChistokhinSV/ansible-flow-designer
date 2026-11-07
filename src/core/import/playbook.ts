@@ -13,7 +13,7 @@ import { duration } from '../engine/util';
 import { importedFlow, LevelBuilder } from '../flow/builder';
 import { groupPart } from '../flow/dataNames';
 import { type IdFactory, slugify } from '../flow/ids';
-import { exprRefs, refsIn } from '../flow/jinja';
+import { exprRefs, refsIn, templated } from '../flow/jinja';
 import { keywordReads } from '../flow/keywords';
 import type {
   BoundaryExit,
@@ -532,7 +532,8 @@ class PlaybookImporter {
     const settings: NodeSettings = {};
     if (t.become) settings.become = true;
     if (t.tags.length) settings.tags = [...new Set(t.tags)];
-    if (t.timeout) settings.timeout = duration(t.timeout);
+    if (t.timeout)
+      settings.timeout = typeof t.timeout === 'number' ? duration(t.timeout) : t.timeout;
     if (t.retries !== undefined) settings.retries = t.retries;
     if (t.delay !== undefined) settings.delay = t.delay;
     if (t.until) settings.until = t.until;
@@ -837,17 +838,23 @@ class PlaybookImporter {
   }
 }
 
-/** Variables a step reads in its params and keywords, without the names it defines itself. */
+/**
+ * Variables a step reads in its params and keywords, without the names it defines itself. AFD-112:
+ * and in its Timing given at run time and its until, which read the step's inputs too.
+ */
 function readsOf(node: FlowNode): string[] {
   const impl = node.impl;
   if (!impl) return [];
   const kw = keywordReads(impl);
   const own = new Set([...kw.own, ...(impl.register ? [impl.register] : [])]);
+  const s = node.settings ?? {};
   const read = [
     ...refsIn(impl.params ?? {}),
     ...exprRefs(bareParams(impl)),
     ...kw.templated,
     ...kw.bare,
+    ...exprRefs([s.retries, s.delay, s.timeout].filter((v) => templated(v))),
+    ...(s.until ? exprRefs(s.until) : []),
   ];
   return [...new Set(read)].filter((n) => !own.has(n));
 }

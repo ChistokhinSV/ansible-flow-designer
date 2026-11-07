@@ -845,16 +845,24 @@
             },
             "timeout": {
               "type": "string",
-              "description": "Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port."
+              "description": "Limit for one try, e.g. 300, 30s or 5m; a try that runs over ends the step, and its hosts leave through the timeout port. On a step it may be given at run time as a Jinja template of whole seconds, e.g. \"{{ drain_limit }}\" reading a node input; an approval's timeout is always a duration."
             },
             "retries": {
-              "type": "integer",
-              "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success."
+              "type": [
+                "integer",
+                "string"
+              ],
+              "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+              "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success. A number, or a Jinja template given at run time, e.g. \"{{ drain_tries }}\" reading a node input."
             },
             "delay": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "string"
+              ],
               "minimum": 0,
-              "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay."
+              "pattern": "^\\s*\\{\\{[\\s\\S]*\\}\\}\\s*$",
+              "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay. A number, or a Jinja template given at run time, e.g. \"{{ drain_delay }}\" reading a node input."
             },
             "until": {
               "type": "string",

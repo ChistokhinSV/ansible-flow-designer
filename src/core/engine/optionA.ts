@@ -35,7 +35,7 @@ import type {
   Route,
   SegmentFile,
 } from './types';
-import { checksum, durationSeconds } from './util';
+import { checksum, timeoutValue } from './util';
 import { comment, flow, type Out, type OutMap, writeBlock } from './yamlWriter';
 
 export const CHECKSUM_PREFIX = '# Checksum: ';
@@ -629,7 +629,7 @@ class Generator {
         const key = [...ctx.path, node.key].join('/');
         vars.afd_sim = `{{ (afd_simulate | default({}))['${key}'] | default({}) }}`;
       }
-      const timeout = durationSeconds(settings.timeout);
+      const timeout = timeoutValue(settings.timeout);
       const reg = registerName(node, impl);
       const extra: Out[] = [];
       let body: OutMap;
@@ -872,7 +872,7 @@ class Generator {
     const kind =
       !this.opts.stubAll && (impl?.kind === 'module' || impl?.kind === 'role') ? impl.kind : 'todo';
     const sim = this.opts.simulate && kind === 'todo';
-    const timeout = durationSeconds(node.settings?.timeout);
+    const timeout = timeoutValue(node.settings?.timeout);
     const reg = registerName(node, impl);
     const on = (port: string) => this.target(ctx, node, port);
 

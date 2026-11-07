@@ -115,6 +115,15 @@ export type Op =
       field: ContractField | null;
       rename?: string;
     }
+  /** AFD-112: a step's retries, delay or timeout given at run time (flow input, node input, setting). */
+  | {
+      op: 'ask_at_run_time';
+      node: string;
+      setting: 'retries' | 'delay' | 'timeout';
+      name: string;
+      description?: string;
+      default?: number;
+    }
   | {
       op: 'update_flow';
       name?: string;
@@ -590,6 +599,19 @@ async function commandsOf(
           name: op.name,
           field: op.field,
           ...(op.rename ? { rename: op.rename } : {}),
+        },
+      ];
+    }
+    case 'ask_at_run_time': {
+      const node = resolveNode(st.model, op.node);
+      return [
+        {
+          kind: 'askAtRunTime',
+          id: node.id,
+          setting: op.setting,
+          name: op.name,
+          ...(op.description !== undefined ? { description: op.description } : {}),
+          ...(op.default !== undefined ? { default: op.default } : {}),
         },
       ];
     }

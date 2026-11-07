@@ -17,3 +17,14 @@ export function checksum(text: string): string {
 // AFD-103: the parser lives in core/flow, so the validator can check a timeout too. AFD-111: the
 // formatter too, so the Execution tab can show a delay the way Timeout is written.
 export { duration, durationSeconds } from '../flow/duration';
+
+import { durationSeconds } from '../flow/duration';
+import { templated } from '../flow/jinja';
+
+/**
+ * A step's timeout as the task's `timeout:` (AFD-112): whole seconds for a duration, a template
+ * given at run time as it is (Ansible renders it to seconds before the task runs), else nothing.
+ */
+export function timeoutValue(text: string | number | undefined): number | string | undefined {
+  return templated(text) ? text.trim() : durationSeconds(text);
+}

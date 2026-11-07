@@ -22,7 +22,7 @@ import {
 } from './decisions';
 import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
-import { mapStrings, renameRef } from './jinja';
+import { mapStrings, renameExprRef, renameRef } from './jinja';
 import { existingLift, liftField, liftName } from './lift';
 import { CURRENT_FORMAT, FormatError, formatOf, migrate } from './migrate';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
@@ -144,6 +144,19 @@ export type FlowCommand =
       rename?: string;
     }
   | { kind: 'updateFlow'; patch: FlowPatch }
+  /**
+   * AFD-112 (round 4: Q4): a step's Timing setting given at run time, in one edit: the flow input
+   * (an integer, the field's value its default), the step input reading it, and the setting.
+   */
+  | {
+      kind: 'askAtRunTime';
+      id: Ulid;
+      setting: RunTimeSetting;
+      name: string;
+      description?: string;
+      /** Without one, the flow input is required. */
+      default?: number;
+    }
   /** D-23: the inner node that receives the hosts entering the subflow (null clears it). */
   | { kind: 'setBoundaryIn'; subflow: Ulid; node: Ulid | null }
   /** D-23: an inner output leaves the subflow through the parent's `port`. */
@@ -273,7 +286,15 @@ export interface NodePatch {
   settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
   /** Replaces the binding's task keywords (AFD-26); null or {} removes them. */
   keywords?: Record<string, unknown> | null;
+  /**
+   * AFD-112: merged into the node's inputs; null removes one. A Timing field given an input with
+   * @ and the input it reads are one edit, so one undo takes back both.
+   */
+  inputs?: Record<string, ContractField | null>;
 }
+
+/** The settings a step may take at run time (AFD-112). */
+export type RunTimeSetting = 'retries' | 'delay' | 'timeout';
 
 export interface FlowPatch {
   name?: string;
@@ -799,10 +820,10 @@ function applyPattern(
     );
     setPositions(tx, cmd.freeze ?? {});
     if (Object.keys(add).length > 0)
-      updateNode(tx, { kind: 'updateNode', id: source.node.id, patch: { settings: add } });
+      updateNode(tx, { kind: 'updateNode', id: source.node.id, patch: { settings: add } }, notes);
     const s = { ...recipe.source, ...have };
     notes.push(
-      `${cmd.pattern}: ${source.node.key} tries again up to ${s.retries} times, ${s.delay ?? 5} s apart; hosts that still fail leave by ${cmd.from.port}`,
+      `${cmd.pattern}: ${source.node.key} tries again up to ${s.retries} times, ${s.delay ?? 5}${typeof s.delay === 'string' ? '' : ' s'} apart; hosts that still fail leave by ${cmd.from.port}`,
     );
     return undefined;
   }
@@ -1003,7 +1024,11 @@ function renameKey(tx: YamlTransaction, id: Ulid, newKey: string): void {
   ]);
 }
 
-function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'updateNode' }>): void {
+function updateNode(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'updateNode' }>,
+  notes: string[],
+): void {
   const { patch } = cmd;
   if (patch.key !== undefined) renameKey(tx, cmd.id, patch.key);
   const { path } = nodeAt(state(tx), cmd.id);
@@ -1054,6 +1079,12 @@ function updateNode(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'upda
       }
     }
   }
+  for (const [name, field] of Object.entries(patch.inputs ?? {}))
+    setContractField(
+      tx,
+      { kind: 'setContractField', target: cmd.id, side: 'inputs', name, field },
+      notes,
+    );
   if (patch.keywords !== undefined) {
     const impl = nodeAt(state(tx), cmd.id).node.impl;
     if (!impl || impl.kind === 'playbook')
@@ -1446,6 +1477,15 @@ function setContractField(
       if (JSON.stringify(next) !== JSON.stringify(params))
         tx.apply((f) => setIn(f, [...base, 'impl', 'params'], next as YamlValue));
     }
+    // AFD-112: and Timing given at run time, and until, which read the step's inputs too.
+    const settings = nodeAt(state(tx), cmd.target).node.settings;
+    for (const key of ['retries', 'delay', 'timeout', 'until'] as const) {
+      const v = settings?.[key];
+      if (typeof v !== 'string') continue;
+      const next =
+        key === 'until' ? renameExprRef(v, cmd.name, name) : renameRef(v, cmd.name, name);
+      if (next !== v) tx.apply((f) => setIn(f, [...base, 'settings', key], next));
+    }
   }
   const after_ = state(tx);
   const side =
@@ -1453,6 +1493,75 @@ function setContractField(
   if (side) tx.apply((f) => setIn(f, [...base, cmd.side, name], value));
   else setField(tx, base, cmd.side, { [name]: value }, order);
   if (cmd.target !== 'flow') liftPathRefs(tx, cmd.target, notes);
+}
+
+/**
+ * AFD-112 (round 4: Q4): nothing tied "a value given at run time" to a step's Timing. One edit
+ * makes the flow input (or reuses one of that name that can hold a number), the step input that
+ * reads it, and the setting's template; an approval's timeout stays a duration (AWX needs one).
+ */
+function askAtRunTime(
+  tx: YamlTransaction,
+  cmd: Extract<FlowCommand, { kind: 'askAtRunTime' }>,
+  notes: string[],
+): void {
+  const st = state(tx);
+  const { node } = nodeAt(st, cmd.id);
+  const plainStep =
+    node.type === 'task' || (node.type === 'subflow' && !node.subflow?.nodes?.length);
+  if (!plainStep)
+    throw new CommandError(
+      'bad-setting',
+      node.type === 'approval'
+        ? "An approval's timeout is a fixed duration: AWX needs a number"
+        : `A ${node.type} node runs no task of its own, so it has no ${cmd.setting}`,
+    );
+  if (cmd.default !== undefined && (!Number.isInteger(cmd.default) || cmd.default < 0))
+    throw new CommandError('bad-default', 'The default must be a whole number, 0 or more');
+  const numeric = ['integer', 'string', 'any'];
+  const flowField = st.doc.flow.inputs?.[cmd.name];
+  if (flowField && !numeric.includes(flowField.type))
+    throw new CommandError(
+      'duplicate-name',
+      `Flow input "${cmd.name}" is a ${flowField.type}, which holds no number: choose another name`,
+    );
+  const nodeField = node.inputs?.[cmd.name];
+  if (nodeField && nodeField.from !== `flow.${cmd.name}`)
+    throw new CommandError(
+      'duplicate-name',
+      `${node.title} already has an input "${cmd.name}" that reads ${nodeField.from ?? 'nothing'}: choose another name`,
+    );
+  if (flowField) notes.push(`Uses the flow input ${cmd.name} that the flow has already`);
+  else
+    setContractField(
+      tx,
+      {
+        kind: 'setContractField',
+        target: 'flow',
+        side: 'inputs',
+        name: cmd.name,
+        field: {
+          type: 'integer',
+          ...(cmd.default !== undefined ? { default: cmd.default } : { required: true }),
+          ...(cmd.description?.trim() ? { description: cmd.description.trim() } : {}),
+        },
+      },
+      notes,
+    );
+  updateNode(
+    tx,
+    {
+      kind: 'updateNode',
+      id: cmd.id,
+      patch: {
+        settings: { [cmd.setting]: `{{ ${cmd.name} }}` },
+        ...(nodeField
+          ? {}
+          : { inputs: { [cmd.name]: { type: 'integer', from: `flow.${cmd.name}` } } }),
+      },
+    },
+    notes,
+  );
 }
 
 function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
@@ -2481,7 +2590,10 @@ export function planCommand(
       created = addNode(tx, ctx, cmd, notes);
       break;
     case 'updateNode':
-      updateNode(tx, cmd);
+      updateNode(tx, cmd, notes);
+      break;
+    case 'askAtRunTime':
+      askAtRunTime(tx, cmd, notes);
       break;
     case 'deleteNode':
       deleteNode(tx, cmd.id);

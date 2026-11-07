@@ -25,7 +25,7 @@ function oneLine(text: string): string {
 }
 
 /** The module task or include_role of a bound node (without Option A's routing around it). */
-export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number): OutMap {
+export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number | string): OutMap {
   const tag = `node_${node.id}`;
   const keywords = Object.entries(impl.keywords ?? {});
   if (impl.kind === 'role') {

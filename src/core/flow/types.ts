@@ -62,10 +62,12 @@ export interface NodeSettings {
    * number or a percentage); the steps run in one play with this serial.
    */
   rolling?: string | number;
+  /** A duration (`30s`); AFD-112: or a template of whole seconds (`{{ drain_limit }}`). */
   timeout?: string;
-  retries?: number;
-  /** Seconds between tries (Ansible `delay`, default 5). */
-  delay?: number;
+  /** AFD-112: a number, or a template given at run time (`{{ drain_tries }}`). */
+  retries?: number | string;
+  /** Seconds between tries (Ansible `delay`, default 5); AFD-112: or a template. */
+  delay?: number | string;
   /** Jinja test without braces: retry until it holds; reads the registered result (AFD-21). */
   until?: string;
   become?: boolean;

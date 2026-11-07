@@ -111,6 +111,37 @@ export function renameRef(value: string, from: string, to: string): string {
   });
 }
 
+/**
+ * A value that is one whole template, `{{ … }}` (AFD-112): a Timing setting given at run time,
+ * which Ansible renders before the task runs, as against a number or a duration.
+ */
+export function templated(value: unknown): value is string {
+  return typeof value === 'string' && /^\s*\{\{[\s\S]*\}\}\s*$/.test(value);
+}
+
+/** The one variable a template is, `{{ drain_tries }}` → drain_tries; not a field or expression. */
+export function singleRef(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const name = SIMPLE.exec(value.trim())?.[1];
+  return name && !name.includes('.') ? name : undefined;
+}
+
+/**
+ * `renameRef` for a value Ansible reads as a bare expression (`until`): with braces it is a
+ * template; without, every read of `from` in the whole text is renamed.
+ */
+export function renameExprRef(value: string, from: string, to: string): string {
+  if (value.includes('{{')) return renameRef(value, from, to);
+  let out = '';
+  let at = 0;
+  for (const t of identifiers(value)) {
+    if (t.name !== from) continue;
+    out += value.slice(at, t.start) + to;
+    at = t.start + from.length;
+  }
+  return out + value.slice(at);
+}
+
 /** Applies `fn` to every string inside a parameter tree (lists and maps of any depth). */
 export function mapStrings(value: unknown, fn: (s: string) => string): unknown {
   if (typeof value === 'string') return fn(value);

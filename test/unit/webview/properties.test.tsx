@@ -414,11 +414,17 @@ describe('Details: a step selected before it arrives (AFD-71)', () => {
 // AFD-103 (round 3: R1-R4): the Execution tab says what it holds and how its fields combine.
 describe('Details: Execution explains itself (AFD-103)', () => {
   const KEY = 'set-boot-variable';
-  function withSettings(settings: FlowNode['settings']) {
+  function withSettings(
+    settings: FlowNode['settings'],
+    tweak?: (copy: FlowDocument, node: FlowNode) => void,
+  ) {
     const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
     const walk = (nodes: FlowNode[] = []) => {
       for (const n of nodes) {
-        if (n.key === KEY) n.settings = settings;
+        if (n.key === KEY) {
+          n.settings = settings;
+          tweak?.(copy, n);
+        }
         walk(n.subflow?.nodes);
       }
     };
@@ -465,7 +471,7 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     });
     await openExecution();
     expect(document.querySelector('[data-timing-text]')?.textContent).toBe(
-      "Tries up to 11 times (once, then 10 retries), 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s; the step takes at most 5 min 15 s in all.",
+      "Tries up to 11 times (once, then 10 retries), 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s, and a try that runs over ends the step; the step takes at most 5 min 15 s in all.",
     );
     const until = screen.getByLabelText(/^Until/) as HTMLInputElement;
     const options = [
@@ -479,20 +485,99 @@ describe('Details: Execution explains itself (AFD-103)', () => {
       'boot_result.backup_path',
     ]);
     // A timeout the generated code cannot read is refused in the field.
-    const timeout = screen.getByLabelText(/^Timeout/) as HTMLInputElement;
-    fireEvent.change(timeout, { target: { value: '15 sec' } });
-    expect(screen.getByText('A duration: 30s, 15m, 1h30m')).toBeTruthy();
+    const timeout = screen.getByRole('textbox', { name: /^Timeout/ });
+    timeout.textContent = '15 sec';
+    fireEvent.input(timeout);
+    expect(screen.getByText('A duration: 30s, 15m, 1h30m, or an input with @')).toBeTruthy();
   });
 
   // AFD-111 (round 4: Q2): `10s` was refused with "A whole number"; Timeout beside it takes `30s`.
   it('takes Delay as a duration, saved as seconds', async () => {
     withSettings({ retries: 10, delay: 15 });
     const id = await openExecution();
-    const delay = screen.getByLabelText(/^Delay/) as HTMLInputElement;
-    expect(delay.value).toBe('15s');
-    fireEvent.change(delay, { target: { value: '1m' } });
+    const delay = screen.getByRole('textbox', { name: /^Delay/ });
+    expect(delay.textContent).toBe('15s');
+    delay.textContent = '1m';
+    fireEvent.input(delay);
     fireEvent.blur(delay);
     expect(commands()).toEqual([{ kind: 'updateNode', id, patch: { settings: { delay: 60 } } }]);
+  });
+
+  // AFD-112 (round 4: Q4): the participant asked to let the operator set a drain wait wrote it
+  // into the flow's goal; the Timing fields took only numbers.
+  const boot = (copy: FlowDocument) => {
+    copy.flow.inputs = { ...copy.flow.inputs, boot_tries: { type: 'integer', default: 4 } };
+  };
+
+  it('a Timing field takes a flow input with @: the setting and the step input, one edit', async () => {
+    withSettings({ retries: 3 }, boot);
+    const id = await openExecution();
+    const retries = screen.getByRole('textbox', { name: /^Retries/ });
+    retries.textContent = '';
+    fireEvent.input(retries);
+    const at = screen.getByRole('button', { name: /^Insert an input into Retries/ });
+    fireEvent.mouseDown(at);
+    fireEvent.click(at);
+    // Inputs that can hold a number (strings too): the step's, the flow's and an upstream output;
+    // no step's whole result (a dict), and not the host list.
+    expect(
+      screen.getAllByRole('option').map((o) => o.querySelector('.afd-ref-chip')?.textContent),
+    ).toEqual(['target_image', 'site', 'target_version', 'boot_tries', 'backup_ref']);
+    fireEvent.mouseDown(screen.getByRole('option', { name: /boot_tries/ }));
+    fireEvent.blur(retries);
+    expect(commands()).toEqual([
+      {
+        kind: 'updateNode',
+        id,
+        patch: {
+          settings: { retries: '{{ boot_tries }}' },
+          inputs: { boot_tries: { type: 'integer', from: 'flow.boot_tries' } },
+        },
+      },
+    ]);
+  });
+
+  it('a Timing field asked at run time reads with its default and says where it comes from', async () => {
+    withSettings(
+      { retries: '{{ boot_tries }}', until: "'x' in boot_result.updates" },
+      (copy, n) => {
+        boot(copy);
+        n.inputs = { ...n.inputs, boot_tries: { type: 'integer', from: 'flow.boot_tries' } };
+      },
+    );
+    await openExecution();
+    expect(document.querySelector('[data-timing-text]')?.textContent).toBe(
+      "Tries up to boot_tries + 1 times (5 with its default 4), 5 s apart, until 'x' in boot_result.updates.",
+    );
+    expect(document.querySelector('[data-timing-asked="retries"]')?.textContent).toBe(
+      'Asked at run time: the flow input boot_tries, default 4.',
+    );
+    const retries = screen.getByRole('textbox', { name: /^Retries/ });
+    expect(retries.querySelector('[data-ref]')?.textContent).toBe('boot_tries');
+    expect(document.querySelector('[data-timing-ask="retries"]')).toBeNull();
+  });
+
+  it('Ask at Run Time makes the flow input from the field: one askAtRunTime', async () => {
+    withSettings({ retries: 10, delay: 15 });
+    const id = await openExecution();
+    fireEvent.click(document.querySelector('[data-timing-ask="delay"]') as HTMLElement);
+    const form = document.querySelector('[data-timing-askform="delay"]') as HTMLElement;
+    const name = within(form).getByLabelText('Input name') as HTMLInputElement;
+    expect(name.value).toBe('set_boot_variable_delay');
+    fireEvent.change(name, { target: { value: 'boot_delay' } });
+    expect((within(form).getByLabelText(/^Default/) as HTMLInputElement).value).toBe('15');
+    fireEvent.click(within(form).getByRole('button', { name: 'Ask at Run Time' }));
+    expect(commands()).toEqual([
+      {
+        kind: 'askAtRunTime',
+        id,
+        setting: 'delay',
+        name: 'boot_delay',
+        description: `Seconds between the tries of ${nodeOf(KEY).title}`,
+        default: 15,
+      },
+    ]);
+    expect(document.querySelector('[data-timing-askform="delay"]')).toBeNull();
   });
 
   it('adds a common keyword in one click; the YAML box marks a wrong line and indents', async () => {

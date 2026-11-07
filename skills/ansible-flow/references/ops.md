@@ -192,6 +192,20 @@ Add, change, rename or remove (field: null) one input or output of a node, or of
 {"op":"set_io","node":"check-ntp","side":"outputs","name":"ntp_ok","field":{"type":"boolean","from":"impl.register.ok"}}
 ```
 
+### ask_at_run_time
+
+Let whoever runs the flow set a step's retries, delay or timeout: adds an integer flow input (or reuses one of that name), a node input reading it (from: flow.<name>), and sets the setting to "{{ <name> }}", in one edit. Delay and timeout are whole seconds. Not for an approval, whose timeout AWX needs as a fixed duration.
+
+- `node` (string, required): A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config).
+- `setting` (retries | delay | timeout, required): Which setting.
+- `name` (string, required): The input name (snake_case), e.g. drain_tries.
+- `description` (string): What the value is for, shown to whoever runs the flow.
+- `default` (integer): The flow input's default (retries as a count, delay and timeout in seconds); without one the input is required.
+
+```json
+{"op":"ask_at_run_time","node":"wait-drain","setting":"retries","name":"drain_tries","description":"How many more times to check that the pool has drained","default":12}
+```
+
 ### update_flow
 
 Change the flow header; null removes a field.
@@ -381,7 +395,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | shared-source | A shared subflow's source is missing (the file or the subflow key), or has a newer version than the copy. | Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone. |
 | rolling-unsupported | A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow. | Move that step out of the subflow, or remove rolling: without it the steps run play by play. |
 | legacy-port | A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host. | Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps. |
-| timeout-unreadable | settings.timeout is not a duration the generated code can read, so the step runs without a timeout. | Write it as 30s, 15m or 1h30m (update_node settings.timeout). |
+| timeout-unreadable | settings.timeout is not a duration the generated code can read, so the step runs without a timeout. A template ({{ … }}) is read at run time on a step, but not on an approval, whose AWX template needs a number. | Write it as 30s, 15m or 1h30m (update_node settings.timeout); on a step, a template of whole seconds reading an input works too. |
 | timeout-without-setting | The timeout port is enabled but settings.timeout is not set. | Set settings.timeout (update_node settings). |
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
@@ -393,6 +407,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
 | subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
 | input-unfed | A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any. | Set its from to an upstream output or a flow input (set_io), or give it a default; for the result of a step, make it an output there first. |
+| setting-unknown-var | settings.retries, delay or timeout is given at run time ({{ … }}) and reads a variable that is not an input of the step. | Add the input the message names (set_io, from: flow.<name>), or use ask_at_run_time, which adds the flow input and the node input. |
+| setting-input-type | settings.retries, delay or timeout reads an input of a type that holds no number (boolean, list, dict, host_list), so the task fails when Ansible renders it. | Read an integer input (set_io type integer), or write a number. |
 | until-whole-result | settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds. | Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until). |
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |

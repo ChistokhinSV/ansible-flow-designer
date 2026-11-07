@@ -259,3 +259,24 @@ whole `timeout`. The sentence and the Retries hint counted `retries` tries, one 
   `0`, stores whole seconds (Ansible's delay is an integer, so the flow format is unchanged), and
   shows them as a duration (`duration()` moved to `core/flow/duration.ts` beside the parser, with
   `spokenDuration()` for sentences).
+
+## Amendment: Timing given at run time (AFD-112, 2026-11-07)
+
+Usability round 4, Q4. The participant was asked to let the operator set a drain wait at run time,
+and wrote it into the flow's goal instead. The Timing fields took only numbers, and nothing on the
+way led to a flow input. ADR-0031 records the format and the checks; this amendment covers the UI.
+
+- **Retries, Delay and Timeout** on a step are `TimingField`s (`webview/details/TimingField.tsx`).
+  Each one is a `ChipField` that keeps a draft and commits on Enter or blur, as `CommitField`
+  does. Escape takes the draft back.
+  - Its @ list shows only inputs that can hold a number (`timingChoices`).
+  - Picking a flow input adds the step input in the same `updateNode`.
+  - An approval's Timeout stays a `CommitField` that refuses templates.
+- **"Ask at Run Time…"** sits under each of the three fields. It opens an inline form with the
+  input's name, what it is for, and its default (from the field), then runs one `askAtRunTime`.
+  Once the field reads a flow input through a step input, the link gives way to a note: "Asked at
+  run time: the flow input drain_tries, default 12".
+- **The Timing sentence** reads a template with its input's default (`inputDefaultOf`). It also
+  says that a try that runs over its timeout ends the step.
+- **The node face** shows `poll (drain_tries)` for retries given at run time.
+- **The Data lens** adds the field that reads an input to its wire's title: "· Retries".

@@ -76,7 +76,7 @@ describe('execution settings', () => {
     expect(settingValue(serial, ' 2 ')).toBe(2);
     expect(settingValue(serial, '25%')).toBe('25%');
     expect(settingValue(retries, '3')).toBe(3);
-    expect(settingProblem(retries, '3x')).toBe('A whole number');
+    expect(settingProblem(retries, '3x')).toBe('A whole number, or an input with @');
     expect(settingValue(tags, 'a, b,,c')).toEqual(['a', 'b', 'c']);
     expect(settingValue(tags, '  ')).toBeNull();
     expect(settingText(['a', 'b'])).toBe('a, b');
@@ -92,10 +92,28 @@ describe('execution settings', () => {
     ]);
     expect(settingProblem(delay, '10s')).toBeUndefined();
     expect(settingProblem(delay, 'soon')).toBe(
-      'A duration: 10s, 1m, 1m30s, or a number of seconds',
+      'A duration: 10s, 1m, 1m30s, a number of seconds, or an input with @',
     );
     expect(settingValue(delay, '')).toBeNull();
     expect([10, 90, 0].map((v) => settingText(v, delay))).toEqual(['10s', '1m30s', '0s']);
+  });
+
+  // AFD-112 (round 4: Q4): Retries, Delay and Timeout take a value given at run time.
+  it('keeps a template given at run time; an approval timeout and other settings take none', () => {
+    const [retries, delay, timeout, serial] = ['retries', 'delay', 'timeout', 'serial'].map(field);
+    if (!retries || !delay || !timeout || !serial) throw new Error('missing setting');
+    for (const f of [retries, delay, timeout]) {
+      expect(settingProblem(f, '{{ drain_tries }}')).toBeUndefined();
+      expect(settingValue(f, ' {{ (drain_wait / 10) | int }} ')).toBe(
+        '{{ (drain_wait / 10) | int }}',
+      );
+    }
+    expect(settingText('{{ drain_delay }}', delay)).toBe('{{ drain_delay }}');
+    expect(settingProblem(timeout, '{{ gate_wait }}', false)).toBe('A duration: 30s, 15m, 1h30m');
+    expect(settingProblem(timeout, 'later')).toBe(
+      'A duration: 30s, 15m, 1h30m, or an input with @',
+    );
+    expect(settingValue(serial, '{{ batch }}')).toBe('{{ batch }}');
   });
 });
 
@@ -109,7 +127,7 @@ describe('timingText', () => {
   it.each([
     [
       { retries: 12, delay: 10, until: "'drained' in wait_drain_result.stdout", timeout: '30s' },
-      "Tries up to 13 times (once, then 12 retries), 10 s apart, until 'drained' in wait_drain_result.stdout; each try at most 30s; the step takes at most 8 min 30 s in all.",
+      "Tries up to 13 times (once, then 12 retries), 10 s apart, until 'drained' in wait_drain_result.stdout; each try at most 30s, and a try that runs over ends the step; the step takes at most 8 min 30 s in all.",
     ],
     [
       { until: 'wait_drain_result.rc == 0' },
@@ -130,6 +148,35 @@ describe('timingText', () => {
       'Tries up to 3 times (once, then 2 retries), 5 s apart, until it succeeds (wait_drain_result is succeeded); "soon" is not a duration, so no try has a limit.',
     ],
   ] as const)('%o', (settings, text) => expect(timingText(settings, r)).toBe(text));
+
+  // AFD-112 (round 4: Q4): a value given at run time reads by its input, with its default.
+  const defaults: Record<string, number> = { drain_tries: 12, drain_delay: 10, drain_limit: 30 };
+  const defaultOf = (name: string) => defaults[name];
+  it.each([
+    [
+      {
+        retries: '{{ drain_tries }}',
+        delay: '{{ drain_delay }}',
+        timeout: '{{ drain_limit }}',
+        until: "'drained' in wait_drain_result.stdout",
+      },
+      "Tries up to drain_tries + 1 times (13 with its default 12), drain_delay s apart (10 s by default), until 'drained' in wait_drain_result.stdout; each try at most drain_limit s (30 s by default), and a try that runs over ends the step; the step takes at most 8 min 30 s in all with the defaults.",
+    ],
+    [
+      { retries: '{{ pool_tries }}', delay: 10 },
+      'Tries up to pool_tries + 1 times (pool_tries is given at run time), 10 s apart, until it succeeds (wait_drain_result is succeeded).',
+    ],
+    [
+      { retries: '{{ (drain_wait / 10) | int }}', delay: 10, timeout: '30s' },
+      'Tries up to 1 + (drain_wait / 10) | int times, worked out at run time, 10 s apart, until it succeeds (wait_drain_result is succeeded); each try at most 30s, and a try that runs over ends the step.',
+    ],
+    [
+      { timeout: '{{ drain_limit }}' },
+      'Runs once; each try at most drain_limit s (30 s by default).',
+    ],
+  ] as const)('given at run time: %o', (settings, text) =>
+    expect(timingText(settings, r, defaultOf)).toBe(text),
+  );
 
   it('says nothing when no Timing field is set', () =>
     expect(timingText({ become: true }, r)).toBeUndefined());

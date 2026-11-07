@@ -2,6 +2,7 @@
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
 import { useId, useMemo, useRef } from 'react';
+import { refChoices } from '../../core/catalog/draft';
 import { registerName } from '../../core/flow/dataNames';
 import { acceptedAll } from '../../core/flow/decisions';
 import { formatOf, purposeOf } from '../../core/flow/format';
@@ -21,12 +22,16 @@ import { portHint } from '../../core/view/portHints';
 import {
   appliesTo,
   EXECUTION_SETTINGS,
+  inputDefaultOf,
+  RUN_TIME_KEYS,
   SETTING_GROUPS,
+  type SettingField,
   type SettingGroup,
   type SettingKey,
   settingProblem,
   settingText,
   settingValue,
+  timingChoices,
   timingText,
 } from '../../core/view/settings';
 import { run } from '../actions';
@@ -40,6 +45,7 @@ import { YamlField, type YamlFieldHandle } from '../properties/YamlField';
 import { useUi } from '../store';
 import type { PortView } from '../viewModel';
 import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
+import { TimingField } from './TimingField';
 
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
 
@@ -517,8 +523,17 @@ export function ExecutionSection({
     : returns.includes('rc')
       ? `${result}.rc == 0`
       : `${result} is succeeded`;
-  const timing = timingText(settings, result);
   const flowDoc = useUi((s) => s.snapshot?.doc);
+  // AFD-112 (round 4: Q4): a value given at run time reads with its input's default.
+  const timing = timingText(
+    settings,
+    result,
+    flowDoc ? inputDefaultOf(flowDoc.flow, node) : undefined,
+  );
+  const timingRefs = useMemo(
+    () => (flowDoc ? timingChoices(refChoices(modelOf(flowDoc), node), node) : []),
+    [flowDoc, node],
+  );
   // AFD-106: what the Access lens would flag, asked here with the lens off too.
   const becomeFlagged = useMemo(
     () =>
@@ -569,6 +584,28 @@ export function ExecutionSection({
                   </div>
                 );
               const until = s.key === 'until';
+              // AFD-112: Retries, Delay and Timeout take an input with @ where the step uses them
+              // (an approval's timeout stays a duration: AWX needs a number).
+              if (RUN_TIME_KEYS.includes(s.key) && node.type !== 'approval' && !unused)
+                return (
+                  <div key={s.key}>
+                    <TimingField
+                      node={node}
+                      flow={flowDoc?.flow}
+                      field={s as SettingField & { key: 'retries' | 'delay' | 'timeout' }}
+                      label={`${s.label} · ${s.help}`}
+                      choices={timingRefs}
+                      problem={fieldProblem(problems, `settings.${s.key}`)}
+                      onCommit={(v, inputs) =>
+                        void updatePatch(node.id, {
+                          settings: { [s.key]: v },
+                          ...(Object.keys(inputs).length ? { inputs } : {}),
+                        })
+                      }
+                    />
+                    {unused}
+                  </div>
+                );
               return (
                 <div key={s.key}>
                   <CommitField
@@ -578,7 +615,7 @@ export function ExecutionSection({
                     placeholder={until ? untilExample : undefined}
                     suggestions={until ? untilChoices : undefined}
                     problem={fieldProblem(problems, `settings.${s.key}`)}
-                    validate={(v) => settingProblem(s, v)}
+                    validate={(v) => settingProblem(s, v, node.type !== 'approval')}
                     onCommit={(v) => set(s.key, settingValue(s, v))}
                   />
                   {unused}
