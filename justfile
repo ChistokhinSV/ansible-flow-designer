@@ -105,10 +105,6 @@ test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label import
 
-# Engine, probe and Docker integration suites in a throwaway container on the GNS3 VM (M7, lab/README.md)
-test-docker-lab *suites:
-    node lab/docker-suites.mjs {{ suites }}
-
 # The MCP server for terminal agents, end to end over stdio on the production bundle (AFD-19)
 test-mcp: build-prod
     {{ if os_family() == "windows" { "$env:AFD_MCP='1';" } else { "export AFD_MCP=1;" } }} npx --no-install vitest run --project mcp
@@ -146,21 +142,6 @@ harness:
 docs-shots *names:
     node scripts/docs-shots.mjs {{ names }}
 
-# UX baseline (AFD-33): screenshots in every mode at two sizes and canvas metrics into docs/ux/<label>/
-ux-baseline label="baseline":
-    node scripts/ux-baseline.mjs {{ label }}
-    npx --no-install biome format --write docs/ux/{{ label }}
-
-# Usability session (AFD-78): a clean VS Code with the VSIX, the fictional lab workspace and the task runner (round, variant a|b|c|d)
-usability-kit round variant vsix *args:
-    node scripts/usability/bundle.mjs
-    node out/usability/kit.cjs {{ round }} {{ variant }} {{ vsix }} {{ args }}
-
-# A usability session folder again: serve (reopen the runner), verify (check again) or solve (kit self-test)
-usability action session:
-    node scripts/usability/bundle.mjs
-    node out/usability/kit.cjs {{ action }} {{ session }}
-
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish). Its README
 # is the repository's without relative images and links, which the Extensions view cannot show (AFD-79).
 package:
@@ -176,7 +157,3 @@ clean:
 clean:
     rm -rf dist out
 
-# AWX objects for the GNS3 lab (M7): EE, project, inventory; --sync also updates the project
-awx-lab *args:
-    npx --no-install esbuild src/cli/awx-lab.ts --bundle --platform=node --format=cjs --outfile=out/cli/awx-lab.cjs --log-level=warning
-    node out/cli/awx-lab.cjs {{ args }}

@@ -1,11 +1,23 @@
 {
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
-  "description": "Visual, top-down designer for Ansible automation flows: sketch typed nodes and ports, run a walking skeleton, then bind nodes to modules, roles and playbooks.",
+  "description": "Design Ansible automation as a diagram: draw the steps, handle every failure, and get the playbook generated, run locally or in AWX.",
   "icon": "media/icon.png",
-  "version": "0.69.0",
-  "publisher": "afd-dev",
+  "galleryBanner": {
+    "color": "#14B8A6",
+    "theme": "dark"
+  },
+  "version": "0.69.1",
+  "publisher": "chistokhinsv",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChistokhinSV/ansible-flow-designer.git"
+  },
+  "homepage": "https://github.com/ChistokhinSV/ansible-flow-designer#readme",
+  "bugs": {
+    "url": "https://github.com/ChistokhinSV/ansible-flow-designer/issues"
+  },
   "private": true,
   "engines": {
     "vscode": "^1.140.0"

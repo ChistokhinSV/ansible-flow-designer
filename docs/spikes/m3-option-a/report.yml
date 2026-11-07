@@ -1,8 +1,0 @@
-# Prints every routing group (prefix r_) once all plays ran. No REPORT = the playbook stopped.
-- name: REPORT
-  hosts: localhost
-  gather_facts: false
-  tasks:
-    - name: REPORT
-      ansible.builtin.debug:
-        msg: "{{ groups | dict2items | selectattr('key', 'match', '^r_') | items2dict }}"

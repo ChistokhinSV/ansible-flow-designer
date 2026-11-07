@@ -1,6 +1,6 @@
 # AWX execution environment for Run mode (M7, ADR-0013): afd-ee plus ansible-runner, which AWX job
 # pods run as "ansible-runner worker". Build after afd-ee: just awx-ee-build 2.19
-# (without local Docker: DOCKER_HOST=ssh://gns3 just awx-ee-build 2.19).
+# (without local Docker, point DOCKER_HOST at a remote engine: DOCKER_HOST=ssh://host just awx-ee-build 2.19).
 ARG CORE=2.19
 FROM afd-ee:${CORE}
 

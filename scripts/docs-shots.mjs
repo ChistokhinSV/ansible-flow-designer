@@ -161,6 +161,27 @@ const SHOTS = {
       await page.locator('[data-setting-group="Timing"]').scrollIntoViewIfNeeded();
     },
   },
+  // AFD-112: a step's Retries asked at run time, with its note and the Timing sentence.
+  'timing-run-time': {
+    flow: 'firewall-upgrade',
+    act: async (page) => {
+      await ui(page, 'setLevel', await idOf(page, 'upgrade'));
+      const id = await idOf(page, 'upgrade/wait-up');
+      const command = {
+        kind: 'askAtRunTime',
+        id,
+        setting: 'retries',
+        name: 'wait_tries',
+        description: 'How many more times to check that the firewall is back',
+        default: 40,
+      };
+      await host(page, { type: 'command', reqId: 960, command });
+      await settle(page, 900);
+      await ui(page, 'openDetails', id, 'execution');
+      await settle(page);
+      await page.locator('[data-timing-field="retries"]').scrollIntoViewIfNeeded();
+    },
+  },
   'data-lens': {
     flow: 'firewall-upgrade',
     act: async (page) => {
@@ -262,11 +283,13 @@ async function shoot(page, name, shot, theme) {
   log(`Wrote ${file}`);
 }
 
+// AFD-113: the icon set (media/icon.svg, media/icon.png at 256 px) comes from the designer; this
+// renders the PNG again from the SVG only when asked by name (`just docs-shots icon`).
 async function renderIcon(page) {
   const svg = readFileSync('media/icon.svg', 'utf8');
-  await page.setViewportSize({ width: 128, height: 128 });
+  await page.setViewportSize({ width: 256, height: 256 });
   await page.setContent(
-    `<html><body style="margin:0;background:transparent">${svg.replace('<svg', '<svg width="128" height="128"')}</body></html>`,
+    `<html><body style="margin:0;background:transparent">${svg.replace(/<svg([^>]*?) width="\d+" height="\d+"/, '<svg$1 width="256" height="256"')}</body></html>`,
   );
   await page.screenshot({ path: 'media/icon.png', omitBackground: true });
   await page.setViewportSize(VIEWPORT);
@@ -280,7 +303,7 @@ try {
   const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
   // A fixed clock: run times and "ago" labels come out the same on every run.
   await page.clock.setFixedTime(new Date('2026-10-31T10:00:00Z'));
-  if (only.length === 0 || only.includes('icon')) await renderIcon(page);
+  if (only.includes('icon')) await renderIcon(page);
   for (const [name, shot] of Object.entries(SHOTS)) {
     if (only.length > 0 && !only.includes(name)) continue;
     for (const theme of shot.walk ? ['light', 'dark'] : ['light'])

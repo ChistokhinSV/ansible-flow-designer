@@ -9,3 +9,14 @@ Status: Accepted · 2026-10-28 · AFD-1
 - **Toolchain:** TypeScript 7 for type-checking, esbuild (extension host) and Vite (webview, library mode) to transpile, Biome for lint and format. typescript-eslint caps TypeScript below 6.1. Vitest (projects `core` and `webview`), `@vscode/test-cli` for integration tests. One npm package, no workspaces; the VSIX ships bundled `dist/` only.
 - **just** is the single entry point for every build, test, run and dev-server task.
 - **Distribution:** Marketplace and Open VSX, MIT license. Publisher id placeholder `afd-dev` until the real id is chosen before the first publish. Display name "Ansible Flow Designer"; the name is checked against Red Hat's trademark guidance before going public.
+
+## Amendment: the publisher and the public repository (AFD-113, 2026-11-07)
+
+- **Publisher:** the publisher ID is `chistokhinsv`, so the extension ID is
+  `chistokhinsv.ansible-flow-designer`. Installs of the earlier `afd-dev` VSIX are a different
+  extension to VS Code: their storage and secrets (the AWX token, remembered flows) do not carry
+  over.
+- **Public repository:** the repository is public at `github.com/ChistokhinSV/ansible-flow-designer`.
+  The Marketplace page is the README, made at package time (`scripts/vsix-readme.ts`). Its
+  relative images become `raw.githubusercontent.com` URLs and its relative links become GitHub
+  links, so the page shows the screenshots. Before the repository existed, they were dropped.

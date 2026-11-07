@@ -60,6 +60,8 @@ Retries, Delay and Timeout take a number, or a value given when the flow runs. W
 flow then sets the wait in the launch dialog or the AWX survey, and the step's default is the flow
 input's default.
 
+![Retries asked at run time](../images/timing-run-time-light.png)
+
 - **Ask at Run Time…** under a Timing field makes three things in one edit:
   - an integer flow input, whose default is the field's value (Delay and Timeout in seconds);
   - an input of the step that reads it;

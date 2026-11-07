@@ -1,5 +1,5 @@
 // Scenario tests inside VS Code (AFD-58): Run Scenarios runs a flow's scenarios file in the run
-// environment. With AFD_TEST_IMAGE (the GNS3 VM suites) the scenarios run for real.
+// environment. With AFD_TEST_IMAGE (an Ansible image) the scenarios run for real.
 import * as assert from 'node:assert/strict';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';

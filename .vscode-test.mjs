@@ -88,7 +88,7 @@ const common = {
   launchArgs: [
     '--disable-extensions',
     '--disable-workspace-trust',
-    // Electron as root in the lab's throwaway container (lab/ci-in-container.sh).
+    // Electron as root in a throwaway CI container.
     ...(process.env.AFD_TEST_NO_SANDBOX ? ['--no-sandbox', '--disable-gpu'] : []),
   ],
   mocha: { ui: 'bdd', timeout: 60_000 },

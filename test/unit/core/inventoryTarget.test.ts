@@ -1,6 +1,6 @@
 // AFD-14: codegen applies settings.inventory_target. A node's work runs once on its target (or the
 // nearest enclosing subflow's) and the arriving hosts leave together. The engine suite runs these
-// plays for real (test/engine, `just test-docker-lab engine`); here: their shape and the helpers.
+// plays for real (test/engine, `just test-engine`); here: their shape and the helpers.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';

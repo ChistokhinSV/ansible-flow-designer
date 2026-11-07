@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.69.1 — AFD-113
+
+Ready to publish.
+
+- **New icon:** a teal icon for the Marketplace and the Extensions view, and a matching glyph in the Activity Bar. The Marketplace banner is teal too.
+- **Publisher `chistokhinsv`:** the extension ID is now `chistokhinsv.ansible-flow-designer`. VS Code treats a VSIX installed under the old `afd-dev` ID as a different extension, so its stored AWX token and remembered flows do not carry over.
+- **The source is public** at [github.com/ChistokhinSV/ansible-flow-designer](https://github.com/ChistokhinSV/ansible-flow-designer). The extension's page shows the README's screenshots, which point at the repository.
+- **A shorter README:** the main features with screenshots. Requirements, settings, the repository layout and building from source moved to `docs/details.md`.
+- **Removed from the repository** (still in its history): the design handoff, the UX measurements and usability kit, and the lab scripts.
+
 ## 0.69.0 — AFD-112
 
 A step's Timing given at run time (`docs/ux/wave10-usability/round4.md`, Q4). The round 4 participant was asked to let the operator set how long to wait for a pool to drain, and wrote it into the flow's goal instead. Retries and Delay took only numbers, so no input could drive the wait.

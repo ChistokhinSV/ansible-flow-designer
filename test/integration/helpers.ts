@@ -16,7 +16,7 @@ export const runEnvironment =
 
 export async function testApi(): Promise<AfdTestApi> {
   if (api) return api;
-  const ext = vscode.extensions.getExtension<AfdTestApi>('afd-dev.ansible-flow-designer');
+  const ext = vscode.extensions.getExtension<AfdTestApi>('chistokhinsv.ansible-flow-designer');
   if (!ext) throw new Error('extension not found');
   api = await ext.activate();
   if (!api) throw new Error('extension is not in test mode');

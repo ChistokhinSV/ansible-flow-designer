@@ -18,3 +18,7 @@ Thumbs.db
 .idea/
 # Usability sessions: raw notes and answers, kept local (AFD-78 protocol, Privacy)
 usability-sessions/
+# Local tooling and drafts that are not part of the repository
+.claude/
+article/
+media/afd-icon-set/

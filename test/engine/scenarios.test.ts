@@ -1,6 +1,6 @@
 // Scenario tests for real (AFD-58): the runner the designer and the CI command line share runs the
 // routing-levels scenarios in each Ansible image, and a wrong expectation is named. Opt-in (Docker):
-// `just test-engine`, or the GNS3 VM suites.
+// `just test-engine`.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

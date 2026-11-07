@@ -1,6 +1,6 @@
-// M9 (AFD-15): AWX workflow import. The fixture workflows live in the lab AWX (`just awx-lab
-// --fixtures`); api.json holds the API answers the import reads (`--record-import`), export.json
-// the same workflows from `awx export`. Both sources must give the same flow.
+// M9 (AFD-15): AWX workflow import. The fixture workflows were recorded from a lab AWX: api.json
+// holds the API answers the import reads, export.json the same workflows from `awx export`. Both
+// sources must give the same flow.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';

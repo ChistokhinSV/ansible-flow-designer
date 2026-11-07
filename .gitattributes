@@ -2,8 +2,7 @@
 * text=auto eol=lf
 *.png binary
 *.ttf binary
-# Examples, schema, the design bundle and fixtures keep their exact bytes (some fixtures are CRLF on purpose).
+# Examples, schema and fixtures keep their exact bytes (some fixtures are CRLF on purpose).
 examples/** -text
 schema/** -text
-ansible-flow-designer-handoff/** -text
 test/fixtures/** -text

@@ -8,12 +8,10 @@
   "files": {
     "includes": [
       "**",
-      "!ansible-flow-designer-handoff",
       "!examples",
       "!samples",
       "!schema",
       "!test/fixtures",
-      "!docs/spikes",
       "!skills",
       "!docs/guide/reference/problems.md",
       "!docs/guide/reference/flow-format.md",

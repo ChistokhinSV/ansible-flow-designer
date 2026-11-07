@@ -1,7 +1,7 @@
 // AFD-26: an imported playbook does what the playbook did. The fictional netops repository's
 // site.yml and the flow imported from it (as is) run side by side in each Ansible image, against
 // the same simulated switches: every host must write the same files with the same contents, and the
-// same hosts must end failed. Opt-in (Docker): `just test-engine`, or `just test-docker-lab engine`.
+// same hosts must end failed. Opt-in (Docker): `just test-engine`.
 import { execFileSync } from 'node:child_process';
 import {
   cpSync,
