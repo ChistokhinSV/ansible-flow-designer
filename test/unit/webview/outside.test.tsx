@@ -10,6 +10,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
+import { Details } from '../../../src/webview/details/Details';
 import { OutsideNote, whenText } from '../../../src/webview/panels/OutsideNote';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
@@ -98,5 +99,68 @@ describe('changed while the flow was closed (AFD-92)', () => {
     );
     expect(whenText('2026-11-04T19:49:00Z', new Date('2026-11-04T21:00:00Z'))).not.toMatch(/,/);
     expect(whenText('2026-11-04T19:49:00Z', new Date('2026-11-06T09:00:00Z'))).toMatch(/,/);
+  });
+});
+
+// AFD-104 (round 3: R9): what each outside change was, where the person looks.
+describe('what changed outside, in words (AFD-104)', () => {
+  beforeEach(() =>
+    act(() =>
+      useUi.getState().setOutside({
+        nodes: [id('say-hello')],
+        edges: [],
+        removed: 1,
+        since: '2026-11-04T10:00:00Z',
+        closed: true,
+        changes: [
+          {
+            id: id('say-hello'),
+            kind: 'changed',
+            title: 'Say hello',
+            where: [],
+            fields: [{ field: 'title', before: 'Greet', after: 'Say hello' }],
+          },
+          { id: 'gone', kind: 'removed', title: 'Wave', where: [], fields: [] },
+        ],
+        wires: [{ kind: 'removed', label: 'ping.failed_hosts → stopped' }],
+      }),
+    ),
+  );
+
+  it('the note lists each change; a line with a step shows it', () => {
+    render(<OutsideNote />);
+    const list = document.querySelector('[data-outside-list]') as HTMLDetailsElement;
+    expect([list.open, list.querySelector('summary')?.textContent]).toEqual([
+      true,
+      'What changed (3)',
+    ]);
+    expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      'Renamed Greet to Say hello',
+      'Removed Wave',
+      'Wire removed: ping.failed_hosts → stopped',
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Renamed Greet to Say hello' }));
+    expect(useUi.getState().selection.node).toBe(id('say-hello'));
+    expect(useUi.getState().highlight).toEqual([id('say-hello')]);
+  });
+
+  it("the step's Details say it under its title", () => {
+    act(() => useUi.getState().openDetails(id('say-hello'), 'general'));
+    render(<Details id={id('say-hello')} />);
+    expect(document.querySelector('[data-outside-change]')?.textContent).toBe(
+      ' Changed outside the designer: Renamed Greet to Say hello',
+    );
+  });
+
+  it("the marked step's tooltip says it too", () => {
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1200, height: 800 }}>
+          <FlowCanvas cull={false} />
+        </div>
+      </ReactFlowProvider>,
+    );
+    const card = document.querySelector<HTMLElement>(`[data-node-id="${id('say-hello')}"]`);
+    expect(card?.title).toBe('Changed outside the designer: Renamed Greet to Say hello');
   });
 });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.66.0 — AFD-104
+
+Wave 10, part 2: what changed outside the designer, in words (`docs/ux/wave9-usability/round3.md`, R9: the participant found the steps a colleague's pulled commit had changed, but not what had changed in them).
+
+- **What changed:** under the note about outside changes, a list says what each change was: "Added Check the session table is empty, in Fail over to the peer", "Renamed Check the policy is loaded to Check the policy and NAT rules are loaded", "Copy the image: binding changed (msg)", "Wire removed: …". A line shows its step. A changed step's tooltip and its Details say it too.
+- **More is noticed:** an outside edit that only removes a wire or changes the flow's own goal or inputs now leaves a mark as well.
+- **The Changes lens follows:** while the flow has these marks, it compares with the flow as you last had it open, not with HEAD, so a change pulled with Git shows field by field. Compare with still offers HEAD and the commits.
+
 ## 0.65.0 — AFD-103
 
 Wave 10, part 1: the Execution tab explains itself (`docs/ux/wave9-usability/round3.md`, R1-R4: the session's hardest task was setting retries on a step).

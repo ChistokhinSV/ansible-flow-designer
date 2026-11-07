@@ -65,3 +65,21 @@ checkout included (the product owner's decision). A file that now holds another 
 compared. Entries older than 90 days, or past the 300 most recent, are pruned at activation. A
 save's own edits (the version bump, the tested drop-back) set `ownText`, so they are no longer
 outside edits.
+
+## Amendment: outside changes in words (AFD-104, wave 10, 2026-11-07)
+
+Usability round 3 (R9): the participant found the steps a colleague's pulled commit had changed,
+but not what had changed in them, and gave up. The marks kept only IDs; the diff that found them
+(`diffFlows`) knew the rest.
+
+- `OutsideMarks` also keeps, per step, the kind (added, changed, removed), title, place and the
+  changed fields, merged over edits: a field keeps its value from before the first edit, an edit
+  undone by the next one leaves nothing, a step added then removed is no change. It keeps the
+  wires added or removed (an added wire by its ID, so a wire the person deletes loses its line;
+  wires that only came or went with their step are left to the step's line) and the flow's own
+  fields. A wire-only or flow-only outside edit now leaves a mark too.
+- `changeWords` / `changeLines` (`core/view/outsideChanges.ts`) say each change in words. The
+  outside note lists them, a line shows its step, and a marked step's tooltip and Details say it.
+- The session keeps the flow as it was before the first outside change (`outsideBase`): from the
+  shown store when the flow was closed, from the shown document when it was open. A save rewrites
+  the shown store, so the session holds it until Clear. The Changes lens uses it (ADR-0014).

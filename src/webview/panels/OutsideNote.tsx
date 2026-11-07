@@ -3,22 +3,18 @@
 // P21). Show lights the marked steps and opens the first; Clear drops the marks. Kept apart from
 // the Changes lens, which compares with Git and so mixes in the person's own edits. AFD-92: also
 // what changed while the flow was closed, "since you last had this flow open" (round 2: S12).
-import { marksText } from '../../core/view/outsideChanges';
+// AFD-104 (round 3: R9): and a list of what each change was, in words; a line shows its step.
+import { changeLines, marksText, whenText } from '../../core/view/outsideChanges';
 import { send } from '../bus';
 import { useUi } from '../store';
 
-/** "14:02" today, "4 Nov, 20:49" before: marks can be days old since AFD-92. */
-export function whenText(iso: string, now = new Date()): string {
-  const at = new Date(iso);
-  const time = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (at.toDateString() === now.toDateString()) return time;
-  return `${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
-}
+export { whenText };
 
 export function OutsideNote() {
   const marks = useUi((s) => s.outside);
   if (!marks) return null;
   const at = whenText(marks.since);
+  const lines = changeLines(marks);
   return (
     <div
       className="afd-outside-note"
@@ -57,6 +53,34 @@ export function OutsideNote() {
       >
         Clear
       </button>
+      {lines.length ? (
+        <details className="afd-outside-list" open data-outside-list={lines.length}>
+          <summary>What changed ({lines.length})</summary>
+          <ul>
+            {lines.map((l) => (
+              <li key={`${l.id ?? ''}|${l.text}`}>
+                {l.id ? (
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      const ui = useUi.getState();
+                      if (l.id) {
+                        ui.reveal(l.id);
+                        ui.setHighlight([l.id]);
+                      }
+                    }}
+                  >
+                    {l.text}
+                  </button>
+                ) : (
+                  l.text
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { parse } from 'yaml';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import {
   addMarks,
+  changeLines,
+  changeWords,
   closedMarks,
   keepMarks,
   markedAround,
@@ -79,7 +81,8 @@ describe('outside changes', () => {
     expect(left).toMatchObject({ nodes: [], edges: [], removed: 1 });
     expect(marksText(left as NonNullable<typeof left>)).toBe('1 step removed outside the designer');
     expect(
-      keepMarks({ ...(left as NonNullable<typeof left>), removed: 0 }, wireGone),
+      // AFD-104: nothing left, the step's removal included, means no marks.
+      keepMarks({ ...(left as NonNullable<typeof left>), removed: 0, changes: [] }, wireGone),
     ).toBeUndefined();
   });
 
@@ -132,5 +135,81 @@ describe('changes made while the flow was closed (AFD-92)', () => {
       Array.from({ length: 302 }, (_, i) => [`f${i}`, { at: day(i / 100) }]),
     );
     expect(shownToDrop(many, now).sort()).toEqual(['f300', 'f301']);
+  });
+});
+
+// AFD-104 (round 3: R9): what each outside change was, in words.
+describe('what changed outside, in words (AFD-104)', () => {
+  const after = agentEdit(base);
+
+  it('names each change: renamed, removed, a wire added, the flow itself', () => {
+    const marks = addMarks(undefined, outsideChanges(base, after), after, 'now');
+    expect(changeLines(marks as NonNullable<typeof marks>).map((l) => l.text)).toEqual([
+      'Renamed Push baseline to Push the baseline and verify',
+      'Removed Rollback',
+      'Wire added: validate.failed_hosts → failed',
+    ]);
+    // A wire that only went with its step is not a line of its own.
+    expect(marks?.wires).toEqual([
+      {
+        kind: 'added',
+        label: 'validate.failed_hosts → failed',
+        edge: '01M7AFD85W0000000000000000',
+      },
+    ]);
+    const goal = { ...after, flow: { ...after.flow, goal: 'Something else' } };
+    const flowOnly = addMarks(undefined, outsideChanges(after, goal), goal, 'now');
+    expect(flowOnly && marksText(flowOnly)).toBe("The flow's goal changed outside the designer");
+  });
+
+  it('says what a binding change was, and an added step with its subflow', () => {
+    const bound = structuredClone(after);
+    const validate = bound.nodes.find((n) => n.key === 'validate');
+    if (validate)
+      validate.impl = { kind: 'module', ref: 'ansible.builtin.debug', params: { msg: 'a' } };
+    const rebound = structuredClone(bound);
+    const again = rebound.nodes.find((n) => n.key === 'validate');
+    if (again?.impl) again.impl.params = { msg: 'b' };
+    if (again) again.settings = { retries: 3 };
+    const one = addMarks(undefined, outsideChanges(after, bound), bound, 'now');
+    const both = addMarks(one, outsideChanges(bound, rebound), rebound, 'now');
+    const line = changeLines(both as NonNullable<typeof both>).find((l) =>
+      l.text.startsWith('Validate'),
+    );
+    // Merged over the two edits: from no binding to debug, and retries set.
+    expect(line?.text).toBe('Validate: bound to ansible.builtin.debug, settings changed (retries)');
+    expect(
+      changeWords({
+        id: 'x',
+        kind: 'added',
+        title: 'Check the session table is empty',
+        where: ['Fail over to the peer'],
+        fields: [],
+      }),
+    ).toBe('Added Check the session table is empty, in Fail over to the peer');
+    expect(
+      changeWords({
+        id: 'x',
+        kind: 'changed',
+        title: 'Copy the image',
+        where: [],
+        fields: [
+          {
+            field: 'impl',
+            before: { kind: 'module', ref: 'ansible.builtin.debug', params: { msg: 'a' } },
+            after: { kind: 'module', ref: 'ansible.builtin.debug', params: { msg: 'b' } },
+          },
+        ],
+      }),
+    ).toBe('Copy the image: binding changed (msg)');
+  });
+
+  it('an edit undone by the next one leaves no line', () => {
+    const renamed = structuredClone(base);
+    const push = renamed.nodes.find((n) => n.key === 'push-baseline');
+    if (push) push.title = 'Something';
+    const one = addMarks(undefined, outsideChanges(base, renamed), renamed, 'now');
+    const back = addMarks(one, outsideChanges(renamed, base), base, 'now');
+    expect(back?.changes ?? []).toEqual([]);
   });
 });

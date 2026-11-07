@@ -39,7 +39,10 @@ Targets…** beside it).
 
 **Lens → Changes** compares the flow with another version of it from Git, as a review reads a
 change. **Compare with** in the lens panel picks the version: HEAD (the default), another local
-branch, or one of the last commits that touched the flow.
+branch, or one of the last commits that touched the flow. While the flow has marks for changes made
+outside the designer, the first choice, and the default, is the flow as it was before them: "the
+flow as you last had it open" (or "before the outside changes"). A colleague's change you pulled is
+already in HEAD; this is how to see it field by field.
 
 ![The Changes lens](../images/changes-lens-light.png)
 

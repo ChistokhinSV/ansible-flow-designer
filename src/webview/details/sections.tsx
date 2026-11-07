@@ -14,6 +14,7 @@ import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
 import { fieldLabel } from '../../core/lens/changes';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
+import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
 import {
   appliesTo,
@@ -46,6 +47,18 @@ const shortValue = (v: unknown): string => {
   const text = typeof v === 'string' ? v : JSON.stringify(v);
   return text.length > 140 ? `${text.slice(0, 139)}…` : text;
 };
+
+/** AFD-104 (round 3: R9): what an outside change did to this step, in words. */
+function OutsideChange({ id }: { id: string }) {
+  const change = useUi((s) => s.outside?.changes?.find((c) => c.id === id));
+  if (!change || change.kind === 'removed') return null;
+  return (
+    <p className="afd-outside-step" data-outside-change={change.kind}>
+      <span className="afd-swatch outside" aria-hidden="true" /> Changed outside the designer:{' '}
+      {changeWords(change)}
+    </p>
+  );
+}
 
 /** Changes lens (AFD-57): what changed on this node since the compared version, field by field. */
 function NodeChanges({ id }: { id: string }) {
@@ -95,6 +108,7 @@ export function GeneralSection({
   return (
     <div className="afd-details-page">
       <NodeChanges id={node.id} />
+      <OutsideChange id={node.id} />
       {context ? (
         <p className="muted" data-level-context={node.id}>
           You are inside this subflow. Select a step to edit it; the subflow itself is described

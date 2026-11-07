@@ -148,3 +148,11 @@ and the Inventory lens without flow targets has nothing for any step.
 A lens's findings also show in the Details of the steps they are about (ADR-0024's AFD-87
 amendment). The lens still never edits the flow by itself: the fixes are the same one-command
 fixes, and an acceptance is the same `accepted` record.
+
+## Amendment: the Changes lens compares with the flow before outside changes (AFD-104, 2026-11-07)
+
+A change pulled with Git is in HEAD, so the Changes lens, comparing with HEAD, showed none of it
+(usability round 3, R9). While the flow has outside marks (ADR-0001), the compare list starts with
+"the flow as you last had it open (time)", or "the flow before the outside changes (time)" for
+marks made while it was open, from the session's `outsideBase`; it is the default until the person
+picks another version. Clear, or marks that go, return a lens left on the default to HEAD.

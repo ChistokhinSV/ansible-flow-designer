@@ -2,11 +2,13 @@
 // undo restores, and Duplicate is one paste of a copy next to the original.
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
-import { parse } from 'yaml';
+import { parse, parseDocument } from 'yaml';
 import { copyNodes } from '../../src/core/flow/clipboard';
 import { planCommand } from '../../src/core/flow/commands';
 import { createIdFactory } from '../../src/core/flow/ids';
+import { diffFlows } from '../../src/core/flow/semanticDiff';
 import type { FlowDocument } from '../../src/core/flow/types';
+import { changeLines } from '../../src/core/view/outsideChanges';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 
 const EDGE = flowUri('edge-baseline');
@@ -203,6 +205,68 @@ describe('AFD-92: edits made while the flow was closed', () => {
       await openDesigner(EDGE);
       await new Promise((r) => setTimeout(r, 500));
       assert.equal(api.outsideMarks(EDGE), undefined);
+    } finally {
+      await closeAll();
+      writeFileSync(EDGE.fsPath, original);
+      await api.forgetShown();
+    }
+  });
+});
+
+describe('AFD-104: what changed outside, in words', () => {
+  afterEach(closeAll);
+
+  it('a closed flow changed by a colleague: the marks say what changed, the Changes lens compares with the flow as last shown', async () => {
+    const { readFileSync, writeFileSync } = await import('node:fs');
+    const original = readFileSync(EDGE.fsPath, 'utf8');
+    const api = await testApi();
+    await api.forgetShown();
+    const wait = async (test: () => Promise<boolean> | boolean, what: string) => {
+      for (let i = 0; i < 100; i++) {
+        if (await test()) return;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      assert.fail(`timed out: ${what}`);
+    };
+    try {
+      const doc = await openDesigner(EDGE);
+      const flow = parse(doc.getText()) as FlowDocument;
+      const at = (key: string) => flow.nodes.findIndex((n) => n.key === key);
+      await closeAll();
+      await wait(async () => (await api.shownFlow(EDGE))?.text === original, 'remembered');
+      // A colleague's change arrives while the designer is closed (a pull rewrites the file).
+      const yaml = parseDocument(original);
+      yaml.setIn(['nodes', at('precheck'), 'title'], 'Pre-checks from a colleague');
+      yaml.setIn(['nodes', at('validate'), 'settings'], { retries: 3 });
+      writeFileSync(EDGE.fsPath, yaml.toString());
+      await openDesigner(EDGE);
+      await wait(() => !!api.outsideMarks(EDGE), 'marks');
+      const marks = api.outsideMarks(EDGE);
+      assert.ok(marks);
+      assert.deepEqual(
+        changeLines(marks).map((l) => l.text),
+        [
+          'Renamed Pre-checks to Pre-checks from a colleague',
+          'Validate: settings changed (retries)',
+        ],
+      );
+      // The Changes lens compares with the flow as the designer last showed it, not with HEAD.
+      api.setLens(EDGE, 'changes');
+      await wait(() => api.lensFacts(EDGE).compare?.state === 'ready', 'lens base');
+      const compare = api.lensFacts(EDGE).compare;
+      assert.equal(compare?.ref, 'outside');
+      assert.match(compare?.label ?? '', /^the flow as you last had it open \(/);
+      const now = parse(readFileSync(EDGE.fsPath, 'utf8')) as FlowDocument;
+      assert.deepEqual(
+        diffFlows(compare?.base as FlowDocument, now)
+          .nodes.map((n) => n.key)
+          .sort(),
+        ['precheck', 'validate'],
+      );
+      // Clear: the marks go, and the lens goes back to Git.
+      await api.clearOutside(EDGE);
+      await wait(() => api.lensFacts(EDGE).compare?.ref === 'HEAD', 'back to HEAD');
+      api.setLens(EDGE, null);
     } finally {
       await closeAll();
       writeFileSync(EDGE.fsPath, original);

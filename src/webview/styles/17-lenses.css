@@ -413,3 +413,24 @@
 .afd-finding-place {
   font-weight: normal;
 }
+
+/* AFD-104 (round 3: R9): what changed outside, one line per change. */
+.afd-outside-list {
+  margin-top: 2px;
+}
+
+.afd-outside-list ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  max-height: 9em;
+  overflow-y: auto;
+}
+
+.afd-outside-list button.link {
+  text-align: left;
+}
+
+.afd-outside-step {
+  margin: 0 0 8px;
+  font-size: var(--afd-fs-12);
+}

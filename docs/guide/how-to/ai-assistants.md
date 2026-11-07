@@ -91,12 +91,20 @@ The same goes for changes made while the flow was closed: when you open it again
 what changed "since you last had this flow open", with the day and time. The designer keeps what it
 last showed of each flow in the workspace's storage, and forgets flows not opened for 90 days.
 
+- **What changed** under the note lists each change in words: "Added Check the session table is
+  empty, in Fail over to the peer", "Renamed Check the policy is loaded to Check the policy and NAT
+  rules are loaded", "Copy the image: binding changed (msg)", "Wire removed: check.failed_hosts →
+  stopped". Click a line to show its step. A changed step's Details and its tooltip on the canvas
+  say the same.
 - **Show** lights the changed steps and opens the first.
 - **Clear** drops the marks.
+- **The Changes lens** compares with the flow as it was before these changes ("the flow as you last
+  had it open") while the marks are there, so a change pulled with Git, which is already in HEAD,
+  still shows field by field. **Compare with** goes back to HEAD or a commit.
 
 Your own edits are never marked: those in the designer, Undo and Redo, and typing in the flow's
-text editor. The marks stay apart from the **Changes** lens, which compares with Git and so shows
-your edits too.
+text editor. The marks themselves stay apart from the **Changes** lens, which also shows your own
+edits since the version it compares with.
 
 ## Hand-written YAML
 

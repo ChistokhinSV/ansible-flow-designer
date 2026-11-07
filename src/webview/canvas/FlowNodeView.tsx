@@ -32,6 +32,7 @@ import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
+import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
 import { STATE_LABEL } from '../constants';
 import { hasPreview } from '../preview';
@@ -371,6 +372,11 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
         ? 'outside-inside'
         : '',
   );
+  // AFD-104 (round 3: R9): what the outside change was, as the marked node's tooltip.
+  const outsideLine = useUi((s) => {
+    const change = outside === 'outside-mark' && s.outside?.changes?.find((c) => c.id === node.id);
+    return change ? `Changed outside the designer: ${changeWords(change)}` : undefined;
+  });
   const classes = [
     outside,
     runMode ? 'run-mode' : '',
@@ -395,6 +401,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       data-run-state={runState}
       data-lens={lensChips}
       data-outside={outside || undefined}
+      title={outsideLine}
     >
       {/* Hover margin around the node and its port labels (D-14 detail). */}
       <div className="afd-hover-zone" aria-hidden="true" />

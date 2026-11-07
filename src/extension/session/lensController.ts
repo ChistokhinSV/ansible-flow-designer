@@ -9,10 +9,21 @@ import { timingStats } from '../../core/lens/history';
 import { inventoryPatterns } from '../../core/lens/inventory';
 import type { LensFacts, LensId } from '../../core/lens/types';
 import type { HostMessage, RunView, Snapshot } from '../../core/protocol';
+import { whenText } from '../../core/view/outsideChanges';
 import type { SessionDeps } from '../flowSession';
 import { fileVersions, textAt } from '../gitHead';
 import { readCode, readInventory, rememberedTargets, rememberTargets } from '../lens/lensFacts';
 import { readHistory, recordRun } from '../run/history';
+
+/** The Changes lens's base before the outside changes (AFD-104), not a Git ref. */
+const OUTSIDE = 'outside';
+
+export interface OutsideBase {
+  doc: FlowDocument;
+  /** When the designer last showed it (closed), or when the first outside change came. */
+  at: string;
+  closed: boolean;
+}
 
 export class LensController {
   /** Lens facts gathered for this flow, as the panels have them. */
@@ -23,13 +34,27 @@ export class LensController {
   private codeKey?: string;
   /** The version the Changes lens compares with (AFD-57). */
   private compareRef = 'HEAD';
+  /** AFD-104: the person picked a base; until then it follows the outside marks. */
+  private picked = false;
 
   constructor(
     private readonly uri: vscode.Uri,
     private readonly deps: SessionDeps,
     private readonly broadcast: (message: HostMessage) => void,
     private readonly snapshot: () => Promise<Snapshot>,
+    /**
+     * AFD-104 (round 3: R9): the flow before its outside changes. A pulled commit is in HEAD, so
+     * comparing with HEAD showed none of what the colleague changed.
+     */
+    private readonly outsideBase: () => OutsideBase | undefined = () => undefined,
   ) {}
+
+  /** The marks began or went: a Changes lens left on its default base follows them. */
+  async outsideChanged(): Promise<void> {
+    if (this.open !== 'changes' || this.picked) return;
+    this.compareRef = this.outsideBase() ? OUTSIDE : 'HEAD';
+    await this.readBase();
+  }
 
   /** A new snapshot: the open lens's facts follow the flow. */
   followed(doc: FlowDocument): void {
@@ -38,6 +63,7 @@ export class LensController {
 
   async show(lens: LensId | null, refresh = false): Promise<void> {
     this.open = lens ?? undefined;
+    if (lens === 'changes' && !this.picked) this.compareRef = this.outsideBase() ? OUTSIDE : 'HEAD';
     const doc = (await this.snapshot()).doc;
     if (doc) await this.gather(doc, refresh);
   }
@@ -71,17 +97,37 @@ export class LensController {
   /** The Changes lens's base picker: read the flow as that version has it. */
   async compareWith(ref: string): Promise<void> {
     this.compareRef = ref;
+    this.picked = true;
     if (this.open === 'changes') await this.readBase();
   }
 
   /** The compared version of the flow, from Git (AFD-57); nothing is cached across picks. */
   private async readBase(): Promise<void> {
-    const ref = this.compareRef;
-    const refs = await fileVersions(this.uri);
+    const outside = this.outsideBase();
+    const ref = this.compareRef === OUTSIDE && !outside ? 'HEAD' : this.compareRef;
+    const git = await fileVersions(this.uri);
+    const refs = [
+      ...(outside
+        ? [
+            {
+              ref: OUTSIDE,
+              label: outside.closed
+                ? `the flow as you last had it open (${whenText(outside.at)})`
+                : `the flow before the outside changes (${whenText(outside.at)})`,
+            },
+          ]
+        : []),
+      ...git,
+    ];
     const label = refs.find((r) => r.ref === ref)?.label ?? ref;
     this.facts.compare = { state: 'loading', ref, label, refs };
     this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
-    const text = refs.length > 0 ? await textAt(this.uri, ref) : undefined;
+    if (ref === OUTSIDE && outside) {
+      this.facts.compare = { state: 'ready', ref, label, refs, base: outside.doc };
+      this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
+      return;
+    }
+    const text = git.length > 0 ? await textAt(this.uri, ref) : undefined;
     const base = text === undefined ? undefined : parseFlow(text).doc;
     this.facts.compare = base
       ? { state: 'ready', ref, label, refs, base }
@@ -91,7 +137,7 @@ export class LensController {
           label,
           refs,
           error:
-            refs.length === 0
+            git.length === 0
               ? 'The flow is not in a Git repository: nothing to compare with'
               : text === undefined
                 ? `${label} has no version of this flow`

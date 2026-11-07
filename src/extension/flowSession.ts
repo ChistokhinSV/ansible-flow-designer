@@ -54,7 +54,7 @@ import { webviewHtml } from './html';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
 import type { RunDeps } from './run/runner';
 import { showRunTerminal } from './run/terminal';
-import { LensController } from './session/lensController';
+import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
 import type { ShownFlows } from './shownFlows';
@@ -138,6 +138,11 @@ export class FlowSession implements vscode.Disposable {
   private ownText?: string;
   private outsideEdit = false;
   private shownDoc?: FlowDocument;
+  /**
+   * AFD-104: the flow before its outside changes, kept from when the marks began: the Changes
+   * lens compares with it. A save rewrites what the shown store keeps, so it is held here.
+   */
+  private outsideBase?: OutsideBase;
   private marks?: OutsideMarks;
   private readonly inspects = new RequestTracker<DomSummary>();
   private readonly pngs = new RequestTracker<{ data?: string; error?: string }>();
@@ -165,7 +170,7 @@ export class FlowSession implements vscode.Disposable {
   ) {
     const broadcast = (m: HostMessage) => this.broadcast(m);
     const snapshot = () => this.snapshot();
-    this.lens = new LensController(document.uri, deps, broadcast, snapshot);
+    this.lens = new LensController(document.uri, deps, broadcast, snapshot, () => this.outsideBase);
     this.code = new SyncController(document.uri, deps, broadcast, snapshot, (c, extra) =>
       this.runCommand(c, extra),
     );
@@ -330,6 +335,7 @@ export class FlowSession implements vscode.Disposable {
   /** AFD-85: an outside edit adds its steps and wires; the person's own edits only drop gone ones. */
   private mark(doc: FlowDocument): void {
     const before = this.marks;
+    const was = this.shownDoc;
     if (this.outsideEdit && this.shownDoc)
       this.marks = addMarks(
         this.marks,
@@ -340,8 +346,13 @@ export class FlowSession implements vscode.Disposable {
     else this.marks = keepMarks(this.marks, doc);
     this.outsideEdit = false;
     this.shownDoc = doc;
-    if (JSON.stringify(before) !== JSON.stringify(this.marks))
+    if (!before && this.marks && was)
+      this.outsideBase = { doc: was, at: this.marks.since, closed: false };
+    if (!this.marks) this.outsideBase = undefined;
+    if (JSON.stringify(before) !== JSON.stringify(this.marks)) {
       this.broadcast({ type: 'outsideMarks', marks: this.marks ?? null });
+      void this.lens.outsideChanged();
+    }
   }
 
   /** Test API: the outside-edit marks. */
@@ -443,6 +454,8 @@ export class FlowSession implements vscode.Disposable {
     const marks = closedMarks(this.marks, before, snapshot.doc, shown.at);
     if (marks === this.marks) return;
     this.marks = marks;
+    this.outsideBase = { doc: before, at: shown.at, closed: true };
+    void this.lens.outsideChanged();
     // A panel not ready yet gets them after its snapshot ('ready').
     for (const p of this.readyPanels) this.post(p, { type: 'outsideMarks', marks: marks ?? null });
   }
@@ -450,6 +463,8 @@ export class FlowSession implements vscode.Disposable {
   /** Clear: the marks go, and the flow as it is now is what the designer last showed. */
   async clearOutside(): Promise<void> {
     this.marks = undefined;
+    this.outsideBase = undefined;
+    void this.lens.outsideChanged();
     this.broadcast({ type: 'outsideMarks', marks: null });
     await this.rememberShown();
   }
