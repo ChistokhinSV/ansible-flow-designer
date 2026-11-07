@@ -169,3 +169,22 @@ writes the file:
 - **Undo.** The canvas's Undo covers the flow's document. So each scenario change is one edit of
   the scenarios file, saved, and the host keeps the file's text before each change (30 deep, per
   flow). The tab's Undo puts it back, or deletes a file the change created.
+
+## Amendment: the Testing view, samples and the walkthrough (AFD-118, wave 11, 2026-11-08)
+
+- **Testing view** (`extension/run/testController.ts`, `ScenarioTests`): a controller
+  `afd.scenarios`.
+  - **Items:** each flow with a scenarios file (id: the flow's URI, label: its name), with its
+    scenarios as children at their `name` lines. The tree follows the files (a watcher) and every
+    live check (`ScenarioLive.onDidCheck`).
+  - **Profiles:** **Check (simulated)**, the default, reads the live check. **Verify in Ansible**
+    runs Run Scenarios with the names asked for.
+  - **Results:** a failure's messages sit on the `expect` line of each host that ended elsewhere. A
+    best-effort verdict adds a line to the run's output. `outcomes(flow, names, kind)` is the one
+    mapping, and the integration tests call it through the test API.
+- **Samples:** `samples/hello.scenarios.yaml` and `samples/edge-baseline.scenarios.yaml` (a happy
+  path, and a failure to the stop or the rollback). Open Sample Flow copies them. A unit test runs
+  them in the simulator, and the engine suite runs them in Ansible.
+- **Walkthrough:** "Test where hosts end" after the skeleton run. It completes on a scenario added
+  in the designer (tour key `scenarioAdded`) or on Run Scenarios.
+- **CLI:** `--wsl` and `--wsl-distro NAME` run in WSL, as `afd.environment.kind: wsl` does.

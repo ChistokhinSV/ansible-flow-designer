@@ -62,6 +62,20 @@ describe('AFD-58: scenario tests', () => {
         );
         assert.ok(!verified.isError, verified.text);
         assert.match(verified.text, /1 of 1 pass in Ansible/);
+        // AFD-118: the Testing view's Verify in Ansible profile, through the same runner.
+        const outcomes = await withTimeout(
+          api.scenarioTestRun(
+            vscode.Uri.file(join(dir, 'routing-levels.flow.yaml')),
+            ['a failed stage is handled, a failed gate stops the host there'],
+            'ansible',
+          ),
+          300_000,
+          'Verify in Ansible from the Testing view',
+        );
+        assert.deepEqual(
+          outcomes.map((o) => [o.name, o.state]),
+          [['a failed stage is handled, a failed gate stops the host there', 'passed']],
+        );
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

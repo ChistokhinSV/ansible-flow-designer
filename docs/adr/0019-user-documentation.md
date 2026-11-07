@@ -118,3 +118,13 @@ Round 1 of the wave 8 usability test found broken images in both places a newcom
   `scripts/vsix-readme.ts`: relative images are left out, the first leaves a note on where the
   guide opens, and relative links become their text. `just package` passes it with
   `--readme-path`. The repository's README is unchanged.
+
+## Amendment: screenshots in 256 colours (AFD-118, 2026-11-08)
+
+The guide's screenshots are most of the VSIX: 3.8 MB of a 5.3 MB package at 0.69.1. A UI
+screenshot looks the same with a 256-colour palette at about 40 % of the size, so:
+
+- `scripts/quantize-png.py` (Pillow) rewrites a PNG with a median-cut palette, without dithering, and
+  only when that is smaller. `just docs-shots` runs it after each shot.
+- The docs test checks that every guide image is a palette PNG (colour type 3), with the images
+  under 2.5 MB together (1.6 MB now).

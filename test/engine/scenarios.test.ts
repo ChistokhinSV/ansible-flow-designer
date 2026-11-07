@@ -61,4 +61,43 @@ describe.each(IMAGES)('scenarios on %s', (image) => {
       rmSync(work, { recursive: true, force: true });
     }
   }, 600_000);
+
+  // AFD-118: the scenarios the samples ship pass in Ansible too, not only in the simulation.
+  it.each(['hello', 'edge-baseline'])(
+    'the scenarios of the %s sample pass',
+    async (key) => {
+      const flowFile = join(REPO, 'samples', `${key}.flow.yaml`);
+      const doc = parse(readFileSync(flowFile, 'utf8')) as FlowDocument;
+      const file = parseScenarios(
+        readFileSync(join(REPO, 'samples', `${key}.scenarios.yaml`), 'utf8'),
+      ).file;
+      if (!file) throw new Error('sample scenarios');
+      const work = mkdtempSync(join(tmpdir(), 'afd-scenarios-'));
+      try {
+        const results = await runScenarios({
+          env: {
+            kind: 'container',
+            engine: 'docker',
+            image,
+            options: [],
+            mounts: [],
+            source: 'afd',
+            label: image,
+          },
+          root: REPO,
+          probeDir: join(REPO, 'probe'),
+          flowFile,
+          doc,
+          file,
+          workDir: work,
+        });
+        expect(results.map((r) => [r.name, r.passed, r.error])).toEqual(
+          file.scenarios.map((s) => [s.name, true, undefined]),
+        );
+      } finally {
+        rmSync(work, { recursive: true, force: true });
+      }
+    },
+    600_000,
+  );
 });

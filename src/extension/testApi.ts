@@ -32,6 +32,7 @@ import { checkLaunch, planLaunch } from './run/launch';
 import { type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { runTerminalName } from './run/terminal';
+import type { ScenarioOutcome, ScenarioRunKind } from './run/testController';
 import { tourReached } from './tour';
 
 /** Exported from activate() in ExtensionMode.Test only (integration and perf suites). */
@@ -42,6 +43,13 @@ export interface AfdTestApi {
   /** AFD-116: a scenario change as the designer asks for it, and taking it back. */
   scenarioEdit(uri: vscode.Uri, request: ScenarioRequest): Promise<CommandOutcome>;
   scenarioUndo(uri: vscode.Uri): Promise<CommandOutcome>;
+  /** AFD-118: the Testing view: its items (id, label, children) and a profile's outcomes. */
+  scenarioTestItems(): Promise<{ id: string; label: string; children: string[] }[]>;
+  scenarioTestRun(
+    uri: vscode.Uri,
+    names: string[] | undefined,
+    kind: ScenarioRunKind,
+  ): Promise<ScenarioOutcome[]>;
   inspect(uri: vscode.Uri): Promise<DomSummary>;
   openLevel(uri: vscode.Uri, level: string): void;
   /** Selects a node on the canvas (opening its level), as a click would. */
@@ -139,6 +147,22 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
       if (!doc || !host.scenarioLive) return { ok: false, error: 'no flow' };
       return host.scenarioLive.edit(uri, doc, request);
     },
+    scenarioTestItems: async () => {
+      const tests = host.scenarioTests;
+      if (!tests) return [];
+      await tests.discover();
+      const out: { id: string; label: string; children: string[] }[] = [];
+      tests.controller.items.forEach((i) => {
+        const children: string[] = [];
+        i.children.forEach((c) => {
+          children.push(c.label);
+        });
+        out.push({ id: i.id, label: i.label, children });
+      });
+      return out;
+    },
+    scenarioTestRun: async (uri, names, kind) =>
+      host.scenarioTests?.outcomes(uri, names, kind) ?? [],
     scenarioUndo: async (uri) =>
       host.scenarioLive?.undo(uri) ?? { ok: false, error: 'no live check' },
     aiTool: (name, input) => runTool(flowIO, name, input),

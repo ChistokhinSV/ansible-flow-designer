@@ -46,6 +46,12 @@ describe('scenario command line (AFD-114)', () => {
     expect(parseCliArgs(['--check', '--simulate', 'x']).error).toBe(
       'Give --simulate or --check, not both',
     );
+    // AFD-118: WSL from Windows, as the designer's afd.environment.kind wsl.
+    expect(parseCliArgs(['--wsl', 'flows'])).toMatchObject({ wsl: '', targets: ['flows'] });
+    expect(parseCliArgs(['--wsl-distro', 'Debian', 'flows']).wsl).toBe('Debian');
+    expect(parseCliArgs(['--wsl', '--image', 'ee', 'x']).error).toBe(
+      'Give --wsl or --image, not both',
+    );
   });
 
   it('finds the flows with scenarios and simulates them', () => {

@@ -152,6 +152,54 @@ describe('AFD-115: scenarios stay current', () => {
     assert.match(list.text, /"gate fails": pass/);
   });
 
+  it('AFD-118: the Testing view lists a flow and its scenarios; Check runs them in the simulation', async () => {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    dir = join(root, 'flows', 'routing-levels-tests');
+    mkdirSync(dir, { recursive: true });
+    for (const f of ['routing-levels.flow.yaml', 'routing-levels.scenarios.yaml'])
+      cpSync(join(REPO, 'test/fixtures/engine', f), join(dir, f));
+    const flow = vscode.Uri.file(join(dir, 'routing-levels.flow.yaml'));
+    const api = await testApi();
+    const item = (await api.scenarioTestItems()).find((i) => i.id === flow.toString());
+    assert.deepEqual(item, {
+      id: flow.toString(),
+      label: 'Engine test · subflow and limits',
+      children: [
+        'every host goes through',
+        'hosts as comma-separated text, as an AWX survey answers',
+        'a failed stage is handled, a failed gate stops the host there',
+      ],
+    });
+    const passed = await api.scenarioTestRun(flow, undefined, 'check');
+    assert.deepEqual(
+      passed.map((o) => o.state),
+      ['passed', 'passed', 'passed'],
+    );
+    // A wrong expectation fails, its message on the host's expect line.
+    const file = await vscode.workspace.openTextDocument(
+      vscode.Uri.file(join(dir, 'routing-levels.scenarios.yaml')),
+    );
+    const at = file.getText().indexOf('h03: gate.failed_hosts');
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      file.uri,
+      new vscode.Range(file.positionAt(at + 5), file.positionAt(at + 22)),
+      'done',
+    );
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    const [third] = await api.scenarioTestRun(
+      flow,
+      ['a failed stage is handled, a failed gate stops the host there'],
+      'check',
+    );
+    assert.equal(third?.state, 'failed');
+    assert.match(
+      third?.messages[0]?.text ?? '',
+      /^Simulated: h03 ended at Gate's open failed_hosts/,
+    );
+    assert.equal(third?.messages[0]?.range?.start.line, file.positionAt(at).line);
+  });
+
   it('a rename through the flow tools renames it in the scenarios file and saves both', async () => {
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
     dir = join(root, 'flows', 'routing-levels-tools');

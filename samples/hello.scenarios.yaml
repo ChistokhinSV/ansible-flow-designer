@@ -1,0 +1,19 @@
+# Scenario tests for Hello, Ansible: where each host must end when chosen steps fail. The designer's
+# Scenarios tab shows them (the chip in the top bar); right-click a step to plant another failure.
+flow: hello
+scenarios:
+  - name: Every host says hello
+    inputs:
+      devices: [host-01, host-02]
+    expect:
+      host-01: done
+      host-02: done
+  - name: A host that does not answer stops there
+    inputs:
+      devices: [host-01, host-02]
+    force:
+      ping:
+        failed: [host-02]
+    expect:
+      host-01: done
+      host-02: stopped

@@ -3,6 +3,7 @@
 // import (AFD-28).
 import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
+import { scenariosFileName } from '../core/scenario/scenarios';
 import { CMD } from './commands/ids';
 
 /** The first walkthrough ("Design your first Ansible flow"). */
@@ -159,7 +160,8 @@ export async function askForFolder(why: string): Promise<void> {
 }
 
 /**
- * Copies a bundled sample to `flows/<key>/<key>.flow.yaml` in the workspace and opens it. A sample
+ * Copies a bundled sample to `flows/<key>/<key>.flow.yaml` in the workspace (with its
+ * `<key>.scenarios.yaml`, AFD-118) and opens it. A sample
  * that is there already is opened as it is: it may have been changed while following a tutorial.
  */
 async function openSample(
@@ -216,8 +218,17 @@ async function openSample(
   } catch {
     exists = false;
   }
-  if (!exists) await vscode.workspace.fs.copy(file, target);
-  else
+  if (!exists) {
+    await vscode.workspace.fs.copy(file, target);
+    // AFD-118: and its scenario tests, when the sample has some.
+    const scenarios = vscode.Uri.joinPath(file, '..', scenariosFileName(name));
+    try {
+      await vscode.workspace.fs.copy(
+        scenarios,
+        vscode.Uri.joinPath(target, '..', scenariosFileName(name)),
+      );
+    } catch {}
+  } else
     void vscode.window.showInformationMessage(
       `${vscode.workspace.asRelativePath(target)} is already in the workspace: opened it as it is.`,
     );

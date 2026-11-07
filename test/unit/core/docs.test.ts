@@ -159,10 +159,16 @@ describe('walkthroughs', () => {
     for (const v of pkg.contributes.yamlValidation as { url: string }[])
       expect(ignore).toContain(`!${v.url.replace(/^\.\//, '')}`);
     expect(existsSync(join(ROOT, pkg.icon))).toBe(true);
-    // The screenshots are most of the VSIX (about 3 MB of 4.2): keep it under 5 MB.
+    // The screenshots are most of the VSIX: 256 colours since AFD-118 (scripts/quantize-png.py,
+    // run by docs-shots), about 1.6 MB. A full-colour shot slipping in shows here.
     const images = join(GUIDE, 'images');
     const bytes = readdirSync(images).reduce((n, f) => n + statSync(join(images, f)).size, 0);
-    expect(bytes).toBeLessThan(3.5 * 1024 * 1024);
+    expect(bytes).toBeLessThan(2.5 * 1024 * 1024);
+    // PNG colour type 3 (palette), byte 25 of the IHDR chunk.
+    const fullColour = readdirSync(images).filter(
+      (f) => f.endsWith('.png') && readFileSync(join(images, f))[25] !== 3,
+    );
+    expect(fullColour, 'run scripts/quantize-png.py on these').toEqual([]);
   });
 
   // AFD-79: the guide opens in the Markdown preview from the extension folder, outside the

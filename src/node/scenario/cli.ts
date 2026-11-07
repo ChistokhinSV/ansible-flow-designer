@@ -25,6 +25,8 @@ export const USAGE = [
   '  --image IMAGE        run in this execution environment image (Docker or Podman)',
   '  --engine docker|podman',
   '  --python PATH        run with ansible-playbook on this machine (default: python3)',
+  '  --wsl                run in WSL from Windows (the default distribution)',
+  '  --wsl-distro NAME    run in this WSL distribution',
   '  --scenario NAME      run only this scenario (repeatable)',
   '  --junit FILE         write JUnit XML for CI dashboards',
   '  --keep               keep each run folder',
@@ -37,6 +39,8 @@ export interface CliOptions {
   engine?: 'docker' | 'podman';
   python?: string;
   junit?: string;
+  /** AFD-118: run in WSL from Windows; the distribution, or '' for the default one. */
+  wsl?: string;
   only?: string[];
   keep: boolean;
   verbose: boolean;
@@ -47,8 +51,15 @@ export interface CliOptions {
   error?: string;
 }
 
-const WITH_VALUE = new Set(['--image', '--engine', '--python', '--junit', '--scenario']);
-const SWITCHES = new Set(['--keep', '--verbose', '--simulate', '--check', '--help']);
+const WITH_VALUE = new Set([
+  '--image',
+  '--engine',
+  '--python',
+  '--junit',
+  '--scenario',
+  '--wsl-distro',
+]);
+const SWITCHES = new Set(['--keep', '--verbose', '--simulate', '--check', '--help', '--wsl']);
 
 export function parseCliArgs(args: readonly string[]): CliOptions {
   const o: CliOptions = {
@@ -71,6 +82,7 @@ export function parseCliArgs(args: readonly string[]): CliOptions {
         else o.error ??= `--engine takes docker or podman, not ${v}`;
       } else if (a === '--python') o.python = v;
       else if (a === '--junit') o.junit = v;
+      else if (a === '--wsl-distro') o.wsl = v;
       else only.push(v);
     } else if (SWITCHES.has(a)) {
       if (a === '--keep') o.keep = true;
@@ -78,11 +90,13 @@ export function parseCliArgs(args: readonly string[]): CliOptions {
       if (a === '--simulate') o.simulate = true;
       if (a === '--check') o.check = true;
       if (a === '--help') o.help = true;
+      if (a === '--wsl') o.wsl ??= '';
     } else if (a.startsWith('--')) o.error ??= `Unknown option ${a}`;
     else o.targets.push(a);
   }
   if (only.length) o.only = only;
   if (o.simulate && o.check) o.error ??= 'Give --simulate or --check, not both';
+  if (o.wsl !== undefined && o.image) o.error ??= 'Give --wsl or --image, not both';
   return o;
 }
 

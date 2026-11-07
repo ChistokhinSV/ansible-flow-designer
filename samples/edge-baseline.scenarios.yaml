@@ -1,0 +1,21 @@
+# Scenario tests for Edge baseline: where each switch must end when chosen steps fail. The
+# designer's Scenarios tab shows them (the chip in the top bar); right-click a step to plant another.
+flow: edge-baseline
+scenarios:
+  - name: Every switch gets the baseline
+    inputs:
+      devices: [sw-01, sw-02]
+      site: lab
+    expect:
+      sw-01: done
+      sw-02: done
+  - name: A failed push rolls back that switch only
+    inputs:
+      devices: [sw-01, sw-02]
+      site: lab
+    force:
+      push-baseline:
+        failed: [sw-02]
+    expect:
+      sw-01: done
+      sw-02: failed

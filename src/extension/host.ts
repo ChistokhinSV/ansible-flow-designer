@@ -15,6 +15,7 @@ import type { PlaybookImportDeps } from './import/playbookImport';
 import { logChannel } from './log';
 import type { RunDeps } from './run/runner';
 import type { ScenarioLive } from './run/scenarioLive';
+import type { ScenarioTests } from './run/testController';
 import { ShownFlows } from './shownFlows';
 
 export const VIEW_TYPE = 'afd.flowEditor';
@@ -43,6 +44,8 @@ export class Host {
   readonly index: FlowIndex;
   /** AFD-115: the live check of every flow's scenarios (set when the extension activates). */
   scenarioLive?: ScenarioLive;
+  /** AFD-118: the scenarios in the Testing view. */
+  scenarioTests?: ScenarioTests;
 
   constructor(readonly context: vscode.ExtensionContext) {
     this.testMode = context.extensionMode === vscode.ExtensionMode.Test;

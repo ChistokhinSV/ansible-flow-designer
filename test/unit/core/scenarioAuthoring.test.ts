@@ -1,6 +1,6 @@
 // AFD-116: scenarios authored on the canvas: the chip, the rows in words, a new scenario, and the
 // what-if items a step's menu offers in the scenario being edited.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -135,5 +135,24 @@ describe('scenarios on the canvas (AFD-116)', () => {
       },
     );
     expect(plain[0]?.type === 'item' && plain[0].label).toBe('Details…');
+  });
+});
+
+describe('the samples come with scenarios (AFD-118)', () => {
+  it('every sample scenarios file fits its flow and passes in the simulation', () => {
+    const dir = join(__dirname, '../../../samples');
+    const files = readdirSync(dir).filter((f) => f.endsWith('.scenarios.yaml'));
+    expect(files.sort()).toEqual(['edge-baseline.scenarios.yaml', 'hello.scenarios.yaml']);
+    for (const f of files) {
+      const doc = parse(
+        readFileSync(join(dir, f.replace('.scenarios.yaml', '.flow.yaml')), 'utf8'),
+      ) as FlowDocument;
+      const check = checkLive(doc, readFileSync(join(dir, f), 'utf8'));
+      expect(check.problems, f).toEqual([]);
+      expect(
+        check.results.map((r) => [r.name, r.passed, r.needsAnsible]),
+        f,
+      ).toEqual(check.names.map((n) => [n, true, undefined]));
+    }
   });
 });

@@ -2,6 +2,7 @@
 // fixture flows) driven in the installed Edge by playwright-core, one PNG per shot and theme, and the
 // extension icon rendered from its SVG. `just docs-shots [name…]`; reuses a running harness.
 // The clock is fixed, so a run looks the same every time. Env: AFD_SHOTS_BROWSER (msedge | chrome).
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -18,6 +19,35 @@ async function portBox(page, node, port) {
   const id = await idOf(page, node);
   const handle = page.locator(`.react-flow__node[data-id="${id}"] [data-port="${port}"]`).first();
   return { id, box: await handle.boundingBox() };
+}
+
+/**
+ * AFD-118: two scenarios on edge-baseline, made as the designer makes them (expectations from the
+ * simulation), the Scenarios tab open and the second one on the canvas; `menu` also opens a step's
+ * right-click menu on its "In <scenario>" items.
+ */
+async function scenarioShot(page, menu) {
+  const add = async (reqId, scenario) => {
+    await host(page, { type: 'scenarioEdit', reqId, request: { kind: 'add', scenario } });
+    await settle(page, 300);
+  };
+  const inputs = { devices: ['sw-01', 'sw-02', 'sw-03'], site: 'lab' };
+  await add(960, { name: 'Every switch gets the baseline', inputs, expect: {} });
+  await add(961, {
+    name: 'A failed push rolls back that switch only',
+    inputs,
+    force: { 'push-baseline': { failed: ['sw-02'] } },
+    expect: {},
+  });
+  await ui(page, 'openScenarios');
+  await ui(page, 'editScenario', 'A failed push rolls back that switch only');
+  await settle(page, 900);
+  if (!menu) return;
+  const id = await idOf(page, 'validate');
+  await page.locator(`.react-flow__node[data-id="${id}"]`).click({ button: 'right' });
+  await settle(page, 300);
+  await page.getByText('In "A failed push rolls back that switch only"').click();
+  await settle(page, 400);
 }
 
 // ---- shots ---------------------------------------------------------------------------------------
@@ -258,6 +288,10 @@ const SHOTS = {
       );
     },
   },
+  // AFD-118: the Scenarios tab, one scenario shown on the canvas (its simulated run), and the
+  // what-if menu of a step in it.
+  scenarios: { flow: 'edge-baseline', walk: true, act: (page) => scenarioShot(page, false) },
+  'scenario-menu': { flow: 'edge-baseline', act: (page) => scenarioShot(page, true) },
   'hand-written': { flow: 'hand-written' },
   // AFD-65: notes (one on a node), a section and text; a note selected shows its panel.
   annotations: {
@@ -272,6 +306,21 @@ const SHOTS = {
   },
 };
 
+/**
+ * AFD-118: 256 colours (scripts/quantize-png.py, Pillow): the screenshots are most of the VSIX and
+ * look the same. Without Python and Pillow the shot stays full colour, and the docs test's size
+ * check says so.
+ */
+function quantize(file) {
+  try {
+    execFileSync(process.env.AFD_PYTHON ?? 'python', ['scripts/quantize-png.py', file], {
+      stdio: 'ignore',
+    });
+  } catch {
+    log(`${file}: not quantized (needs Python with Pillow: pip install pillow)`);
+  }
+}
+
 // ---- run -----------------------------------------------------------------------------------------
 
 async function shoot(page, name, shot, theme) {
@@ -280,6 +329,7 @@ async function shoot(page, name, shot, theme) {
   await settle(page);
   const file = join(OUT, `${name}-${theme}.png`);
   await page.screenshot({ path: file });
+  quantize(file);
   log(`Wrote ${file}`);
 }
 

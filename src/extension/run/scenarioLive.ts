@@ -25,6 +25,7 @@ import { missText, scenarioMisses } from '../../core/scenario/view';
 import { parseYaml } from '../../core/yaml/parse';
 import type { CommandOutcome } from '../flowSession';
 import type { Host } from '../host';
+import { markTourKey, SCENARIO_ADDED } from '../tour';
 import { scenariosUri } from './scenarioFollow';
 
 const SUFFIX = '.scenarios.yaml';
@@ -36,10 +37,10 @@ const DELAY_MS = 200;
 const isScenarios = (uri: vscode.Uri) => uri.path.endsWith(SUFFIX);
 const isFlowUri = (uri: vscode.Uri) => uri.path.endsWith(FLOW);
 /** The flow a scenarios file belongs to: `<key>.flow.yaml` beside it. */
-const flowOf = (uri: vscode.Uri) =>
+export const flowOf = (uri: vscode.Uri) =>
   vscode.Uri.joinPath(uri, '..', `${basename(uri.path).slice(0, -SUFFIX.length)}${FLOW}`);
 
-async function textOf(uri: vscode.Uri): Promise<string | undefined> {
+export async function textOf(uri: vscode.Uri): Promise<string | undefined> {
   const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
   if (open) return open.getText();
   try {
@@ -50,7 +51,7 @@ async function textOf(uri: vscode.Uri): Promise<string | undefined> {
 }
 
 /** Offsets of a YAML path as a Range, through a document when open, else by counting lines. */
-function rangeIn(text: string, start: number, end: number): vscode.Range {
+export function rangeIn(text: string, start: number, end: number): vscode.Range {
   const pos = (offset: number) => {
     const before = text.slice(0, offset);
     const line = before.split('\n').length - 1;
@@ -65,6 +66,9 @@ export class ScenarioLive implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[];
   /** The last check per flow URI (tests, the tools). */
   readonly checks = new Map<string, ScenarioCheck>();
+  /** AFD-118: each new check, for the Testing view's items. */
+  private readonly checked = new vscode.EventEmitter<{ flow: vscode.Uri; check: ScenarioCheck }>();
+  readonly onDidCheck = this.checked.event;
   /**
    * AFD-116: per flow URI, the scenarios file before each change made from the designer, newest
    * last; undefined where the change created the file. The canvas's Undo covers the flow only.
@@ -79,6 +83,7 @@ export class ScenarioLive implements vscode.Disposable {
     };
     this.disposables = [
       this.diagnostics,
+      this.checked,
       watcher,
       watcher.onDidCreate(touched),
       watcher.onDidChange(touched),
@@ -121,6 +126,7 @@ export class ScenarioLive implements vscode.Disposable {
     const text = await textOf(uri);
     const check = checkLive(doc, text, this.verdicts(flow));
     this.checks.set(flow.toString(), check);
+    this.checked.fire({ flow, check });
     this.publish(flow, flowText ?? '', doc, uri, text, check);
     this.host.sessions
       .get(flow.toString())
@@ -178,6 +184,7 @@ export class ScenarioLive implements vscode.Disposable {
     if (!(await vscode.workspace.applyEdit(edit)))
       return { ok: false, error: 'VS Code rejected the edit' };
     if (open && !wasDirty) await open.save();
+    if (cmd.kind === 'add') markTourKey(SCENARIO_ADDED);
     const stack = this.undos.get(flow.toString()) ?? [];
     stack.push(before);
     if (stack.length > 30) stack.shift();

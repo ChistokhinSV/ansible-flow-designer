@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.74.0 — AFD-118
+
+Wave 11 ends: scenario tests where you look for tests, in the samples and in the guide.
+
+- **The Testing view** lists every flow with scenarios, with its scenarios under it, and runs them two ways:
+  - **Check (simulated)**, the default: instant;
+  - **Verify in Ansible**: a run with every step as its stub.
+
+  A failing scenario's message points at the `expect` line of each host that ended elsewhere.
+- **The Hello and Edge baseline samples come with scenarios.** Open Sample Flow copies them too: a happy path, and a failure that stops the host or rolls it back.
+- **The first-flow walkthrough** has a new step, "Test where hosts end".
+- **The scenario runner** for CI runs in WSL with `--wsl` (or `--wsl-distro NAME`), as the designer can.
+- **The guide's Scenario tests page** is rewritten around the canvas, the Testing view and the AI tools, with two new screenshots.
+- **A smaller extension:** the guide's screenshots are stored in 256 colours, which look the same at under half the size. The VSIX shrinks by about 2 MB.
+
 ## 0.73.0 — AFD-117
 
 Wave 11, part 4: AI assistants work with scenario tests.

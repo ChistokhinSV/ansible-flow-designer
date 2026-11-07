@@ -7,7 +7,7 @@
     "color": "#14B8A6",
     "theme": "dark"
   },
-  "version": "0.73.0",
+  "version": "0.74.0",
   "publisher": "chistokhinsv",
   "license": "MIT",
   "repository": {
@@ -3011,6 +3011,24 @@
             "completionEvents": [
               "onCommand:afd.run.skeleton",
               "onContext:afd.tour.skeletonRun"
+            ]
+          },
+          {
+            "id": "scenarios",
+            "title": "Test where hosts end",
+            "description": "A scenario makes chosen steps fail for chosen hosts and checks where each host ends. A simulation answers as you edit; Verify in Ansible runs them for real. Click **Scenarios** in the designer's top bar, then New Scenario; right-click a step to make it fail for a host.\n[Open the Hello Sample](command:afd.help.openSample?%5B%22hello%22%5D)\n[How-to: scenario tests](command:afd.help.openGuide?%5B%22how-to%2Fscenario-tests.md%22%5D)",
+            "media": {
+              "image": {
+                "light": "docs/guide/images/scenarios-light.png",
+                "dark": "docs/guide/images/scenarios-dark.png",
+                "hc": "docs/guide/images/scenarios-dark.png",
+                "hcLight": "docs/guide/images/scenarios-light.png"
+              },
+              "altText": "The Scenarios tab, with a scenario's simulated run on the canvas"
+            },
+            "completionEvents": [
+              "onContext:afd.tour.scenarioAdded",
+              "onCommand:afd.run.scenarios"
             ]
           },
           {

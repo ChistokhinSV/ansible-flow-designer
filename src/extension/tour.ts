@@ -45,6 +45,8 @@ export interface FirstFlowState {
 /** Keys the host reaches outside designer commands: the generated code shown, a check run done. */
 export const CODE_SEEN = 'codeSeen';
 export const SKELETON_RUN = 'skeletonRun';
+/** AFD-118: a scenario added in the designer (the walkthrough's "Test where hosts end"). */
+export const SCENARIO_ADDED = 'scenarioAdded';
 
 const STATE = 'afd.firstFlow';
 let saved: vscode.Memento | undefined;

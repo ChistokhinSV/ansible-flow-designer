@@ -16,6 +16,7 @@ import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { registerInventoryView } from './inventoryView';
 import { ScenarioLive } from './run/scenarioLive';
+import { ScenarioTests } from './run/testController';
 import { watchSharedSources } from './sharedSubflows';
 import { type AfdTestApi, createTestApi } from './testApi';
 import { initTour } from './tour';
@@ -90,6 +91,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   );
 
   host.scenarioLive = new ScenarioLive(host);
+  // AFD-118: scenarios in the Testing view.
+  host.scenarioTests = new ScenarioTests(host);
   const provider: vscode.CustomTextEditorProvider = {
     async resolveCustomTextEditor(document, panel) {
       host.sessionFor(document).attach(panel);
@@ -117,6 +120,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     ...registerFlowCommands(host),
     ...registerRunCommands(host),
     host.scenarioLive,
+    host.scenarioTests,
     watchSharedSources(host),
     ...registerImportCommands(host),
     ...host.index.start(),

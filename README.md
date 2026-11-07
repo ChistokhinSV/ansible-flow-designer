@@ -29,11 +29,12 @@ happens when each one fails; the extension writes the playbook and runs it.</p>
   either direction.
 - **Run** locally (check mode, or for real and audited) or in AWX with approvals. Run mode shows
   where every host went.
+- **Scenario tests:** make chosen steps fail for chosen hosts and say where each must end. A
+  simulation checks them as you edit; they also run in Ansible and in CI.
 - **Lenses** over the whole flow: inventory, data, code, access, timing, and changes since a
   commit.
 - **Bring what you have:** import playbooks and AWX workflows. AI assistants (Copilot, Claude Code
-  and others) build and fix flows through flow tools. Export to draw.io, and run scenario tests in
-  CI.
+  and others) build and fix flows, and their scenario tests, through flow tools. Export to draw.io.
 
 | Handle a failure                                                            | See where every host went                                                  |
 | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |

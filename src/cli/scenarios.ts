@@ -26,17 +26,31 @@ if (o.help || o.error || o.targets.length === 0) {
   process.exit(o.help && !o.error ? 0 : 2);
 }
 
-const env: Environment = o.image
-  ? {
-      kind: 'container',
-      engine: o.engine ?? 'docker',
-      image: o.image,
-      options: [],
-      mounts: [],
-      source: 'afd',
-      label: o.image,
-    }
-  : { kind: 'local', python: o.python ?? 'python3', source: 'afd', label: 'local' };
+if (o.wsl !== undefined && process.platform !== 'win32') {
+  console.log(
+    '--wsl runs WSL from Windows; here, run without it (ansible-playbook on this machine)',
+  );
+  process.exit(2);
+}
+const env: Environment =
+  o.wsl !== undefined
+    ? {
+        kind: 'wsl',
+        distro: o.wsl || undefined,
+        python: o.python,
+        label: `wsl: ${o.wsl || 'the default distribution'}`,
+      }
+    : o.image
+      ? {
+          kind: 'container',
+          engine: o.engine ?? 'docker',
+          image: o.image,
+          options: [],
+          mounts: [],
+          source: 'afd',
+          label: o.image,
+        }
+      : { kind: 'local', python: o.python ?? 'python3', source: 'afd', label: 'local' };
 
 /** The routing callback the designer runs with, written where Ansible can load it. */
 function probe(): string {
