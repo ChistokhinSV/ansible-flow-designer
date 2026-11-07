@@ -4,7 +4,9 @@ AFD-109. Round 4 tests the wave 10 build (0.68.1) with a person, as round 3 test
 (`../wave9-usability/`). The method, measures, severity scale and privacy rules are the same
 (`../wave8-usability/protocol.md`). This page says what changes and lists the tasks. The kit runs it
 as variant D; the walkthrough is `walkthrough-r4.md`, and the session's results are `round4.md`.
-D2's "up to 12 times" with Retries 12 follows the designer's count, which is one try short (Q1).
+The session ran D2's card as "keep checking, up to 12 times", which followed the designer's count
+of Retries 12, one try short (Q1). Since 0.68.2 (AFD-111) the designer counts 13 tries, and the card
+says "check again up to 12 more times"; the check still wants Retries 12.
 
 ## Why round 4
 
@@ -54,7 +56,7 @@ finding wave 10 changed for it.
 | Task | Card                                                                                                                                                                                                                                             | Limit | Check                                                                                                                                  | Round 3       |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | D1   | Get an overview of this workspace's flows, opening as few of them as you can. Answer: which flow has an error that stops it from generating code? Which flow's generated playbook was changed by hand?                                           | 3     | the answer names VIP audit and Certificate renewal                                                                                     | T13 (control) |
-| D2   | In "Pool maintenance", "Wait for the pool to drain" checks only once. Make it keep checking, up to 12 times, 10 seconds apart, until its output says drained. Save the flow. Answer: how long can one of those checks take at most?              | 6     | retries 12, delay 10; Until tests "drained" in a field of the result, not the whole result; a second check: the answer says 30 seconds | T6 (R1, R2)   |
+| D2   | In "Pool maintenance", "Wait for the pool to drain" checks only once. Make it check again up to 12 more times, 10 seconds apart, until its output says drained. Save the flow. Answer: how long can one of those checks take at most?            | 6     | retries 12, delay 10; Until tests "drained" in a field of the result, not the whole result; a second check: the answer says 30 seconds | T6 (R1, R2)   |
 | D3   | In "Pool maintenance", what "Read the API key" reads must never show in logs or run output. Save the flow.                                                                                                                                       | 3     | `no_log: true` on the step                                                                                                             | T8 (R3)       |
 | D4   | In "Pool maintenance", "Disable the pool members" disables the member MEMBER, which does not exist. Make it run once for each of the members web-01, web-02 and web-03, with the member's name in its command in place of MEMBER. Save the flow. | 6     | a loop over the three members; the command reads the loop variable, and MEMBER is gone                                                 | T9 (R3, R4)   |
 

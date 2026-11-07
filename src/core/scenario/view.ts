@@ -34,16 +34,29 @@ export function missText(
   m: ScenarioResult['hosts'][number],
   keys = false,
 ): string {
+  return `${m.host} ${missWords(doc, m, keys)}`;
+}
+
+/**
+ * A miss without the host's name, "ended at Stopped; the scenario expected Reported to the NOC",
+ * for a row that names the host already (AFD-111, round 4: Q5: a step's forced row said why, but
+ * not where the scenario expected the host).
+ */
+export function missWords(
+  doc: FlowDocument | undefined,
+  m: ScenarioResult['hosts'][number],
+  keys = false,
+): string {
   const say = (where: string) => {
     const words = doc ? endWords(doc, where) : where;
     return keys && words !== where ? `${words} (${where})` : words;
   };
   const ended =
     m.actual === DROPPED
-      ? `${m.host} dropped out of the run`
+      ? 'dropped out of the run'
       : m.actual === 'not run' || m.actual === 'no run'
-        ? `${m.host} did not run`
-        : `${m.host} ended at ${say(m.actual)}`;
+        ? 'did not run'
+        : `ended at ${say(m.actual)}`;
   return `${ended}; the scenario expected ${say(m.expected)}`;
 }
 

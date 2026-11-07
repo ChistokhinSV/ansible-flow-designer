@@ -1,7 +1,7 @@
 // The node settings the properties page edits (Execution tab), and how typed text becomes a
 // setting value (AFD-34: out of the component, shared and tested). Settings the flow models as
 // fields; other task keywords live in impl.keywords (AFD-26).
-import { durationSeconds } from '../flow/duration';
+import { duration, durationSeconds, spokenDuration } from '../flow/duration';
 import type { FlowNode, NodeSettings, NodeType } from '../flow/types';
 
 export type SettingKey = keyof NodeSettings;
@@ -13,7 +13,8 @@ export type SettingGroup = (typeof SETTING_GROUPS)[number];
 export interface SettingField {
   key: SettingKey;
   label: string;
-  kind: 'text' | 'int' | 'bool' | 'list';
+  /** `seconds`: typed as a duration (`10s`, `1m`), kept as whole seconds (AFD-111). */
+  kind: 'text' | 'int' | 'seconds' | 'bool' | 'list';
   help: string;
   group: SettingGroup;
   /** The flow format that has the setting (AFD-52); older formats do not show it. */
@@ -38,7 +39,8 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     group: 'Timing',
     label: 'Retries',
     kind: 'int',
-    help: 'How many tries at most: until Until holds, or until the step succeeds',
+    // AFD-111 (round 4: Q1): Ansible runs the task once, then retries it up to this many times.
+    help: 'Tries again up to this many times after the first try: until Until holds, or until the step succeeds',
   },
   {
     key: 'until',
@@ -51,8 +53,9 @@ export const EXECUTION_SETTINGS: readonly SettingField[] = [
     key: 'delay',
     group: 'Timing',
     label: 'Delay',
-    kind: 'int',
-    help: 'Seconds between tries (Ansible default 5)',
+    // AFD-111 (round 4: Q2): written like Timeout; Ansible's delay is a number of seconds.
+    kind: 'seconds',
+    help: 'Wait between tries: 10s, 1m, or a number of seconds (Ansible default 5s)',
   },
   {
     key: 'serial',
@@ -148,10 +151,17 @@ export function appliesTo(field: SettingField, node: Pick<FlowNode, 'type' | 'su
   return true;
 }
 
+/** Typed seconds: `10s`, `1m`, `90`; `0` too, where a timeout has no zero. */
+function secondsOf(text: string): number | undefined {
+  return /^0+\s*s?$/i.test(text.trim()) ? 0 : durationSeconds(text);
+}
+
 /** Why typed text is not a valid value for the field, or undefined. */
 export function settingProblem(field: SettingField, text: string): string | undefined {
   const t = text.trim();
   if (field.kind === 'int' && t && !/^[0-9]+$/.test(t)) return 'A whole number';
+  if (field.kind === 'seconds' && t && secondsOf(t) === undefined)
+    return 'A duration: 10s, 1m, 1m30s, or a number of seconds';
   // AFD-103: what codegen cannot read it leaves out of the task without a word.
   if (field.key === 'timeout' && t && durationSeconds(t) === undefined)
     return 'A duration: 30s, 15m, 1h30m';
@@ -165,6 +175,7 @@ export function settingValue(field: SettingField, text: string): unknown {
   const t = text.trim();
   if (!t) return null;
   if (field.kind === 'int') return Number(t);
+  if (field.kind === 'seconds') return secondsOf(t) ?? null;
   if (field.kind === 'list')
     return t
       .split(',')
@@ -173,16 +184,19 @@ export function settingValue(field: SettingField, text: string): unknown {
   return /^[0-9]+$/.test(t) && (field.key === 'serial' || field.key === 'rolling') ? Number(t) : t;
 }
 
-/** A setting value as the text its field shows. */
-export function settingText(value: unknown): string {
+/** A setting value as the text its field shows; seconds as a duration (`10s`, `1m30s`). */
+export function settingText(value: unknown, field?: SettingField): string {
+  if (field?.kind === 'seconds' && typeof value === 'number') return duration(value);
   return Array.isArray(value) ? value.join(', ') : value === undefined ? '' : String(value);
 }
 
 /**
  * How a step's Timing settings combine, in one sentence (AFD-103, round 3: R2): the participant
  * put "15 seconds apart" into Timeout, since nothing said what each field does to the others.
- * Mirrors codegen (core/engine/binding.ts): with Retries or Until the task retries (Ansible's
- * defaults: 3 tries, 5 s apart); Delay alone does nothing; Timeout limits each try.
+ * Mirrors codegen (core/engine/binding.ts) and ansible-core 2.19 (`task_executor.py`): with
+ * Retries or Until the task runs once, then retries up to Retries times (Ansible's default 3),
+ * waiting Delay (default 5 s) between tries; Delay alone does nothing; Timeout limits each try.
+ * AFD-111 (round 4: Q1, Q3): it counts the first try, and says how long the step can take in all.
  */
 export function timingText(s: NodeSettings, result: string): string | undefined {
   const until = s.until?.trim();
@@ -190,22 +204,31 @@ export function timingText(s: NodeSettings, result: string): string | undefined 
   const timeout = typeof s.timeout === 'string' ? s.timeout.trim() : s.timeout;
   if (!until && !retries && s.delay === undefined && !timeout) return undefined;
   const parts: string[] = [];
+  const limit = timeout !== undefined && timeout !== '' ? durationSeconds(timeout) : undefined;
+  const goal = until ? `until ${until}` : `until it succeeds (${result} is succeeded)`;
+  let total: number | undefined;
   if (until || retries) {
-    const tries = retries ?? 3;
-    const apart = s.delay ?? 5;
+    const again = retries ?? 3;
+    const tries = 1 + Math.max(0, again);
+    const apart = typeof s.delay === 'number' ? s.delay : 5;
+    const retried = `${again} ${again === 1 ? 'retry' : 'retries'}${retries === undefined ? ", Ansible's default" : ''}`;
     parts.push(
-      `Tries up to ${tries} time${tries === 1 ? '' : 's'}${retries ? '' : " (Ansible's default)"}, ${apart} s apart, ${until ? `until ${until}` : `until it succeeds (${result} is succeeded)`}`,
+      tries === 1
+        ? `Tries once (Retries 0), and fails unless ${until}`
+        : `Tries up to ${tries} times (once, then ${retried}), ${spokenDuration(apart)} apart, ${goal}`,
     );
+    if (limit !== undefined && tries > 1) total = tries * limit + (tries - 1) * apart;
   } else {
     parts.push('Runs once');
     if (s.delay !== undefined) parts.push('Delay applies only with Retries or Until');
   }
   if (timeout !== undefined && timeout !== '') {
     parts.push(
-      durationSeconds(timeout) === undefined
+      limit === undefined
         ? `"${timeout}" is not a duration, so no try has a limit`
         : `each try at most ${timeout}`,
     );
   }
+  if (total !== undefined) parts.push(`the step takes at most ${spokenDuration(total)} in all`);
   return `${parts.join('; ')}.`;
 }

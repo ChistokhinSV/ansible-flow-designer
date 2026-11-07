@@ -3,12 +3,13 @@
 // trace of it (round 1: P21). Each outside edit adds its steps and wires to the marks, which stay
 // apart from the Changes lens (Git): the person's own edits in between never count. AFD-92 (wave
 // 9): also what changed while the flow was closed, against what the designer last showed.
-// AFD-104 (wave 10, round 3: R9): and what each change was, in words, not only which steps. Pure.
+// AFD-104 (wave 10, round 3: R9): and what each change was, in words, not only which steps.
+// AFD-111 (round 4: Q6): a step inserted on a wire is one change, and wires go by step titles. Pure.
 
-import { modelOf } from '../flow/model';
+import { type FlowModel, modelOf } from '../flow/model';
 import { canonical } from '../flow/semantic';
-import { diffFlows, type FieldChange } from '../flow/semanticDiff';
-import type { FlowDocument, Ulid } from '../flow/types';
+import { diffFlows, type FieldChange, type WireChange } from '../flow/semanticDiff';
+import type { FlowDocument, SubflowBody, Ulid } from '../flow/types';
 
 /** AFD-104: one step's outside change, merged over the edits since the marks began. */
 export interface OutsideChange {
@@ -19,6 +20,11 @@ export interface OutsideChange {
   where: string[];
   /** Each changed field with its value before the first edit and after the last. */
   fields: FieldChange[];
+  /**
+   * AFD-111 (round 4: Q6): an added step put on a wire, the title of the step before it. The wire
+   * it split and its subflow's new exit are then no lines of their own.
+   */
+  after?: string;
 }
 
 /** AFD-104: a wire added or removed outside, by its label ("check.ok_hosts → done"). */
@@ -27,6 +33,11 @@ export interface OutsideWire {
   label: string;
   /** An added wire's ID: when the person removes it, its line goes too. */
   edge?: Ulid;
+  /**
+   * AFD-111 (round 4: Q6): the wire by step titles, "Validate (failed_hosts) → Failed"; the
+   * label, by keys, stays what matches a wire across edits. Marks saved before have none.
+   */
+  words?: string;
 }
 
 export interface OutsideMarks {
@@ -54,6 +65,58 @@ export interface OutsideMarks {
   flow?: string[];
 }
 
+/** A wire by its steps' titles: "Move the VIPs to the peer (ok_hosts) → Wait for the sessions". */
+function wireWords(model: FlowModel, w: WireChange): string {
+  const title = (id: Ulid) => {
+    const n = model.nodes.get(id)?.node;
+    return n?.title || n?.key || '?';
+  };
+  return `${title(w.from.node)} (${w.from.port}) → ${title(w.to.node)}`;
+}
+
+/**
+ * AFD-111 (round 4: Q6): the wires an edit removed only to put an added step on them: A → B
+ * removed, A → N and N → B added, N new. Inserting a step on a wire is one change to the person
+ * who made it; the change list said "Wire removed: move-vips.ok_hosts → wait-sessions" besides.
+ * Returns each such removed wire with the added step put on it.
+ */
+function splitWires(wires: readonly WireChange[], came: ReadonlySet<Ulid>): Map<WireChange, Ulid> {
+  const added = wires.filter((w) => w.kind === 'added');
+  const out = new Map<WireChange, Ulid>();
+  for (const w of wires) {
+    if (w.kind !== 'removed') continue;
+    const into = added.find(
+      (a) =>
+        a.from.node === w.from.node &&
+        a.from.port === w.from.port &&
+        came.has(a.to.node) &&
+        added.some((b) => b.from.node === a.to.node && b.to.node === w.to.node),
+    );
+    if (into) out.set(w, into.to.node);
+  }
+  return out;
+}
+
+/**
+ * A subflow's boundary without what belongs to steps added or removed in the same edit: the entry
+ * moved to an added first step, the exits of an added or removed step's ports.
+ */
+function ownBoundary(
+  boundary: SubflowBody['boundary'],
+  steps: ReadonlySet<Ulid>,
+): SubflowBody['boundary'] {
+  if (!boundary) return boundary;
+  const outputs = Object.fromEntries(
+    Object.entries(boundary.outputs ?? {})
+      .map(([port, exits]) => [port, (exits ?? []).filter((x) => !steps.has(x.node))] as const)
+      .filter(([, exits]) => exits.length > 0),
+  );
+  return {
+    ...(boundary.in && !steps.has(boundary.in) ? { in: boundary.in } : {}),
+    ...(Object.keys(outputs).length ? { outputs } : {}),
+  };
+}
+
 /** One outside edit: what it added or changed between the flow as shown and the flow now. */
 export function outsideChanges(
   before: FlowDocument,
@@ -67,22 +130,49 @@ export function outsideChanges(
     const steps = w.kind === 'added' ? came : went;
     return steps.has(w.from.node) || steps.has(w.to.node);
   };
+  const split = splitWires(diff.wires, came);
+  const was = modelOf(before);
+  const now = modelOf(after);
+  const insertedAfter = new Map<Ulid, string>();
+  for (const [w, step] of split) {
+    const n = was.nodes.get(w.from.node)?.node;
+    insertedAfter.set(step, n?.title || n?.key || '');
+  }
+  const steps = new Set([...came, ...went]);
+  const changes = diff.nodes
+    .map((n): OutsideChange => {
+      const fields = n.fields.filter(
+        (f) =>
+          f.field !== 'boundary' ||
+          !same(
+            ownBoundary(f.before as SubflowBody['boundary'], steps),
+            ownBoundary(f.after as SubflowBody['boundary'], steps),
+          ),
+      );
+      const at = insertedAfter.get(n.id);
+      return {
+        id: n.id,
+        kind: n.kind,
+        title: n.title,
+        where: n.where,
+        fields,
+        ...(at ? { after: at } : {}),
+      };
+    })
+    // A subflow whose only change was an added step's exit is not changed itself.
+    .filter((c) => c.kind !== 'changed' || c.fields.length > 0);
+  const kept = new Set(changes.map((c) => c.id));
   return {
-    nodes: diff.nodes.filter((n) => n.kind !== 'removed').map((n) => n.id),
+    nodes: diff.nodes.filter((n) => n.kind !== 'removed' && kept.has(n.id)).map((n) => n.id),
     edges: diff.wires.filter((w) => w.kind === 'added' && w.edge).map((w) => w.edge as Ulid),
     removed: diff.nodes.filter((n) => n.kind === 'removed').length,
-    changes: diff.nodes.map((n) => ({
-      id: n.id,
-      kind: n.kind,
-      title: n.title,
-      where: n.where,
-      fields: n.fields,
-    })),
+    changes,
     wires: diff.wires
-      .filter((w) => !own(w))
+      .filter((w) => !own(w) && !split.has(w))
       .map((w) => ({
         kind: w.kind,
         label: w.label,
+        words: wireWords(w.kind === 'added' ? now : was, w),
         ...(w.kind === 'added' && w.edge ? { edge: w.edge } : {}),
       })),
     flow: diff.flow.map((f) => f.field),
@@ -102,7 +192,13 @@ function mergeChanges(prev: OutsideChange[], next: OutsideChange[]): OutsideChan
     const old = byId.get(c.id);
     if (!old) byId.set(c.id, c);
     else if (old.kind === 'added' && c.kind === 'removed') byId.delete(c.id);
-    else if (old.kind === 'added') byId.set(c.id, { ...c, kind: 'added', fields: [] });
+    else if (old.kind === 'added')
+      byId.set(c.id, {
+        ...c,
+        kind: 'added',
+        fields: [],
+        ...(old.after ? { after: old.after } : {}),
+      });
     else if (c.kind === 'removed') byId.set(c.id, { ...c, title: old.title });
     else {
       const fields = new Map(old.fields.map((f) => [f.field, f]));
@@ -303,7 +399,7 @@ function bindingWords(before: unknown, after: unknown): string {
  */
 export function changeWords(c: OutsideChange): string {
   const where = c.where.length ? `, in ${c.where[c.where.length - 1]}` : '';
-  if (c.kind === 'added') return `Added ${c.title}${where}`;
+  if (c.kind === 'added') return `Added ${c.title}${where}${c.after ? `, after ${c.after}` : ''}`;
   if (c.kind === 'removed') return `Removed ${c.title}${where}`;
   let renamed = '';
   const parts: string[] = [];
@@ -327,7 +423,7 @@ export function changeLines(marks: OutsideMarks): { id?: Ulid; text: string }[] 
       text: changeWords(c),
     })),
     ...(marks.wires ?? []).map((w) => ({
-      text: `Wire ${w.kind === 'added' ? 'added' : 'removed'}: ${w.label}`,
+      text: `Wire ${w.kind === 'added' ? 'added' : 'removed'}: ${w.words ?? w.label}`,
     })),
     ...(marks.flow ?? []).map((f) => ({ text: `The flow's ${f} changed` })),
   ];

@@ -47,7 +47,7 @@ export function roundFourCards(): TaskCard[] {
       id: 'D2',
       part: 1,
       title: 'Wait until it has drained',
-      goal: `In ${q(p.name)}, ${q(p.wait.title)} checks only once. Make it keep checking, up to ${p.retries} times, ${p.delay} seconds apart, until its output says ${p.until}. Save the flow.`,
+      goal: `In ${q(p.name)}, ${q(p.wait.title)} checks only once. Make it check again up to ${p.retries} more times, ${p.delay} seconds apart, until its output says ${p.until}. Save the flow.`,
       answer: 'How long can one of those checks take at most?',
       softLimit: 6,
       probes:

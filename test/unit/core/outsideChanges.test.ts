@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { applyOps } from '../../../src/core/ai/ops';
+import { createIdFactory } from '../../../src/core/flow/ids';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import {
   addMarks,
@@ -147,13 +149,14 @@ describe('what changed outside, in words (AFD-104)', () => {
     expect(changeLines(marks as NonNullable<typeof marks>).map((l) => l.text)).toEqual([
       'Renamed Push baseline to Push the baseline and verify',
       'Removed Rollback',
-      'Wire added: validate.failed_hosts → failed',
+      'Wire added: Validate (failed_hosts) → Failed',
     ]);
     // A wire that only went with its step is not a line of its own.
     expect(marks?.wires).toEqual([
       {
         kind: 'added',
         label: 'validate.failed_hosts → failed',
+        words: 'Validate (failed_hosts) → Failed',
         edge: '01M7AFD85W0000000000000000',
       },
     ]);
@@ -202,6 +205,68 @@ describe('what changed outside, in words (AFD-104)', () => {
         ],
       }),
     ).toBe('Copy the image: binding changed (msg)');
+  });
+
+  // AFD-111 (round 4: Q6, Z4): D10's change list had six lines for four changes. Inserting one
+  // step on a wire inside a subflow, with an exit for its failures, also gave "<subflow>: boundary
+  // changed" and "Wire removed: <key>.ok_hosts → <key>".
+  it('a step put on a wire inside a subflow, with its exit, is one line', async () => {
+    const text = readFileSync(
+      join(__dirname, '../../../samples/firewall-upgrade.flow.yaml'),
+      'utf8',
+    );
+    const was = parse(text) as FlowDocument;
+    const edited = await applyOps(
+      text,
+      [
+        {
+          op: 'add_node',
+          type: 'task',
+          key: 'verify-backup',
+          title: 'Verify the backup',
+          on_wire: 'backup/export.ok_hosts',
+          impl: { kind: 'module', ref: 'ansible.builtin.debug', params: { msg: 'ok' } },
+        },
+        { op: 'add_exit', from: 'backup/verify-backup.failed_hosts', port: 'failed_hosts' },
+        { op: 'update_node', node: 'backup/store', title: 'Store the backup off the box' },
+      ],
+      { newId: createIdFactory() },
+    );
+    const now = parse(edited.text) as FlowDocument;
+    const marks = addMarks(undefined, outsideChanges(was, now), now, 'now');
+    expect(changeLines(marks as NonNullable<typeof marks>).map((l) => l.text)).toEqual([
+      'Renamed Store the backup to Store the backup off the box, in Backup',
+      'Added Verify the backup, in Backup, after Export configuration',
+    ]);
+    // Backup itself is not marked changed; it is marked around its changed steps.
+    const backup = now.nodes.find((n) => n.key === 'backup')?.id;
+    expect(marks?.nodes).not.toContain(backup);
+    expect(markedAround(marks as NonNullable<typeof marks>, now)).toEqual([backup]);
+    // A later edit to the added step keeps where it was put.
+    const later = structuredClone(now);
+    const step = later.nodes
+      .find((n) => n.key === 'backup')
+      ?.subflow?.nodes?.find((n) => n.key === 'verify-backup');
+    if (step) step.title = 'Verify the backup file';
+    const both = addMarks(marks, outsideChanges(now, later), later, 'later');
+    expect(changeLines(both as NonNullable<typeof both>).map((l) => l.text)).toContain(
+      'Added Verify the backup file, in Backup, after Export configuration',
+    );
+  });
+
+  it('an exit of a step that was there before still changes the subflow', () => {
+    const was = parse(
+      readFileSync(join(__dirname, '../../../samples/firewall-upgrade.flow.yaml'), 'utf8'),
+    ) as FlowDocument;
+    const now = structuredClone(was);
+    const backup = now.nodes.find((n) => n.key === 'backup');
+    const exportId = backup?.subflow?.nodes?.find((n) => n.key === 'export')?.id as string;
+    const outputs = backup?.subflow?.boundary?.outputs ?? {};
+    outputs.ok_hosts = [...(outputs.ok_hosts ?? []), { node: exportId, port: 'ok_hosts' }];
+    const marks = addMarks(undefined, outsideChanges(was, now), now, 'now');
+    expect(changeLines(marks as NonNullable<typeof marks>).map((l) => l.text)).toEqual([
+      'Backup: boundary changed',
+    ]);
   });
 
   it('an edit undone by the next one leaves no line', () => {

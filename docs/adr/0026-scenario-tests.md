@@ -87,3 +87,10 @@ carry the scenario's `force` map, so the panel assumed every failure was planted
 - One wording for a miss (`missText`): "X ended at A; the scenario expected B", in the panel, the
   notification, the log and JUnit (they differed). `missWhy` adds ", because the scenario forces
   …" in the panel and the log; the log keeps the keys in brackets.
+
+## Amendment: a forced row says where the host was expected (AFD-111, 2026-11-07)
+
+Usability round 4 (Q5): the participant answered from a step's forced row, which said why but not
+where the host ended or where the scenario expected it; that was only in the miss line and the
+row's tooltip. When the host missed, the row adds `missWords` ("ended at Stopped; the scenario
+expected Reported to the NOC"), `missText` without the host's name, which the row already shows.

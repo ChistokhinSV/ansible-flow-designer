@@ -70,8 +70,8 @@ How the node runs (play keywords).
 - `serial` (string | integer): Batch size or percentage for rolling execution.
 - `rolling` (string | integer): Subflows: hosts per batch (a number, or a percentage like 25%) through every step inside, one batch after another. The steps run in one play with this serial; a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage) stops it (rolling-unsupported).
 - `timeout` (string): Task timeout, e.g. 300 or 5m. Hosts that time out leave through the timeout port.
-- `retries` (integer): Retries before a host fails (module steps). Without until, a step stops retrying on its first success.
-- `delay` (integer): Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls.
+- `retries` (integer): Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success.
+- `delay` (integer): Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay.
 - `until` (string): Poll until this holds: a Jinja test without braces, e.g. wait_ha_result.json.results | length == 2. It reads the step's registered result (impl.register, else <key with _ for ->_result) and its inputs. Module steps only; retries sets the attempts.
 - `become` (boolean): Run with privilege escalation. Format 2: set on a subflow, it applies to the steps inside (the nearest setting wins).
 - `become_user` (string): Format 2: whom to become (Ansible become_user); set on a subflow, it applies inside. Format 1 writes it as a task keyword.

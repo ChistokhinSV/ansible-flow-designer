@@ -22,6 +22,7 @@ import {
   forcedAt,
   forcedText,
   missWhy,
+  missWords,
   scenarioMisses,
 } from '../../core/scenario/view';
 import { trailOf } from '../../core/view/find';
@@ -456,6 +457,10 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                   h.problem && run?.scenario && doc
                     ? forcedAt(doc, run.scenario.forced, h.host, node.id)
                     : undefined;
+                // AFD-111 (round 4: Q5): and where the host ended against where it was expected.
+                const missed = planted
+                  ? run?.scenario?.hosts.find((x) => x.host === h.host && x.expected !== x.actual)
+                  : undefined;
                 return (
                   <Fragment key={h.host}>
                     <tr data-host={h.host} data-port={h.ports.join(',')}>
@@ -469,13 +474,21 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                             {h.ended}
                           </span>
                         ) : planted ? (
-                          <span
-                            className="tone-warn"
-                            data-forced
-                            title={forcedText(doc ?? undefined, planted)}
-                          >
-                            Forced by the scenario ({planted.outcome})
-                          </span>
+                          <>
+                            <span
+                              className="tone-warn"
+                              data-forced
+                              title={forcedText(doc ?? undefined, planted)}
+                            >
+                              Forced by the scenario ({planted.outcome})
+                            </span>
+                            {missed ? (
+                              <span className="muted" data-forced-miss>
+                                {' '}
+                                · {missWords(doc ?? undefined, missed)}
+                              </span>
+                            ) : null}
+                          </>
                         ) : h.problem ? (
                           <span title={h.problem.msg}>
                             {h.problem.status} in {h.problem.task}

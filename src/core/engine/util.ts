@@ -14,13 +14,6 @@ export function checksum(text: string): string {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0');
 }
 
-// AFD-103: the parser lives in core/flow, so the validator can check a timeout too.
-export { durationSeconds } from '../flow/duration';
-
-/** `1h30m`, `15m`, `45s`: the duration format settings and the Timing lens read. */
-export function duration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${h ? `${h}h` : ''}${m ? `${m}m` : ''}${s ? `${s}s` : ''}` || '0s';
-}
+// AFD-103: the parser lives in core/flow, so the validator can check a timeout too. AFD-111: the
+// formatter too, so the Execution tab can show a delay the way Timeout is written.
+export { duration, durationSeconds } from '../flow/duration';

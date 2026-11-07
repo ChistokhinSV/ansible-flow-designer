@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.68.2 — AFD-111
+
+What usability round 4 found that a patch can fix (`docs/ux/wave10-usability/round4.md`, Q1-Q3, Q5, Q6).
+
+- **The Timing sentence counts the first try:** Ansible runs a task once, then retries it, so Retries 12 makes 13 tries. The sentence said "Tries up to 12 times"; it now says "Tries up to 13 times (once, then 12 retries)", and 4 tries with Until alone (Ansible's default of 3 retries). The Retries hint says "Tries again up to this many times after the first try", a polling step's badge counts tries, and the guide's example is corrected.
+- **How long in all:** with a Timeout, the sentence ends with the longest the step can take: "each try at most 30s; the step takes at most 8 min 30 s in all".
+- **Delay takes a duration** like Timeout beside it: `10s`, `1m`, `1m30s` or a number of seconds. It is saved as seconds, as Ansible needs, and shown as `10s`.
+- **A forced row says where the host was expected:** a step's Run tab row for a failure the scenario planted adds "ended at Stopped; the scenario expected Reported to the NOC" when the host missed.
+- **A step put on a wire is one change:** after an outside change, the list says "Added Check the health probes pass, in Drain the balancer, after Move the VIPs to the peer", without separate lines for the wire it split and its subflow's new exit. A wire line names its steps by title: "Wire added: Validate (failed_hosts) → Failed".
+
 ## 0.68.1 — AFD-108
 
 Wave 10 walkthrough, Z1 (`docs/ux/wave10/walkthrough.md`): the @ list offered a step's whole result, and `.stdout` typed after its chip stayed text outside the braces, so the task got the whole result followed by ".stdout".

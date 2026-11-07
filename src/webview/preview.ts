@@ -41,7 +41,8 @@ export function bindingText(impl: ImplBinding | null | undefined): string | unde
 function settingBadges(s: NodeSettings | undefined): string[] {
   if (!s) return [];
   const out: string[] = [];
-  if (s.retries) out.push(s.until ? `poll ×${s.retries}` : `retry ×${s.retries}`);
+  // AFD-111 (round 4: Q1): a poll counts tries, the first one too; a retry counts retries.
+  if (s.retries) out.push(s.until ? `poll ×${s.retries + 1}` : `retry ×${s.retries}`);
   else if (s.until) out.push('poll');
   if (s.serial !== undefined) out.push(`serial ${s.serial}`);
   if (s.timeout) out.push(`timeout ${s.timeout}`);

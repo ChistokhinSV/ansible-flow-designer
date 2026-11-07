@@ -11,6 +11,7 @@ import {
   settingProblem,
   settingText,
   settingValue,
+  timingText,
 } from '../../../src/core/view/settings';
 import { readExample } from './helpers';
 
@@ -81,4 +82,55 @@ describe('execution settings', () => {
     expect(settingText(['a', 'b'])).toBe('a, b');
     expect(settingText(undefined)).toBe('');
   });
+
+  // AFD-111 (round 4: Q2): Delay is written like Timeout and kept as Ansible's number of seconds.
+  it('takes Delay as a duration and shows it as one', () => {
+    const delay = field('delay');
+    if (!delay) throw new Error('missing setting');
+    expect(['10s', '1m', '1m30s', '90', '0', ' 15 '].map((t) => settingValue(delay, t))).toEqual([
+      10, 60, 90, 90, 0, 15,
+    ]);
+    expect(settingProblem(delay, '10s')).toBeUndefined();
+    expect(settingProblem(delay, 'soon')).toBe(
+      'A duration: 10s, 1m, 1m30s, or a number of seconds',
+    );
+    expect(settingValue(delay, '')).toBeNull();
+    expect([10, 90, 0].map((v) => settingText(v, delay))).toEqual(['10s', '1m30s', '0s']);
+  });
+});
+
+/**
+ * AFD-111 (round 4: Q1, Q3): ansible-core 2.19 (task_executor.py) runs a task once, then retries it
+ * up to `retries` times (3 with until and no retries), sleeping `delay` only between tries, and
+ * each try has the whole `timeout`. The sentence counts the same.
+ */
+describe('timingText', () => {
+  const r = 'wait_drain_result';
+  it.each([
+    [
+      { retries: 12, delay: 10, until: "'drained' in wait_drain_result.stdout", timeout: '30s' },
+      "Tries up to 13 times (once, then 12 retries), 10 s apart, until 'drained' in wait_drain_result.stdout; each try at most 30s; the step takes at most 8 min 30 s in all.",
+    ],
+    [
+      { until: 'wait_drain_result.rc == 0' },
+      "Tries up to 4 times (once, then 3 retries, Ansible's default), 5 s apart, until wait_drain_result.rc == 0.",
+    ],
+    [
+      { retries: 1, delay: 60 },
+      'Tries up to 2 times (once, then 1 retry), 1 min apart, until it succeeds (wait_drain_result is succeeded).',
+    ],
+    [
+      { retries: 0, until: 'wait_drain_result.rc == 0', timeout: '1m' },
+      'Tries once (Retries 0), and fails unless wait_drain_result.rc == 0; each try at most 1m.',
+    ],
+    [{ timeout: '30s' }, 'Runs once; each try at most 30s.'],
+    [{ delay: 10 }, 'Runs once; Delay applies only with Retries or Until.'],
+    [
+      { retries: 2, timeout: 'soon' },
+      'Tries up to 3 times (once, then 2 retries), 5 s apart, until it succeeds (wait_drain_result is succeeded); "soon" is not a duration, so no try has a limit.',
+    ],
+  ] as const)('%o', (settings, text) => expect(timingText(settings, r)).toBe(text));
+
+  it('says nothing when no Timing field is set', () =>
+    expect(timingText({ become: true }, r)).toBeUndefined());
 });

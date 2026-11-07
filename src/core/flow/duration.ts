@@ -15,3 +15,20 @@ export function durationSeconds(text: string | number | undefined): number | und
     return undefined;
   return parts.reduce((sum, p) => sum + Number(p[1]) * (UNIT[p[2] as string] ?? 0), 0) || undefined;
 }
+
+/** `1h30m`, `15m`, `45s`: the duration format settings and the Timing lens read. */
+export function duration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h ? `${h}h` : ''}${m ? `${m}m` : ''}${s ? `${s}s` : ''}` || '0s';
+}
+
+/** `8 min 30 s`, `1 h 5 min`, `45 s`: a length of time in a sentence (AFD-111). */
+export function spokenDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const parts = [h ? `${h} h` : '', m ? `${m} min` : '', s ? `${s} s` : ''].filter(Boolean);
+  return parts.join(' ') || '0 s';
+}

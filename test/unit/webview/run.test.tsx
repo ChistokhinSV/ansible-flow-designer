@@ -301,6 +301,10 @@ describe('scenarios on the canvas (AFD-84)', () => {
     expect(document.querySelector('tr[data-host="h02"] [data-forced]')?.textContent).toBe(
       'Forced by the scenario (failed)',
     );
+    // AFD-111 (round 4: Q5): the row also says where the host ended and where it was expected.
+    expect(document.querySelector('tr[data-host="h02"] [data-forced-miss]')?.textContent).toBe(
+      ' · ended at Failed; the scenario expected Done',
+    );
   });
 
   it('the host can show one at once (Show on Canvas); a new run replaces it', () => {

@@ -83,3 +83,19 @@ but not what had changed in them, and gave up. The marks kept only IDs; the diff
 - The session keeps the flow as it was before the first outside change (`outsideBase`): from the
   shown store when the flow was closed, from the shown document when it was open. A save rewrites
   the shown store, so the session holds it until Clear. The Changes lens uses it (ADR-0014).
+
+## Amendment: a step put on a wire is one change (AFD-111, 2026-11-07)
+
+Usability round 4 (Q6, the walkthrough's Z4): a colleague's change of four steps read as six lines.
+Inserting one step on a wire inside a subflow, with an exit for its failures, also listed
+"<subflow>: boundary changed" and "Wire removed: <key>.ok_hosts → <key>".
+
+- `outsideChanges` finds the wires an edit split for an added step (A → B removed, A → N and N → B
+  added, N new) and leaves them out; the added step's line says "after <A's title>"
+  (`OutsideChange.after`, kept when later edits merge in).
+- A subflow's boundary change that only moves the entry to an added step, or adds or drops exits
+  of steps added or removed in the same edit, is not a change of the subflow; a subflow left with
+  no other change loses its own mark (the marks around a changed step still outline it).
+- A wire line names its steps by title, "Validate (failed_hosts) → Failed" (`OutsideWire.words`).
+  The label by keys stays what matches a wire across edits; marks saved before have no words and
+  keep the label.

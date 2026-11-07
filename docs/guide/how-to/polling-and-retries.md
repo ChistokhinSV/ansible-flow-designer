@@ -3,8 +3,9 @@
 Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details.
 Each group's fold names what it holds ("Timing: timeout, retries, until, delay · 2 set"); on a
 step bound to a module, Timing is open until you close it. Under the fields, one sentence says what
-the generated task will do with them, for example "Tries up to 10 times, 15 s apart, until 'ready'
-in wait_up_result.stdout; each try at most 30s.
+the generated task will do with them, for example "Tries up to 11 times (once, then 10 retries),
+15 s apart, until 'ready' in wait_up_result.stdout; each try at most 30s; the step takes at most
+8 min in all." Ansible runs a task once, then retries it, so Retries 10 makes 11 tries.
 
 | You want                                                          | Set                                  |
 | ----------------------------------------------------------------- | ------------------------------------ |
@@ -16,8 +17,9 @@ in wait_up_result.stdout; each try at most 30s.
 
 ## Retries
 
-With only **Retries** set, a module step tries up to that many more times and stops at its first
-success: the generated task gets `until: <register> is succeeded`.
+With only **Retries** set, a module step runs once, then tries again up to that many more times and
+stops at its first success: the generated task gets `until: <register> is succeeded`. Retries 3
+makes up to 4 tries. With Until and no Retries, Ansible retries 3 times.
 
 ## Polling with Until
 
@@ -28,13 +30,14 @@ offers the result's fields from the module's documented returns (`wait_up_result
 
 ```yaml
 settings:
-  retries: 40 # tries
-  delay: 15 # seconds between tries (Ansible's default is 5)
+  retries: 40 # tries again up to 40 times after the first: 41 tries
+  delay: 15 # seconds between tries (Ansible's default is 5); the field takes 15s or 1m too
   until: wait_up_result.status == 200 and wait_up_result.json.version == target_version
 ```
 
-The step polls for up to `retries × delay` (here 10 minutes). It succeeds when the test holds, and
-fails (`failed_hosts`) when it never does.
+The step polls for about `retries × delay` (here 10 minutes), plus the time each try takes; with a
+Timeout, the Timing sentence gives the longest it can take in all: (retries + 1) × timeout +
+retries × delay. It succeeds when the test holds, and fails (`failed_hosts`) when it never does.
 
 - `target_version` here is an input of the step (`from: flow.target_version`). The validator
   checks every name in Until (`condition-unknown-var`).

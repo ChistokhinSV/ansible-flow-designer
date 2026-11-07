@@ -25,7 +25,6 @@ round 3 task, with new names (load balancers), so learning carries over and answ
 | D8   | Scenario tests                | review   | partial | yes        | 0.7 (5)         | 7          |
 | D9   | Privileges                    | pass     | pass    | yes        | 0.9 (5)         | 7          |
 | D10  | A colleague's change          | pass     | pass    | yes        | 1.3 (5)         | 7          |
-
 - **Task time:** 16.8 minutes, against 51 minutes of limits and the walkthrough's 35. Wall time
   was 20 minutes with the ratings and the questionnaires. No task recorded any help.
 - **Part 1, a step's settings:** 7.9 minutes, all four passed, D2 the slowest task of the session.
@@ -150,6 +149,9 @@ show direction, not size.
   hardest, are where round 4 gained most. One participant cannot say more.
 
 ## What round 4 changes
+
+Patched in 0.68.2 (AFD-111): Q1, Q2, Q3, Q5 and Q6, as proposed below. D2's card now says "check
+again up to 12 more times".
 
 - **Patch, proposed:** Q1. Count the first try: "Tries up to 13 times (once, then 12 retries)", the
   Retries hint "Tries again up to this many times", the guide's example. With it, D2's card and

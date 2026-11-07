@@ -573,7 +573,7 @@ export function ExecutionSection({
                 <div key={s.key}>
                   <CommitField
                     label={`${s.label} · ${until ? `${s.help}; it reads ${result} (the result) and the inputs` : s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
-                    value={settingText(value)}
+                    value={settingText(value, s)}
                     mono
                     placeholder={until ? untilExample : undefined}
                     suggestions={until ? untilChoices : undefined}

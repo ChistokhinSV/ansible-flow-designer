@@ -92,10 +92,11 @@ what changed "since you last had this flow open", with the day and time. The des
 last showed of each flow in the workspace's storage, and forgets flows not opened for 90 days.
 
 - **What changed** under the note lists each change in words: "Added Check the session table is
-  empty, in Fail over to the peer", "Renamed Check the policy is loaded to Check the policy and NAT
-  rules are loaded", "Copy the image: binding changed (msg)", "Wire removed: check.failed_hosts →
-  stopped". Click a line to show its step. A changed step's Details and its tooltip on the canvas
-  say the same.
+  empty, in Fail over to the peer, after Move the VIPs to the peer", "Renamed Check the policy is
+  loaded to Check the policy and NAT rules are loaded", "Copy the image: binding changed (msg)",
+  "Wire removed: Check (failed_hosts) → Stopped". A step put on a wire is one line: the wire it
+  split and its subflow's new exit are part of it. Click a line to show its step. A changed step's
+  Details and its tooltip on the canvas say the same.
 - **Show** lights the changed steps and opens the first.
 - **Clear** drops the marks.
 - **The Changes lens** compares with the flow as it was before these changes ("the flow as you last

@@ -465,7 +465,7 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     });
     await openExecution();
     expect(document.querySelector('[data-timing-text]')?.textContent).toBe(
-      "Tries up to 10 times, 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s.",
+      "Tries up to 11 times (once, then 10 retries), 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s; the step takes at most 5 min 15 s in all.",
     );
     const until = screen.getByLabelText(/^Until/) as HTMLInputElement;
     const options = [
@@ -482,6 +482,17 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     const timeout = screen.getByLabelText(/^Timeout/) as HTMLInputElement;
     fireEvent.change(timeout, { target: { value: '15 sec' } });
     expect(screen.getByText('A duration: 30s, 15m, 1h30m')).toBeTruthy();
+  });
+
+  // AFD-111 (round 4: Q2): `10s` was refused with "A whole number"; Timeout beside it takes `30s`.
+  it('takes Delay as a duration, saved as seconds', async () => {
+    withSettings({ retries: 10, delay: 15 });
+    const id = await openExecution();
+    const delay = screen.getByLabelText(/^Delay/) as HTMLInputElement;
+    expect(delay.value).toBe('15s');
+    fireEvent.change(delay, { target: { value: '1m' } });
+    fireEvent.blur(delay);
+    expect(commands()).toEqual([{ kind: 'updateNode', id, patch: { settings: { delay: 60 } } }]);
   });
 
   it('adds a common keyword in one click; the YAML box marks a wrong line and indents', async () => {

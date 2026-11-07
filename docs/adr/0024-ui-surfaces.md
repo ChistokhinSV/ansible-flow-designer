@@ -243,3 +243,19 @@ say how they combine (R2), task keywords under Tags (R3), and a YAML box with no
 - **The YAML box** (every YAML field) colours keys, strings, scalars and comments on a layer under
   a transparent textarea, marks the line a parse error names while the person types (saving stays
   on blur), and indents on Enter as an editor does (`core/view/yamlText.ts`).
+
+## Amendment: the Timing sentence counts the first try (AFD-111, 2026-11-07)
+
+Usability round 4 (`docs/ux/wave10-usability/round4.md`, Q1-Q3) checked the sentence against
+ansible-core 2.19 (`executor/task_executor.py`): a task runs once, then retries up to `retries`
+times (3 with `until` and no `retries`), sleeps `delay` only between tries, and each try has the
+whole `timeout`. The sentence and the Retries hint counted `retries` tries, one short.
+
+- `timingText()` counts 1 + Retries: "Tries up to 13 times (once, then 12 retries), 10 s apart,
+  until …; each try at most 30s; the step takes at most 8 min 30 s in all". The total, (retries +
+  1. × timeout + retries × delay, is said only when Timeout reads as a duration. The node face's
+     `poll ×N` counts tries too; `retry ×N` still counts retries.
+- **Delay is a duration:** a setting field kind `seconds` takes `10s`, `1m`, `1m30s`, a number or
+  `0`, stores whole seconds (Ansible's delay is an integer, so the flow format is unchanged), and
+  shows them as a duration (`duration()` moved to `core/flow/duration.ts` beside the parser, with
+  `spokenDuration()` for sentences).

@@ -849,12 +849,12 @@
             },
             "retries": {
               "type": "integer",
-              "description": "Retries before a host fails (module steps). Without until, a step stops retrying on its first success."
+              "description": "Retries after the first try (module steps): the task runs once, then up to retries more times before a host fails (retries 12: 13 tries). Without until, a step stops retrying on its first success."
             },
             "delay": {
               "type": "integer",
               "minimum": 0,
-              "description": "Seconds between retries (Ansible delay, default 5). retries x delay is how long a step polls."
+              "description": "Seconds between tries (Ansible delay, default 5). A step polls for at most (retries + 1) x timeout + retries x delay."
             },
             "until": {
               "type": "string",

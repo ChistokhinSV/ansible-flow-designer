@@ -57,8 +57,9 @@ panel and the log use the same words.
   **Back to Last Run** puts the last run back.
 - **A failure the scenario planted says so.** The steps are stubs, so a host fails only where the
   scenario's `force` sends it: the run's failures read "lab-sw-04: the scenario forces Check uplink
-  is redundant to fail for it …", and the step's Run tab says "Forced by the scenario (failed)"
-  for that host. The step's binding and the inventory have nothing to do with it.
+  is redundant to fail for it …", and the step's Run tab says "Forced by the scenario (failed) ·
+  ended at Stopped; the scenario expected Reported to NetOps" for that host (the second part when
+  the host missed). The step's binding and the inventory have nothing to do with it.
 - **An end node** in a scenario lists the hosts expected there and the hosts that came, with where
   each ended.
 - The full output stays in the Ansible Flow log (**Show Log**).
