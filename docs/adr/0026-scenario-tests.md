@@ -71,3 +71,19 @@ run panel, an end node's table, the notification (its first miss) and the log an
 (titles with the keys in brackets) use them; a scenario run's failures read "the scenario fails it
 in <step>", since its steps are stubs. The dropped-out sentinel is now `(dropped out)`: `stopped`
 was also the key of a common end, so a host that dropped out passed `expect: stopped`.
+
+## Amendment: planted outcomes in words (AFD-105, wave 10, 2026-11-07)
+
+Usability round 3 (R8): "the scenario fails it here" (AFD-94) did not say what it meant; to find
+why a host failed, the participant read the step's binding and the inventory. The results did not
+carry the scenario's `force` map, so the panel assumed every failure was planted.
+
+- `ScenarioResult.forced` (`forcedOf`): per host, the step's key path, the forced outcome and the
+  port it sends to; `scenarioRun` passes it into `RunView.scenario.forced`.
+- `forcedText`: "the scenario forces <step title> to fail for it (force: failed), so it leaves by
+  failed_hosts". The run's failures and a step's Run tab ("Forced by the scenario (failed)") use it
+  only for a host the scenario forced at that step (`forcedAt`); any other failure keeps the run's
+  own message.
+- One wording for a miss (`missText`): "X ended at A; the scenario expected B", in the panel, the
+  notification, the log and JUnit (they differed). `missWhy` adds ", because the scenario forces
+  …" in the panel and the log; the log keeps the keys in brackets.

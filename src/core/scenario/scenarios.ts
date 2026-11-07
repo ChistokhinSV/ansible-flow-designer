@@ -217,11 +217,40 @@ export function hostEnds(doc: FlowDocument, s: RunSummary): Record<string, strin
   return out;
 }
 
+/**
+ * AFD-105 (round 3: R8): an outcome the scenario plants on a host at a step. Results carry them,
+ * so a planted failure can say so: the participant read the step's binding and the inventory to
+ * find out why the host failed, when the scenario itself had made it fail.
+ */
+export interface ForcedOutcome {
+  host: string;
+  /** The step's key path, as the scenario file names it. */
+  step: string;
+  outcome: Forced;
+  /** The port the outcome sends the host down. */
+  port: string;
+}
+
+/** The scenario's `force` map as a list, one entry per host. */
+export function forcedOf(s: Pick<Scenario, 'force'>): ForcedOutcome[] {
+  const out: ForcedOutcome[] = [];
+  for (const [step, by] of Object.entries(s.force ?? {}))
+    for (const [outcome, hosts] of Object.entries(by ?? {})) {
+      if (!(FORCEABLE as readonly string[]).includes(outcome)) continue;
+      const o = outcome as Forced;
+      for (const host of hosts ?? [])
+        out.push({ host: String(host), step, outcome: o, port: PORT_OF[o] });
+    }
+  return out;
+}
+
 export interface ScenarioResult {
   name: string;
   passed: boolean;
   /** Per host: where it should and did end. */
   hosts: { host: string; expected: string; actual: string }[];
+  /** AFD-105: what the scenario forced, per host and step. */
+  forced?: ForcedOutcome[];
   /** Why the run itself failed to tell (the process error, no events). */
   error?: string;
   /** AFD-84: what the scenario's run did, for showing it on the canvas like a run. */
@@ -240,10 +269,12 @@ export function judge(
     expected: String(expected),
     actual: ends[host] ?? (summary ? 'not run' : 'no run'),
   }));
+  const forced = forcedOf(s);
   return {
     name: s.name,
     passed: !error && !!summary && hosts.every((h) => h.expected === h.actual),
     hosts,
+    ...(forced.length ? { forced } : {}),
     ...(error ? { error } : {}),
     ...(summary ? { summary } : {}),
   };

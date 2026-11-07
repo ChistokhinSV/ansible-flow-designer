@@ -77,6 +77,8 @@ export interface RunView {
     passed: boolean;
     error?: string;
     hosts: { host: string; expected: string; actual: string }[];
+    /** AFD-105: what the scenario forced, per host and step (key path), and the port it took. */
+    forced?: { host: string; step: string; outcome: string; port: string }[];
   };
 }
 

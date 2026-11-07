@@ -13,7 +13,7 @@ import {
   scenariosFileName,
   scenarioTemplate,
 } from '../../core/scenario/scenarios';
-import { endWords, scenarioMisses } from '../../core/scenario/view';
+import { missText, scenarioMisses } from '../../core/scenario/view';
 import { parseYaml } from '../../core/yaml/parse';
 import { describeResults, runScenarios } from '../../node/scenario/runner';
 import { environmentFor } from '../env/environment';
@@ -117,8 +117,9 @@ export async function runScenariosCommand(
   // AFD-94: the first miss in words, so the line answers "which host ended where" (round 2: S9).
   const first = failed[0];
   const miss = first ? scenarioMisses(first)[0] : undefined;
+  // AFD-105: the panel's and the log's wording of a miss, so the three read the same.
   const why = miss
-    ? `: ${miss.host} ended at ${endWords(doc, miss.actual)}, expected ${endWords(doc, miss.expected)}`
+    ? `: ${missText(doc, miss)}`
     : first?.error
       ? ` (${first.name}: ${first.error})`
       : ` (first: ${first?.name})`;

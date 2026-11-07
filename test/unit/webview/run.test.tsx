@@ -269,6 +269,40 @@ describe('scenarios on the canvas (AFD-84)', () => {
     expect(useUi.getState().scenarioShown).toBeNull();
   });
 
+  // AFD-105 (round 3: R8): "the scenario fails it here" did not say the scenario planted it.
+  it('a failure the scenario planted says so: in the list, the failures and the step', () => {
+    const work = doc.nodes.find((n) => n.key === 'work');
+    expect(work).toBeTruthy();
+    const forced = [
+      { host: 'h02', step: 'work', outcome: 'failed' as const, port: 'failed_hosts' },
+    ];
+    const planted = {
+      name: 'h02 is forced',
+      passed: false,
+      hosts: [{ host: 'h02', expected: 'done', actual: 'failed' }],
+      summary: {
+        ...summary,
+        failures: [{ host: 'h02', node: work?.id, task: '[work] TODO', msg: 'TODO: work' }],
+      },
+      forced,
+    };
+    act(() => useUi.getState().setScenarios([planted]));
+    render(<RunPanel />);
+    const why = `the scenario forces ${work?.title} to fail for it (force: failed), so it leaves by failed_hosts`;
+    expect(document.querySelector('[data-scenario-misses]')?.textContent).toBe(
+      `h02 ended at Failed; the scenario expected Done, because ${why}`,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /h02 is forced/ }));
+    expect(document.querySelector('[data-run-failures] [data-forced]')?.textContent).toBe(
+      `h02: ${why}`,
+    );
+    cleanup();
+    render(<NodeRunPanel id={work?.id as string} />);
+    expect(document.querySelector('tr[data-host="h02"] [data-forced]')?.textContent).toBe(
+      'Forced by the scenario (failed)',
+    );
+  });
+
   it('the host can show one at once (Show on Canvas); a new run replaces it', () => {
     act(() => useUi.getState().setScenarios(results, 'all pass'));
     expect(useUi.getState().run?.scenario?.name).toBe('all pass');

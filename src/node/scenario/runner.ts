@@ -18,7 +18,7 @@ import {
   scenarioInventory,
   scenarioVars,
 } from '../../core/scenario/scenarios';
-import { endWords } from '../../core/scenario/view';
+import { missWhy } from '../../core/scenario/view';
 
 export interface ScenarioRunOptions {
   env: Environment;
@@ -162,19 +162,15 @@ export async function runScenarios(o: ScenarioRunOptions): Promise<ScenarioResul
 
 /**
  * A one-line verdict per scenario, and the hosts that ended elsewhere. With the flow at hand, the
- * ends by their titles with the keys a scenario file uses in brackets (AFD-94).
+ * ends by their titles with the keys a scenario file uses in brackets (AFD-94). AFD-105: in the
+ * panel's wording, with why when the scenario planted the host's outcome.
  */
 export function describeResults(results: readonly ScenarioResult[], doc?: FlowDocument): string[] {
   const out: string[] = [];
-  const say = (where: string) => {
-    const words = doc ? endWords(doc, where) : where;
-    return words === where ? where : `${words} (${where})`;
-  };
   for (const r of results) {
     out.push(`${r.passed ? 'PASS' : 'FAIL'} ${r.name}${r.error ? `: ${r.error}` : ''}`);
     for (const h of r.hosts)
-      if (h.expected !== h.actual)
-        out.push(`  ${h.host}: expected ${say(h.expected)}, ended at ${say(h.actual)}`);
+      if (h.expected !== h.actual) out.push(`  ${missWhy(doc, h, r.forced, true)}`);
   }
   return out;
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.67.0 — AFD-105
+
+Wave 10, part 3: scenario results say why (`docs/ux/wave9-usability/round3.md`, R8: "the scenario fails it here" was not understood, and the participant went to the step's binding and the inventory to find out why a host failed).
+
+- **A planted failure says so:** "lab-fw-36: the scenario forces Check the HA pair is in sync to fail for it (force: failed), so it leaves by failed_hosts". A step's Run tab says "Forced by the scenario (failed)" for that host. A failure the scenario did not force keeps the run's own message.
+- **A miss says where and why:** "lab-fw-36 ended at Stopped; the scenario expected Reported to SecOps, because the scenario forces …". The run panel, the notification, the log and JUnit now use the same words.
+
 ## 0.66.0 — AFD-104
 
 Wave 10, part 2: what changed outside the designer, in words (`docs/ux/wave9-usability/round3.md`, R9: the participant found the steps a colleague's pulled commit had changed, but not what had changed in them).

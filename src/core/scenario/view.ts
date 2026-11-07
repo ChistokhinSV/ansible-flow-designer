@@ -24,15 +24,72 @@ export function endWords(doc: FlowDocument, where: string): string {
   return where;
 }
 
-/** "lab-rt-14 ended at Stopped; the scenario expected Reported to NetOps". */
-export function missText(doc: FlowDocument, m: ScenarioResult['hosts'][number]): string {
+/**
+ * "lab-rt-14 ended at Stopped; the scenario expected Reported to NetOps": AFD-105, the one
+ * wording of a miss in the panel, the notification, the log and JUnit. `keys` adds the key a
+ * scenario file uses ("Stopped (stopped)"), for the log; without the flow, the keys as they are.
+ */
+export function missText(
+  doc: FlowDocument | undefined,
+  m: ScenarioResult['hosts'][number],
+  keys = false,
+): string {
+  const say = (where: string) => {
+    const words = doc ? endWords(doc, where) : where;
+    return keys && words !== where ? `${words} (${where})` : words;
+  };
   const ended =
     m.actual === DROPPED
       ? `${m.host} dropped out of the run`
       : m.actual === 'not run' || m.actual === 'no run'
         ? `${m.host} did not run`
-        : `${m.host} ended at ${endWords(doc, m.actual)}`;
-  return `${ended}; the scenario expected ${endWords(doc, m.expected)}`;
+        : `${m.host} ended at ${say(m.actual)}`;
+  return `${ended}; the scenario expected ${say(m.expected)}`;
+}
+
+/** What each forced outcome does, in words. */
+const FORCED_VERB: Record<string, string> = {
+  failed: 'fail',
+  unreachable: 'be unreachable',
+  timeout: 'time out',
+  unchanged: 'report no change',
+  false: 'decide false',
+};
+
+type Forced = { host: string; step: string; outcome: string; port: string };
+
+/**
+ * AFD-105 (round 3: R8): a planted outcome in words, "the scenario forces Check the HA pair is in
+ * sync to fail for it (force: failed), so it leaves by failed_hosts". The earlier "the scenario
+ * fails it here" did not say what it meant.
+ */
+export function forcedText(doc: FlowDocument | undefined, f: Forced): string {
+  const node = doc ? byPath(doc).get(f.step) : undefined;
+  const title = node?.title || node?.key || f.step;
+  return `the scenario forces ${title} to ${FORCED_VERB[f.outcome] ?? f.outcome} for it (force: ${f.outcome}), so it leaves by ${f.port}`;
+}
+
+/** What the scenario forced on `host` at the step with ID `node`, if anything. */
+export function forcedAt(
+  doc: FlowDocument,
+  forced: readonly Forced[] | undefined,
+  host: string,
+  node: Ulid,
+): Forced | undefined {
+  if (!forced?.length) return undefined;
+  const paths = byPath(doc);
+  return forced.find((f) => f.host === host && paths.get(f.step)?.id === node);
+}
+
+/** A miss with its reason when the scenario planted one on that host: the panel's and log's line. */
+export function missWhy(
+  doc: FlowDocument | undefined,
+  m: ScenarioResult['hosts'][number],
+  forced: readonly Forced[] | undefined,
+  keys = false,
+): string {
+  const why = (forced ?? []).filter((f) => f.host === m.host).map((f) => forcedText(doc, f));
+  return `${missText(doc, m, keys)}${why.length ? `, because ${why.join(' and ')}` : ''}`;
 }
 
 /** The scenario as a run Run mode can show. */
@@ -52,6 +109,7 @@ export function scenarioRun(r: ScenarioResult, at: string): RunView {
       passed: r.passed,
       hosts: r.hosts,
       ...(r.error ? { error: r.error } : {}),
+      ...(r.forced?.length ? { forced: r.forced } : {}),
     },
   };
 }

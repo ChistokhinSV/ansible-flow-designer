@@ -45,17 +45,22 @@ do not exist.
 **Run Scenarios** (Run ▾, or the Command Palette) runs every scenario in the run environment (the
 Ansible image or Python you run flows with). A notification says how many failed. Each scenario
 runs every step as its stub, so nothing reaches a device. When one fails, the notification names
-its first miss ("lab-sw-04 ended at Stopped, expected Reported to NetOps").
+its first miss ("lab-sw-04 ended at Stopped; the scenario expected Reported to NetOps"). The run
+panel and the log use the same words.
 
 - **Show on Canvas** (in the notification) opens the first failing scenario in **Run** mode, like a
   run: each step shows the hosts that took its ports, and each wire how many took it.
 - **The run panel** (Run mode, nothing selected) lists every scenario: pass or fail, and each host
-  that ended elsewhere, by the ends' titles ("lab-sw-04 ended at Stopped; the scenario expected
-  Reported to NetOps"). Click one to show it;
+  that ended elsewhere, by the ends' titles, and why when the scenario planted it: "lab-sw-04 ended
+  at Stopped; the scenario expected Reported to NetOps, because the scenario forces Check uplink is
+  redundant to fail for it (force: failed), so it leaves by failed_hosts". Click one to show it;
   **Back to Last Run** puts the last run back.
+- **A failure the scenario planted says so.** The steps are stubs, so a host fails only where the
+  scenario's `force` sends it: the run's failures read "lab-sw-04: the scenario forces Check uplink
+  is redundant to fail for it …", and the step's Run tab says "Forced by the scenario (failed)"
+  for that host. The step's binding and the inventory have nothing to do with it.
 - **An end node** in a scenario lists the hosts expected there and the hosts that came, with where
-  each ended. A host's failure in a scenario reads "the scenario fails it in <step>": the steps are
-  stubs, so it is the failure the scenario planted.
+  each ended.
 - The full output stays in the Ansible Flow log (**Show Log**).
 
 ## In CI

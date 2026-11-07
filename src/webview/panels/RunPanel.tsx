@@ -16,7 +16,14 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
-import { endRows, endWords, missText, scenarioMisses } from '../../core/scenario/view';
+import {
+  endRows,
+  endWords,
+  forcedAt,
+  forcedText,
+  missWhy,
+  scenarioMisses,
+} from '../../core/scenario/view';
 import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
@@ -209,14 +216,9 @@ function Scenarios() {
                   <span className="afd-lens-item-detail muted">{r.error}</span>
                 ) : misses.length ? (
                   // AFD-94: the ends by their titles (round 2: S9, the keys were not read).
+                  // AFD-105 (round 3: R8): and why, when the scenario planted the host's failure.
                   <span className="afd-lens-item-detail muted" data-scenario-misses>
-                    {misses
-                      .map((m) =>
-                        doc
-                          ? missText(doc, m)
-                          : `${m.host}: expected ${m.expected}, ended at ${m.actual}`,
-                      )
-                      .join('. ')}
+                    {misses.map((m) => missWhy(doc ?? undefined, m, r.forced)).join('. ')}
                   </span>
                 ) : null}
               </button>
@@ -330,22 +332,27 @@ export function RunPanel() {
           ) : null}
           {s.failures.length > 0 ? (
             <ul className="afd-run-hosts" data-run-failures={s.failures.length}>
-              {s.failures.map((f) => (
-                <li key={`${f.host}|${f.task}`}>
-                  {/* AFD-94: a scenario runs stubs: its failures are the ones it plants, by step. */}
-                  {run.scenario ? (
-                    <>
-                      <span className="mono">{f.host}</span>: the scenario fails it in{' '}
-                      {(f.node && doc && modelOf(doc).nodes.get(f.node)?.node.title) || f.task}
-                    </>
-                  ) : (
-                    <>
-                      <span className="mono">{f.host}</span> failed in {f.task}
-                      {f.msg ? <span className="muted"> · {f.msg}</span> : null}
-                    </>
-                  )}
-                </li>
-              ))}
+              {s.failures.map((f) => {
+                // AFD-105 (round 3: R8): a failure the scenario planted says so, and how.
+                const planted =
+                  run.scenario && doc && f.node
+                    ? forcedAt(doc, run.scenario.forced, f.host, f.node)
+                    : undefined;
+                return (
+                  <li key={`${f.host}|${f.task}`} data-forced={planted ? 'true' : undefined}>
+                    <span className="mono">{f.host}</span>
+                    {planted ? (
+                      `: ${forcedText(doc ?? undefined, planted)}`
+                    ) : (
+                      <>
+                        {' '}
+                        failed in {f.task}
+                        {f.msg ? <span className="muted"> · {f.msg}</span> : null}
+                      </>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
         </section>
@@ -443,49 +450,64 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((h) => (
-                <Fragment key={h.host}>
-                  <tr data-host={h.host} data-port={h.ports.join(',')}>
-                    <td className="mono">{h.host}</td>
-                    <td className="mono afd-run-port">
-                      {h.ports.join(', ') || (h.ended ? '-' : '(no route)')}
-                    </td>
-                    <td>
-                      {h.ended ? (
-                        <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
-                          {h.ended}
-                        </span>
-                      ) : h.problem && run?.scenario ? (
-                        <span className="tone-warn">the scenario fails it here</span>
-                      ) : h.problem ? (
-                        <span title={h.problem.msg}>
-                          {h.problem.status} in {h.problem.task}
-                          {h.problem.msg ? <span className="muted"> · {h.problem.msg}</span> : null}
-                        </span>
-                      ) : (
-                        <span className="tone-ok">ok</span>
-                      )}
-                    </td>
-                    {outputs ? (
-                      <td>
-                        {/* AFD-96 (S4): an icon, which a 340 px panel does not wrap. */}
-                        <button
-                          type="button"
-                          className="icon"
-                          aria-expanded={open === h.host}
-                          aria-label={`Output of ${h.host}`}
-                          title={`Output of ${h.host}`}
-                          data-output-toggle={h.host}
-                          onClick={() => setOpen(open === h.host ? null : h.host)}
-                        >
-                          <span className="codicon codicon-output" aria-hidden="true" />
-                        </button>
+              {rows.map((h) => {
+                // AFD-105 (round 3: R8): "the scenario fails it here" was not understood.
+                const planted =
+                  h.problem && run?.scenario && doc
+                    ? forcedAt(doc, run.scenario.forced, h.host, node.id)
+                    : undefined;
+                return (
+                  <Fragment key={h.host}>
+                    <tr data-host={h.host} data-port={h.ports.join(',')}>
+                      <td className="mono">{h.host}</td>
+                      <td className="mono afd-run-port">
+                        {h.ports.join(', ') || (h.ended ? '-' : '(no route)')}
                       </td>
-                    ) : null}
-                  </tr>
-                  {open === h.host ? <HostOutputRow node={id} host={h.host} /> : null}
-                </Fragment>
-              ))}
+                      <td>
+                        {h.ended ? (
+                          <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
+                            {h.ended}
+                          </span>
+                        ) : planted ? (
+                          <span
+                            className="tone-warn"
+                            data-forced
+                            title={forcedText(doc ?? undefined, planted)}
+                          >
+                            Forced by the scenario ({planted.outcome})
+                          </span>
+                        ) : h.problem ? (
+                          <span title={h.problem.msg}>
+                            {h.problem.status} in {h.problem.task}
+                            {h.problem.msg ? (
+                              <span className="muted"> · {h.problem.msg}</span>
+                            ) : null}
+                          </span>
+                        ) : (
+                          <span className="tone-ok">ok</span>
+                        )}
+                      </td>
+                      {outputs ? (
+                        <td>
+                          {/* AFD-96 (S4): an icon, which a 340 px panel does not wrap. */}
+                          <button
+                            type="button"
+                            className="icon"
+                            aria-expanded={open === h.host}
+                            aria-label={`Output of ${h.host}`}
+                            title={`Output of ${h.host}`}
+                            data-output-toggle={h.host}
+                            onClick={() => setOpen(open === h.host ? null : h.host)}
+                          >
+                            <span className="codicon codicon-output" aria-hidden="true" />
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                    {open === h.host ? <HostOutputRow node={id} host={h.host} /> : null}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </>

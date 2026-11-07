@@ -43,6 +43,12 @@ describe('AFD-58: scenario tests', () => {
         );
         // AFD-84: each result keeps its run, so the designer can show it on the canvas.
         for (const r of results ?? []) assert.ok(r.summary?.hosts.length, r.name);
+        // AFD-105: and what the scenario forced, so a planted failure can say so.
+        assert.deepEqual(results?.[2]?.forced, [
+          { host: 'h02', step: 'stage/prepare', outcome: 'failed', port: 'failed_hosts' },
+          { host: 'h03', step: 'gate', outcome: 'failed', port: 'failed_hosts' },
+        ]);
+        assert.equal(results?.[0]?.forced, undefined);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

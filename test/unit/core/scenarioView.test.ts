@@ -8,14 +8,18 @@ import { optionA } from '../../../src/core/engine/optionA';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { summarizeRun } from '../../../src/core/run/events';
 import { runStates } from '../../../src/core/run/view';
-import { DROPPED, hostEnds, judge } from '../../../src/core/scenario/scenarios';
+import { DROPPED, forcedOf, hostEnds, judge } from '../../../src/core/scenario/scenarios';
 import {
   endRows,
   endWords,
+  forcedAt,
+  forcedText,
   missText,
+  missWhy,
   scenarioMisses,
   scenarioRun,
 } from '../../../src/core/scenario/view';
+import { describeResults } from '../../../src/node/scenario/runner';
 
 const dir = join(__dirname, '../../fixtures/engine');
 const doc = parse(readFileSync(join(dir, 'routing-ports.flow.yaml'), 'utf8')) as FlowDocument;
@@ -86,6 +90,49 @@ describe('scenario ends in words (AFD-94)', () => {
     expect(endWords(doc, 'no-such-end')).toBe('no-such-end');
     expect(missText(doc, { host: 'h03', expected: 'failed', actual: DROPPED })).toMatch(
       /^h03 dropped out of the run; the scenario expected /,
+    );
+  });
+});
+
+// AFD-105 (round 3: R8): a planted outcome in words, and one wording of a miss everywhere.
+describe('planted outcomes in words (AFD-105)', () => {
+  const planted = judge(
+    doc,
+    { ...scenario, force: { work: { failed: ['h03'] }, decide: { false: ['h01'] } } },
+    summary,
+  );
+
+  it('the result carries what the scenario forced, with the port it sends to', () => {
+    expect(planted.forced).toEqual([
+      { host: 'h03', step: 'work', outcome: 'failed', port: 'failed_hosts' },
+      { host: 'h01', step: 'decide', outcome: 'false', port: 'false' },
+    ]);
+    expect(forcedOf({})).toEqual([]);
+    expect(scenarioRun(planted, 'now').scenario?.forced).toEqual(planted.forced);
+  });
+
+  it('says what was forced, where, and why a miss happened', () => {
+    const [work] = planted.forced ?? [];
+    expect(forcedText(doc, work as NonNullable<typeof work>)).toBe(
+      'the scenario forces Work to fail for it (force: failed), so it leaves by failed_hosts',
+    );
+    expect(forcedAt(doc, planted.forced, 'h03', id('work'))?.outcome).toBe('failed');
+    expect(forcedAt(doc, planted.forced, 'h03', id('probe'))).toBeUndefined();
+    const [miss] = scenarioMisses(planted);
+    expect(missWhy(doc, miss as NonNullable<typeof miss>, planted.forced)).toBe(
+      `h03 ended at ${endWords(doc, 'stopped')}; the scenario expected ${endWords(doc, 'failed')}, because the scenario forces Work to fail for it (force: failed), so it leaves by failed_hosts`,
+    );
+  });
+
+  it('the log says the same, with the keys a scenario file uses', () => {
+    const lines = describeResults([planted], doc);
+    expect(lines[0]).toBe('FAIL h03 is reported');
+    expect(lines[1]).toMatch(
+      /^ {2}h03 ended at .+ \(stopped\); the scenario expected .+ \(failed\), because the scenario forces Work to fail/,
+    );
+    // Without the flow at hand, the keys as they are.
+    expect(describeResults([planted])[1]).toMatch(
+      /^ {2}h03 ended at stopped; the scenario expected failed, because the scenario forces work to fail/,
     );
   });
 });
