@@ -100,7 +100,10 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
       ].join('\n'),
     );
     try {
-      const r = await api.importPlaybooks({ source: vscode.Uri.file(book), keys: ['netops-escape'] });
+      const r = await api.importPlaybooks({
+        source: vscode.Uri.file(book),
+        keys: ['netops-escape'],
+      });
       assert.equal(r.error, undefined);
       const flow = await read(r.uris[0] as vscode.Uri);
       const text = JSON.stringify(flow);
