@@ -1,7 +1,7 @@
 // M3 acceptance inside VS Code: codegen on save, hand-edit protection, and (with AFD_TEST_IMAGE)
 // the syntax check, a skeleton run and an audited real run in the configured Docker image.
 import * as assert from 'node:assert/strict';
-import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import { optionA } from '../../src/core/engine/optionA';
@@ -353,6 +353,38 @@ describe('AFD-93: the workspace in the Problems panel', () => {
       await until(() => errors(uri).length > 0, 'back with scope workspace');
     } finally {
       await config.update('problems.scope', undefined, vscode.ConfigurationTarget.Workspace);
+      rmSync(dir.fsPath, { recursive: true, force: true });
+    }
+  });
+
+  it('AFD-154: after Revert, the index does not keep the facts of the unsaved text', async () => {
+    const api = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
+    const dir = vscode.Uri.joinPath(root, 'flows', 'afd154-revert');
+    const uri = vscode.Uri.joinPath(dir, 'afd154-revert.flow.yaml');
+    mkdirSync(dir.fsPath, { recursive: true });
+    writeFileSync(uri.fsPath, readFileSync(EDGE.fsPath, 'utf8'));
+    try {
+      const clean = await api.indexed(uri);
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(doc);
+      const text = doc.getText();
+      const at = text.indexOf('port: ok_hosts');
+      await editor.edit((e) =>
+        e.replace(
+          new vscode.Range(doc.positionAt(at), doc.positionAt(at + 'port: ok_hosts'.length)),
+          'port: no_such_port',
+        ),
+      );
+      assert.ok(doc.isDirty);
+      const unsaved = await api.indexed(uri);
+      assert.ok(unsaved.errors > clean.errors, 'the unsaved error is seen');
+      await vscode.commands.executeCommand('workbench.action.files.revert');
+      assert.ok(!doc.isDirty);
+      const back = await api.indexed(uri);
+      assert.equal(back.errors, clean.errors, 'the reverted text has no such error');
+    } finally {
+      await closeAll();
       rmSync(dir.fsPath, { recursive: true, force: true });
     }
   });

@@ -44,7 +44,10 @@ async function move(positions: Record<Ulid, { x: number; y: number }>, done: str
   const all = { ...freeze, ...positions };
   ui.setOptimistic(all);
   const ack = await run({ kind: 'moveNodes', positions: all });
-  if (!ack.ok) ui.setError(ack.error ?? 'The steps could not be moved');
+  if (ack.ok) return;
+  // AFD-156: back to where the file has them.
+  useUi.getState().dropOptimistic(all);
+  ui.setError(ack.error ?? 'The steps could not be moved');
 }
 
 export function alignSelection(how: AlignHow, ids = useUi.getState().selection.nodes ?? []) {

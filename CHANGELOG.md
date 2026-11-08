@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.74.3 — AFD-131, AFD-133 to AFD-151
+## 0.74.3 — AFD-131, AFD-133 to AFD-157
 
 More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running. Several flow edits and generated plays now do what the design says.
 
@@ -14,6 +14,12 @@ More fixes from the code review (AFD-125): names and paths that come from a flow
 - **`include_tasks` imports as Ansible runs it:** its `when` is checked once, before the file runs, so the import adds a decision in front of the file's subflow (false goes around it) instead of putting the condition on every task in the file. Its tags no longer reach the tasks inside, and its `apply:` does. `import_tasks` is read as before.
 - **Scenario simulation of host patterns:** a pattern of only `!` or `&` terms (`!db`) starts from every host, as in Ansible. A pattern that names `localhost` or `127.0.0.1` without an inventory entry now asks for a check in Ansible instead of guessing.
 - **Code mode drift:** a step bound to a collection role (`ns.collection.role`) is no longer reported as "role missing" when it compiles. A role task file that another covered file includes is no longer reported as "task not in design" (adding it would run it twice).
+- **"Saving…" never stays for good:** a designer action that fails in VS Code now answers with its error. One that is never answered ends after 2 minutes. Before, a read-only `generated/` file could leave the spinner turning.
+- **Fast edits no longer get lost:** commands from the designer run one after the other. Holding Delete or Ctrl+D acts once, not once per key repeat. Before, a quick second edit could be rejected, and the first one shown as an edit made outside the designer.
+- **Revert brings the flow's problems back too:** the Flows view and Problems no longer keep the facts of unsaved text after Revert or closing without saving.
+- **A lighter start:** the workspace is scanned for flows once at start-up, without `node_modules` and `.git`. After a save, only that flow is read again, not every flow in the workspace.
+- **A move VS Code refused** no longer leaves the node where it was dragged: it goes back to where the file has it.
+- **A designer behind another tab keeps its state:** the open level, mode, lens, selection and an unsaved binding are still there when you come back to it.
 
 - **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. It ends the run's shell and everything under it, and nothing else in the distribution. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
 - **Secret inputs and the vault password:**

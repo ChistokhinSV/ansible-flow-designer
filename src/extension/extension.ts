@@ -85,7 +85,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     void aiSetup.offer().catch(() => undefined);
   };
   // The schema compiles on first use; where flows exist, do it now, before the first one opens.
-  void vscode.workspace.findFiles('**/*.flow.yaml', '**/node_modules/**', 1).then(
+  // AFD-155: from the index's own list, so start-up walks the workspace once, without
+  // node_modules and .git (a string exclude here replaced files.exclude).
+  void host.index.list().then(
     (found) => found.length > 0 && setTimeout(() => host.deps.schema({}), 0),
     () => undefined,
   );
@@ -115,6 +117,10 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }),
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       supportsMultipleEditorsPerDocument: true,
+      // AFD-157: a hidden designer keeps its level, mode, lens, selection and an unsaved
+      // binding draft. Without this the webview reloads on every tab switch and loses them
+      // without asking; the cost is the hidden webview's memory, one per open designer.
+      webviewOptions: { retainContextWhenHidden: true },
     }),
     ...registerDocuments(host),
     ...registerFlowCommands(host),

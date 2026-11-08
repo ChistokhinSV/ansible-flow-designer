@@ -53,6 +53,7 @@ import type { ProbeManager } from './env/environment';
 import { showEnvironmentError } from './env/setupEnvironment';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
+import { logChannel } from './log';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
 import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
@@ -89,6 +90,14 @@ export function announceImplementedAgain(
       : `${names.join(', ')} are implemented again: their design changed after they were tested.`,
   );
 }
+
+/** The webview requests answered by an `ack` (AFD-152). */
+const ACKED = new Set<WebviewMessage['type']>([
+  'command',
+  'driftAction',
+  'scenarioEdit',
+  'scenarioUndo',
+]);
 
 export interface SessionDeps {
   extensionUri: vscode.Uri;
@@ -419,7 +428,8 @@ export class FlowSession implements vscode.Disposable {
     };
     panel.webview.html = webviewHtml(panel.webview, this.deps.extensionUri);
     const sub = panel.webview.onDidReceiveMessage((m: WebviewMessage) => {
-      void this.onMessage(panel, m);
+      // AFD-152: a handler that throws still answers, or the designer waits for it forever.
+      this.onMessage(panel, m).catch((e: unknown) => this.messageFailed(panel, m, e));
     });
     // AFD-73: the first-flow checklist follows the user's progress in every open designer.
     const progress = onFirstFlow((s) => this.post(panel, { type: 'firstFlow', ...s }));
@@ -503,6 +513,25 @@ export class FlowSession implements vscode.Disposable {
 
   private broadcast(message: HostMessage): void {
     for (const p of this.panels) this.post(p, message);
+  }
+
+  /**
+   * AFD-152: what a failed message handler still owes the webview. A request gets its answer with
+   * the error (its "Saving…" ends), anything else an error notice; the log keeps the stack.
+   */
+  private messageFailed(panel: vscode.WebviewPanel, m: WebviewMessage, e: unknown): void {
+    const error = e instanceof Error ? e.message : String(e);
+    logChannel().error(
+      `designer message ${m?.type ?? '?'} failed: ${e instanceof Error ? (e.stack ?? error) : error}`,
+    );
+    const reqId = m && 'reqId' in m && typeof m.reqId === 'number' ? m.reqId : undefined;
+    if (reqId !== undefined && m.type === 'catalog')
+      this.post(panel, { type: 'catalogReply', reqId, ok: false, error });
+    else if (reqId !== undefined && m.type === 'runOutput')
+      this.post(panel, { type: 'runOutputReply', reqId, error });
+    else if (reqId !== undefined && ACKED.has(m.type))
+      this.post(panel, { type: 'ack', reqId, ok: false, error });
+    else this.post(panel, { type: 'notify', level: 'error', text: error });
   }
 
   private async onMessage(panel: vscode.WebviewPanel, m: WebviewMessage): Promise<void> {
@@ -903,9 +932,25 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */
-  async runCommand(
+  /**
+   * AFD-153: commands run one at a time. A second command planned before the first one's edit
+   * reached the document would plan against the old text: VS Code rejects its edit, and the
+   * first one's change looks like an edit from outside the designer.
+   */
+  runCommand(
     input: FlowCommand,
     /** Adds file operations to the same WorkspaceEdit (M6 stubs): one undo step with the design. */
+    extra?: (edit: vscode.WorkspaceEdit) => void,
+  ): Promise<CommandOutcome> {
+    const next = this.commands.then(() => this.runOneCommand(input, extra));
+    this.commands = next.catch(() => undefined);
+    return next;
+  }
+
+  private commands: Promise<unknown> = Promise.resolve();
+
+  private async runOneCommand(
+    input: FlowCommand,
     extra?: (edit: vscode.WorkspaceEdit) => void,
   ): Promise<CommandOutcome> {
     // The webview never names the author of a decision; the host does (decision 13).
@@ -965,7 +1010,11 @@ export class FlowSession implements vscode.Disposable {
     }
     this.pendingParse = result.file;
     const applied = await vscode.workspace.applyEdit(edit);
-    if (!applied) return { ok: false, error: 'VS Code rejected the edit' };
+    if (!applied) {
+      // AFD-153: the text it describes never came; the next change is not this command's.
+      if (this.pendingParse === result.file) this.pendingParse = undefined;
+      return { ok: false, error: 'VS Code rejected the edit' };
+    }
     markTour(command);
     if (follow) announceFollow(follow);
     if (result.dropped) announceImplementedAgain(flowFromFile(result.file).doc, result.dropped);

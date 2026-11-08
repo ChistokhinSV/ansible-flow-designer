@@ -106,6 +106,8 @@ export function installKeyboard(): () => void {
     const ui = useUi.getState();
     const mod = IS_MAC ? e.metaKey : e.ctrlKey;
     if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !e.altKey) {
+      // AFD-153: a held key repeats; one press deletes once.
+      if (e.repeat) return consume();
       // The whole selection in one command (React Flow's own delete key is off).
       const nodes = selectedNodes();
       const notes = selectedAnnotations();
@@ -125,6 +127,7 @@ export function installKeyboard(): () => void {
         editAnnotation(notes[0]);
       }
     } else if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
+      if (e.repeat) return consume();
       const ids = selectedNodes();
       const notes = selectedAnnotations();
       if (ids.length + notes.length > 0) {

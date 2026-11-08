@@ -524,13 +524,17 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       for (const n of latest.current)
         if (n.type === 'flow' && !stored[n.id] && !positions[n.id])
           positions[n.id] = round(n.position);
-      setOptimistic({ ...positions, ...annotations });
+      const shown = { ...positions, ...annotations };
+      setOptimistic(shown);
       void command({
         kind: 'moveNodes',
         positions,
         ...(Object.keys(annotations).length ? { annotations } : {}),
       }).then((ack) => {
-        if (!ack.ok) setError(ack.error ?? 'Move failed');
+        if (ack.ok) return;
+        // AFD-156: back to where the file has them.
+        useUi.getState().dropOptimistic(shown);
+        setError(ack.error ?? 'Move failed');
       });
     },
     [setOptimistic, setError],

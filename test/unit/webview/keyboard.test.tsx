@@ -137,6 +137,15 @@ describe('keyboard', () => {
     expect(cmd).not.toHaveProperty('position');
   });
 
+  it('AFD-153: a held Delete or Ctrl+D acts once, not once per key repeat', () => {
+    act(() => useUi.getState().select({ node: id('validate') }));
+    fireEvent.keyDown(document.body, { key: 'd', ctrlKey: true, repeat: true });
+    fireEvent.keyDown(document.body, { key: 'Delete', repeat: true });
+    expect(commands()).toEqual([]);
+    fireEvent.keyDown(document.body, { key: 'd', ctrlKey: true });
+    expect(commands()).toHaveLength(1);
+  });
+
   it('F2 puts the cursor in the inspector Title, text selected', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
     render(<Details id={id('validate')} />);

@@ -23,6 +23,20 @@ const WARM_MAX = 500;
 const WARM_DELAY_MS = 3000;
 export const EDITED_CODE = 'generated-edited';
 
+/**
+ * What a scan of the workspace for flows skips (AFD-155): node_modules and .git, and the plain
+ * globs of files.exclude. A string exclude replaces files.exclude, so its globs are folded in;
+ * one with braces or a comma of its own cannot go into the list and is left out.
+ */
+export function flowScanExclude(scope?: vscode.WorkspaceFolder): string {
+  const configured =
+    vscode.workspace.getConfiguration('files', scope).get<Record<string, unknown>>('exclude') ?? {};
+  const plain = Object.entries(configured)
+    .filter(([glob, on]) => on === true && !/[{},]/.test(glob))
+    .map(([glob]) => glob);
+  return `{${[...new Set([...plain, '**/node_modules/**', '**/.git/**'])].join(',')}}`;
+}
+
 export interface FlowFile {
   uri: vscode.Uri;
   folder: vscode.WorkspaceFolder;
@@ -65,7 +79,12 @@ const scopeOf = () =>
   vscode.workspace.getConfiguration('afd').get<'workspace' | 'open'>('problems.scope', 'workspace');
 
 export class FlowIndex implements vscode.Disposable {
-  private readonly known = new Map<string, { stamp: string; facts: FlowFacts }>();
+  /**
+   * Facts by flow, under the file's stamp. AFD-154: facts read from an open document with unsaved
+   * changes also carry its version: after a Revert or a close without saving, the same stamp must
+   * not bring back the facts of text that was thrown away.
+   */
+  private readonly known = new Map<string, { stamp: string; facts: FlowFacts; dirty?: number }>();
   /** The generated files each flow's warning sits on, to clear them when they are fixed. */
   private readonly warned = new Map<string, vscode.Uri[]>();
   private readonly changed = new vscode.EventEmitter<void>();
@@ -85,8 +104,11 @@ export class FlowIndex implements vscode.Disposable {
     this.files ??= (async () => {
       const out: FlowFile[] = [];
       for (const folder of vscode.workspace.workspaceFolders ?? []) {
-        // A pattern for `exclude` would replace files.exclude: `undefined` keeps it.
-        const found = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, FLOWS));
+        // AFD-155: node_modules and .git are skipped by the walk, not filtered after it.
+        const found = await vscode.workspace.findFiles(
+          new vscode.RelativePattern(folder, FLOWS),
+          flowScanExclude(folder),
+        );
         for (const uri of found) {
           if (uri.path.includes('/node_modules/')) continue;
           // Relative to its own folder: the Flows view's tree starts there (AFD-86 used folder 0).
@@ -106,7 +128,8 @@ export class FlowIndex implements vscode.Disposable {
     const known = this.known.get(key);
     // An open flow answers from its editor's text, as its Problems do.
     const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === key);
-    if (known?.stamp === stamp && !open?.isDirty) return known.facts;
+    const dirty = open?.isDirty ? open.version : undefined;
+    if (known?.stamp === stamp && known.dirty === dirty) return known.facts;
     const dir = generatedDir(uri);
     const text = open?.getText() ?? (await read(uri)) ?? '';
     const facts = await flowFacts(
@@ -126,7 +149,7 @@ export class FlowIndex implements vscode.Disposable {
       },
       { source: uri.path.split('/').pop() ?? 'flow.yaml', root: rootFromGenerated(uri) },
     );
-    this.known.set(key, { stamp, facts });
+    this.known.set(key, { stamp, facts, ...(dirty !== undefined ? { dirty } : {}) });
     await this.publish(uri, facts);
     return facts;
   }
@@ -197,10 +220,38 @@ export class FlowIndex implements vscode.Disposable {
     } catch {}
   }
 
-  /** Reads every flow (up to WARM_MAX), two at a time; then tells everyone once. */
-  async warm(): Promise<void> {
-    const files = (await this.list()).slice(0, WARM_MAX);
-    if ((await this.list()).length > WARM_MAX)
+  /**
+   * AFD-155: what the next pass reads. A save or a generated file names its flow; anything else
+   * (start-up, a flow created or deleted, settings) reads them all.
+   */
+  private only?: Set<string>;
+  private warming?: Promise<void>;
+  private again = false;
+
+  /** Reads the flows a change named, or every flow; one pass at a time, then once more if asked. */
+  warm(): Promise<void> {
+    if (this.warming) {
+      this.again = true;
+      return this.warming;
+    }
+    this.warming = (async () => {
+      do {
+        this.again = false;
+        const only = this.only;
+        this.only = undefined;
+        await this.pass(only);
+      } while (this.again);
+    })().finally(() => {
+      this.warming = undefined;
+    });
+    return this.warming;
+  }
+
+  /** Reads every flow (up to WARM_MAX), or those in `only`, two at a time; then tells everyone once. */
+  private async pass(only?: Set<string>): Promise<void> {
+    const all = await this.list();
+    const files = (only ? all.filter((f) => only.has(f.uri.toString())) : all).slice(0, WARM_MAX);
+    if (!only && all.length > WARM_MAX)
       this.host.log.info(`flows: read the first ${WARM_MAX} in the background; the rest on demand`);
     const queue = [...files];
     const worker = async () => {
@@ -214,11 +265,24 @@ export class FlowIndex implements vscode.Disposable {
     this.changed.fire();
   }
 
-  /** Changes come in bursts (a save writes the flow and its playbooks): one pass per burst. */
-  private soon(listChanged = false): void {
+  /**
+   * Changes come in bursts (a save writes the flow and its playbooks): one pass per burst. A
+   * change that names a flow reads that flow only (AFD-155); others read them all.
+   */
+  private soon(listChanged = false, flow?: vscode.Uri): void {
     if (listChanged) this.files = undefined;
+    if (flow && !listChanged) {
+      // A full pass already waiting stays full; otherwise this flow joins the next partial one.
+      if (this.only !== undefined || !this.timer) {
+        this.only ??= new Set();
+        this.only.add(flow.toString());
+      }
+    } else this.only = undefined;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.warm(), 300);
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.warm();
+    }, 300);
   }
 
   /** Watches the flows and their generated folders; reads all of them after start-up. */
@@ -239,12 +303,12 @@ export class FlowIndex implements vscode.Disposable {
         this.warned.delete(u.toString());
         this.soon(true);
       }),
-      flows.onDidChange(() => this.soon()),
-      code.onDidCreate(() => this.soon()),
-      code.onDidDelete(() => this.soon()),
-      code.onDidChange(() => this.soon()),
+      flows.onDidChange((u) => this.soon(false, u)),
+      code.onDidCreate((u) => this.soonFor(u)),
+      code.onDidDelete((u) => this.soonFor(u)),
+      code.onDidChange((u) => this.soonFor(u)),
       vscode.workspace.onDidSaveTextDocument(
-        (d) => d.uri.path.endsWith('.flow.yaml') && this.soon(),
+        (d) => d.uri.path.endsWith('.flow.yaml') && this.soon(false, d.uri),
       ),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.soon(true)),
       vscode.workspace.onDidChangeConfiguration((e) => {
@@ -278,6 +342,16 @@ export class FlowIndex implements vscode.Disposable {
         { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
       ),
     ];
+  }
+
+  /** A generated file changed: its flows are the ones next to its generated/ folder (AFD-155). */
+  private soonFor(generated: vscode.Uri): void {
+    const flowDir = vscode.Uri.joinPath(generated, '..', '..').toString();
+    void this.list().then((all) => {
+      const owners = all.filter((f) => vscode.Uri.joinPath(f.uri, '..').toString() === flowDir);
+      if (owners.length === 0) this.soon();
+      for (const f of owners) this.soon(false, f.uri);
+    });
   }
 
   /** Forget every flow's facts (Flows view Refresh). */

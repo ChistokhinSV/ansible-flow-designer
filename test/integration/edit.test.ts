@@ -43,6 +43,48 @@ describe('AFD-18 acceptance: one undo step per edit', () => {
     assert.equal(doc.getText(), before);
   });
 
+  it('AFD-153: commands sent together run one after the other; none is rejected', async () => {
+    const api = await testApi();
+    const doc = await openDesigner(EDGE);
+    const before = doc.getText();
+    const version = doc.version;
+    // Before AFD-153 the second planned against the old text and VS Code rejected its edit.
+    const outcomes = await Promise.all(
+      ['Burst one', 'Burst two', 'Burst three'].map((title) =>
+        api.run(EDGE, { kind: 'addNode', type: 'task', title }),
+      ),
+    );
+    for (const o of outcomes) assert.ok(o.ok, o.error);
+    assert.equal(doc.version, version + 3, 'three edits');
+    const titles = (parse(doc.getText()) as FlowDocument).nodes.map((n) => n.title);
+    for (const t of ['Burst one', 'Burst two', 'Burst three']) assert.ok(titles.includes(t), t);
+    for (let i = 0; i < 3; i++) await vscode.commands.executeCommand('undo');
+    assert.equal(doc.getText(), before);
+  });
+
+  it('AFD-157: a designer hidden behind another tab keeps the level it had open', async () => {
+    const api = await testApi();
+    const OS = flowUri('os-upgrade');
+    await openDesigner(OS);
+    const flow = parse((await vscode.workspace.openTextDocument(OS)).getText()) as FlowDocument;
+    const sub = flow.nodes.find((n) => n.type === 'subflow' && n.subflow?.nodes?.length);
+    assert.ok(sub, 'os-upgrade has a subflow with steps');
+    api.openLevel(OS, sub.id);
+    for (let i = 0; i < 50 && (await api.inspect(OS)).level !== sub.id; i++)
+      await new Promise((r) => setTimeout(r, 100));
+    assert.equal((await api.inspect(OS)).level, sub.id);
+    // Another editor in the same group hides the designer; showing it again must not reload it.
+    const other = await vscode.workspace.openTextDocument({
+      content: 'hidden',
+      language: 'plaintext',
+    });
+    await vscode.window.showTextDocument(other, { preview: false });
+    await new Promise((r) => setTimeout(r, 500));
+    await vscode.commands.executeCommand('workbench.action.previousEditor');
+    await new Promise((r) => setTimeout(r, 500));
+    assert.equal((await api.inspect(OS)).level, sub.id, 'the open subflow is still open');
+  });
+
   it('AFD-65: a note on a node is one edit, drawn, follows the node; undo removes it', async () => {
     const api = await testApi();
     const doc = await openDesigner(EDGE);

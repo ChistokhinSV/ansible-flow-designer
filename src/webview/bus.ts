@@ -54,24 +54,35 @@ export function onHostMessage(listener: (m: HostMessage) => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** A drift action the host carries out (M6: stubs, specs, re-sync), answered by `ack`. */
-export function hostAction(action: DriftAction): Promise<Ack> {
-  const reqId = nextReq++;
-  return new Promise((resolve) => {
-    pending.set(reqId, resolve);
-    told();
-    send({ type: 'driftAction', reqId, action });
-  });
-}
+/**
+ * AFD-152: how long a request may go unanswered. The host answers every request now, even when
+ * its handler fails; this is the backstop, so "Saving…" never stays for good.
+ */
+export const REQUEST_TIMEOUT_MS = 120_000;
 
 function request(make: (reqId: number) => WebviewMessage): Promise<Ack> {
   const reqId = nextReq++;
   return new Promise((resolve) => {
-    pending.set(reqId, resolve);
+    const timer = setTimeout(() => {
+      if (!pending.delete(reqId)) return;
+      told();
+      resolve({
+        ok: false,
+        error: 'VS Code did not answer in 2 minutes: the change may not have been made',
+      });
+    }, REQUEST_TIMEOUT_MS);
+    pending.set(reqId, (a) => {
+      clearTimeout(timer);
+      resolve(a);
+    });
     told();
     send(make(reqId));
   });
 }
+
+/** A drift action the host carries out (M6: stubs, specs, re-sync), answered by `ack`. */
+export const hostAction = (action: DriftAction): Promise<Ack> =>
+  request((reqId) => ({ type: 'driftAction', reqId, action }));
 
 /** AFD-116: a change to the flow's scenarios file, one edit, answered by `ack`. */
 export const scenarioRequest = (req: ScenarioRequest) =>
@@ -80,14 +91,8 @@ export const scenarioRequest = (req: ScenarioRequest) =>
 /** AFD-116: takes back the last scenario change made from the designer. */
 export const scenarioUndo = () => request((reqId) => ({ type: 'scenarioUndo', reqId }));
 
-export function command(cmd: FlowCommand): Promise<Ack> {
-  const reqId = nextReq++;
-  return new Promise((resolve) => {
-    pending.set(reqId, resolve);
-    told();
-    send({ type: 'command', reqId, command: cmd });
-  });
-}
+export const command = (cmd: FlowCommand): Promise<Ack> =>
+  request((reqId) => ({ type: 'command', reqId, command: cmd }));
 
 /** UI-only state kept by VS Code while the panel is hidden (viewport, panel widths). */
 export function loadState<T>(): Partial<T> {

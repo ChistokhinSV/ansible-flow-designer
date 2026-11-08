@@ -282,6 +282,11 @@ interface UiState {
   setDecide(p: PortRef | null): void;
   dismissBanner(count: number | null): void;
   setOptimistic(p: Record<Ulid, Position>): void;
+  /**
+   * AFD-156: a move the host did not make: its positions go, so the canvas shows the file again and
+   * a later paste, align or arrange cannot write them. One a later move set since is kept.
+   */
+  dropOptimistic(p: Record<Ulid, Position>): void;
   /** An error toast (a refused change, a failed action); null does nothing. */
   setError(e: string | null): void;
   notify(level: ToastLevel, text: string): void;
@@ -424,7 +429,7 @@ export const useUi = create<UiState>((set, get) => ({
   setSnapshot(snapshot) {
     const current = get().snapshot;
     if (current && snapshot.docVersion < current.docVersion) return;
-    // Drop optimistic positions the document now confirms (or any, once the version moved on).
+    // Drop optimistic positions the document now confirms; a failed move drops its own (AFD-156).
     const layout = snapshot.doc?.layout ?? {};
     const optimistic = Object.fromEntries(
       Object.entries(get().optimistic).filter(([id, p]) => {
@@ -507,6 +512,14 @@ export const useUi = create<UiState>((set, get) => ({
   setDecide: (decide) => set({ decide, ...closing('decide') }),
   dismissBanner: (bannerDismissedAt) => set({ bannerDismissedAt }),
   setOptimistic: (p) => set({ optimistic: { ...get().optimistic, ...p } }),
+  dropOptimistic: (p) => {
+    const optimistic = { ...get().optimistic };
+    for (const [id, at] of Object.entries(p)) {
+      const now = optimistic[id];
+      if (now && now.x === at.x && now.y === at.y) delete optimistic[id];
+    }
+    set({ optimistic });
+  },
   setError(error) {
     if (error) get().notify('error', error);
   },
