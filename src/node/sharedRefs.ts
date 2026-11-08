@@ -6,6 +6,7 @@ import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { planCommand } from '../core/flow/commands';
+import { parseFlow } from '../core/flow/document';
 import { formatOf } from '../core/flow/format';
 import { createIdFactory } from '../core/flow/ids';
 import { modelOf } from '../core/flow/model';
@@ -85,8 +86,11 @@ function readFlow(file: string): { doc?: FlowDocument; error?: string } {
   let entry: { mtime: number; doc?: FlowDocument; error?: string };
   try {
     const text = readFileSync(file, 'utf8');
-    const doc = parse(text) as FlowDocument;
-    if (!doc?.flow) entry = { mtime, error: 'not a flow' };
+    // AFD-147: parseFlow refuses an alias inside what it names (the copy would never end).
+    const parsed = parseFlow(text);
+    const doc = parsed.doc;
+    if (!doc) entry = { mtime, error: parsed.errors[0]?.message ?? 'does not parse' };
+    else if (!doc.flow) entry = { mtime, error: 'not a flow' };
     else
       try {
         entry = { mtime, doc: format2(text, doc) };

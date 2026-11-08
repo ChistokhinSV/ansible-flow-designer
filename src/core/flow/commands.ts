@@ -10,7 +10,7 @@ import { YamlTransaction } from '../yaml/transaction';
 import { annotationValue, nextAnnotationKey, TIE_OFFSET } from './annotations';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
-import { enclosing } from './dataRefs';
+import { enclosing, readerLevel } from './dataRefs';
 import {
   acceptedAll,
   acceptedOf,
@@ -630,9 +630,7 @@ function nodeItem(
   purpose: 'purpose' | 'handler' = 'handler',
 ): { id: Ulid; item: Record<string, YamlValue> } {
   const key = spec.key ?? uniqueKey(slugify(spec.title), taken);
-  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
-  if (taken.has(key))
-    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
+  checkKey(key, taken);
   taken.add(key);
   const id = ctx.newId();
   const node: Record<string, YamlValue> = { id, key, type: spec.type, title: spec.title };
@@ -652,8 +650,74 @@ function nodeItem(
   return { id, item: node };
 }
 
-function levelKeys(level: Level): Set<string> {
-  return new Set(level.nodes.flatMap((n) => (n?.key ? [n.key] : [])));
+/** A level and the levels around it, innermost first, up to the top level. */
+function levelChain(model: FlowModel, levelId: string): string[] {
+  const out = [levelId];
+  for (let at = levelId; at !== ROOT; ) {
+    const up = model.nodes.get(at)?.level;
+    if (up === undefined) break;
+    out.push(up);
+    at = up;
+  }
+  return out;
+}
+
+/**
+ * AFD-143: the keys a new node on `levelId` would take over. keyScope resolves the innermost level
+ * first, so a reference that sees this level (from it, or from inside one of its subflows) and now
+ * reads a node of that key on an outer level would silently read the new node instead.
+ */
+export function shadowedKeys(model: FlowModel, levelId: string): Set<string> {
+  const out = new Set<string>();
+  for (const entry of model.nodes.values())
+    for (const side of ['inputs', 'outputs'] as const) {
+      const fields = Object.values(entry.node[side] ?? {});
+      if (!fields.some((f) => f?.from)) continue;
+      const at = readerLevel(model, entry.node, entry.level, side);
+      const chain = levelChain(model, at);
+      const here = chain.indexOf(levelId);
+      if (here < 0) continue;
+      const scope = keyScope(model, at);
+      for (const field of fields) {
+        const head = (field?.from ?? '').split('.')[0] ?? '';
+        if (!head || head === 'flow' || head === 'impl' || head.includes('/')) continue;
+        const target = scope.get(head);
+        const targetLevel = target ? model.nodes.get(target)?.level : undefined;
+        if (targetLevel !== undefined && chain.indexOf(targetLevel) > here) out.add(head);
+      }
+    }
+  return out;
+}
+
+/** A level's keys plus the ones a new node there would take over (AFD-143). */
+class TakenKeys extends Set<string> {
+  constructor(
+    own: Iterable<string>,
+    readonly shadowed: ReadonlySet<string>,
+  ) {
+    super([...own, ...shadowed]);
+  }
+}
+
+/** Refuses a key a node cannot take on its level; `taken` from levelKeys. */
+function checkKey(key: string, taken: ReadonlySet<string>): void {
+  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
+  if (taken instanceof TakenKeys && taken.shadowed.has(key))
+    throw new CommandError(
+      'shadowing-key',
+      `Key "${key}" would take over the references that read the "${key}" around this level: choose another key`,
+    );
+  if (taken.has(key))
+    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
+}
+
+/**
+ * The keys a new node on a level cannot take. With the model, also the keys it would take over
+ * from outer levels (AFD-143): generated keys pass them by, a key given explicitly is refused.
+ */
+function levelKeys(level: Level, model?: FlowModel): Set<string> {
+  const own = level.nodes.flatMap((n) => (n?.key ? [n.key] : []));
+  return model ? new TakenKeys(own, shadowedKeys(model, level.id)) : new Set(own);
 }
 
 /**
@@ -664,7 +728,7 @@ function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): U
   const st = state(tx);
   if (!spec.parent) {
     const level = levelOf(st, ROOT);
-    const { id, item } = nodeItem(ctx, spec, levelKeys(level), purposeKey(st.doc));
+    const { id, item } = nodeItem(ctx, spec, levelKeys(level, st.model), purposeKey(st.doc));
     tx.apply((f) => insertItem(f, level.nodesPath, 'end', item));
     return id;
   }
@@ -675,7 +739,8 @@ function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): U
   const { id, item } = nodeItem(
     ctx,
     spec,
-    level ? levelKeys(level) : new Set(),
+    // An empty subflow has no level yet; its outputs may still read through to outer nodes.
+    level ? levelKeys(level, st.model) : new TakenKeys([], shadowedKeys(st.model, parent)),
     purposeKey(st.doc),
   );
   const base = [...path, 'subflow'];
@@ -828,7 +893,7 @@ function applyPattern(
     return undefined;
   }
   // Every new node and edge is computed against this one state and written in one batch.
-  const taken = levelKeys(level);
+  const taken = levelKeys(level, st.model);
   const nodes: Record<string, YamlValue>[] = [];
   const edges: Record<string, YamlValue>[] = [];
   const positions: Record<Ulid, Position> = { ...cmd.freeze };
@@ -996,17 +1061,15 @@ function renameKey(tx: YamlTransaction, id: Ulid, newKey: string): void {
   const st = state(tx);
   const { node, path, level } = nodeAt(st, id);
   if (newKey === node.key) return;
-  if (!SLUG.test(newKey))
-    throw new CommandError('bad-key', `Key "${newKey}" must be a lowercase slug`);
-  if (levelOf(st, level).nodes.some((n) => n?.key === newKey)) {
-    throw new CommandError('duplicate-key', `Key "${newKey}" is already used in this level`);
-  }
+  checkKey(newKey, levelKeys(levelOf(st, level), st.model));
   const oldKey = node.key;
   // `from:` references keys, not IDs: rewrite every reference that resolves to this node.
   const rewrites: { path: Path; value: string }[] = [];
   for (const entry of st.model.nodes.values()) {
-    if (keyScope(st.model, entry.level).get(oldKey) !== id) continue;
     for (const side of ['inputs', 'outputs'] as const) {
+      // AFD-142: a subflow's outputs read its inner level, as resolveFrom resolves them.
+      const at = readerLevel(st.model, entry.node, entry.level, side);
+      if (keyScope(st.model, at).get(oldKey) !== id) continue;
       for (const [name, field] of Object.entries(entry.node[side] ?? {})) {
         const from = field?.from;
         if (from === oldKey || from?.startsWith(`${oldKey}.`)) {
@@ -1288,10 +1351,13 @@ function outputRefRewrites(
   const out: { path: Path; value: string }[] = [];
   const head = `${node.key}.${from}`;
   for (const entry of st.model.nodes.values()) {
-    if (keyScope(st.model, entry.level).get(node.key) !== id) continue;
-    // Inside a subflow, and on its own outputs, `<key>.<name>` is its input (AFD-21).
-    if (entry.node.id === id || enclosing(st.model, entry.level).some((s) => s.id === id)) continue;
+    if (entry.node.id === id) continue;
     for (const side of ['inputs', 'outputs'] as const) {
+      // AFD-142: a subflow's outputs read its inner level, as resolveFrom resolves them.
+      const at = readerLevel(st.model, entry.node, entry.level, side);
+      if (keyScope(st.model, at).get(node.key) !== id) continue;
+      // Inside a subflow, `<key>.<name>` is its input (AFD-21).
+      if (enclosing(st.model, at).some((s) => s.id === id)) continue;
       for (const [name, field] of Object.entries(entry.node[side] ?? {})) {
         const ref = field?.from;
         if (ref === head || ref?.startsWith(`${head}.`))
@@ -1855,11 +1921,9 @@ function extractSubflow(
     claim(exitPort(x.ref.port), `leave:${x.leaves}`, `${title(x.ref.node)}.${x.ref.port}`);
 
   // The new node.
-  const taken = levelKeys(level);
+  const taken = levelKeys(level, st.model);
   const key = cmd.key ?? uniqueKey(slugify(cmd.title, 'subflow'), taken);
-  if (!SLUG.test(key)) throw new CommandError('bad-key', `Key "${key}" must be a lowercase slug`);
-  if (taken.has(key))
-    throw new CommandError('duplicate-key', `Key "${key}" is already used in this level`);
+  checkKey(key, taken);
   const id = ctx.newId();
 
   // Outputs read outside the group are lifted to the subflow (AFD-7 decision).
@@ -1869,8 +1933,9 @@ function extractSubflow(
   const rewrites: { path: Path; value: string; node: Ulid }[] = [];
   for (const other of st.model.nodes.values()) {
     if (movedIds.has(other.node.id)) continue;
-    const scope = keyScope(st.model, other.level);
-    for (const side of ['inputs', 'outputs'] as const)
+    for (const side of ['inputs', 'outputs'] as const) {
+      // AFD-142: a subflow's outputs read its inner level, as resolveFrom resolves them.
+      const scope = keyScope(st.model, readerLevel(st.model, other.node, other.level, side));
       for (const [name, field] of Object.entries(other.node[side] ?? {})) {
         const [head, out, ...rest] = (field?.from ?? '').split('.');
         const source = head ? keyOf.get(head) : undefined;
@@ -1888,6 +1953,7 @@ function extractSubflow(
           node: other.node.id,
         });
       }
+    }
   }
 
   // Fail ports nothing takes keep leaving the same way: through the new subflow's port.
@@ -2375,7 +2441,7 @@ function pasteNodes(
   const nodes = source.map(remapNode);
 
   // Keys unique on the target level; references between the pasted nodes follow a new key.
-  const taken = level ? levelKeys(level) : new Set<string>();
+  const taken = level ? levelKeys(level, st.model) : new Set<string>();
   const renamed = new Map<string, string>();
   nodes.forEach((n, i) => {
     const wanted = SLUG.test(n.key ?? '') ? (n.key as string) : slugify(n.title ?? n.type, n.type);

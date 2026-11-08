@@ -54,6 +54,20 @@ function names(contract: Record<string, unknown> | undefined): string {
 }
 
 /**
+ * The level a `from` on `node`'s `side` resolves against: a subflow's outputs read its inner
+ * level (AFD-7), everything else the node's own level. AFD-142: the commands that rewrite
+ * references (renames, extract) ask this too, so they rewrite exactly what resolveFrom reads.
+ */
+export function readerLevel(
+  model: FlowModel,
+  node: FlowNode,
+  level: string,
+  side: 'inputs' | 'outputs',
+): string {
+  return side === 'outputs' && model.levels.has(node.id) ? node.id : level;
+}
+
+/**
  * Resolves `from` as read by `node` on `level`. A subflow's outputs read its inner level (AFD-7),
  * so they resolve against that level.
  */
@@ -77,7 +91,7 @@ export function resolveFrom(
       why: `reads a step inside subflow ${sub}; from outside, read what ${sub} lifts: give ${sub} an output ${name} (from: ${inner.join('/')}.${name}) and read ${sub}.${name} (the AI tools and the @ picker lift it for you)`,
     };
   }
-  const at = side === 'outputs' && model.levels.has(node.id) ? node.id : level;
+  const at = readerLevel(model, node, level, side);
   const id = keyScope(model, at).get(head);
   const target = id ? model.nodes.get(id)?.node : undefined;
   if (!target) return { kind: 'unresolved', why: `no node "${head}" on this level or around it` };

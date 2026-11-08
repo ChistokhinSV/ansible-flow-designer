@@ -199,6 +199,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
     fix: 'Add the input the message names (set_io) or fix the name.',
   },
+  'condition-braces': {
+    meaning:
+      'A decision condition has {{ }} or {% %} inside it; it is a bare expression, as a when: is, so every host would hit a condition error.',
+    fix: 'Write the expression without the braces: x == 1, not {{ x }} == 1.',
+  },
   'condition-unknown-var': {
     meaning:
       'A decision condition or until uses a variable that is not an input (or, for until, the result).',

@@ -7,7 +7,7 @@ import { outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { durationSeconds } from './duration';
-import { exprRefs, refsIn, singleRef, templated } from './jinja';
+import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
 import { keywordReads } from './keywords';
 import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
@@ -689,8 +689,18 @@ function checkConditions(
       });
     }
   };
-  if (node.type === 'decision' && typeof node.condition === 'string')
+  if (node.type === 'decision' && typeof node.condition === 'string') {
     check(node.condition, [...path, 'condition'], 'condition');
+    // AFD-146: the generator puts the condition inside a Jinja expression of its own.
+    if (conditionHasBraces(node.condition))
+      add({
+        code: 'condition-braces',
+        severity: 'error',
+        message: `${label(node)} condition has {{ }} or {% %} inside it: write it as a when: is written, without them (x == 1, not {{ x }} == 1)`,
+        path: [...path, 'condition'],
+        node: node.id,
+      });
+  }
   const until = node.settings?.until;
   if (typeof until !== 'string' || !until.trim()) return;
   if (node.impl?.kind === 'role' || node.impl?.kind === 'playbook')

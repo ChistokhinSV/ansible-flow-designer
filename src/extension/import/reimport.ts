@@ -4,7 +4,7 @@
 // (changed in both) are not, so the designer's version stays unless picked. A change not taken is
 // noted on the step and not offered again until the source changes it again. One edit, one undo.
 import * as vscode from 'vscode';
-import { parse } from 'yaml';
+import { parseFlow } from '../../core/flow/document';
 import { modelOf } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
 import { importPlaybook } from '../../core/import/playbook';
@@ -82,12 +82,10 @@ export async function reimportFromSource(
   };
   const doc = await host.resolveTargetFlow(uri);
   if (!doc) return { error: 'No flow' };
-  let flow: FlowDocument;
-  try {
-    flow = parse(doc.getText()) as FlowDocument;
-  } catch {
-    return fail('The flow has YAML errors; fix them in the text editor first');
-  }
+  // AFD-147: parseFlow also refuses an alias inside what it names.
+  const parsed = parseFlow(doc.getText());
+  if (!parsed.doc) return fail('The flow has YAML errors; fix them in the text editor first');
+  const flow: FlowDocument = parsed.doc;
   const from = flow?.flow?.imported_from;
   if (from?.kind !== 'playbook' || !from.path)
     return fail('Re-import from Source works on flows imported from a playbook');

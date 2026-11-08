@@ -3,7 +3,7 @@
 // --check (the files against their flows) and --simulate (where each host goes, computed).
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { parse } from 'yaml';
+import { parseFlow } from '../../core/flow/document';
 import { isFileKey } from '../../core/flow/ids';
 import type { FlowDocument } from '../../core/flow/types';
 import {
@@ -123,7 +123,9 @@ export interface FlowScenarios {
 export function loadScenarioFlows(targets: readonly string[]): FlowScenarios[] {
   const out: FlowScenarios[] = [];
   for (const flowFile of targets.flatMap(flowsOf)) {
-    const doc = parse(readFileSync(flowFile, 'utf8')) as FlowDocument;
+    // AFD-147: a flow that does not read (an alias inside what it names, too) has no scenarios.
+    const doc = parseFlow(readFileSync(flowFile, 'utf8')).doc;
+    if (!doc) continue;
     // AFD-133: a key that cannot name a file names no scenarios file either.
     if (!isFileKey(doc?.flow?.key)) continue;
     const scenariosFile = join(dirname(flowFile), scenariosFileName(doc.flow.key));

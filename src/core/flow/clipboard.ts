@@ -6,6 +6,7 @@ import { renderBlock, type YamlValue } from '../yaml/render';
 import { annotationValue } from './annotations';
 import { withIds } from './completeIds';
 import { acceptedOf } from './decisions';
+import { containsItself, SELF_ALIAS } from './document';
 import { buildModel } from './model';
 import {
   type Annotation,
@@ -102,6 +103,8 @@ export function parseClip(text: string): Clip | string {
   } catch {
     return 'The clipboard does not hold flow nodes (it is not YAML)';
   }
+  // AFD-147: an alias inside what it names would make every walker below recurse forever.
+  if (containsItself(data)) return SELF_ALIAS;
   const obj: Record<string, unknown> =
     data && typeof data === 'object' && !Array.isArray(data)
       ? (data as Record<string, unknown>)
@@ -130,13 +133,18 @@ export function parseClip(text: string): Clip | string {
   const decisions = Array.isArray(obj.decisions) ? (obj.decisions as Decision[]) : [];
   // A snippet written by hand may leave IDs out and wire nodes by key (AFD-19): fill the gaps, so
   // its wires paste with it (paste gives every node and wire a new ID anyway).
-  const filled = withIds({
-    nodes: nodes ?? [],
-    edges,
-    annotations,
-    layout,
-    decisions,
-  } as unknown as FlowDocument);
+  let filled: FlowDocument;
+  try {
+    filled = withIds({
+      nodes: nodes ?? [],
+      edges,
+      annotations,
+      layout,
+      decisions,
+    } as unknown as FlowDocument);
+  } catch {
+    return 'The clipboard does not hold flow nodes: copy nodes from a flow, or a nodes: list';
+  }
   return {
     nodes: filled.nodes,
     edges: filled.edges,

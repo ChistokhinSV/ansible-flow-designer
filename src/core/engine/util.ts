@@ -28,3 +28,13 @@ import { templated } from '../flow/jinja';
 export function timeoutValue(text: string | number | undefined): number | string | undefined {
   return templated(text) ? text.trim() : durationSeconds(text);
 }
+
+/**
+ * Text from the flow (a title, an intent, a reason) as Jinja renders it back unchanged (AFD-145):
+ * Ansible templates `msg:` and the like, so a title "Install {{ item }}" would fail on an undefined
+ * variable, and `{%` or `{#` would not parse. Each opening delimiter becomes a string expression
+ * of itself: `{{` is written `{{ '{{' }}`.
+ */
+export function jinjaLiteral(text: string): string {
+  return text.replaceAll(/\{[{%#]/g, (open) => `{{ '${open}' }}`);
+}

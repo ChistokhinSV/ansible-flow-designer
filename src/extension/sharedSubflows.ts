@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, relative } from 'node:path';
 import * as vscode from 'vscode';
-import { parse } from 'yaml';
+import { parseFlow } from '../core/flow/document';
 import { formatOf } from '../core/flow/format';
 import { subflowsOf } from '../core/flow/refs';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
@@ -118,7 +118,8 @@ export async function insertShared(
 ) {
   const doc = await host.resolveTargetFlow(uri);
   if (!doc) return undefined;
-  const flow = parse(doc.getText()) as FlowDocument;
+  const flow = parseFlow(doc.getText()).doc;
+  if (!flow) return undefined;
   if (formatOf(flow) < 2) {
     const upgrade = 'Upgrade Flow Format';
     const pick = await vscode.window.showWarningMessage(
@@ -132,9 +133,9 @@ export async function insertShared(
   const items: (vscode.QuickPickItem & { from: string; file: string; path: string })[] = [];
   for (const f of files) {
     if (f.fsPath === doc.uri.fsPath) continue;
-    let other: FlowDocument;
+    let other: FlowDocument | undefined;
     try {
-      other = parse(readFileSync(f.fsPath, 'utf8')) as FlowDocument;
+      other = parseFlow(readFileSync(f.fsPath, 'utf8')).doc;
     } catch {
       continue;
     }

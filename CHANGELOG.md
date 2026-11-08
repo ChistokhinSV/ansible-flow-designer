@@ -1,8 +1,15 @@
 # Changelog
 
-## 0.74.3 — AFD-131, AFD-133 to AFD-141
+## 0.74.3 — AFD-131, AFD-133 to AFD-147
 
-More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running.
+More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running. Several flow edits and generated plays now do what the design says.
+
+- **A step title with `{{ }}` no longer breaks the run.** Ansible renders play and task names and messages, so a title such as "Install {{ item }}" (common in imported playbooks) stopped the whole playbook with "Error processing keyword 'name'". Titles, intents and reasons are now written so they show exactly as typed.
+- **Renames keep a subflow's outputs working:** renaming a step inside a subflow, or one of its outputs, now also updates the subflow output that lifts it (`from: <step>.<output>`). Before, the generated code read an undefined variable.
+- **A new or renamed step no longer takes over references:** a key that would make an existing `from:` read the new step instead of the one around it (another level's step, or a subflow's own input) is refused when you type it. A generated key gets a number instead.
+- **max_fail_percentage counts the step's own failures:** a step inside a subflow counted the hosts earlier steps had failed, too, and could stop healthy hosts. The simulator counts the same way.
+- **Decision conditions:** a condition written whole as `{{ x == 1 }}` works. A condition with `{{ }}` inside it (`{{ x }} == 1`) is a problem that says how to write it, instead of failing every host at run time. Spaces inside quoted strings in a condition are kept.
+- **A YAML alias inside what it names** (`&s … *s` within itself), in a flow file or on the clipboard, is refused with a message instead of hanging the designer.
 
 - **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. It ends the run's shell and everything under it, and nothing else in the distribution. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
 - **Secret inputs and the vault password:**

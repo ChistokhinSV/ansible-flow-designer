@@ -1,5 +1,6 @@
 // Code from the design (M6, D-29 "design without code"): a role stub for an unbound node and
 // meta/argument_specs.yml from a node's input contract (the spec generation deferred from M5).
+import { jinjaLiteral } from '../engine/util';
 import { commentLine, type Out, type OutMap, oneLine, writeBlock } from '../engine/yamlWriter';
 import type { ContractField, ContractType, FlowHeader, FlowNode } from '../flow/types';
 import type { TextEdit } from '../yaml/edits';
@@ -75,9 +76,9 @@ export function roleStub(
 ): { path: string; text: string }[] {
   const tasks: Out[] = [
     {
-      name: `TODO ${oneLine(node.title)}`,
+      name: `TODO ${jinjaLiteral(oneLine(node.title))}`,
       'ansible.builtin.debug': {
-        msg: `TODO: ${oneLine(node.intent || node.title)}`,
+        msg: `TODO: ${jinjaLiteral(oneLine(node.intent || node.title))}`,
       },
     },
   ];

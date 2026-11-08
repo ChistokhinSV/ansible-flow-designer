@@ -17,6 +17,7 @@ import {
 } from '../flow/dataNames';
 import { portAccepted } from '../flow/decisions';
 import { privilegeOf } from '../flow/inherit';
+import { conditionExpr } from '../flow/jinja';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import { rollingObstacles } from '../flow/rolling';
@@ -38,7 +39,7 @@ import type {
   RunPlan,
   SegmentFile,
 } from './types';
-import { checksum, timeoutValue } from './util';
+import { checksum, jinjaLiteral, timeoutValue } from './util';
 import {
   Comment,
   comment,
@@ -216,7 +217,7 @@ class Generator {
           [
             {
               // The route suffix maps AWX events back to the approval node.
-              name: `[${gate.key}] ${oneLine(gate.title)}: route`,
+              name: `[${gate.key}] ${jinjaLiteral(oneLine(gate.title))}: route`,
               hosts: `{{ groups['${waiting}'] | default([]) | join(',') or 'afd_no_hosts' }}`,
               gather_facts: false,
               tags: flow([`node_${gate.id}`]),
@@ -257,9 +258,9 @@ class Generator {
           },
         },
         {
-          name: `[${gate.key}] no host reached ${oneLine(gate.title)}`,
+          name: `[${gate.key}] no host reached ${jinjaLiteral(oneLine(gate.title))}`,
           'ansible.builtin.fail': {
-            msg: `No host reached [${gate.key}] ${oneLine(gate.title)}: the approval is skipped and the flow finishes`,
+            msg: `No host reached [${gate.key}] ${jinjaLiteral(oneLine(gate.title))}: the approval is skipped and the flow finishes`,
           },
           when: empty,
         },
@@ -333,13 +334,13 @@ class Generator {
 
   private openPort(node: FlowNode, port: string, group: string): void {
     const decision = portAccepted(this.doc, node.id, port);
-    const where = `[${node.key}] ${node.title}`;
+    const where = `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`;
     this.outcome.push({
       order: this.order,
       groups: [group],
       name: decision ? `[${node.key}] ${port} open on purpose` : `[${node.key}] ${port} is open`,
       msg: decision
-        ? `Stopped at ${where}: ${port} open on purpose (${oneLine(decision.reason ?? 'no reason')})`
+        ? `Stopped at ${where}: ${port} open on purpose (${jinjaLiteral(oneLine(decision.reason ?? 'no reason'))})`
         : `Stopped at ${where}: ${port} is not wired`,
     });
   }
@@ -524,7 +525,7 @@ class Generator {
           lines: writeBlock(
             [
               {
-                name: `[${sub.key}] ${oneLine(sub.title)}: rolling, ${batch} at a time`,
+                name: `[${sub.key}] ${jinjaLiteral(oneLine(sub.title))}: rolling, ${batch} at a time`,
                 hosts: ctx.entry,
                 gather_facts: false,
                 serial: batch,
@@ -553,8 +554,8 @@ class Generator {
     this.outcome.push({
       order: this.order,
       groups: [...new Set(groups)],
-      name: `[${node.key}] ${oneLine(node.title)}`,
-      msg: `Ended at [${node.key}] ${oneLine(node.title)} (outcome: failed)`,
+      name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
+      msg: `Ended at [${node.key}] ${jinjaLiteral(oneLine(node.title))} (outcome: failed)`,
     });
   }
 
@@ -569,7 +570,8 @@ class Generator {
    */
   private overridePlays(ctx: LevelCtx, node: FlowNode, hosts: string[], target: string): Out[] {
     const tag = `node_${node.id}`;
-    const title = `[${node.key}] ${oneLine(node.title)}`;
+    // AFD-145: a play name is rendered too; Ansible stops the whole run on an undefined name.
+    const title = `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`;
     const settings = node.settings ?? {};
     const own = (part: string) => this.group(ctx.path, node.key, part);
     const arrived = own('arriving');
@@ -661,7 +663,9 @@ class Generator {
         const failing = ['failed', ...(enabled.has('timeout') ? ['timeout'] : [])];
         body = {
           name: `[${node.key}] TODO`,
-          'ansible.builtin.debug': { msg: `TODO: ${oneLine(node.intent || node.title)}` },
+          'ansible.builtin.debug': {
+            msg: `TODO: ${jinjaLiteral(oneLine(node.intent || node.title))}`,
+          },
           failed_when: sim
             ? `inventory_hostname in ${failing.map((p) => `afd_sim.${p} | default([])`).join(' + ')}`
             : undefined,
@@ -839,13 +843,12 @@ class Generator {
       }
       default: {
         const limit = node.settings?.max_fail_percentage;
-        const p = base.ports;
-        const counted = [p.failed_hosts, p.unreachable, p.timeout].filter((g): g is string => !!g);
         this.steps.push({
           ...base,
           kind: 'task',
           todo: `TODO: ${oneLine(node.intent || node.title)}`,
-          ...(typeof limit === 'number' ? { maxFail: { limit, groups: counted } } : {}),
+          // AFD-144: the hosts this step fails, as the generated code counts them.
+          ...(typeof limit === 'number' ? { maxFail: { limit } } : {}),
         });
       }
     }
@@ -892,7 +895,7 @@ class Generator {
             tags: flow([tag]),
           },
           {
-            name: `[${node.key}] ${oneLine(node.title)}: route`,
+            name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}: route`,
             hosts: pattern,
             gather_facts: false,
             tags: flow([tag]),
@@ -944,7 +947,7 @@ class Generator {
     }
     this.record(ctx, node, hosts, edges);
     return {
-      name: `[${node.key}] ${oneLine(node.title)}`,
+      name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
       hosts: hosts.join(':'),
       gather_facts: false,
       serial: settings.serial,
@@ -989,7 +992,9 @@ class Generator {
       const failing = ['failed', ...(enabled.has('timeout') ? ['timeout'] : [])];
       body = {
         name: `[${node.key}] TODO`,
-        'ansible.builtin.debug': { msg: `TODO: ${oneLine(node.intent || node.title)}` },
+        'ansible.builtin.debug': {
+          msg: `TODO: ${jinjaLiteral(oneLine(node.intent || node.title))}`,
+        },
         failed_when: sim
           ? `inventory_hostname in ${failing.map((p) => `afd_sim.${p} | default([])`).join(' + ')}`
           : undefined,
@@ -1017,24 +1022,46 @@ class Generator {
       const test = sim ? simIn('timeout') : '(ansible_failed_result.timedout | default(false))';
       failChoices.push({ test, group: on('timeout'), port: 'timeout' });
     }
+    // AFD-144: max_fail_percentage counts the hosts this step failed, in a group of its own. The
+    // port groups can be a parent subflow's, which already hold the hosts other steps failed.
+    const limit = node.settings?.max_fail_percentage;
+    const failedHere =
+      typeof limit === 'number' ? this.group(ctx.path, node.key, 'failed_here') : undefined;
+    const unreachableHere = okChoices.find((c) => c.port === 'unreachable');
+    const counted: Out[] = failedHere
+      ? [
+          {
+            name: `[${node.key}] count the failure`,
+            'ansible.builtin.group_by': { key: failedHere },
+          },
+        ]
+      : [];
     const rescue: Out[] = [
       ...['failed_hosts', ...failChoices.map((c) => c.port)].flatMap((p) =>
         this.portComment(ctx, node, p),
       ),
+      ...counted,
       choose(node, failChoices, { group: on('failed_hosts'), port: 'failed_hosts' }),
     ];
-    const block: OutMap = { block: [body, ...extra, ...this.captures(node), okRoute], rescue };
+    const countUnreachable: Out[] =
+      failedHere && unreachableHere
+        ? [
+            {
+              name: `[${node.key}] count the unreachable`,
+              'ansible.builtin.group_by': { key: failedHere },
+              when: unreachableHere.test,
+            },
+          ]
+        : [];
+    const block: OutMap = {
+      block: [body, ...extra, ...this.captures(node), okRoute, ...countUnreachable],
+      rescue,
+    };
     if (enabled.has('always')) block.always = [route(node, 'always', on('always'))];
     const tasks: Out[] = [block];
 
-    const limit = node.settings?.max_fail_percentage;
-    if (typeof limit === 'number') {
-      const groups = [
-        on('failed_hosts'),
-        ...okChoices.filter((c) => c.port === 'unreachable').map((c) => c.group),
-        ...failChoices.map((c) => c.group),
-      ];
-      const count = groups.map((g) => `groups['${g}'] | default([]) | length`).join(' + ');
+    if (typeof limit === 'number' && failedHere) {
+      const count = `groups['${failedHere}'] | default([]) | length`;
       tasks.push({
         name: `[${node.key}] max_fail_percentage ${limit} exceeded`,
         'ansible.builtin.fail': {
@@ -1061,7 +1088,7 @@ class Generator {
         order: this.order,
         groups: [group],
         name: `[${node.key}] unreachable`,
-        msg: `Stopped at [${node.key}] ${oneLine(node.title)}: host unreachable (the unreachable port is not enabled)`,
+        msg: `Stopped at [${node.key}] ${jinjaLiteral(oneLine(node.title))}: host unreachable (the unreachable port is not enabled)`,
       });
     }
     return group;
@@ -1102,8 +1129,8 @@ class Generator {
           name: `[${node.key}] TODO`,
           'ansible.builtin.debug': {
             msg: condition
-              ? `Scenario: ${oneLine(node.title)} takes true unless afd_simulate sends a host to false`
-              : `TODO: ${oneLine(node.title)} has no condition yet, so every host takes true`,
+              ? `Scenario: ${jinjaLiteral(oneLine(node.title))} takes true unless afd_simulate sends a host to false`
+              : `TODO: ${jinjaLiteral(oneLine(node.title))} has no condition yet, so every host takes true`,
           },
         },
         pick,
@@ -1115,12 +1142,12 @@ class Generator {
       order: this.order,
       groups: [error],
       name: `[${node.key}] condition error`,
-      msg: `Stopped at [${node.key}] ${oneLine(node.title)}: the condition could not be evaluated`,
+      msg: `Stopped at [${node.key}] ${jinjaLiteral(oneLine(node.title))}: the condition could not be evaluated`,
     });
     return [
       {
         block: [
-          choose(node, [{ test: `not (${oneLine(condition)})`, group: no, port: 'false' }], {
+          choose(node, [{ test: `not (${conditionExpr(condition)})`, group: no, port: 'false' }], {
             group: yes,
             port: 'true',
           }),
@@ -1156,7 +1183,7 @@ class Generator {
       {
         name: `[${node.key}] local approval`,
         'ansible.builtin.debug': {
-          msg: `${oneLine(node.title)}: {{ afd_approval }} in this local run (afd_approvals chooses; AWX workflow runs wait in an approval node)`,
+          msg: `${jinjaLiteral(oneLine(node.title))}: {{ afd_approval }} in this local run (afd_approvals chooses; AWX workflow runs wait in an approval node)`,
         },
         run_once: true,
       },

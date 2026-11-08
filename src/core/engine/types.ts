@@ -104,8 +104,8 @@ export type PlanStep =
       kind: 'task';
       /** The stub's message, `TODO: intent`, recorded on a failed host. */
       todo: string;
-      /** max_fail_percentage: the limit and the groups counted against it. */
-      maxFail?: { limit: number; groups: string[] };
+      /** max_fail_percentage: the limit, against the hosts this step fails (AFD-144). */
+      maxFail?: { limit: number };
     })
   | (StepBase & { kind: 'decision' })
   | (StepBase & { kind: 'approval' })

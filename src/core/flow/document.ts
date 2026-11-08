@@ -14,6 +14,27 @@ export function parseFlow(text: string): ParsedFlow {
   return flowFromFile(parseYaml(text));
 }
 
+/**
+ * Whether plain data contains itself (AFD-147). yaml builds a circular object for an alias inside
+ * the node it names (`subflow: &s {nodes: [{subflow: *s}]}`), and every walker of the model, the
+ * paste and Complete IDs would then recurse until the stack ran out.
+ */
+export function containsItself(value: unknown): boolean {
+  const ancestors = new Set<object>();
+  const walk = (v: unknown): boolean => {
+    if (!v || typeof v !== 'object') return false;
+    if (ancestors.has(v)) return true;
+    ancestors.add(v);
+    const found = (Array.isArray(v) ? v : Object.values(v)).some(walk);
+    ancestors.delete(v);
+    return found;
+  };
+  return walk(value);
+}
+
+export const SELF_ALIAS =
+  'A YAML alias here names something that contains it, so the flow would never end: write the part out instead';
+
 /** Same as parseFlow for text that is already parsed (e.g. the result of a command). */
 export function flowFromFile(file: YamlFile): ParsedFlow {
   if (file.errors.length > 0) return { file, errors: file.errors };
@@ -21,6 +42,7 @@ export function flowFromFile(file: YamlFile): ParsedFlow {
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {
     return { file, errors: [{ message: 'A flow document must be a YAML mapping', offset: 0 }] };
   }
+  if (containsItself(data)) return { file, errors: [{ message: SELF_ALIAS, offset: 0 }] };
   return { file, doc: data as FlowDocument, errors: [] };
 }
 

@@ -7,6 +7,7 @@ import { resolveFrom } from '../flow/dataRefs';
 import { ROLE_TASK_KEYWORDS, WITH } from '../flow/keywords';
 import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
+import { jinjaLiteral } from './util';
 import { flow, type Out, type OutMap, oneLine, writeBlock } from './yamlWriter';
 
 /** include_role options; every other role param becomes a role var. */
@@ -50,7 +51,7 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number 
   // A polling step stops when `until` holds (AFD-21); plain retries stop on the first success.
   const condition = until?.trim() || (retries ? `${reg} is succeeded` : undefined);
   return {
-    name: `[${node.key}] ${oneLine(node.title)}`,
+    name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
     [impl.ref]: (impl.params ?? {}) as Out,
     ...(Object.fromEntries(keywords) as OutMap),
     register: reg,

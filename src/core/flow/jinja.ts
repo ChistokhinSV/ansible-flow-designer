@@ -174,3 +174,21 @@ export function exprRefs(value: unknown): string[] {
   });
   return [...names];
 }
+
+/** A decision condition wrapped whole in `{{ }}`: the expression inside it, else undefined. */
+const WRAPPED = /^\{\{(?![\s\S]*\{\{)([\s\S]*?)\}\}$/;
+
+/**
+ * A decision condition as the generator writes it into `{{ ... if not (COND) ... }}` (AFD-146):
+ * a condition written whole as `{{ x == 1 }}` loses the braces, which would otherwise nest and
+ * fail to parse, and line breaks become spaces. Runs of spaces stay: they can be inside a string.
+ */
+export function conditionExpr(condition: string): string {
+  const text = condition.trim();
+  const inner = WRAPPED.exec(text)?.[1] ?? text;
+  return inner.replaceAll(/\r\n|[\r\n]/g, ' ').trim();
+}
+
+/** Whether a condition still holds Jinja delimiters once a whole `{{ }}` wrapper is taken off. */
+export const conditionHasBraces = (condition: string): boolean =>
+  /\{\{|\}\}|\{%|%\}/.test(conditionExpr(condition));

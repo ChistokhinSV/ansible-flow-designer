@@ -152,22 +152,27 @@ export function simulateRun(doc: FlowDocument, s: Omit<Scenario, 'expect' | 'nam
           ...forced(step, 'failed'),
           ...(p.timeout ? forced(step, 'timeout') : []),
         ]);
+        // AFD-144: what max_fail_percentage counts: the hosts this step fails, unreachable included.
+        let failedHere = 0;
         for (const h of hosts) {
           if (failing.has(h)) {
+            failedHere++;
             problem(step.attribute, h, {
               task: `[${keyOf(step)}] TODO`,
               status: 'failed',
               msg: step.todo,
             });
             add(p.timeout && forced(step, 'timeout').has(h) ? p.timeout : p.failed_hosts, h);
-          } else if (p.unreachable && forced(step, 'unreachable').has(h)) add(p.unreachable, h);
-          else if (p.unchanged && forced(step, 'unchanged').has(h)) add(p.unchanged, h);
+          } else if (p.unreachable && forced(step, 'unreachable').has(h)) {
+            failedHere++;
+            add(p.unreachable, h);
+          } else if (p.unchanged && forced(step, 'unchanged').has(h)) add(p.unchanged, h);
           else add(p.ok_hosts, h);
           if (p.always) add(p.always, h);
         }
         if (step.maxFail) {
-          const { limit, groups } = step.maxFail;
-          const count = groups.reduce((n, g) => n + of(g).size, 0);
+          const { limit } = step.maxFail;
+          const count = failedHere;
           if (count * 100 > limit * hosts.length) {
             abort(
               step,

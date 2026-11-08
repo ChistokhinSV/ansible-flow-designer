@@ -2,9 +2,8 @@
 // that it is up to date. Usage: codegen [--check] [--simulate] [--out DIR] <flow.yaml>...
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { parse } from 'yaml';
 import { engineFor } from '../core/engine/engines';
-import type { FlowDocument } from '../core/flow/types';
+import { parseFlow } from '../core/flow/document';
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
@@ -17,7 +16,14 @@ let stale = 0;
 for (const file of flows) {
   const text = readFileSync(file, 'utf8');
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
-  const doc = parse(text) as FlowDocument;
+  // AFD-147: parseFlow refuses an alias inside what it names (the generator would recurse).
+  const parsed = parseFlow(text);
+  if (!parsed.doc) {
+    console.log(`${file}: error: ${parsed.errors[0]?.message ?? 'not a flow'}`);
+    stale++;
+    continue;
+  }
+  const doc = parsed.doc;
   const result = engineFor(doc).generate(doc, {
     source: basename(file),
     eol,
