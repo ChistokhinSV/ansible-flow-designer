@@ -9,6 +9,9 @@ import { AwxClient, FOLLOW_HOURS, followLimit } from '../../../src/node/awx/clie
 import { pruneRuns, rotateLog, sweepRuns } from '../../../src/node/run/storage';
 
 describe('run storage', () => {
+  // Flow IDs are ULIDs; anything else names no folder (AFD-133).
+  const F1 = '01JBX4Y5Z6A7B8C9D0E1F2G3H4';
+  const F2 = '01JBX4Y5Z6A7B8C9D0E1F2G3H5';
   const run = (root: string, flow: string, id: string) => {
     const dir = join(root, 'runs', flow, id);
     mkdirSync(dir, { recursive: true });
@@ -21,25 +24,30 @@ describe('run storage', () => {
     const root = mkdtempSync(join(tmpdir(), 'afd-runs-'));
     try {
       for (const id of ['20261030T080000Z', '20261031T090000Z', '20261029T070000Z'])
-        run(root, 'F1', id);
-      run(root, 'F2', '20261031T100000Z');
-      await pruneRuns(root, 'F1', 2);
-      expect(readdirSync(join(root, 'runs', 'F1')).sort()).toEqual([
+        run(root, F1, id);
+      run(root, F2, '20261031T100000Z');
+      await pruneRuns(root, F1, 2);
+      expect(readdirSync(join(root, 'runs', F1)).sort()).toEqual([
         '20261030T080000Z',
         '20261031T090000Z',
       ]);
       await sweepRuns(root, 1);
-      expect(readdirSync(join(root, 'runs', 'F1'))).toEqual(['20261031T090000Z']);
+      expect(readdirSync(join(root, 'runs', F1))).toEqual(['20261031T090000Z']);
       for (const [flow, id] of [
-        ['F1', '20261031T090000Z'],
-        ['F2', '20261031T100000Z'],
+        [F1, '20261031T090000Z'],
+        [F2, '20261031T100000Z'],
       ] as const) {
         expect(existsSync(join(root, 'runs', flow, id, 'vars.json'))).toBe(false);
         expect(existsSync(join(root, 'runs', flow, id, 'events.jsonl'))).toBe(true);
       }
       // A bad setting falls back to the default instead of deleting everything.
-      await pruneRuns(root, 'F1', 0);
-      expect(readdirSync(join(root, 'runs', 'F1'))).toHaveLength(1);
+      await pruneRuns(root, F1, 0);
+      expect(readdirSync(join(root, 'runs', F1))).toHaveLength(1);
+      // A flow ID from a hostile flow file deletes nothing (AFD-133).
+      run(root, 'victim', '20261031T110000Z');
+      await pruneRuns(join(root, 'runs', 'x'), '../victim', 1);
+      await pruneRuns(root, '../runs/victim', 0);
+      expect(readdirSync(join(root, 'runs', 'victim'))).toEqual(['20261031T110000Z']);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

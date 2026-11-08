@@ -6,6 +6,7 @@
 import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
+import { flowFileId } from '../../core/flow/ids';
 import { buildModel } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { nodeDesigns } from '../../core/flow/semantic';
@@ -252,7 +253,7 @@ export async function runFlow(
     if (vaultPassword === undefined) return fail(CANCELLED, 'cancelled');
   }
 
-  const runDir = vscode.Uri.joinPath(deps.storage, 'runs', doc.flow.id, id);
+  const runDir = vscode.Uri.joinPath(deps.storage, 'runs', flowFileId(doc.flow.id), id);
   await vscode.workspace.fs.createDirectory(runDir);
   // Secret inputs travel in an environment variable only; vars.json goes when the run ends.
   const { plain, secret } = splitInputs(inputs);

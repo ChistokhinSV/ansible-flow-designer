@@ -80,6 +80,37 @@ describe('AFD-26: import playbooks and AWX job templates as is', function () {
     assert.match(again.error ?? '', /already exists/);
   });
 
+  it('AFD-136: an include that leads out of the workspace is not read', async () => {
+    const api = await testApi();
+    made.add('netops-escape');
+    // A task file next to the workspace folder, which a playbook inside reaches with `..`.
+    const outside = join(root().fsPath, '..', 'afd136-outside.yml');
+    writeFileSync(outside, '- name: SECRET TASK FROM OUTSIDE\n  ansible.builtin.ping:\n');
+    const book = join(root().fsPath, 'netops', 'playbooks', 'escape.yml');
+    writeFileSync(
+      book,
+      [
+        '- name: Escape',
+        '  hosts: all',
+        '  tasks:',
+        '    - name: Inside',
+        '      ansible.builtin.ping:',
+        '    - ansible.builtin.include_tasks: ../../../afd136-outside.yml',
+        '',
+      ].join('\n'),
+    );
+    try {
+      const r = await api.importPlaybooks({ source: vscode.Uri.file(book), keys: ['netops-escape'] });
+      assert.equal(r.error, undefined);
+      const flow = await read(r.uris[0] as vscode.Uri);
+      const text = JSON.stringify(flow);
+      assert.ok(text.includes('Inside'), 'the task inside the workspace is imported');
+      assert.ok(!text.includes('SECRET TASK FROM OUTSIDE'), 'the file outside is never read');
+    } finally {
+      rmSync(outside, { force: true });
+    }
+  });
+
   it('Re-import from Source (AFD-61): the source merged in one edit, the designer kept', async () => {
     const api = await testApi();
     made.add('netops-reimport');

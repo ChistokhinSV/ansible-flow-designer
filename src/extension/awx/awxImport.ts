@@ -250,7 +250,8 @@ export async function importAwxWorkflow(
   const playbooks = new Map<string, PlaybookForm>();
   for (const ref of playbooksOf(src)) {
     const path = ref.replace(/^\.?\//, '');
-    if (!(await exists(vscode.Uri.joinPath(folder.uri, ...path.split('/'))))) continue;
+    // AFD-136: the path comes from AWX or an export file; io.exists keeps it inside the folder.
+    if (!(await io.exists?.(path))) continue;
     present.add(ref);
     const read = await readPlaybook(io, path);
     if (read.playbook?.plays.length) playbooks.set(ref, read.playbook);

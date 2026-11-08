@@ -2,8 +2,6 @@
 // open documents (unsaved changes included) and edit through one WorkspaceEdit, one undo step; the
 // file is saved afterwards when it had no unsaved changes before, so the usual save rules (version
 // bump, generated/) apply as for any save.
-import { realpath } from 'node:fs/promises';
-import { isAbsolute, relative as relativePath } from 'node:path';
 import * as vscode from 'vscode';
 import { COPILOT_PREFIX } from '../../core/ai/contributions';
 import { type FlowIO, runTool } from '../../core/ai/handlers';
@@ -19,7 +17,7 @@ import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
 import { CMD } from '../commands/ids';
 import { authorName } from '../gitHead';
-import { workspaceSource } from '../import/common';
+import { stillInside, workspaceSource } from '../import/common';
 import { followScenarios } from '../run/scenarioFollow';
 
 const FLOWS = '**/*.flow.yaml';
@@ -39,18 +37,6 @@ export interface HostToolDeps {
 }
 
 /** Whether a file of the folder really lies inside it (a symlink may point elsewhere). */
-async function stillInside(folder: vscode.WorkspaceFolder, path: string): Promise<boolean> {
-  const uri = vscode.Uri.joinPath(folder.uri, path);
-  if (uri.scheme !== 'file') return true;
-  try {
-    const [root, file] = await Promise.all([realpath(folder.uri.fsPath), realpath(uri.fsPath)]);
-    const rel = relativePath(root, file);
-    return !rel.startsWith('..') && !isAbsolute(rel);
-  } catch {
-    return false;
-  }
-}
-
 /**
  * A workspace folder's Ansible files for the tools: inside the folder only (through symlinks too),
  * read-only, the same kinds and sizes the MCP server reads (AFD-37, core/ai/sourceRules).
@@ -102,7 +88,13 @@ async function resolve(path: string, mustExist = true, exportFile = false): Prom
           ...(first === f.name && rest.length ? [vscode.Uri.joinPath(f.uri, ...rest)] : []),
         ];
       });
-  const inside = candidates.filter((u) => vscode.workspace.getWorkspaceFolder(u));
+  // AFD-137: inside a folder by path, and still inside once links are resolved.
+  const inside: vscode.Uri[] = [];
+  for (const u of candidates) {
+    const folder = vscode.workspace.getWorkspaceFolder(u);
+    if (folder && (await stillInside(folder, vscode.workspace.asRelativePath(u, false))))
+      inside.push(u);
+  }
   for (const uri of inside) if (await exists(uri)) return uri;
   if (!mustExist && inside[0]) return inside[0];
   throw new Error(

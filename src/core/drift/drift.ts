@@ -7,7 +7,7 @@ import { acceptedAll } from '../flow/decisions';
 import { type FlowModel, modelOf } from '../flow/model';
 import { isFailPort } from '../flow/ports';
 import type { ContractField, ContractType, FlowDocument, FlowNode, Ulid } from '../flow/types';
-import { roleName } from './stub';
+import { isLocalRoleName, roleName } from './stub';
 import type {
   CodeOrigin,
   CodePlay,
@@ -331,7 +331,15 @@ function checkNode(
         detail: `Role ${impl.ref} is not in roles_path.`,
         severity: 'warning',
         actions: [
-          { label: 'Create Role', action: { kind: 'generateStub', node: id, role: impl.ref } },
+          // AFD-135: only a name that makes a folder under roles/ gets Create Role.
+          ...(isLocalRoleName(impl.ref)
+            ? [
+                {
+                  label: 'Create Role',
+                  action: { kind: 'generateStub' as const, node: id, role: impl.ref },
+                },
+              ]
+            : []),
           { label: 'Bind Role', action: { kind: 'bind', node: id, bindKind: 'role' } },
         ],
       });

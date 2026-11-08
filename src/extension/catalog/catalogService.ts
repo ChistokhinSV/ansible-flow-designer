@@ -18,6 +18,7 @@ import type {
 import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { CatalogIndex, INDEX_SCHEMA } from '../../node/catalog/catalogIndex';
 import type { BuildJob, BuildResult } from '../../node/catalog/catalogWorker';
+import { checkedManifest } from '../../node/catalog/dumpFiles';
 import type { ProbeClient } from '../../node/env/probeClient';
 import { TIMEOUTS } from '../../node/timeouts';
 import type { ProbeManager } from '../env/environment';
@@ -154,16 +155,17 @@ export class CatalogService implements vscode.Disposable {
     step('Reading plugin docs from the environment…');
     const call = () =>
       probe.client.call<Manifest>('catalog', { cache: probe.cache, jobs: 8 }, TIMEOUTS.catalogDump);
-    let manifest = await call();
     const cache = cacheDir(this.deps.storage);
+    let manifest = checkedManifest(await call(), cache);
     if (rebuild) {
       e.index?.close();
       e.index = undefined;
       // Rebuild means the dumps too: a dump from a broken collection install is not kept.
-      for (const c of manifest.collections) rmSync(join(cache, c.file), { force: true });
+      for (const c of manifest.collections)
+        if (c.file) rmSync(join(cache, c.file), { force: true });
       rmSync(join(cache, indexName(manifest)), { force: true });
       step('Reading plugin docs again…');
-      manifest = await call();
+      manifest = checkedManifest(await call(), cache);
     }
     const failed = manifest.collections.filter((c) => c.error).map((c) => c.name);
     const path = join(cache, indexName(manifest));

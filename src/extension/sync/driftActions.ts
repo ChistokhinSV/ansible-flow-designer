@@ -3,7 +3,7 @@
 // stub (the binding) goes into the same WorkspaceEdit as the new files.
 import * as vscode from 'vscode';
 import { tasksFromOf } from '../../core/drift/drift';
-import { addSpecEntry, argumentSpecsText, roleStub } from '../../core/drift/stub';
+import { addSpecEntry, argumentSpecsText, isLocalRoleName, roleStub } from '../../core/drift/stub';
 import type { CodeScan } from '../../core/drift/types';
 import type { FlowCommand } from '../../core/flow/commands';
 import { buildModel } from '../../core/flow/model';
@@ -40,6 +40,12 @@ function folderOf(uri: vscode.Uri): vscode.WorkspaceFolder {
 export async function generateStub(host: DriftHost, nodeId: string, role: string) {
   const node = buildModel(host.doc).nodes.get(nodeId)?.node;
   if (!node) return { ok: false, error: `No node ${nodeId}` };
+  // AFD-135: the role comes from the flow (or a message); it names one folder under roles/.
+  if (!isLocalRoleName(role))
+    return {
+      ok: false,
+      error: `"${role}" is not a role name Create Role can use (letters, digits, _ and -)`,
+    };
   const folder = folderOf(host.uri);
   const files = roleStub(node, host.doc.flow, role).map((f) => ({
     uri: vscode.Uri.joinPath(folder.uri, f.path),

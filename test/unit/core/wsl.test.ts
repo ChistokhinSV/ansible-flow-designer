@@ -93,14 +93,17 @@ describe('the WSL environment (AFD-75)', () => {
     );
     expect(spec.command).toBe('wsl.exe');
     expect(spec.args.slice(0, 6)).toEqual([...START, 'env']);
-    expect(spec.args.slice(-3, -1)).toEqual(['sh', '-c']);
-    expect(spec.args.at(-1)?.startsWith(PROFILE)).toBe(true);
+    // AFD-131: the run's name is the shell's $0, which the stop command finds it by.
+    expect(spec.args.slice(-4, -2)).toEqual(['sh', '-c']);
+    expect(spec.args.at(-1)).toBe('n');
+    expect(spec.args.at(-2)?.startsWith(PROFILE)).toBe(true);
     expect(spec.args).toContain('AFD_EVENTS=/mnt/c/runs/1/events.jsonl');
     expect(spec.args).toContain('ANSIBLE_CONFIG=/mnt/c/HOME/my repo/ansible.cfg');
     expect(spec.args).toContain('ANSIBLE_CALLBACK_PLUGINS=/mnt/c/ext/probe/callback_plugins');
     expect(spec.args.join(' ')).not.toMatch(/AFD_VAULT_PASSWORD=|AFD_SECRET_VARS=/);
     expect(spec.env).toEqual({ WSLENV: 'AFD_VAULT_PASSWORD/u:AFD_SECRET_VARS/u' });
-    expect(spec.args.at(-1)).toContain('-e @/mnt/c/runs/1/vars.json -e @"$sv" --check');
+    expect(spec.args.at(-2)).toContain('-e @/mnt/c/runs/1/vars.json -e @"$sv" --check');
+    expect(spec.stop?.command).toBe('wsl.exe');
     expect(spec.cwd).toBeUndefined();
   });
 

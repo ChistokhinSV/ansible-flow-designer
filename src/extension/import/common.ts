@@ -1,8 +1,10 @@
 // What every import command shares (M9, AFD-26): the target repository, the flow key, files read
 // from the workspace, writing the new flow, and the message that announces it.
+import { realpath } from 'node:fs/promises';
+import { dirname, isAbsolute, relative as relativePath } from 'node:path';
 import * as vscode from 'vscode';
 import { SLUG, slugify, uniqueKey } from '../../core/flow/ids';
-import type { SourceIO } from '../../core/import/read';
+import { normalize, type SourceIO } from '../../core/import/read';
 import type { ImportResult } from '../../core/import/result';
 
 export async function exists(uri: vscode.Uri): Promise<boolean> {
@@ -60,23 +62,57 @@ export async function freeKeys(folder: vscode.WorkspaceFolder, names: string[]):
   });
 }
 
-/** The workspace folder's files as an import reads them (repository paths, forward slashes). */
+/**
+ * Whether a workspace path stays inside the folder once links are resolved (AFD-136). A path
+ * that does not exist yet counts by its nearest existing parent.
+ */
+export async function stillInside(folder: vscode.WorkspaceFolder, path: string): Promise<boolean> {
+  const uri = vscode.Uri.joinPath(folder.uri, ...path.split('/').filter(Boolean));
+  if (uri.scheme !== 'file') return true;
+  const real = async (p: string): Promise<string> => {
+    for (let at = p; ; at = dirname(at)) {
+      try {
+        return await realpath(at);
+      } catch {
+        if (dirname(at) === at) return at;
+      }
+    }
+  };
+  const [root, file] = await Promise.all([real(folder.uri.fsPath), real(uri.fsPath)]);
+  const rel = relativePath(root, file);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/** A playbook, vars file or role file an import reads whole: anything bigger is not one. */
+const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The workspace folder's files as an import reads them (repository paths, forward slashes).
+ * AFD-136: include_tasks, vars_files, role names and AWX playbook paths come from the files being
+ * imported, so every path must stay inside the folder (`..` and links leading out are refused)
+ * and a file is read only up to IMPORT_MAX_BYTES.
+ */
 export function workspaceSource(folder: vscode.WorkspaceFolder): SourceIO {
   const uri = (path: string) => vscode.Uri.joinPath(folder.uri, ...path.split('/').filter(Boolean));
+  const allowed = async (path: string) =>
+    !normalize(path).startsWith('..') && (await stillInside(folder, path));
   return {
     async read(path) {
+      if (!(await allowed(path))) return undefined;
       try {
         // Open editors win, so an unsaved playbook imports as shown.
         const open = vscode.workspace.textDocuments.find(
           (d) => d.uri.toString() === uri(path).toString(),
         );
         if (open) return open.getText();
+        if ((await vscode.workspace.fs.stat(uri(path))).size > IMPORT_MAX_BYTES) return undefined;
         return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri(path)));
       } catch {
         return undefined;
       }
     },
     async list(dir) {
+      if (!(await allowed(dir))) return [];
       try {
         return (await vscode.workspace.fs.readDirectory(uri(dir))).map(([name, type]) => ({
           name,
@@ -86,7 +122,7 @@ export function workspaceSource(folder: vscode.WorkspaceFolder): SourceIO {
         return [];
       }
     },
-    exists: (path) => exists(uri(path)),
+    exists: async (path) => (await allowed(path)) && exists(uri(path)),
   };
 }
 

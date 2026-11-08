@@ -5,11 +5,18 @@
 import * as vscode from 'vscode';
 import { awxEventsToLines, playNodes } from '../../core/awx/events';
 import { launchVars, surveyAction, surveyFor } from '../../core/awx/survey';
-import { type AwxJob, type AwxJobEvent, type AwxNamed, FINISHED } from '../../core/awx/types';
+import {
+  type AwxJob,
+  type AwxJobEvent,
+  type AwxJobTemplate,
+  type AwxNamed,
+  FINISHED,
+} from '../../core/awx/types';
 import { engineFor } from '../../core/engine/engines';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import type { FlowCommand } from '../../core/flow/commands';
 import { parseFlow } from '../../core/flow/document';
+import { flowFileKey } from '../../core/flow/ids';
 import { formatOf } from '../../core/flow/migrate';
 import { buildModel, modelOf } from '../../core/flow/model';
 import type { SchemaValidator } from '../../core/flow/schema';
@@ -115,6 +122,15 @@ function settings(scope: vscode.Uri): { url: string; verifyTls: boolean } {
 }
 
 const tokenKey = (url: string) => `afd.awx.token:${url}`;
+
+/**
+ * AFD-140: the flow decides which AWX template runs, with which extra vars, and (format 2) which
+ * credentials and execution environment the template gets. In Restricted Mode the user-level AWX
+ * address and token would still be used, so setting up and launching need a trusted workspace,
+ * as local runs do. Importing from AWX only reads, and stays allowed.
+ */
+export const AWX_UNTRUSTED =
+  'This workspace is not trusted, so Ansible Flow does not set up or launch AWX templates from its flows: trust the workspace first';
 
 export async function awxClient(
   scope: vscode.Uri,
@@ -257,6 +273,7 @@ export async function setupTemplate(
   deps: AwxDeps,
   picks?: AwxPicks,
 ): Promise<{ ok: boolean; error?: string; template?: string; survey?: SurveyOutcome }> {
+  if (!vscode.workspace.isTrusted) return { ok: false, error: AWX_UNTRUSTED };
   const doc = parseFlow(document.getText()).doc;
   const folder = vscode.workspace.getWorkspaceFolder(document.uri);
   if (!doc || !folder)
@@ -306,6 +323,16 @@ export async function setupTemplate(
       credentials = all.filter((c) => wantCreds?.includes(c.name));
       const missing = (wantCreds ?? []).filter((n) => !credentials.some((c) => c.name === n));
       if (missing.length) return { ok: false, error: `No AWX credential ${missing.join(', ')}` };
+      // AFD-140: credentials the flow file names are attached only once the user agrees.
+      if (!picks && credentials.length) {
+        const attach = 'Attach Credentials';
+        const go = await vscode.window.showWarningMessage(
+          `The flow asks for the AWX credentials ${credentials.map((c) => `"${c.name}"`).join(', ')} on its template. Attach them?`,
+          { modal: true, detail: 'They come from flow.runtime.credentials in the flow file.' },
+          attach,
+        );
+        if (go !== attach) return { ok: false, error: 'Cancelled' };
+      }
     } else {
       const chosen = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, item: c })),
@@ -355,11 +382,23 @@ export async function setupTemplate(
     }
     const playbook = relativeTo(
       folder.uri,
-      vscode.Uri.joinPath(generatedDir(document.uri), `${doc.flow.key}.yml`),
+      vscode.Uri.joinPath(generatedDir(document.uri), `${flowFileKey(doc.flow.key)}.yml`),
     );
     const missing = await missingPlaybooks(awx, project, [playbook]);
     if (missing) return { ok: false, error: missing };
     const name = templateName(doc);
+    // AFD-140: a template of that name made for another project or playbook (another flow with
+    // the same key) is changed only once the user agrees.
+    const existing = await awx.named<AwxJobTemplate>('job_templates', name);
+    if (!picks && existing && (existing.project !== project.id || existing.playbook !== playbook)) {
+      const update = 'Update Template';
+      const go = await vscode.window.showWarningMessage(
+        `AWX already has a job template "${name}" that runs ${existing.playbook || 'another playbook'}. Point it at this flow's ${playbook}?`,
+        { modal: true, detail: 'Another flow with the same key may use it.' },
+        update,
+      );
+      if (go !== update) return { ok: false, error: 'Cancelled' };
+    }
     const jt = await awx.upsertTemplate({
       name,
       description: `Ansible Flow Designer: ${doc.flow.name} (${doc.flow.key}), generated playbook`,
@@ -417,6 +456,7 @@ export async function launchInAwx(
       'The flow has no AWX job template: run "Set Up AWX Template" first',
       'awx-template',
     );
+  if (!vscode.workspace.isTrusted) return fail(AWX_UNTRUSTED, 'environment');
   const awx = await awxClient(document.uri, deps.secrets);
   if ('error' in awx) return fail(awx.error, awx.code);
 

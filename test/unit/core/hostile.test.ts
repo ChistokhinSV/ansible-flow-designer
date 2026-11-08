@@ -1,18 +1,37 @@
 // AFD-125: what a hostile repository, flow, playbook or clipboard must not be able to do. Each case
 // is a finding of the 0.74.1 code review, kept as a regression test.
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 import { TOOL_SPECS } from '../../../src/core/ai/specs';
-import { roleStub } from '../../../src/core/drift/stub';
+import { isLocalRoleName, roleStub } from '../../../src/core/drift/stub';
 import { optionA } from '../../../src/core/engine/optionA';
 import { commentLine, oneLine } from '../../../src/core/engine/yamlWriter';
+import {
+  createIdFactory,
+  flowFileId,
+  flowFileKey,
+  isFileId,
+  isFileKey,
+} from '../../../src/core/flow/ids';
+import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { parseAnsible } from '../../../src/core/import/read';
 import { probeProcess, runProcess } from '../../../src/core/run/command';
+import { scenariosFileName } from '../../../src/core/scenario/scenarios';
+import { FsFlowIO } from '../../../src/mcp/fsIO';
 import { removeSkill, skillState, writeSkill } from '../../../src/node/ai/writers';
+import { checkedManifest } from '../../../src/node/catalog/dumpFiles';
 import {
   environmentSettings,
   userSettingsCandidates,
@@ -362,6 +381,17 @@ describe('AFD-131: stopping a run, a scenario or a probe removes its container',
     expect(runProcess(local, paths, request, 'n').stop).toBeUndefined();
   });
 
+  it('ends a WSL run by its name, in two parts so the stopper never matches itself', () => {
+    const wsl = { kind: 'wsl' as const, distro: 'Debian', label: 'wsl' };
+    const spec = runProcess(wsl, paths, request, 'afd-run-01abc');
+    expect(spec.args.at(-1)).toBe('afd-run-01abc');
+    const stop = spec.stop?.args ?? [];
+    expect(stop.slice(0, 5)).toEqual(['-d', 'Debian', '-e', 'sh', '-c']);
+    expect(stop.slice(-3)).toEqual(['afd-stop', 'afd-run', '-01abc']);
+    expect(stop.join(' ')).not.toContain('afd-run-01abc');
+    expect(stop[5]).toContain('env kill -TERM -- "-$g"');
+  });
+
   it('stopStarted never rejects, also when the engine is missing', async () => {
     await expect(
       stopStarted({
@@ -372,5 +402,96 @@ describe('AFD-131: stopping a run, a scenario or a probe removes its container',
       }),
     ).resolves.toBeUndefined();
     await expect(stopStarted({ command: 'x', args: [], env: {} })).resolves.toBeUndefined();
+  });
+});
+
+describe('AFD-133: a flow key or ID from the file never names a path', () => {
+  it('accepts slugs and ULIDs, and throws on anything else', () => {
+    expect(flowFileKey('edge-baseline')).toBe('edge-baseline');
+    expect(flowFileId('01JBX4Y5Z6A7B8C9D0E1F2G3H4')).toBe('01JBX4Y5Z6A7B8C9D0E1F2G3H4');
+    for (const key of ['../../x', 'a/b', 'A', '', 'x.', 7, undefined])
+      expect(() => flowFileKey(key)).toThrow(/not a lowercase slug/);
+    for (const id of ['../../home/u/work', '01jbx4y5z6a7b8c9d0e1f2g3h4', 'F1', null])
+      expect(() => flowFileId(id)).toThrow(/not a ULID/);
+    expect(() => scenariosFileName('../../../Users/me/x')).toThrow(/not a lowercase slug/);
+    expect(scenariosFileName('hello')).toBe('hello.scenarios.yaml');
+    expect(isFileKey('../x')).toBe(false);
+    expect(isFileId('01JBX4Y5Z6A7B8C9D0E1F2G3H4')).toBe(true);
+  });
+});
+
+describe('AFD-134: catalog dump names from the environment stay in the cache', () => {
+  it('fails the collections whose file is not <minor>/<ns>.<name>@<version>.json', () => {
+    const cache = join(tmpdir(), 'afd-cache');
+    const checked = checkedManifest(
+      {
+        core: '2.19.3',
+        collections: [
+          { name: 'ansible.builtin', version: '2.19.3', file: '2.19/ansible.builtin@2.19.3.json' },
+          { name: 'ns.coll', version: '*', file: '2.19/ns.coll@*.json' },
+          { name: 'evil.x', version: '1', file: '1.0/../../../../Users/x/Documents/a.json' },
+          { name: 'evil.y', version: '1', file: '/etc/passwd' },
+          { name: 'evil.z', version: '1', file: '2.19/../../x@1.json' },
+        ],
+      },
+      cache,
+    );
+    expect(checked.collections.map((c) => [c.name, !c.error])).toEqual([
+      ['ansible.builtin', true],
+      ['ns.coll', true],
+      ['evil.x', false],
+      ['evil.y', false],
+      ['evil.z', false],
+    ]);
+    expect(checked.collections.filter((c) => c.error).every((c) => c.file === '')).toBe(true);
+  });
+});
+
+describe('AFD-135: Create Role makes one folder under roles/', () => {
+  it('accepts plain and legacy Galaxy names, nothing that leaves roles/ or is a collection role', () => {
+    for (const ok of ['backup', 'push_config', 'my-role', 'geerlingguy.docker'])
+      expect(isLocalRoleName(ok)).toBe(true);
+    for (const bad of ['../../x', 'a/b', 'ns.coll.role', '..', '.x', '', 'C:x', 'x\u0000'])
+      expect(isLocalRoleName(bad)).toBe(false);
+  });
+});
+
+describe('AFD-137: MCP writes do not follow links out of the roots', () => {
+  const mcp = (root: string) => new FsFlowIO([root], createSchemaValidator(), createIdFactory());
+
+  it('refuses a new flow under a linked folder that leads out', async () => {
+    const base = temp();
+    const ws = join(base, 'ws');
+    const home = join(base, 'home');
+    mkdirSync(ws, { recursive: true });
+    mkdirSync(home, { recursive: true });
+    symlinkSync(home, join(ws, 'flows'), 'junction');
+    await expect(
+      mcp(ws).create('flows/x/x.flow.yaml', 'flow: {key: x}\nnodes: []\n'),
+    ).rejects.toThrow(/outside/);
+    expect(existsSync(join(home, 'x'))).toBe(false);
+  });
+
+  it('refuses an export through a linked folder or onto a link', async () => {
+    const base = temp();
+    const ws = join(base, 'ws');
+    const out = join(base, 'out');
+    mkdirSync(ws, { recursive: true });
+    mkdirSync(out, { recursive: true });
+    symlinkSync(out, join(ws, 'exports'), 'junction');
+    await expect(mcp(ws).writeExport('exports/a/b.svg', '<svg/>')).rejects.toThrow(/outside/);
+    expect(existsSync(join(out, 'a'))).toBe(false);
+    write(join(out, 'target.svg'), 'keep');
+    let fileLinks = true;
+    try {
+      symlinkSync(join(out, 'target.svg'), join(ws, 'x.svg'), 'file');
+    } catch {
+      fileLinks = false; // Windows without Developer Mode: no file links to test with.
+    }
+    if (fileLinks) {
+      await expect(mcp(ws).writeExport('x.svg', '<svg/>')).rejects.toThrow(/is a link/);
+      expect(readFileSync(join(out, 'target.svg'), 'utf8')).toBe('keep');
+    }
+    expect(await mcp(ws).writeExport('plain/y.svg', '<svg/>')).toBe('plain/y.svg');
   });
 });

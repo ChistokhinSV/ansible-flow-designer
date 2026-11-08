@@ -28,3 +28,8 @@ Local runs and the Ansible probe (module catalog, lenses, Re-sync) use the repos
 The workspace's values of the `afd.environment.*` and `afd.awx.*` settings are ignored there, so
 an untrusted repository cannot choose the program that runs or the AWX your token goes to: only
 your user settings apply.
+
+Setting up and launching AWX templates wait for trust too, because the flow chooses the template,
+its extra vars and (format 2) its credentials. Importing from AWX only reads, and works anyway.
+When a flow file names credentials, **Set Up AWX Template** asks before it attaches them, and
+it asks before it changes a template of the same name that runs another playbook.

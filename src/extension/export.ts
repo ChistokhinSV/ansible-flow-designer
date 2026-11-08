@@ -9,6 +9,7 @@ import { toDrawio } from '../core/export/drawio';
 import { embedDiagramInPng } from '../core/export/png';
 import { type ExportSource, levelSuffix, type Scene, scenesOf } from '../core/export/scene';
 import { sceneSvg } from '../core/export/svg';
+import { isFileKey } from '../core/flow/ids';
 import { ROOT } from '../core/flow/model';
 import { CMD } from './commands/ids';
 import type { FlowSession } from './flowSession';
@@ -87,7 +88,10 @@ export async function exportDrawio(
       ? vscode.Uri.file(opts.out)
       : await vscode.window.showSaveDialog({
           title: 'Export flow as a draw.io diagram',
-          defaultUri: vscode.Uri.joinPath(folderOf(session.uri), `${src.doc.flow.key}.drawio`),
+          defaultUri: vscode.Uri.joinPath(
+            folderOf(session.uri),
+            `${isFileKey(src.doc.flow.key) ? src.doc.flow.key : 'flow'}.drawio`,
+          ),
           filters: { 'draw.io diagram': ['drawio'] },
         });
     if (!target) return [];
@@ -172,7 +176,7 @@ export async function exportImage(
               : 'Export as image',
           defaultUri: vscode.Uri.joinPath(
             folderOf(session.uri),
-            `${src.doc.flow.key}${levelSuffix(first)}.drawio.${format}`,
+            `${isFileKey(src.doc.flow.key) ? src.doc.flow.key : 'flow'}${levelSuffix(first)}.drawio.${format}`,
           ),
           filters: { [format.toUpperCase()]: [format] },
         });

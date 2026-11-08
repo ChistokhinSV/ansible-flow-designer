@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.74.3 — AFD-131, AFD-133 to AFD-137, AFD-140
+
+More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace, and runs in WSL stop when you stop them.
+
+- **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
+- **Flow keys and IDs:** a key that is not a lowercase slug, or an ID that is not a ULID, never names a file or a folder. The scenarios file, the run and scenario folders, the run history and `generated/<key>.yml` are refused for such a flow instead of being written elsewhere; fix the key, or run Complete IDs.
+- **Module catalog:** a collection whose name or version would make its dump file land outside the catalog cache is left out of the catalog, both in the environment and in VS Code.
+- **Create Role** (Code mode) is offered only for a role name that makes one folder under `roles/`: not for a collection role, and not for a name with a path in it.
+- **Import:** `include_tasks`, `vars_files`, role names and AWX playbook paths that lead outside the workspace folder, through `..` or a link, are not read. A file is read only up to 2 MB.
+- **AI tools:** the MCP server and Copilot's flow tools decide a new file or an export by the folder it is written through, links followed, so a linked `flows/` or `generated/` folder cannot lead outside the workspace. An export onto an existing link is refused.
+- **AWX in Restricted Mode:** Set Up AWX Template and launching in AWX need a trusted workspace, as local runs do. Importing from AWX only reads and still works. Set Up asks before it attaches credentials the flow file names, and before it changes a template of the same name that runs another playbook.
+
 ## 0.74.2 — AFD-126 to AFD-132
 
 Security fixes from a code review (AFD-125). The flows you design work as before. Several things a cloned repository, a flow file or a playbook could make the extension do are now refused.

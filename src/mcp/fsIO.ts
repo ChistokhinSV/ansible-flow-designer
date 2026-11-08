@@ -14,6 +14,7 @@ import { isSourceFile, SKIP_DIRS, SOURCE_MAX_BYTES } from '../core/ai/sourceRule
 import { planGenerated } from '../core/engine/writePlan';
 import { parseFlow } from '../core/flow/document';
 import type { IdFactory } from '../core/flow/ids';
+import { isFileKey } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
@@ -47,6 +48,20 @@ function real(path: string): string {
     return realpathSync.native(path);
   } catch {
     return resolve(path);
+  }
+}
+
+/**
+ * AFD-137: the real path of `path`, or of its nearest ancestor that exists. A file that does not
+ * exist yet is decided by the folder it would be written through, links followed.
+ */
+function nearestReal(path: string): string {
+  for (let p = resolve(path); ; p = dirname(p)) {
+    try {
+      return realpathSync.native(p);
+    } catch {
+      if (dirname(p) === p) return p;
+    }
   }
 }
 
@@ -160,10 +175,11 @@ export class FsFlowIO implements FlowIO {
       try {
         if ((await fs.stat(target)).isFile()) return target;
       } catch {
-        if (!mustExist && this.roots.some((r) => inside(r, real(dirname(c))))) return target;
+        // AFD-137: a missing parent is decided by its nearest existing ancestor, links followed.
+        if (!mustExist && this.roots.some((r) => inside(r, nearestReal(dirname(c))))) return target;
       }
     }
-    const within = candidates.some((c) => this.roots.some((r) => inside(r, real(c))));
+    const within = candidates.some((c) => this.roots.some((r) => inside(r, nearestReal(c))));
     throw new Error(
       within
         ? `No flow ${path}; flow_list shows the flows`
@@ -226,7 +242,7 @@ export class FsFlowIO implements FlowIO {
   private async followScenarios(file: string, before: string, after: string): Promise<string[]> {
     const was = parseFlow(before).doc;
     const now = parseFlow(after).doc;
-    if (!was?.flow?.key || !now) return [];
+    if (!was || !isFileKey(was.flow?.key) || !now) return [];
     const changes = pathChanges(was, now);
     if (changes.moved.size === 0) return [];
     const scenarios = join(dirname(file), scenariosFileName(was.flow.key));
@@ -243,10 +259,11 @@ export class FsFlowIO implements FlowIO {
       throw new Error(`${path}: exports are .drawio or .svg files`);
     const target = isAbsolute(path) ? resolve(path) : resolve(this.roots[0] ?? '.', path);
     // The nearest existing folder decides, symlinks followed, so a link cannot lead outside.
-    let dir = dirname(target);
-    while (dir !== dirname(dir) && !(await fs.stat(dir).catch(() => undefined))) dir = dirname(dir);
-    if (!this.roots.some((r) => inside(r, target) && inside(r, real(dir))))
+    if (!this.roots.some((r) => inside(r, target) && inside(r, nearestReal(dirname(target)))))
       throw new Error(`${path} is outside ${this.roots.map(posix).join(', ')}`);
+    // AFD-137: an existing link at the target would be written through.
+    if ((await fs.lstat(target).catch(() => undefined))?.isSymbolicLink())
+      throw new Error(`${path} is a link; export to another file name`);
     await fs.mkdir(dirname(target), { recursive: true });
     await fs.writeFile(target, text, 'utf8');
     return this.show(target);
@@ -271,6 +288,9 @@ export class FsFlowIO implements FlowIO {
     if (!(await this.codegenOnSave(root)))
       return ['generated/ not updated (afd.codegen.onSave is off)'];
     const dir = join(dirname(file), 'generated');
+    // AFD-137: generated/ may be a link only to a folder inside the roots.
+    if (!this.roots.some((r) => inside(r, nearestReal(dir))))
+      return ['generated/ not updated: it leads outside the workspace'];
     const plan = await planGenerated(
       text,
       this.schema,
@@ -334,6 +354,7 @@ export class FsFlowIO implements FlowIO {
     }
     const doc = parseFlow(await fs.readFile(file, 'utf8')).doc;
     if (!doc?.flow?.key) return 'The flow does not read';
+    if (!isFileKey(doc.flow.key)) return 'The flow key is not a lowercase slug: fix it first';
     const parsed = parseScenarios(
       (await fs
         .readFile(join(dirname(file), scenariosFileName(doc.flow.key)), 'utf8')

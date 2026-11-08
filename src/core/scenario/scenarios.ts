@@ -4,6 +4,7 @@
 // hosts, and the run's routing events say where each host really ended. Pure: the host or the CLI
 // writes the files and runs ansible-playbook.
 import { parse } from 'yaml';
+import { flowFileKey } from '../flow/ids';
 import { modelOf } from '../flow/model';
 import { portsFor } from '../flow/ports';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
@@ -52,7 +53,8 @@ export interface ScenarioProblem {
   severity?: 'warning';
 }
 
-export const scenariosFileName = (flowKey: string) => `${flowKey}.scenarios.yaml`;
+/** `<key>.scenarios.yaml`; a key that is not a slug throws (AFD-133). */
+export const scenariosFileName = (flowKey: string) => `${flowFileKey(flowKey)}.scenarios.yaml`;
 
 export function parseScenarios(text: string): { file?: ScenarioFile; error?: string } {
   let data: unknown;

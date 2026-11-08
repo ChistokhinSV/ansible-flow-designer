@@ -43,7 +43,7 @@ Everything Ansible Flow Designer does, in one list. New here? Start with [Tutori
   - _Run for Real…_ first shows a confirmation naming the inventory, host count, hosts missing from the inventory and production-looking groups.
   - The vault password is asked per run when vault data is present, and is passed through an environment variable only. Secret-looking inputs travel the same way and are never remembered; other input values are deleted when the run ends.
   - Every launch is written to a local audit log (_Show Run Audit Log_), without input values. The log rotates at 1 MB; each flow keeps the events of its last runs (`afd.runs.keep`, 30).
-  - **Restricted Mode:** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync) and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
+  - **Restricted Mode:** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync), AWX setup and launch, and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
 - **Syntax check:** _Check Flow_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Right-click menu:** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
   - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify On-Call and Stop, Accept with Reason…), Add Next Node…, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.

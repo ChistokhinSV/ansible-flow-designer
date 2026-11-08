@@ -31,6 +31,35 @@ const containerStop = (env: Extract<Environment, { kind: 'container' }>, name: s
   args: ['rm', '-f', name],
 });
 
+/**
+ * AFD-131: ends a WSL run from Windows. Killing wsl.exe leaves ansible-playbook running in the
+ * distribution, so the run's shell carries its name as `$0`, and this finds it with pgrep and
+ * ends its process group (a `wsl -e` shell leads its own group), or the shell and its children
+ * when it does not. The name is passed in two parts so the pattern never matches this shell.
+ * `env kill`: dash's built-in kill takes no negative process group.
+ */
+const WSL_STOP =
+  'for p in $(pgrep -f -- "$1$2"); do g=$(ps -o pgid= -p "$p" | tr -d " "); ' +
+  'if [ "$g" = "$p" ]; then env kill -TERM -- "-$g"; else pkill -TERM -P "$p"; env kill -TERM "$p"; fi; ' +
+  'done 2>/dev/null; true';
+
+const wslStop = (env: Extract<Environment, { kind: 'wsl' }>, name: string) => {
+  const half = Math.ceil(name.length / 2);
+  return {
+    command: 'wsl.exe',
+    args: [
+      ...(env.distro ? ['-d', env.distro] : []),
+      '-e',
+      'sh',
+      '-c',
+      WSL_STOP,
+      'afd-stop',
+      name.slice(0, half),
+      name.slice(half),
+    ],
+  };
+};
+
 export interface Paths {
   /** Repository root on this machine. */
   root: string;
@@ -259,8 +288,10 @@ export function runProcess(
     const vars = Object.entries(variables).map(([k, v]) => `${k}=${v}`);
     return {
       command: 'wsl.exe',
-      args: [...wslArgs(env, root), 'env', ...vars, 'sh', '-c', `${WSL_PROFILE}; ${script}`],
+      // The name is the shell's $0, which WSL_STOP finds it by (AFD-131).
+      args: [...wslArgs(env, root), 'env', ...vars, 'sh', '-c', `${WSL_PROFILE}; ${script}`, name],
       env: pass.length ? { WSLENV: pass.join(':') } : {},
+      stop: wslStop(env, name),
     };
   }
   return { command: 'sh', args: ['-c', script], env: variables, cwd: paths.root };

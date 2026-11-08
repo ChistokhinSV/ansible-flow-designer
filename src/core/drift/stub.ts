@@ -59,6 +59,14 @@ export function argumentSpecsText(node: FlowNode, entry = 'main'): string {
   return `${[head, '---', ...writeBlock({ argument_specs: { [entry]: specEntry(node) } }, 0)].join('\n')}\n`;
 }
 
+/**
+ * A role Create Role may make under `roles/` (AFD-135): a plain name, or a legacy Galaxy
+ * `author.role`. The name comes from the flow's binding, so a ref like `../../x` must not become a
+ * folder outside the repository; a collection role (`ns.coll.role`) is never created here either.
+ */
+export const isLocalRoleName = (name: unknown): name is string =>
+  typeof name === 'string' && /^[\w-]+(\.[\w-]+)?$/.test(name);
+
 /** Files of a role stub (repository-relative), for a node that has no code yet. */
 export function roleStub(
   node: FlowNode,

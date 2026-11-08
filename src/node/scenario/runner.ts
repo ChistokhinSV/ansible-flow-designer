@@ -55,15 +55,24 @@ function exec(
   signal?: AbortSignal,
 ): Promise<number | null> {
   return new Promise((resolve) => {
+    // AFD-131: on Linux and macOS the run gets a process group of its own, so a stop ends
+    // ansible-playbook too, not only the shell that started it.
+    const group = process.platform !== 'win32';
     const child = spawn(spec.command, spec.args, {
       cwd: spec.cwd,
       env: { ...process.env, ...spec.env },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: group,
     });
-    // AFD-131: killing the client leaves a container running; remove it as well.
+    // Killing the client leaves a container or a WSL process running; spec.stop ends those.
     const stop = () => {
-      child.kill();
+      try {
+        if (group && child.pid) process.kill(-child.pid, 'SIGTERM');
+        else child.kill();
+      } catch {
+        child.kill();
+      }
       void stopStarted(spec);
     };
     const timer = setTimeout(stop, timeoutMs);

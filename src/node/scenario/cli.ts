@@ -4,6 +4,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parse } from 'yaml';
+import { isFileKey } from '../../core/flow/ids';
 import type { FlowDocument } from '../../core/flow/types';
 import {
   checkScenarios,
@@ -123,6 +124,8 @@ export function loadScenarioFlows(targets: readonly string[]): FlowScenarios[] {
   const out: FlowScenarios[] = [];
   for (const flowFile of targets.flatMap(flowsOf)) {
     const doc = parse(readFileSync(flowFile, 'utf8')) as FlowDocument;
+    // AFD-133: a key that cannot name a file names no scenarios file either.
+    if (!isFileKey(doc?.flow?.key)) continue;
     const scenariosFile = join(dirname(flowFile), scenariosFileName(doc.flow.key));
     if (!existsSync(scenariosFile)) continue;
     const parsed = parseScenarios(readFileSync(scenariosFile, 'utf8'));

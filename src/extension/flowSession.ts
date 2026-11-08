@@ -7,7 +7,7 @@ import { codePreview } from '../core/engine/preview';
 import { CommandError, type FlowCommand, planCommand } from '../core/flow/commands';
 import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow, parseFlow } from '../core/flow/document';
-import { type IdFactory, slugify } from '../core/flow/ids';
+import { type IdFactory, isFileId, isFileKey, slugify } from '../core/flow/ids';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
@@ -565,7 +565,7 @@ export class FlowSession implements vscode.Disposable {
       }
       case 'openScenarios': {
         const doc = (await this.snapshot()).doc;
-        if (doc?.flow?.key)
+        if (doc && isFileKey(doc.flow?.key))
           await vscode.window.showTextDocument(scenariosUri(this.uri, doc), {
             viewColumn: vscode.ViewColumn.Beside,
           });
@@ -863,7 +863,7 @@ export class FlowSession implements vscode.Disposable {
     const run = this.lastRun;
     const flowId = this.built?.parsed.doc?.flow.id;
     const storage = this.deps.lens?.storage;
-    if (run?.source !== 'local' || !flowId || !storage)
+    if (run?.source !== 'local' || !isFileId(flowId) || !storage)
       return { error: 'Output is kept for local runs only.' };
     if (run.state === 'running') return { error: 'The output shows once the run has ended.' };
     try {

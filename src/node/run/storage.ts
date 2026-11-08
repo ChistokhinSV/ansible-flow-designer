@@ -3,6 +3,7 @@
 // No vscode import: paths are plain folders, so unit tests use a temporary one.
 import { readdir, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { isFileId } from '../../core/flow/ids';
 
 /** Run folders kept per flow when `afd.runs.keep` is not set. */
 export const KEEP_RUNS = 30;
@@ -24,6 +25,8 @@ export async function dropVars(runDir: string): Promise<void> {
 
 /** Keeps the newest `keep` run folders of a flow (run ids are sortable time stamps). */
 export async function pruneRuns(storage: string, flowId: string, keep: number): Promise<void> {
+  // A flow ID that is not a ULID never names a folder here (AFD-133): the delete below is recursive.
+  if (!isFileId(flowId)) return;
   const n = Number.isInteger(keep) && keep >= 1 ? keep : KEEP_RUNS;
   const dir = join(storage, 'runs', flowId);
   const old = (await children(dir)).sort().slice(0, -n);

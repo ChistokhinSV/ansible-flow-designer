@@ -5,6 +5,7 @@ import { isAbsolute, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { tasksFromOf } from '../../core/drift/drift';
 import type { CodeScan, CompiledPlaybook, CompiledRole } from '../../core/drift/types';
+import { flowFileKey } from '../../core/flow/ids';
 import { buildModel } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RoleInfo } from '../../core/protocol';
@@ -41,7 +42,7 @@ export async function scanFlow(
   const flowDir = relativeTo(folder.uri, vscode.Uri.joinPath(uri, '..'));
   const generated = relativeTo(
     folder.uri,
-    vscode.Uri.joinPath(generatedDir(uri), `${doc.flow.key}.yml`),
+    vscode.Uri.joinPath(generatedDir(uri), `${flowFileKey(doc.flow.key)}.yml`),
   );
   const roles = new Map<string, { name: string; tasks_from: string | null }>();
   const playbooks = new Set<string>();

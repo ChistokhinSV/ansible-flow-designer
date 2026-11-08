@@ -1,11 +1,12 @@
 // Local run history in global storage (decision M8-2): one JSON file per flow id with the last 20
 // real runs started from VS Code (local and AWX). Timings only: no hosts, inputs or output.
 import * as vscode from 'vscode';
+import { flowFileId } from '../../core/flow/ids';
 import { appendEntry, type HistoryEntry, historyEntry } from '../../core/lens/history';
 import type { RunView } from '../../core/protocol';
 
 function fileOf(storage: vscode.Uri, flowId: string): vscode.Uri {
-  return vscode.Uri.joinPath(storage, 'history', `${flowId}.json`);
+  return vscode.Uri.joinPath(storage, 'history', `${flowFileId(flowId)}.json`);
 }
 
 export async function readHistory(storage: vscode.Uri, flowId: string): Promise<HistoryEntry[]> {

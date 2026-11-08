@@ -247,6 +247,18 @@ def _dump(name: str, version: str, path: str | None, core: str) -> dict:
     }
 
 
+_DUMP_COLLECTION = re.compile(r"^[\w-]+\.[\w-]+$", re.ASCII)
+_DUMP_VERSION = re.compile(r"^[\w.+*-]+$", re.ASCII)
+
+
+def _dump_name_ok(c: dict) -> bool:
+    """Whether `<name>@<version>.json` is one plain file name (AFD-134)."""
+    return bool(
+        _DUMP_COLLECTION.match(str(c.get("name", "")))
+        and _DUMP_VERSION.match(str(c.get("version", "")))
+    )
+
+
 def catalog(root: str, cache: str, jobs: int = 8, only: list[str] | None = None) -> dict:
     """Dumps what is missing from `cache` and returns the manifest of this environment.
 
@@ -263,6 +275,14 @@ def catalog(root: str, cache: str, jobs: int = 8, only: list[str] | None = None)
     ]
     if only:
         wanted = [c for c in wanted if c["name"] in only]
+    # AFD-134: the name and version become a file name in the cache, which local and WSL runs
+    # share with the host; a collection whose metadata could name another path is left out.
+    for c in [c for c in wanted if not _dump_name_ok(c)]:
+        print(
+            f"afd_probe: catalog skips {c['name']!r} {c['version']!r}: not a safe file name",
+            file=sys.stderr,
+        )
+    wanted = [c for c in wanted if _dump_name_ok(c)]
     todo = []
     entries = []
     for c in wanted:

@@ -2,6 +2,7 @@
 // rewrites the flow's scenarios file, in the same WorkspaceEdit. The file is read from its open
 // document when it has one (unsaved edits included). Changed with the flow, it is saved with it.
 import * as vscode from 'vscode';
+import { isFileKey } from '../../core/flow/ids';
 import type { FlowDocument } from '../../core/flow/types';
 import { followPaths, pathChanges } from '../../core/scenario/follow';
 import { scenariosFileName } from '../../core/scenario/scenarios';
@@ -41,7 +42,7 @@ export async function followScenarios(
   before: FlowDocument | null | undefined,
   after: FlowDocument | null | undefined,
 ): Promise<ScenarioFollow | undefined> {
-  if (!before?.flow?.key || !after) return undefined;
+  if (!before || !isFileKey(before.flow?.key) || !after) return undefined;
   const changes = pathChanges(before, after);
   if (changes.moved.size === 0) return undefined;
   const uri = scenariosUri(flow, before);

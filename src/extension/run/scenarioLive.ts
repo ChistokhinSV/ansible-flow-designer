@@ -7,6 +7,7 @@
 import { basename } from 'node:path';
 import * as vscode from 'vscode';
 import { parseFlow, rangeOf } from '../../core/flow/document';
+import { isFileKey } from '../../core/flow/ids';
 import type { FlowDocument } from '../../core/flow/types';
 import {
   planScenarioEdit,
@@ -121,7 +122,8 @@ export class ScenarioLive implements vscode.Disposable {
   async refresh(flow: vscode.Uri): Promise<ScenarioCheck | undefined> {
     const flowText = await textOf(flow);
     const doc = flowText === undefined ? undefined : parseFlow(flowText).doc;
-    if (!doc?.flow?.key) return undefined;
+    // AFD-133: a key that cannot name a file has no scenarios file to check.
+    if (!doc || !isFileKey(doc.flow?.key)) return undefined;
     const uri = scenariosUri(flow, doc);
     const text = await textOf(uri);
     const check = checkLive(doc, text, this.verdicts(flow));
@@ -143,6 +145,8 @@ export class ScenarioLive implements vscode.Disposable {
     doc: FlowDocument,
     request: ScenarioRequest,
   ): Promise<CommandOutcome> {
+    if (!isFileKey(doc.flow?.key))
+      return { ok: false, error: 'The flow key is not a lowercase slug: fix it first' };
     const uri = scenariosUri(flow, doc);
     const before = await textOf(uri);
     let cmd = request;
@@ -199,7 +203,8 @@ export class ScenarioLive implements vscode.Disposable {
     if (!stack?.length) return { ok: false, error: 'No scenario change to undo' };
     const flowText = await textOf(flow);
     const doc = flowText === undefined ? undefined : parseFlow(flowText).doc;
-    if (!doc?.flow?.key) return { ok: false, error: 'The flow does not read: fix it first' };
+    if (!doc || !isFileKey(doc.flow?.key))
+      return { ok: false, error: 'The flow does not read: fix it first' };
     const uri = scenariosUri(flow, doc);
     const before = stack.pop();
     if (before === undefined) {
