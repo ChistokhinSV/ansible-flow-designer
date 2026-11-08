@@ -22,6 +22,7 @@ import {
 } from '../../core/run/launch';
 import { redactLine, redactText, revealAfterRun, secretValues } from '../../core/run/redact';
 import { groupHosts, type InventoryTree } from '../../core/view/inventoryTree';
+import { stopStarted } from '../../node/run/stop';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { tailFile } from '../../node/run/tail';
 import { TIMEOUTS } from '../../node/timeouts';
@@ -387,6 +388,9 @@ export async function runFlow(
         execution = x;
         registration = runStarted(document.uri, async () => {
           stopped = true;
+          // AFD-131: the container first, so the playbook stops changing hosts and writing
+          // events before the redaction pass below reads them; the task then ends by itself.
+          await stopStarted(spec);
           x.terminate();
         });
       },

@@ -151,6 +151,14 @@ The flow tools have `flow_scenarios`. An assistant can:
 
 `flow_describe` says how a flow's scenarios stand. See [AI assistants](ai-assistants.md).
 
+In Copilot, verify is **Run Scenarios**, so it needs a trusted workspace. Terminal agents verify
+through the MCP server, which runs Ansible in the environment of your VS Code **user** settings
+(`afd.environment.*`, as **Set Up Ansible Environment…** writes them). A repository's own
+`.vscode/settings.json` can name an image, container options or mounts, so the server ignores those
+keys there unless you start it with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`. `AFD_USER_SETTINGS` names
+the user settings file when it is not found. The repository's `ansible.cfg` never applies to a
+scenario run.
+
 ## In CI
 
 **Ansible Flow: Copy Scenario Runner to Repository** puts the command-line runner into

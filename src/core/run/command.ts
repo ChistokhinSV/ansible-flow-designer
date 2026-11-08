@@ -18,7 +18,18 @@ export interface ProcessSpec {
   /** Extra environment for the spawned process (values never appear in args). */
   env: Record<string, string>;
   cwd?: string;
+  /**
+   * AFD-131: what ends the work this process started beyond itself. Killing the docker or podman
+   * client leaves its container running (the shell inside is PID 1 and ignores SIGTERM), so a
+   * stopped run, a timed-out scenario or a hung probe call also removes the container by name.
+   */
+  stop?: { command: string; args: string[] };
 }
+
+const containerStop = (env: Extract<Environment, { kind: 'container' }>, name: string) => ({
+  command: env.engine,
+  args: ['rm', '-f', name],
+});
 
 export interface Paths {
   /** Repository root on this machine. */
@@ -113,7 +124,7 @@ export function probeProcess(env: Environment, paths: Paths, name: string): Proc
     if (paths.cache) args.push('-v', `${paths.cache}:${CONTAINER.cache}`);
     args.push('-e', `PYTHONPATH=${CONTAINER.probe}`, '-e', 'PYTHONDONTWRITEBYTECODE=1');
     args.push(...env.options, env.image, 'python3', ...tail, CONTAINER.root);
-    return { command: env.engine, args, env: {} };
+    return { command: env.engine, args, env: {}, stop: containerStop(env, name) };
   }
   if (env.kind === 'wsl') {
     // The variables are set inside the distribution; WSLENV is only for values from Windows.
@@ -150,6 +161,12 @@ export interface RunRequest {
   secrets?: boolean;
   /** Use <root>/ansible.cfg explicitly (Docker Desktop mounts are world-writable). */
   hasConfig: boolean;
+  /**
+   * AFD-126: use the empty ansible.cfg the caller wrote in the run folder, so no repository, user
+   * or system config applies. Ansible reads ./ansible.cfg from the working directory (the
+   * repository) when ANSIBLE_CONFIG names no existing file, and its plugin paths are code.
+   */
+  emptyConfig?: boolean;
 }
 
 /** Run inputs split by name, with the import's rule: secret-looking ones never reach vars.json. */
@@ -164,7 +181,12 @@ export function splitInputs(inputs: Record<string, unknown>): {
 }
 
 /** Environment variables every run gets: our event callback and quiet routing groups. */
-function runEnv(probeDir: string, runDir: string, root: string, hasConfig: boolean) {
+function runEnv(
+  probeDir: string,
+  runDir: string,
+  root: string,
+  config: { hasConfig: boolean; emptyConfig?: boolean },
+) {
   const env: Record<string, string> = {
     ANSIBLE_CALLBACK_PLUGINS: join(probeDir, 'callback_plugins'),
     ANSIBLE_CALLBACKS_ENABLED: 'afd_events',
@@ -172,7 +194,8 @@ function runEnv(probeDir: string, runDir: string, root: string, hasConfig: boole
     ANSIBLE_HOST_PATTERN_MISMATCH: 'ignore',
     ANSIBLE_FORCE_COLOR: '1',
   };
-  if (hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
+  if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
+  else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
   return env;
 }
 
@@ -217,7 +240,7 @@ export function runProcess(
   const script = setup.length
     ? `${setup.join(' && ')} && ${line}; rc=$?; rm -f ${temps.join(' ')}; exit $rc`
     : line;
-  const variables = runEnv(probeDir, runDir, root, request.hasConfig);
+  const variables = runEnv(probeDir, runDir, root, request);
   if (inContainer) {
     const args = containerBase(env, paths, name);
     args.push('-v', `${request.runDir}:${CONTAINER.run}`);
@@ -225,7 +248,7 @@ export function runProcess(
     if (request.vault) args.push('-e', 'AFD_VAULT_PASSWORD');
     if (request.secrets) args.push('-e', 'AFD_SECRET_VARS');
     args.push(...env.options, env.image, 'sh', '-c', script);
-    return { command: env.engine, args, env: {} };
+    return { command: env.engine, args, env: {}, stop: containerStop(env, name) };
   }
   if (env.kind === 'wsl') {
     // The secrets come from Windows in variables only: WSLENV passes just those names (AFD-29).

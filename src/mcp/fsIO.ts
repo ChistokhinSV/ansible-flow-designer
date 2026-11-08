@@ -22,6 +22,7 @@ import { followPaths, pathChanges } from '../core/scenario/follow';
 import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
 import { applyEdits } from '../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../node/autoLayout';
+import { environmentSettings } from '../node/env/userSettings';
 import { runScenarios } from '../node/scenario/runner';
 
 const MAX_BYTES = SOURCE_MAX_BYTES;
@@ -314,21 +315,23 @@ export class FsFlowIO implements FlowIO {
   }
 
   /**
-   * AFD-117: the scenarios in Ansible, in the environment the workspace's .vscode/settings.json
-   * sets (as the designer would run them), with the CLI's runner; each scenario at most 3 minutes.
+   * AFD-117: the scenarios in Ansible, with the CLI's runner; each scenario at most 3 minutes.
+   * AFD-126: in the environment of the user's VS Code settings. The workspace's
+   * .vscode/settings.json is repository content and applies only with
+   * AFD_MCP_WORKSPACE_ENVIRONMENT=1, as VS Code applies it only in a trusted workspace.
    */
   async verifyScenarios(path: string, names?: string[]): Promise<ScenarioResult[] | string> {
     const file = await this.locate(path);
     const root = this.roots.find((r) => inside(r, file)) ?? dirname(file);
-    let json: Record<string, unknown> = {};
-    try {
-      const tree = parseTree(await fs.readFile(join(root, '.vscode', 'settings.json'), 'utf8'));
-      json = (tree ? getNodeValue(tree) : {}) ?? {};
-    } catch {}
-    const { afd, redhat } = settingsFromJson(json);
+    const settings = await environmentSettings(root);
+    const { afd, redhat } = settingsFromJson(settings.json);
     const env = resolveEnvironment(afd, redhat, process.platform);
-    if (!env.ok)
-      return `No Ansible environment to run in: ${env.error}. Set afd.environment.* in ${this.show(join(root, '.vscode', 'settings.json'))}, or run them with Run Scenarios in VS Code.`;
+    if (!env.ok) {
+      const ignored = settings.ignoredWorkspace
+        ? ` ${this.show(join(root, '.vscode', 'settings.json'))} sets one, which the server uses only when started with AFD_MCP_WORKSPACE_ENVIRONMENT=1.`
+        : '';
+      return `No Ansible environment to run in: ${env.error}. Set afd.environment.* in your VS Code user settings (Set Up Ansible Environment… does it).${ignored} Or run them with Run Scenarios in VS Code.`;
+    }
     const doc = parseFlow(await fs.readFile(file, 'utf8')).doc;
     if (!doc?.flow?.key) return 'The flow does not read';
     const parsed = parseScenarios(

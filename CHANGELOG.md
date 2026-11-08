@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.74.2 — AFD-126 to AFD-132
+
+Security fixes from a code review (AFD-125). The flows you design work as before. Several things a cloned repository, a flow file or a playbook could make the extension do are now refused.
+
+- **Scenario verify from a terminal agent:** the MCP server runs Ansible in the environment of your VS Code user settings (`afd.environment.*`, as Set Up Ansible Environment… writes them). A repository's `.vscode/settings.json` can name an image, container options or mounts, so the server uses those keys only when you start it with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`. `AFD_USER_SETTINGS` names the settings file when it is not found. Copilot and the designer already needed a trusted workspace for this. Every scenario run now uses an empty `ansible.cfg`, so the repository's own config never loads. The `flow_scenarios` tool says that verify runs programs.
+- **AI assistant setup:** Remove AI Assistant Setup and the setup's updates delete only files inside the skill folder, whatever its manifest lists. A folder that is a link, or whose manifest does not read, is left alone.
+- **Shared subflows:** a copy's source must be a `.flow.yaml` in the same workspace folder, named by a relative path, and at most 2 MB. Absolute and network paths are refused before anything is opened, so a flow cannot make Windows connect to another machine.
+- **Import:** a playbook whose YAML aliases expand to more than 100,000 values is refused with a message. A file of under 1 KB could expand to a billion values and stop the extension.
+- **Generated code:** titles, playbook refs, inventory targets and parameter values that contain a line break Ansible's YAML reader knows (U+0085, U+2028, U+2029) or a control character stay on their line, or in quotes. They can no longer add a play under a comment. A parameter named `$comment` or `$flow` is written as data.
+- **Stop Run removes the run's container,** so the playbook stops changing hosts at once. A scenario that times out, and a probe call that hangs, remove their containers too.
+- **CI:** every push and pull request runs the type checks, Biome and the unit tests. Publishing runs them first, and only its last job holds the Marketplace and Open VSX tokens. No dependency's install script runs in that job.
+
 ## 0.74.1 — AFD-123, AFD-124
 
 The extension works as in 0.74.0. This release brings its page up to date and is the first one published from CI.

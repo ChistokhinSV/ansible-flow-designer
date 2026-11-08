@@ -56,7 +56,7 @@ server.setRequestHandler('tools/list', async () => ({
       readOnlyHint: s.readOnly,
       destructiveHint: false,
       idempotentHint: s.readOnly,
-      openWorldHint: false,
+      openWorldHint: s.openWorld ?? false,
     },
   })),
 }));

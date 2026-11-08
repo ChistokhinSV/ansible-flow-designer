@@ -260,7 +260,7 @@ export class FlowSession implements vscode.Disposable {
         ...(preview?.findings ?? []),
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
         // Shared subflows against their sources (AFD-60).
-        ...sharedFindings(this.uri.fsPath, parsed.doc),
+        ...sharedFindings(this.uri.fsPath, parsed.doc, folder?.uri.fsPath),
       ];
       // Problems first, while this text is still the document's: the layout below takes a while,
       // and a later build may finish before it (AFD-38).

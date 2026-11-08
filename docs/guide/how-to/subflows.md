@@ -114,6 +114,9 @@ here, pinned to that flow's version (format 2):
 - A copy changed here anyway (by hand or by an agent) is flagged (`shared-edited`); **Unlink Shared
   Subflow** makes it this flow's own, to edit here.
 - A source that is gone (the file or the subflow) is an error, with Unlink as the way out.
+- The source must be a `.flow.yaml` in the same workspace folder, named by a path relative to this
+  flow, and at most 2 MB. Absolute and network paths (`\\server\share\…`) are refused without being
+  opened, so a flow from someone else cannot make the editor connect to another machine.
 - A source flow still in format 1 is copied as format 2: Insert and Update upgrade it in memory, the
   way **Upgrade Flow Format** would, and leave its file as it is.
 

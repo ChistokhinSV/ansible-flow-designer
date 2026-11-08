@@ -8,6 +8,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import * as readline from 'node:readline';
 import type { ProcessSpec } from '../../core/run/command';
+import { stopStarted } from '../run/stop';
 import { TIMEOUTS } from '../timeouts';
 
 export interface ProbeReady {
@@ -254,7 +255,12 @@ export class ProbeClient {
     if (this.proc !== proc) return;
     // Closing stdin ends the serve loop, so the container exits and removes itself.
     proc.stdin?.end();
-    setTimeout(() => proc.exitCode === null && proc.kill(), 3000).unref();
+    setTimeout(() => {
+      if (proc.exitCode !== null) return;
+      proc.kill();
+      // AFD-131: a call that hangs keeps its container running after the client is gone.
+      void stopStarted(this.spec);
+    }, 3000).unref();
     const p = this.inflight;
     if (p) {
       clearTimeout(p.timer);

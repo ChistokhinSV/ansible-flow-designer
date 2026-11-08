@@ -8,7 +8,7 @@ import { basename, join } from 'node:path';
 import { engineFor } from '../../core/engine/engines';
 import type { GenerateResult } from '../../core/engine/types';
 import type { FlowDocument } from '../../core/flow/types';
-import { insidePaths, runProcess } from '../../core/run/command';
+import { insidePaths, type ProcessSpec, runProcess } from '../../core/run/command';
 import type { Environment } from '../../core/run/environment';
 import { summarizeRun } from '../../core/run/events';
 import {
@@ -20,6 +20,7 @@ import {
   scenarioVars,
 } from '../../core/scenario/scenarios';
 import { missWhy } from '../../core/scenario/view';
+import { stopStarted } from '../run/stop';
 
 export interface ScenarioRunOptions {
   env: Environment;
@@ -48,22 +49,24 @@ const slug = (name: string) =>
 
 /** Runs one process to its end, feeding its output to `log`; resolves with the exit code. */
 function exec(
-  command: string,
-  args: string[],
-  options: { cwd?: string; env: Record<string, string> },
+  spec: ProcessSpec,
   log: (line: string) => void,
   timeoutMs: number,
   signal?: AbortSignal,
 ): Promise<number | null> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      env: { ...process.env, ...options.env },
+    const child = spawn(spec.command, spec.args, {
+      cwd: spec.cwd,
+      env: { ...process.env, ...spec.env },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    const timer = setTimeout(() => child.kill(), timeoutMs);
-    const stop = () => child.kill();
+    // AFD-131: killing the client leaves a container running; remove it as well.
+    const stop = () => {
+      child.kill();
+      void stopStarted(spec);
+    };
+    const timer = setTimeout(stop, timeoutMs);
     signal?.addEventListener('abort', stop, { once: true });
     const lines = (chunk: Buffer) => {
       for (const line of chunk.toString().split(/\r?\n/)) if (line.trim()) log(line);
@@ -99,6 +102,8 @@ export function stageScenario(
   for (const f of generated.files) writeFileSync(join(dir, f.name), f.text);
   writeFileSync(join(dir, 'vars.json'), JSON.stringify(scenarioVars(s), null, 2));
   writeFileSync(join(dir, 'inventory.ini'), scenarioInventory(doc, s));
+  // AFD-126: ANSIBLE_CONFIG points here, so no ansible.cfg of the repository or the user applies.
+  writeFileSync(join(dir, 'ansible.cfg'), '');
   return generated;
 }
 
@@ -131,19 +136,14 @@ async function runOne(
         check: false,
         runDir: dir,
         vault: false,
-        // The scenario build runs no binding: the repository's ansible.cfg has nothing to say.
+        // The scenario build runs no binding: the repository's ansible.cfg has nothing to say,
+        // and the empty one written above keeps it from loading from the working directory.
         hasConfig: false,
+        emptyConfig: true,
       },
       `afd-scenario-${Date.now().toString(36)}-${index}`,
     );
-    const rc = await exec(
-      spec.command,
-      spec.args,
-      { cwd: spec.cwd, env: spec.env },
-      log,
-      o.timeoutMs ?? 300_000,
-      o.signal,
-    );
+    const rc = await exec(spec, log, o.timeoutMs ?? 300_000, o.signal);
     const events = join(dir, 'events.jsonl');
     const text = existsSync(events) ? readFileSync(events, 'utf8') : '';
     if (o.signal?.aborted) return judge(o.doc, s, undefined, 'Cancelled');

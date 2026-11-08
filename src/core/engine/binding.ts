@@ -7,7 +7,7 @@ import { resolveFrom } from '../flow/dataRefs';
 import { ROLE_TASK_KEYWORDS, WITH } from '../flow/keywords';
 import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
-import { flow, type Out, type OutMap, writeBlock } from './yamlWriter';
+import { flow, type Out, type OutMap, oneLine, writeBlock } from './yamlWriter';
 
 /** include_role options; every other role param becomes a role var. */
 export const INCLUDE_OPTIONS = new Set([
@@ -19,10 +19,6 @@ export const INCLUDE_OPTIONS = new Set([
   'allow_duplicates',
   'rolespec_validate',
 ]);
-
-function oneLine(text: string): string {
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
 
 /** The module task or include_role of a bound node (without Option A's routing around it). */
 export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number | string): OutMap {

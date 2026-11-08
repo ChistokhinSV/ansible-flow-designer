@@ -6,7 +6,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import {
   applyEdits,
   type FormattingOptions,
@@ -128,14 +128,72 @@ export interface SkillState {
   edited: string[];
 }
 
+/**
+ * The manifest of a skill folder we wrote, or undefined when it is not ours. AFD-127: a repository
+ * can plant one (repo-scope copies live in the repository), so only file names that stay inside
+ * the folder are kept; a manifest that does not read makes the folder foreign, never deleted.
+ */
+async function readManifest(dir: string): Promise<Manifest | undefined> {
+  const raw = await readText(join(dir, MANIFEST));
+  if (raw === undefined) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!data || typeof data !== 'object') return undefined;
+  const { version, files } = data as { version?: unknown; files?: unknown };
+  if (!files || typeof files !== 'object' || Array.isArray(files)) return undefined;
+  const kept: Record<string, string> = {};
+  for (const [name, h] of Object.entries(files))
+    if (typeof h === 'string' && SKILL_FILE.test(name) && name !== MANIFEST) kept[name] = h;
+  return { version: typeof version === 'string' ? version : '', files: kept };
+}
+
+/** A relative posix name of plain segments: no `.`/`..`, no drive, no backslash (AFD-127). */
+const SKILL_FILE = /^(?!.*(?:^|\/)\.\.?(?:\/|$))[\w.-]+(?:\/[\w.-]+)*$/;
+
+const insideDir = (root: string, path: string) => {
+  const rel = relative(root, path);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+
+/** The real path of `path`, or of its nearest ancestor that exists. */
+async function nearestReal(path: string): Promise<string> {
+  for (let p = path; ; p = dirname(p)) {
+    try {
+      return await fs.realpath(p);
+    } catch {
+      if (dirname(p) === p) return p;
+    }
+  }
+}
+
+/**
+ * Where a skill file goes, or undefined when it would not land inside the folder: its name is not
+ * a plain relative name, or a link on the way leads out (AFD-127).
+ */
+async function skillPath(dir: string, name: string): Promise<string | undefined> {
+  if (!SKILL_FILE.test(name)) return undefined;
+  const path = join(dir, ...name.split('/'));
+  const [root, parent] = await Promise.all([nearestReal(dir), nearestReal(dirname(path))]);
+  return insideDir(root, parent) ? path : undefined;
+}
+
 export async function skillState(dir: string): Promise<SkillState | undefined> {
   if (!(await exists(dir))) return undefined;
-  const raw = await readText(join(dir, MANIFEST));
-  if (!raw) return { dir, foreign: true, edited: [] };
-  const manifest = JSON.parse(raw) as Manifest;
+  // A link in place of the folder is not ours: removal would act on what it points to.
+  const link = await fs.lstat(dir).then(
+    (s) => s.isSymbolicLink(),
+    () => false,
+  );
+  const manifest = link ? undefined : await readManifest(dir);
+  if (!manifest) return { dir, foreign: true, edited: [] };
   const edited: string[] = [];
   for (const [name, h] of Object.entries(manifest.files)) {
-    const text = await readText(join(dir, name));
+    const path = await skillPath(dir, name);
+    const text = path && (await readText(path));
     if (text !== undefined && hash(text) !== h) edited.push(name);
   }
   return { dir, foreign: false, version: manifest.version, edited };
@@ -145,8 +203,10 @@ export async function planSkill(dir: string, skill: SkillFiles): Promise<Item['a
   const state = await skillState(dir);
   if (!state) return 'create';
   if (state.foreign) return 'skip';
-  for (const [name, text] of Object.entries(skill.files))
-    if ((await readText(join(dir, name))) !== text) return 'update';
+  for (const [name, text] of Object.entries(skill.files)) {
+    const path = await skillPath(dir, name);
+    if (!path || (await readText(path)) !== text) return 'update';
+  }
   return state.version === skill.version ? 'unchanged' : 'update';
 }
 
@@ -154,14 +214,17 @@ export async function writeSkill(dir: string, skill: SkillFiles): Promise<void> 
   const before = await skillState(dir);
   if (before?.foreign) throw new Error(`${dir} exists and is not ours`);
   // Files of an older version that the new one no longer has.
-  const old = before
-    ? (JSON.parse((await readText(join(dir, MANIFEST))) ?? '{}') as Manifest)
-    : undefined;
-  for (const name of Object.keys(old?.files ?? {}))
-    if (!(name in skill.files)) await fs.rm(join(dir, name), { force: true });
+  const old = before ? await readManifest(dir) : undefined;
+  for (const name of Object.keys(old?.files ?? {})) {
+    if (name in skill.files) continue;
+    const path = await skillPath(dir, name);
+    if (path) await fs.rm(path, { force: true });
+  }
   for (const [name, text] of Object.entries(skill.files)) {
-    await fs.mkdir(dirname(join(dir, name)), { recursive: true });
-    await fs.writeFile(join(dir, name), text, 'utf8');
+    const path = await skillPath(dir, name);
+    if (!path) throw new Error(`${name} would be written outside ${dir}`);
+    await fs.mkdir(dirname(path), { recursive: true });
+    await fs.writeFile(path, text, 'utf8');
   }
   const manifest: Manifest = {
     version: skill.version,
@@ -174,11 +237,15 @@ export async function writeSkill(dir: string, skill: SkillFiles): Promise<void> 
 export async function removeSkill(dir: string): Promise<boolean> {
   const state = await skillState(dir);
   if (!state || state.foreign) return false;
-  const manifest = JSON.parse((await readText(join(dir, MANIFEST))) ?? '{}') as Manifest;
-  for (const name of [...Object.keys(manifest.files ?? {}), MANIFEST])
-    await fs.rm(join(dir, name), { force: true });
+  const manifest = await readManifest(dir);
+  const names = Object.keys(manifest?.files ?? {});
+  for (const name of names) {
+    const path = await skillPath(dir, name);
+    if (path) await fs.rm(path, { force: true });
+  }
+  await fs.rm(join(dir, MANIFEST), { force: true });
   const prune = async (d: string): Promise<void> => {
-    if (relative(dir, d).startsWith('..')) return;
+    if (!insideDir(dir, d)) return;
     try {
       if ((await fs.readdir(d)).length === 0) {
         await fs.rmdir(d);
@@ -186,7 +253,7 @@ export async function removeSkill(dir: string): Promise<boolean> {
       }
     } catch {}
   };
-  for (const name of Object.keys(manifest.files ?? {})) await prune(dirname(join(dir, name)));
+  for (const name of names) await prune(dirname(join(dir, ...name.split('/'))));
   await prune(dir);
   return true;
 }

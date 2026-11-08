@@ -84,7 +84,11 @@ function findNode(doc: FlowDocument, id: Ulid) {
 export async function updateShared(host: Host, uri: vscode.Uri | undefined, target: Target) {
   const copy = await copyOf(host, uri, target);
   if (!copy?.node.ref) return undefined;
-  const src = sharedSource(copy.doc.uri.fsPath, copy.node.ref.from);
+  const src = sharedSource(
+    copy.doc.uri.fsPath,
+    copy.node.ref.from,
+    vscode.workspace.getWorkspaceFolder(copy.doc.uri)?.uri.fsPath,
+  );
   if (!src.node || src.version === undefined) {
     void vscode.window.showErrorMessage(src.error ?? 'The source is gone');
     return undefined;
@@ -161,7 +165,11 @@ export async function insertShared(
         matchOnDetail: true,
       });
   if (!chosen) return undefined;
-  const src = sharedSource(doc.uri.fsPath, chosen.from);
+  const src = sharedSource(
+    doc.uri.fsPath,
+    chosen.from,
+    vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath,
+  );
   if (!src.node || src.version === undefined) {
     void vscode.window.showErrorMessage(src.error ?? 'The subflow is gone');
     return undefined;

@@ -581,6 +581,8 @@ export interface ToolSpec {
   title: string;
   description: string;
   readOnly: boolean;
+  /** AFD-126: the tool runs programs beyond reading and writing flow files (MCP openWorldHint). */
+  openWorld?: boolean;
   inputSchema: Json;
 }
 
@@ -793,8 +795,9 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'flow_scenarios',
     title: 'Scenario tests',
     description:
-      "Scenario tests of a flow (<key>.scenarios.yaml): which hosts fail where, and the end each host must reach. list (default) and check show each scenario's verdict in a simulation of the generated code, in milliseconds; add, update and delete write the file (expectations default to where the simulation sends each host); verify runs them in Ansible with every step as its stub. Name steps by key, or subflow/step inside a subflow.",
+      "Scenario tests of a flow (<key>.scenarios.yaml): which hosts fail where, and the end each host must reach. list (default) and check show each scenario's verdict in a simulation of the generated code, in milliseconds; add, update and delete write the file (expectations default to where the simulation sends each host); verify runs ansible-playbook on this machine or in the execution environment image of the user's settings, with every step as its stub. Name steps by key, or subflow/step inside a subflow.",
     readOnly: false,
+    openWorld: true,
     inputSchema: {
       type: 'object',
       properties: {

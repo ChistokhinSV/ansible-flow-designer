@@ -147,7 +147,7 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'shared-source': {
     meaning:
-      "A shared subflow's source is missing (the file or the subflow key), or has a newer version than the copy.",
+      "A shared subflow's source is missing (the file or the subflow key), is not a .flow.yaml inside the workspace folder, or has a newer version than the copy.",
     fix: 'Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone.',
   },
   'rolling-unsupported': {

@@ -8,23 +8,40 @@ export interface OutMap {
   [key: string]: Out | undefined;
 }
 
-/** `[a, b]` on one line. */
-export interface FlowList {
-  $flow: (string | number)[];
+/** `[a, b]` on one line. A class, not a key: a parameter map of a binding may hold any key (AFD-130). */
+export class FlowList {
+  constructor(readonly $flow: (string | number)[]) {}
 }
 
 /** `# text` between sequence items. */
-export interface Comment {
-  $comment: string;
+export class Comment {
+  constructor(readonly $comment: string) {}
 }
 
-export const flow = (items: (string | number)[]): FlowList => ({ $flow: items });
-export const comment = (text: string): Comment => ({ $comment: text });
+export const flow = (items: (string | number)[]): FlowList => new FlowList(items);
+export const comment = (text: string): Comment => new Comment(text);
 
-const isFlow = (v: unknown): v is FlowList =>
-  typeof v === 'object' && v !== null && '$flow' in (v as object);
-const isComment = (v: unknown): v is Comment =>
-  typeof v === 'object' && v !== null && '$comment' in (v as object);
+const isFlow = (v: unknown): v is FlowList => v instanceof FlowList;
+const isComment = (v: unknown): v is Comment => v instanceof Comment;
+
+/**
+ * Every character some YAML reader ends a line at (PyYAML also at U+0085, U+2028 and U+2029), and
+ * the controls no YAML reader accepts in a stream (AFD-130).
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
+const BREAK_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+
+/**
+ * Text for one line of generated code, with its whitespace collapsed (AFD-130): a title, path or
+ * pattern from the flow can neither end a comment and start YAML of its own, nor carry a
+ * character that makes Ansible refuse the file.
+ */
+export const oneLine = (text: string): string =>
+  String(text).replaceAll(BREAK_OR_CONTROL, ' ').replaceAll(/\s+/g, ' ').trim();
+
+/** `# text` on one line whatever the text; its spaces are kept, for indented Note lines. */
+export const commentLine = (text: string): string =>
+  `# ${String(text).replaceAll(BREAK_OR_CONTROL, ' ')}`.trimEnd();
 
 // Identifiers (group names, module names, keys) are plain without asking the YAML parser; the
 // parser round trip in isPlainSafe dominated generation time, so other answers are cached too.
@@ -43,10 +60,25 @@ function plain(s: string): boolean {
   return known;
 }
 
+/** A break or control anywhere in a string: it is never plain, and is escaped when quoted. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point.
+const HAS_BREAK_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+/**
+ * A double-quoted scalar. JSON escapes C0 controls but leaves DEL, the C1 controls (U+0085 among
+ * them) and U+2028/U+2029 raw, which PyYAML reads as line breaks or refuses (AFD-130).
+ */
+function quoted(v: string): string {
+  return JSON.stringify(v).replaceAll(
+    /[\u007f-\u009f\u2028\u2029]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
 export function scalar(v: string | number | boolean | null): string {
   if (v === null) return 'null';
   if (typeof v !== 'string') return String(v);
-  return plain(v) ? v : JSON.stringify(v);
+  return !HAS_BREAK_OR_CONTROL.test(v) && plain(v) ? v : quoted(v);
 }
 
 function inline(v: Out): string | undefined {
@@ -65,7 +97,7 @@ export function writeBlock(v: OutMap | Out[], col: number, first = false): strin
   if (Array.isArray(v)) {
     for (const item of v) {
       if (isComment(item)) {
-        lines.push(`${pad}# ${item.$comment}`);
+        lines.push(`${pad}${commentLine(item.$comment)}`);
         continue;
       }
       const one = inline(item);

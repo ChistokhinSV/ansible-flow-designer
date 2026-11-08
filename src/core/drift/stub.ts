@@ -1,6 +1,6 @@
 // Code from the design (M6, D-29 "design without code"): a role stub for an unbound node and
 // meta/argument_specs.yml from a node's input contract (the spec generation deferred from M5).
-import { type Out, type OutMap, writeBlock } from '../engine/yamlWriter';
+import { commentLine, type Out, type OutMap, oneLine, writeBlock } from '../engine/yamlWriter';
 import type { ContractField, ContractType, FlowHeader, FlowNode } from '../flow/types';
 import type { TextEdit } from '../yaml/edits';
 import { setIn } from '../yaml/ops';
@@ -53,7 +53,9 @@ export function specEntry(node: FlowNode): OutMap {
 }
 
 export function argumentSpecsText(node: FlowNode, entry = 'main'): string {
-  const head = `# Argument specs written by Ansible Flow Designer from node [${node.key}] ${node.title}.`;
+  const head = commentLine(
+    `Argument specs written by Ansible Flow Designer from node [${node.key}] ${oneLine(node.title)}.`,
+  );
   return `${[head, '---', ...writeBlock({ argument_specs: { [entry]: specEntry(node) } }, 0)].join('\n')}\n`;
 }
 
@@ -65,9 +67,9 @@ export function roleStub(
 ): { path: string; text: string }[] {
   const tasks: Out[] = [
     {
-      name: `TODO ${node.title}`,
+      name: `TODO ${oneLine(node.title)}`,
       'ansible.builtin.debug': {
-        msg: `TODO: ${(node.intent || node.title).replaceAll(/\s+/g, ' ').trim()}`,
+        msg: `TODO: ${oneLine(node.intent || node.title)}`,
       },
     },
   ];
@@ -80,8 +82,12 @@ export function roleStub(
       ),
     });
   const main = [
-    `# Role stub written by Ansible Flow Designer for node [${node.key}] ${node.title}`,
-    `# of flow ${header.name} (${header.key}). Replace the TODO with the real tasks.`,
+    commentLine(
+      `Role stub written by Ansible Flow Designer for node [${node.key}] ${oneLine(node.title)}`,
+    ),
+    commentLine(
+      `of flow ${oneLine(header.name)} (${oneLine(header.key)}). Replace the TODO with the real tasks.`,
+    ),
     '---',
     ...writeBlock(tasks, 0),
   ];
