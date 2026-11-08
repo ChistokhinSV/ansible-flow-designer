@@ -3,4 +3,4 @@
 Runs inside the target environment (EE container, Remote host, venv). Stdlib only.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

@@ -135,6 +135,8 @@ export interface RoleInfo {
     { short_description: string; description: string; options: Record<string, CatalogOption> }
   >;
   tasks: string[];
+  /** AFD-151: task file → the task files it includes by a literal name (probe 0.3.1+). */
+  includes?: Record<string, string[]>;
 }
 
 /** Plugin docs plus the indexed version of its collection (stored as collection_version). */

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.74.3 — AFD-131, AFD-133 to AFD-147
+## 0.74.3 — AFD-131, AFD-133 to AFD-151
 
 More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running. Several flow edits and generated plays now do what the design says.
 
@@ -10,6 +10,10 @@ More fixes from the code review (AFD-125): names and paths that come from a flow
 - **max_fail_percentage counts the step's own failures:** a step inside a subflow counted the hosts earlier steps had failed, too, and could stop healthy hosts. The simulator counts the same way.
 - **Decision conditions:** a condition written whole as `{{ x == 1 }}` works. A condition with `{{ }}` inside it (`{{ x }} == 1`) is a problem that says how to write it, instead of failing every host at run time. Spaces inside quoted strings in a condition are kept.
 - **A YAML alias inside what it names** (`&s … *s` within itself), in a flow file or on the clipboard, is refused with a message instead of hanging the designer.
+- **Re-import keeps the order of new tasks:** several tasks added to the playbook in a row used to arrive in reverse order.
+- **`include_tasks` imports as Ansible runs it:** its `when` is checked once, before the file runs, so the import adds a decision in front of the file's subflow (false goes around it) instead of putting the condition on every task in the file. Its tags no longer reach the tasks inside, and its `apply:` does. `import_tasks` is read as before.
+- **Scenario simulation of host patterns:** a pattern of only `!` or `&` terms (`!db`) starts from every host, as in Ansible. A pattern that names `localhost` or `127.0.0.1` without an inventory entry now asks for a check in Ansible instead of guessing.
+- **Code mode drift:** a step bound to a collection role (`ns.collection.role`) is no longer reported as "role missing" when it compiles. A role task file that another covered file includes is no longer reported as "task not in design" (adding it would run it twice).
 
 - **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. It ends the run's shell and everything under it, and nothing else in the distribution. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
 - **Secret inputs and the vault password:**

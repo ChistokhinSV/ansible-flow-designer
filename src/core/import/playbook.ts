@@ -667,9 +667,34 @@ class PlaybookImporter {
       return;
     }
     const title = inc.name || basename(inc.file).replace(/\.ya?ml$/, '');
+    // AFD-149: include_tasks checks its `when` once, before the file runs: a decision whose
+    // false side goes around the file's subflow (import_tasks puts it on each task instead).
+    const gate = inc.when?.length ? this.includeGate(level, title, suffix, inc.when) : undefined;
     this.subflow(level, `${title}${suffix}`, (inner) =>
       this.items(inc.items ?? [], inner, handlers, suffix),
     );
+    if (gate) level.cursor = [...level.cursor, { node: gate.id, port: 'false' }];
+  }
+
+  /** A decision that lets the hosts for which an include's `when` holds into the include. */
+  private includeGate(level: Level, title: string, suffix: string, when: unknown[]): FlowNode {
+    const parts = when.map((w) => (typeof w === 'string' ? w.trim() : JSON.stringify(w)));
+    const condition =
+      parts.length === 1 ? (parts[0] as string) : parts.map((p) => `(${p})`).join(' and ');
+    const gate: FlowNode = {
+      id: this.opts.newId(),
+      key: this.key(level, `${title} when${suffix}`, 'decision'),
+      type: 'decision',
+      title: `Run ${title}?`,
+      condition,
+      status: 'implemented',
+    };
+    this.place(level, gate);
+    level.cursor = [{ node: gate.id, port: 'true' }];
+    this.notes.push(
+      `${gate.key}: include_tasks checks its when once, before ${title} runs: a decision (true runs it, false goes around it).`,
+    );
+    return gate;
   }
 
   private role(r: RoleForm, level: Level, suffix: string): void {

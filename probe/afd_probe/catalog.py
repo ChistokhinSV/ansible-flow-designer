@@ -356,15 +356,54 @@ def roles(root: str) -> list[dict]:
                             if isinstance(v, dict)
                         },
                     }
-            tasks = sorted(
-                f.rsplit(".", 1)[0]
-                for f in os.listdir(os.path.join(role_dir, "tasks"))
-                if f.endswith((".yml", ".yaml"))
-            )
+            tasks_dir = os.path.join(role_dir, "tasks")
+            files = sorted(f for f in os.listdir(tasks_dir) if f.endswith((".yml", ".yaml")))
+            tasks = [f.rsplit(".", 1)[0] for f in files]
             found[name] = {
                 "name": name,
                 "path": os.path.relpath(role_dir, root).replace(os.sep, "/"),
                 "entry_points": entry_points,
                 "tasks": tasks,
+                "includes": _task_includes(tasks_dir, files, set(tasks)),
             }
     return sorted(found.values(), key=lambda r: r["name"])
+
+
+_TASK_INCLUDES = {
+    "include_tasks",
+    "import_tasks",
+    "include",
+    "ansible.builtin.include_tasks",
+    "ansible.builtin.import_tasks",
+}
+
+
+def _task_includes(tasks_dir: str, files: list[str], names: set[str]) -> dict[str, list[str]]:
+    """Task file -> the task files of the same role it includes by a literal name (AFD-151).
+
+    A file reached only through another (main -> install -> install_Debian) is part of what
+    includes it, so drift does not offer it as a step of its own. Templated names are skipped.
+    """
+
+    def walk(items: object, out: set[str]) -> None:
+        for task in items if isinstance(items, list) else []:
+            if not isinstance(task, dict):
+                continue
+            for key in ("block", "rescue", "always"):
+                walk(task.get(key), out)
+            for module in _TASK_INCLUDES & task.keys():
+                value = task[module]
+                target = value.get("file") if isinstance(value, dict) else value
+                if not isinstance(target, str) or "{{" in target or "{%" in target:
+                    continue
+                stem = os.path.basename(target.strip()).rsplit(".", 1)[0]
+                if stem in names:
+                    out.add(stem)
+
+    graph: dict[str, list[str]] = {}
+    for f in files:
+        found: set[str] = set()
+        walk(_load_yaml(os.path.join(tasks_dir, f)), found)
+        if found:
+            graph[f.rsplit(".", 1)[0]] = sorted(found)
+    return graph

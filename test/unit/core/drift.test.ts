@@ -123,6 +123,42 @@ describe('computeDrift (D-29, mockup 04)', () => {
       expect(byId(report.items, 'push-baseline', `task-file:${covered}`)).toBeUndefined();
   });
 
+  it('AFD-151: a task file a covered file includes is part of it, not code without design', () => {
+    const scan = scanOf();
+    const role = scan.roleInfo.find((r) => r.name === 'push_baseline');
+    if (!role) throw new Error('fixture');
+    role.includes = { ntp: ['wait_for_convergence'] };
+    const r = computeDrift(docOf(FLOW), scan);
+    expect(
+      r.items.find(
+        (i) =>
+          i.node === nodeOf(FLOW, 'push-baseline').id && i.id === 'task-file:wait_for_convergence',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('AFD-151: a collection role that compiles is not missing; one that does not, is', () => {
+    const doc = docOf(FLOW);
+    const validate = doc.nodes.find((n) => n.key === 'validate') as FlowNode;
+    validate.impl = { kind: 'role', ref: 'cisco.ios.validate' };
+    const scan = scanOf();
+    scan.roles.push({ name: 'cisco.ios.validate', tasks_from: null, tasks: [] });
+    const at = (r: ReturnType<typeof computeDrift>) =>
+      r.items.filter((i) => i.node === validate.id && i.label === 'role missing');
+    expect(at(computeDrift(doc, scan))).toEqual([]);
+    const broken = scanOf();
+    broken.roles.push({
+      name: 'cisco.ios.validate',
+      tasks_from: null,
+      error: "AnsibleError: the role 'cisco.ios.validate' was not found",
+      tasks: [],
+    });
+    const missing = at(computeDrift(doc, broken));
+    expect(missing).toHaveLength(1);
+    // A collection role is never created under roles/ (AFD-135).
+    expect(missing[0]?.actions.map((a) => a.label)).not.toContain('Create Role');
+  });
+
   it('design without code: the unbound rollback, and a role without specs', () => {
     expect(byId(report.items, 'rollback', 'unbound:01JCR6N0000000000000000007')).toMatchObject({
       kind: 'design_without_code',

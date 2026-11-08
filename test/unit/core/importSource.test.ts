@@ -158,12 +158,50 @@ describe('includes and imports', () => {
     );
     const [checks, dynamic, looped, self] = p.tasks as IncludeForm[];
     expect(checks?.path).toBe('pb/tasks/checks.yml');
-    expect((checks?.items?.[0] as TaskForm | undefined)?.keywords.when).toBe('run_checks');
+    // AFD-149: include_tasks checks its when once, for the include; its tasks do not repeat it.
+    expect(checks?.when).toEqual(['run_checks']);
+    expect((checks?.items?.[0] as TaskForm | undefined)?.keywords.when).toBeUndefined();
     expect(dynamic?.dynamic).toBe('its file name is templated');
     expect(looped?.dynamic).toBe('it runs in a loop');
     expect((self?.items?.[0] as IncludeForm | undefined)?.dynamic).toBe(
       'pb/tasks/self.yml includes itself',
     );
+  });
+
+  it('AFD-149: import_tasks puts its when and tags on each task; include_tasks only its vars and apply', async () => {
+    const p = await play(
+      {
+        'pb/play.yml': `
+- hosts: all
+  tasks:
+    - import_tasks: tasks/a.yml
+      when: run_a
+      tags: [a]
+    - include_tasks:
+        file: tasks/b.yml
+        apply:
+          tags: [b-inner]
+          become: true
+      when: run_b
+      tags: [b]
+      vars:
+        level: 2
+`,
+        'pb/tasks/a.yml': '- ping:\n',
+        'pb/tasks/b.yml': '- ping:\n',
+      },
+      'pb/play.yml',
+    );
+    const [a, b] = p.tasks as IncludeForm[];
+    const aTask = a?.items?.[0] as TaskForm | undefined;
+    expect(a?.when).toBeUndefined();
+    expect(aTask?.keywords.when).toBe('run_a');
+    expect(aTask?.tags).toContain('a');
+    const bTask = b?.items?.[0] as TaskForm | undefined;
+    expect(b?.when).toEqual(['run_b']);
+    expect(bTask?.keywords.when).toBeUndefined();
+    expect(bTask?.tags).toEqual(['b-inner']);
+    expect(bTask?.keywords.vars).toEqual({ level: 2 });
   });
 
   it('follows import_playbook and stops at a cycle', async () => {

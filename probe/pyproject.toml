@@ -1,6 +1,6 @@
 [project]
 name = "afd-probe"
-version = "0.3.0"
+version = "0.3.1"
 description = "Ansible Flow Designer probe: answers Ansible questions inside the target environment (stdlib only)."
 requires-python = ">=3.11"
 dependencies = []

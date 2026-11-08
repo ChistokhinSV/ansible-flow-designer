@@ -94,6 +94,11 @@ export interface IncludeForm {
   items?: Item[];
   /** Why it is not read in (a templated path, a loop, missing). */
   dynamic?: string;
+  /**
+   * AFD-149: an include_tasks' own `when`, which Ansible checks once for the include (not on each
+   * task in the file, as for import_tasks). Its parts are ANDed.
+   */
+  when?: unknown[];
   keywords: Record<string, unknown>;
   tags: string[];
   origin: Origin;
@@ -733,6 +738,7 @@ class Reader {
         origin,
         scope,
         depth,
+        short === 'import_tasks',
       );
     if (ROLE_INCLUDES.has(short)) {
       const args = moduleArgs(found.module, found.value, raw.args);
@@ -845,6 +851,8 @@ class Reader {
     origin: Origin,
     scope: Scope,
     depth: number,
+    /** import_tasks: static; include_tasks (and the old include): dynamic (AFD-149). */
+    isStatic = false,
   ): Promise<IncludeForm> {
     const args = isMapping(value) ? (toValue(value) as Record<string, unknown>) : {};
     const target =
@@ -868,8 +876,23 @@ class Reader {
       const data = await this.readYaml(path);
       if (data === undefined) break;
       form.path = path;
-      // The include's own keywords reach every task in the file (static import semantics).
-      const inner = narrow(scope, raw, 'block');
+      // import_tasks: its keywords reach every task in the file. include_tasks (AFD-149): its own
+      // `when` is checked once and its tags select the include itself; only its vars and `apply`
+      // (keywords for the tasks inside) reach them.
+      let inner: Scope;
+      if (isStatic) inner = narrow(scope, raw, 'block');
+      else {
+        const base = narrow(
+          scope,
+          (raw.vars !== undefined ? { vars: raw.vars } : {}) as PlainMap,
+          'block',
+        );
+        inner = isMapping(args.apply) ? narrow(base, args.apply as PlainMap, 'block') : base;
+        if (raw.when !== undefined)
+          form.when = (Array.isArray(raw.when) ? raw.when : [raw.when]).map((w) =>
+            toValue(w as Plain),
+          );
+      }
       this.including.push(path);
       form.items = await this.items(
         Array.isArray(data) ? data : [],

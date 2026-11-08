@@ -19,9 +19,15 @@ const glob = (pattern: string) =>
       .replaceAll('?', '.')}$`,
   );
 
+/** The names Ansible's implicit localhost answers to (C.LOCALHOST). */
+const LOCALHOST = new Set(['localhost', '127.0.0.1', '::1']);
+
 /** The hosts one term selects: a host, a group, `all`, or a wildcard over both; undefined if unreadable. */
 function term(name: string, inv: Inventory): Set<string> | undefined {
   if (!name || name.startsWith('~') || /[[\]]/.test(name)) return undefined;
+  // AFD-150: Ansible runs these on its implicit localhost even when no inventory lists them; the
+  // scenario's hosts do not include it, so the scenario needs Ansible to say where it goes.
+  if (LOCALHOST.has(name) && !inv.hosts.includes(name) && !inv.groups[name]) return undefined;
   if (name === 'all' || name === '*') return new Set(inv.hosts);
   if (/[*?]/.test(name)) {
     const re = glob(name);
@@ -52,7 +58,9 @@ export function matchHosts(pattern: string, inv: Inventory): string[] | undefine
     else if (kind === 'not') not.push(hosts);
     else union = new Set([...union, ...hosts]);
   }
-  // A pattern of only intersections or exclusions starts from no host, as Ansible's does.
+  // AFD-150: a pattern of only intersections or exclusions starts from every host, as Ansible's
+  // order_patterns puts `all` first (`!db` is every host but db's).
+  if (!parts.some((p) => p[0] !== '&' && p[0] !== '!')) union = new Set(inv.hosts);
   return inv.hosts.filter(
     (h) => union.has(h) && and.every((s) => s.has(h)) && not.every((s) => !s.has(h)),
   );

@@ -39,7 +39,10 @@ export interface ReimportUpdate {
 export interface ReimportAdd {
   /** The new step, as the fresh import made it (its ID is new in this flow too). */
   step: FlowNode;
-  /** The step of the task before it, which the new step follows on its ok_hosts wire. */
+  /**
+   * The step of the task before it, which the new step follows on its ok_hosts wire: a step of
+   * the flow, or (AFD-148) the new step added just before it in this plan, by its ID in `step`.
+   */
   after?: Ulid;
 }
 
@@ -72,6 +75,9 @@ export function planReimport(current: FlowDocument, fresh: FlowDocument): Reimpo
     const c = mine.get(task);
     if (!c) {
       plan.adds.push({ step: f, ...(previous ? { after: previous } : {}) });
+      // AFD-148: the next new task follows this one, not the step before both (B after A, not A
+      // and B both after P, which inserted them as P → B → A).
+      previous = f.id;
       continue;
     }
     previous = c.id;

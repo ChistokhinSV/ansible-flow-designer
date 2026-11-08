@@ -274,3 +274,39 @@ describe('mappings', () => {
     ]);
   });
 });
+
+describe('AFD-149: include_tasks with when', () => {
+  it('becomes a decision checked once: true runs the file, false goes around it', async () => {
+    const r = await load(
+      memory({
+        'pb/play.yml': [
+          '- name: P',
+          '  hosts: all',
+          '  tasks:',
+          '    - name: Checks',
+          '      include_tasks: tasks/checks.yml',
+          '      when: run_checks',
+          '    - name: After',
+          '      ansible.builtin.ping:',
+          '',
+        ].join('\n'),
+        'pb/tasks/checks.yml': '- name: Inner\n  ansible.builtin.ping:\n',
+      }),
+      'pb/play.yml',
+    );
+    const { doc, findings, generated } = check(r);
+    expect(findings.filter((f) => f.severity === 'error')).toEqual([]);
+    expect(generated.ok).toBe(true);
+    const gate = [...buildModel(doc).nodes.values()].find((e) => e.node.type === 'decision')?.node;
+    expect(gate?.condition).toBe('run_checks');
+    const sub = node(doc, 'checks');
+    const after = node(doc, 'after');
+    const wires = doc.edges.map((e) => `${e.from.node}.${e.from.port}>${e.to.node}`);
+    expect(wires).toContain(`${gate?.id}.true>${sub.id}`);
+    expect(wires).toContain(`${gate?.id}.false>${after.id}`);
+    expect(wires).toContain(`${sub.id}.ok_hosts>${after.id}`);
+    // The inner task does not repeat the condition.
+    const inner = sub.subflow?.nodes?.[0];
+    expect(inner?.impl?.keywords?.when).toBeUndefined();
+  });
+});

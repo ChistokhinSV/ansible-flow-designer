@@ -126,4 +126,30 @@ describe('re-import from source (AFD-61)', () => {
       0, 0, 0, 0,
     ]);
   });
+
+  it('AFD-148: consecutive new tasks keep their order (P → A → B → C, not P → C → B → A)', async () => {
+    const mine = await imported(PLAYBOOK);
+    const added = ['A', 'B', 'C']
+      .map((t) => `    - name: Push ${t}\n      ansible.builtin.debug:\n        msg: ${t}\n`)
+      .join('');
+    const fresh = doc(
+      await imported(PLAYBOOK.replace('    - name: Push AAA', `${added}    - name: Push AAA`)),
+    );
+    const plan = planReimport(doc(mine), fresh);
+    expect(plan.adds.map((a) => a.step.title)).toEqual(['Push A', 'Push B', 'Push C']);
+    const merged = run(mine, {
+      kind: 'reimport',
+      updates: [],
+      adds: plan.adds,
+      gone: [],
+    });
+    // Walk ok_hosts from Push NTP: the new steps come in the source's order, then Push AAA.
+    const d = doc(merged);
+    const next = (id: string) =>
+      d.edges.find((e) => e.from.node === id && e.from.port === 'ok_hosts')?.to.node;
+    const order: string[] = [];
+    for (let at = next(step(merged, 'Push NTP').id); at && order.length < 5; at = next(at))
+      order.push(d.nodes.find((n) => n.id === at)?.title ?? at);
+    expect(order.slice(0, 4)).toEqual(['Push A', 'Push B', 'Push C', 'Push AAA']);
+  });
 });

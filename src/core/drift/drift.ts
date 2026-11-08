@@ -321,7 +321,11 @@ function checkNode(
   }
   if (impl.kind === 'role') {
     const info = scan.roleInfo.find((r) => r.name === impl.ref);
-    if (!info || (code.missing && /not found|was not found/i.test(code.missing))) {
+    const notFound = !!code.missing && /not found|was not found/i.test(code.missing);
+    // AFD-151: a collection role (ns.coll.role) lives in its collection, not in roles_path: it is
+    // missing only when it does not compile.
+    const collectionRole = /^[\w-]+\.[\w-]+\.[\w-]+$/.test(impl.ref);
+    if (notFound || (!info && !collectionRole)) {
       add({
         id: `missing:${id}`,
         kind: 'design_without_code',
@@ -345,8 +349,9 @@ function checkNode(
       });
       return;
     }
+    if (!info) return;
     if (hasInner) {
-      checkTaskFiles(model, node, info.tasks, add);
+      checkTaskFiles(model, node, info.tasks, add, info.includes);
       return;
     }
     checkRoleContract(node, code, info, flowInputs, add);
@@ -360,6 +365,7 @@ function checkTaskFiles(
   node: FlowNode,
   files: string[],
   add: (item: DriftItem) => void,
+  includes: Record<string, string[]> = {},
 ) {
   const role = node.impl?.ref ?? '';
   const covered = new Set(
@@ -369,8 +375,18 @@ function checkTaskFiles(
       )
       .map((e) => tasksFromOf(e.node) ?? 'main'),
   );
+  // AFD-151: a file that main or a covered step includes runs as part of it; adding it as a
+  // step of its own would run it twice.
+  const reached = new Set(['main', ...covered]);
+  for (const at of [...reached])
+    for (const stack = [at]; stack.length; )
+      for (const next of includes[stack.pop() as string] ?? [])
+        if (!reached.has(next)) {
+          reached.add(next);
+          stack.push(next);
+        }
   for (const file of files) {
-    if (file === 'main' || covered.has(file)) continue;
+    if (reached.has(file)) continue;
     add({
       id: `task-file:${file}`,
       kind: 'code_without_design',

@@ -302,11 +302,19 @@ describe('host patterns (AFD-114)', () => {
     expect(matchHosts('*-01', inv)).toEqual(['web-01', 'db-01', 'lb-01']);
     expect(matchHosts('pro?', inv)).toEqual(['web-01', 'db-01']);
     expect(matchHosts('nothing', inv)).toEqual([]);
-    expect(matchHosts('&web', inv)).toEqual([]);
+    // AFD-150: only `&` or `!` terms start from every host, as ansible --list-hosts shows
+    // (`&web` → web's hosts, `!web` → every host but web's).
+    expect(matchHosts('&web', inv)).toEqual(['web-01', 'web-02']);
+    expect(matchHosts('!web', inv)).toEqual(['db-01', 'lb-01']);
+    expect(matchHosts('!web:&prod', inv)).toEqual(['db-01']);
   });
-  it('leaves regex and slices to Ansible', () => {
+  it('leaves regex, slices and the implicit localhost to Ansible', () => {
     expect(matchHosts('~web', inv)).toBeUndefined();
     expect(matchHosts('web[0]', inv)).toBeUndefined();
+    // Ansible answers localhost and 127.0.0.1 with its implicit localhost (AFD-150).
+    expect(matchHosts('localhost', inv)).toBeUndefined();
+    expect(matchHosts('web:127.0.0.1', inv)).toBeUndefined();
+    expect(matchHosts('localhost', { hosts: ['localhost'], groups: {} })).toEqual(['localhost']);
   });
 });
 

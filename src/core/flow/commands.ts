@@ -2332,13 +2332,16 @@ function reimport(
     tx.apply((f) => setIn(f, [...path, 'origin', 'gone'], true));
   }
   let first: Ulid | undefined;
+  // AFD-148: an add can follow a step added earlier in this plan, named by its ID in the plan.
+  const created = new Map<Ulid, Ulid>();
   for (const a of cmd.adds) {
     // On the ok_hosts wire of the step before it; without one, at the end of the top level.
     const st = state(tx);
-    const after = a.after ? st.model.nodes.get(a.after) : undefined;
+    const anchor = a.after ? (created.get(a.after) ?? a.after) : undefined;
+    const after = anchor ? st.model.nodes.get(anchor) : undefined;
     const level = after ? levelOf(st, after.level) : levelOf(st, ROOT);
     const wire = after
-      ? level.edges.find((e) => e?.from?.node === a.after && e.from.port === 'ok_hosts')
+      ? level.edges.find((e) => e?.from?.node === after.node.id && e.from.port === 'ok_hosts')
       : undefined;
     const id = addNode(
       tx,
@@ -2363,6 +2366,7 @@ function reimport(
       if (a.step[k] !== undefined) setField(tx, path, k, a.step[k] as YamlValue, NODE_ORDER);
     if (a.step.origin)
       setField(tx, path, 'origin', a.step.origin as unknown as YamlValue, NODE_ORDER);
+    created.set(a.step.id, id);
     first ??= id;
   }
   const kept = cmd.keep?.length ?? 0;
