@@ -68,6 +68,11 @@ export class CatalogService implements vscode.Disposable {
   private readonly entries = new Map<string, Entry>();
   /** Index builds running (AFD-163: ended on dispose). */
   private readonly workers = new Set<Worker>();
+  /** AFD-162: what each repository YAML file is as a playbook, by modification time and size. */
+  private readonly playbookFiles = new Map<
+    string,
+    { mtime: number; size: number; info?: PlaybookInfo }
+  >();
   private readonly changed = new vscode.EventEmitter<{ folder: string; status: CatalogStatus }>();
   readonly onStatus = this.changed.event;
 
@@ -323,11 +328,47 @@ export class CatalogService implements vscode.Disposable {
     return probe.client.call<RoleInfo[]>('roles', {}, TIMEOUTS.probeRoles);
   }
 
+  /**
+   * The repository's playbooks. AFD-162: the Code lens asks again whenever a flow's bindings
+   * change, and reading and parsing up to 3000 files each time blocked the extension host; a file
+   * whose modification time and size are as before is not read again.
+   */
   async playbooks(folder: vscode.WorkspaceFolder): Promise<PlaybookInfo[]> {
-    return (await this.repoFiles(folder, '**/*.{yml,yaml}'))
-      .filter(isPlaybook)
-      .map((f) => ({ path: f.path, plays: playsOf(f.text) }))
-      .sort((a, b) => a.path.localeCompare(b.path));
+    const uris = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(folder, '**/*.{yml,yaml}'),
+      EXCLUDE,
+      MAX_FILES,
+    );
+    const out: PlaybookInfo[] = [];
+    const listed = new Set<string>();
+    for (const uri of uris) {
+      const key = uri.toString();
+      listed.add(key);
+      try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        const known = this.playbookFiles.get(key);
+        if (known && known.mtime === stat.mtime && known.size === stat.size) {
+          if (known.info) out.push(known.info);
+          continue;
+        }
+        let info: PlaybookInfo | undefined;
+        if (stat.size <= 512_000) {
+          const file = {
+            path: vscode.workspace.asRelativePath(uri, false),
+            text: new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)),
+          };
+          if (isPlaybook(file)) info = { path: file.path, plays: playsOf(file.text) };
+        }
+        this.playbookFiles.set(key, { mtime: stat.mtime, size: stat.size, info });
+        if (info) out.push(info);
+      } catch {
+        // Unreadable files say nothing about playbooks.
+      }
+    }
+    const prefix = folder.uri.toString();
+    for (const key of this.playbookFiles.keys())
+      if (key.startsWith(prefix) && !listed.has(key)) this.playbookFiles.delete(key);
+    return out.sort((a, b) => a.path.localeCompare(b.path));
   }
 
   dispose(): void {

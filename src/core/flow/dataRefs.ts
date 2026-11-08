@@ -1,6 +1,7 @@
 // Where a `from:` reference reads (AFD-21): a flow input, an upstream node's output (a subflow's
 // output lifted from an inner step), or, inside a subflow, that subflow's own input. One resolver
 // for the validator, the generator, the data lens and the AI tools.
+import { predecessors } from './adjacency';
 import { type FlowModel, keyScope, ROOT } from './model';
 import type { ContractField, FlowNode, Ulid } from './types';
 
@@ -128,17 +129,15 @@ export function upstreamNodes(model: FlowModel, id: Ulid): FlowNode[] {
     if (!level) break;
     const seen = new Set([entry.node.id]);
     const queue = [entry.node.id];
-    while (queue.length > 0) {
-      const at = queue.shift();
-      for (const e of level.edges) {
-        const from = e?.from?.node;
-        if (e?.to?.node !== at || !from || seen.has(from)) continue;
+    // AFD-162: wires by node, built once per level (every wire per visited node before).
+    for (let i = 0; i < queue.length; i++)
+      for (const from of predecessors(level.edges, queue[i] as Ulid)) {
+        if (seen.has(from)) continue;
         seen.add(from);
         queue.push(from);
         const n = model.nodes.get(from)?.node;
         if (n && n.type !== 'start') out.push(n);
       }
-    }
     entry = level.parent ? model.nodes.get(level.parent) : undefined;
   }
   return out;

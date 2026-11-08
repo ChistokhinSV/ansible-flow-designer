@@ -168,6 +168,20 @@ describe('side panels', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Hide Side Panel' }));
     expect(useUi.getState().panelCollapsed).toBe(true);
   });
+
+  it('AFD-164: a drag of the panel edge ends when the button is up, with no pointerup seen', () => {
+    render(<App />);
+    const edge = screen.getByRole('separator', { name: 'Resize the side panel' });
+    const before = useUi.getState().panelWidth;
+    fireEvent.pointerDown(edge, { clientX: 500, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(edge, { clientX: 460, pointerId: 1, buttons: 1 });
+    const dragged = useUi.getState().panelWidth;
+    expect(dragged).not.toBe(before);
+    // Released outside the webview's frame: the next move comes with no button down.
+    fireEvent.pointerMove(edge, { clientX: 420, pointerId: 1, buttons: 0 });
+    fireEvent.pointerMove(edge, { clientX: 300, pointerId: 1, buttons: 1 });
+    expect(useUi.getState().panelWidth).toBe(dragged);
+  });
 });
 
 describe('a level with only Start and End', () => {

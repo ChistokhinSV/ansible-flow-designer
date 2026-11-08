@@ -90,40 +90,67 @@ function trimEdit(start: number, oldText: string, newText: string): TextEdit {
   };
 }
 
-/** Myers O(ND) diff; returns an edit script of '=', '-' (delete from a) and '+' (insert from b). */
+/**
+ * Myers O(ND) diff; returns an edit script of '=', '-' (delete from a) and '+' (insert from b).
+ * AFD-162: equal leading and trailing lines are matched first, so D counts only the changed
+ * middle, and each round keeps its V as a small typed window (the diagonals the backtrack reads)
+ * instead of a copy of a Map. A Tidy Up of 500 nodes held about 2M Map entries before.
+ */
 function myers(a: string[], b: string[]): string[] {
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head++;
+  let tail = 0;
+  while (
+    tail < a.length - head &&
+    tail < b.length - head &&
+    a[a.length - 1 - tail] === b[b.length - 1 - tail]
+  )
+    tail++;
+  const middle = middleScript(a.slice(head, a.length - tail), b.slice(head, b.length - tail));
+  return [...Array<string>(head).fill('='), ...middle, ...Array<string>(tail).fill('=')];
+}
+
+function middleScript(a: string[], b: string[]): string[] {
   const n = a.length;
   const m = b.length;
+  if (n === 0) return Array<string>(m).fill('+');
+  if (m === 0) return Array<string>(n).fill('-');
   const max = n + m;
-  const v = new Map<number, number>([[1, 0]]);
-  const trace: Map<number, number>[] = [];
+  const off = max + 1;
+  const v = new Int32Array(2 * max + 3).fill(-1);
+  v[off + 1] = 0;
+  // Round d reads diagonals -(d + 1) .. d + 1 of the V left by round d - 1.
+  const trace: Int32Array[] = [];
   for (let d = 0; d <= max; d++) {
-    trace.push(new Map(v));
+    trace.push(v.slice(off - d - 1, off + d + 2));
     for (let k = -d; k <= d; k += 2) {
-      const down = k === -d || (k !== d && (v.get(k - 1) ?? -1) < (v.get(k + 1) ?? -1));
-      let x = down ? (v.get(k + 1) ?? 0) : (v.get(k - 1) ?? 0) + 1;
+      const down = k === -d || (k !== d && (v[off + k - 1] ?? -1) < (v[off + k + 1] ?? -1));
+      let x = down ? (v[off + k + 1] ?? 0) : (v[off + k - 1] ?? 0) + 1;
       let y = x - k;
       while (x < n && y < m && a[x] === b[y]) {
         x++;
         y++;
       }
-      v.set(k, x);
-      if (x >= n && y >= m) return backtrack(trace, a.length, b.length);
+      v[off + k] = x;
+      if (x >= n && y >= m) return backtrack(trace, n, m);
     }
   }
   throw new Error('diff failed');
 }
 
-function backtrack(trace: Map<number, number>[], n: number, m: number): string[] {
+function backtrack(trace: Int32Array[], n: number, m: number): string[] {
+  const at = (d: number, k: number) => {
+    const value = (trace[d] as Int32Array)[k + d + 1];
+    return value === undefined ? -1 : value;
+  };
   const script: string[] = [];
   let x = n;
   let y = m;
   for (let d = trace.length - 1; d >= 0; d--) {
-    const v = trace[d] as Map<number, number>;
     const k = x - y;
-    const down = k === -d || (k !== d && (v.get(k - 1) ?? -1) < (v.get(k + 1) ?? -1));
+    const down = k === -d || (k !== d && at(d, k - 1) < at(d, k + 1));
     const prevK = down ? k + 1 : k - 1;
-    const prevX = v.get(prevK) ?? 0;
+    const prevX = Math.max(0, at(d, prevK));
     const prevY = prevX - prevK;
     while (x > prevX && y > prevY) {
       script.push('=');

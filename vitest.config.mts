@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // AFD-166: `just coverage` measures the unit projects; no thresholds yet.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      reporter: ['text-summary', 'html', 'json-summary'],
+      reportsDirectory: 'coverage',
+    },
     projects: [
       {
         test: {
@@ -55,6 +62,8 @@ export default defineConfig({
         test: {
           name: 'webview',
           environment: 'jsdom',
+          // AFD-166: one jsdom per worker instead of per file: 13 s to 9 s on this machine.
+          pool: 'vmThreads',
           include: ['test/unit/webview/**/*.test.{ts,tsx}'],
           setupFiles: ['test/unit/webview/setup.ts'],
         },

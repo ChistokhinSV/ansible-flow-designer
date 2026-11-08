@@ -6,7 +6,7 @@ import type { TextEdit } from '../yaml/edits';
 import { deleteKey, insertItem, type OpResult, removeItem, removeItems, setIn } from '../yaml/ops';
 import type { Path, YamlFile } from '../yaml/parse';
 import { Literal, type YamlValue } from '../yaml/render';
-import { YamlTransaction } from '../yaml/transaction';
+import { YamlEditError, YamlTransaction } from '../yaml/transaction';
 import { annotationValue, nextAnnotationKey, TIE_OFFSET } from './annotations';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
@@ -407,6 +407,25 @@ function setField(
     return;
   }
   tx.apply((f) => setIn(f, [...base, key], value, { before: after(order, key) }));
+}
+
+/** AFD-162: wires removed against one parse, one op per level; how many there were. */
+function removeEdgesAtOnce(tx: YamlTransaction, ids: readonly Ulid[]): number {
+  const st = state(tx);
+  const byList = new Map<string, { path: Path; idx: number[]; length: number }>();
+  for (const id of new Set(ids)) {
+    const entry = st.model.edges.get(id);
+    if (!entry) continue;
+    const path = entry.path.slice(0, -1);
+    const level = st.model.levels.get(entry.level);
+    const key = JSON.stringify(path);
+    const list = byList.get(key) ?? { path, idx: [], length: level?.edges.length ?? 0 };
+    list.idx.push(entry.path.at(-1) as number);
+    byList.set(key, list);
+  }
+  const ops = [...byList.values()].flatMap((l) => removeIndexes(l.path, l.idx, l.length));
+  if (ops.length) tx.applyAll(ops);
+  return [...byList.values()].reduce((n, l) => n + l.idx.length, 0);
 }
 
 function removeEdgeById(tx: YamlTransaction, id: Ulid): void {
@@ -1168,6 +1187,89 @@ function removeIndexes(
   if (indexes.length === 0) return [];
   if (indexes.length === length) return [(f) => setIn(f, seqPath, [])];
   return [(f) => removeItems(f, seqPath, indexes)];
+}
+
+/**
+ * AFD-162: a selection deleted against one parse. Deleting node by node parsed the document and
+ * built the model again per node, so select-all and delete on a few hundred nodes blocked the
+ * extension host. A node inside a deleted subflow goes with it. The regions (each level's edges
+ * and nodes, its annotations, the parent's boundary, decisions, layout) are disjoint, except where
+ * a flow-style list is rendered again whole: then applyAll refuses the overlap and the caller
+ * deletes node by node. Returns how many nodes were asked for and found.
+ */
+function deleteNodesAtOnce(tx: YamlTransaction, ids: readonly Ulid[]): number {
+  const st = state(tx);
+  const asked = new Set(ids.filter((id) => st.model.nodes.has(id)));
+  const insideAsked = (id: Ulid) => {
+    for (let at = st.model.nodes.get(id)?.level; at && at !== ROOT; ) {
+      if (asked.has(at)) return true;
+      at = st.model.nodes.get(at)?.level;
+    }
+    return false;
+  };
+  const top = [...asked].filter((id) => !insideAsked(id));
+  if (top.length === 0) return 0;
+  const gone = new Set<Ulid>();
+  const byLevel = new Map<string, Ulid[]>();
+  for (const id of top) {
+    const entry = nodeAt(st, id);
+    gone.add(id);
+    for (const d of descendantIds(entry.node)) gone.add(d);
+    byLevel.set(entry.level, [...(byLevel.get(entry.level) ?? []), id]);
+  }
+  const ops: Op[] = [];
+  for (const [levelId, members] of byLevel) {
+    const level = levelOf(st, levelId);
+    const here = new Set<string>(members);
+    const keys = new Set(members.map((id) => nodeAt(st, id).node.key));
+    const edgeIdx = level.edges
+      .map((e, i) =>
+        e && (here.has(e.from?.node as string) || here.has(e.to?.node as string)) ? i : -1,
+      )
+      .filter((i) => i >= 0);
+    ops.push(...removeIndexes(level.edgesPath, edgeIdx, level.edges.length));
+    const nodeIdx = members.map((id) => nodeAt(st, id).path.at(-1) as number);
+    ops.push(...removeIndexes(level.nodesPath, nodeIdx, level.nodes.length));
+    // AFD-64: the Notes on a node go with it (those inside it go with its body).
+    const tied = level.annotations.filter(
+      (a) => a && (here.has(a.on as string) || keys.has(a.on as string)),
+    );
+    ops.push(...removeAnnotationOps(level, new Set(tied.map((a) => a.id))));
+    const parent = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
+    const boundary = parent?.subflow?.boundary;
+    if (parent && boundary && !gone.has(parent.id)) {
+      const outputs = Object.fromEntries(
+        Object.entries(boundary.outputs ?? {}).map(([p, refs]) => [
+          p,
+          (refs ?? []).filter((r) => !here.has(r?.node as string)),
+        ]),
+      );
+      const changed =
+        here.has(boundary.in as string) ||
+        Object.entries(outputs).some(([p, refs]) => refs.length !== boundary.outputs?.[p]?.length);
+      if (changed)
+        ops.push(
+          ...boundaryOps(st, parent.id, {
+            in: here.has(boundary.in as string) ? undefined : boundary.in,
+            outputs,
+          }),
+        );
+    }
+  }
+  const decisions = st.doc.decisions ?? [];
+  const decisionIdx = decisions
+    .map((d, i) => (d?.node && gone.has(d.node) ? i : -1))
+    .filter((i) => i >= 0);
+  if (decisionIdx.length > 0 && decisionIdx.length === decisions.length)
+    ops.push((f) => deleteKey(f, [], 'decisions'));
+  else if (decisionIdx.length) ops.push((f) => removeItems(f, ['decisions'], decisionIdx));
+  const layout = st.doc.layout ?? {};
+  const layoutIds = [...gone].filter((x) => x in layout);
+  if (layoutIds.length > 0 && layoutIds.length === Object.keys(layout).length)
+    ops.push((f) => deleteKey(f, [], 'layout'));
+  else ops.push(...layoutIds.map((lid) => (f: YamlFile) => deleteKey(f, ['layout'], lid)));
+  tx.applyAll(ops);
+  return top.length;
 }
 
 function deleteNode(tx: YamlTransaction, id: Ulid): void {
@@ -2597,16 +2699,42 @@ function settleStatuses(tx: YamlTransaction, ids: ReadonlySet<Ulid>): void {
       at = first.model.nodes.get(at)?.level;
     return n;
   };
-  const order = [...todo.keys()].sort((a, b) => levelDepth(b) - levelDepth(a));
-  for (const id of order) {
+  // AFD-162: a subflow's status follows its steps, so deeper levels settle first; the nodes of one
+  // depth are settled together, against one parse (paste of many nodes parsed once per node).
+  const byDepth = new Map<number, Ulid[]>();
+  for (const id of todo.keys()) {
+    const d = levelDepth(id);
+    byDepth.set(d, [...(byDepth.get(d) ?? []), id]);
+  }
+  for (const depth of [...byDepth.keys()].sort((a, b) => b - a)) {
     const st = state(tx);
-    const entry = st.model.nodes.get(id);
-    if (!entry || !hasStatus(entry.node)) continue;
-    const want = statusFor(st.doc, entry.node);
-    const have = entry.node.status;
-    if (have === want || (have === undefined && want === 'draft')) continue;
-    if (have === 'tested') dropTestedRecords(tx, [id]);
-    setField(tx, nodeAt(state(tx), id).path, 'status', want, NODE_ORDER);
+    const changes: { id: Ulid; path: Path; want: NodeStatus; tested: boolean }[] = [];
+    for (const id of byDepth.get(depth) ?? []) {
+      const entry = st.model.nodes.get(id);
+      if (!entry || !hasStatus(entry.node)) continue;
+      const want = statusFor(st.doc, entry.node);
+      const have = entry.node.status;
+      if (have === want || (have === undefined && want === 'draft')) continue;
+      changes.push({ id, path: entry.path, want, tested: have === 'tested' });
+    }
+    if (changes.length === 0) continue;
+    const dropped = changes.filter((c) => c.tested).map((c) => c.id);
+    const ops: Op[] = changes.map(
+      (c) => (f: YamlFile) =>
+        setIn(f, [...c.path, 'status'], c.want, { before: after(NODE_ORDER, 'status') }),
+    );
+    for (const c of changes)
+      if (c.tested && st.model.nodes.get(c.id)?.node.tested !== undefined)
+        ops.push((f) => deleteKey(f, c.path, 'tested'));
+    try {
+      tx.applyAll(ops);
+    } catch (e) {
+      // Flow-style node mappings: one edit at a time (key paths, so the ops still apply).
+      if (!(e instanceof YamlEditError && e.code === 'overlap')) throw e;
+      for (const op of ops) tx.apply(op);
+    }
+    // The format 1 decisions of nodes that were tested (their records went above).
+    if (dropped.length) dropTestedRecords(tx, dropped);
   }
 }
 
@@ -2668,17 +2796,18 @@ export function planCommand(
     case 'deleteNodes': {
       // Wires first; each item is looked up again, so a wire of a deleted node or the child of a
       // deleted subflow is simply gone already.
-      let removed = 0;
-      for (const edge of cmd.edges ?? [])
-        if (state(tx).model.edges.has(edge)) {
-          removeEdgeById(tx, edge);
-          removed++;
-        }
-      for (const id of cmd.ids)
-        if (state(tx).model.nodes.has(id)) {
-          deleteNode(tx, id);
-          removed++;
-        }
+      let removed = removeEdgesAtOnce(tx, cmd.edges ?? []);
+      try {
+        removed += deleteNodesAtOnce(tx, cmd.ids);
+      } catch (e) {
+        // AFD-162: a flow-style list rendered again overlapped another edit; one by one then.
+        if (!(e instanceof YamlEditError && e.code === 'overlap')) throw e;
+        for (const id of cmd.ids)
+          if (state(tx).model.nodes.has(id)) {
+            deleteNode(tx, id);
+            removed++;
+          }
+      }
       removed += deleteAnnotations(tx, cmd.annotations ?? []);
       if (removed === 0) throw new CommandError('not-found', 'Nothing to delete');
       break;

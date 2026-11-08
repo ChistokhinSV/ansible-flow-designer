@@ -2,7 +2,7 @@
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RunSummary } from '../../../src/core/run/events';
 import {
   REDACTED,
@@ -28,12 +28,20 @@ describe('tailFile', () => {
     const got: string[] = [];
     const tail = tailFile(file, (lines) => got.push(...lines), 20);
     await wait(60); // no file yet: nothing, no error
+    // AFD-166: wait for what the polls hand over, not a fixed time: under the full suite's load a
+    // poll came later than 80 ms and the test failed now and then.
+    const settle = { timeout: 5000, interval: 20 };
     writeFileSync(file, '{"event":"start"}\n{"event":"pl');
-    await wait(80);
-    expect(got).toEqual(['{"event":"start"}']);
+    await vi.waitFor(() => expect(got).toEqual(['{"event":"start"}']), settle);
     appendFileSync(file, 'ay"}\n{"host":"lab-sw-01 é"}\n{"event":"stats"}');
-    await wait(80);
-    expect(got).toEqual(['{"event":"start"}', '{"event":"play"}', '{"host":"lab-sw-01 é"}']);
+    await vi.waitFor(
+      () =>
+        expect(got).toEqual(['{"event":"start"}', '{"event":"play"}', '{"host":"lab-sw-01 é"}']),
+      settle,
+    );
+    // A few more polls: the cut line at the end is not handed over before stop.
+    await wait(100);
+    expect(got).toHaveLength(3);
     await tail.stop();
     expect(got.at(-1)).toBe('{"event":"stats"}');
     expect(got).toHaveLength(4);

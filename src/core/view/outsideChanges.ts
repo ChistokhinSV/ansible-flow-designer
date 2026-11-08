@@ -242,7 +242,15 @@ export function addMarks(
   const edges = [...new Set([...(marks?.edges ?? []), ...edit.edges])].filter((id) =>
     model.edges.has(id),
   );
-  const removed = (marks?.removed ?? 0) + edit.removed;
+  // AFD-164: a step added by one outside edit and removed by a later one was never there for the
+  // person: its changes cancel out (mergeChanges), and it is no step removed either.
+  const addedBefore = new Set(
+    (marks?.changes ?? []).filter((c) => c.kind === 'added').map((c) => c.id),
+  );
+  const undone = (edit.changes ?? []).filter(
+    (c) => c.kind === 'removed' && addedBefore.has(c.id),
+  ).length;
+  const removed = Math.max(0, (marks?.removed ?? 0) + edit.removed - undone);
   // A change to a step that is gone since (the person deleted it) goes with its mark.
   const changes = mergeChanges(marks?.changes ?? [], edit.changes ?? []).filter(
     (c) => c.kind === 'removed' || model.nodes.has(c.id),

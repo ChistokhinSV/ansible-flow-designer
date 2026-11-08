@@ -40,6 +40,10 @@ fmt:
 test *args:
     npx --no-install vitest run {{ args }}
 
+# Unit test coverage (AFD-166): a summary here, the HTML report in coverage/index.html
+coverage *args:
+    npx --no-install vitest run --coverage {{ args }}
+
 # Integration tests inside VS Code (version: stable | insiders | 1.140.0)
 test-int $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests

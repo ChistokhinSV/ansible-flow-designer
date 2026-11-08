@@ -513,14 +513,39 @@ function frameLook(p: FramePortView) {
  * that embed the diagram: draw.io opens the first page.
  */
 export function toDrawio(src: ExportSource, opts: { first?: string; agent?: string } = {}): string {
+  return drawioFile(drawioPages(src), opts);
+}
+
+/** Every level's page, drawn once (AFD-162), in drill-down order. */
+export interface DrawioPages {
+  levels: string[];
+  pages: Map<string, string>;
+}
+
+/**
+ * The pages of a flow. AFD-162: an image export of every level embeds the whole diagram in each
+ * image with that image's level first; drawing every page again per image re-routed every wire on
+ * every level once per level.
+ */
+export function drawioPages(src: ExportSource): DrawioPages {
   const scenes = scenesOf(src);
   const byLevel = new Map(scenes.map((s) => [s.level, s]));
-  const ordered = opts.first
-    ? [
-        ...scenes.filter((s) => s.level === opts.first),
-        ...scenes.filter((s) => s.level !== opts.first),
-      ]
-    : scenes;
-  const pages = ordered.map((s) => page(src, s, byLevel));
+  return {
+    levels: scenes.map((s) => s.level),
+    pages: new Map(scenes.map((s) => [s.level, page(src, s, byLevel)])),
+  };
+}
+
+/** The draw.io file of drawn pages, with `first` as its first page. */
+export function drawioFile(
+  drawn: DrawioPages,
+  opts: { first?: string; agent?: string } = {},
+): string {
+  const order = opts.first
+    ? [opts.first, ...drawn.levels.filter((l) => l !== opts.first)].filter((l) =>
+        drawn.pages.has(l),
+      )
+    : drawn.levels;
+  const pages = order.map((l) => drawn.pages.get(l) as string);
   return `<mxfile host="Ansible Flow Designer" agent="${attr(opts.agent ?? 'Ansible Flow Designer')}" pages="${pages.length}">${pages.join('')}</mxfile>\n`;
 }

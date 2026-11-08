@@ -10,13 +10,18 @@ import { type CodegenOutcome, generateFlow } from './codegen';
 import { announceImplementedAgain, type SessionDeps } from './flowSession';
 import { headText } from './gitHead';
 import { type Host, isFlow } from './host';
+import { logChannel } from './log';
 import { saveFollowed } from './run/scenarioFollow';
 
 export function registerDocuments(host: Host): vscode.Disposable[] {
   const { sessions, lastSaved, savedCode, deps } = host;
+  for (const doc of vscode.workspace.textDocuments) if (isFlow(doc)) void prefetchHead(doc.uri);
   return [
     vscode.workspace.onDidOpenTextDocument((doc) => {
-      if (isFlow(doc)) void host.sessionFor(doc).refresh();
+      if (!isFlow(doc)) return;
+      void host.sessionFor(doc).refresh();
+      // AFD-164: the save participant has a short budget; HEAD's text is read ahead of it.
+      prefetchHead(doc.uri);
     }),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.contentChanges.length > 0) sessions.get(e.document.uri.toString())?.changed(e.reason);
@@ -26,6 +31,7 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
       sessions.get(key)?.dispose();
       sessions.delete(key);
       lastSaved.delete(key);
+      heads.delete(key);
       // AFD-93: closed, its Problems come from the workspace index again.
       if (isFlow(doc)) void host.index.republish(doc.uri);
     }),
@@ -46,7 +52,9 @@ export function registerDocuments(host: Host): vscode.Disposable[] {
       const session = sessions.get(doc.uri.toString());
       if (session?.hasPanels) void session.rememberShown();
       if (vscode.workspace.getConfiguration('afd', doc.uri).get<boolean>('codegen.onSave', true)) {
-        const code = writeCode(doc, deps, false);
+        // AFD-164: a failure here was an unhandled rejection: no message, generated/ maybe half
+        // written. It is logged and shown in the status bar.
+        const code = writeCode(doc, deps, false).catch((e: unknown) => saveCodegenFailed(doc, e));
         savedCode.set(doc.uri.toString(), code);
         // Implementation mode shows the code: once it is rewritten, sync again (M6).
         void code.then(() => sessions.get(doc.uri.toString())?.resyncIfScanned());
@@ -97,9 +105,16 @@ export async function writeCode(
     );
     // On save the answer may come much later (or never); the save path must not wait for it.
     if (!explicit) {
-      void asked.then((pick) =>
-        pick === overwrite ? generateFlow(doc, deps.schema, { force: true }) : undefined,
-      );
+      // AFD-164: the forced generation's result is shown, as Generate Code shows it.
+      void Promise.resolve(asked)
+        .then(async (pick) => {
+          if (pick !== overwrite) return;
+          const forced = await generateFlow(doc, deps.schema, { force: true });
+          if (forced.ok)
+            vscode.window.setStatusBarMessage(`$(check) ${codegenNotice(forced).text}`, 4000);
+          else void vscode.window.showErrorMessage(forced.error ?? 'Code generation failed');
+        })
+        .catch((e: unknown) => saveCodegenFailed(doc, e));
       return outcome;
     }
     if ((await asked) === overwrite) {
@@ -110,6 +125,45 @@ export async function writeCode(
   if (outcome.written.length > 0 || explicit)
     vscode.window.setStatusBarMessage(`$(check) ${codegenNotice(outcome).text}`, 4000);
   return outcome;
+}
+
+/** How long a save waits for Git's HEAD text before it uses the copy read before (AFD-164). */
+const HEAD_BUDGET_MS = 700;
+
+/** HEAD's text of each open flow, as last read (AFD-164). */
+const heads = new Map<string, string | undefined>();
+
+function prefetchHead(uri: vscode.Uri): Promise<string | undefined> {
+  return headText(uri)
+    .then((text) => {
+      heads.set(uri.toString(), text);
+      return text;
+    })
+    .catch(() => heads.get(uri.toString()));
+}
+
+/** HEAD's text, read now if Git answers within `ms`, else the copy read before. */
+async function headWithin(uri: vscode.Uri, ms: number): Promise<string | undefined> {
+  const known = heads.get(uri.toString());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<string | undefined>((resolve) => {
+    timer = setTimeout(() => resolve(known), ms);
+  });
+  try {
+    return await Promise.race([prefetchHead(uri), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Codegen on save failed: a log line and a status bar message (AFD-164). */
+function saveCodegenFailed(doc: vscode.TextDocument, e: unknown): CodegenOutcome {
+  const error = e instanceof Error ? e.message : String(e);
+  logChannel().error(
+    `Generated code for ${vscode.workspace.asRelativePath(doc.uri)} failed on save: ${error}`,
+  );
+  vscode.window.setStatusBarMessage(`$(warning) Generated code not written: ${error}`, 8000);
+  return { ok: false, error, written: [], kept: [], removed: [] };
 }
 
 async function diskText(uri: vscode.Uri): Promise<string | undefined> {
@@ -131,7 +185,10 @@ async function saveEdits(
 ): Promise<vscode.TextEdit[]> {
   const text = document.getText();
   const saved = (await diskText(document.uri)) ?? lastSaved;
-  const base = (await headText(document.uri)) ?? lastSaved;
+  // AFD-164: VS Code gives a save participant about 1.5 s and drops one that keeps running over,
+  // which would end the version bump and the tested drop-back for good. HEAD's text is read again
+  // each save but waited for briefly; past that, the copy read before (on open or the last save).
+  const base = (await headWithin(document.uri, HEAD_BUDGET_MS)) ?? lastSaved;
   let plan: ReturnType<typeof planSave>;
   try {
     plan = planSave(text, saved, base);

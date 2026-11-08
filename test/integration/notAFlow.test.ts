@@ -21,7 +21,8 @@ function file(name: string, text: string): vscode.Uri {
 
 describe('AFD-16 acceptance: a *.flow.yaml that is not a flow', () => {
   afterEach(closeAll);
-  after(() => rmSync(dir(), { recursive: true, force: true }));
+  // AFD-166: Windows can still hold a file of the folder for a moment (ENOTEMPTY); retry.
+  after(() => rmSync(dir(), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
   it('empty: no problem reported; Create a flow here is one edit, one undo empties it', async () => {
     const api = await testApi();

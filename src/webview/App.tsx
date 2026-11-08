@@ -252,16 +252,29 @@ function PanelResizer() {
       onPointerDown={(e) => {
         e.preventDefault();
         const start = e.clientX;
+        const handle = e.currentTarget;
         const from = expanded
-          ? (e.currentTarget.parentElement?.getBoundingClientRect().width ?? width)
+          ? (handle.parentElement?.getBoundingClientRect().width ?? width)
           : width;
-        const move = (m: PointerEvent) => set(from + (start - m.clientX));
-        const up = () => {
-          window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', up);
+        // AFD-164: the pointer is captured, so a release outside the webview's frame still ends
+        // the drag (a pointerup on window was lost there and the panel kept following the mouse).
+        // A move with no button down, or a cancelled pointer, ends it too.
+        const end = () => {
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', end);
+          handle.removeEventListener('pointercancel', end);
+          handle.removeEventListener('lostpointercapture', end);
+          if (handle.hasPointerCapture?.(e.pointerId)) handle.releasePointerCapture(e.pointerId);
         };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
+        const move = (m: PointerEvent) => {
+          if (m.buttons === 0) end();
+          else set(from + (start - m.clientX));
+        };
+        handle.setPointerCapture?.(e.pointerId);
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
+        handle.addEventListener('lostpointercapture', end);
       }}
     />
   );

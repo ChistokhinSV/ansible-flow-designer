@@ -1,5 +1,13 @@
 // AFD-125: what a hostile repository, flow, playbook or clipboard must not be able to do. Each case
 // is a finding of the 0.74.1 code review, kept as a regression test.
+//
+// AFD-166: the hostile-input suite is this file (the High findings, AFD-126..139) and three more:
+// - modelReview.test.ts: self-referencing aliases (AFD-147), Jinja delimiters in titles (AFD-145),
+//   keys that take over references (AFD-143);
+// - ../webview/hostReview.test.ts: designer messages that fail or race (AFD-152, AFD-156);
+// - lowReview.test.ts: NEL, LS, PS and C1 in flow files and exports (AFD-158), scenario inventory
+//   injection and alias bombs in flow files (AFD-159), names Ansible refuses (AFD-160), AWX
+//   transport (AFD-161), catalog files (AFD-163), webview messages and MCP paths (AFD-165).
 import {
   existsSync,
   mkdirSync,

@@ -20,7 +20,15 @@ import { ShownFlows } from './shownFlows';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
-export const isFlow = (doc: vscode.TextDocument) => doc.uri.path.endsWith('.flow.yaml');
+/**
+ * Documents a flow session is for. AFD-164: only files the user edits (on disk, unsaved, or in a
+ * remote window); a `git:` copy shown by a diff or the Timeline got a build, a layout, diagnostics
+ * and a place among the shown flows.
+ */
+const FLOW_SCHEMES = new Set(['file', 'untitled', 'vscode-remote']);
+
+export const isFlow = (doc: vscode.TextDocument) =>
+  FLOW_SCHEMES.has(doc.uri.scheme) && doc.uri.path.endsWith('.flow.yaml');
 
 export class Host {
   readonly testMode: boolean;

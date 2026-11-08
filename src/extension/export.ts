@@ -5,7 +5,7 @@
 // PNG needs a browser for its text: a designer panel draws it, and opens first when needed.
 import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
-import { toDrawio } from '../core/export/drawio';
+import { drawioFile, drawioPages, toDrawio } from '../core/export/drawio';
 import { embedDiagramInPng } from '../core/export/png';
 import { type ExportSource, levelSuffix, type Scene, scenesOf } from '../core/export/scene';
 import { sceneSvg } from '../core/export/svg';
@@ -186,11 +186,13 @@ export async function exportImage(
     const base = scenes.length > 1 ? stem.slice(0, stem.length - levelSuffix(first).length) : stem;
     const designer = format === 'png' ? await deps.designer(session.uri) : undefined;
     const written: vscode.Uri[] = [];
+    // AFD-162: the pages are drawn once; each image embeds them with its own level first.
+    const drawn = drawioPages(src);
     for (const scene of scenes) {
       const file = target.with({
         path: scenes.length > 1 ? `${base}${levelSuffix(scene)}${ext}` : `${stem}${ext}`,
       });
-      const diagram = toDrawio(src, { first: scene.level, agent: deps.agent });
+      const diagram = drawioFile(drawn, { first: scene.level, agent: deps.agent });
       let bytes: Uint8Array;
       if (designer) {
         const svg = sceneSvg(src, scene);

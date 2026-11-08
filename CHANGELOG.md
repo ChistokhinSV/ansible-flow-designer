@@ -1,8 +1,17 @@
 # Changelog
 
-## 0.74.4 — AFD-158 to AFD-161, AFD-163, AFD-165
+## 0.74.4 — AFD-158 to AFD-166
 
-The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer. The AWX token and device credentials travel more safely, and the module catalog, the designer and the AI tools are sturdier against odd input.
+The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer. The AWX token and device credentials travel more safely, and the module catalog, the designer and the AI tools are sturdier against odd input. Large flows are faster to edit, and a few small designer bugs are gone.
+
+- **Deleting many steps at once is fast:** select-all and delete on a flow of 400 steps took 14 seconds, with VS Code unresponsive; it now takes under a third of a second. Pasting many steps, Tidy Up on large flows, the checks of data references and exporting images of every level are faster too.
+- **The layout direction applies at once:** changing `afd.canvas.direction` now redraws open designers. Before, it waited for the next edit.
+- **Generate code on save says when it fails:** a failure shows in the status bar and the log, instead of nothing. After **Overwrite** on save, the result is shown too.
+- **Saving stays quick when Git is slow:** the version bump on save waits for Git's copy of the file for a moment only, then uses the copy read before. VS Code drops a save step that keeps running over its time, which would have ended the version bump for good.
+- **Code mode shows the newest scan:** a sync asked for while one was running now runs again after it.
+- **Git copies of a flow are not opened as flows:** a flow file shown by a diff or the Timeline no longer gets a designer session, problems and layout of its own.
+- **Resizing the side panel ends when you let go,** also when the mouse button is released outside the designer.
+- **Outside changes:** a step added and then removed by edits outside the designer is no longer counted as "1 step removed".
 
 - **AWX over plain http is refused:** an `http://` AWX address would send the token unencrypted, so Ansible Flow refuses it before the token is asked for or sent. For a lab AWX without TLS, turn on the new `afd.awx.allowHttp`. An AWX on this machine (`localhost`) needs no setting.
 - **`afd.awx.verifyTls` and `afd.awx.allowHttp` come from your user settings only:** a repository's `.vscode/settings.json` can no longer turn TLS checks off for the AWX your token is stored for. If you had turned `verifyTls` off in a workspace, set it in your user settings. Turning it off now shows a warning once per session.

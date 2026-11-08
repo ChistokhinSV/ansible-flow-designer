@@ -14,6 +14,8 @@ export class SyncController {
   /** The last code sync; a save re-syncs once there is one. */
   lastScan?: CodeScan;
   private syncing?: Promise<void>;
+  /** One more sync after the running one (AFD-164). */
+  private again?: Promise<void>;
 
   constructor(
     private readonly uri: vscode.Uri,
@@ -26,9 +28,19 @@ export class SyncController {
     ) => Promise<CommandOutcome>,
   ) {}
 
-  /** Re-sync from git: compile the code in the environment and push the scan to the panels. */
+  /**
+   * Re-sync from git: compile the code in the environment and push the scan to the panels.
+   * AFD-164: a sync asked for while one runs (a save rewrote generated/ meanwhile) runs once more
+   * after it, so the scan shown is never older than the code.
+   */
   sync(): Promise<void> {
-    if (this.syncing) return this.syncing;
+    if (this.syncing) {
+      this.again ??= this.syncing.then(() => {
+        this.again = undefined;
+        return this.sync();
+      });
+      return this.again;
+    }
     const run = async () => {
       const snapshot = await this.snapshot();
       if (!snapshot.doc || !this.deps.sync) return;

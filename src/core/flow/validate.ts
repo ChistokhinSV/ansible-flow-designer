@@ -1,6 +1,7 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
 import type { Path } from '../yaml/parse';
+import { successors } from './adjacency';
 import { fedByBubbling, levelTaken, untaken } from './bubbling';
 import { idGaps, withIds } from './completeIds';
 import { outputVar, registerName } from './dataNames';
@@ -1154,15 +1155,13 @@ function checkCollision(
 function reachable(edges: { from: PortRef; to: PortRef }[], start: Ulid[], skip?: Ulid): Set<Ulid> {
   const seen = new Set<Ulid>(start.filter((s) => s !== skip));
   const queue = [...seen];
-  while (queue.length > 0) {
-    const at = queue.shift();
-    for (const e of edges) {
-      const to = e?.to?.node;
-      if (e?.from?.node !== at || !to || to === skip || seen.has(to)) continue;
+  // AFD-162: wires by node, built once per level, instead of every wire per visited node.
+  for (let i = 0; i < queue.length; i++)
+    for (const to of successors(edges, queue[i] as Ulid)) {
+      if (to === skip || seen.has(to)) continue;
       seen.add(to);
       queue.push(to);
     }
-  }
   return seen;
 }
 

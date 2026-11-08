@@ -111,9 +111,10 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
         // The loaded catalog describes the old environment (AFD-32).
         host.catalog.environmentChanged();
       }
-      // Unplaced nodes follow the layout direction at once (AFD-42).
+      // Unplaced nodes follow the layout direction at once (AFD-42). AFD-164: recheck builds the
+      // snapshot again; refresh answered with the one cached for the unchanged document version.
       if (e.affectsConfiguration('afd.canvas.direction'))
-        for (const s of host.sessions.values()) void s.refresh();
+        for (const s of host.sessions.values()) void s.recheck();
     }),
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       supportsMultipleEditorsPerDocument: true,
