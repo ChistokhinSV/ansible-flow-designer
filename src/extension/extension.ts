@@ -3,6 +3,8 @@
 import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
 import { KEEP_RUNS, sweepRuns } from '../node/run/storage';
+import { hostSummary, showAiDiagnostics } from './ai/diagnostics';
+import { HostIntegration } from './ai/hostIntegration';
 import { hostFlowIO, registerFlowTools } from './ai/lmTools';
 import { AiSetup } from './ai/setup';
 import { registerFlowCommands } from './commands/flowCommands';
@@ -15,6 +17,7 @@ import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { registerInventoryView } from './inventoryView';
+import { logChannel } from './log';
 import { ScenarioLive } from './run/scenarioLive';
 import { ScenarioTests } from './run/testController';
 import { watchSharedSources } from './sharedSubflows';
@@ -48,7 +51,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     open: (uri) => host.openDesigner(uri),
     resolveModule: host.playbookDeps.resolveModule,
   });
-  context.subscriptions.push(...registerFlowTools(flowIO));
+  context.subscriptions.push(...registerFlowTools(flowIO, (line) => logChannel().warn(line)));
   // AFD-22: the user guide, the walkthroughs and the sample flows.
   context.subscriptions.push(...registerHelp(context, (uri) => host.openDesigner(uri)));
   // AFD-25: draw.io and image exports of the flow the user means.
@@ -70,19 +73,33 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     }),
   );
   const aiSetup = new AiSetup(context);
+  // AFD-174: the agent built into this editor (Cursor, Kiro, Antigravity IDE, Devin Desktop).
+  const hostAi = new HostIntegration(context, () => aiSetup.skillFiles());
+  context.subscriptions.push(hostAi);
   context.subscriptions.push(
     vscode.commands.registerCommand(CMD.setupAi, () => aiSetup.setup()),
-    vscode.commands.registerCommand(CMD.removeAi, () => aiSetup.remove()),
+    vscode.commands.registerCommand(CMD.removeAi, async () => {
+      const removed = await aiSetup.remove();
+      if (removed) await hostAi.removed();
+    }),
+    vscode.commands.registerCommand(CMD.diagnoseAi, () => showAiDiagnostics(context)),
   );
+  // AFD-172: which editor this is and what its agent side offers, one line for the log.
+  logChannel().info(hostSummary());
   // AFD-20: the extension also starts after VS Code does (onStartupFinished) and checks a setup
   // from an older version. AFD-73: agents without it are offered it once a designer shows a flow
   // with a step, not before anyone has seen a flow.
   void (host.testMode ? aiSetup.refreshContext() : aiSetup.checkStale()).catch(() => undefined);
+  if (!host.testMode) void hostAi.start().catch(() => undefined);
   let offerPending = !host.testMode;
   const offerOnce = (document: vscode.TextDocument) => {
     if (!offerPending || !hasSteps(document.getText())) return;
     offerPending = false;
-    void aiSetup.offer().catch(() => undefined);
+    // This editor's own agent first; the general offer leaves it out and waits if that asked.
+    void (async () => {
+      if (await hostAi.offer()) return;
+      await aiSetup.offer(hostAi.agent);
+    })().catch(() => undefined);
   };
   // The schema compiles on first use; where flows exist, do it now, before the first one opens.
   // AFD-155: from the index's own list, so start-up walks the workspace once, without
@@ -142,7 +159,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   for (const doc of vscode.workspace.textDocuments)
     if (isFlow(doc)) void host.sessionFor(doc).refresh();
 
-  return host.testMode ? createTestApi(host, flowIO, aiSetup) : undefined;
+  return host.testMode ? createTestApi(host, flowIO, aiSetup, context) : undefined;
 }
 
 export function deactivate(): void {}

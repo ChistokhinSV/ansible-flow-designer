@@ -74,10 +74,11 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 
 ## AI assistants
 
-| Command                                      | Does                                                                  |
-| -------------------------------------------- | --------------------------------------------------------------------- |
-| `afd.ai.setup` · Set Up AI Assistants…       | copies the skill and registers the flow tools for the agents you pick |
-| `afd.ai.remove` · Remove AI Assistant Setup… | removes what setup wrote                                              |
+| Command                                             | Does                                                                                                            |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `afd.ai.setup` · Set Up AI Assistants…              | copies the skill and registers the flow tools for the agents you pick                                           |
+| `afd.ai.remove` · Remove AI Assistant Setup…        | removes what setup wrote                                                                                        |
+| `afd.ai.diagnose` · Show AI Integration Diagnostics | what this editor and its agent offer: APIs, how the MCP server starts, each agent's MCP files and skill folders |
 
 ## Keyboard
 

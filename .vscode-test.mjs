@@ -100,11 +100,18 @@ git('add', '-A');
 git('commit', '-q', '-m', 'fixtures');
 
 const common = {
-  version,
+  // AFD-171: AFD_EDITOR_PATH runs the suites in an installed editor built on VS Code (a fork's
+  // executable), as a developer check; otherwise test-electron downloads the version. Not Cursor 3:
+  // it moves a new profile into its agent window (Glass), where the runner does not find the extension.
+  ...(process.env.AFD_EDITOR_PATH
+    ? { useInstallation: { fromPath: process.env.AFD_EDITOR_PATH } }
+    : { version }),
   workspaceFolder: workspace,
   launchArgs: [
     '--disable-extensions',
     '--disable-workspace-trust',
+    // AFD-172: Kiro's sign-in and settings-import screens wait for a click in a fresh profile.
+    ...(/kiro/i.test(process.env.AFD_EDITOR_PATH ?? '') ? ['--skip-onboarding'] : []),
     // Electron as root in a throwaway CI container.
     ...(process.env.AFD_TEST_NO_SANDBOX ? ['--no-sandbox', '--disable-gpu'] : []),
   ],
@@ -134,8 +141,14 @@ export default defineConfig([
       'out/test/integration/scenarios.test.js',
       'out/test/integration/scenarioFollow.test.js',
       'out/test/integration/shared.test.js',
+      'out/test/integration/diagnostics.test.js',
+      'out/test/integration/hostAi.test.js',
     ],
   },
+  // AFD-172: the AI integration diagnostics report, kept in out/diagnostics/ per editor.
+  { ...common, label: 'diag', files: 'out/test/integration/diagnostics.test.js' },
+  // AFD-174: the agent built into the editor, into a temporary home.
+  { ...common, label: 'host-ai', files: 'out/test/integration/hostAi.test.js' },
   { ...common, label: 'm3', files: 'out/test/integration/codegen.test.js' },
   { ...common, label: 'm4', files: 'out/test/integration/subflow.test.js' },
   { ...common, label: 'm5', files: 'out/test/integration/catalog.test.js' },

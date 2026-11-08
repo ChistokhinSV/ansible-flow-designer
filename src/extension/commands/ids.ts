@@ -39,6 +39,7 @@ export const CMD = {
   awxClearToken: 'afd.awx.clearToken',
   setupAi: 'afd.ai.setup',
   removeAi: 'afd.ai.remove',
+  diagnoseAi: 'afd.ai.diagnose',
   setUpEnvironment: 'afd.environment.setup',
   openGuide: 'afd.help.openGuide',
   getStarted: 'afd.help.getStarted',

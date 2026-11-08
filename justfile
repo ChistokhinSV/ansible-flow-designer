@@ -44,10 +44,20 @@ test *args:
 coverage *args:
     npx --no-install vitest run --coverage {{ args }}
 
-# Integration tests inside VS Code (version: stable | insiders | 1.140.0)
+# Integration tests inside VS Code (version: stable | insiders | 1.94.2)
 test-int $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label integration
+
+# Integration tests on the engine floor (AFD-171): VS Code 1.94 (Node 20) as older VS Code forks
+# run it, without the language-model tools API and without node:sqlite (no module catalog)
+test-floor: (test-int "1.94.2")
+
+# Developer check (AFD-171): a suite inside an installed editor built on VS Code, by its
+# executable, e.g. `just test-editor "$LOCALAPPDATA/Programs/Antigravity IDE/Antigravity IDE.exe" help`
+test-editor $AFD_EDITOR_PATH label="integration": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label {{ label }}
 
 # Performance suite on the production bundle (timings reported by the webview)
 perf $AFD_VSCODE_VERSION="stable": build-prod

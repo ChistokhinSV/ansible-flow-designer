@@ -8,22 +8,53 @@ silently. A step-by-step example: [Tutorial 4](../tutorials/04-ai-assistant.md).
 
 - In **agent mode**, the `ansible-flow` skill and the instructions for `*.flow.yaml` load when they
   are relevant.
-- Ten tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
-  `#flowNew`, `#flowCompleteIds`, `#flowExport`, `#sourceOutline`, `#flowImport`.
+- Eleven tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
+  `#flowNew`, `#flowCompleteIds`, `#flowExport`, `#sourceOutline`, `#flowImport`,
+  `#flowScenarios`.
 - An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved
   changes, so the version bump and `generated/` follow.
 
+## The agent built into Cursor, Kiro, Antigravity IDE or Devin Desktop
+
+These editors install extensions from Open VSX:
+[Ansible Flow Designer on Open VSX](https://open-vsx.org/extension/chistokhinsv/ansible-flow-designer).
+Their own agents do not read Copilot's tools, so the extension gives them the same flow tools (its
+MCP server) and the `ansible-flow` skill:
+
+- **Cursor:** automatically. The extension registers the tools through Cursor's extension API each
+  time it starts, for the folders you have open; the agent lists them as `extension-ansible-flow`.
+  Nothing is written for the tools. If no copy of the skill is in a folder Cursor reads, you are
+  asked once to put one in `~/.claude/skills/`.
+- **Kiro, Antigravity IDE, Devin Desktop:** these agents read files only. The first time the
+  designer shows a flow with a step, one notice asks to set the agent up and names the files it
+  writes:
+
+  | Editor                   | Flow tools                                                                           | Skill                         |
+  | ------------------------ | ------------------------------------------------------------------------------------ | ----------------------------- |
+  | Kiro                     | `~/.kiro/settings/mcp.json`                                                          | `~/.kiro/skills/`             |
+  | Antigravity IDE          | `~/.gemini/config/mcp_config.json` (loaded at once)                                  | `~/.gemini/config/skills/`    |
+  | Devin Desktop (Windsurf) | Devin's `mcp_config.json` (`%APPDATA%devin` on Windows, `~/.config/devin` elsewhere) | `~/.codeium/windsurf/skills/` |
+
+  After **Set Up**, they are kept up to date at each start. Devin uses them with its agent set to
+  **local**; it also runs the tools registered for Claude Code or Cursor, so it gets no second entry
+  then.
+- **Turn it off** with `afd.ai.hostIntegration`. **Remove AI Assistant Setup…** takes it back.
+- Kiro, Antigravity and Devin ask before each tool call; Kiro lets you approve a tool for good.
+
 ## Other agents: set up once
 
-| Agent                                       | Skill copy (repository / just me)        | Flow tools (MCP server `ansible-flow`)         |
-| ------------------------------------------- | ---------------------------------------- | ---------------------------------------------- |
-| Claude Code (CLI and its VS Code extension) | `.claude/skills/` / `~/.claude/skills/`  | `claude mcp add -s user` (run for you)         |
-| Codex (CLI, app, VS Code extension)         | `.agents/skills/` / `~/.agents/skills/`  | marked block in `~/.codex/config.toml`         |
-| Gemini CLI                                  | `.agents/skills/` / `~/.gemini/skills/`  | `mcpServers` in `~/.gemini/settings.json`      |
-| OpenCode                                    | `.agents/skills/` / `~/.agents/skills/`  | `mcp` in `~/.config/opencode/opencode.json(c)` |
-| ZCode                                       | `.agents/skills/` / `~/.agents/skills/`  | `mcpServers` in `~/.agents/mcp.json`           |
-| GitHub Copilot CLI                          | `.github/skills/` / `~/.copilot/skills/` | `mcpServers` in `~/.copilot/mcp-config.json`   |
-| Cursor                                      | `.claude/skills/` / `~/.claude/skills/`  | `mcpServers` in `~/.cursor/mcp.json`           |
+| Agent                                       | Skill copy (repository / just me)                 | Flow tools (MCP server `ansible-flow`)             |
+| ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| Claude Code (CLI and its VS Code extension) | `.claude/skills/` / `~/.claude/skills/`           | `claude mcp add -s user` (run for you)             |
+| Codex (CLI, app, VS Code extension)         | `.agents/skills/` / `~/.agents/skills/`           | marked block in `~/.codex/config.toml`             |
+| Gemini CLI                                  | `.agents/skills/` / `~/.gemini/skills/`           | `mcpServers` in `~/.gemini/settings.json`          |
+| OpenCode                                    | `.agents/skills/` / `~/.agents/skills/`           | `mcp` in `~/.config/opencode/opencode.json(c)`     |
+| ZCode                                       | `.agents/skills/` / `~/.agents/skills/`           | `mcpServers` in `~/.agents/mcp.json`               |
+| GitHub Copilot CLI                          | `.github/skills/` / `~/.copilot/skills/`          | `mcpServers` in `~/.copilot/mcp-config.json`       |
+| Cursor                                      | `.claude/skills/` / `~/.claude/skills/`           | `mcpServers` in `~/.cursor/mcp.json`               |
+| Kiro                                        | `.kiro/skills/` / `~/.kiro/skills/`               | `mcpServers` in `~/.kiro/settings/mcp.json`        |
+| Antigravity IDE                             | `.agents/skills/` / `~/.gemini/config/skills/`    | `mcpServers` in `~/.gemini/config/mcp_config.json` |
+| Devin Desktop (Windsurf)                    | `.agents/skills/` / `~/.codeium/windsurf/skills/` | `mcpServers` in Devin's `mcp_config.json`          |
 - **Offered once:** the first time the designer shows a flow with a step, the extension looks for
   these agents (a program on PATH, their config folder, an installed app, their VS Code extension).
   Agents found without the setup get one notice: **Set Up…** (all of them, for every repository;
@@ -42,7 +73,11 @@ Good to know:
   config that does not parse is left alone and reported;
 - after an extension update, the setup offers to update itself once;
 - **Ansible Flow: Remove AI Assistant Setup…** removes only what setup wrote;
-- Gemini enables MCP servers only in trusted folders: accept its trust prompt.
+- Gemini enables MCP servers only in trusted folders: accept its trust prompt;
+- the server works in the folders the agent names (MCP roots), else in the folder it was started
+  in, but never searches your whole home folder: an agent that starts it there without naming a
+  folder gets "No folder to work in". Cursor's entry passes `${workspaceFolder}`; another agent can
+  pass the folder as `AFD_MCP_ROOTS`.
 
 ## What the tools do
 
@@ -105,7 +140,12 @@ last showed of each flow in the workspace's storage, and forgets flows not opene
   still shows field by field. **Compare with** goes back to HEAD or a commit.
 
 Your own edits are never marked: those in the designer, Undo and Redo, and typing in the flow's
-text editor. The marks themselves stay apart from the **Changes** lens, which also shows your own
+text editor.
+
+An agent that uses the flow tools through MCP (every agent except Copilot) writes the file the way
+a save does. Whether **Undo** in the designer takes its change back depends on the editor: VS Code
+and most editors built on it reload the file as one undoable change, Cursor does not. **Compare
+with** and Git always can. The marks themselves stay apart from the **Changes** lens, which also shows your own
 edits since the version it compares with.
 
 ## Hand-written YAML

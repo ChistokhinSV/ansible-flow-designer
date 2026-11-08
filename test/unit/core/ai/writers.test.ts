@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findAgents, mcpJson, otherAgentGuide } from '../../../../src/node/ai/agents';
 import {
   applySetup,
+  CURSOR_WORKSPACE,
   type Env,
   type Launch,
   planSetup,
@@ -300,5 +301,112 @@ describe('AI assistant setup', { timeout: 20_000 }, () => {
     expect(items[1]?.target).toBe(
       'claude mcp add -s user ansible-flow -e ELECTRON_RUN_AS_NODE=1 -- "C:\\Program Files\\VS Code\\Code.exe" C:\\Users\\someone\\AppData\\Roaming\\Code\\User\\globalStorage\\afd\\mcp\\mcp.js',
     );
+  });
+});
+
+describe('AFD-173: agents built into VS Code forks', { timeout: 20_000 }, () => {
+  it('Kiro, Antigravity IDE and Devin get their own MCP file and skill folder', async () => {
+    const e: Env = { ...env(), platform: 'win32' };
+    const agents = ['kiro', 'antigravity', 'devin'] as const;
+    const items = await planSetup([...agents], 'user', e, LAUNCH, SKILL);
+    await applySetup(items, e, LAUNCH, SKILL);
+    for (const [file, skill] of [
+      [join(home, '.kiro', 'settings', 'mcp.json'), join(home, '.kiro', 'skills')],
+      [
+        join(home, '.gemini', 'config', 'mcp_config.json'),
+        join(home, '.gemini', 'config', 'skills'),
+      ],
+      [
+        join(home, 'AppData', 'Roaming', 'devin', 'mcp_config.json'),
+        join(home, '.codeium', 'windsurf', 'skills'),
+      ],
+    ] as const) {
+      const entry = parseJsonc(readFileSync(file, 'utf8')).mcpServers['ansible-flow'];
+      expect(entry, file).toMatchObject({
+        command: LAUNCH.command,
+        args: LAUNCH.args,
+        env: LAUNCH.env,
+      });
+      // Kiro: the read-only tools approved from the start; edits still ask.
+      if (file.includes('.kiro'))
+        expect(entry.autoApprove).toEqual([
+          'flow_list',
+          'flow_describe',
+          'flow_validate',
+          'flow_reference',
+          'source_outline',
+        ]);
+      expect(existsSync(join(skill, 'ansible-flow', 'SKILL.md')), skill).toBe(true);
+    }
+    const again = await planSetup([...agents], 'user', e, LAUNCH, SKILL);
+    expect(again.every((i) => i.action === 'unchanged')).toBe(true);
+    const removed = await removeSetup([...agents], e);
+    expect(removed).toHaveLength(6);
+  });
+
+  it('Devin outside Windows: $XDG_CONFIG_HOME/devin, else ~/.config/devin', async () => {
+    const linux: Env = { ...env(), platform: 'linux' };
+    const [, mcp] = await planSetup(['devin'], 'user', linux, LAUNCH, SKILL);
+    expect(mcp?.target).toBe(join(home, '.config', 'devin', 'mcp_config.json'));
+    const xdg: Env = { ...linux, xdgConfig: join(home, 'cfg') };
+    const [, mcp2] = await planSetup(['devin'], 'user', xdg, LAUNCH, SKILL);
+    expect(mcp2?.target).toBe(join(home, 'cfg', 'devin', 'mcp_config.json'));
+  });
+
+  it('an update changes only our keys: the agent’s and the user’s toggles stay', async () => {
+    const file = join(home, '.kiro', 'settings', 'mcp.json');
+    mkdirSync(join(home, '.kiro', 'settings'), { recursive: true });
+    writeFileSync(
+      file,
+      JSON.stringify({
+        mcpServers: {
+          'ansible-flow': {
+            command: 'old',
+            args: ['old.js'],
+            disabled: false,
+            autoApprove: ['flow_list', 'flow_describe'],
+          },
+        },
+      }),
+    );
+    const items = await planSetup(['kiro'], 'user', env(), LAUNCH, SKILL);
+    expect(items.find((i) => i.what === 'mcp')?.action).toBe('update');
+    await applySetup(items, env(), LAUNCH, SKILL);
+    const entry = parseJsonc(readFileSync(file, 'utf8')).mcpServers['ansible-flow'];
+    expect(entry).toEqual({
+      command: LAUNCH.command,
+      args: LAUNCH.args,
+      env: LAUNCH.env,
+      disabled: false,
+      autoApprove: ['flow_list', 'flow_describe'],
+    });
+    // With our keys as they are, extra keys do not make it an update.
+    const again = await planSetup(['kiro'], 'user', env(), LAUNCH, SKILL);
+    expect(again.find((i) => i.what === 'mcp')?.action).toBe('unchanged');
+  });
+
+  it('a skill copy from a newer version is left alone (two editors on one machine)', async () => {
+    await applySetup(
+      await planSetup(['kiro'], 'user', env(), LAUNCH, { ...SKILL, version: '0.80.0' }),
+      env(),
+      LAUNCH,
+      { ...SKILL, version: '0.80.0' },
+    );
+    const older = await planSetup(['kiro'], 'user', env(), LAUNCH, {
+      version: '0.75.0',
+      files: { 'SKILL.md': 'older\n' },
+    });
+    expect(older.find((i) => i.what === 'skill')?.action).toBe('unchanged');
+  });
+
+  it('Cursor’s entry passes the workspace as Cursor’s variable', async () => {
+    await applySetup(
+      await planSetup(['cursor'], 'user', env(), LAUNCH, SKILL),
+      env(),
+      LAUNCH,
+      SKILL,
+    );
+    const entry = parseJsonc(read(home, '.cursor', 'mcp.json')).mcpServers['ansible-flow'];
+    expect(entry.env).toEqual({ ...LAUNCH.env, AFD_MCP_ROOTS: CURSOR_WORKSPACE });
   });
 });

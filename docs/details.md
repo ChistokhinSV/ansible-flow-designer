@@ -9,7 +9,11 @@ The [README](../README.md) is the short version. This page covers:
 
 ## Requirements
 
-- **VS Code** 1.140 or later.
+- **VS Code** 1.94 or later. Two features need more:
+  - the **module catalog** (search, docs and binding checks) needs Node.js 22.13 in the editor,
+    which VS Code has since 1.101; in an older editor it is off and says why;
+  - **Copilot's flow tools** need VS Code 1.95 or later. Other assistants use the MCP server
+    (**Set Up AI Assistants…**).
 - **Designing** a flow (canvas, validation, generated playbooks) needs nothing else.
 - **Running** a flow, syntax checks, the module catalog, lenses and Re-sync need an Ansible
   environment with ansible-core 2.19 or later. **Set Up Ansible Environment…** helps you pick one
@@ -88,7 +92,9 @@ just package
 | `just check`                     | Type-check (TypeScript 7) and lint/format check (Biome)                           |
 | `just fmt`                       | Apply Biome formatting and safe fixes                                             |
 | `just test [args]`               | Unit and component tests (Vitest); `AFD_FUZZ_STEPS=3000` deepens the fuzzer       |
-| `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.140.0`)         |
+| `just test-int [version]`        | Integration tests inside VS Code (`stable`, `insiders` or e.g. `1.94.2`)          |
+| `just test-floor`                | The integration tests on the oldest supported VS Code (1.94.2, Node 20)           |
+| `just test-editor path [label]`  | A test suite inside an installed editor built on VS Code, by its executable       |
 | `just test-wsl distro [version]` | The integration tests with their runs in a WSL distribution (Windows)             |
 | `just perf [version]`            | Performance suite on the production bundle                                        |
 | `just test-yaml [version]`       | With the Red Hat YAML extension installed: flows are validated by this schema     |

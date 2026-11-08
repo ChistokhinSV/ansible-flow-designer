@@ -74,4 +74,4 @@ The **[first tutorial](docs/guide/tutorials/01-first-flow.md)** takes 10 minutes
 - **[details](docs/details.md):** requirements, settings, repository layout and building from
   source.
 
-Requires VS Code 1.140 or later. MIT licensed.
+Requires VS Code 1.94 or later (the module catalog: 1.101 or later). MIT licensed.

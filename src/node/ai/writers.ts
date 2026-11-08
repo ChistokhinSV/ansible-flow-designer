@@ -16,6 +16,7 @@ import {
   parse as parseJsonc,
   parseTree,
 } from 'jsonc-parser';
+import { TOOL_SPECS } from '../../core/ai/specs';
 
 export const AGENTS = [
   'claude',
@@ -25,6 +26,10 @@ export const AGENTS = [
   'zcode',
   'copilot',
   'cursor',
+  // AFD-173: the agents built into VS Code forks, by the files they read (AFD-172 probes).
+  'kiro',
+  'antigravity',
+  'devin',
 ] as const;
 export type Agent = (typeof AGENTS)[number];
 export type Scope = 'repo' | 'user';
@@ -54,6 +59,10 @@ export interface Item {
 
 export interface Env {
   home: string;
+  /** Where Devin keeps its MCP file depends on it (default: this process's platform). */
+  platform?: NodeJS.Platform;
+  /** XDG_CONFIG_HOME, which Devin honours outside Windows. */
+  xdgConfig?: string;
   /** The repository (workspace folder) for repo-scope skill copies. */
   repo?: string;
   /** Runs the claude CLI; undefined when it is not installed. */
@@ -110,6 +119,11 @@ const SKILL_HOME: Record<Agent, Record<Scope, string>> = {
   zcode: { repo: '.agents', user: '.agents' },
   copilot: { repo: '.github', user: '.copilot' },
   cursor: { repo: '.claude', user: '.claude' },
+  kiro: { repo: '.kiro', user: '.kiro' },
+  // Antigravity's customization roots: .agents in a repository, ~/.gemini/config for the user.
+  antigravity: { repo: '.agents', user: '.gemini/config' },
+  // Devin reads ~/.codeium/windsurf/skills and ~/.agents/skills, not ~/.devin/skills.
+  devin: { repo: '.agents', user: '.codeium/windsurf' },
 };
 
 /** Folders an agent reads the skill from, per scope. */
@@ -199,10 +213,24 @@ export async function skillState(dir: string): Promise<SkillState | undefined> {
   return { dir, foreign: false, version: manifest.version, edited };
 }
 
+/** a > b for versions like 0.75.0 (non-numeric parts count as 0). */
+export function newerVersion(a: string, b: string): boolean {
+  const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}
+
 export async function planSkill(dir: string, skill: SkillFiles): Promise<Item['action']> {
   const state = await skillState(dir);
   if (!state) return 'create';
   if (state.foreign) return 'skip';
+  // AFD-173: an editor with a newer Ansible Flow Designer wrote it (VS Code and a fork on one
+  // machine): the older one leaves it, so the two do not overwrite each other at every start.
+  if (state.version && newerVersion(state.version, skill.version)) return 'unchanged';
   for (const [name, text] of Object.entries(skill.files)) {
     const path = await skillPath(dir, name);
     if (!path || (await readText(path)) !== text) return 'update';
@@ -364,10 +392,27 @@ async function opencodeConfig(env: Env): Promise<string> {
   return (await exists(jsonc)) ? jsonc : join(dir, 'opencode.json');
 }
 
-const JSON_MCP: Record<
-  JsonAgent,
-  { file: (env: Env) => Promise<string>; path: string[]; entry: (l: Launch) => unknown }
-> = {
+interface JsonSpec {
+  file: (env: Env) => Promise<string>;
+  path: string[];
+  entry: (l: Launch) => Record<string, unknown>;
+  /**
+   * AFD-173: the keys of an existing entry that are ours. Others stay as the user or the agent set
+   * them: Kiro's disabled, autoApprove and disabledTools, Cursor's and Devin's tool toggles.
+   */
+  managed: string[];
+}
+
+const STDIO_KEYS = ['command', 'args', 'env'];
+
+/** The flow tools that only read (flow_list, flow_describe, …). */
+const READ_ONLY_TOOLS = TOOL_SPECS.filter((s) => s.readOnly).map((s) => s.name);
+
+/** Cursor's variable for the open folder, resolved by Cursor when it starts the server. */
+// biome-ignore lint/suspicious/noTemplateCurlyInString: a Cursor config variable, not a template
+export const CURSOR_WORKSPACE = '${workspaceFolder}';
+
+const JSON_MCP: Record<JsonAgent, JsonSpec> = {
   gemini: {
     file: async (env) => join(env.home, '.gemini', 'settings.json'),
     path: ['mcpServers', SERVER_NAME],
@@ -375,6 +420,7 @@ const JSON_MCP: Record<
       ...stdio(l),
       description: 'Ansible Flow Designer: read and edit *.flow.yaml flows by key',
     }),
+    managed: [...STDIO_KEYS, 'description'],
   },
   opencode: {
     file: opencodeConfig,
@@ -385,24 +431,66 @@ const JSON_MCP: Record<
       ...(l.env ? { environment: l.env } : {}),
       enabled: true,
     }),
+    managed: ['type', 'command', 'environment'],
   },
   // ZCode reads ~/.agents/mcp.json (besides ~/.zcode/config.json): a file other agents share.
   zcode: {
     file: async (env) => join(env.home, '.agents', 'mcp.json'),
     path: ['mcpServers', SERVER_NAME],
     entry: stdio,
+    managed: STDIO_KEYS,
   },
   copilot: {
     file: async (env) => join(env.home, '.copilot', 'mcp-config.json'),
     path: ['mcpServers', SERVER_NAME],
     entry: (l) => ({ type: 'local', ...stdio(l), tools: ['*'] }),
+    managed: ['type', ...STDIO_KEYS],
   },
   cursor: {
     file: async (env) => join(env.home, '.cursor', 'mcp.json'),
     path: ['mcpServers', SERVER_NAME],
+    // AFD-173: Cursor starts global servers in the home folder and sends no roots; the workspace
+    // comes as a variable (the server leaves it out when Cursor does not resolve it).
+    entry: (l) => ({
+      ...stdio(l),
+      env: { ...(l.env ?? {}), AFD_MCP_ROOTS: CURSOR_WORKSPACE },
+    }),
+    managed: STDIO_KEYS,
+  },
+  kiro: {
+    file: async (env) => join(env.home, '.kiro', 'settings', 'mcp.json'),
+    path: ['mcpServers', SERVER_NAME],
+    // AFD-174: Kiro asks before every call; the tools that only read are approved when the entry
+    // is first written. Not managed: what the user approves or takes back later stays.
+    entry: (l) => ({ ...stdio(l), autoApprove: READ_ONLY_TOOLS }),
+    managed: STDIO_KEYS,
+  },
+  // Antigravity IDE's global customization root; its own plugin folders do not load MCP servers.
+  antigravity: {
+    file: async (env) => join(env.home, '.gemini', 'config', 'mcp_config.json'),
+    path: ['mcpServers', SERVER_NAME],
     entry: stdio,
+    managed: STDIO_KEYS,
+  },
+  devin: {
+    file: async (env) => devinMcpFile(env),
+    path: ['mcpServers', SERVER_NAME],
+    entry: stdio,
+    managed: STDIO_KEYS,
   },
 };
+
+/**
+ * Devin Desktop's MCP file, as its own code builds it: %USERPROFILE%\AppData\Roaming\devin on
+ * Windows, else $XDG_CONFIG_HOME/devin or ~/.config/devin. (It reads Windsurf's
+ * ~/.codeium/windsurf/mcp_config.json too, and Claude Code's and Cursor's entries.)
+ */
+export function devinMcpFile(env: Env): string {
+  const platform = env.platform ?? process.platform;
+  return platform === 'win32'
+    ? join(env.home, 'AppData', 'Roaming', 'devin', 'mcp_config.json')
+    : join(env.xdgConfig || join(env.home, '.config'), 'devin', 'mcp_config.json');
+}
 
 /** The config file an agent's registration goes in (Claude's is managed by its CLI). */
 export async function mcpTarget(agent: Agent, env: Env, launch?: Launch): Promise<string> {
@@ -442,10 +530,10 @@ export async function planJson(agent: JsonAgent, env: Env, launch: Launch): Prom
     return { ...item, action: 'skip', note: 'it does not parse as JSON; left as it is' };
   const now = text.trim() ? current(text, spec.path) : undefined;
   if (now === undefined) return { ...item, action: 'create' };
-  return {
-    ...item,
-    action: JSON.stringify(now) === JSON.stringify(spec.entry(launch)) ? 'unchanged' : 'update',
-  };
+  const want = spec.entry(launch);
+  const have = (now && typeof now === 'object' ? now : {}) as Record<string, unknown>;
+  const same = spec.managed.every((k) => JSON.stringify(have[k]) === JSON.stringify(want[k]));
+  return { ...item, action: same ? 'unchanged' : 'update' };
 }
 
 export async function writeJson(agent: JsonAgent, env: Env, launch: Launch): Promise<void> {
@@ -454,10 +542,17 @@ export async function writeJson(agent: JsonAgent, env: Env, launch: Launch): Pro
   const text = (await readText(target)) ?? '';
   if (text.trim() && broken(text)) return;
   const base = text.trim() ? text : '{}\n';
-  const next = applyEdits(
-    base,
-    modify(base, spec.path, spec.entry(launch), { formattingOptions: formatting(base) }),
-  );
+  const want = spec.entry(launch);
+  const now = current(base, spec.path);
+  let next = base;
+  if (now === undefined || !now || typeof now !== 'object' || Array.isArray(now))
+    next = applyEdits(next, modify(next, spec.path, want, { formattingOptions: formatting(next) }));
+  else
+    for (const key of spec.managed)
+      next = applyEdits(
+        next,
+        modify(next, [...spec.path, key], want[key], { formattingOptions: formatting(next) }),
+      );
   if (next === text) return;
   await fs.mkdir(dirname(target), { recursive: true });
   await backup(target);

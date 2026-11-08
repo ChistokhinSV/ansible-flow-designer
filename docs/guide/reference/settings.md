@@ -20,6 +20,7 @@ the [guide](../README.md).
 | `afd.awx.url`                      | (empty)     | AWX address, e.g. `https://awx.example.net`. The token is kept in SecretStorage (_Set AWX Token_), never in settings.                                                                                       |
 | `afd.awx.verifyTls`                | `true`      | Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate. User settings only.                                                                                               |
 | `afd.awx.allowHttp`                | `false`     | Send the token over plain `http://` to an AWX on another machine (a lab without TLS). User settings only.                                                                                                   |
+| `afd.ai.hostIntegration`           | `true`      | The agent built into this editor gets the flow tools and skill: Cursor automatically, Kiro, Antigravity IDE and Devin Desktop after you agree once. User settings only.                                     |
 
 ## Restricted Mode
 

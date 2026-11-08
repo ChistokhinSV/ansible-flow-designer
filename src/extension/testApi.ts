@@ -15,7 +15,10 @@ import type { ScenarioRequest } from '../core/scenario/edit';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { FlowFacts } from '../core/view/flowFacts';
 import type { OutsideMarks } from '../core/view/outsideChanges';
+import type { HostId } from '../node/ai/hosts';
 import type { Agent, Item as SetupItem } from '../node/ai/writers';
+import { aiDiagnostics } from './ai/diagnostics';
+import { HostIntegration } from './ai/hostIntegration';
 import type { AiSetup, SetupPicks } from './ai/setup';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
 import { type AwxPicks, launchInAwx, setToken, setupTemplate } from './awx/awxRun';
@@ -131,9 +134,18 @@ export interface AfdTestApi {
   }): Promise<SetupItem[] | undefined>;
   /** AFD-22: the walkthrough tour keys the designer's edits have set this session. */
   tour(): string[];
+  /** AFD-172: the AI integration diagnostics report (Markdown). */
+  aiDiagnostics(): Promise<string>;
+  /** AFD-174: an editor's built-in agent set up as after its consent, into a temporary home. */
+  hostAi(host: HostId, home: string): Promise<{ written: string[]; again: string[] }>;
 }
 
-export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): AfdTestApi {
+export function createTestApi(
+  host: Host,
+  flowIO: FlowIO,
+  aiSetup: AiSetup,
+  context: vscode.ExtensionContext,
+): AfdTestApi {
   const get = (uri: vscode.Uri) => {
     const s = host.sessions.get(uri.toString());
     if (!s) throw new Error(`no session for ${uri.toString()}`);
@@ -169,6 +181,14 @@ export function createTestApi(host: Host, flowIO: FlowIO, aiSetup: AiSetup): Afd
     setupAi: (picks) => aiSetup.setup(picks, false),
     removeAi: (picks) => aiSetup.remove(picks),
     tour: () => tourReached(),
+    aiDiagnostics: () => aiDiagnostics(host.context),
+    hostAi: async (id, home) => {
+      const h = new HostIntegration(context, () => aiSetup.skillFiles(), { host: id, home });
+      const written = (await h.update(false)).map((i) => i.target);
+      const again = (await h.update(false)).map((i) => i.target);
+      h.dispose();
+      return { written, again };
+    },
     inspect: (uri) => get(uri).inspect(),
     openLevel: (uri, level) => get(uri).openLevel(level),
     reveal: (uri, node) => get(uri).reveal(node),

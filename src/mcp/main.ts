@@ -2,6 +2,8 @@
 // stdio MCP server (Set Up AI Assistants registers it). It shares the tool core with Copilot's
 // tools; files are read and written on disk. stdout carries the protocol: log to stderr only.
 
+import { appendFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
@@ -9,7 +11,7 @@ import { runTool } from '../core/ai/handlers';
 import { TOOL_SPECS } from '../core/ai/specs';
 import { createIdFactory } from '../core/flow/ids';
 import { createSchemaValidator } from '../core/flow/schema';
-import { FsFlowIO } from './fsIO';
+import { FsFlowIO, startRoots } from './fsIO';
 
 declare const __AFD_VERSION__: string;
 
@@ -25,54 +27,111 @@ Existing playbooks, roles or AWX templates: read them with source_outline (each 
 Scenario tests (<key>.scenarios.yaml: which hosts fail where, and where each must end): flow_scenarios lists and checks them in a simulation, adds or updates them (expectations default to where the simulation sends each host) and verifies them in Ansible; after changing a flow's wiring, check its scenarios.
 flow_reference explains the format, ports, patterns, ops and scenarios. The ansible-flow skill has the full rules and examples.`;
 
-const io = new FsFlowIO([process.cwd()], createSchemaValidator(), createIdFactory());
+/**
+ * AFD-172: AFD_MCP_TRACE=<file> appends one JSON line per event: the start (cwd, runtime), the
+ * client (name, version, capabilities), its roots and each tool call (name, time, outcome; not its
+ * arguments). For checking what an editor's agent sends; off unless set.
+ */
+const TRACE = process.env.AFD_MCP_TRACE;
+function trace(event: string, data: Record<string, unknown> = {}): void {
+  if (!TRACE) return;
+  try {
+    appendFileSync(
+      TRACE,
+      `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...data })}\n`,
+    );
+  } catch {
+    // Tracing never stops the server.
+  }
+}
+
+/**
+ * AFD-172/173: the folders to work in until the client sends roots: AFD_MCP_ROOTS, else the working
+ * directory unless that is the home folder or a drive root (startRoots). No agent checked sends
+ * roots; Cursor starts global servers in the home folder.
+ */
+const isDir = (path: string) => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+const START_ROOTS = startRoots(process.env.AFD_MCP_ROOTS, process.cwd(), homedir(), isDir);
+const io = new FsFlowIO(START_ROOTS, createSchemaValidator(), createIdFactory());
+trace('start', {
+  version: __AFD_VERSION__,
+  cwd: process.cwd(),
+  node: process.versions.node,
+  electron: process.versions.electron,
+  givenRoots: process.env.AFD_MCP_ROOTS,
+  roots: START_ROOTS,
+});
 const server = new Server(
   { name: 'ansible-flow', version: __AFD_VERSION__ },
   { capabilities: { tools: {} }, instructions: INSTRUCTIONS },
 );
 
 async function useClientRoots(): Promise<void> {
-  if (!server.getClientCapabilities()?.roots) return;
+  if (!server.getClientCapabilities()?.roots) {
+    trace('roots', { supported: false });
+    return;
+  }
   try {
     const { roots } = await server.listRoots();
+    trace('roots', { supported: true, roots: roots.map((r) => r.uri) });
     io.setRoots(roots.filter((r) => r.uri.startsWith('file:')).map((r) => fileURLToPath(r.uri)));
   } catch (e) {
+    trace('roots', { supported: true, error: (e as Error).message });
     console.error(
       `ansible-flow: roots not available (${(e as Error).message}); using ${process.cwd()}`,
     );
   }
 }
-server.oninitialized = () => void useClientRoots();
+server.oninitialized = () => {
+  trace('initialized', {
+    client: server.getClientVersion(),
+    capabilities: server.getClientCapabilities(),
+  });
+  void useClientRoots();
+};
 server.setNotificationHandler('notifications/roots/list_changed', () => useClientRoots());
 
-server.setRequestHandler('tools/list', async () => ({
-  tools: TOOL_SPECS.map((s) => ({
-    name: s.name,
-    title: s.title,
-    description: s.description,
-    inputSchema: s.inputSchema as { type: 'object' },
-    annotations: {
+server.setRequestHandler('tools/list', async () => {
+  // AFD-172: an agent that lists the tools and then shows none (Cursor's reported 0-tools case).
+  trace('list', { tools: TOOL_SPECS.length });
+  return {
+    tools: TOOL_SPECS.map((s) => ({
+      name: s.name,
       title: s.title,
-      readOnlyHint: s.readOnly,
-      destructiveHint: false,
-      idempotentHint: s.readOnly,
-      openWorldHint: s.openWorld ?? false,
-    },
-  })),
-}));
+      description: s.description,
+      inputSchema: s.inputSchema as { type: 'object' },
+      annotations: {
+        title: s.title,
+        readOnlyHint: s.readOnly,
+        destructiveHint: false,
+        idempotentHint: s.readOnly,
+        openWorldHint: s.openWorld ?? false,
+      },
+    })),
+  };
+});
 
 // One call at a time: an edit reads, plans and writes a file without another edit in between.
 let queue: Promise<unknown> = Promise.resolve();
 server.setRequestHandler('tools/call', (request) => {
+  const started = Date.now();
   const call = queue.then(async () => {
     try {
       const r = await runTool(io, request.params.name, request.params.arguments ?? {});
+      trace('call', { tool: request.params.name, ms: Date.now() - started, ok: !r.isError });
       // AFD-165: an error names files relative to the roots, never by absolute path.
       return {
         content: [{ type: 'text' as const, text: r.isError ? io.hidePaths(r.text) : r.text }],
         ...(r.isError ? { isError: true } : {}),
       };
     } catch (e) {
+      trace('call', { tool: request.params.name, ms: Date.now() - started, ok: false });
       return {
         content: [{ type: 'text' as const, text: `Error: ${io.hidePaths((e as Error).message)}` }],
         isError: true,

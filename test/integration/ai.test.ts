@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
 import { scenariosConfirmation } from '../../src/extension/ai/lmTools';
+import { lmTools } from '../../src/extension/compat';
 import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers';
 
 const ROOT = join(__dirname, '../../..');
@@ -68,8 +69,11 @@ describe('AFD-19 acceptance: AI assistants', () => {
     }
   });
 
-  it('Copilot sees the flow tools', () => {
-    const names = vscode.lm.tools.map((t) => t.name);
+  it('Copilot sees the flow tools', function () {
+    // AFD-171: on the engine floor (VS Code 1.94) there is no tools API; activation still works.
+    const lm = lmTools(vscode);
+    if (!lm) this.skip();
+    const names = lm.tools.map((t) => t.name);
     for (const t of ['afd_flow_describe', 'afd_flow_edit', 'afd_flow_validate', 'afd_flow_new'])
       assert.ok(names.includes(t), `${t} registered`);
   });

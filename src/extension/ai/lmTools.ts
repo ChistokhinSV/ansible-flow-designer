@@ -16,6 +16,14 @@ import { type ScenarioResult, scenariosFileName } from '../../core/scenario/scen
 import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
 import { CMD } from '../commands/ids';
+import {
+  type LanguageModelTool,
+  type LmTools,
+  lmTools,
+  type PreparedToolInvocation,
+  type ToolInvocationOptions,
+  type ToolPrepareOptions,
+} from '../compat';
 import { authorName } from '../gitHead';
 import { stillInside, workspaceSource } from '../import/common';
 import { followScenarios } from '../run/scenarioFollow';
@@ -262,7 +270,7 @@ export function scenariosConfirmation(
   input: Record<string, unknown>,
   where: string,
   invocationMessage: string,
-): vscode.PreparedToolInvocation {
+): PreparedToolInvocation {
   const action = typeof input.action === 'string' ? input.action : 'list';
   const name = typeof input.name === 'string' ? ` "${input.name}"` : '';
   const file = `the scenarios file of **${where}**`;
@@ -283,15 +291,14 @@ export function scenariosConfirmation(
   };
 }
 
-class FlowTool implements vscode.LanguageModelTool<Input> {
+class FlowTool implements LanguageModelTool<Input> {
   constructor(
     private readonly spec: ToolSpec,
     private readonly io: FlowIO,
+    private readonly lm: LmTools,
   ) {}
 
-  prepareInvocation(
-    options: vscode.LanguageModelToolInvocationPrepareOptions<Input>,
-  ): vscode.PreparedToolInvocation {
+  prepareInvocation(options: ToolPrepareOptions<Input>): PreparedToolInvocation {
     const input = options.input ?? {};
     const where =
       typeof input.path === 'string'
@@ -332,16 +339,37 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
     };
   }
 
-  async invoke(options: vscode.LanguageModelToolInvocationOptions<Input>) {
+  async invoke(options: ToolInvocationOptions<Input>) {
     const result = await runTool(this.io, this.spec.name, options.input);
     // A thrown error reaches the model as the tool's answer, marked as failed.
     if (result.isError) throw new Error(result.text);
-    return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(result.text)]);
+    return this.lm.textResult(result.text);
   }
 }
 
-export function registerFlowTools(io: FlowIO): vscode.Disposable[] {
-  return TOOL_SPECS.map((spec) =>
-    vscode.lm.registerTool(`${COPILOT_PREFIX}${spec.name}`, new FlowTool(spec, io)),
-  );
+/**
+ * Registers the flow tools for Copilot's agent. AFD-171: an editor without the language-model
+ * tools API (VS Code before 1.95, VS Code forks) gets none, and the extension activates anyway;
+ * their agents reach the same tools through the MCP server.
+ */
+export function registerFlowTools(io: FlowIO, log?: (line: string) => void): vscode.Disposable[] {
+  const lm = lmTools(vscode);
+  if (!lm) {
+    log?.(
+      `No language-model tools API in ${vscode.env.appName} ${vscode.version}: flow tools not registered for the chat`,
+    );
+    return [];
+  }
+  const out: vscode.Disposable[] = [];
+  try {
+    for (const spec of TOOL_SPECS)
+      out.push(lm.registerTool(`${COPILOT_PREFIX}${spec.name}`, new FlowTool(spec, io, lm)));
+  } catch (err) {
+    log?.(
+      `Flow tools not registered for the chat: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    for (const d of out) d.dispose();
+    return [];
+  }
+  return out;
 }

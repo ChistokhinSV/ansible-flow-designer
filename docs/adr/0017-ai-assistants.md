@@ -215,3 +215,37 @@ Scenarios tab does by title (ADR-0026 and ADR-0032 amendments):
 - **Found while writing the example:** the guide's scenario example since AFD-58 forced a failed
   Validate and expected a rollback. In edge-baseline, Validate's failed_hosts is open; the rollback
   hangs off Push baseline. The guide and the reference now force `push-baseline`.
+
+## Amendment: the agents built into VS Code forks (AFD-170, 2026-11-08)
+
+Cursor, Kiro, Antigravity IDE and Devin Desktop install from Open VSX. Their own agents do not read
+Copilot's `lm` tools. Phase 1 (AFD-172) probed each editor's agent in signed-in IDEs: probe skills,
+probe MCP entries, plugin bundles and the editors' APIs, read back from the agents' answers and from
+server traces (`AFD_MCP_TRACE`).
+
+- **What each agent reads:**
+
+  | Editor                           | Flow tools                                                                                                                                                             | Skill                                                      |
+  | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | Cursor 3.29                      | `vscode.cursor.mcp.registerServer`, or `~/.cursor/mcp.json`                                                                                                            | `~/.cursor/skills`, `~/.agents/skills`, `~/.claude/skills` |
+  | Antigravity IDE (1.107)          | `~/.gemini/config/mcp_config.json` (reloaded by `antigravityExtensibility.refreshMcpServers()`)                                                                        | `~/.gemini/config/skills`                                  |
+  | Kiro 1.4                         | `~/.kiro/settings/mcp.json`                                                                                                                                            | `~/.kiro/skills`                                           |
+  | Devin Desktop 3.12 (local agent) | `%USERPROFILE%\AppData\Roaming\devin\mcp_config.json` (`~/.config/devin` elsewhere) and `~/.codeium/windsurf/mcp_config.json`, plus Claude Code's and Cursor's entries | `~/.codeium/windsurf/skills`, `~/.agents/skills`           |
+
+- **Not used, because they did not load:**
+  - plugin bundles' MCP servers (Antigravity loads a bundle's skills only);
+  - Kiro powers placed by hand;
+  - Antigravity's `writeMcpConfig` folders.
+- **Integration** (`extension/ai/hostIntegration.ts`):
+  - **Cursor:** registered through its API at every activation, with the open folders as `AFD_MCP_ROOTS`; nothing is written.
+  - **The others:** after one consent (state `afd.ai.host`), the Set Up writers write the editor's agent (new agents `kiro`, `antigravity`, `devin`), updated silently at each start. Antigravity's servers are refreshed through its API.
+  - **Devin:** gets no second MCP entry when Claude Code or Cursor already has one.
+  - **Remote windows:** nothing is set up.
+  - **The general offer:** leaves out the editor's own agent.
+- **Roots:** no agent sends MCP roots. Cursor starts global servers in the home folder, and walking it took 19 s and listed flows from other projects.
+  - The server takes `AFD_MCP_ROOTS` (leaving out unresolved variables), else its working directory.
+  - It never takes the home folder or a drive root: there it answers "No folder to work in".
+  - Cursor's file entry passes `${workspaceFolder}`.
+- **Writers:**
+  - Only our keys of an existing entry change (`command`, `args`, `env`), so agent and user toggles survive.
+  - A skill copy from a newer extension version is left alone, so editors on one machine do not overwrite each other.

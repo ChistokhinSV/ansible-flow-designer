@@ -108,3 +108,13 @@ export async function launchFor(server: string): Promise<Launch> {
   // VS Code's runtime is Electron; ELECTRON_RUN_AS_NODE makes it plain Node.
   return { command: process.execPath, args: [server], env: { ELECTRON_RUN_AS_NODE: '1' } };
 }
+
+/**
+ * AFD-174: for agents started by a desktop app (the editors' built-in agents), an absolute command:
+ * such an app may not have the shell's PATH. Node 20+ when installed, else the editor's runtime.
+ */
+export async function absoluteLaunch(server: string): Promise<Launch> {
+  const node = await onPath('node');
+  if (node && (await nodeMajor(node)) >= 20) return { command: node, args: [server] };
+  return { command: process.execPath, args: [server], env: { ELECTRON_RUN_AS_NODE: '1' } };
+}

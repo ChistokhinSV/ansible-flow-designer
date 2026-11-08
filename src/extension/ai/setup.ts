@@ -191,7 +191,7 @@ export class AiSetup {
     const other = {
       label: 'Other agent…',
       description: 'a guide, the skill to copy and a ready MCP config',
-      detail: 'Windsurf, Kiro, Cline, Qwen Code and any agent that reads skills and MCP servers',
+      detail: 'Cline, Qwen Code, Claude Desktop and any agent that reads skills and MCP servers',
       picked: false,
       id: undefined,
     };
@@ -236,7 +236,7 @@ export class AiSetup {
         {
           label: 'Just me (every repository)',
           detail:
-            'Skill copies in ~/.claude/skills, ~/.agents/skills, ~/.gemini/skills or ~/.copilot/skills',
+            'Skill copies in each agent’s folder in your home folder (~/.claude/skills, ~/.agents/skills, ~/.kiro/skills, …)',
           scope: 'user' as const,
         },
       ],
@@ -383,12 +383,15 @@ export class AiSetup {
    * flow with a step (not in any workspace at startup); Set Up… shows what it writes before writing
    * it; an agent counts as offered once the user answered (or closed the notice).
    */
-  async offer(): Promise<void> {
+  async offer(exclude?: Agent): Promise<void> {
     if (this.context.globalState.get<boolean>(NEVER)) return;
     const record = this.record;
     const offered = new Set(this.context.globalState.get<Agent[]>(OFFERED) ?? []);
     const found = await this.found();
-    const pending = [...found.keys()].filter((a) => !record?.agents.includes(a) && !offered.has(a));
+    // AFD-174: the agent built into this editor is offered on its own (HostIntegration).
+    const pending = [...found.keys()].filter(
+      (a) => a !== exclude && !record?.agents.includes(a) && !offered.has(a),
+    );
     if (pending.length === 0) return;
     const names = list(pending.map(agentLabel));
     const pick = await vscode.window.showInformationMessage(

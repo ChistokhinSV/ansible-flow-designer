@@ -9,6 +9,7 @@ import { parse } from 'yaml';
 import type { CollectionFile, SearchHit } from '../../src/core/catalog/types';
 import type { FlowDocument } from '../../src/core/flow/types';
 import type { CatalogDoc, CatalogStatus } from '../../src/core/protocol';
+import { sqliteAvailable } from '../../src/node/catalog/catalogIndex';
 import { closeAll, flowUri, openDesigner, runEnvironment, testApi, withTimeout } from './helpers';
 
 const EDGE = flowUri('edge-baseline');
@@ -30,6 +31,11 @@ async function codes(uri: vscode.Uri): Promise<string[]> {
 }
 
 describe('M5 acceptance: catalog and binding', () => {
+  // AFD-171: no node:sqlite on the engine floor (Node 20): the catalog is off there.
+  before(function () {
+    if (!sqliteAvailable()) this.skip();
+  });
+
   afterEach(closeAll);
 
   it('answers the page: search, docs through redirects, playbooks', async () => {

@@ -87,6 +87,38 @@ export const AGENT_INFO: AgentInfo[] = [
     apps: { win: 'Programs/cursor/Cursor.exe', mac: '/Applications/Cursor.app' },
     extensions: [],
   },
+  // AFD-173: agents built into VS Code forks; paths from what each agent was seen to read (AFD-172).
+  {
+    id: 'kiro',
+    label: 'Kiro',
+    detail: 'skill in ~/.kiro/skills, tools in ~/.kiro/settings/mcp.json',
+    bins: ['kiro'],
+    markers: ['.kiro'],
+    apps: { win: 'Programs/Kiro/Kiro.exe', mac: '/Applications/Kiro.app' },
+    extensions: [],
+  },
+  {
+    id: 'antigravity',
+    label: 'Antigravity IDE',
+    detail: 'skill in ~/.gemini/config/skills, tools in ~/.gemini/config/mcp_config.json',
+    bins: ['antigravity-ide'],
+    markers: ['.antigravity-ide', '.gemini/antigravity-ide'],
+    apps: {
+      win: 'Programs/Antigravity IDE/Antigravity IDE.exe',
+      mac: '/Applications/Antigravity IDE.app',
+    },
+    extensions: [],
+  },
+  {
+    id: 'devin',
+    label: 'Devin Desktop (Windsurf)',
+    detail:
+      'skill in ~/.codeium/windsurf/skills, tools in Devin’s mcp_config.json (local agent mode)',
+    bins: ['devin-desktop'],
+    markers: ['.devin', '.codeium/windsurf'],
+    apps: { win: 'Programs/Devin/Devin.exe', mac: '/Applications/Devin.app' },
+    extensions: [],
+  },
 ];
 
 export const agentLabel = (id: Agent) => AGENT_INFO.find((a) => a.id === id)?.label ?? id;
@@ -150,7 +182,7 @@ export function otherAgentGuide(launch: Launch): string {
   return [
     '# Ansible flows in another AI agent',
     '',
-    'Ansible Flow Designer gives AI agents two things. Set Up AI Assistants writes both for Claude Code, Codex, Gemini CLI, OpenCode, ZCode, GitHub Copilot CLI and Cursor; for any other agent, do it once by hand:',
+    'Ansible Flow Designer gives AI agents two things. Set Up AI Assistants writes both for Claude Code, Codex, Gemini CLI, OpenCode, ZCode, GitHub Copilot CLI, Cursor, Kiro, Antigravity IDE and Devin Desktop (Windsurf); for any other agent, do it once by hand:',
     '',
     `1. **The skill** \`${SKILL_NAME}\`: the rules, the workflow and the format reference. Use _Copy Skill To Folder…_ and pick the folder your agent reads skills from: many read \`.agents/skills\` or \`.claude/skills\` in the repository or in your home folder.`,
     `2. **The flow tools**: an MCP server (stdio) named \`${SERVER_NAME}\`. Most agents take this entry in their MCP config (_Copy MCP Config_):`,
@@ -177,8 +209,6 @@ export function otherAgentGuide(launch: Launch): string {
     '',
     '| Agent | MCP config |',
     '| --- | --- |',
-    '| Windsurf | `~/.codeium/windsurf/mcp_config.json` (`mcpServers`) |',
-    '| Kiro | `~/.kiro/settings/mcp.json` (`mcpServers`) |',
     '| Qwen Code | `~/.qwen/settings.json` (`mcpServers`) |',
     '| Cline, Roo Code | MCP Servers panel, Configure (`mcpServers`) |',
     '| Claude Desktop | `claude_desktop_config.json` (`mcpServers`) |',

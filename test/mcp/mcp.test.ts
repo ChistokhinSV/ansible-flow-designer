@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
+import { CURSOR_WORKSPACE } from '../../src/node/ai/writers';
 
 const ROOT = join(__dirname, '../..');
 const ULID = /[0-9A-HJKMNP-TV-Z]{26}/;
@@ -351,4 +352,84 @@ describe('MCP server', () => {
     );
     expect(generated).toContain('{{ playbook_dir }}/../../../netops/playbooks/templates/motd.j2');
   });
+});
+
+describe('AFD-172: trace and fallback roots', () => {
+  it('works in AFD_MCP_ROOTS when the client sends no roots, and traces start, client, list and calls', async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'afd-mcp-cwd-'));
+    const traceFile = join(elsewhere, 'trace.jsonl');
+    const other = new Client({ name: 'afd-trace-test', version: '1.2.3' });
+    try {
+      // A global MCP entry starts the server in the editor's folder, with no roots from the agent.
+      await other.connect(
+        new StdioClientTransport({
+          command: process.execPath,
+          args: [join(ROOT, 'dist/mcp.js')],
+          cwd: elsewhere,
+          env: { ...process.env, AFD_MCP_TRACE: traceFile, AFD_MCP_ROOTS: repo } as Record<
+            string,
+            string
+          >,
+          stderr: 'pipe',
+        }),
+      );
+      await other.listTools();
+      const r = (await other.callTool({ name: 'flow_list', arguments: {} })) as {
+        content: { text: string }[];
+      };
+      expect(r.content.map((c) => c.text).join('\n')).toContain('edge-baseline');
+      await other.close();
+      const events = readFileSync(traceFile, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as { event: string; [k: string]: unknown });
+      expect(events.map((e) => e.event)).toEqual(
+        expect.arrayContaining(['start', 'initialized', 'roots', 'list', 'call']),
+      );
+      expect(events.find((e) => e.event === 'initialized')?.client).toMatchObject({
+        name: 'afd-trace-test',
+        version: '1.2.3',
+      });
+      expect(events.find((e) => e.event === 'roots')?.supported).toBe(false);
+      expect(events.find((e) => e.event === 'call')).toMatchObject({ tool: 'flow_list', ok: true });
+      // Calls are traced by name only: no arguments.
+      expect(JSON.stringify(events.filter((e) => e.event === 'call'))).not.toContain('arguments');
+    } finally {
+      await other.close().catch(() => undefined);
+      rmSync(elsewhere, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+describe('AFD-173: no roots in the home folder', () => {
+  it('refuses to search the home folder when the agent sends no roots', async () => {
+    // A temporary "home": os.homedir() follows USERPROFILE on Windows and HOME elsewhere.
+    const home = mkdtempSync(join(tmpdir(), 'afd-mcp-home-'));
+    const other = new Client({ name: 'afd-home-test', version: '1.0.0' });
+    try {
+      await other.connect(
+        new StdioClientTransport({
+          command: process.execPath,
+          args: [join(ROOT, 'dist/mcp.js')],
+          cwd: home,
+          env: {
+            ...process.env,
+            HOME: home,
+            USERPROFILE: home,
+            AFD_MCP_ROOTS: CURSOR_WORKSPACE,
+          } as Record<string, string>,
+          stderr: 'pipe',
+        }),
+      );
+      const r = (await other.callTool({ name: 'flow_list', arguments: {} })) as {
+        content: { text: string }[];
+        isError?: boolean;
+      };
+      expect(r.isError).toBe(true);
+      expect(r.content.map((c) => c.text).join('\n')).toMatch(/No folder to work in/);
+    } finally {
+      await other.close().catch(() => undefined);
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

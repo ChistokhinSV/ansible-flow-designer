@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.75.0 — AFD-170 (AFD-171 to AFD-174)
+
+The agents built into Cursor, Kiro, Antigravity IDE and Devin Desktop (Windsurf) can now design and change Ansible flows, the way Copilot does in VS Code. These editors install the extension from [Open VSX](https://open-vsx.org/extension/chistokhinsv/ansible-flow-designer). It now installs in VS Code 1.94 or later; it asked for 1.140 before.
+
+- **Cursor's agent gets the flow tools automatically:** the extension registers them through Cursor's extension API each time it starts, for the folders you have open. Nothing is written. The agent lists them as `extension-ansible-flow`.
+- **Kiro, Antigravity IDE and Devin Desktop ask once:** the first time the designer shows a flow with a step, one notice offers to give the editor's agent the flow tools and the `ansible-flow` skill, and names the files it writes. After **Set Up**, they are kept up to date at each start. Antigravity loads them at once; Devin uses them with its agent set to local. `afd.ai.hostIntegration` turns this off.
+- **Set Up AI Assistants knows Kiro, Antigravity IDE and Devin Desktop**, with the files each agent was seen to read. "Other agent…" no longer lists Windsurf and Kiro as manual.
+- **The MCP server never searches your home folder:** Cursor starts global servers there without naming a folder. `flow_list` then searched the whole home folder, took about 20 seconds and listed flows from other projects. Now the server answers "No folder to work in", and Cursor's entry from Set Up passes the open folder (`${workspaceFolder}`).
+- **Updates keep your agent settings:** an update of an MCP entry changes only the command, its arguments and environment. Settings you or the agent added stay, such as Kiro's `autoApprove` and `disabled`. A skill copy written by a newer version of the extension (VS Code and a fork on one machine) is left alone.
+
+- **VS Code 1.94 or later:** the designer, validation, generated playbooks, runs and the MCP server work from 1.94.
+- **The module catalog needs VS Code 1.101 or later:** it uses SQLite from Node.js 22.13. In an older editor, the catalog says it is off and why, and everything else works without it. Binding checks then have no catalog facts.
+- **Copilot's flow tools need VS Code 1.95 or later:** before that, VS Code has no tools API for extensions. The extension starts without them and logs one line. Other assistants use the MCP server, as before.
+- **Show AI Integration Diagnostics:** a new command that reports how this editor and its built-in agent can reach the flow tools. It covers the editor and its runtime, how the MCP server would start, and which agent APIs the editor offers. It also lists the MCP servers and skills each agent is configured with on this machine. It only reads; MCP server entries are listed by name only.
+- **The MCP server can trace and fall back:** with `AFD_MCP_TRACE=<file>`, it logs each start, the client's name and roots, tool listings and calls (names only, not arguments). With `AFD_MCP_ROOTS`, it works in those folders when the agent sends no roots.
+- **Changes made while a flow was closed are marked the same in every editor:** some editors keep a file loaded after its designer closes and reload it only when the designer opens again. Such a change was marked as an outside edit made just now, and old marks came back. Now it is marked as a change since you last had the flow open, and the marks end when the designer closes, as in VS Code.
+
 ## 0.74.4 — AFD-158 to AFD-166
 
 The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer. The AWX token and device credentials travel more safely, and the module catalog, the designer and the AI tools are sturdier against odd input. Large flows are faster to edit, and a few small designer bugs are gone.

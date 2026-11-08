@@ -163,6 +163,14 @@ export class FlowSession implements vscode.Disposable {
    */
   private outsideBase?: OutsideBase;
   private marks?: OutsideMarks;
+  /**
+   * AFD-171: the designer is opening again and comparing with the flow it last showed. Editors that
+   * keep the document loaded after the designer closed (Antigravity IDE) reload a change made on
+   * disk meanwhile only now: that reload (`reload`, the text read from disk) belongs to the marks
+   * of the closed time, not to a live outside edit.
+   */
+  private reopening = false;
+  private reload?: string;
   private readonly inspects = new RequestTracker<DomSummary>();
   private readonly pngs = new RequestTracker<{ data?: string; error?: string }>();
   /** AFD-25: panels that have loaded, and callers waiting for one (PNG export). */
@@ -355,7 +363,14 @@ export class FlowSession implements vscode.Disposable {
   private mark(doc: FlowDocument): void {
     const before = this.marks;
     const was = this.shownDoc;
-    if (this.outsideEdit && this.shownDoc)
+    // AFD-171: with no designer open, a change is one made while closed, which markClosed marks
+    // against the flow as last shown when the designer opens again (AFD-92). VS Code closes the
+    // document soon after its designer; editors that keep it loaded (Antigravity IDE) reach here,
+    // and reload such a change only as the designer opens.
+    const text = this.document.getText();
+    const late = this.reopening || (this.reload !== undefined && this.reload === text);
+    if (this.reload === text) this.reload = undefined;
+    if (this.outsideEdit && this.shownDoc && this.panels.size > 0 && !late)
       this.marks = addMarks(
         this.marks,
         outsideChanges(this.shownDoc, doc),
@@ -447,7 +462,13 @@ export class FlowSession implements vscode.Disposable {
       this.panels.delete(panel);
       this.readyPanels.delete(panel);
       this.drawn.delete(panel);
-      if (this.panels.size === 0) void this.rememberShown();
+      if (this.panels.size === 0) {
+        // AFD-171: the marks end with the designer, as they do in VS Code, where the document and
+        // this session close with it; editors that keep the document loaded keep the session.
+        this.marks = undefined;
+        this.outsideBase = undefined;
+        void this.rememberShown();
+      }
     });
   }
 
@@ -472,12 +493,37 @@ export class FlowSession implements vscode.Disposable {
 
   /** AFD-92: the changes since the designer last showed this flow, as outside marks. */
   private async markClosed(): Promise<void> {
+    this.reopening = true;
+    try {
+      await this.markClosedNow();
+    } finally {
+      this.reopening = false;
+    }
+  }
+
+  private async markClosedNow(): Promise<void> {
     const shown = await this.deps.shown?.recall(this.document.uri);
-    if (!shown || shown.text === this.document.getText()) return;
+    if (!shown) return;
+    // AFD-171: a document kept loaded may not have reloaded a change made on disk while closed.
+    let disk: string | undefined;
+    if (!this.document.isDirty && this.document.uri.scheme === 'file') {
+      try {
+        const text = new TextDecoder().decode(
+          await vscode.workspace.fs.readFile(this.document.uri),
+        );
+        if (text !== this.document.getText()) disk = text;
+      } catch {
+        // Unreadable now: compare with the document.
+      }
+    }
+    if (shown.text === (disk ?? this.document.getText())) return;
     const before = parseFlow(shown.text).doc;
     const snapshot = await this.snapshot();
-    if (!before || !snapshot.doc || snapshot.stale) return;
-    const marks = closedMarks(this.marks, before, snapshot.doc, shown.at);
+    const now =
+      disk === undefined ? (snapshot.stale ? undefined : snapshot.doc) : parseFlow(disk).doc;
+    if (!before || !now) return;
+    if (disk !== undefined && disk !== this.document.getText()) this.reload = disk;
+    const marks = closedMarks(this.marks, before, now, shown.at);
     if (marks === this.marks) return;
     this.marks = marks;
     this.outsideBase = { doc: before, at: shown.at, closed: true };

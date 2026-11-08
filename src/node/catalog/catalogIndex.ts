@@ -1,7 +1,7 @@
 // The module catalog index (M5, ADR-0011): SQLite FTS5 through node:sqlite in the extension host
 // (verified on VS Code 1.140 and 1.144, desktop and Remote server). Built from the probe's
 // per-collection files; one database per environment manifest.
-import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import {
   badgesOf,
   type Candidate,
@@ -53,6 +53,43 @@ type Row = {
 
 const COLUMNS = 'p.id, p.fqcn, p.type, p.collection, p.name, p.short, p.deprecated, p.meta';
 
+type Sqlite = typeof import('node:sqlite');
+let sqlite: Sqlite | null | undefined;
+
+/**
+ * node:sqlite, loaded on first use (AFD-171). It needs Node 22.13 (VS Code 1.101); editors built
+ * on an older Electron (Kiro 0.1, older forks) run the extension without the module catalog
+ * instead of failing to load it. getBuiltinModule, not require: the same code runs bundled and
+ * under Vitest; Node before 20.16 has no getBuiltinModule and no SQLite either.
+ */
+function loadSqlite(): Sqlite | null {
+  if (sqlite === undefined) {
+    const get = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+    try {
+      sqlite = (get?.call(process, 'node:sqlite') as Sqlite | undefined) ?? null;
+    } catch {
+      sqlite = null;
+    }
+  }
+  return sqlite;
+}
+
+export function sqliteAvailable(): boolean {
+  return loadSqlite() !== null;
+}
+
+/** Why the catalog is off in this editor, for the status line and errors. */
+export function sqliteMissing(): string {
+  return `The module catalog needs an editor running Node.js 22.13 or later (VS Code 1.101+); this one runs Node.js ${process.versions.node}`;
+}
+
+function database(path: string, options?: { readOnly?: boolean }): DatabaseSync {
+  const s = loadSqlite();
+  if (!s) throw new Error(sqliteMissing());
+  // An explicit undefined options argument is refused ("must be an object").
+  return options ? new s.DatabaseSync(path, options) : new s.DatabaseSync(path);
+}
+
 /** `(instr(col, ?) > 0) << 0 | …` per query word: coverage computed in SQLite, not by shipping text. */
 function hits(column: string, words: number): string {
   return (
@@ -74,7 +111,7 @@ export class CatalogIndex {
   private readonly textOf: StatementSync;
   private readonly searches = new Map<string, StatementSync>();
   /** A scratch FTS table whose vocabulary gives the Porter stems the index uses. */
-  private readonly stemmer = new DatabaseSync(':memory:');
+  private readonly stemmer = database(':memory:');
   private readonly stemSql: { clear: StatementSync; add: StatementSync; read: StatementSync };
 
   private constructor(private readonly db: DatabaseSync) {
@@ -97,7 +134,7 @@ export class CatalogIndex {
 
   /** Builds a fresh index at `path` (':memory:' in tests) from the probe's collection files. */
   static build(path: string, files: CollectionFile[]): CatalogIndex {
-    const db = new DatabaseSync(path);
+    const db = database(path);
     db.exec(`
       PRAGMA journal_mode = OFF;
       PRAGMA synchronous = OFF;
@@ -197,7 +234,7 @@ export class CatalogIndex {
   /** Opens an index built before, or undefined when it is missing or of an older schema. */
   static open(path: string): CatalogIndex | undefined {
     try {
-      const db = new DatabaseSync(path, { readOnly: true });
+      const db = database(path, { readOnly: true });
       const row = db.prepare("SELECT value FROM meta WHERE key = 'schema'").get() as
         | { value: string }
         | undefined;

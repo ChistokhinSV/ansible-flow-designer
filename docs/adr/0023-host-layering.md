@@ -85,3 +85,14 @@ list (AFD-104) and the inputs editor's default (AFD-106). The product owner chos
 budget to 1,216 KB rather than cut any of it, with no new library: the YAML box colours its lines
 with its own small tokenizer (`core/view/yamlText.ts`), not an editor component. The other budgets
 stay: `extension.js` 864 KB, `mcp.js` 1,088 KB.
+
+## Amendment: extension.js budget 960 KB (AFD-172, 2026-11-08)
+
+The budget was 928 KB by the 0.74 releases. Epic AFD-170 (agents built into VS Code forks) took `extension.js` to about 936 KB, adding:
+
+- the API checks above the engine floor (`compat.ts`);
+- the editor and agent-config table (`node/ai/hosts.ts`, `hostConfig.ts`);
+- **Show AI Integration Diagnostics**;
+- the developer experiments.
+
+Phase 2 (AFD-173/174) adds the integration for each editor, so the budget is now 960 KB. The experiments go when Phase 2 lands. The other budgets stay: `mcp.js` 1,088 KB, webview 1,216 KB.

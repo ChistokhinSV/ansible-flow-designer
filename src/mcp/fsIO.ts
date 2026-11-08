@@ -30,6 +30,34 @@ const MAX_BYTES = SOURCE_MAX_BYTES;
 const SKIP = new Set(SKIP_DIRS);
 const TIMEOUT_MS = 5000;
 
+/** What the tools answer when the server has no folder to work in (AFD-173). */
+export const NO_ROOTS =
+  'No folder to work in: the agent started the flow tools without saying which folder is open (no MCP roots), in the home folder or a drive root, which is not searched. Open the folder with the flows in the editor and start a new chat; or set AFD_MCP_ROOTS to that folder in the agent’s MCP config.';
+
+/**
+ * The folders the server works in until the client sends roots (AFD-172/173). AFD_MCP_ROOTS first
+ * (an editor that did not resolve a variable such as ${workspaceFolder} leaves it out); else the
+ * working directory, unless that is the home folder or a drive root: agents that send no roots
+ * start servers there (Cursor), and walking it took 19 s and listed flows from other projects.
+ */
+export function startRoots(
+  given: string | undefined,
+  cwd: string,
+  home: string,
+  isDir: (path: string) => boolean,
+): string[] {
+  const listed = (given ?? '')
+    .split(process.platform === 'win32' ? ';' : ':')
+    .map((r) => r.trim())
+    .filter((r) => r && !r.includes('${') && isAbsolute(r) && isDir(r));
+  if (listed.length > 0) return listed;
+  const here = resolve(cwd);
+  const same = (a: string, b: string) =>
+    process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+  if (same(here, resolve(home)) || dirname(here) === here) return [];
+  return [here];
+}
+
 function git(cwd: string, args: string[]): Promise<string | undefined> {
   return new Promise((done) => {
     execFile(
@@ -131,6 +159,11 @@ export class FsFlowIO implements FlowIO {
     this.roots = roots.map(real);
   }
 
+  /** AFD-173: no folder to work in (see startRoots): every tool says so instead of guessing. */
+  private need(): void {
+    if (this.roots.length === 0) throw new Error(NO_ROOTS);
+  }
+
   setRoots(roots: string[]): void {
     if (roots.length > 0) this.roots = roots.map(real);
   }
@@ -179,6 +212,7 @@ export class FsFlowIO implements FlowIO {
 
   /** The absolute file a tool means; refuses anything that is not a flow inside the roots. */
   private async locate(path: string, mustExist = true): Promise<string> {
+    this.need();
     if (!path.endsWith('.flow.yaml')) throw new Error(`${path} is not a flow file (*.flow.yaml)`);
     const candidates = isAbsolute(path)
       ? [path]
@@ -209,6 +243,7 @@ export class FsFlowIO implements FlowIO {
   }
 
   async list(): Promise<string[]> {
+    this.need();
     const found: string[] = [];
     const walk = async (dir: string, depth: number) => {
       if (depth > 8 || found.length >= 500) return;

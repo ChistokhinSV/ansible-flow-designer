@@ -16,7 +16,12 @@ import type {
   SearchHit,
 } from '../../core/catalog/types';
 import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../core/protocol';
-import { CatalogIndex, INDEX_SCHEMA } from '../../node/catalog/catalogIndex';
+import {
+  CatalogIndex,
+  INDEX_SCHEMA,
+  sqliteAvailable,
+  sqliteMissing,
+} from '../../node/catalog/catalogIndex';
 import type { BuildJob, BuildResult } from '../../node/catalog/catalogWorker';
 import { checkedManifest } from '../../node/catalog/dumpFiles';
 import type { ProbeClient } from '../../node/env/probeClient';
@@ -136,6 +141,8 @@ export class CatalogService implements vscode.Disposable {
     report: (message: string) => void,
   ): Promise<CatalogIndex> {
     const e = this.entry(folder);
+    // AFD-171: an editor on Node before 22.13 has no SQLite; no probe is started for nothing.
+    if (!sqliteAvailable()) throw new Error(sqliteMissing());
     // Dumps run on a probe of their own, stopped when done (AFD-32).
     const probe = this.deps.probes.forFolder(folder.uri, 'catalog');
     if ('error' in probe) throw new Error(probe.error);
@@ -303,6 +310,7 @@ export class CatalogService implements vscode.Disposable {
   cached(folder: vscode.WorkspaceFolder): { index: CatalogIndex; environment: string } | undefined {
     const e = this.entry(folder);
     if (!e.index) {
+      if (!sqliteAvailable()) return undefined;
       const last = this.deps.state?.get<{ path: string; environment: string }>(stateKey(folder));
       const index = last && existsSync(last.path) ? CatalogIndex.open(last.path) : undefined;
       if (!index) return undefined;
