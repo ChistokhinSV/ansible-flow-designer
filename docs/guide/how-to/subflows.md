@@ -14,6 +14,8 @@ phase.
 - Chips at the top show the settings of the subflows around you. The inner steps inherit the
   inventory target (**inherits …**). In a format 2 flow they also inherit **become** and its user
   (Execution › Privilege), the nearest subflow's setting winning, so a step can still turn it off.
+  A Become user without Become is still written: it applies when `ansible.cfg` or the inventory
+  turns become on. Become set to false turns both off.
   In a format 1 flow become set on a subflow is shown as **not applied**: set it on the steps.
   Serial is per node: it batches the hosts of that node's own play.
 - Pause on a subflow node to preview its inner steps, exits and last-run results.

@@ -116,9 +116,10 @@ class Generator {
   /** become and become_user for a node's play (AFD-52: inherited from subflows in format 2). */
   private privilege(node: FlowNode): { become?: true; become_user?: string } {
     const p = privilegeOf(this.model, node);
-    return p.become
-      ? { become: true, ...(p.become_user ? { become_user: p.become_user } : {}) }
-      : {};
+    return {
+      ...(p.become ? { become: true as const } : {}),
+      ...(p.become_user ? { become_user: p.become_user } : {}),
+    };
   }
 
   run(): GenerateResult {

@@ -74,9 +74,16 @@ export function isPlainSafe(s: string): boolean {
   }
 }
 
-/** Line breaks, tabs and other C0 controls need a double-quoted scalar with escapes. */
+/**
+ * Line breaks, tabs and other controls need a double-quoted scalar with escapes. AFD-158: DEL, the
+ * C1 controls (U+0085 among them), U+2028 and U+2029 too: PyYAML reads the last three as line
+ * breaks and refuses the rest, so a flow file holding them raw is not readable on the Ansible side.
+ */
 function hasControlChars(s: string): boolean {
-  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 0x20) return true;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029) return true;
+  }
   return false;
 }
 
@@ -84,8 +91,17 @@ function single(s: string): string {
   return `'${s.replaceAll("'", "''")}'`;
 }
 
+/** JSON escapes C0 controls; the others above are written as `\uXXXX` as well. */
 function double(s: string): string {
-  return JSON.stringify(s);
+  let out = '';
+  for (const ch of JSON.stringify(s)) {
+    const c = ch.charCodeAt(0);
+    out +=
+      (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029
+        ? `\\u${c.toString(16).padStart(4, '0')}`
+        : ch;
+  }
+  return out;
 }
 
 export function renderScalar(value: Plain, hint?: QuoteHint): string {

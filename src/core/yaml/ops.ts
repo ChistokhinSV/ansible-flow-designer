@@ -412,3 +412,36 @@ export function removeItem(file: YamlFile, seqPath: Path, index: number): OpResu
   const [start, end] = wholeLines(text, item.range[0], item.range[2]);
   return ok([{ start, end, newText: '' }]);
 }
+
+/**
+ * Several items of one sequence, as one op (AFD-160): a flow sequence (`[a, b, c]`) is rendered
+ * again for each removal, so two removeItem ops in one applyAll overlapped and failed.
+ */
+export function removeItems(file: YamlFile, seqPath: Path, indexes: readonly number[]): OpResult {
+  const wanted = [...new Set(indexes)].sort((a, b) => b - a);
+  if (wanted.length <= 1)
+    return wanted.length ? removeItem(file, seqPath, wanted[0] as number) : ok([]);
+  const loc = locate(file, seqPath);
+  const seq = loc?.node;
+  if (loc && isSeq(seq) && seq.flow) {
+    if (loc.alias || loc.ancestors.some(hasAnchor) || hasAnchor(seq))
+      return fail('unsupported', 'edit touches YAML anchors or aliases');
+    for (const i of wanted) {
+      const item = seq.items[i] as Node | undefined;
+      if (!item?.range) return fail('not-found', `no item ${i}`);
+      if (hasRefs(item)) return fail('unsupported', 'edit touches YAML anchors or aliases');
+    }
+    const js = seq.toJSON() as YamlValue[];
+    for (const i of wanted) js.splice(i, 1);
+    return rerenderFlow(seq, js);
+  }
+  if (loc && isSeq(seq) && wanted.length === seq.items.length) return replaceAt(file, loc, []);
+  // Block items are whole lines of their own: the removals do not touch each other.
+  const edits: TextEdit[] = [];
+  for (const i of wanted) {
+    const one = removeItem(file, seqPath, i);
+    if (!one.ok) return one;
+    edits.push(...one.edits);
+  }
+  return ok(edits);
+}

@@ -169,7 +169,7 @@ describe('setBinding (Save binding, one edit)', () => {
         },
         ctx,
       ),
-    ).toThrow(/valid variable name/);
+    ).toThrow(/is not a variable name/);
   });
 
   it('renaming an input rewrites the parameters that read it, in the same edit', () => {

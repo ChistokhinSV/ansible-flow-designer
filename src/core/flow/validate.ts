@@ -21,6 +21,7 @@ import { planSegments } from './segments';
 import { hasStatus, runtimeKind, statusFor } from './status';
 import type { FlowDocument, FlowNode, PortRef, Ulid } from './types';
 import { comparesWholeResult } from './until';
+import { varNameProblem } from './varNames';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -87,6 +88,7 @@ export function validateFlow(
   checkUnreachableRollback(model, add);
   checkTargets(model, add);
   checkAnnotations(model, add);
+  checkVarNames(model, add);
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
@@ -281,6 +283,27 @@ function checkEdges(model: FlowModel, add: (f: Finding) => void): void {
         used.set(fromKey, edge.id);
       }
     });
+  }
+}
+
+/**
+ * AFD-160: inputs, outputs and registers become Ansible variables. Only the commands checked
+ * their names, so a hand- or AI-written `retry-count` reached a play's vars and Ansible refused the
+ * playbook; a host_list named `web-servers` read as `web - servers` in the start pattern.
+ */
+function checkVarNames(model: FlowModel, add: (f: Finding) => void): void {
+  const check = (name: string, path: Path, node?: Ulid) => {
+    const problem = varNameProblem(name);
+    if (problem) add({ code: 'bad-name', severity: 'error', message: problem, path, node });
+  };
+  for (const name of Object.keys(model.doc.flow?.inputs ?? {}))
+    check(name, ['flow', 'inputs', name]);
+  for (const { node, path } of model.nodes.values()) {
+    for (const side of ['inputs', 'outputs'] as const)
+      for (const name of Object.keys(node[side] ?? {})) check(name, [...path, side, name], node.id);
+    const register = node.impl?.register;
+    if (typeof register === 'string' && register)
+      check(register, [...path, 'impl', 'register'], node.id);
   }
 }
 

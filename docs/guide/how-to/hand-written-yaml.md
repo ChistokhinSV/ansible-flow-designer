@@ -29,6 +29,9 @@ edges:
   runs; **Upgrade Flow Format** (the banner over the canvas, or the Command Palette) moves it to 2
   in one edit, and one undo reverts it. Nothing is upgraded without asking.
 - Keys are lowercase letters, digits and dashes, unique on their level.
+- Input, output and `register` names become Ansible variables: a letter or `_`, then letters,
+  digits and `_` (`retry_count`, not `retry-count`). Python and Jinja keywords (`in`, `not`,
+  `true`, `none`, `class`) are not names either. Any other name is a `bad-name` problem.
 - Wires, subflow entries and exits, decisions and layout may name nodes by key.
 - The [flow file format](../reference/flow-format.md) lists every field.
 

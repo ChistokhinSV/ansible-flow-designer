@@ -110,7 +110,9 @@ scenario expected Reported to NetOps").
 where every host reaches the end. A scenario has:
 
 - `inputs`: the run inputs. The flow's targets input (a host list) names the hosts; use any names
-  you like (they connect locally).
+  you like (they connect locally). A host or group name is one word: letters, digits, `.`, `_` and
+  `-`. Inputs set no `ansible_*` variable (`ansible_connection`, `ansible_host`): those would take
+  the run off the local connection, so the file check refuses them.
 - `force`: per step (its key, or `subflow/step` inside a subflow), the hosts sent down a port:
   - `failed` (to failed_hosts);
   - `unreachable`, `timeout` and `unchanged`, when the step has that port;
@@ -172,6 +174,10 @@ It exits 1 when a scenario fails, and writes JUnit XML for the CI's test report.
 
 - **Default:** `ansible-playbook` on the runner (Linux; `--python` names the interpreter).
 - **`--wsl`** (or `--wsl-distro NAME`): WSL, from Windows.
+
+Each scenario runs in a folder of its own under the system temp folder. With `--python` and `--wsl`
+only you can read it. With `--image`, the image's user can read it and writes the run's events
+into an `events` folder inside; nothing else in the run folder is writable by others.
 
 Two options need no Ansible:
 

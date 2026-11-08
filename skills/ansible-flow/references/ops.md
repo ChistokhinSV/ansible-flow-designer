@@ -386,6 +386,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
 | setting-on-flow | Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow. | Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask. |
+| bad-name | An input, output or register name Ansible cannot use as a variable: not a letter or _ then letters, digits and _, or a Python or Jinja keyword (in, not, true, none, class). | Rename it, e.g. retry_count for retry-count; the readers of an output follow a rename made in the designer. |
 | keyword-is-setting | Format 2: a task keyword the flow now models as a setting (become_user). | Set it in Execution › Privilege instead; on a subflow it applies to the steps inside. |
 | renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |
 | status-out-of-step | Format 2: the stored status is not the one the node’s content gives (a hand edit of the file). | Any edit of the node in the designer sets it again; or write the status the message names. |

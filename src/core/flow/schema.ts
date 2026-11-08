@@ -23,9 +23,13 @@ export function createSchemaValidator(): SchemaValidator {
   return (data) => {
     validate ??= new Ajv2020({ allErrors: true, strict: false }).compile(schema);
     if (validate(data)) return [];
-    return (validate.errors ?? []).map(toIssue);
+    // AFD-160: the validator reports a bad input or output name (bad-name) in its own words; the
+    // schema's rule is for editors that read the schema alone.
+    return (validate.errors ?? []).filter((e) => !namesRule(e)).map(toIssue);
   };
 }
+
+const namesRule = (e: ErrorObject) => e.schemaPath.startsWith('#/$defs/contract/propertyNames');
 
 function toIssue(e: ErrorObject): SchemaIssue {
   const params = e.params as Record<string, unknown>;

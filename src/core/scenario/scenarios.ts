@@ -92,10 +92,30 @@ export function targetsInput(doc: FlowDocument): string | undefined {
   return (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
 }
 
+const isMap = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * A name an INI inventory line holds as one host or group (AFD-159): no space, `=`, `:` or `[`
+ * that would start variables, a port, a range or a section, and no line break that would start a
+ * line of its own (`x\nevil ansible_connection=ssh`).
+ */
+export const INVENTORY_NAME = /^\w[\w.-]*$/;
+
+/** Run variables a scenario's inputs cannot set: every Ansible magic variable (AFD-159). */
+const CONNECTION_VAR = /^ansible_/;
+
+/** Hosts listed under a scenario's groups, the lists only. */
+const groupHosts = (s: Scenario): string[] =>
+  Object.values(isMap(s.groups) ? s.groups : {})
+    .filter(Array.isArray)
+    .flat()
+    .map(String);
+
 /** The hosts a scenario runs on: the targets input's list. */
 export function scenarioHosts(doc: FlowDocument, s: Scenario): string[] {
   const input = targetsInput(doc);
-  const value = input ? s.inputs?.[input] : undefined;
+  const value = input && isMap(s?.inputs) ? s.inputs[input] : undefined;
   const list = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
   return [...new Set(list.map((h) => String(h).trim()).filter(Boolean))];
 }
@@ -116,13 +136,41 @@ export function checkScenarios(doc: FlowDocument, file: ScenarioFile): ScenarioP
     const at = (...p: (string | number)[]) => ['scenarios', i, ...p];
     const add = (path: (string | number)[], message: string) =>
       out.push({ scenario: i, path, message });
-    if (!s?.name) add(at(), 'A scenario needs a name');
+    // AFD-159: an empty or scalar entry (`- ` alone) is no scenario; reading it threw.
+    if (!isMap(s)) {
+      add(at(), 'A scenario is a map: name, inputs, force, expect');
+      return;
+    }
+    if (!s.name) add(at(), 'A scenario needs a name');
+    else if (typeof s.name !== 'string') add(at('name'), 'A scenario name is text');
     else if (names.has(s.name)) add(at('name'), `Two scenarios are called "${s.name}"`);
-    names.add(s?.name);
+    names.add(s.name);
+    for (const k of ['inputs', 'groups', 'force', 'approvals', 'expect'] as const)
+      if (s[k] !== undefined && s[k] !== null && !isMap(s[k])) add(at(k), `${k} is a map`);
+    // AFD-159: extra vars outrank the inventory, so these would take the run off the local
+    // connection (ansible_connection, ansible_host) onto real machines.
+    for (const k of Object.keys(isMap(s.inputs) ? s.inputs : {}))
+      if (CONNECTION_VAR.test(k))
+        add(
+          at('inputs', k),
+          `${k}: a scenario runs every host on a local connection, so it sets no ansible_* variable`,
+        );
     const hosts = scenarioHosts(doc, s);
     if (!input) add(at('inputs'), 'The flow has no targets input (a host_list) to list the hosts');
     else if (hosts.length === 0) add(at('inputs'), `Set inputs.${input} to the hosts to run on`);
-    const known = new Set([...hosts, ...Object.values(s.groups ?? {}).flat()]);
+    for (const h of hosts)
+      if (!INVENTORY_NAME.test(h))
+        add(at('inputs', input ?? ''), `"${h}" is not a host name: letters, digits, . _ -`);
+    for (const [group, members] of Object.entries(isMap(s.groups) ? s.groups : {})) {
+      if (!INVENTORY_NAME.test(group))
+        add(at('groups', group), `"${group}" is not a group name: letters, digits, . _ -`);
+      if (!Array.isArray(members)) add(at('groups', group), `${group}: give a list of hosts`);
+      else
+        for (const h of members)
+          if (typeof h !== 'string' || !INVENTORY_NAME.test(h))
+            add(at('groups', group), `"${h}" is not a host name: letters, digits, . _ -`);
+    }
+    const known = new Set([...hosts, ...groupHosts(s)]);
     for (const [path, ports] of Object.entries(s.force ?? {})) {
       const node = nodes.get(path);
       if (!node) {
@@ -221,21 +269,32 @@ export interface Unsupported {
 
 /** The extra vars of a scenario run: its inputs, the forced outcomes and the approvals. */
 export function scenarioVars(s: Scenario): Record<string, unknown> {
+  // AFD-159: checkScenarios refuses ansible_* inputs; a run that skipped the check drops them.
+  const inputs = Object.entries(isMap(s.inputs) ? s.inputs : {}).filter(
+    ([k]) => !CONNECTION_VAR.test(k),
+  );
   return {
-    ...(s.inputs ?? {}),
+    ...Object.fromEntries(inputs),
     afd_simulate: s.force ?? {},
     ...(s.approvals ? { afd_approvals: s.approvals } : {}),
   };
 }
 
-/** An INI inventory of local-connection hosts: nothing leaves the machine the scenario runs on. */
+/**
+ * An INI inventory of local-connection hosts: nothing leaves the machine the scenario runs on.
+ * AFD-159: throws on a name that is not one inventory word, which could add a line of its own.
+ */
 export function scenarioInventory(doc: FlowDocument, s: Scenario): string {
-  const line = (h: string) =>
-    `${h} ansible_connection=local ansible_python_interpreter="{{ ansible_playbook_python }}"`;
+  const line = (h: string) => {
+    if (!INVENTORY_NAME.test(h)) throw new Error(`"${h}" is not a host name`);
+    return `${h} ansible_connection=local ansible_python_interpreter="{{ ansible_playbook_python }}"`;
+  };
   const hosts = scenarioHosts(doc, s);
   const out = ['[afd_scenario]', ...hosts.map(line), ''];
-  for (const [group, members] of Object.entries(s.groups ?? {}))
-    out.push(`[${group}]`, ...members.map(line), '');
+  for (const [group, members] of Object.entries(isMap(s.groups) ? s.groups : {})) {
+    if (!INVENTORY_NAME.test(group)) throw new Error(`"${group}" is not a group name`);
+    out.push(`[${group}]`, ...(Array.isArray(members) ? members : []).map(String).map(line), '');
+  }
   return out.join('\n');
 }
 

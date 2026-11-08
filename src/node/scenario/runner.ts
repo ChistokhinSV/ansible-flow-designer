@@ -40,8 +40,12 @@ export interface ScenarioRunOptions {
   signal?: AbortSignal;
 }
 
-const slug = (name: string) =>
-  name
+/** The folder an EE image writes the events into, inside a scenario's folder (AFD-159). */
+const EVENTS = 'events';
+
+/** AFD-159: a name that is not text (a number, nothing) still names a folder. */
+const slug = (name: unknown) =>
+  String(name ?? '')
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-|-$/g, '')
@@ -125,8 +129,16 @@ async function runOne(
   const dir = join(o.workDir, `${index + 1}-${slug(s.name)}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  // An EE image runs as its own user, which writes the events here (umask leaves it read-only).
-  chmodSync(dir, 0o777);
+  // AFD-159: Ansible loads plugins, group_vars and host_vars from beside the playbook and the
+  // inventory, so no other user may write here (0777 let one swap them in on a shared CI host).
+  // An EE image runs as a user of its own, which only reads here and writes the events into
+  // EVENTS, open to all and sticky: nothing in it is loaded.
+  const shared = o.env.kind === 'container';
+  chmodSync(dir, shared ? 0o755 : 0o700);
+  if (shared) {
+    mkdirSync(join(dir, EVENTS));
+    chmodSync(join(dir, EVENTS), 0o1777);
+  }
   try {
     const generated = stageScenario(o.doc, s, dir, basename(o.flowFile));
     if (!generated)
@@ -149,11 +161,12 @@ async function runOne(
         // and the empty one written above keeps it from loading from the working directory.
         hasConfig: false,
         emptyConfig: true,
+        eventsDir: shared ? EVENTS : undefined,
       },
       `afd-scenario-${Date.now().toString(36)}-${index}`,
     );
     const rc = await exec(spec, log, o.timeoutMs ?? 300_000, o.signal);
-    const events = join(dir, 'events.jsonl');
+    const events = join(dir, shared ? EVENTS : '', 'events.jsonl');
     const text = existsSync(events) ? readFileSync(events, 'utf8') : '';
     if (o.signal?.aborted) return judge(o.doc, s, undefined, 'Cancelled');
     // 2: hosts failed in the outcome play, as a scenario with failures expects.
@@ -168,6 +181,9 @@ async function runOne(
         engine: 'ansible',
       };
     return { ...judge(o.doc, s, summarizeRun(text, generated.routes)), engine: 'ansible' };
+  } catch (e) {
+    // AFD-159: a scenario that cannot be staged fails alone; the others still run.
+    return judge(o.doc, s, undefined, (e as Error).message);
   } finally {
     if (!o.keep) rmSync(dir, { recursive: true, force: true });
   }
@@ -177,6 +193,8 @@ export async function runScenarios(o: ScenarioRunOptions): Promise<ScenarioResul
   const log = o.log ?? (() => undefined);
   const results: ScenarioResult[] = [];
   for (const [i, s] of o.file.scenarios.entries()) {
+    // AFD-159: checkScenarios reports an entry that is no map; a run without the check skips it.
+    if (!s || typeof s !== 'object') continue;
     if (o.only && !o.only.includes(s.name)) continue;
     if (o.signal?.aborted) break;
     log(`# Scenario: ${s.name}`);
@@ -218,17 +236,26 @@ export const failedCount = (results: readonly ScenarioResult[]) =>
   results.filter((r) => !r.passed && !skipped(r)).length;
 
 /** JUnit XML for CI dashboards: one test case per scenario. */
-export function junitXml(
+/**
+ * Text for XML: escaped, and without the control characters XML 1.0 forbids even as references
+ * (AFD-158: Ansible output can carry terminal colour codes).
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: removing control characters is the point.
+const XML_FORBIDDEN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g;
+const esc = (t: string) =>
+  t
+    .replaceAll(XML_FORBIDDEN, '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+
+/** One flow's scenarios as a JUnit `<testsuite>`. */
+export function junitSuite(
   flow: string,
   results: readonly ScenarioResult[],
   doc?: FlowDocument,
 ): string {
-  const esc = (t: string) =>
-    t
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
   const failures = failedCount(results);
   const skips = results.filter(skipped).length;
   const cases = results.map((r) => {
@@ -239,10 +266,31 @@ export function junitXml(
     return `    <testcase classname="${esc(flow)}" name="${esc(r.name)}"><failure message="${esc(r.error ?? 'hosts ended elsewhere')}">${esc(text)}</failure></testcase>`;
   });
   return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    `<testsuites><testsuite name="${esc(flow)}" tests="${results.length}" failures="${failures}"${skips ? ` skipped="${skips}"` : ''}>`,
+    `  <testsuite name="${esc(flow)}" tests="${results.length}" failures="${failures}"${skips ? ` skipped="${skips}"` : ''}>`,
     ...cases,
-    '  </testsuite></testsuites>',
+    '  </testsuite>',
+  ].join('\n');
+}
+
+/**
+ * A JUnit file of several flows' suites under one root (AFD-158: one document per flow, joined,
+ * was not XML once there were two flows).
+ */
+export function junitDocument(suites: readonly string[]): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<testsuites>',
+    ...suites,
+    '</testsuites>',
     '',
   ].join('\n');
+}
+
+/** One flow's scenarios as a whole JUnit file. */
+export function junitXml(
+  flow: string,
+  results: readonly ScenarioResult[],
+  doc?: FlowDocument,
+): string {
+  return junitDocument([junitSuite(flow, results, doc)]);
 }

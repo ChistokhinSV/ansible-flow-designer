@@ -35,6 +35,11 @@ interface StatusPlan {
   records: Map<Ulid, TestedRecord>;
   /** Format 1 decisions that become records (their finding ids). */
   decisions: Set<string>;
+  /**
+   * AFD-160: nodes marked tested by hand whose content is not implemented: format 2 has nowhere
+   * to keep the mark, so it goes, and the notes say so (titles).
+   */
+  dropped: string[];
 }
 
 /**
@@ -44,7 +49,12 @@ interface StatusPlan {
  * was tested before runs were recorded.
  */
 function planStatuses(doc: FlowDocument): StatusPlan {
-  const plan: StatusPlan = { statuses: new Map(), records: new Map(), decisions: new Set() };
+  const plan: StatusPlan = {
+    statuses: new Map(),
+    records: new Map(),
+    decisions: new Set(),
+    dropped: [],
+  };
   const byHand = new Map(
     (doc.decisions ?? [])
       .filter((d) => d?.kind === 'finding_accepted')
@@ -76,7 +86,10 @@ function planStatuses(doc: FlowDocument): StatusPlan {
             },
       );
     }
-    if (byHand.has(testedFinding(node.id))) plan.decisions.add(testedFinding(node.id));
+    if (byHand.has(testedFinding(node.id))) {
+      plan.decisions.add(testedFinding(node.id));
+      if (want !== 'tested') plan.dropped.push(node.title || node.key);
+    }
   }
   return plan;
 }
@@ -96,6 +109,11 @@ const statusStep: MigrationStep = {
     if (plan.records.size)
       notes.push(
         `${plan.records.size} tested node${plan.records.size === 1 ? '' : 's'} keep why on the node`,
+      );
+    const dropped = plan.dropped;
+    if (dropped.length)
+      notes.push(
+        `${dropped.length} node${dropped.length === 1 ? '' : 's'} marked tested by hand ${dropped.length === 1 ? 'is' : 'are'} not implemented, so the mark and its reason go (${dropped.slice(0, 3).join(', ')}${dropped.length > 3 ? ', …' : ''})`,
       );
     if (doc.flow.runtime?.kind) notes.push('the runtime kind is worked out from the flow');
     return notes;

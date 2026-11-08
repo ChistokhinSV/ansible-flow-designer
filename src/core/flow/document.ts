@@ -38,7 +38,13 @@ export const SELF_ALIAS =
 /** Same as parseFlow for text that is already parsed (e.g. the result of a command). */
 export function flowFromFile(file: YamlFile): ParsedFlow {
   if (file.errors.length > 0) return { file, errors: file.errors };
-  const data = file.doc.toJS({ maxAliasCount: 100 });
+  let data: unknown;
+  try {
+    data = file.doc.toJS({ maxAliasCount: 100 });
+  } catch (e) {
+    // AFD-159: too many aliases (a billion laughs) throw here; the CLI ended on it unhandled.
+    return { file, errors: [{ message: (e as Error).message, offset: 0 }] };
+  }
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {
     return { file, errors: [{ message: 'A flow document must be a YAML mapping', offset: 0 }] };
   }

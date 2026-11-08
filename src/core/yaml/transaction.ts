@@ -48,7 +48,15 @@ export class YamlTransaction {
       if (!result.ok) throw new YamlEditError(result.code, result.reason);
       return result.edits;
     });
-    const next = parseYaml(applyEdits(this.file.text, edits));
+    let text: string;
+    try {
+      text = applyEdits(this.file.text, edits);
+    } catch (e) {
+      // AFD-160: two ops on one region are a command's bug; report it as an edit error, which
+      // callers turn into a message, not a plain Error.
+      throw new YamlEditError('overlap', (e as Error).message);
+    }
+    const next = parseYaml(text);
     // Never hand VS Code text that no longer parses.
     if (next.errors.length > 0) {
       throw new YamlEditError('broken', `edit would break the YAML: ${next.errors[0]?.message}`);

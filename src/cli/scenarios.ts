@@ -17,7 +17,13 @@ import {
   simulateFlow,
   USAGE,
 } from '../node/scenario/cli';
-import { describeResults, failedCount, junitXml, runScenarios } from '../node/scenario/runner';
+import {
+  describeResults,
+  failedCount,
+  junitDocument,
+  junitSuite,
+  runScenarios,
+} from '../node/scenario/runner';
 
 const o = parseCliArgs(process.argv.slice(2));
 if (o.help || o.error || o.targets.length === 0) {
@@ -57,9 +63,11 @@ function probe(): string {
   const dir = mkdtempSync(join(tmpdir(), 'afd-scenarios-'));
   mkdirSync(join(dir, 'callback_plugins'));
   writeFileSync(join(dir, 'callback_plugins', 'afd_events.py'), callback);
-  // mkdtemp makes it private; the image's own user must read the callback.
-  chmodSync(dir, 0o755);
-  chmodSync(join(dir, 'callback_plugins'), 0o755);
+  // mkdtemp makes it private; an image's own user must read the callback (AFD-159: only then).
+  if (env.kind === 'container') {
+    chmodSync(dir, 0o755);
+    chmodSync(join(dir, 'callback_plugins'), 0o755);
+  }
   return dir;
 }
 
@@ -101,10 +109,18 @@ async function main(): Promise<number> {
         });
     for (const line of describeResults(results, f.doc)) console.log(line);
     failed += failedCount(results);
-    junit.push(junitXml(f.doc.flow.key, results, f.doc));
+    junit.push(junitSuite(f.doc.flow.key, results, f.doc));
   }
-  if (o.junit) writeFileSync(o.junit, junit.join('\n'));
+  // AFD-158: every flow's suite under one root, so CI reads the file as one XML document.
+  if (o.junit) writeFileSync(o.junit, junitDocument(junit));
   return failed > 0 ? 1 : 0;
 }
 
-void main().then((code) => process.exit(code));
+// AFD-159: a path that does not exist or a file that does not read ends with a line, not a trace.
+void main().then(
+  (code) => process.exit(code),
+  (e: unknown) => {
+    console.log(`afd-scenarios: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(2);
+  },
+);

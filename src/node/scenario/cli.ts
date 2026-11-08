@@ -130,15 +130,20 @@ export function loadScenarioFlows(targets: readonly string[]): FlowScenarios[] {
     if (!isFileKey(doc?.flow?.key)) continue;
     const scenariosFile = join(dirname(flowFile), scenariosFileName(doc.flow.key));
     if (!existsSync(scenariosFile)) continue;
-    const parsed = parseScenarios(readFileSync(scenariosFile, 'utf8'));
-    out.push({
-      flowFile,
-      scenariosFile,
-      doc,
-      file: parsed.file,
-      error: parsed.error,
-      problems: parsed.file ? checkScenarios(doc, parsed.file) : [],
-    });
+    // AFD-159: a scenarios file that does not read or check fails alone, as a FAIL line.
+    try {
+      const parsed = parseScenarios(readFileSync(scenariosFile, 'utf8'));
+      out.push({
+        flowFile,
+        scenariosFile,
+        doc,
+        file: parsed.file,
+        error: parsed.error,
+        problems: parsed.file ? checkScenarios(doc, parsed.file) : [],
+      });
+    } catch (e) {
+      out.push({ flowFile, scenariosFile, doc, error: (e as Error).message, problems: [] });
+    }
   }
   return out;
 }

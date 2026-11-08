@@ -14,21 +14,27 @@ import { FILLS, NOTE_COLORS, TONES } from '../theme';
 import { markdownHtml, plainText } from '../view/markdown';
 import { type Detail, flowDetails, NODE_TYPE_LABEL, nodeDetails, tooltipOf } from './details';
 import { type ExportSource, type Scene, scenesOf } from './scene';
+import { xmlClean } from './xml';
 
 const TONE = TONES.light;
 const FILL = FILLS.light;
 export const INK = { bg: '#ffffff', fg: '#1f2328', muted: '#6b7280', frame: '#f8f8f9' };
 
-/** XML attribute value; newlines kept as character references (draw.io shows them). */
-export const attr = (s: string) =>
-  s
+/**
+ * XML attribute value; newlines, carriage returns and tabs kept as character references (draw.io
+ * shows them; a parser would turn them into spaces). AFD-158: any value, no forbidden controls.
+ */
+export const attr = (s: unknown) =>
+  xmlClean(s)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-    .replaceAll('\n', '&#10;');
-const html = (s: string) =>
-  s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    .replaceAll('\n', '&#10;')
+    .replaceAll('\r', '&#13;')
+    .replaceAll('\t', '&#9;');
+const html = (s: unknown) =>
+  xmlClean(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const style = (parts: Record<string, string | number | undefined>) =>
   Object.entries(parts)
     .filter(([, v]) => v !== undefined)
@@ -306,7 +312,7 @@ function page(src: ExportSource, scene: Scene, byLevel: Map<string, Scene>): str
   userObject(
     out,
     'afd-title',
-    `<font style="font-size:15px"><b>${html(flow.name)}</b></font> &middot; v${flow.version}<br>${html(where)}${goal}${back}`,
+    `<font style="font-size:15px"><b>${html(flow.name)}</b></font> &middot; v${html(flow.version)}<br>${html(where)}${goal}${back}`,
     [['level', scene.path || 'top']],
     parent ? { link: `data:page/id,${pageId(parent.level)}` } : {},
     `<mxCell style="${attr(style({ strokeColor: 'none', fillColor: 'none', html: 1, align: 'left', verticalAlign: 'top', whiteSpace: 'wrap', fontFamily: 'Helvetica', fontSize: 12, fontColor: INK.fg, spacing: 0 }))}" vertex="1" parent="1"><mxGeometry x="40" y="20" width="${Math.max(420, Math.round(scene.bounds.width))}" height="80" as="geometry"/></mxCell>`,

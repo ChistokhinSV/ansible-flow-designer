@@ -14,6 +14,7 @@ import { tieLine } from '../view/tie';
 import { attr, INK, nodeLook, portLook, shiftOf, toneColour } from './drawio';
 import { type ExportSource, portCentre, type Scene, scenesOf } from './scene';
 import { fitText, textWidth, wrapText } from './text';
+import { xmlClean } from './xml';
 
 const TONE = TONES.light;
 const CHIP_BORDER = '#d3d3d3';
@@ -29,8 +30,8 @@ const TONE_NAMES: PortTone[] = [
   'neutral',
 ];
 
-const esc = (s: string) =>
-  s
+const esc = (s: unknown) =>
+  xmlClean(s)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')

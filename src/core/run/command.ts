@@ -202,6 +202,11 @@ export interface RunRequest {
    * them, so an audit callback an organisation requires keeps running.
    */
   callbacks?: { enabled: string[]; paths: string[] };
+  /**
+   * AFD-159: a folder inside runDir for events.jsonl, the only one an image's own user writes to
+   * (a scenario run keeps the rest of its folder to its owner).
+   */
+  eventsDir?: string;
 }
 
 /** Callback names and plugin folders that can go into a comma or colon list as they are. */
@@ -224,7 +229,7 @@ function runEnv(
   probeDir: string,
   runDir: string,
   root: string,
-  config: Pick<RunRequest, 'hasConfig' | 'emptyConfig' | 'callbacks'>,
+  config: Pick<RunRequest, 'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir'>,
 ) {
   const ours = join(probeDir, 'callback_plugins');
   // AFD-141: these variables replace ansible.cfg's values, so the repository's go first.
@@ -234,7 +239,7 @@ function runEnv(
   const env: Record<string, string> = {
     ANSIBLE_CALLBACK_PLUGINS: [...new Set(plugins)].join(':'),
     ANSIBLE_CALLBACKS_ENABLED: [...new Set(enabled)].join(','),
-    AFD_EVENTS: join(runDir, 'events.jsonl'),
+    AFD_EVENTS: join(config.eventsDir ? join(runDir, config.eventsDir) : runDir, 'events.jsonl'),
     ANSIBLE_HOST_PATTERN_MISMATCH: 'ignore',
     ANSIBLE_FORCE_COLOR: '1',
   };

@@ -3,7 +3,7 @@
 
 import { IMPORTED_FIELDS, type ReimportAdd, type ReimportUpdate } from '../import/reimport';
 import type { TextEdit } from '../yaml/edits';
-import { deleteKey, insertItem, type OpResult, removeItem, setIn } from '../yaml/ops';
+import { deleteKey, insertItem, type OpResult, removeItem, removeItems, setIn } from '../yaml/ops';
 import type { Path, YamlFile } from '../yaml/parse';
 import { Literal, type YamlValue } from '../yaml/render';
 import { YamlTransaction } from '../yaml/transaction';
@@ -62,6 +62,7 @@ import {
   type TextSize,
   type Ulid,
 } from './types';
+import { varNameProblem } from './varNames';
 import { descendantIds } from './walk';
 
 type Boundary = NonNullable<SubflowBody['boundary']>;
@@ -568,7 +569,7 @@ function decisionRemovalOps(st: State, node: Ulid, port: string): Op[] {
     .map((a) => a.index);
   if (idx.length === 0) return [];
   if (idx.length === decisions.length) return [(f) => deleteKey(f, [], 'decisions')];
-  return idx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i));
+  return [(f) => removeItems(f, ['decisions'], idx)];
 }
 
 function positionOps(st: State, positions: Record<Ulid, Position>): Op[] {
@@ -1025,10 +1026,7 @@ function removeDecisions(tx: YamlTransaction, idx: readonly number[]): void {
   const count = state(tx).doc.decisions?.length ?? 0;
   if (idx.length === 0) return;
   if (idx.length === count) tx.apply((f) => deleteKey(f, [], 'decisions'));
-  else
-    tx.applyAll(
-      [...idx].sort((a, b) => b - a).map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)),
-    );
+  else tx.apply((f) => removeItems(f, ['decisions'], idx));
 }
 
 /**
@@ -1169,7 +1167,7 @@ function removeIndexes(
 ): ((f: YamlFile) => OpResult)[] {
   if (indexes.length === 0) return [];
   if (indexes.length === length) return [(f) => setIn(f, seqPath, [])];
-  return indexes.map((i) => (f: YamlFile) => removeItem(f, seqPath, i));
+  return [(f) => removeItems(f, seqPath, indexes)];
 }
 
 function deleteNode(tx: YamlTransaction, id: Ulid): void {
@@ -1194,7 +1192,7 @@ function deleteNode(tx: YamlTransaction, id: Ulid): void {
   if (decisionIdx.length > 0 && decisionIdx.length === decisions.length) {
     ops.push((f) => deleteKey(f, [], 'decisions'));
   } else {
-    ops.push(...decisionIdx.map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
+    if (decisionIdx.length) ops.push((f) => removeItems(f, ['decisions'], decisionIdx));
   }
 
   const layout = st.doc.layout ?? {};
@@ -1288,13 +1286,13 @@ function setBinding(
   if (cmd.impl) {
     if (!cmd.impl.ref.trim())
       throw new CommandError('bad-ref', 'Choose a module, role or playbook');
-    if (cmd.impl.register && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(cmd.impl.register))
-      throw new CommandError('bad-name', `"${cmd.impl.register}" is not a valid variable name`);
+    const bad = cmd.impl.register ? varNameProblem(cmd.impl.register) : undefined;
+    if (bad) throw new CommandError('bad-name', bad);
   }
   for (const side of ['inputs', 'outputs'] as const) {
     for (const [name, field] of Object.entries(cmd[side] ?? {})) {
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
-        throw new CommandError('bad-name', `"${name}" is not a valid variable name`);
+      const bad = varNameProblem(name);
+      if (bad) throw new CommandError('bad-name', bad);
       const current = nodeAt(state(tx), cmd.id).node[side];
       if (field === null) {
         if (!current || !(name in current)) continue;
@@ -1508,9 +1506,8 @@ function setContractField(
   }
   const order = cmd.target === 'flow' ? FLOW_ORDER : NODE_ORDER;
   const name = cmd.rename ?? cmd.name;
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-    throw new CommandError('bad-name', `"${name}" is not a valid variable name`);
-  }
+  const bad = varNameProblem(name);
+  if (bad) throw new CommandError('bad-name', bad);
   const exists = current !== undefined && cmd.name in current;
   if (cmd.field === null || (cmd.rename && cmd.rename !== cmd.name)) {
     if (exists) {
@@ -1740,7 +1737,7 @@ function dropTestedRecords(tx: YamlTransaction, ids: readonly Ulid[]): void {
     .filter((i) => i >= 0);
   if (idx.length === 0) return;
   if (idx.length === decisions.length) tx.apply((f) => deleteKey(f, [], 'decisions'));
-  else tx.applyAll([...idx].reverse().map((i) => (f: YamlFile) => removeItem(f, ['decisions'], i)));
+  else tx.apply((f) => removeItems(f, ['decisions'], idx));
 }
 
 function clearFindingAccept(tx: YamlTransaction, finding: string): void {
@@ -2146,7 +2143,7 @@ function removeAnnotationOps(level: Level, ids: ReadonlySet<string>): Op[] {
     const base = level.annotationsPath.slice(0, -1);
     return [(f) => deleteKey(f, base, 'annotations')];
   }
-  return idx.map((i) => (f: YamlFile) => removeItem(f, level.annotationsPath, i));
+  return [(f) => removeItems(f, level.annotationsPath, idx)];
 }
 
 /** Removes annotations level by level; how many were there. */

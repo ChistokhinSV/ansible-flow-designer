@@ -36,6 +36,9 @@ export function privilegeOf(model: FlowModel, node: FlowNode): Privilege {
     }
     at = entry.level;
   }
-  if (!out.become) return {};
+  // AFD-160: become_user without become still names whom to become when ansible.cfg or the
+  // inventory turns become on, as the task keyword did in format 1; dropping it made an upgraded
+  // task run as root there. `become: false` turns both off.
+  if (out.become === false || (!out.become && !out.become_user)) return {};
   return out;
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.74.4 — AFD-158 to AFD-160
+
+The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer.
+
+- **JUnit for several flows is one XML file:** `afd-scenarios --junit` wrote one document per flow, one after the other, which CI dashboards could not read once there were two flows. All flows' suites now go under one `<testsuites>` root. Terminal colour codes in Ansible's output are left out, since XML does not allow them.
+- **Exports and flow files take any text:** draw.io and SVG exports leave out control characters XML does not allow (a title pasted from a terminal). Tabs and line breaks in labels are kept. A flow text with a line or paragraph separator (U+2028, U+2029, NEL) or another control character is written quoted and escaped, so Ansible's YAML reader reads the same text back.
+- **Scenarios run on this machine only:**
+  - A host or group name in a scenario must be one inventory word (letters, digits, `.`, `_`, `-`). A name with a line break could add an inventory line of its own, with a real connection.
+  - Scenario inputs cannot set `ansible_*` variables. Extra vars outrank the inventory, so `ansible_connection: ssh` in inputs took the run to a real machine.
+- **Scenario run folders are private:** with `--python` and `--wsl`, only you can read or write them. With an image, other users can read the run folder but not write to it, and the image writes its events into a folder of their own. Before, the folder was open to every user of the machine, and Ansible loads plugins and `group_vars` from beside the playbook.
+- **A bad scenarios file is a problem, not a crash:** an empty entry (`- ` alone), a name that is a number, or a list where a map goes is reported with the scenario. A flow file the command line cannot read, or a path that does not exist, ends with one line and exit code 2, not a stack trace. A flow file with too many YAML aliases (a "billion laughs") is reported as not readable.
+- **Input, output and register names Ansible can use:** a name such as `retry-count`, or a Python or Jinja keyword (`in`, `not`, `true`, `none`, `class`), is now a problem in the designer, on hand-written and AI-written flows too. Before, only the designer's own edits checked it, and Ansible refused the generated playbook. The flow schema says the same, for editors that read it.
+- **Become user without become:** a Become user set on a step or subflow without Become now still goes into the generated play. It applies when `ansible.cfg` or the inventory turns become on, as in format 1. Before, upgraded steps ran as root there. Become set to false turns both off.
+- **Upgrade Flow Format** names the nodes marked tested by hand that lose the mark because they are not implemented.
+- **Removing several items from a `[a, b, c]` list in one edit** works. Deleting a node with several wires, or clearing several accepted findings, failed with "overlapping edits" when the file wrote that list in flow style.
+
 ## 0.74.3 — AFD-131, AFD-133 to AFD-157
 
 More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running. Several flow edits and generated plays now do what the design says.
