@@ -21,6 +21,22 @@ def ping(root: str) -> dict[str, Any]:
     return {"ok": True}
 
 
+def run_config(root: str) -> dict[str, Any]:
+    """What a run keeps of the repository's config (AFD-141).
+
+    A run enables our event callback through ANSIBLE_CALLBACKS_ENABLED and
+    ANSIBLE_CALLBACK_PLUGINS, which replace ansible.cfg's values. So the run adds ours to the
+    callbacks and plugin folders this config gives, and audit callbacks an organisation
+    requires keep running.
+    """
+    from ansible import constants as C
+
+    return {
+        "callbacks_enabled": [str(c) for c in (C.CALLBACKS_ENABLED or [])],
+        "callback_plugins": [str(p) for p in (C.DEFAULT_CALLBACK_PLUGIN_PATH or [])],
+    }
+
+
 def _playbook_command() -> list[str]:
     exe = shutil.which("ansible-playbook")
     return [exe] if exe else [sys.executable, "-m", "ansible.cli.playbook"]
@@ -193,6 +209,7 @@ def inventory_lens(
 
 HANDLERS = {
     "ping": ping,
+    "run_config": run_config,
     "syntax_check": syntax_check,
     "inventory": inventory,
     "inventory_tree": inventory_tree,

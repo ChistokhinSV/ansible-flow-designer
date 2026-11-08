@@ -33,6 +33,67 @@ ROUTING = {
 }
 
 
+REDACTED = "********"
+
+
+def _leaves(value: object, out: set[str]) -> None:
+    """Every string and number inside a secret input (AFD-139): a list or dict secret is matched
+    by its parts, since tasks print those, not the whole JSON."""
+    if isinstance(value, bool) or value is None:
+        return
+    if isinstance(value, (str, int, float)):
+        text = str(value)
+        if text:
+            out.add(text)
+    elif isinstance(value, dict):
+        out.add(json.dumps(value, separators=(",", ":")))
+        for v in value.values():
+            _leaves(v, out)
+    elif isinstance(value, list):
+        out.add(json.dumps(value, separators=(",", ":")))
+        for v in value:
+            _leaves(v, out)
+
+
+def _secrets() -> list[str]:
+    """The run's secret values, from the files the run's shell names (AFD-139): the secret
+    inputs (AFD_SECRETS_FILE, JSON) and the vault password (AFD_VAULT_FILE). Longest first, so a
+    secret that contains another is replaced whole."""
+    found: set[str] = set()
+    path = os.environ.get("AFD_SECRETS_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            for v in data.values() if isinstance(data, dict) else []:
+                _leaves(v, found)
+        except (OSError, ValueError):
+            pass
+    path = os.environ.get("AFD_VAULT_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as f:
+                password = f.read().rstrip("\r\n")
+            if password:
+                found.add(password)
+        except OSError:
+            pass
+    return sorted(found, key=len, reverse=True)
+
+
+def _scrub(value: object, secrets: list[str]) -> object:
+    if isinstance(value, str):
+        for s in secrets:
+            if s in value:
+                value = value.replace(s, REDACTED)
+        return value
+    if isinstance(value, list):
+        return [_scrub(v, secrets) for v in value]
+    if isinstance(value, dict):
+        return {k: _scrub(v, secrets) for k, v in value.items()}
+    return value
+
+
 def _text(value: object) -> str | None:
     """Output as text, cut at OUT_LIMIT; None when empty."""
     if value is None or value == "" or value == []:
@@ -55,11 +116,16 @@ class CallbackModule(CallbackBase):
         path = os.environ.get("AFD_EVENTS")
         self._out = open(path, "a", encoding="utf-8") if path else None  # noqa: SIM115
         self._node: str | None = None
+        # AFD-139: secret values never reach the file, also when the run stops before the
+        # extension's own redaction pass at its end.
+        self._secrets = _secrets()
 
     def _emit(self, **event: object) -> None:
         if self._out is None:
             return
         event["ts"] = round(time.time(), 3)
+        if self._secrets:
+            event = _scrub(json.loads(json.dumps(event, default=str)), self._secrets)
         self._out.write(json.dumps(event, default=str) + "\n")
         self._out.flush()
 

@@ -34,14 +34,14 @@ const containerStop = (env: Extract<Environment, { kind: 'container' }>, name: s
 /**
  * AFD-131: ends a WSL run from Windows. Killing wsl.exe leaves ansible-playbook running in the
  * distribution, so the run's shell carries its name as `$0`, and this finds it with pgrep and
- * ends its process group (a `wsl -e` shell leads its own group), or the shell and its children
- * when it does not. The name is passed in two parts so the pattern never matches this shell.
- * `env kill`: dash's built-in kill takes no negative process group.
+ * ends it with every process under it, children first (ansible-playbook and its workers; the
+ * shell's EXIT trap then removes the secret files). Not by process group: in WSL 1 the shells of
+ * separate `wsl -e` sessions can share one, and this shell or another run would go with it. The
+ * name is passed in two parts so the pattern never matches this shell.
  */
 const WSL_STOP =
-  'for p in $(pgrep -f -- "$1$2"); do g=$(ps -o pgid= -p "$p" | tr -d " "); ' +
-  'if [ "$g" = "$p" ]; then env kill -TERM -- "-$g"; else pkill -TERM -P "$p"; env kill -TERM "$p"; fi; ' +
-  'done 2>/dev/null; true';
+  'k() { for c in $(pgrep -P "$1"); do k "$c"; done; kill -TERM "$1"; }; ' +
+  'for p in $(pgrep -f -- "$1$2"); do k "$p"; done 2>/dev/null; true';
 
 const wslStop = (env: Extract<Environment, { kind: 'wsl' }>, name: string) => {
   const half = Math.ceil(name.length / 2);
@@ -196,7 +196,17 @@ export interface RunRequest {
    * repository) when ANSIBLE_CONFIG names no existing file, and its plugin paths are code.
    */
   emptyConfig?: boolean;
+  /**
+   * AFD-141: the callbacks the repository's config enables, and where they live (the probe's
+   * `run_config`, paths as the environment sees them). Ours is added to them instead of replacing
+   * them, so an audit callback an organisation requires keeps running.
+   */
+  callbacks?: { enabled: string[]; paths: string[] };
 }
+
+/** Callback names and plugin folders that can go into a comma or colon list as they are. */
+const CALLBACK_NAME = /^[\w.]+$/;
+const pluginPath = (p: string) => p !== '' && !/[:\n\r]/.test(p);
 
 /** Run inputs split by name, with the import's rule: secret-looking ones never reach vars.json. */
 export function splitInputs(inputs: Record<string, unknown>): {
@@ -214,11 +224,16 @@ function runEnv(
   probeDir: string,
   runDir: string,
   root: string,
-  config: { hasConfig: boolean; emptyConfig?: boolean },
+  config: Pick<RunRequest, 'hasConfig' | 'emptyConfig' | 'callbacks'>,
 ) {
+  const ours = join(probeDir, 'callback_plugins');
+  // AFD-141: these variables replace ansible.cfg's values, so the repository's go first.
+  const theirs = config.emptyConfig ? undefined : config.callbacks;
+  const enabled = [...(theirs?.enabled ?? []).filter((n) => CALLBACK_NAME.test(n)), 'afd_events'];
+  const plugins = [...(theirs?.paths ?? []).filter(pluginPath), ours];
   const env: Record<string, string> = {
-    ANSIBLE_CALLBACK_PLUGINS: join(probeDir, 'callback_plugins'),
-    ANSIBLE_CALLBACKS_ENABLED: 'afd_events',
+    ANSIBLE_CALLBACK_PLUGINS: [...new Set(plugins)].join(':'),
+    ANSIBLE_CALLBACKS_ENABLED: [...new Set(enabled)].join(','),
     AFD_EVENTS: join(runDir, 'events.jsonl'),
     ANSIBLE_HOST_PATTERN_MISMATCH: 'ignore',
     ANSIBLE_FORCE_COLOR: '1',
@@ -229,10 +244,17 @@ function runEnv(
 }
 
 /**
- * `ansible-playbook` for a run. With a vault, a tiny script that echoes $AFD_VAULT_PASSWORD is
- * written inside the run's shell; the password itself only ever travels in that variable. Secret
- * inputs do the same through $AFD_SECRET_VARS: a temporary extra-vars file that lives as long as
- * the run, inside the environment (AFD-29).
+ * `ansible-playbook` for a run. Secret inputs ($AFD_SECRET_VARS) and the vault password
+ * ($AFD_VAULT_PASSWORD) come in variables only (AFD-29) and go into temporary files inside the
+ * environment, owner-only, that live as long as the run.
+ * AFD-138:
+ * - a trap removes the files on every exit, also when the run is stopped or the terminal closed;
+ * - both variables are unset once written, so ansible-playbook and what it starts (local tasks,
+ *   inventory scripts, lookup('env')) never see them;
+ * - the vault password file is a script that `cat`s the password file, so the password is never
+ *   parsed by a shell (dash's echo turned `\c` and `\n` in it into other characters).
+ * AFD-139: AFD_SECRETS_FILE and AFD_VAULT_FILE name those files for the event callback, which
+ * leaves their values out of every event it writes.
  */
 export function runProcess(
   env: Environment,
@@ -258,17 +280,22 @@ export function runProcess(
   const temps: string[] = [];
   if (request.vault) {
     setup.push(
-      `vp=$(mktemp) && printf '#!/bin/sh\\necho "$AFD_VAULT_PASSWORD"\\n' > "$vp" && chmod 700 "$vp"`,
+      `pw=$(mktemp) && printf '%s\\n' "$AFD_VAULT_PASSWORD" > "$pw" && unset AFD_VAULT_PASSWORD`,
+      `vp=$(mktemp) && printf '#!/bin/sh\\ncat "%s"\\n' "$pw" > "$vp" && chmod 700 "$vp"`,
+      'export AFD_VAULT_FILE="$pw"',
     );
-    temps.push('"$vp"');
+    temps.push('"$pw"', '"$vp"');
   }
   if (request.secrets) {
-    setup.push(`sv=$(mktemp) && printf '%s' "$AFD_SECRET_VARS" > "$sv"`);
+    setup.push(
+      `sv=$(mktemp) && printf '%s' "$AFD_SECRET_VARS" > "$sv" && unset AFD_SECRET_VARS`,
+      'export AFD_SECRETS_FILE="$sv"',
+    );
     temps.push('"$sv"');
   }
-  const script = setup.length
-    ? `${setup.join(' && ')} && ${line}; rc=$?; rm -f ${temps.join(' ')}; exit $rc`
-    : line;
+  // EXIT runs on every exit; the signal traps turn a stop into an exit, so EXIT runs then too.
+  const trap = `trap 'rm -f ${temps.join(' ')}' EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM`;
+  const script = setup.length ? `${trap}; ${setup.join(' && ')} && ${line}` : line;
   const variables = runEnv(probeDir, runDir, root, request);
   if (inContainer) {
     const args = containerBase(env, paths, name);

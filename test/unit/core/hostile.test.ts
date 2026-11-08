@@ -28,6 +28,7 @@ import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { parseAnsible } from '../../../src/core/import/read';
 import { probeProcess, runProcess } from '../../../src/core/run/command';
+import { redactLine, secretValues } from '../../../src/core/run/redact';
 import { scenariosFileName } from '../../../src/core/scenario/scenarios';
 import { FsFlowIO } from '../../../src/mcp/fsIO';
 import { removeSkill, skillState, writeSkill } from '../../../src/node/ai/writers';
@@ -389,7 +390,9 @@ describe('AFD-131: stopping a run, a scenario or a probe removes its container',
     expect(stop.slice(0, 5)).toEqual(['-d', 'Debian', '-e', 'sh', '-c']);
     expect(stop.slice(-3)).toEqual(['afd-stop', 'afd-run', '-01abc']);
     expect(stop.join(' ')).not.toContain('afd-run-01abc');
-    expect(stop[5]).toContain('env kill -TERM -- "-$g"');
+    // Not by process group: in WSL 1 separate sessions can share one (the stopper went with it).
+    expect(stop[5]).toContain('pgrep -P');
+    expect(stop[5]).not.toContain('-$g');
   });
 
   it('stopStarted never rejects, also when the engine is missing', async () => {
@@ -493,5 +496,16 @@ describe('AFD-137: MCP writes do not follow links out of the roots', () => {
       expect(readFileSync(join(out, 'target.svg'), 'utf8')).toBe('keep');
     }
     expect(await mcp(ws).writeExport('plain/y.svg', '<svg/>')).toBe('plain/y.svg');
+  });
+});
+
+describe('AFD-139: list and dict secrets are redacted by their parts', () => {
+  it('finds the leaves, keeps the whole JSON, and scrubs a debug of one part', () => {
+    const values = secretValues({ creds: { user: 'svc', password: 'leaf-pw-9' }, pins: [4711] });
+    expect(values).toEqual(
+      expect.arrayContaining(['leaf-pw-9', 'svc', '4711', '{"user":"svc","password":"leaf-pw-9"}']),
+    );
+    const line = JSON.stringify({ event: 'result', out: { msg: 'password is leaf-pw-9' } });
+    expect(redactLine(line, values)).not.toContain('leaf-pw-9');
   });
 });

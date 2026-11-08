@@ -159,7 +159,11 @@ describe('command lines', () => {
     expect(script).toContain(
       'ansible-playbook -i inventories/lab -e @/afd-run/vars.json --check --vault-password-file "$vp" flows/x/generated/x.yml',
     );
-    expect(script).toContain('rm -f "$vp"');
+    // AFD-138: the password goes into an owner-only file the vault script cats; the variable goes.
+    expect(script).toContain('unset AFD_VAULT_PASSWORD');
+    expect(script).toContain(`printf '#!/bin/sh\\ncat "%s"\\n' "$pw" > "$vp"`);
+    expect(script).not.toContain('echo "$AFD_VAULT_PASSWORD"');
+    expect(script.startsWith(`trap 'rm -f "$pw" "$vp"' EXIT;`)).toBe(true);
     const local = resolveEnvironment(afd(), {}, 'linux');
     const plain = runProcess(
       local.ok ? local.env : (undefined as never),
@@ -192,7 +196,33 @@ describe('command lines', () => {
     const both = secret.args.at(-1) ?? '';
     expect(both).toContain(`sv=$(mktemp) && printf '%s' "$AFD_SECRET_VARS" > "$sv"`);
     expect(both).toContain('-e @/afd-run/vars.json -e @"$sv" --vault-password-file "$vp" g/x.yml');
-    expect(both).toMatch(/rc=\$\?; rm -f "\$vp" "\$sv"; exit \$rc$/);
+    // AFD-138: every exit removes the files, a stop included; the variables are gone after use.
+    expect(both).toContain(
+      `trap 'rm -f "$pw" "$vp" "$sv"' EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM;`,
+    );
+    expect(both).toContain('unset AFD_SECRET_VARS && export AFD_SECRETS_FILE="$sv"');
+    expect(both).toContain('export AFD_VAULT_FILE="$pw"');
+    // AFD-141: the repository's callbacks and plugin folders stay, ours is added.
+    const kept = runProcess(
+      local.ok ? local.env : (undefined as never),
+      { root: '/repo', probe: '/ext/probe' },
+      {
+        playbook: 'g/x.yml',
+        check: false,
+        runDir: '/tmp/r',
+        vault: false,
+        hasConfig: true,
+        callbacks: {
+          enabled: ['ara_default', 'profile_tasks', 'afd_events', 'bad name'],
+          paths: ['/repo/callback_plugins', '/usr/share/ansible/plugins/callback', 'a:b'],
+        },
+      },
+      'n',
+    );
+    expect(kept.env.ANSIBLE_CALLBACKS_ENABLED).toBe('ara_default,profile_tasks,afd_events');
+    expect(kept.env.ANSIBLE_CALLBACK_PLUGINS).toBe(
+      '/repo/callback_plugins:/usr/share/ansible/plugins/callback:/ext/probe/callback_plugins',
+    );
     expect(splitInputs({ devices: ['a'], enable_secret: 'x', api_key: 'k', count: 2 })).toEqual({
       plain: { devices: ['a'], count: 2 },
       secret: { enable_secret: 'x', api_key: 'k' },

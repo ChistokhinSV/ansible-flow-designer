@@ -6,6 +6,18 @@ import type { RunSummary } from './events';
 
 export const REDACTED = '********';
 
+/**
+ * AFD-139: every string and number inside a list or dict secret, since tasks print those parts,
+ * not the whole JSON (`debug: msg="{{ creds.password }}"`). The same rule as the event callback's.
+ */
+function leaves(value: unknown, out: Set<string>): void {
+  if (typeof value === 'string') {
+    if (value) out.add(value);
+  } else if (typeof value === 'number') out.add(String(value));
+  else if (Array.isArray(value)) for (const v of value) leaves(v, out);
+  else if (value && typeof value === 'object') for (const v of Object.values(value)) leaves(v, out);
+}
+
 /** The text forms a secret input can take in output: strings as they are, others as JSON. */
 export function secretValues(secret: Record<string, unknown>): string[] {
   const out = new Set<string>();
@@ -15,6 +27,7 @@ export function secretValues(secret: Record<string, unknown>): string[] {
     else {
       out.add(JSON.stringify(v));
       if (typeof v === 'number' || typeof v === 'boolean') out.add(String(v));
+      if (typeof v === 'object') leaves(v, out);
     }
   }
   // Longest first: a secret that contains another is replaced whole.

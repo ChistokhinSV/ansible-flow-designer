@@ -132,6 +132,15 @@ Secret-looking inputs (names with password, secret, token, key or vault) are typ
 the same way and are never remembered. Other input values are written for the run only and deleted
 when it ends.
 
+Inside the environment, the password and the secret inputs go into owner-only temporary files that
+are removed however the run ends, Stop included. Their variables are unset before
+`ansible-playbook` starts, so tasks, inventory scripts and `lookup('env')` never see them. The
+run's events (what the canvas and **Show output** read) never contain their values: a list or dict
+secret is hidden by its parts too.
+
+A run adds Ansible Flow's event callback to the `callbacks_enabled` and `callback_plugins` of your
+`ansible.cfg`, so your own callbacks (ARA, syslog, audit) keep recording runs started here.
+
 ## After a run
 
 - While a run goes, the Run button is **Stop** (or **Ansible Flow: Stop Run**, Shift+F5): it ends

@@ -267,6 +267,15 @@ export async function runFlow(
     doc.flow.id,
     config.get<number>('runs.keep', KEEP_RUNS),
   ).catch(() => undefined);
+  // AFD-141: the repository's callbacks keep running next to ours; without an answer, ours alone.
+  const callbacks = await probe.client
+    .call<{ callbacks_enabled: string[]; callback_plugins: string[] }>(
+      'run_config',
+      {},
+      TIMEOUTS.probeInventory,
+    )
+    .then((c) => ({ enabled: c.callbacks_enabled ?? [], paths: c.callback_plugins ?? [] }))
+    .catch(() => undefined);
   const root = generated.result.files[0]?.name ?? `${doc.flow.key}.yml`;
   const playbook = vscode.workspace
     .asRelativePath(vscode.Uri.joinPath(generated.dir, root), false)
@@ -282,6 +291,7 @@ export async function runFlow(
       vault: vaultPassword !== undefined,
       secrets,
       hasConfig: existsSync(vscode.Uri.joinPath(folder.uri, 'ansible.cfg').fsPath),
+      callbacks,
     },
     `afd-run-${id.toLowerCase()}`,
   );
@@ -334,7 +344,8 @@ export async function runFlow(
   const t0 = Date.now();
   const terminal = watchRunTerminal(document.uri, label);
   // The events as they come: a partial summary for the canvas at most every LIVE_MS, secrets out.
-  const hidden = secretValues(secret);
+  // AFD-138: the vault password too, if a task prints it.
+  const hidden = secretValues(vaultPassword ? { ...secret, '': vaultPassword } : secret);
   const live = createSummarizer(generated.result.routes);
   const eventsFile = vscode.Uri.joinPath(runDir, 'events.jsonl');
   let lastEvent = Date.now();

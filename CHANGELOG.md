@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.74.3 — AFD-131, AFD-133 to AFD-137, AFD-140
+## 0.74.3 — AFD-131, AFD-133 to AFD-141
 
-More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace, and runs in WSL stop when you stop them.
+More fixes from the code review (AFD-125): names and paths that come from a flow, a playbook, an AWX export or the Ansible environment no longer lead outside the workspace. Secrets stay out of files and child processes. Runs in WSL stop when you stop them, and your repository's own callbacks keep running.
 
-- **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
+- **Stop Run in WSL** ends the run's processes in the distribution, not only `wsl.exe`. It ends the run's shell and everything under it, and nothing else in the distribution. A scenario that times out on Linux or macOS ends ansible-playbook too, not only the shell that started it.
+- **Secret inputs and the vault password:**
+  - Their temporary files are removed however the run ends, including Stop and a closed terminal.
+  - Their variables are unset once written, so ansible-playbook and what it starts (local tasks, inventory scripts, `lookup('env')`) never see them.
+  - A vault password with backslashes now works in WSL and in images whose shell is dash.
+- **Run events never hold a secret:** the event callback leaves the values out as it writes, so a run that is stopped or crashes leaves nothing behind either. A list or dict secret is matched by its parts too (`{{ creds.password }}`), and so is the vault password.
+- **Your callbacks keep running:** a run adds Ansible Flow's event callback to the `callbacks_enabled` and `callback_plugins` of your `ansible.cfg` instead of replacing them, so ARA, syslog or another audit callback still records runs started from VS Code.
 - **Flow keys and IDs:** a key that is not a lowercase slug, or an ID that is not a ULID, never names a file or a folder. The scenarios file, the run and scenario folders, the run history and `generated/<key>.yml` are refused for such a flow instead of being written elsewhere; fix the key, or run Complete IDs.
 - **Module catalog:** a collection whose name or version would make its dump file land outside the catalog cache is left out of the catalog, both in the environment and in VS Code.
 - **Create Role** (Code mode) is offered only for a role name that makes one folder under `roles/`: not for a collection role, and not for a name with a path in it.
