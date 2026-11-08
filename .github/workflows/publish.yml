@@ -12,7 +12,7 @@ name: Publish
 
 on:
   push:
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -89,9 +89,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           awk -v v="$VERSION" '/^## /{if(f)exit; if($2==v)f=1; next} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$VSIX" --clobber
-          else
+          # An existing release keeps its VSIX: a rebuild differs in bytes (zip timestamps), and
+          # a release's notes may quote the attached file's SHA-256.
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" "$VSIX" --target "$GITHUB_SHA" \
               --title "Ansible Flow Designer $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          elif gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qxF "${VSIX##*/}"; then
+            echo "::notice::Release $TAG already has ${VSIX##*/}; left as is"
+          else
+            gh release upload "$TAG" "$VSIX"
           fi
