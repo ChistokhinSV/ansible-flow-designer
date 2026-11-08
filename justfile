@@ -142,6 +142,11 @@ harness:
 docs-shots *names:
     node scripts/docs-shots.mjs {{ names }}
 
+# The README's animated demos (AFD-123): the packaged VSIX in a real VS Code, to media/readme/.
+# Needs ffmpeg; the hero and run takes need WSL with ansible-core (AFD_DEMO_WSL, default Debian)
+demo-gif *takes: package
+    node scripts/demo-gif.mjs {{ takes }}
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish). Its README
 # is the repository's without relative images and links, which the Extensions view cannot show (AFD-79).
 package:

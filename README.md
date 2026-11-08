@@ -5,7 +5,7 @@
 <p align="center">Design Ansible automation as a diagram in VS Code. Draw the steps and decide what
 happens when each one fails; the extension writes the playbook and runs it.</p>
 
-![A firewall firmware upgrade designed as a flow](docs/guide/images/canvas-dark.png)
+![A step inserted from a port, a rollback for its failure in one click, the play it makes, and a skeleton run that shows where each host went](media/readme/hero.gif)
 
 ## Why
 
@@ -36,10 +36,25 @@ happens when each one fails; the extension writes the playbook and runs it.</p>
 - **Bring what you have:** import playbooks and AWX workflows. AI assistants (Copilot, Claude Code
   and others) build and fix flows, and their scenario tests, through flow tools. Export to draw.io.
 
-| Handle a failure                                                            | See where every host went                                                  |
+## See it work
+
+**Handle a failure in one click.** An open fail port offers the failure patterns; a rollback the
+flow already has is reused.
+
+![The fail port menus of Pre-checks and Validate: Notify On-Call and Stop, then the existing Rollback](media/readme/failure.gif)
+
+**See where every host went.** A run fills the canvas as it goes: how many hosts took each wire,
+which hosts, and each host's result at the step that failed it.
+
+![A skeleton run of three hosts: host-03 fails its ping and ends at Stopped](media/readme/run.gif)
+
+**Test where hosts end, without a run.** Show a scenario on the canvas, make a step fail for a
+host, and the simulation says at once where that host now ends.
+
+![A scenario on the canvas: Validate fails for sw-01, which now ends at an open fail port, so the scenario fails](media/readme/whatif.gif)
+
+| Bind a step to a module                                                     | Design versus code                                                         |
 | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| ![The fail port menu](docs/guide/images/port-menu-dark.png)                 | ![An AWX run on the canvas](docs/guide/images/awx-run-dark.png)            |
-| **Bind a step to a module**                                                 | **Design versus code**                                                     |
 | ![Binding with the catalog](docs/guide/images/properties-binding-light.png) | ![Drift between flow and code](docs/guide/images/implementation-light.png) |
 
 ## Get started

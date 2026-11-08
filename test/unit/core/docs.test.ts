@@ -193,7 +193,7 @@ describe('walkthroughs', () => {
     expect(targets.filter((t) => !/^(https?:|mailto:|#)/.test(t))).toEqual([]);
     expect(readme).toContain(GUIDE_NOTE);
     expect(readme).toContain(
-      '![A firewall firmware upgrade designed as a flow](https://raw.githubusercontent.com/ChistokhinSV/ansible-flow-designer/main/docs/guide/images/canvas-dark.png)',
+      '](https://raw.githubusercontent.com/ChistokhinSV/ansible-flow-designer/main/media/readme/hero.gif)',
     );
     expect(readme).toContain(
       '(https://github.com/ChistokhinSV/ansible-flow-designer/blob/main/docs/guide/tutorials/01-first-flow.md)',
@@ -207,6 +207,13 @@ describe('walkthroughs', () => {
       ).toBe(true);
     expect(pkg.repository.url).toBe(`${REPO}.git`);
     expect(readFileSync(join(ROOT, '.vscodeignore'), 'utf8')).not.toMatch(/^!README\.md$/m);
+    // AFD-123: the README's animations load from the repository, not the VSIX, and stay light
+    // enough for the Marketplace page (scripts/demo-gif.mjs).
+    expect(readFileSync(join(ROOT, '.vscodeignore'), 'utf8')).not.toMatch(/^!media\/readme/m);
+    const demos = readdirSync(join(ROOT, 'media', 'readme')).filter((f) => f.endsWith('.gif'));
+    expect(demos.length).toBeGreaterThan(0);
+    for (const f of demos)
+      expect(statSync(join(ROOT, 'media', 'readme', f)).size, f).toBeLessThan(4 * 1024 * 1024);
     expect(readFileSync(join(ROOT, 'justfile'), 'utf8')).toContain(
       '--readme-path out/vsix/README.md',
     );
