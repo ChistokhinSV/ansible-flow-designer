@@ -66,6 +66,8 @@ export function indexName(manifest: Manifest): string {
 
 export class CatalogService implements vscode.Disposable {
   private readonly entries = new Map<string, Entry>();
+  /** Index builds running (AFD-163: ended on dispose). */
+  private readonly workers = new Set<Worker>();
   private readonly changed = new vscode.EventEmitter<{ folder: string; status: CatalogStatus }>();
   readonly onStatus = this.changed.event;
 
@@ -197,12 +199,24 @@ export class CatalogService implements vscode.Disposable {
     const script = vscode.Uri.joinPath(this.deps.extensionUri, 'dist', 'catalogWorker.js').fsPath;
     return new Promise((resolve) => {
       const worker = new Worker(script, { workerData: job });
-      worker.once('message', (r: BuildResult) => resolve(r));
-      worker.once('error', (err) => resolve({ ok: false, error: err.message }));
-      worker.once(
-        'exit',
-        (code) => code !== 0 && resolve({ ok: false, error: `Indexing stopped (code ${code})` }),
-      );
+      this.workers.add(worker);
+      // AFD-163: a worker that hangs is ended, and so is one still running when VS Code closes
+      // the window or the extension (dispose).
+      const timer = setTimeout(() => {
+        void worker.terminate();
+        done({
+          ok: false,
+          error: `Indexing took longer than ${TIMEOUTS.catalogIndex / 60_000} minutes: stopped`,
+        });
+      }, TIMEOUTS.catalogIndex);
+      const done = (r: BuildResult) => {
+        clearTimeout(timer);
+        this.workers.delete(worker);
+        resolve(r);
+      };
+      worker.once('message', (r: BuildResult) => done(r));
+      worker.once('error', (err) => done({ ok: false, error: err.message }));
+      worker.once('exit', (code) => done({ ok: false, error: `Indexing stopped (code ${code})` }));
     });
   }
 
@@ -317,6 +331,8 @@ export class CatalogService implements vscode.Disposable {
   }
 
   dispose(): void {
+    for (const w of this.workers) void w.terminate();
+    this.workers.clear();
     for (const e of this.entries.values()) e.index?.close();
     this.entries.clear();
     this.changed.dispose();

@@ -36,8 +36,29 @@ const STALE_SOCKET = new Set(['ECONNRESET', 'EPIPE', 'ECONNABORTED']);
 
 export interface AwxOptions {
   verifyTls?: boolean;
+  /** Idle time without data before a request fails. */
   timeoutMs?: number;
+  /** AFD-161: the whole request, however slowly the data comes. */
+  deadlineMs?: number;
+  /**
+   * AFD-161: send the token over plain http. Refused by default, except to this machine
+   * (localhost, 127.0.0.1, ::1), where nothing crosses a network.
+   */
+  allowHttp?: boolean;
+  /** The largest answer read (default MAX_BODY_BYTES). */
+  maxBodyBytes?: number;
 }
+
+/** AFD-161: no AWX answer is larger than this; a bigger one is a misbehaving proxy or server. */
+export const MAX_BODY_BYTES = 64 * 1024 * 1024;
+
+/** AFD-161: 500 pages of 200 is 100,000 items, more than any AWX list Ansible Flow reads. */
+export const MAX_PAGES = 500;
+
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** Whether a URL would carry the token over plain http to another machine. */
+export const cleartextTo = (url: URL) => url.protocol === 'http:' && !LOOPBACK.has(url.hostname);
 
 /** AWX's validation errors are `{field: ["message"]}` or `{detail: "message"}`. */
 function describe(body: unknown): string {
@@ -73,6 +94,12 @@ export class AwxClient {
     // The token goes to the configured AWX only (AFD-29), whatever a response points to.
     if (url.origin !== this.origin)
       return Promise.reject(new AwxError(`Not sending the AWX token to ${url.origin}`));
+    if (cleartextTo(url) && !this.options.allowHttp)
+      return Promise.reject(
+        new AwxError(
+          `Not sending the AWX token unencrypted to ${url.origin}: use an https address, or turn on afd.awx.allowHttp in your user settings (a lab AWX only)`,
+        ),
+      );
     const lib = url.protocol === 'https:' ? https : http;
     const data = body === undefined ? undefined : JSON.stringify(body);
     return new Promise<T>((resolve, reject) => {
@@ -94,8 +121,27 @@ export class AwxClient {
         },
         (res) => {
           const chunks: Buffer[] = [];
-          res.on('data', (c: Buffer) => chunks.push(c));
+          let size = 0;
+          const max = this.options.maxBodyBytes ?? MAX_BODY_BYTES;
+          res.on('data', (c: Buffer) => {
+            if (size > max) return;
+            size += c.length;
+            if (size > max) {
+              // The error reaches the caller here: a body read whole in one chunk still ends.
+              clearTimeout(deadline);
+              reject(
+                new AwxError(
+                  `AWX answered ${url.pathname} with more than ${max} bytes: stopped reading`,
+                ),
+              );
+              req.destroy();
+              return;
+            }
+            chunks.push(c);
+          });
           res.on('end', () => {
+            clearTimeout(deadline);
+            if (size > max) return;
             const text = Buffer.concat(chunks).toString('utf8');
             let parsed: unknown = text;
             try {
@@ -125,13 +171,19 @@ export class AwxClient {
       req.on('timeout', () =>
         req.destroy(new AwxError(`AWX did not answer ${url.pathname} in time`)),
       );
-      req.on('error', (e: NodeJS.ErrnoException) =>
+      // AFD-161: the idle timeout above restarts with every chunk; this ends a slow trickle too.
+      const deadline = setTimeout(
+        () => req.destroy(new AwxError(`AWX did not finish ${url.pathname} in time`)),
+        this.options.deadlineMs ?? TIMEOUTS.awxRequestTotal,
+      );
+      req.on('error', (e: NodeJS.ErrnoException) => {
+        clearTimeout(deadline);
         reject(
           e instanceof AwxError
             ? e
             : new AwxError(`Cannot reach AWX at ${this.base}: ${e.message}`, undefined, e.code),
-        ),
-      );
+        );
+      });
       if (data) req.write(data);
       req.end();
     });
@@ -159,7 +211,14 @@ export class AwxClient {
   async all<T>(path: string): Promise<T[]> {
     const out: T[] = [];
     let next: string | null = `${path}${path.includes('?') ? '&' : '?'}page_size=${PAGE}`;
+    // AFD-161: a `next` that comes round again, or no end at all, would loop for good.
+    const seen = new Set<string>();
     while (next) {
+      if (seen.has(next))
+        throw new AwxError(`AWX's pages of ${path} lead back to ${next}: stopped reading`);
+      if (seen.size >= MAX_PAGES)
+        throw new AwxError(`AWX's list ${path} has more than ${MAX_PAGES} pages: stopped reading`);
+      seen.add(next);
       const page: AwxPage<T> = await this.get<AwxPage<T>>(next);
       out.push(...page.results);
       // AWX answers with a path; an absolute `next` (a proxy rewriting hosts) is followed on the

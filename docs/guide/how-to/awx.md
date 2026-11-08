@@ -7,6 +7,9 @@ the canvas. Step by step: [Tutorial 3](../tutorials/03-awx-end-to-end.md).
 
 - `afd.awx.url`: your AWX, e.g. `https://awx.example.net`. `afd.awx.verifyTls` (default on): turn
   it off only for a lab with a self-signed certificate.
+- An `http://` address is refused, because the token would travel unencrypted. For a lab AWX
+  without TLS, turn on `afd.awx.allowHttp`. Both `verifyTls` and `allowHttp` are read from your
+  user settings only, so a repository's `.vscode/settings.json` cannot weaken them.
 - **Ansible Flow: Set AWX Token**: a personal access token (Users → Tokens in AWX). It is checked
   against AWX and kept in VS Code's SecretStorage only. **Clear AWX Token** removes it.
 

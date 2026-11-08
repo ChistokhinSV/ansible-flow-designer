@@ -61,7 +61,8 @@ describe('AFD-11 acceptance: AWX workflow with an approval (lab)', function () {
 
   before(async function () {
     if (!url || !token) this.skip();
-    awx = new AwxClient(url, token);
+    // AFD-161: the lab AWX is plain http.
+    awx = new AwxClient(url, token, { allowHttp: true });
     if (remote) {
       const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
       execFileSync('git', ['push', '--force', '--quiet', remote, 'HEAD:main'], {

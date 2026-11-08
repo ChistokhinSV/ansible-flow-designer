@@ -1,8 +1,17 @@
 # Changelog
 
-## 0.74.4 — AFD-158 to AFD-160
+## 0.74.4 — AFD-158 to AFD-161, AFD-163, AFD-165
 
-The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer.
+The last, smaller findings of the code review (AFD-125): files the extension writes are always valid, scenario runs cannot leave the machine they run on, and a few names and upgrades that Ansible would refuse are caught in the designer. The AWX token and device credentials travel more safely, and the module catalog, the designer and the AI tools are sturdier against odd input.
+
+- **AWX over plain http is refused:** an `http://` AWX address would send the token unencrypted, so Ansible Flow refuses it before the token is asked for or sent. For a lab AWX without TLS, turn on the new `afd.awx.allowHttp`. An AWX on this machine (`localhost`) needs no setting.
+- **`afd.awx.verifyTls` and `afd.awx.allowHttp` come from your user settings only:** a repository's `.vscode/settings.json` can no longer turn TLS checks off for the AWX your token is stored for. If you had turned `verifyTls` off in a workspace, set it in your user settings. Turning it off now shows a warning once per session.
+- **AWX requests end:** each request has a time limit for its whole answer, not only between chunks. An answer over 64 MB is not read, and a list whose pages lead back to themselves stops instead of looping.
+- **SSH host keys are checked in the `afd-ee` image:** the image used to turn host key checking off, so a run accepted any host key and could hand device credentials to whoever answered. A lab sets `host_key_checking = False` in its own `ansible.cfg`. The image's base and its collections (ansible.netcommon 8.7.1, ansible.utils 6.1.1, cisco.ios 11.6.0) are pinned, so a rebuild gets what was tested. AWX sets its own host key checking for jobs; this does not change AWX runs.
+- **The module catalog keeps going:** a collection file that reads as JSON but is no catalog dump is skipped, as a truncated one was; it used to fail the whole catalog. Indexing that hangs stops after 5 minutes and ends when VS Code closes the window. A search of more than 30 words uses the first 30, so the ranking stays right.
+- **Copilot asks the right question for scenarios:** **List** and **Check** no longer ask for confirmation, since they only read. **Add**, **Update** and **Delete** say they change the scenarios file. **Verify** says it runs `ansible-playbook` in your environment.
+- **The designer's messages are checked in VS Code:** a message of the wrong shape is refused. **Open Code** opens files in the workspace folder, or outside it only when the last code scan named the file. **Compare with** reads only a version from its own list. The module docs lookup takes plugin names only.
+- **MCP errors name files relative to the workspace**, and your home folder as `~`, instead of by absolute path.
 
 - **JUnit for several flows is one XML file:** `afd-scenarios --junit` wrote one document per flow, one after the other, which CI dashboards could not read once there were two flows. All flows' suites now go under one `<testsuites>` root. Terminal colour codes in Ansible's output are left out, since XML does not allow them.
 - **Exports and flow files take any text:** draw.io and SVG exports leave out control characters XML does not allow (a title pasted from a terminal). Tabs and line breaks in labels are kept. A flow text with a line or paragraph separator (U+2028, U+2029, NEL) or another control character is written quoted and escaped, so Ansible's YAML reader reads the same text back.

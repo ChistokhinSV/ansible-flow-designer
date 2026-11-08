@@ -34,7 +34,8 @@
         "afd.environment.python",
         "afd.environment.wslDistro",
         "afd.awx.url",
-        "afd.awx.verifyTls"
+        "afd.awx.verifyTls",
+        "afd.awx.allowHttp"
       ]
     }
   },
@@ -619,8 +620,14 @@
         "afd.awx.verifyTls": {
           "type": "boolean",
           "default": true,
-          "scope": "resource",
-          "markdownDescription": "Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate."
+          "scope": "machine",
+          "markdownDescription": "Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate. Read from your user settings only: a workspace cannot turn it off."
+        },
+        "afd.awx.allowHttp": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "markdownDescription": "Send the AWX token over plain `http://` to an AWX on another machine. Off by default: the token would travel unencrypted. Turn on only for a lab AWX without TLS. Read from your user settings only. `localhost` needs no setting."
         }
       }
     },

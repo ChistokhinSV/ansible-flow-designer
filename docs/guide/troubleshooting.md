@@ -51,8 +51,10 @@ These need an Ansible environment with ansible-core 2.19 or later
 - **"The flow has no AWX job template":** run **Set Up AWX Template** first.
 - **The setup names missing playbooks:** commit and push the flow and `generated/`, then sync the
   AWX project.
-- **TLS errors with a lab AWX:** turn off `afd.awx.verifyTls` (only for a self-signed lab
-  certificate).
+- **TLS errors with a lab AWX:** turn off `afd.awx.verifyTls` in your user settings (only for a
+  self-signed lab certificate). A workspace setting is not read.
+- **"Not sending the AWX token unencrypted":** the address is `http://`. Use https, or for a lab
+  AWX turn on `afd.awx.allowHttp` in your user settings.
 - **401 or 403:** the token expired or lacks rights. Run **Set AWX Token** again.
 - **The run warns about another commit:** AWX runs what its project checks out. Push your changes.
 

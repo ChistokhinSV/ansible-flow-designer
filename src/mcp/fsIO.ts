@@ -5,7 +5,7 @@
 
 import { execFile } from 'node:child_process';
 import { promises as fs, realpathSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { findNodeAtLocation, getNodeValue, parseTree } from 'jsonc-parser';
 import type { FlowIO } from '../core/ai/handlers';
@@ -150,6 +150,27 @@ export class FsFlowIO implements FlowIO {
   }
 
   /** A path as tools show it: relative to its root (prefixed with the root's name when several). */
+  /**
+   * AFD-165: error text with the roots' absolute paths written as the tools write paths (relative,
+   * or `<root>/…` with several roots) and the home folder as `~`, so a file system error does not
+   * hand the client the machine's folder layout.
+   */
+  hidePaths(text: string): string {
+    let out = text;
+    const variants = (p: string) => [
+      ...new Set([p, p.replaceAll('\\', '/'), p.replaceAll('/', '\\')]),
+    ];
+    for (const root of [...this.roots].sort((a, b) => b.length - a.length)) {
+      const label = this.roots.length > 1 ? `${basename(root)}/` : '';
+      for (const v of variants(root)) {
+        out = out.replaceAll(`${v}\\`, label).replaceAll(`${v}/`, label);
+        out = out.replaceAll(v, label ? label.slice(0, -1) : '.');
+      }
+    }
+    for (const v of variants(homedir())) if (v.length > 1) out = out.replaceAll(v, '~');
+    return out;
+  }
+
   private show(abs: string): string {
     const root = this.roots.find((r) => inside(r, abs)) ?? this.roots[0] ?? '';
     const rel = posix(relative(root, abs));

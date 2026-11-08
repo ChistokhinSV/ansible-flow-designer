@@ -104,8 +104,12 @@ export class LensController {
   /** The compared version of the flow, from Git (AFD-57); nothing is cached across picks. */
   private async readBase(): Promise<void> {
     const outside = this.outsideBase();
-    const ref = this.compareRef === OUTSIDE && !outside ? 'HEAD' : this.compareRef;
     const git = await fileVersions(this.uri);
+    // AFD-165: the ref comes from the designer; only a version this list offers goes to git
+    // (`git show <ref>:<path>`), so a ref like `--output=…` never becomes a git option.
+    const offered =
+      this.compareRef === OUTSIDE ? !!outside : git.some((g) => g.ref === this.compareRef);
+    const ref = offered ? this.compareRef : 'HEAD';
     const refs = [
       ...(outside
         ? [

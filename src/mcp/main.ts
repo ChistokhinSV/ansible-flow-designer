@@ -67,13 +67,14 @@ server.setRequestHandler('tools/call', (request) => {
   const call = queue.then(async () => {
     try {
       const r = await runTool(io, request.params.name, request.params.arguments ?? {});
+      // AFD-165: an error names files relative to the roots, never by absolute path.
       return {
-        content: [{ type: 'text' as const, text: r.text }],
+        content: [{ type: 'text' as const, text: r.isError ? io.hidePaths(r.text) : r.text }],
         ...(r.isError ? { isError: true } : {}),
       };
     } catch (e) {
       return {
-        content: [{ type: 'text' as const, text: `Error: ${(e as Error).message}` }],
+        content: [{ type: 'text' as const, text: `Error: ${io.hidePaths((e as Error).message)}` }],
         isError: true,
       };
     }

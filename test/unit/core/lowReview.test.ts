@@ -1,14 +1,20 @@
 // AFD-125, the Low tickets (AFD-158..166): small findings of the 0.74.1 code review, each kept as
 // a regression test.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import { MAX_QUERY_WORDS, planQuery } from '../../../src/core/catalog/rank';
+import { collectionFile } from '../../../src/core/catalog/shape';
+import { scanPaths } from '../../../src/core/drift/drift';
 import { attr } from '../../../src/core/export/drawio';
 import { xmlClean } from '../../../src/core/export/xml';
 import { testedFinding } from '../../../src/core/flow/commands';
 import { parseFlow } from '../../../src/core/flow/document';
+import { createIdFactory } from '../../../src/core/flow/ids';
 import { privilegeOf } from '../../../src/core/flow/inherit';
 import { upgradeNotes } from '../../../src/core/flow/migrate';
 import { buildModel } from '../../../src/core/flow/model';
@@ -16,6 +22,7 @@ import { createSchemaValidator } from '../../../src/core/flow/schema';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { RESERVED_NAMES, varNameProblem } from '../../../src/core/flow/varNames';
+import { GIT_REF, messageProblem } from '../../../src/core/messageCheck';
 import { runProcess } from '../../../src/core/run/command';
 import {
   checkScenarios,
@@ -26,6 +33,8 @@ import {
 import { removeItem, removeItems } from '../../../src/core/yaml/ops';
 import { renderScalar } from '../../../src/core/yaml/render';
 import { YamlEditError, YamlTransaction } from '../../../src/core/yaml/transaction';
+import { FsFlowIO } from '../../../src/mcp/fsIO';
+import { AwxClient, AwxError } from '../../../src/node/awx/client';
 import { junitDocument, junitSuite, runScenarios } from '../../../src/node/scenario/runner';
 import { readExample } from './helpers';
 
@@ -228,5 +237,119 @@ describe('AFD-160: names, upgrades and list removals', () => {
     expect(() =>
       both.applyAll([(f) => removeItem(f, ['a'], 0), (f) => removeItem(f, ['a'], 2)]),
     ).toThrow(YamlEditError);
+  });
+});
+
+describe('AFD-161: the AWX token travels safely', () => {
+  let server: Server;
+  let base = '';
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url?.startsWith('/loop'))
+        res.end(JSON.stringify({ results: [1], next: '/loop/?page=2' }));
+      else if (req.url?.startsWith('/big')) res.end(JSON.stringify({ blob: 'x'.repeat(5000) }));
+      else if (req.url?.startsWith('/slow')) {
+        // A byte every 50 ms: never idle long enough for the idle timeout.
+        const t = setInterval(() => res.write(' '), 50);
+        req.on('close', () => clearInterval(t));
+      } else res.end(JSON.stringify({ version: '24.6.1' }));
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterAll(() => server.close());
+
+  it('plain http to another machine is refused before anything is sent; this machine is fine', async () => {
+    await expect(new AwxClient('http://192.0.2.10:30080', 't').ping()).rejects.toThrow(
+      /unencrypted.*allowHttp/,
+    );
+    expect(await new AwxClient(base, 't').ping()).toEqual({ version: '24.6.1' });
+  });
+
+  it('a page that leads back, an answer too big and a slow trickle all end', async () => {
+    const awx = new AwxClient(base, 't', { maxBodyBytes: 1000, deadlineMs: 400 });
+    await expect(awx.all('/loop/')).rejects.toThrow(/lead back/);
+    await expect(awx.get('/big/')).rejects.toThrow(/more than 1000 bytes/);
+    const slow = awx.get('/slow/');
+    await expect(slow).rejects.toBeInstanceOf(AwxError);
+    await expect(slow).rejects.toThrow(/did not finish/);
+  });
+});
+
+describe('AFD-163: the catalog survives odd files and long queries', () => {
+  it('a JSON file that is no dump is skipped; a bad plugin goes, the others stay', () => {
+    expect(collectionFile({ hello: 'world' })).toBeUndefined();
+    expect(collectionFile([1, 2])).toBeUndefined();
+    const file = collectionFile({
+      collection: 'ns.coll',
+      version: '1.0.0',
+      plugins: [
+        { type: 'module', fqcn: 'ns.coll.a', name: 'a', collection: 'ns.coll' },
+        { type: 'module', name: 'no_fqcn' },
+        null,
+        {
+          type: 'module',
+          fqcn: 'ns.coll.b',
+          name: 'b',
+          collection: 'ns.coll',
+          description: ['line one', 'line two'],
+          options: { x: { description: ['opt'] }, y: null },
+        },
+      ],
+    });
+    expect(file?.plugins.map((p) => p.name)).toEqual(['a', 'b']);
+    expect(file?.plugins[0]?.description).toBe('');
+    expect(file?.plugins[1]?.description).toBe('line one line two');
+    expect(file?.plugins[1]?.options?.x?.description).toBe('opt');
+    expect(file?.plugins[1]?.options?.y?.description).toBe('');
+    expect(file?.routing).toEqual({});
+  });
+
+  it('a query keeps at most 30 words, so the coverage bits fit', () => {
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+    expect(planQuery(words).words).toHaveLength(MAX_QUERY_WORDS);
+    expect(MAX_QUERY_WORDS).toBeLessThanOrEqual(31);
+  });
+});
+
+describe('AFD-165: what the designer and the AI tools send is checked', () => {
+  it('message shapes: refs are no git options, plugin names no paths', () => {
+    const doc = (fqcn: string) => ({ type: 'catalog', reqId: 1, request: { op: 'doc', fqcn } });
+    expect(messageProblem('x')).toBeDefined();
+    expect(messageProblem({ type: 'compareWith', ref: '--output=/tmp/x' })).toBeDefined();
+    expect(messageProblem({ type: 'compareWith', ref: 'main' })).toBeUndefined();
+    expect(messageProblem({ type: 'compareWith', ref: 'outside' })).toBeUndefined();
+    expect(GIT_REF.test('a1b2c3d4')).toBe(true);
+    expect(messageProblem(doc('../x'))).toBeDefined();
+    expect(messageProblem(doc('ansible.builtin.copy'))).toBeUndefined();
+    expect(messageProblem({ type: 'openCode', path: 7 })).toBeDefined();
+    expect(messageProblem({ type: 'openText', path: ['nodes', 0, 'title'] })).toBeUndefined();
+    expect(messageProblem({ type: 'ready' })).toBeUndefined();
+  });
+
+  it('Open Code outside the workspace only for files the scan named', () => {
+    const outside = '/usr/share/ansible/r/tasks/main.yml';
+    const scan = {
+      generated: { path: 'flows/x/generated/x.yml', plays: [{ origin: { path: outside } }] },
+    };
+    const paths = scanPaths(scan as never);
+    expect(paths.has(outside)).toBe(true);
+    expect(paths.has('flows/x/generated/x.yml')).toBe(true);
+    expect(scanPaths(undefined).size).toBe(0);
+  });
+
+  it('MCP errors name files relative to the root, and the home folder as ~', () => {
+    const root = mkdtempSync(join(tmpdir(), 'afd-mcp-'));
+    try {
+      const io = new FsFlowIO([root], createSchemaValidator(), createIdFactory());
+      const file = join(root, 'flows', 'x.flow.yaml');
+      const shown = io.hidePaths(`ENOENT: no such file or directory, open '${file}'`);
+      expect(shown).not.toContain(root);
+      expect(shown).toContain('x.flow.yaml');
+      expect(io.hidePaths(`at ${join(homedir(), 'other')}`)).toBe(`at ${join('~', 'other')}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

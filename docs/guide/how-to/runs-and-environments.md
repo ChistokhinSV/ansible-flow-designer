@@ -141,6 +141,10 @@ secret is hidden by its parts too.
 A run adds Ansible Flow's event callback to the `callbacks_enabled` and `callback_plugins` of your
 `ansible.cfg`, so your own callbacks (ARA, syslog, audit) keep recording runs started here.
 
+SSH host keys are checked, as Ansible does by default; the `afd-ee` image no longer turns that
+off. Give the environment your `known_hosts` (a mount in `afd.environment.containerOptions`), or,
+for a lab only, set `host_key_checking = False` in the lab repository's `ansible.cfg`.
+
 ## After a run
 
 - While a run goes, the Run button is **Stop** (or **Ansible Flow: Stop Run**, Shift+F5): it ends

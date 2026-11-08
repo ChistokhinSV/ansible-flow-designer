@@ -55,6 +55,12 @@ export interface QueryPlan {
   names?: Map<string, number>;
 }
 
+/**
+ * AFD-163: query word i is bit i of the coverage masks (`Candidate.inStrong`), which JS `&` and `|`
+ * cut to 32 bits; past 53 words SQLite's integer no longer fits a JS number either.
+ */
+export const MAX_QUERY_WORDS = 30;
+
 /** Query words: lowercase letters and digits, no stop words; type words become a type hint. */
 export function planQuery(query: string): QueryPlan {
   const all = query
@@ -63,7 +69,10 @@ export function planQuery(query: string): QueryPlan {
     .filter((w) => w.length > 1 && !STOP.has(w));
   const type = all.map((w) => TYPE_WORDS[w]).find(Boolean);
   const words = [...new Set(all.filter((w) => !TYPE_WORDS[w]))];
-  return { words: words.length > 0 ? words : [...new Set(all)], type };
+  return {
+    words: (words.length > 0 ? words : [...new Set(all)]).slice(0, MAX_QUERY_WORDS),
+    type,
+  };
 }
 
 /**

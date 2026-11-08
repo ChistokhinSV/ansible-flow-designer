@@ -74,6 +74,23 @@ if (Object.keys(settings).length > 0) {
   mkdirSync(join(workspace, '.vscode'), { recursive: true });
   writeFileSync(join(workspace, '.vscode', 'settings.json'), JSON.stringify(settings, null, 2));
 }
+// AFD-161: the lab AWX is plain http, which the token goes to only with afd.awx.allowHttp in the
+// user settings (a workspace cannot turn it on). The test profile is test-electron's default one.
+{
+  const userDir = join(import.meta.dirname, '.vscode-test', 'user-data', 'User');
+  const file = join(userDir, 'settings.json');
+  let user = {};
+  try {
+    user = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    // No profile yet, or not JSON: start from nothing.
+  }
+  const lab = process.env.AFD_AWX_URL?.startsWith('http:') ?? false;
+  if (lab) user['afd.awx.allowHttp'] = true;
+  else delete user['afd.awx.allowHttp'];
+  mkdirSync(userDir, { recursive: true });
+  writeFileSync(file, JSON.stringify(user, null, 2));
+}
 const git = (...args) => execFileSync('git', args, { cwd: workspace, stdio: 'ignore' });
 git('init', '-q', '-b', 'main');
 git('config', 'user.name', 'AFD Test');

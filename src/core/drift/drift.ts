@@ -565,3 +565,22 @@ function checkModuleReturns(
     });
   }
 }
+
+/**
+ * Every file path a code scan names (`path` anywhere in it: plays, tasks, origins, roles). AFD-165:
+ * Open Code from the designer opens a file outside the workspace (a collection role's tasks) only
+ * when the scan named it.
+ */
+export function scanPaths(scan: CodeScan | undefined): Set<string> {
+  const out = new Set<string>();
+  const walk = (v: unknown): void => {
+    if (Array.isArray(v)) for (const x of v) walk(x);
+    else if (v && typeof v === 'object')
+      for (const [k, x] of Object.entries(v)) {
+        if (k === 'path' && typeof x === 'string') out.add(x);
+        else walk(x);
+      }
+  };
+  walk(scan);
+  return out;
+}

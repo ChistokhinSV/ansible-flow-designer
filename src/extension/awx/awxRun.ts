@@ -26,7 +26,7 @@ import type { FlowDocument } from '../../core/flow/types';
 import type { RunErrorCode, RunView } from '../../core/protocol';
 import { summarizeRun } from '../../core/run/events';
 import { runWorkflow, setupWorkflow } from '../../node/awx/awxWorkflow';
-import { AwxClient, followLimit, StoppedFollowing } from '../../node/awx/client';
+import { AwxClient, cleartextTo, followLimit, StoppedFollowing } from '../../node/awx/client';
 import { TIMEOUTS } from '../../node/timeouts';
 import { generatedDir } from '../codegen';
 import { CANCELLED } from '../errors';
@@ -113,15 +113,43 @@ export function templateName(doc: FlowDocument): string {
   return `AFD · ${doc.flow.key}`;
 }
 
-function settings(scope: vscode.Uri): { url: string; verifyTls: boolean } {
+/**
+ * AFD-161: what weakens the token's transport (no TLS check, plain http) comes from the user's
+ * own settings only. A repository's .vscode/settings.json could otherwise turn it on for the AWX
+ * the user's token is stored for.
+ */
+function userOnly(c: vscode.WorkspaceConfiguration, key: string, fallback: boolean): boolean {
+  return c.inspect<boolean>(key)?.globalValue ?? fallback;
+}
+
+const warnedTls = new Set<string>();
+
+function settings(scope: vscode.Uri): { url: string; verifyTls: boolean; allowHttp: boolean } {
   const c = vscode.workspace.getConfiguration('afd', scope);
-  return {
-    url: (c.get<string>('awx.url', '') ?? '').trim().replace(/\/+$/, ''),
-    verifyTls: c.get('awx.verifyTls', true),
-  };
+  const url = (c.get<string>('awx.url', '') ?? '').trim().replace(/\/+$/, '');
+  const verifyTls = userOnly(c, 'awx.verifyTls', true);
+  if (url && !verifyTls && !warnedTls.has(url)) {
+    warnedTls.add(url);
+    void vscode.window.showWarningMessage(
+      `AWX TLS verification is off (afd.awx.verifyTls): the token for ${url} goes to whoever answers there. Use this for a lab AWX only.`,
+    );
+  }
+  return { url, verifyTls, allowHttp: userOnly(c, 'awx.allowHttp', false) };
 }
 
 const tokenKey = (url: string) => `afd.awx.token:${url}`;
+
+/** AFD-161: why the token may not go to this address, or undefined. */
+function cleartext(url: string, allowHttp: boolean): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return `afd.awx.url is not an address: ${url}`;
+  }
+  if (!cleartextTo(parsed) || allowHttp) return undefined;
+  return `${url} is plain http, so the AWX token would travel unencrypted: use https, or turn on afd.awx.allowHttp in your user settings (a lab AWX only)`;
+}
 
 /**
  * AFD-140: the flow decides which AWX template runs, with which extra vars, and (format 2) which
@@ -136,15 +164,17 @@ export async function awxClient(
   scope: vscode.Uri,
   secrets: vscode.SecretStorage,
 ): Promise<AwxClient | { error: string; code: RunErrorCode }> {
-  const { url, verifyTls } = settings(scope);
+  const { url, verifyTls, allowHttp } = settings(scope);
   if (!url) return { error: 'Set afd.awx.url to the AWX address first', code: 'awx-url' };
+  const plain = cleartext(url, allowHttp);
+  if (plain) return { error: plain, code: 'awx-url' };
   const token = await secrets.get(tokenKey(url));
   if (!token)
     return {
       error: `No AWX token for ${url}: run "Ansible Flow: Set AWX Token"`,
       code: 'awx-token',
     };
-  return new AwxClient(url, token, { verifyTls });
+  return new AwxClient(url, token, { verifyTls, allowHttp });
 }
 
 /** Stores a token for the configured AWX after checking it (never shown or logged again). */
@@ -153,8 +183,10 @@ export async function setToken(
   secrets: vscode.SecretStorage,
   given?: string,
 ): Promise<string | undefined> {
-  const { url, verifyTls } = settings(scope);
+  const { url, verifyTls, allowHttp } = settings(scope);
   if (!url) return 'Set afd.awx.url to the AWX address first';
+  const plain = cleartext(url, allowHttp);
+  if (plain) return plain;
   const token =
     given ??
     (await vscode.window.showInputBox({
@@ -165,7 +197,7 @@ export async function setToken(
     }));
   if (!token) return 'Cancelled';
   try {
-    const me = await new AwxClient(url, token, { verifyTls }).get<{
+    const me = await new AwxClient(url, token, { verifyTls, allowHttp }).get<{
       results: { username: string }[];
     }>('/api/v2/me/');
     await secrets.store(tokenKey(url), token);

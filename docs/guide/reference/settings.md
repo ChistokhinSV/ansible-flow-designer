@@ -18,7 +18,8 @@ the [guide](../README.md).
 | `afd.run.askVaultPassword`         | `auto`      | `auto` (when the inventory or repository vars contain vault data), `always` or `never`. The password is used for one run and never stored.                                                                  |
 | `afd.runs.keep`                    | `30`        | Run folders (event logs) kept per flow in the extension's storage; older ones are deleted when a run starts. Run input values are never kept.                                                               |
 | `afd.awx.url`                      | (empty)     | AWX address, e.g. `https://awx.example.net`. The token is kept in SecretStorage (_Set AWX Token_), never in settings.                                                                                       |
-| `afd.awx.verifyTls`                | `true`      | Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate.                                                                                                                   |
+| `afd.awx.verifyTls`                | `true`      | Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate. User settings only.                                                                                               |
+| `afd.awx.allowHttp`                | `false`     | Send the token over plain `http://` to an AWX on another machine (a lab without TLS). User settings only.                                                                                                   |
 
 ## Restricted Mode
 

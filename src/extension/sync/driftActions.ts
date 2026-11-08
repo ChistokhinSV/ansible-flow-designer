@@ -1,6 +1,7 @@
 // Drift actions that write code (M6, D-29 "design without code"): a role stub for an unbound
 // node, and argument_specs for a bound role without them (decision M6-3). The design side of a
 // stub (the binding) goes into the same WorkspaceEdit as the new files.
+import { isAbsolute, relative } from 'node:path';
 import * as vscode from 'vscode';
 import { tasksFromOf } from '../../core/drift/drift';
 import { addSpecEntry, argumentSpecsText, isLocalRoleName, roleStub } from '../../core/drift/stub';
@@ -8,6 +9,7 @@ import type { CodeScan } from '../../core/drift/types';
 import type { FlowCommand } from '../../core/flow/commands';
 import { buildModel } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
+import { stillInside } from '../import/common';
 
 const encoder = new TextEncoder();
 
@@ -98,12 +100,26 @@ export async function writeSpecs(host: DriftHost, nodeId: string, scan: CodeScan
   return { ok: true };
 }
 
-/** Opens a repository file at a line (1-based). */
-export async function openCode(flow: vscode.Uri, path: string, line?: number): Promise<void> {
+/**
+ * Opens a repository file at a line (1-based). AFD-165: the path comes from the designer webview,
+ * so it opens a file inside the flow's workspace folder (links followed), or one outside that the
+ * last code scan named (`known`: a collection role's tasks), nothing else.
+ */
+export async function openCode(
+  flow: vscode.Uri,
+  path: string,
+  line?: number,
+  known: ReadonlySet<string> = new Set(),
+): Promise<void> {
   const folder = folderOf(flow);
-  const uri = /^([a-zA-Z]:)?[\\/]/.test(path)
-    ? vscode.Uri.file(path)
-    : vscode.Uri.joinPath(folder.uri, path);
+  const absolute = /^([a-zA-Z]:)?[\\/]/.test(path);
+  const rel = (absolute ? relative(folder.uri.fsPath, path) : path).replaceAll('\\', '/');
+  const outside = rel === '' || rel === '..' || rel.startsWith('../') || isAbsolute(rel);
+  let uri: vscode.Uri;
+  if (!outside && (await stillInside(folder, rel)))
+    uri = vscode.Uri.joinPath(folder.uri, ...rel.split('/').filter(Boolean));
+  else if (absolute && known.has(path)) uri = vscode.Uri.file(path);
+  else throw new Error('it is neither in the workspace folder nor a file the code scan named');
   const at = new vscode.Position(Math.max(0, (line ?? 1) - 1), 0);
   await vscode.window.showTextDocument(uri, {
     selection: new vscode.Range(at, at),

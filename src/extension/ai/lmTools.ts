@@ -253,6 +253,36 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
 
 type Input = Record<string, unknown>;
 
+/**
+ * AFD-165: what a flow_scenarios call does, per action. list and check only read, so they ask
+ * nothing; add, update and delete write the scenarios file next to the flow; verify runs
+ * ansible-playbook in the run environment (every step as its stub).
+ */
+export function scenariosConfirmation(
+  input: Record<string, unknown>,
+  where: string,
+  invocationMessage: string,
+): vscode.PreparedToolInvocation {
+  const action = typeof input.action === 'string' ? input.action : 'list';
+  const name = typeof input.name === 'string' ? ` "${input.name}"` : '';
+  const file = `the scenarios file of **${where}**`;
+  const detail: Record<string, string> = {
+    add: `Add the scenario${name} to ${file}. One undo step; the flow itself does not change.`,
+    update: `Change the scenario${name} in ${file}. One undo step; the flow itself does not change.`,
+    delete: `Delete the scenario${name} from ${file}. One undo step; the flow itself does not change.`,
+    verify: `Run ${typeof input.names === 'object' && Array.isArray(input.names) ? `${input.names.length} scenario(s)` : 'every scenario'} of **${where}** with ansible-playbook in your run environment. Every step runs as its stub on local-connection hosts, so nothing reaches a device; it can take minutes.`,
+  };
+  const text = detail[action];
+  if (!text) return { invocationMessage };
+  return {
+    invocationMessage,
+    confirmationMessages: {
+      title: action === 'verify' ? 'Verify Scenarios in Ansible?' : 'Edit Scenarios?',
+      message: new vscode.MarkdownString(text),
+    },
+  };
+}
+
 class FlowTool implements vscode.LanguageModelTool<Input> {
   constructor(
     private readonly spec: ToolSpec,
@@ -271,6 +301,9 @@ class FlowTool implements vscode.LanguageModelTool<Input> {
           : 'the open flow';
     const message = `${this.spec.title}: ${where}`;
     if (this.spec.readOnly || input.dry_run === true) return { invocationMessage: message };
+    // AFD-165: flow_scenarios reads (list, check), writes the scenarios file (add, update,
+    // delete) or runs Ansible (verify); the generic "Change <flow>" said none of that.
+    if (this.spec.name === 'flow_scenarios') return scenariosConfirmation(input, where, message);
     const ops = Array.isArray(input.ops) ? (input.ops as Op[]) : [];
     const detail =
       this.spec.name === 'flow_new'

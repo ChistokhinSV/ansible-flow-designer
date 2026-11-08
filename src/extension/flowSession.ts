@@ -1,6 +1,7 @@
 // One session per open flow document: parse/validate cache, diagnostics, attached editor panels,
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
 import * as vscode from 'vscode';
+import { scanPaths } from '../core/drift/drift';
 import type { CodeScan, DriftAction } from '../core/drift/types';
 import { engineFor } from '../core/engine/engines';
 import { codePreview } from '../core/engine/preview';
@@ -15,6 +16,7 @@ import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
 import type { LensFacts, LensId } from '../core/lens/types';
+import { messageProblem } from '../core/messageCheck';
 import type {
   CatalogRequest,
   CatalogStatus,
@@ -428,6 +430,12 @@ export class FlowSession implements vscode.Disposable {
     };
     panel.webview.html = webviewHtml(panel.webview, this.deps.extensionUri);
     const sub = panel.webview.onDidReceiveMessage((m: WebviewMessage) => {
+      // AFD-165: a message of the wrong shape is refused before any handler reads it.
+      const bad = messageProblem(m);
+      if (bad) {
+        this.messageFailed(panel, m, new Error(`Refused a designer message (${bad})`));
+        return;
+      }
       // AFD-152: a handler that throws still answers, or the designer waits for it forever.
       this.onMessage(panel, m).catch((e: unknown) => this.messageFailed(panel, m, e));
     });
@@ -524,7 +532,10 @@ export class FlowSession implements vscode.Disposable {
     logChannel().error(
       `designer message ${m?.type ?? '?'} failed: ${e instanceof Error ? (e.stack ?? error) : error}`,
     );
-    const reqId = m && 'reqId' in m && typeof m.reqId === 'number' ? m.reqId : undefined;
+    const reqId =
+      m && typeof m === 'object' && 'reqId' in m && typeof m.reqId === 'number'
+        ? m.reqId
+        : undefined;
     if (reqId !== undefined && m.type === 'catalog')
       this.post(panel, { type: 'catalogReply', reqId, ok: false, error });
     else if (reqId !== undefined && m.type === 'runOutput')
@@ -610,7 +621,7 @@ export class FlowSession implements vscode.Disposable {
         void this.sync();
         break;
       case 'openCode':
-        await openCode(this.uri, m.path, m.line).catch((e: Error) =>
+        await openCode(this.uri, m.path, m.line, scanPaths(this.lastScan)).catch((e: Error) =>
           vscode.window.showErrorMessage(`Cannot open ${m.path}: ${e.message}`),
         );
         break;

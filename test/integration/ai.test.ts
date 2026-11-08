@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
 import type { FlowDocument } from '../../src/core/flow/types';
+import { scenariosConfirmation } from '../../src/extension/ai/lmTools';
 import { closeAll, flowUri, openDesigner, testApi, withTimeout } from './helpers';
 
 const ROOT = join(__dirname, '../../..');
@@ -186,5 +187,20 @@ describe('AFD-19 acceptance: AI assistants', () => {
     await until(() => out.includes('"id":2'), 'flow_list');
     child.kill();
     assert.match(out, /flows\/edge-baseline\/edge-baseline\.flow\.yaml/);
+  });
+
+  it('AFD-165: flow_scenarios says what each action does; list and check ask nothing', () => {
+    const at = (action: string, extra: Record<string, unknown> = {}) =>
+      scenariosConfirmation({ action, ...extra }, 'flows/x/x.flow.yaml', 'Scenarios');
+    const text = (action: string, extra?: Record<string, unknown>) => {
+      const m = at(action, extra).confirmationMessages?.message;
+      return typeof m === 'string' ? m : (m?.value ?? '');
+    };
+    assert.equal(at('list').confirmationMessages, undefined);
+    assert.equal(at('check').confirmationMessages, undefined);
+    assert.equal(at('verify').confirmationMessages?.title, 'Verify Scenarios in Ansible?');
+    assert.match(text('verify'), /ansible-playbook/);
+    assert.equal(at('add').confirmationMessages?.title, 'Edit Scenarios?');
+    assert.match(text('add', { name: 'happy path' }), /Add the scenario "happy path"/);
   });
 });
