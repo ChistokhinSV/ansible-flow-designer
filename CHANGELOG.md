@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.74.1 — AFD-123, AFD-124
+
+The extension works as in 0.74.0. This release brings its page up to date and is the first one published from CI.
+
+- **The README shows the extension at work:** a short recording at the top builds on the Hello sample. It adds a step from a port, gives its failure a rollback in one click, shows the play it makes, and runs the flow as a skeleton, where one host fails and ends at Stopped. Three shorter ones show handling a failure from a port's menu, a run that shows where every host went, and a scenario that turns red when a step fails for a host. They load from the repository and are not part of the extension package.
+- **Published from GitHub Actions:** a version tag publishes the extension to the Visual Studio Marketplace (Trusted Publishing, no stored token) and Open VSX, and creates the GitHub release.
+- **Now on Open VSX** as `chistokhinsv.ansible-flow-designer`, for VSCodium, Cursor and other editors that use it.
+
 ## 0.74.0 — AFD-118
 
 Wave 11 ends: scenario tests where you look for tests, in the samples and in the guide.
