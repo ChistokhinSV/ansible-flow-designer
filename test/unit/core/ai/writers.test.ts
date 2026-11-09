@@ -9,13 +9,24 @@ import { parse as parseToml } from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findAgents, mcpJson, otherAgentGuide } from '../../../../src/node/ai/agents';
 import {
+  agentRegistrations,
+  configLines,
+  hostConfigs,
+  registrationLines,
+} from '../../../../src/node/ai/hostConfig';
+import {
+  AGENTS,
+  type Agent,
   applySetup,
   CURSOR_WORKSPACE,
   type Env,
   type Launch,
+  planMcp,
   planSetup,
+  registration,
   removeSetup,
   type SkillFiles,
+  staleRegistrations,
 } from '../../../../src/node/ai/writers';
 
 const LAUNCH: Launch = {
@@ -408,5 +419,135 @@ describe('AFD-173: agents built into VS Code forks', { timeout: 20_000 }, () => 
     );
     const entry = parseJsonc(read(home, '.cursor', 'mcp.json')).mcpServers['ansible-flow'];
     expect(entry.env).toEqual({ ...LAUNCH.env, AFD_MCP_ROOTS: CURSOR_WORKSPACE });
+  });
+});
+
+// AFD-195: the publisher ID changed (afd-dev -> chistokhinsv) and the old ID's global storage went
+// with the old extension, so every entry written before named an mcp.js that is gone. The setup
+// record is per extension ID, so only the configs themselves tell.
+describe('AFD-195: registrations of a server that is gone', { timeout: 20_000 }, () => {
+  const storage = (id: string) =>
+    join(home, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', id, 'mcp', 'mcp.js');
+  const OLD = 'afd-dev.ansible-flow-designer';
+  const NEW = 'chistokhinsv.ansible-flow-designer';
+  const launch = (server: string): Launch => ({ command: 'node', args: [server] });
+  /** Registrations only, as an older version wrote them. */
+  const write = async (agents: Agent[], l: Launch) =>
+    applySetup(await Promise.all(agents.map((a) => planMcp(a, env(), l))), env(), l, SKILL);
+  const files = () => ({ home, platform: 'win32' as const });
+
+  it('finds entries of ours that start a missing or another ID’s mcp.js; repair rewrites just those', async () => {
+    const server = storage(NEW);
+    mkdirSync(join(server, '..'), { recursive: true });
+    writeFileSync(server, '// the server\n');
+    // Written by the old ID: its storage is gone.
+    await write(['codex', 'zcode', 'copilot', 'opencode'], launch(storage(OLD)));
+    // Copilot CLI's entry keeps a key of the user's through the repair.
+    const copilot = join(home, '.copilot', 'mcp-config.json');
+    writeFileSync(copilot, read(copilot).replace('"tools"', '"timeout": 5,\n      "tools"'));
+    // Written by this ID: fine.
+    await write(['gemini'], launch(server));
+    // Claude Code: another ID's copy that is still there.
+    mkdirSync(join(storage('other.ansible-flow-designer'), '..'), { recursive: true });
+    writeFileSync(storage('other.ansible-flow-designer'), '// old\n');
+    writeFileSync(
+      join(home, '.claude.json'),
+      JSON.stringify({
+        numStartups: 3,
+        mcpServers: {
+          'ansible-flow': { type: 'stdio', ...launch(storage('other.ansible-flow-designer')) },
+        },
+      }),
+    );
+    // Written by the user: a build of their own that is not there. Never ours to change.
+    const kiro = join(home, '.kiro', 'settings', 'mcp.json');
+    mkdirSync(join(kiro, '..'), { recursive: true });
+    const own = JSON.stringify(join(home, 'src', 'afd', 'dist', 'mcp.js'));
+    const mine = `{\n  "mcpServers": {\n    "ansible-flow": {"command": "node", "args": [${own}]}\n  }\n}\n`;
+    writeFileSync(kiro, mine);
+
+    const stale = await staleRegistrations(AGENTS, files(), server);
+    expect(stale.map((s) => `${s.agent} ${s.why}`)).toEqual([
+      'claude elsewhere',
+      'codex missing',
+      'opencode missing',
+      'zcode missing',
+      'copilot missing',
+    ]);
+    expect(stale.find((s) => s.agent === 'codex')?.server).toBe(storage(OLD));
+    expect(stale.find((s) => s.agent === 'opencode')?.server).toBe(storage(OLD));
+
+    const gemini = read(home, '.gemini', 'settings.json');
+    // What `claude mcp get` would say about the entry in ~/.claude.json.
+    registered = `ansible-flow: node ${storage('other.ansible-flow-designer')}`;
+    const agents = stale.map((s) => s.agent);
+    const items = await Promise.all(agents.map((a) => planMcp(a, env(), launch(server))));
+    expect(items.map((i) => `${i.agent} ${i.action}`)).toEqual(agents.map((a) => `${a} update`));
+    await applySetup(items, env(), launch(server), { version: SKILL.version, files: {} });
+
+    // Claude through its CLI (the fake one here does not write ~/.claude.json).
+    expect(calls.at(-1)).toEqual([
+      'mcp',
+      'add',
+      '-s',
+      'user',
+      'ansible-flow',
+      '--',
+      'node',
+      server,
+    ]);
+    expect((await staleRegistrations(AGENTS, files(), server)).map((s) => s.agent)).toEqual([
+      'claude',
+    ]);
+    expect((await registration('codex', files()))?.server).toBe(server);
+    const entry = parseJsonc(read(copilot)).mcpServers['ansible-flow'];
+    expect(entry).toMatchObject({ args: [server], timeout: 5, tools: ['*'] });
+    // Not stale: as it was. No skill was written.
+    expect(read(home, '.gemini', 'settings.json')).toBe(gemini);
+    expect(read(kiro)).toBe(mine);
+    expect(existsSync(join(home, '.agents', 'skills', 'ansible-flow'))).toBe(false);
+  });
+
+  it('a hand-written Codex table and an entry that starts something else are never reported', async () => {
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(
+      join(home, '.codex', 'config.toml'),
+      `[mcp_servers.ansible-flow]\ncommand = "node"\nargs = [${JSON.stringify(storage(OLD))}]\n`,
+    );
+    mkdirSync(join(home, '.gemini'));
+    writeFileSync(
+      join(home, '.gemini', 'settings.json'),
+      '{"mcpServers": {"ansible-flow": {"command": "npx", "args": ["-y", "ansible-flow-mcp"]}}}',
+    );
+    expect(await staleRegistrations(AGENTS, files(), storage(NEW))).toEqual([]);
+    expect(await registration('codex', files())).toMatchObject({ hand: true });
+    expect(await registration('gemini', files())).toMatchObject({ command: 'npx' });
+    expect((await registration('gemini', files()))?.server).toBeUndefined();
+
+    // The diagnostics say so per agent.
+    const lines = registrationLines(await agentRegistrations(files()), storage(NEW));
+    expect(lines.find((l) => l.startsWith('- Codex'))).toContain('written by hand');
+    expect(lines.find((l) => l.startsWith('- Gemini CLI'))).toContain('not an mcp.js');
+    expect(lines.find((l) => l.startsWith('- Claude Code'))).toBe('- Claude Code: not registered');
+  });
+
+  it('the diagnostics show a missing server and another ID’s copy', async () => {
+    mkdirSync(join(storage('other.x'), '..'), { recursive: true });
+    writeFileSync(storage('other.x'), '');
+    await write(['zcode'], launch(storage(OLD)));
+    await write(['copilot'], launch(storage('other.x')));
+    const lines = registrationLines(await agentRegistrations(files()), storage(NEW));
+    expect(lines.find((l) => l.startsWith('- ZCode'))).toMatch(
+      /starts `.+mcp\.js`: \*\*missing\*\*$/,
+    );
+    expect(lines.find((l) => l.startsWith('- GitHub Copilot CLI'))).toContain(
+      'there, but another extension ID',
+    );
+    // An editor's MCP file in the AFD-172 report too.
+    const [kiro] = await hostConfigs({ home, platform: 'win32' }, ['kiro']);
+    expect(kiro && configLines(kiro).join('\n')).not.toContain('missing');
+    await write(['kiro'], launch(storage(OLD)));
+    const [after] = await hostConfigs({ home, platform: 'win32' }, ['kiro']);
+    expect(after && configLines(after, storage(NEW)).join('\n')).toContain('**missing**');
   });
 });

@@ -1,10 +1,36 @@
 // What each editor's agent is configured with on this machine (AFD-172): MCP servers by name, the
 // skills in its folders and its plugin bundles. Read-only, names only: a server entry's command,
-// arguments and environment (tokens) are never read out.
+// arguments and environment (tokens) are never read out, except where ours starts (AFD-195).
 import { promises as fs } from 'node:fs';
 import { type ParseError, parse } from 'jsonc-parser';
+import { agentLabel } from './agents';
 import { HOSTS, type HostEnv, type HostId } from './hosts';
-import { SERVER_NAME, SKILL_NAME } from './writers';
+import {
+  AGENTS,
+  type Env,
+  entryServer,
+  type Registration,
+  registration,
+  SERVER_NAME,
+  SKILL_NAME,
+  storageId,
+} from './writers';
+
+/** AFD-195: the mcp.js our entry starts, and whether it is there. */
+export interface ServerFile {
+  path: string;
+  exists: boolean;
+}
+
+const fileExists = (path: string) =>
+  fs.stat(path).then(
+    () => true,
+    () => false,
+  );
+
+async function serverFile(server: string | undefined): Promise<ServerFile | undefined> {
+  return server ? { path: server, exists: await fileExists(server) } : undefined;
+}
 
 export interface McpFileState {
   path: string;
@@ -13,6 +39,8 @@ export interface McpFileState {
   servers: string[];
   /** Not JSON (with comments) the agent could read. */
   broken?: boolean;
+  /** What our entry starts, when it starts an mcp.js. */
+  ours?: ServerFile;
 }
 
 export interface FolderState {
@@ -42,11 +70,20 @@ async function mcpFile(path: string): Promise<McpFileState> {
   if (errors.length > 0 || !data || typeof data !== 'object')
     return { path, exists: true, servers: [], broken: true };
   const table = (data.mcpServers ?? data.servers) as Record<string, unknown> | undefined;
+  const ours = await serverFile(entryServer(table?.[SERVER_NAME]).server);
   return {
     path,
     exists: true,
     servers: table && typeof table === 'object' ? Object.keys(table).sort() : [],
+    ...(ours ? { ours } : {}),
   };
+}
+
+/** How a registered server file reads in the report. */
+function serverText(s: ServerFile, server?: string): string {
+  const id = storageId(s.path);
+  const other = id && server && storageId(server) && id !== storageId(server);
+  return `starts \`${s.path}\`: ${s.exists ? (other ? `there, but another extension ID's copy (${id})` : 'there') : '**missing**'}`;
 }
 
 async function folder(path: string): Promise<FolderState> {
@@ -84,8 +121,11 @@ export async function hostConfigs(
   );
 }
 
-/** Markdown lines for one editor's configuration; ours is marked. */
-export function configLines(c: HostConfig): string[] {
+/**
+ * Markdown lines for one editor's configuration; ours is marked, with the server file it starts.
+ * `server`: this extension's installed copy, to tell another extension ID's copy.
+ */
+export function configLines(c: HostConfig, server?: string): string[] {
   const mark = (name: string) =>
     name === SERVER_NAME || name === SKILL_NAME ? `**${name}**` : name;
   const lines = [`### ${HOSTS[c.host].label} (${HOSTS[c.host].agent})`, ''];
@@ -99,7 +139,7 @@ export function configLines(c: HostConfig): string[] {
             : f.servers.length
               ? f.servers.map(mark).join(', ')
               : 'no servers'
-      }`,
+      }${f.ours ? `; ${SERVER_NAME} ${serverText(f.ours, server)}` : ''}`,
     );
   for (const s of c.skills)
     lines.push(
@@ -111,4 +151,31 @@ export function configLines(c: HostConfig): string[] {
     );
   lines.push(`- Note: ${HOSTS[c.host].note}`, '');
   return lines;
+}
+
+/** AFD-195: each agent's ansible-flow entry as Set Up AI Assistants wrote it, and what it starts. */
+export async function agentRegistrations(
+  env: Env,
+): Promise<{ registration: Registration | undefined; file?: ServerFile; agent: string }[]> {
+  return Promise.all(
+    AGENTS.map(async (agent) => {
+      const r = await registration(agent, env);
+      const file = await serverFile(r?.server);
+      return { agent: agentLabel(agent), registration: r, ...(file ? { file } : {}) };
+    }),
+  );
+}
+
+/** Markdown lines for agentRegistrations; `server` is this extension's installed copy. */
+export function registrationLines(
+  found: Awaited<ReturnType<typeof agentRegistrations>>,
+  server: string,
+): string[] {
+  return found.map(({ agent, registration: r, file }) => {
+    if (!r) return `- ${agent}: not registered`;
+    const where = `- ${agent} \`${r.file}\``;
+    if (r.hand) return `${where}: written by hand; Set Up leaves it as it is`;
+    if (!file) return `${where}: starts \`${r.command ?? '?'}\`, not an mcp.js`;
+    return `${where}: ${serverText(file, server)}`;
+  });
 }
