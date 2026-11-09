@@ -128,7 +128,8 @@ describe('AFD-159: scenarios stay on this machine, and bad files do not crash', 
     } finally {
       rmSync(work, { recursive: true, force: true });
     }
-  });
+    // It starts the runner with a real python3: about 4 s on a CI runner, near the default 5 s.
+  }, 20_000);
 
   it('a container run writes its events into a folder of their own', () => {
     const spec = runProcess(
