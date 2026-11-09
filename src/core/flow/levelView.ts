@@ -6,7 +6,7 @@ import { type AnnotationView, annotationViews } from './annotations';
 import { fedByBubbling, levelTaken } from './bubbling';
 import { nodeSize } from './geometry';
 import { modelOf, ROOT } from './model';
-import { legalPorts, type PortSpec, type PortTone, portSpec } from './ports';
+import { type LegalPort, legalPorts, type PortSpec, type PortTone, portSpec } from './ports';
 import type { FlowNode, Position, Ulid } from './types';
 
 /**
@@ -122,8 +122,15 @@ export function levelView(
   return { nodes, edges, annotations: annotationViews(level, shown, optimistic) };
 }
 
-function withOffsets(ports: PortView[]): PortView[] {
-  const bySide = new Map<string, PortView[]>();
+/** Where each port of a node sits along its side, as the canvas draws it (AFD-192: auto layout). */
+export function portOffsets(
+  node: Pick<FlowNode, 'type' | 'branches' | 'ports'>,
+): (LegalPort & { offset: number })[] {
+  return withOffsets(legalPorts(node).map((p) => ({ ...p, offset: 0.5 })));
+}
+
+function withOffsets<T extends { side: string; offset: number }>(ports: T[]): T[] {
+  const bySide = new Map<string, T[]>();
   for (const p of ports) bySide.set(p.side, [...(bySide.get(p.side) ?? []), p]);
   for (const list of bySide.values()) {
     list.forEach((p, i) => {

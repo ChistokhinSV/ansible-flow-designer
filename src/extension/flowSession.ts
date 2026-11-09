@@ -322,10 +322,17 @@ export class FlowSession implements vscode.Disposable {
     layout: Parameters<typeof autoPositions>[1],
   ): Promise<Record<Ulid, Position>> {
     const direction = layoutDirection();
+    // Ports shape the layout (AFD-192): the wires' ports and each node's optional ports and branches.
     const key = JSON.stringify([
       direction,
-      level.nodes.map((n) => [n?.id, n?.type, layout?.[n?.id ?? ''] ?? null]),
-      level.edges.map((e) => [e?.from?.node, e?.to?.node]),
+      level.nodes.map((n) => [
+        n?.id,
+        n?.type,
+        n?.ports ?? null,
+        n?.branches ?? null,
+        layout?.[n?.id ?? ''] ?? null,
+      ]),
+      level.edges.map((e) => [e?.from?.node, e?.from?.port, e?.to?.node, e?.to?.port]),
     ]);
     const hit = this.layoutCache.get(key);
     if (hit) return hit;
@@ -1300,7 +1307,7 @@ function isEmptyFile(file: YamlFile): boolean {
 }
 
 /** The user's layout direction for unplaced nodes and Tidy Up; never written to the flow (AFD-42). */
-function layoutDirection(): LayoutDirection {
+export function layoutDirection(): LayoutDirection {
   return vscode.workspace.getConfiguration('afd.canvas').get<LayoutDirection>('direction') === 'LR'
     ? 'LR'
     : 'TB';

@@ -106,3 +106,24 @@ export async function environmentSettings(
     ignoredWorkspace: Object.keys(workspace).length > 0 && !used,
   };
 }
+
+/**
+ * `afd.canvas.direction` for a root (AFD-192), so the MCP tools lay out unplaced nodes as the
+ * canvas does: the workspace's .vscode/settings.json, else the first user settings.json found
+ * (VS Code's order). Not a restricted key: it only places boxes. TB when neither sets it.
+ */
+export async function canvasDirection(
+  root: string,
+  host: SettingsHost = thisHost(),
+): Promise<'TB' | 'LR'> {
+  const workspace = await readSettings(join(root, '.vscode', 'settings.json'));
+  let value = workspace?.['afd.canvas.direction'];
+  if (value === undefined)
+    for (const path of userSettingsCandidates(host)) {
+      const user = await readSettings(path);
+      if (!user) continue;
+      value = user['afd.canvas.direction'];
+      break;
+    }
+  return value === 'LR' ? 'LR' : 'TB';
+}

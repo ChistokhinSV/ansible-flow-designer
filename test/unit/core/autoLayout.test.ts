@@ -6,12 +6,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { nodeSize } from '../../../src/core/flow/geometry';
+import { flowLayoutProblems } from '../../../src/core/export/layoutCheck';
+import { NODE_WIDTH, nodeSize } from '../../../src/core/flow/geometry';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel, ROOT } from '../../../src/core/flow/model';
 import { newFlowText } from '../../../src/core/flow/template';
 import type { FlowDocument, Layout, Position } from '../../../src/core/flow/types';
-import { autoPositions, shownLayout } from '../../../src/node/autoLayout';
+import {
+  autoPositions,
+  layoutLevel,
+  shownLayout,
+  shownPositions,
+} from '../../../src/node/autoLayout';
 import { readExample } from './helpers';
 
 const sample = () =>
@@ -94,5 +100,109 @@ describe('auto positions (AFD-23)', () => {
       const pred = bs.find((b) => b.key === doc.nodes.find((x) => x.id === from)?.key);
       if (me && pred) expect(me.y, n.key).toBeGreaterThan(pred.y);
     }
+  });
+});
+
+/** A flow from node keys and types and wires `[from, port, to]`, with no stored positions. */
+function flow(nodes: [string, string][], wires: [string, string, string][]): FlowDocument {
+  return {
+    schema_version: 2,
+    flow: { id: 'f', key: 'f', name: 'f', version: 1 },
+    nodes: nodes.map(([key, type]) => ({ id: `n-${key}`, key, type, title: key })),
+    edges: wires.map(([from, port, to], i) => ({
+      id: `e-${i}`,
+      from: { node: `n-${from}`, port },
+      to: { node: `n-${to}`, port: 'in' },
+    })),
+  } as unknown as FlowDocument;
+}
+
+/** Auto positions by key and the layout check's problem kinds, as flow_describe layout: true. */
+async function checked(doc: FlowDocument) {
+  const model = buildModel(doc);
+  const shown = await shownPositions(model);
+  const at = (key: string) => shown.auto[`n-${key}`] as Position;
+  const problems = flowLayoutProblems(model, shown).get(ROOT) ?? [];
+  return { at, problems, kinds: new Set(problems.map((p) => p.kind)) };
+}
+
+describe('auto layout with the canvas ports (AFD-192)', () => {
+  // The false wire first, as an agent's batch left it: ELK's own bottom ports then came in wire
+  // order and put the true target under the canvas's false handle, the two labels in one gap.
+  const decisionSkip = () =>
+    flow(
+      [
+        ['start', 'start'],
+        ['check', 'task'],
+        ['decide', 'decision'],
+        ['fix', 'task'],
+        ['verify', 'task'],
+        ['done', 'end'],
+      ],
+      [
+        ['verify', 'ok_hosts', 'done'],
+        ['fix', 'ok_hosts', 'verify'],
+        ['decide', 'false', 'verify'],
+        ['decide', 'true', 'fix'],
+        ['check', 'ok_hosts', 'decide'],
+        ['start', 'ok_hosts', 'check'],
+      ],
+    );
+
+  it('a decision whose false skips its true step: no labels on each other, no wire through a node', async () => {
+    const { at, problems, kinds } = await checked(decisionSkip());
+    expect(kinds.has('labels'), JSON.stringify(problems)).toBe(false);
+    expect(kinds.has('through'), JSON.stringify(problems)).toBe(false);
+    // The true step hangs from the true handle (1/3 along the bottom), its in port (the middle).
+    expect(at('fix').x + NODE_WIDTH / 2).toBe(at('decide').x + Math.round(NODE_WIDTH / 3));
+  });
+
+  it('a rescue fed by three failed_hosts sits right of the column it handles, its wires across nothing', async () => {
+    const { at, problems, kinds } = await checked(
+      flow(
+        [
+          ['start', 'start'],
+          ['s1', 'task'],
+          ['s2', 'task'],
+          ['s3', 'task'],
+          ['capture', 'task'],
+          ['after', 'task'],
+          ['done', 'end'],
+        ],
+        [
+          ['start', 'ok_hosts', 's1'],
+          ['s1', 'ok_hosts', 's2'],
+          ['s2', 'ok_hosts', 's3'],
+          ['s3', 'ok_hosts', 'after'],
+          ['s1', 'failed_hosts', 'capture'],
+          ['s2', 'failed_hosts', 'capture'],
+          ['s3', 'failed_hosts', 'capture'],
+          ['capture', 'ok_hosts', 'after'],
+          ['after', 'ok_hosts', 'done'],
+        ],
+      ),
+    );
+    expect(kinds.has('cross'), JSON.stringify(problems)).toBe(false);
+    expect(kinds.has('label'), JSON.stringify(problems)).toBe(false);
+    expect(kinds.has('through'), JSON.stringify(problems)).toBe(false);
+    // One straight column; the rescue's in port (and the wires into it) right of it.
+    const column = ['s1', 's2', 's3', 'after'].map(at);
+    expect(new Set(column.map((p) => p.x)).size).toBe(1);
+    const right = Math.max(...column.map((p) => p.x + NODE_WIDTH));
+    expect(at('capture').x + NODE_WIDTH / 2).toBeGreaterThan(right);
+    expect(at('capture').y).toBeGreaterThan(at('s3').y);
+  });
+
+  it('left to right too: every node placed, along the flow, none on another', async () => {
+    const doc = decisionSkip();
+    const level = buildModel(doc).levels.get(ROOT);
+    if (!level) throw new Error('no top level');
+    const at = await layoutLevel(level, 'LR');
+    expect(Object.keys(at)).toHaveLength(doc.nodes.length);
+    const p = (key: string) => at[`n-${key}`] as Position;
+    expect(p('start').x).toBeLessThan(p('check').x);
+    expect(p('verify').x).toBeLessThan(p('done').x);
+    const bs = doc.nodes.map((n) => ({ key: n.key, ...p(n.key), ...nodeSize(n.type) }));
+    expect(overlapping(bs)).toEqual([]);
   });
 });
