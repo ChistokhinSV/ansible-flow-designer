@@ -24,6 +24,12 @@ The flow is the source of truth; the playbooks are generated from it.
 - Unbound steps run a `TODO: <intent>` debug message. Bound modules and roles run for real.
 - Inputs become play variables from the upstream outputs (see
   [data between steps](data-between-steps.md)).
+- **`afd_repo_root`:** the repository root as an absolute path, set on the plays of steps that read
+  it and of steps that run files the flow cannot see (a task file, a role). `playbook_dir` is the
+  flow's `generated/` folder and Ansible does not let a play change it, so write repository paths
+  as `{{ afd_repo_root }}/scripts/tool.py`; the designer warns about `playbook_dir` in a binding.
+- **A failure for later steps:** every step's rescue keeps `afd_failed_result`, `afd_failed_task`
+  and `afd_failed_node` as host facts, so the step on its `failed_hosts` can say what failed.
 - The header says how the file was made, and how to choose an approval outcome in a local run.
 - A [note on a step](annotations.md) becomes `# Note:` comment lines right above that step's play.
   Changing a note rewrites the generated file but not the flow's version.

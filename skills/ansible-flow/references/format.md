@@ -32,6 +32,7 @@ The flow itself: identity, version, goal and the inputs a run asks for.
 - `imported_from` (object): Where an imported flow came from, for reference only: a one-time copy
 - `maintenance_window` (string): Longest time the flow may take, e.g. 4h or 2h30m (Timing lens)
 - `inputs` (contract): Inputs a run asks for. A host_list input with targets: true seeds the hosts entering the start node.
+- `external_vars` (map of string): Variables the flow reads that something outside it sets at run time (AWX or Kestra extra vars, inventory variables, the vars a caller passes): name -> where it comes from. Steps may read them without an input; they are not run inputs and get no survey question.
 
 ### Node (nodes[], subflow.nodes[])
 
@@ -93,7 +94,7 @@ Subflow nodes: the inner level and how hosts enter and leave it.
 How hosts enter and leave the subflow.
 
 - `in` (nodeRef): The inner node that receives the hosts entering the subflow.
-- `outputs` (map of list of exitref): Exits: a parent port name -> the inner outputs that leave through it.
+- `outputs` (map of list of exitref): Exits: a port of the subflow node (ok_hosts, failed_hosts, unreachable, …) or a named exit of its own (lowercase letters, digits and _, such as dry_run_done; it becomes a port of the subflow node) -> the inner outputs that leave through it.
 
 ### Wire (edges[])
 
@@ -124,8 +125,9 @@ One input or output field.
 
 - `type` (string | integer | boolean | list | dict | host_list | any, required): Value type. host_list is a list of inventory hosts or groups.
 - `required` (boolean): Inputs: a run must provide a value.
-- `default` (any): Inputs: value used when none is given.
-- `from` (string): Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name.
+- `default` (any): Flow inputs: the value a run uses when none is given. Node inputs: what the step gets when its from left nothing (the generated play var falls back to it); with no from, the value itself.
+- `from` (string): Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact.
+- `optional` (boolean): Node inputs: the value may be undefined when the step runs, and the step checks it (x is defined, | default). The check that the producer ran on every path is skipped.
 - `targets` (boolean): Flow inputs only: this host_list input seeds the start node's host set.
 - `description` (string): Flow inputs: what the input is for, in words. The launch dialog, the run prompts and the AWX survey show it.
 

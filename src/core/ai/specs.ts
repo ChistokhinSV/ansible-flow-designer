@@ -385,6 +385,12 @@ export const OP_SPECS: OpSpec[] = [
         description:
           'Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence).',
       },
+      external_vars: {
+        type: ['object', 'null'],
+        additionalProperties: { type: ['string', 'null'] },
+        description:
+          'Variables something outside the flow sets at run time (AWX or Kestra extra vars, inventory, a caller): name -> where it comes from, merged with those already declared; null for a name removes it. Steps read them without an input and without a finding to accept.',
+      },
     },
     required: [],
     example: { op: 'update_flow', goal: 'Every router uses the standard NTP servers' },
@@ -401,10 +407,15 @@ export const OP_SPECS: OpSpec[] = [
   },
   {
     op: 'add_exit',
-    summary: "Let an inner step's output leave the subflow through one of the subflow's ports.",
+    summary:
+      "Let an inner step's output leave the subflow through one of the subflow's ports, or through a named exit: a new name (dry_run_done) gives the subflow a port of that name, which the parent wires like ok_hosts. An end node inside a subflow instead ends the host's whole run.",
     properties: {
       from: { ...OUT, description: 'Inner output, e.g. fix-ntp/push-config.ok_hosts.' },
-      port: { type: 'string', description: 'Port of the subflow node, e.g. ok_hosts.' },
+      port: {
+        type: 'string',
+        description:
+          'Port of the subflow node (ok_hosts, failed_hosts, …) or a named exit: lowercase letters, digits and _ (dry_run_done).',
+      },
       reason: { type: 'string', description: 'Optional note shown with the exit.' },
     },
     required: ['from', 'port'],
@@ -436,6 +447,68 @@ export const OP_SPECS: OpSpec[] = [
       nodes: ['backup', 'push-config', 'verify'],
       title: 'Fix NTP',
     },
+  },
+  {
+    op: 'dissolve_subflow',
+    summary:
+      "Move a subflow's steps up to its level and remove the subflow (the inverse of extract_subflow): wires into it go to its entry step, each exit becomes wires from the inner ports that left by it, and from: references follow. Keys must be free on that level (rename first).",
+    properties: { subflow: { ...NODE, description: 'The subflow to dissolve.' } },
+    required: ['subflow'],
+    example: { op: 'dissolve_subflow', subflow: 'phase-event-preflight-started' },
+  },
+  {
+    op: 'rename',
+    summary:
+      'Rename several nodes at once: old key (path) -> new key; from: references follow, as with update_node key.',
+    properties: {
+      keys: {
+        type: 'object',
+        additionalProperties: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
+        description: 'Old key or key path -> new key (on the same level).',
+      },
+    },
+    required: ['keys'],
+    example: {
+      op: 'rename',
+      keys: { 'load-saved-credentials-survey-fields-emp': 'load-credentials' },
+    },
+  },
+  {
+    op: 'replace_text',
+    summary:
+      'Find and replace text in the bindings (params, keywords or both) of the named nodes, the steps inside a subflow, or the whole flow. Fails when nothing matches. For mechanical changes such as a path or variable name in many steps.',
+    properties: {
+      find: {
+        type: 'string',
+        description: 'Text to find (a regular expression with regex: true).',
+      },
+      replace: {
+        type: 'string',
+        description: 'Replacement; with regex, $1 and the like insert groups.',
+      },
+      regex: { type: 'boolean', description: 'find is a JavaScript regular expression.' },
+      nodes: { type: 'array', items: NODE, description: 'Only these nodes.' },
+      level: { ...NODE, description: 'Only the steps inside this subflow (at any depth).' },
+      in: {
+        type: 'string',
+        enum: ['params', 'keywords', 'all'],
+        description: 'Where to replace (default all).',
+      },
+    },
+    required: ['find', 'replace'],
+    example: {
+      op: 'replace_text',
+      find: '{{ playbook_dir }}/',
+      replace: '{{ afd_repo_root }}/',
+    },
+  },
+  {
+    op: 'regenerate',
+    summary:
+      "Write the flow's generated/ code again from the file as it is (after the file was changed outside the tools, or to overwrite hand edits). Changes nothing in the flow.",
+    properties: {},
+    required: [],
+    example: { op: 'regenerate' },
   },
   {
     op: 'bind',
@@ -614,6 +687,23 @@ export const TOOL_SPECS: ToolSpec[] = [
           description:
             'Also list where each node is ("at x,y" for a stored position, "auto x,y" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow. flow_edit runs the same check on the levels it placed nodes on.',
         },
+        nodes: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Only these nodes (key paths; a subflow key also covers the steps inside it) and the wires touching them.',
+        },
+        detail: {
+          type: 'string',
+          enum: ['full', 'brief'],
+          description:
+            'brief: one short line per node (key, type, status, title, binding). Default full.',
+        },
+        only_problems: {
+          type: 'boolean',
+          description: 'With layout: only the layout check per level, without the nodes and wires.',
+        },
+        page: { type: 'integer', minimum: 1, description: 'Page of a long answer (default 1).' },
       },
     },
   },
@@ -621,9 +711,31 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'flow_validate',
     title: 'Check a flow',
     description:
-      'List the problems of a flow (errors, warnings, info) by node key, each with how to fix it.',
+      'List the problems of a flow (errors, warnings, info) by node key, each with how to fix it and, for a warning, the key an accept op takes. Says whether generated/ matches the flow. On a large flow start with summary: true, then filter by code or node; long lists come in pages.',
     readOnly: true,
-    inputSchema: { type: 'object', properties: { path: PATH } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: PATH,
+        summary: {
+          type: 'boolean',
+          description:
+            'Problems grouped by code: how many, the nodes with most of them, what they are about, the fix once.',
+        },
+        code: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Only these problem codes (binding-unknown-var, ref-may-be-undefined, …).',
+        },
+        node: {
+          type: 'string',
+          description:
+            'Only problems of this node, or of the steps inside this subflow (a key path).',
+        },
+        severity: { type: 'string', enum: ['error', 'warning', 'info'] },
+        page: { type: 'integer', minimum: 1, description: 'Page of a long list (default 1).' },
+      },
+    },
   },
   {
     name: 'flow_reference',
@@ -748,11 +860,17 @@ export const TOOL_SPECS: ToolSpec[] = [
         flow: {
           type: 'string',
           description:
-            'The flow you will write (flows/<key>/<key>.flow.yaml): template, copy and vars file paths in impl are rewritten so its generated playbooks find them.',
+            'The flow you will write (flows/<key>/<key>.flow.yaml). Paths in impl are written from {{ afd_repo_root }}, the repository root its generated plays set.',
         },
         focus: {
           type: 'string',
-          description: 'A task number ("#7") to see one task in full (long parameters uncut).',
+          description:
+            'Tasks to see in full (long parameters uncut): a number "#7", a list "#3,#9" or a range "#25-#37" (up to 60).',
+        },
+        full: {
+          type: 'boolean',
+          description:
+            'The whole outline with nothing cut; it comes in more pages. Default false (long values cut).',
         },
         page: { type: 'integer', minimum: 1, description: 'Page of a long outline (default 1).' },
       },

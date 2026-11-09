@@ -163,9 +163,37 @@ describe('includes and imports', () => {
     expect((checks?.items?.[0] as TaskForm | undefined)?.keywords.when).toBeUndefined();
     expect(dynamic?.dynamic).toBe('its file name is templated');
     expect(looped?.dynamic).toBe('it runs in a loop');
-    expect((self?.items?.[0] as IncludeForm | undefined)?.dynamic).toBe(
-      'pb/tasks/self.yml includes itself',
+    // AFD-179: a looped or self-including file is not read in, but its path is known, so the
+    // import can run it as include_tasks; the self-including one is not inlined a level deep.
+    expect(looped?.path).toBe('pb/tasks/loop.yml');
+    expect(looped?.keywords.loop).toEqual([1]);
+    expect(self?.dynamic).toBe('pb/tasks/self.yml includes itself');
+    expect(self?.path).toBe('pb/tasks/self.yml');
+    expect(self?.items).toBeUndefined();
+  });
+
+  it('AFD-177: a file kept as include_tasks says what breaks from generated/', async () => {
+    const p = await play(
+      {
+        'pb/play.yml': `
+- hosts: all
+  tasks:
+    - include_tasks: phases/poll.yml
+      loop: [1, 2]
+      vars: { step: a }
+`,
+        'pb/phases/poll.yml':
+          '- command: "{{ playbook_dir }}/tool.py"\n- include_tasks: callbacks/event.yml\n',
+        'pb/callbacks/event.yml': '- ping:\n',
+      },
+      'pb/play.yml',
     );
+    const [poll] = p.tasks as IncludeForm[];
+    expect(poll?.vars).toEqual({ step: 'a' });
+    expect(poll?.portability).toEqual([
+      'reads playbook_dir',
+      'includes callbacks/event.yml relative to the playbook',
+    ]);
   });
 
   it('AFD-149: import_tasks puts its when and tags on each task; include_tasks only its vars and apply', async () => {

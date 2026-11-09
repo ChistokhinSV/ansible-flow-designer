@@ -215,6 +215,7 @@ Change the flow header; null removes a field.
 - `goal` (string | null): What the flow achieves, in a sentence.
 - `owner` (string | null): Team or person responsible.
 - `maintenance_window` (string | null): Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence).
+- `external_vars` (object | null): Variables something outside the flow sets at run time (AWX or Kestra extra vars, inventory, a caller): name -> where it comes from, merged with those already declared; null for a name removes it. Steps read them without an input and without a finding to accept.
 
 ```json
 {"op":"update_flow","goal":"Every router uses the standard NTP servers"}
@@ -233,10 +234,10 @@ Set (or clear with null) the inner step that receives the hosts entering a subfl
 
 ### add_exit
 
-Let an inner step's output leave the subflow through one of the subflow's ports.
+Let an inner step's output leave the subflow through one of the subflow's ports, or through a named exit: a new name (dry_run_done) gives the subflow a port of that name, which the parent wires like ok_hosts. An end node inside a subflow instead ends the host's whole run.
 
 - `from` (string, required): Inner output, e.g. fix-ntp/push-config.ok_hosts.
-- `port` (string, required): Port of the subflow node, e.g. ok_hosts.
+- `port` (string, required): Port of the subflow node (ok_hosts, failed_hosts, …) or a named exit: lowercase letters, digits and _ (dry_run_done).
 - `reason` (string): Optional note shown with the exit.
 
 ```json
@@ -265,6 +266,50 @@ Move connected nodes of one level into a new subflow node; wires across the edge
 
 ```json
 {"op":"extract_subflow","nodes":["backup","push-config","verify"],"title":"Fix NTP"}
+```
+
+### dissolve_subflow
+
+Move a subflow's steps up to its level and remove the subflow (the inverse of extract_subflow): wires into it go to its entry step, each exit becomes wires from the inner ports that left by it, and from: references follow. Keys must be free on that level (rename first).
+
+- `subflow` (string, required): The subflow to dissolve.
+
+```json
+{"op":"dissolve_subflow","subflow":"phase-event-preflight-started"}
+```
+
+### rename
+
+Rename several nodes at once: old key (path) -> new key; from: references follow, as with update_node key.
+
+- `keys` (map of string, required): Old key or key path -> new key (on the same level).
+
+```json
+{"op":"rename","keys":{"load-saved-credentials-survey-fields-emp":"load-credentials"}}
+```
+
+### replace_text
+
+Find and replace text in the bindings (params, keywords or both) of the named nodes, the steps inside a subflow, or the whole flow. Fails when nothing matches. For mechanical changes such as a path or variable name in many steps.
+
+- `find` (string, required): Text to find (a regular expression with regex: true).
+- `replace` (string, required): Replacement; with regex, $1 and the like insert groups.
+- `regex` (boolean): find is a JavaScript regular expression.
+- `nodes` (list of string): Only these nodes.
+- `level` (string): Only the steps inside this subflow (at any depth).
+- `in` (params | keywords | all): Where to replace (default all).
+
+```json
+{"op":"replace_text","find":"{{ playbook_dir }}/","replace":"{{ afd_repo_root }}/"}
+```
+
+### regenerate
+
+Write the flow's generated/ code again from the file as it is (after the file was changed outside the tools, or to overwrite hand edits). Changes nothing in the flow.
+
+
+```json
+{"op":"regenerate"}
 ```
 
 ### bind
@@ -382,7 +427,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | decision-on-connected | A port marked open on purpose is wired. | reopen it (the wire decides). |
 | duplicate-decision | The same port has two decisions. | Keep one: reopen, then leave_open once. |
 | annotation-target-missing | A note is on a node that is not on its level (or gone), a section or text is on a node, or the file is format 1. | Detach the note (its menu, or remove `on`), or attach it again; for format 1, Upgrade Flow Format. |
-| stale-decision | A decision refers to a node, port or item that is gone. | Remove the decision (reopen). |
+| stale-decision | A decision refers to a node, port or item that is gone, or an accepted check that no warning matches any more. | Remove the decision (reopen, or unaccept). |
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
 | setting-on-flow | Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow. | Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask. |
@@ -403,8 +448,9 @@ Lay out a level again with the auto-layout and store every position (positions o
 | no-targets | No flow input seeds the hosts entering the start node. | Add a host_list flow input with targets: true (set_io flow). |
 | from-unresolved | A from: names nothing this node can read. | Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow. |
 | register-collision | A from: reads a register (impl.register) that another step also registers, or that a flow input also names: the generated code reads whichever ran last, and a flow input always wins. | Give one of the steps its own register name (Binding › Register result as), or rename the flow input. |
-| ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. | Read it after the paths join on the producing step, wire the failure path elsewhere, or give the input a default. |
-| binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. |
+| ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. | Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass. |
+| binding-playbook-dir | A binding reads playbook_dir. Generated plays run from the flow's generated/ folder, so paths next to the source playbook are not found there. | Write repository paths from {{ afd_repo_root }}, the repository root the generated play sets; a shared task file can use {{ afd_repo_root | default(playbook_dir) }} so it works from the source playbook too. |
+| binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. A variable set outside the flow at run time (AWX or Kestra extra vars, inventory, a caller) goes into flow.external_vars (update_flow). |
 | condition-braces | A decision condition has {{ }} or {% %} inside it; it is a bare expression, as a when: is, so every host would hit a condition error. | Write the expression without the braces: x == 1, not {{ x }} == 1. |
 | condition-unknown-var | A decision condition or until uses a variable that is not an input (or, for until, the result). | Add the input the message names (set_io) or fix the name. |
 | subflow-output-unset | A subflow output names no inner output, and no single inner step has one of that name. | Set its from to <inner_step>.<output> (set_io). |
@@ -435,3 +481,5 @@ Lay out a level again with the auto-layout and store every position (positions o
 | binding-unknown-param | A parameter the module does not have. | Remove or rename it (module docs in the catalog). |
 | binding-missing-param | A required module parameter is missing. | Add it to impl.params. |
 | binding-no-check-mode | The module does not support check mode: skeleton runs skip it. | Usually fine; real runs only. |
+
+Accepting a warning: flow_validate prints the exact key after each warning, `[accept: check:<code>:<subject>]`; pass it as the `finding` of an `accept` op with a reason. The subject is what the warning is about: the variable for the unknown-variable codes, the input for ref-may-be-undefined, input-unfed, from-unresolved and setting-input-type, the port for port warnings. `check:<code>` without a subject accepts every warning of that code on the node. An accept that matches no warning is refused, and one that stops matching later shows as stale-decision. Errors cannot be accepted.

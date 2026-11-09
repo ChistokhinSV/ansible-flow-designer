@@ -192,6 +192,8 @@ export function problemsReference(): string {
     '| --- | --- | --- |',
     ...Object.entries(FINDING_CODES).map(([code, c]) => `| ${code} | ${c.meaning} | ${c.fix} |`),
     '',
+    'Accepting a warning: flow_validate prints the exact key after each warning, `[accept: check:<code>:<subject>]`; pass it as the `finding` of an `accept` op with a reason. The subject is what the warning is about: the variable for the unknown-variable codes, the input for ref-may-be-undefined, input-unfed, from-unresolved and setting-input-type, the port for port warnings. `check:<code>` without a subject accepts every warning of that code on the node. An accept that matches no warning is refused, and one that stops matching later shows as stale-decision. Errors cannot be accepted.',
+    '',
   ].join('\n');
 }
 

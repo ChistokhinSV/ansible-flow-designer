@@ -124,3 +124,12 @@ use. `become_user` is a setting (Execution › Privilege), no longer a task keyw
 steps. Format 1 generates what it always did. `serial` stays per node, and its chip, which
 suggested otherwise, is gone. The engine images run without sudo, so the engine suite checks the
 plays' syntax on 2.19, 2.20 and 2.21 rather than a real escalation.
+
+## Amendment: named exits and end nodes inside subflows (AFD-181, 2026-11-09)
+
+Hosts that stop early inside a subflow (a dry run, nothing to do) could only leave through the fixed ports, so agents borrowed `unchanged`.
+
+- **Named exits:** a key of `boundary.outputs` that no node type uses as a port name (lowercase letters, digits and `_`) is a named exit. The subflow node gets an output port of that name: bottom side, neutral, not a fail port, ordered after `unchanged`. `portsFor`, `legalPorts` and `isPortLegal` read it from the boundary, so the canvas, the checks and the generator need nothing else. `connectBoundary` (the `add_exit` op) accepts a new name and so opens a named exit.
+- **Extract into Subflow:** normal hosts that leave the selection for a second place get a named exit (`<step>_<port>`) instead of a refusal. Failures still share their port.
+- **Format:** the schema already allowed any slug for an exit key and an edge port, so the format does not change. An older version reports a named exit as an unknown port.
+- **End nodes inside a subflow** end the run for the hosts that reach them: they do not return to the parent, which matches `meta: end_play`. The import uses them for it.

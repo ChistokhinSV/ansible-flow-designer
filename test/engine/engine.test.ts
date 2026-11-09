@@ -67,6 +67,8 @@ const TARGET = 'test/fixtures/engine/inventory-target.flow.yaml';
 const SEG = 'test/fixtures/engine/approval-segments.flow.yaml';
 const ACROSS = 'test/fixtures/engine/data-across.flow.yaml';
 const SAME_FACT = 'test/fixtures/engine/same-fact.flow.yaml';
+/** AFD-177/179/181/186: repository root, failure facts, a named exit. */
+const REPO_ROOT = 'test/fixtures/engine/repo-root-failures.flow.yaml';
 /** AFD-112: retries, delay and timeout given at run time through flow inputs. */
 const RUN_TIME = 'test/fixtures/engine/run-time-timing.flow.yaml';
 /** The line count Count the tries printed for a host: how many tries the poll made. */
@@ -713,7 +715,33 @@ const SCENARIOS: Scenario[] = [
       ]),
     ),
   },
-  ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
+  {
+    // AFD-177/179/181/186: a looped include through afd_repo_root, a failure read in a later
+    // play, and hosts leaving a subflow through a named exit.
+    name: 'repository root, failure facts and a named exit',
+    flow: REPO_ROOT,
+    transform: byKey,
+    vars: { devices: ['h01', 'h02', 'h03'] },
+    root: '../../content',
+    rc: 0,
+    also: (run) => {
+      const ran = (task: string, host: string, status = 'ok') =>
+        run.events.some(
+          (e) =>
+            e.event === 'result' &&
+            e.host === host &&
+            e.status === status &&
+            String(e.task).startsWith(task),
+        );
+      for (const h of ['h01', 'h02', 'h03']) expect(ran('[check-seen]', h), h).toBe(true);
+      expect(ran('[report-failure]', 'h02')).toBe(true);
+      expect(ran('[report-failure]', 'h01')).toBe(false);
+      expect(ran('[change/apply]', 'h03') || ran('[apply]', 'h03')).toBe(true);
+      expect(ran('[change/apply]', 'h01') || ran('[apply]', 'h01')).toBe(false);
+      expect(run.outcome.size).toBe(0);
+    },
+  },
+  ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET, REPO_ROOT].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
     syntaxOnly: true,

@@ -13,8 +13,10 @@ import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
 import { type ScenarioResult, scenariosFileName } from '../../core/scenario/scenarios';
+import { flowFacts } from '../../core/view/flowFacts';
 import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
+import { generatedDir, generateFlow, rootFromGenerated } from '../codegen';
 import { CMD } from '../commands/ids';
 import {
   type LanguageModelTool,
@@ -209,6 +211,58 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
         text: doc.getText(),
         notes: ['Saved (Ctrl+Z in the editor undoes the edit).', ...followed],
       };
+    },
+    // AFD-191: generated/ from the flow as it is now, as Generate Code does.
+    async generate(path) {
+      const doc = await vscode.workspace.openTextDocument(await resolve(path));
+      const out = await generateFlow(doc, deps.schema);
+      if (!out.ok) return [`generated/ not updated: ${out.error ?? 'the flow has errors'}`];
+      const name = (u: vscode.Uri) => u.path.split('/').pop();
+      const parts = [
+        out.written.length ? `wrote ${out.written.map(name).join(', ')}` : '',
+        out.removed.length ? `removed ${out.removed.map(name).join(', ')}` : '',
+        out.kept.length ? `kept ${out.kept.map(name).join(', ')} (edited by hand)` : '',
+      ].filter(Boolean);
+      return [parts.length ? `generated/: ${parts.join('; ')}` : 'generated/: already current'];
+    },
+    async codeState(path) {
+      const uri = await resolve(path);
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const dir = generatedDir(uri);
+      const facts = await flowFacts(
+        doc.getText(),
+        deps.schema,
+        {
+          read: async (name) => {
+            try {
+              return new TextDecoder().decode(
+                await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, name)),
+              );
+            } catch {
+              return undefined;
+            }
+          },
+          list: async () => {
+            try {
+              return (await vscode.workspace.fs.readDirectory(dir))
+                .filter(([, type]) => type === vscode.FileType.File)
+                .map(([n]) => n);
+            } catch {
+              return [];
+            }
+          },
+        },
+        { source: uri.path.split('/').pop() ?? 'flow.yaml', root: rootFromGenerated(uri) },
+      );
+      return facts.code === 'current'
+        ? 'current'
+        : facts.code === 'out of date'
+          ? 'out of date: run flow_edit with the regenerate op'
+          : facts.code === 'edited by hand'
+            ? `edited by hand (${facts.kept.join(', ')})`
+            : facts.code === 'no code yet'
+              ? 'none yet: the regenerate op writes it'
+              : 'blocked by errors';
     },
     async create(path, text) {
       const uri = await resolve(path, false);

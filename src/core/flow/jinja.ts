@@ -78,7 +78,8 @@ function identifiers(body: string): Token[] {
       const call = after.startsWith('(');
       if (prev !== '.' && prev !== '|' && prev !== 'is' && !kwarg && !call && !KEYWORDS.has(name))
         out.push({ name, start: i });
-      prev = name === 'is' ? 'is' : 'id';
+      // AFD-182: `x is not defined`: the test name follows `not` too.
+      prev = name === 'is' || (name === 'not' && prev === 'is') ? 'is' : 'id';
       i += name.length;
       continue;
     }
@@ -88,26 +89,103 @@ function identifiers(body: string): Token[] {
   return out;
 }
 
-/** Every variable the value's Jinja expressions read, in order of appearance. */
-export function parseRefs(value: string): string[] {
-  const names: string[] = [];
-  for (const m of value.matchAll(EXPRESSION))
-    for (const t of identifiers(m[0].slice(2, -2))) if (!names.includes(t.name)) names.push(t.name);
-  return names;
+/** `{{ … }}` or `{% … %}` (AFD-183: statements read and bind names too); comments are skipped. */
+const TAG = /\{\{([\s\S]*?)\}\}|\{%-?([\s\S]*?)-?%\}/g;
+const COMMENT = /\{#[\s\S]*?#\}/g;
+const NAME = /[A-Za-z_][A-Za-z0-9_]*/g;
+
+/**
+ * What a statement body reads and binds (AFD-183): `set x = …`, `for a, b in … if …`, `with a = …`
+ * and `macro m(args)` bind names the template then reads as its own; `if`, `elif`, loop sources and
+ * set values are reads. Other statements (endfor, else, filter, raw) read nothing.
+ */
+function statement(body: string): { reads: Token[]; binds: string[] } {
+  const head = /^\s*([a-z_]+)\b/.exec(body);
+  if (!head) return { reads: [], binds: [] };
+  const word = head[1] as string;
+  const restAt = head[0].length;
+  const rest = body.slice(restAt);
+  const shifted = (text: string, at: number) =>
+    identifiers(text).map((t) => ({ name: t.name, start: t.start + at }));
+  switch (word) {
+    case 'if':
+    case 'elif':
+    case 'do':
+      return { reads: shifted(rest, restAt), binds: [] };
+    case 'set': {
+      // `set ns.x = …` assigns into a namespace: ns is read, not bound.
+      const target = /^\s*([A-Za-z_][\w]*(?:\s*,\s*[A-Za-z_]\w*)*)\s*(?=[=]|$)/.exec(rest);
+      const eq = rest.indexOf('=');
+      const reads = eq < 0 ? [] : shifted(rest.slice(eq + 1), restAt + eq + 1);
+      if (!target)
+        return {
+          reads: [...shifted(rest.slice(0, eq < 0 ? undefined : eq), restAt), ...reads],
+          binds: [],
+        };
+      return { reads, binds: target[1]?.match(NAME) ?? [] };
+    }
+    case 'for': {
+      const m = /^\s*\(?\s*([\w\s,]+?)\s*\)?\s+in\s/.exec(rest);
+      if (!m) return { reads: shifted(rest, restAt), binds: [] };
+      const at = restAt + m[0].length;
+      const reads = shifted(body.slice(at), at).filter((t) => t.name !== 'recursive');
+      return { reads, binds: m[1]?.match(NAME) ?? [] };
+    }
+    case 'with': {
+      const binds = [...rest.matchAll(/([A-Za-z_]\w*)\s*=(?!=)/g)].map((m) => m[1] as string);
+      return { reads: shifted(rest, restAt), binds };
+    }
+    case 'macro': {
+      const m = /^\s*([A-Za-z_]\w*)\s*\(([^)]*)\)/.exec(rest);
+      const args = (m?.[2] ?? '').split(',').map((a) => a.split('=')[0]?.trim() ?? '');
+      return { reads: [], binds: [m?.[1] ?? '', ...args].filter(Boolean) };
+    }
+    default:
+      return { reads: [], binds: [] };
+  }
 }
 
-/** The value with reads of `from` renamed to `to` (attribute names and literals untouched). */
+/** Every variable the value's Jinja reads, in order of appearance, without names it binds itself. */
+export function parseRefs(value: string): string[] {
+  const names: string[] = [];
+  const bound = new Set<string>();
+  for (const m of value.replaceAll(COMMENT, '').matchAll(TAG)) {
+    if (m[1] !== undefined) {
+      for (const t of identifiers(m[1])) if (!names.includes(t.name)) names.push(t.name);
+      continue;
+    }
+    const s = statement(m[2] ?? '');
+    for (const b of s.binds) bound.add(b);
+    for (const t of s.reads) if (!names.includes(t.name)) names.push(t.name);
+  }
+  return bound.size ? names.filter((n) => !bound.has(n)) : names;
+}
+
+/**
+ * The value with reads of `from` renamed to `to` (attribute names and literals untouched), in
+ * expressions and statements alike; a name a statement binds is never renamed.
+ */
 export function renameRef(value: string, from: string, to: string): string {
-  return value.replaceAll(EXPRESSION, (expr) => {
-    const body = expr.slice(2, -2);
+  const rename = (body: string, tokens: Token[]) => {
     let out = '';
     let at = 0;
-    for (const t of identifiers(body)) {
+    for (const t of tokens) {
       if (t.name !== from) continue;
       out += body.slice(at, t.start) + to;
       at = t.start + from.length;
     }
-    return `{{${out}${body.slice(at)}}}`;
+    return out + body.slice(at);
+  };
+  // A name the template binds itself (a loop variable, a set) is its own: nothing to rename.
+  for (const m of value.matchAll(TAG))
+    if (m[2] !== undefined && statement(m[2]).binds.includes(from)) return value;
+  return value.replaceAll(TAG, (tag, expr: string | undefined, stmt: string | undefined) => {
+    if (expr !== undefined) return `{{${rename(expr, identifiers(expr))}}}`;
+    const body = stmt ?? '';
+    const s = statement(body);
+    const open = tag.startsWith('{%-') ? '{%-' : '{%';
+    const close = tag.endsWith('-%}') ? '-%}' : '%}';
+    return `${open}${rename(body, s.reads)}${close}`;
   });
 }
 

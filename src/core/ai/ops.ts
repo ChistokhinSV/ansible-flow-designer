@@ -11,8 +11,10 @@ import {
 } from '../flow/commands';
 import { completeIds } from '../flow/completeIds';
 import { flowFromFile } from '../flow/document';
+import { formatOf } from '../flow/format';
 import { annotationSize, nodeSize } from '../flow/geometry';
 import { type IdFactory, SLUG, slugify } from '../flow/ids';
+import { mapStrings } from '../flow/jinja';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { PATTERN_IDS, type PatternId } from '../flow/patterns';
 import { portDirection } from '../flow/ports';
@@ -31,6 +33,7 @@ import type {
   TextSize,
   Ulid,
 } from '../flow/types';
+import { acceptKey, acceptMatches, type Finding, validateFlow } from '../flow/validate';
 import { parseYaml, type YamlFile } from '../yaml/parse';
 import { YamlEditError } from '../yaml/transaction';
 import {
@@ -131,11 +134,24 @@ export type Op =
       goal?: string | null;
       owner?: string | null;
       maintenance_window?: string | null;
+      external_vars?: Record<string, string | null> | null;
     }
   | { op: 'set_entry'; subflow: string; node: string | null }
   | { op: 'add_exit'; from: string; port: string; reason?: string }
   | { op: 'remove_exit'; from: string; port: string }
   | { op: 'extract_subflow'; nodes: string[]; title: string; key?: string; position?: Place }
+  | { op: 'dissolve_subflow'; subflow: string }
+  | { op: 'rename'; keys: Record<string, string> }
+  | {
+      op: 'replace_text';
+      find: string;
+      replace: string;
+      regex?: boolean;
+      nodes?: string[];
+      level?: string;
+      in?: 'params' | 'keywords' | 'all';
+    }
+  | { op: 'regenerate' }
   | { op: 'move'; nodes?: Record<string, Place>; annotations?: Record<string, Place> }
   /** AFD-64: a Note (on a node), a Section or Text. */
   | {
@@ -219,6 +235,74 @@ function stateOf(text: string, file?: YamlFile): State {
   const doc = flowFromFile(f).doc;
   if (!doc) throw new RefError('The file is not a flow document (it does not parse as one)');
   return { text, file: f, model: buildModel(doc) };
+}
+
+/**
+ * AFD-191: a find/replace in bindings (params, keywords or both) of the named nodes, of a subflow's
+ * steps at any depth, or of the whole flow; one setBinding per node it changes.
+ */
+function replaceText(
+  st: State,
+  op: Extract<Op, { op: 'replace_text' }>,
+  notes: string[],
+): FlowCommand[] {
+  if (!op.find) throw new RefError('find is empty');
+  let re: RegExp | undefined;
+  if (op.regex)
+    try {
+      re = new RegExp(op.find, 'g');
+    } catch (e) {
+      throw new RefError(`find is not a regular expression: ${(e as Error).message}`);
+    }
+  const swap = (s: string) => (re ? s.replace(re, op.replace) : s.split(op.find).join(op.replace));
+  const scope = op.level ? subflowOf(st, op.level) : undefined;
+  const within = (id: Ulid) => {
+    for (
+      let at = st.model.nodes.get(id)?.level;
+      at && at !== ROOT;
+      at = st.model.nodes.get(at)?.level
+    )
+      if (at === scope) return true;
+    return false;
+  };
+  const targets = op.nodes?.length
+    ? op.nodes.map((n) => resolveNode(st.model, n).id)
+    : [...st.model.nodes.keys()].filter((id) => !scope || within(id));
+  const where = op.in ?? 'all';
+  const out: FlowCommand[] = [];
+  const changed: string[] = [];
+  for (const id of targets) {
+    const impl = st.model.nodes.get(id)?.node.impl;
+    if (!impl) continue;
+    const next: ImplBinding = { ...impl };
+    if (where !== 'keywords' && impl.params !== undefined)
+      next.params = mapStrings(impl.params, swap) as ImplBinding['params'];
+    if (where !== 'params' && impl.keywords !== undefined)
+      next.keywords = mapStrings(impl.keywords, swap) as ImplBinding['keywords'];
+    if (JSON.stringify(next) === JSON.stringify(impl)) continue;
+    out.push({ kind: 'setBinding', id, impl: next });
+    changed.push(keyPath(st.model, id));
+  }
+  if (out.length === 0)
+    throw new RefError(
+      `"${op.find}" is in no binding${op.nodes?.length ? ' of those nodes' : scope ? ` inside ${op.level}` : ''}`,
+    );
+  notes.push(
+    `replace_text changed ${changed.length} step(s): ${changed.slice(0, 20).join(', ')}${changed.length > 20 ? ', …' : ''}`,
+  );
+  return out;
+}
+
+/** Warnings of the flow as it stands, accepted ones included (AFD-184), once per text. */
+const warningsCache = new WeakMap<YamlFile, Finding[]>();
+function warningsOf(st: State): Finding[] {
+  const hit = warningsCache.get(st.file);
+  if (hit) return hit;
+  const found = validateFlow({ ...st.model.doc, decisions: [] }).findings.filter(
+    (f) => f.severity === 'warning',
+  );
+  warningsCache.set(st.file, found);
+  return found;
 }
 
 /** The wire leaving an output port, and the level it is on. */
@@ -543,6 +627,21 @@ async function commandsOf(
         const [code, ...rest] = what.split(':');
         const subject = rest.join(':') || undefined;
         if (!code) throw new RefError('Name the check: check:<code>[:<subject>]');
+        // AFD-184: an accept that covers no warning was stored and hid nothing; say which keys
+        // this node has instead.
+        if (accept && formatOf(st.model.doc) >= 2) {
+          const own = warningsOf(st).filter(
+            (f) => f.node === node.id && f.code !== 'open-fail-port',
+          );
+          if (!own.some((f) => acceptMatches(what, f))) {
+            const keys = [...new Set(own.map(acceptKey))];
+            throw new RefError(
+              keys.length
+                ? `${finding} matches no warning on ${keyPath(st.model, node.id)}; its warnings: ${keys.slice(0, 12).join(', ')}${keys.length > 12 ? ', …' : ''}`
+                : `${keyPath(st.model, node.id)} has no warning to accept (${finding})`,
+            );
+          }
+        }
         return accept
           ? [
               {
@@ -671,6 +770,28 @@ async function commandsOf(
       const node = resolveNode(st.model, op.node);
       return [{ kind: 'setBinding', id: node.id, impl: op.impl }];
     }
+    case 'dissolve_subflow':
+      return [{ kind: 'dissolveSubflow', id: subflowOf(st, op.subflow) }];
+    case 'rename': {
+      // AFD-196: several keys in one op; a key cannot take a name another one gives up here.
+      const entries = Object.entries(op.keys ?? {});
+      if (entries.length === 0)
+        throw new RefError('Name the keys: {"keys": {"old-key": "new-key"}}');
+      const olds = new Set(entries.map(([from]) => from.split('/').pop()));
+      const swap = entries.find(([, to]) => olds.has(to));
+      if (swap)
+        throw new RefError(`${swap[1]} is renamed in the same op: rename through a free key first`);
+      return entries.map(([from, to]) => ({
+        kind: 'updateNode',
+        id: resolveNode(st.model, from).id,
+        patch: { key: to },
+      }));
+    }
+    case 'regenerate':
+      // AFD-191: no change to the flow; flow_edit writes generated/ after the batch.
+      return [];
+    case 'replace_text':
+      return replaceText(st, op, notes);
     case 'move': {
       const entries = Object.entries(op.nodes ?? {});
       const notes = Object.entries(op.annotations ?? {});

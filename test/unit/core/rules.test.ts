@@ -227,3 +227,146 @@ describe('honest checks (AFD-31)', () => {
     expect(codes(straight.doc, 'ref-may-be-undefined')).toEqual([]);
   });
 });
+
+describe('fewer false unknown-variable findings (AFD-182..187)', () => {
+  const debug = (msg: string, keywords?: Record<string, unknown>): FlowNode['impl'] => ({
+    kind: 'module',
+    ref: 'ansible.builtin.debug',
+    params: { msg },
+    ...(keywords ? { keywords } : {}),
+  });
+  const unknown = (doc: FlowDocument) => codes(doc, 'binding-unknown-var').map((f) => f.subject);
+
+  it('Jinja tests, template locals and a set_fact that builds up its own value are not reads', () => {
+    const { doc } = flowOf(
+      [
+        {
+          key: 'a',
+          impl: debug('{% for d in devs %}{{ d.name }}{% endfor %}', { when: 'r is not skipped' }),
+        },
+        {
+          key: 'b',
+          impl: {
+            kind: 'module',
+            ref: 'ansible.builtin.set_fact',
+            params: { acc: '{{ acc | default([]) + [item] }}' },
+            keywords: { loop: [1, 2] },
+          },
+        },
+      ],
+      [
+        ['start', 'ok_hosts', 'a'],
+        ['a', 'ok_hosts', 'b'],
+        ['b', 'ok_hosts', 'done'],
+      ],
+    );
+    expect(unknown(doc)).toEqual(['devs', 'r']);
+  });
+
+  it("AWX variables and the flow's external_vars are known everywhere", () => {
+    const steps = [{ key: 'a', impl: debug('{{ awx_user_name }} {{ on_behalf_of }}') }];
+    const wires: [string, string, string][] = [
+      ['start', 'ok_hosts', 'a'],
+      ['a', 'ok_hosts', 'done'],
+    ];
+    expect(unknown(flowOf(steps, wires).doc)).toEqual(['on_behalf_of']);
+    const declared = flowOf(steps, wires).doc;
+    declared.flow.external_vars = { on_behalf_of: 'Kestra' };
+    expect(unknown(declared)).toEqual([]);
+    // Read only with a fallback: an info, not a warning (the task cannot fail on it).
+    const fallback = flowOf(
+      [{ key: 'a', impl: debug("{{ _pe_host | default(_targets | default('unknown')) }}") }],
+      wires,
+    ).doc;
+    expect(codes(fallback, 'binding-unknown-var').map((f) => [f.subject, f.severity])).toEqual([
+      ['_pe_host', 'info'],
+      ['_targets', 'info'],
+    ]);
+  });
+
+  it('a read guarded by "is defined", an optional input or a guarding decision is not flagged', () => {
+    const wires: [string, string, string][] = [
+      ['start', 'ok_hosts', 's'],
+      ['s', 'ok_hosts', 'p'],
+      ['s', 'failed_hosts', 'r'],
+      ['p', 'ok_hosts', 'r'],
+      ['r', 'ok_hosts', 'done'],
+    ];
+    const reader = (impl?: FlowNode['impl'], optional?: boolean) =>
+      flowOf(
+        [
+          { key: 's' },
+          { key: 'p', outputs: { v: { type: 'any' } } },
+          {
+            key: 'r',
+            inputs: { x: { type: 'any', from: 'p.v', ...(optional ? { optional } : {}) } as never },
+            ...(impl ? { impl } : {}),
+          },
+        ],
+        wires,
+      ).doc;
+    expect(codes(reader(debug('{{ x }}')), 'ref-may-be-undefined')).toHaveLength(1);
+    expect(
+      codes(reader(debug('{{ x }}', { when: 'x is defined' })), 'ref-may-be-undefined'),
+    ).toEqual([]);
+    expect(codes(reader(debug('{{ x }}'), true), 'ref-may-be-undefined')).toEqual([]);
+    // A decision on "v is defined" before the reader: hosts without it take false.
+    const { doc, ids } = flowOf(
+      [
+        { key: 's' },
+        { key: 'p', outputs: { v: { type: 'any' } } },
+        { key: 'g', inputs: { v: { type: 'any', from: 'p.v' } } },
+        { key: 'r', inputs: { x: { type: 'any', from: 'p.v' } }, impl: debug('{{ x }}') },
+      ],
+      [
+        ['start', 'ok_hosts', 's'],
+        ['s', 'ok_hosts', 'p'],
+        ['s', 'failed_hosts', 'g'],
+        ['p', 'ok_hosts', 'g'],
+        ['r', 'ok_hosts', 'done'],
+      ],
+    );
+    const gate = doc.nodes.find((n) => n.key === 'g') as FlowNode;
+    Object.assign(gate, { type: 'decision', condition: 'v is defined' });
+    doc.edges.push(
+      {
+        id: id(),
+        from: { node: ids.g as string, port: 'true' },
+        to: { node: ids.r as string, port: 'in' },
+      },
+      {
+        id: id(),
+        from: { node: ids.g as string, port: 'false' },
+        to: { node: ids.done as string, port: 'in' },
+      },
+    );
+    expect(codes(doc, 'ref-may-be-undefined')).toEqual([]);
+  });
+
+  it('flags playbook_dir in a binding: it is generated/ when the flow runs (AFD-176)', () => {
+    const { doc } = flowOf(
+      [{ key: 'a', impl: debug('{{ playbook_dir }}/tool.py') }],
+      [
+        ['start', 'ok_hosts', 'a'],
+        ['a', 'ok_hosts', 'done'],
+      ],
+    );
+    expect(codes(doc, 'binding-playbook-dir')[0]?.message).toContain('{{ afd_repo_root }}');
+  });
+
+  it('an accept without a subject covers every subject of its code on the node (AFD-184)', () => {
+    const { doc, ids } = flowOf(
+      [{ key: 'a', impl: debug('{{ one }} {{ two }}') }],
+      [
+        ['start', 'ok_hosts', 'a'],
+        ['a', 'ok_hosts', 'done'],
+      ],
+    );
+    const v2 = { ...doc, schema_version: 2 as const };
+    expect(unknown(v2)).toEqual(['one', 'two']);
+    v2.decisions = [
+      { kind: 'accepted', finding: 'check:binding-unknown-var', node: ids.a, reason: 'extra vars' },
+    ] as never;
+    expect(unknown(v2)).toEqual([]);
+  });
+});

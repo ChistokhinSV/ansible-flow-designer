@@ -101,6 +101,13 @@ export interface IncludeForm {
   when?: unknown[];
   keywords: Record<string, unknown>;
   tags: string[];
+  /** AFD-187: the include's own vars (they also reach every task read in). */
+  vars?: Record<string, unknown>;
+  /**
+   * AFD-177: what keeps a file that runs as include_tasks from working in generated/ (it reads
+   * playbook_dir, or includes files found only next to the playbook).
+   */
+  portability?: string[];
   origin: Origin;
 }
 
@@ -518,6 +525,8 @@ class Reader {
   private readonly roles = new Map<string, Promise<RoleInfo>>();
   /** Task files being read in, to stop an include cycle. */
   private readonly including: string[] = [];
+  /** AFD-179: task files that include themselves, at any depth; they run as include_tasks. */
+  private readonly cyclic = new Set<string>();
   private config?: AnsibleConfig;
   private collections: string[] = [];
 
@@ -858,24 +867,38 @@ class Reader {
     const target =
       typeof value === 'string' ? value.trim() : String(args.file ?? args._raw_params ?? '');
     const form: IncludeForm = { kind: 'include', name, file: target, keywords, tags, origin };
-    if (!target || isTemplated(target)) form.dynamic = 'its file name is templated';
-    else if (
-      keywords.loop !== undefined ||
-      Object.keys(keywords).some((k) => k.startsWith('with_'))
-    )
-      form.dynamic = 'it runs in a loop';
-    else if (depth >= 8) form.dynamic = 'includes nest deeper than 8';
-    if (form.dynamic) return form;
+    if (isMapping(raw.vars)) form.vars = toValue(raw.vars) as Record<string, unknown>;
+    if (!target || isTemplated(target)) {
+      form.dynamic = 'its file name is templated';
+      return form;
+    }
+    // AFD-179: the file is found first, so an include that cannot be read in can still run it.
     const candidates = [...new Set([join(dir, target), join(playDir, target)])];
-    for (const path of candidates) {
-      if (!(await exists(this.io, path))) continue;
-      if (this.including.includes(path)) {
-        form.dynamic = `${path} includes itself`;
-        return form;
+    let path: string | undefined;
+    for (const c of candidates)
+      if (await exists(this.io, c)) {
+        path = c;
+        break;
       }
-      const data = await this.readYaml(path);
+    const runAsIs = async (why: string) => {
+      form.dynamic = why;
+      if (path) {
+        form.path = path;
+        form.portability = await this.portability(path, playDir);
+      }
+      return form;
+    };
+    if (keywords.loop !== undefined || Object.keys(keywords).some((k) => k.startsWith('with_')))
+      return runAsIs('it runs in a loop');
+    if (depth >= 8) return runAsIs('includes nest deeper than 8');
+    if (path && this.including.includes(path)) {
+      this.cyclic.add(path);
+      return runAsIs(`${path} includes itself`);
+    }
+    for (const p of path ? [path] : []) {
+      const data = await this.readYaml(p);
       if (data === undefined) break;
-      form.path = path;
+      form.path = p;
       // import_tasks: its keywords reach every task in the file. include_tasks (AFD-149): its own
       // `when` is checked once and its tags select the include itself; only its vars and `apply`
       // (keywords for the tasks inside) reach them.
@@ -893,21 +916,56 @@ class Reader {
             toValue(w as Plain),
           );
       }
-      this.including.push(path);
-      form.items = await this.items(
+      this.including.push(p);
+      const items = await this.items(
         Array.isArray(data) ? data : [],
         inner,
-        dirname(path),
+        dirname(p),
         playDir,
-        path,
+        p,
         depth + 1,
       );
       this.including.pop();
+      // A file that includes itself, here or deeper, runs as include_tasks: a copy read in one
+      // level deep would not run as the source does.
+      if (this.cyclic.has(p)) return runAsIs(`${p} includes itself`);
+      form.items = items;
       form.keywords = {};
       return form;
     }
     form.dynamic = `${candidates[0]} was not found`;
     return form;
+  }
+
+  /**
+   * AFD-177: why a task file would not work from generated/: it reads playbook_dir, or includes a
+   * file Ansible finds only next to the playbook (not next to the file itself).
+   */
+  private async portability(path: string, playDir: string): Promise<string[]> {
+    const text = (await this.io.read(path)) ?? '';
+    const found: string[] = [];
+    if (/\bplaybook_dir\b/.test(text)) found.push('reads playbook_dir');
+    const data = await this.readYaml(path);
+    const nested = new Set<string>();
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (isMapping(v))
+        for (const [k, x] of Object.entries(v)) {
+          if (INCLUDES.has(shortName(k))) {
+            const f = typeof x === 'string' ? x : isMapping(x) ? (x.file ?? x._raw_params) : '';
+            if (typeof f === 'string' && f && !isTemplated(f) && !f.startsWith('/'))
+              nested.add(f.trim());
+          } else walk(x);
+        }
+    };
+    walk(data);
+    for (const f of nested)
+      if (
+        !(await exists(this.io, join(dirname(path), f))) &&
+        (await exists(this.io, join(playDir, f)))
+      )
+        found.push(`includes ${f} relative to the playbook`);
+    return found;
   }
 
   private async role(

@@ -25,7 +25,7 @@ import { planSegments, type Segment } from '../flow/segments';
 import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import { plainText } from '../view/markdown';
-import { bindingTask, inputVars, stubFacts } from './binding';
+import { bindingTask, inputVars, isIncludeTasks, stubFacts } from './binding';
 import { effectiveTargets } from './targets';
 import type {
   Engine,
@@ -647,7 +647,12 @@ class Generator {
         },
       );
     } else {
-      const vars: OutMap = { flow_node_id: node.id, afd_arriving: arriving, ...inputs };
+      const vars: OutMap = {
+        flow_node_id: node.id,
+        afd_arriving: arriving,
+        ...this.repoRoot(node),
+        ...inputs,
+      };
       if (this.opts.simulate) {
         const key = [...ctx.path, node.key].join('/');
         vars.afd_sim = `{{ (afd_simulate | default({}))['${key}'] | default({}) }}`;
@@ -705,6 +710,7 @@ class Generator {
                     : failedOnTarget,
                 },
               },
+              failureRecord(node, [...ctx.path, node.key].join('/')),
             ],
           },
         ],
@@ -753,6 +759,17 @@ class Generator {
         'ansible.builtin.set_fact': { [o]: `{{ hostvars[afd_target_done | first].${o} }}` },
         when: `afd_target_done | length > 0 and hostvars[afd_target_done | first].${o} is defined`,
       });
+    // AFD-186: the arriving hosts take the target's failure, so the step on failed_hosts reads it.
+    tasks.push({
+      name: `[${node.key}] failure from the target`,
+      'ansible.builtin.set_fact': Object.fromEntries(
+        FAILURE_FACTS.map((f) => [
+          f,
+          `{{ hostvars[afd_target_failed | first].${f} | default(none) }}`,
+        ]),
+      ),
+      when: 'afd_target_failed | length > 0',
+    });
     tasks.push(...failPorts.flatMap((p) => this.portComment(ctx, node, p)), {
       name: `[${node.key}] route ${['ok_hosts', ...failPorts].join(', ')}`,
       'ansible.builtin.group_by': {
@@ -913,7 +930,11 @@ class Generator {
 
   private play(ctx: LevelCtx, node: FlowNode, hosts: string[], edges: Edge[]): OutMap {
     const tag = `node_${node.id}`;
-    const vars: OutMap = { flow_node_id: node.id, ...inputVars(this.model, ctx.level.id, node) };
+    const vars: OutMap = {
+      flow_node_id: node.id,
+      ...this.repoRoot(node),
+      ...inputVars(this.model, ctx.level.id, node),
+    };
     if (this.opts.simulate) {
       const key = [...ctx.path, node.key].join('/');
       vars.afd_sim = `{{ (afd_simulate | default({}))['${key}'] | default({}) }}`;
@@ -970,6 +991,23 @@ class Generator {
       'ansible.builtin.set_fact': { [name]: `{{ ${out} }}` },
       when: `${out} is defined`,
     }));
+  }
+
+  /**
+   * AFD-177: `afd_repo_root`, the repository as an absolute path, for a step whose code reads it
+   * or runs files the flow cannot see (a task file, a role). playbook_dir is generated/ and Ansible
+   * does not let a play change it; shared files use `{{ afd_repo_root | default(playbook_dir) }}`.
+   */
+  private repoRoot(node: FlowNode): OutMap {
+    const impl = node.impl;
+    if (!impl?.ref || impl.kind === 'playbook') return {};
+    const reads =
+      impl.kind === 'role' ||
+      isIncludeTasks(impl.ref) ||
+      JSON.stringify([impl.params ?? null, impl.keywords ?? null]).includes('afd_repo_root');
+    if (!reads) return {};
+    const root = (this.opts.root ?? '../../..').replace(/\/+$/, '');
+    return { afd_repo_root: `{{ (playbook_dir ~ '/${root}') | ansible.builtin.realpath }}` };
   }
 
   private taskTasks(ctx: LevelCtx, node: FlowNode): Out[] {
@@ -1043,6 +1081,7 @@ class Generator {
       ),
       ...counted,
       choose(node, failChoices, { group: on('failed_hosts'), port: 'failed_hosts' }),
+      failureRecord(node, [...ctx.path, node.key].join('/')),
     ];
     const countUnreachable: Out[] =
       failedHere && unreachableHere
@@ -1380,6 +1419,25 @@ interface Choice {
   test: string;
   group: string;
   port: string;
+}
+
+/** AFD-186: what a step's rescue keeps of a failure, as host facts later plays can read. */
+const FAILURE_FACTS = ['afd_failed_result', 'afd_failed_task', 'afd_failed_node'] as const;
+
+/**
+ * The failure as host facts (AFD-186): every step is its own play, so the step its failed_hosts
+ * lead to cannot see ansible_failed_result. Written after the routing, and never fails the rescue.
+ */
+function failureRecord(node: FlowNode, keyPath: string): OutMap {
+  return {
+    name: `[${node.key}] keep the failure`,
+    'ansible.builtin.set_fact': {
+      afd_failed_result: '{{ ansible_failed_result | default({}) }}',
+      afd_failed_task: "{{ ansible_failed_task.name | default('') }}",
+      afd_failed_node: keyPath,
+    },
+    ignore_errors: true,
+  };
 }
 
 function route(node: FlowNode, port: string, group: string): OutMap {

@@ -21,6 +21,7 @@ import type { SourceIO } from '../core/import/read';
 import { resolveEnvironment, settingsFromJson } from '../core/run/environment';
 import { followPaths, pathChanges } from '../core/scenario/follow';
 import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
+import { flowFacts } from '../core/view/flowFacts';
 import { applyEdits } from '../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../node/autoLayout';
 import { environmentSettings } from '../node/env/userSettings';
@@ -291,7 +292,7 @@ export class FsFlowIO implements FlowIO {
     const text = applyEdits(after, plan.edits);
     await this.replace(file, text);
     const followed = await this.followScenarios(file, before, text);
-    return { text, notes: [...followed, ...(await this.generate(file, text))] };
+    return { text, notes: [...followed, ...(await this.writeGenerated(file, text))] };
   }
 
   /** AFD-115: steps renamed or moved are renamed in the scenarios file next to the flow too. */
@@ -335,13 +336,48 @@ export class FsFlowIO implements FlowIO {
     }
     await fs.mkdir(dirname(file), { recursive: true });
     await this.replace(file, text);
-    return { text, notes: await this.generate(file, text) };
+    return { text, notes: await this.writeGenerated(file, text) };
+  }
+
+  /** AFD-191: generated/ from the flow as it is now, as a save writes it. */
+  async generate(path: string): Promise<string[]> {
+    const file = await this.locate(path);
+    const notes = await this.writeGenerated(file, await fs.readFile(file, 'utf8'), true);
+    return notes.length ? notes : ['generated/: already current'];
+  }
+
+  /** AFD-191: whether generated/ matches the flow (current, out of date, edited by hand, …). */
+  async codeState(path: string): Promise<string | undefined> {
+    const file = await this.locate(path);
+    const dir = join(dirname(file), 'generated');
+    const root = this.roots.find((r) => inside(r, file)) ?? dirname(file);
+    const facts = await flowFacts(
+      await fs.readFile(file, 'utf8'),
+      this.schema,
+      {
+        read: (name) => fs.readFile(join(dir, name), 'utf8').catch(() => undefined),
+        list: () => fs.readdir(dir).catch(() => []),
+      },
+      { source: basename(file), root: posix(relative(dir, root)) || '.' },
+    );
+    switch (facts.code) {
+      case 'current':
+        return 'current';
+      case 'out of date':
+        return 'out of date: run flow_edit with the regenerate op';
+      case 'edited by hand':
+        return `edited by hand (${facts.kept.join(', ')}): kept until you overwrite them`;
+      case 'no code yet':
+        return 'none yet: the regenerate op writes it';
+      default:
+        return 'blocked by errors: fix them and the code is written on the next edit';
+    }
   }
 
   /** generated/ next to the flow, as the designer writes it on save (unless turned off). */
-  private async generate(file: string, text: string): Promise<string[]> {
+  private async writeGenerated(file: string, text: string, asked = false): Promise<string[]> {
     const root = this.roots.find((r) => inside(r, file)) ?? dirname(file);
-    if (!(await this.codegenOnSave(root)))
+    if (!asked && !(await this.codegenOnSave(root)))
       return ['generated/ not updated (afd.codegen.onSave is off)'];
     const dir = join(dirname(file), 'generated');
     // AFD-137: generated/ may be a link only to a folder inside the roots.

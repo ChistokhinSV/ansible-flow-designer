@@ -10,7 +10,7 @@ import { YamlEditError, YamlTransaction } from '../yaml/transaction';
 import { annotationValue, nextAnnotationKey, TIE_OFFSET } from './annotations';
 import { levelTaken, openOnPurpose, portKey, untakenFailPorts } from './bubbling';
 import { parseClip } from './clipboard';
-import { enclosing, readerLevel } from './dataRefs';
+import { enclosing, liftOf, readerLevel, resolveFrom } from './dataRefs';
 import {
   acceptedAll,
   acceptedOf,
@@ -23,11 +23,13 @@ import {
 import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameExprRef, renameRef } from './jinja';
+import { BARE_KEYWORDS } from './keywords';
 import { existingLift, liftField, liftName } from './lift';
 import { CURRENT_FORMAT, FormatError, formatOf, migrate } from './migrate';
 import { buildModel, type FlowModel, keyScope, type Level, ROOT } from './model';
 import { findEnd, type NodeRecipe, type PatternId, patternFits, recipeFor } from './patterns';
 import {
+  isExitName,
   isFailPort,
   isPortLegal,
   LEGACY_PORTS,
@@ -244,6 +246,8 @@ export type FlowCommand =
       /** Positions of nodes still shown at auto-layout positions, written in the same edit. */
       freeze?: Record<Ulid, Position>;
     }
+  /** AFD-196: move a subflow's steps up to its level and remove the subflow (inverse of extract). */
+  | { kind: 'dissolveSubflow'; id: Ulid }
   /** AFD-7: move a connected selection of one level into a new subflow node. */
   | {
       kind: 'extractSubflow';
@@ -306,6 +310,11 @@ export interface FlowPatch {
   runtime?: NonNullable<FlowDocument['flow']['runtime']> | null;
   /** Timing lens (M8): `4h`, `2h30m`; null removes it. */
   maintenance_window?: string | null;
+  /**
+   * AFD-185: variables set outside the flow at run time, merged by name: name -> where it comes
+   * from, null removes that name; null for the whole map removes them all.
+   */
+  external_vars?: Record<string, string | null> | null;
 }
 
 export interface CommandContext {
@@ -357,6 +366,7 @@ const FLOW_ORDER = [
   'imported_from',
   'maintenance_window',
   'inputs',
+  'external_vars',
 ];
 const SUBFLOW_ORDER = ['nodes', 'edges', 'annotations', 'layout', 'boundary'];
 const ROOT_ORDER = [
@@ -454,6 +464,8 @@ type Op = (f: YamlFile) => OpResult;
 function enablePortOps(st: State, id: Ulid, port: string): Op[] {
   const { node, path } = nodeAt(st, id);
   if (portsFor(node).some((p) => p.name === port)) return [];
+  // AFD-181: a named exit exists through the boundary output that names it.
+  if (node.type === 'subflow' && isExitName(port)) return [];
   if (!optionalPortNames(node.type).includes(port)) {
     throw new CommandError('bad-port', `${node.type} nodes have no port "${port}"`);
   }
@@ -1272,6 +1284,94 @@ function deleteNodesAtOnce(tx: YamlTransaction, ids: readonly Ulid[]): number {
   return top.length;
 }
 
+/** A field whose from: reads a node a delete removes (AFD-193). */
+interface DanglingRef {
+  node: Ulid;
+  side: 'inputs' | 'outputs';
+  name: string;
+  /** What it read, for the note. */
+  read: string;
+}
+
+/**
+ * AFD-193: the fields that read what a delete removes: subflow outputs that lift a deleted step
+ * (and, in turn, whatever reads those outputs), and inputs whose from: names a deleted node.
+ */
+function danglingRefs(st: State, ids: readonly Ulid[]): DanglingRef[] {
+  const gone = new Set<Ulid>();
+  for (const id of ids) {
+    const entry = st.model.nodes.get(id);
+    if (!entry) continue;
+    gone.add(id);
+    for (const d of descendantIds(entry.node)) gone.add(d);
+  }
+  if (gone.size === 0) return [];
+  const out: DanglingRef[] = [];
+  const dead = new Set<string>();
+  const reads = (node: FlowNode, level: string, side: 'inputs' | 'outputs', name: string) => {
+    const field = node[side]?.[name];
+    if (side === 'outputs' && node.type === 'subflow' && !field?.from) {
+      const lift = liftOf(node, name);
+      return lift && 'inner' in lift ? { node: lift.inner.id, output: lift.output } : undefined;
+    }
+    if (!field?.from) return undefined;
+    const src = resolveFrom(st.model, node, level, side, field.from);
+    return src.kind === 'output' ? { node: src.node.id, output: src.name ?? '' } : undefined;
+  };
+  // Repeat until nothing more falls: a lifted output that goes takes its readers with it.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const { node, level } of st.model.nodes.values()) {
+      if (gone.has(node.id)) continue;
+      for (const side of ['inputs', 'outputs'] as const)
+        for (const name of Object.keys(node[side] ?? {})) {
+          const id = `${node.id}|${side}|${name}`;
+          if (dead.has(id)) continue;
+          const t = reads(node, level, side, name);
+          if (!t || !(gone.has(t.node) || dead.has(`${t.node}|outputs|${t.output}`))) continue;
+          dead.add(id);
+          grew = true;
+          out.push({
+            node: node.id,
+            side,
+            name,
+            read: node[side]?.[name]?.from ?? `${st.model.nodes.get(t.node)?.node.key}.${t.output}`,
+          });
+        }
+    }
+  }
+  return out;
+}
+
+/**
+ * AFD-193: after a delete, a subflow output that lifted a deleted step goes, and a field that read
+ * a deleted node keeps no from (input-unfed then names it), each with a note.
+ */
+function dropDangling(tx: YamlTransaction, refs: DanglingRef[], notes: string[]): void {
+  if (refs.length === 0) return;
+  const st = state(tx);
+  const ops: Op[] = [];
+  for (const r of refs) {
+    const entry = st.model.nodes.get(r.node);
+    if (!entry?.node[r.side]?.[r.name]) continue;
+    if (r.side === 'outputs' && entry.node.type === 'subflow') {
+      const all = Object.keys(entry.node.outputs ?? {});
+      ops.push((f) =>
+        all.length === 1
+          ? deleteKey(f, entry.path, 'outputs')
+          : deleteKey(f, [...entry.path, 'outputs'], r.name),
+      );
+      notes.push(`Removed output ${entry.node.key}.${r.name}: it lifted ${r.read}, which is gone`);
+    } else {
+      ops.push((f) => deleteKey(f, [...entry.path, r.side, r.name], 'from'));
+      notes.push(
+        `${entry.node.key}.${r.side}.${r.name} read ${r.read}, which is gone: it has no from now`,
+      );
+    }
+  }
+  if (ops.length) tx.applyAll(ops);
+}
+
 function deleteNode(tx: YamlTransaction, id: Ulid): void {
   // Everything below is computed against one parse: the regions (edges, decisions, layout, the
   // node itself) are disjoint, so one batch replaces a re-parse per removed item.
@@ -1651,6 +1751,28 @@ function setContractField(
         key === 'until' ? renameExprRef(v, cmd.name, name) : renameRef(v, cmd.name, name);
       if (next !== v) tx.apply((f) => setIn(f, [...base, 'settings', key], next));
     }
+    // And task keywords (when, loop, …: when and its kind are bare expressions) and a
+    // decision's condition, which read inputs by name as well.
+    const renamed = nodeAt(state(tx), cmd.target).node;
+    const keywords = renamed.impl?.keywords;
+    if (keywords) {
+      const next = Object.fromEntries(
+        Object.entries(keywords).map(([k, v]) => [
+          k,
+          mapStrings(v, (s) =>
+            BARE_KEYWORDS.has(k) && !s.includes('{{')
+              ? renameExprRef(s, cmd.name, name)
+              : renameRef(s, cmd.name, name),
+          ),
+        ]),
+      );
+      if (JSON.stringify(next) !== JSON.stringify(keywords))
+        tx.apply((f) => setIn(f, [...base, 'impl', 'keywords'], next as YamlValue));
+    }
+    if (typeof renamed.condition === 'string') {
+      const next = renameExprRef(renamed.condition, cmd.name, name);
+      if (next !== renamed.condition) tx.apply((f) => setIn(f, [...base, 'condition'], next));
+    }
   }
   const after_ = state(tx);
   const side =
@@ -1752,6 +1874,23 @@ function updateFlow(tx: YamlTransaction, patch: FlowPatch): void {
         `"${patch.maintenance_window}" is not a duration like 4h or 2h30m`,
       );
     setField(tx, ['flow'], 'maintenance_window', w, FLOW_ORDER);
+  }
+  if (patch.external_vars !== undefined) {
+    const merged: Record<string, string> = { ...(state(tx).doc.flow?.external_vars ?? {}) };
+    if (patch.external_vars === null) for (const k of Object.keys(merged)) delete merged[k];
+    for (const [name, where] of Object.entries(patch.external_vars ?? {})) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
+        throw new CommandError('bad-name', `"${name}" is not a variable name`);
+      if (where === null) delete merged[name];
+      else merged[name] = String(where).trim() || 'set at run time';
+    }
+    setField(
+      tx,
+      ['flow'],
+      'external_vars',
+      Object.keys(merged).length ? (merged as YamlValue) : null,
+      FLOW_ORDER,
+    );
   }
 }
 
@@ -1873,8 +2012,12 @@ function connectBoundary(
   const { node, level } = subflowAt(st, cmd.subflow);
   if (nodeAt(st, cmd.from.node).level !== level.id)
     throw new CommandError('cross-level', 'Only a step inside the subflow can leave through it');
-  if (!isPortLegal(node, cmd.port) || portDirection(cmd.port) !== 'out')
-    throw new CommandError('bad-port', `${node.title} has no output "${cmd.port}"`);
+  // AFD-181: a new name opens a named exit of the subflow.
+  if (!(isPortLegal(node, cmd.port) || isExitName(cmd.port)) || portDirection(cmd.port) !== 'out')
+    throw new CommandError(
+      'bad-port',
+      `${node.title} has no output "${cmd.port}"; a named exit takes lowercase letters, digits and _ and no port name (dry_run_done)`,
+    );
   if (exitOf(st, level, cmd.from) === cmd.port) return;
   checkOutput(st, cmd.from);
   const boundary = node.subflow?.boundary ?? {};
@@ -2010,12 +2153,22 @@ function extractSubflow(
       );
     dest.set(port, where);
   };
-  for (const e of outgoing)
-    claim(
-      exitPort(e.from.port),
-      `node:${portKey(e.to.node, e.to.port)}`,
-      `${title(e.from.node)}.${e.from.port}`,
-    );
+  // AFD-181: normal hosts that leave for another place than the rest get a named exit, after the
+  // step and port they leave by; failures still share their port.
+  const exitFor = new Map<Ulid, string>();
+  for (const e of outgoing) {
+    const where = `node:${portKey(e.to.node, e.to.port)}`;
+    let port = exitPort(e.from.port);
+    const had = dest.get(port);
+    if (had !== undefined && had !== where && !isFailPort(port)) {
+      const key = st.model.nodes.get(e.from.node)?.node.key ?? 'step';
+      const base = `${key.replaceAll('-', '_')}_${e.from.port}`;
+      port = isExitName(base) ? base : `exit_${base}`;
+      for (let i = 2; dest.has(port) && dest.get(port) !== where; i++) port = `${base}_${i}`;
+    }
+    claim(port, where, `${title(e.from.node)}.${e.from.port}`);
+    exitFor.set(e.id, port);
+  }
   for (const x of enclosing)
     claim(exitPort(x.ref.port), `leave:${x.leaves}`, `${title(x.ref.node)}.${x.ref.port}`);
 
@@ -2078,7 +2231,7 @@ function extractSubflow(
       list.push({ node: ref.node, port: ref.port, ...(ref.reason ? { reason: ref.reason } : {}) });
   };
   for (const e of outgoing)
-    addExit(exitPort(e.from.port), { node: e.from.node, port: e.from.port });
+    addExit(exitFor.get(e.id) ?? exitPort(e.from.port), { node: e.from.node, port: e.from.port });
   for (const x of enclosing) addExit(exitPort(x.ref.port), x.ref);
 
   const docNodes = level.nodes.filter((n) => n && picked.has(n.id));
@@ -2133,7 +2286,7 @@ function extractSubflow(
   const keptExit = new Set<string>();
   const dropEdge = new Set(inner.map((e) => e.id));
   for (const e of outgoing) {
-    const port = exitPort(e.from.port);
+    const port = exitFor.get(e.id) ?? exitPort(e.from.port);
     if (keptExit.has(port)) dropEdge.add(e.id);
     else keptExit.add(port);
   }
@@ -2148,7 +2301,7 @@ function extractSubflow(
     if (incoming.includes(e)) ops.push((f) => setIn(f, [...path, 'to', 'node'], id));
     if (outgoing.includes(e)) {
       ops.push((f) => setIn(f, [...path, 'from', 'node'], id));
-      const port = exitPort(e.from.port);
+      const port = exitFor.get(e.id) ?? exitPort(e.from.port);
       if (port !== e.from.port) ops.push((f) => setIn(f, [...path, 'from', 'port'], port));
     }
   });
@@ -2183,6 +2336,211 @@ function extractSubflow(
   // others would otherwise be stacked below it (ADR-0002).
   setPositions(tx, { ...cmd.freeze, ...(cmd.position ? { [id]: cmd.position } : {}) });
   return { id, rewritten: [...new Set(rewrites.map((r) => r.node))] };
+}
+
+/**
+ * AFD-196: a subflow's steps move up to its level, keeping their IDs, and the subflow goes: wires
+ * into it go to its entry step, each of its exits becomes wires from the inner ports that left by
+ * it (a fail port that bubbled out included), and from: references follow (a reader of what the
+ * subflow lifted reads the inner step; an inner step that read the subflow's input reads where that
+ * input came from). Returns the nodes whose references were rewritten.
+ */
+function dissolveSubflow(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  id: Ulid,
+  notes: string[],
+): Ulid[] {
+  const st = state(tx);
+  const { node: sub, level: levelId } = nodeAt(st, id);
+  if (sub.type !== 'subflow') throw new CommandError('bad-type', `${sub.title} is not a subflow`);
+  if (sub.ref)
+    throw new CommandError(
+      'shared',
+      `${sub.title} is a shared subflow: unlink it before dissolving`,
+    );
+  const inner = st.model.levels.get(sub.id);
+  const steps = (sub.subflow?.nodes ?? []).filter((n): n is FlowNode => !!n?.id);
+  if (!inner || steps.length === 0)
+    throw new CommandError('empty', `${sub.title} has no steps to move up: delete it instead`);
+  const level = levelOf(st, levelId);
+  const taken = new Set(level.nodes.filter((n) => n && n.id !== sub.id).map((n) => n.key));
+  const clash = steps.filter((n) => taken.has(n.key)).map((n) => n.key);
+  if (clash.length)
+    throw new CommandError(
+      'key-clash',
+      `${clash.join(', ')} ${clash.length === 1 ? 'is' : 'are'} taken on the level ${sub.key} is on: rename first (the rename op)`,
+    );
+  const boundary = sub.subflow?.boundary ?? {};
+  const entry = boundary.in;
+  const incoming = level.edges.filter((e) => e?.to?.node === sub.id);
+  if (incoming.length && !entry)
+    throw new CommandError('no-entry', `${sub.title} has no entry step: set_entry first`);
+
+  // The inner ports each subflow port stood for: its exits, and fail ports that bubbled to it.
+  const innerTaken = levelTaken(inner.edges, sub);
+  const sourcesOf = (port: string): PortRef[] => {
+    const out = (boundary.outputs?.[port] ?? []).map((r) => ({ node: r.node, port: r.port }));
+    for (const n of steps)
+      for (const p of untakenFailPorts(n, innerTaken))
+        if (p === port && isFailPort(port) && !out.some((r) => r.node === n.id && r.port === p))
+          out.push({ node: n.id, port: p });
+    return out;
+  };
+  const outgoing = level.edges.filter((e) => e?.from?.node === sub.id);
+
+  // from: rewrites, worked out on the flow as it is.
+  const rewrites: { node: Ulid; side: 'inputs' | 'outputs'; name: string; value: string | null }[] =
+    [];
+  const insideIds = new Set(descendantIds(sub));
+  for (const other of st.model.nodes.values()) {
+    if (other.node.id === sub.id) continue;
+    for (const side of ['inputs', 'outputs'] as const)
+      for (const [name, field] of Object.entries(other.node[side] ?? {})) {
+        const from = field?.from;
+        if (!from) continue;
+        const src = resolveFrom(st.model, other.node, other.level, side, from);
+        const rest = from.split('.').slice(2);
+        if (src.kind === 'output' && src.node.id === sub.id && !insideIds.has(other.node.id)) {
+          const lift = src.name ? liftOf(sub, src.name) : undefined;
+          rewrites.push({
+            node: other.node.id,
+            side,
+            name,
+            value:
+              lift && 'inner' in lift
+                ? [lift.inner.key, lift.output, ...lift.path, ...rest].join('.')
+                : null,
+          });
+        } else if (src.kind === 'subflowInput' && src.node.id === sub.id) {
+          const up = src.field.from?.trim();
+          rewrites.push({
+            node: other.node.id,
+            side,
+            name,
+            value: up ? [up, ...src.path].join('.') : null,
+          });
+        }
+      }
+  }
+
+  // Wires: into the subflow go to its entry; out of it, from each inner port it stood for.
+  const parentNode = level.parent ? st.model.nodes.get(level.parent)?.node : undefined;
+  const added: Record<string, YamlValue>[] = [];
+  for (const e of outgoing)
+    for (const src of sourcesOf(e.from.port)) added.push(edgeItem(ctx, src, e.to));
+  for (const e of inner.edges)
+    if (e?.id)
+      added.push({
+        id: e.id,
+        from: { node: e.from.node, port: e.from.port },
+        to: { node: e.to.node, port: e.to.port },
+      });
+  const unwired = outgoing.filter((e) => sourcesOf(e.from.port).length === 0);
+  const ops: Op[] = [];
+  const dropIdx = level.edges
+    .map((e, i) => (e && e.from?.node === sub.id ? i : -1))
+    .filter((i) => i >= 0);
+  level.edges.forEach((e, i) => {
+    if (e?.to?.node === sub.id && entry)
+      ops.push((f) => setIn(f, [...level.edgesPath, i, 'to', 'node'], entry));
+  });
+  ops.push(...removeIndexes(level.edgesPath, dropIdx, level.edges.length));
+  const decisions = st.doc.decisions ?? [];
+  const decisionIdx = decisions.map((d, i) => (d?.node === sub.id ? i : -1)).filter((i) => i >= 0);
+  if (decisionIdx.length && decisionIdx.length === decisions.length)
+    ops.push((f) => deleteKey(f, [], 'decisions'));
+  else if (decisionIdx.length) ops.push((f) => removeItems(f, ['decisions'], decisionIdx));
+  const layout = st.doc.layout ?? {};
+  if (sub.id in layout)
+    ops.push((f) =>
+      Object.keys(layout).length === 1
+        ? deleteKey(f, [], 'layout')
+        : deleteKey(f, ['layout'], sub.id),
+    );
+  tx.applyAll(ops);
+
+  // The steps where the subflow was, the new wires, the inner notes.
+  const subAt = (lv: Level) => lv.nodes.findIndex((n) => n?.id === sub.id);
+  let lv = levelOf(state(tx), levelId);
+  const at = subAt(lv);
+  tx.apply((f) => removeItem(f, lv.nodesPath, at));
+  steps.forEach((n, i) => {
+    lv = levelOf(state(tx), levelId);
+    const value = n as unknown as YamlValue;
+    tx.apply((f) =>
+      lv.nodes.length === 0
+        ? setIn(f, lv.nodesPath, [value])
+        : insertItem(f, lv.nodesPath, at + i, value),
+    );
+  });
+  for (const e of added) {
+    lv = levelOf(state(tx), levelId);
+    tx.apply((f) =>
+      lv.edges.length === 0
+        ? setIn(f, lv.edgesPath, [e])
+        : insertItem(f, lv.edgesPath, lv.edges.length, e),
+    );
+  }
+  for (const a of inner.annotations.filter((x) => x?.id)) {
+    lv = levelOf(state(tx), levelId);
+    const value = annotationValue(a);
+    tx.apply((f) =>
+      lv.annotations.length === 0
+        ? setIn(f, lv.annotationsPath, [value])
+        : insertItem(f, lv.annotationsPath, lv.annotations.length, value),
+    );
+  }
+
+  // The enclosing subflow's boundary: the entry and the exits the subflow stood in for.
+  if (parentNode?.subflow?.boundary) {
+    const b = parentNode.subflow.boundary;
+    const next: Boundary = {
+      in: b.in === sub.id ? entry : b.in,
+      outputs: Object.fromEntries(
+        Object.entries(b.outputs ?? {}).map(([port, refs]) => [
+          port,
+          (refs ?? []).flatMap((r) =>
+            r.node === sub.id
+              ? sourcesOf(r.port).map((x) => ({ ...x, ...(r.reason ? { reason: r.reason } : {}) }))
+              : [r],
+          ),
+        ]),
+      ),
+    };
+    tx.applyAll(boundaryOps(state(tx), parentNode.id, next));
+  }
+
+  // References last, at their paths in the new document.
+  const now = state(tx);
+  const refOps: Op[] = [];
+  for (const r of rewrites) {
+    const entryNow = now.model.nodes.get(r.node);
+    if (!entryNow?.node[r.side]?.[r.name]) continue;
+    const base = [...entryNow.path, r.side, r.name];
+    refOps.push((f) =>
+      r.value === null ? deleteKey(f, base, 'from') : setIn(f, [...base, 'from'], r.value),
+    );
+    if (r.value === null)
+      notes.push(
+        `${entryNow.node.key}.${r.side}.${r.name} read ${sub.key}, which passed nothing on: it has no from now`,
+      );
+  }
+  if (refOps.length) tx.applyAll(refOps);
+
+  notes.push(
+    `${sub.key} dissolved: ${steps.map((n) => n.key).join(', ')} moved up${entry ? `; wires into it go to ${steps.find((n) => n.id === entry)?.key}` : ''}`,
+  );
+  if (unwired.length)
+    notes.push(
+      `${unwired.map((e) => `${sub.key}.${e.from.port}`).join(', ')} had a wire but no inner port left by it: the wire is gone`,
+    );
+  const settings = Object.keys(sub.settings ?? {});
+  if (settings.length)
+    notes.push(
+      `${sub.key} had settings (${settings.join(', ')}) that no longer apply to its steps`,
+    );
+  return [...new Set(rewrites.map((r) => r.node))];
 }
 
 // ---- shared subflows (AFD-60) -------------------------------------------------------------
@@ -2794,6 +3152,8 @@ export function planCommand(
       deleteNode(tx, cmd.id);
       break;
     case 'deleteNodes': {
+      // AFD-193: what reads the nodes going away, found before they go.
+      const dangling = danglingRefs(state(tx), cmd.ids);
       // Wires first; each item is looked up again, so a wire of a deleted node or the child of a
       // deleted subflow is simply gone already.
       let removed = removeEdgesAtOnce(tx, cmd.edges ?? []);
@@ -2810,6 +3170,7 @@ export function planCommand(
       }
       removed += deleteAnnotations(tx, cmd.annotations ?? []);
       if (removed === 0) throw new CommandError('not-found', 'Nothing to delete');
+      dropDangling(tx, dangling, notes);
       break;
     }
     case 'moveNodes':
@@ -2940,6 +3301,9 @@ export function planCommand(
       setField(tx, path, 'ref', null, NODE_ORDER);
       break;
     }
+    case 'dissolveSubflow':
+      rereferenced.push(...dissolveSubflow(tx, ctx, cmd.id, notes));
+      break;
     case 'extractSubflow': {
       const r = extractSubflow(tx, ctx, cmd);
       created = r.id;

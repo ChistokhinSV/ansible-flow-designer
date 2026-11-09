@@ -154,14 +154,42 @@ export function portSpec(name: string, optional = false): PortSpec {
  * Ports a node shows: type defaults plus the optional ports enabled in `ports:`.
  * Names in `ports:` that the type does not support are left out (the validator reports them).
  */
-export function portsFor(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>): PortSpec[] {
+export function portsFor(node: PortNode): PortSpec[] {
   const defaults = defaultPortNames(node);
   const allowed = OPTIONAL[node.type];
   const specs = defaults.map((name) => portSpec(name));
   for (const name of allowed) {
     if (node.ports?.includes(name) && !defaults.includes(name)) specs.push(portSpec(name, true));
   }
+  for (const name of namedExits(node)) specs.push(portSpec(name));
   return specs;
+}
+
+/** What the port functions read of a node; a subflow's named exits come from its boundary. */
+export type PortNode = Pick<FlowNode, 'type' | 'branches' | 'ports'> & {
+  subflow?: FlowNode['subflow'];
+};
+
+/** Every port name a node type knows (a named exit may not take one). */
+const KNOWN_PORTS: ReadonlySet<string> = new Set([
+  ...Object.values(DEFAULTS).flat(),
+  ...Object.values(OPTIONAL).flat(),
+  'join',
+]);
+
+/**
+ * AFD-181: a name a subflow can give an exit of its own (`dry_run_done`): lowercase letters, digits
+ * and underscores, and no port name a node type uses. Hosts leave the subflow by it like by
+ * ok_hosts; the parent wires it where they go.
+ */
+export function isExitName(name: string): boolean {
+  return /^[a-z][a-z0-9_]*$/.test(name) && !KNOWN_PORTS.has(name) && !BRANCH.test(name);
+}
+
+/** AFD-181: a subflow's named exits: its boundary outputs under a name no port type uses. */
+export function namedExits(node: PortNode): string[] {
+  if (node.type !== 'subflow') return [];
+  return Object.keys(node.subflow?.boundary?.outputs ?? {}).filter(isExitName);
 }
 
 // Slot order along each side, so a port keeps its place whether or not its neighbours are shown
@@ -184,7 +212,10 @@ const SLOT = [
 
 function slot(name: string): number {
   const m = BRANCH.exec(name);
-  return m ? SLOT.indexOf('approved') + Number(m[1]) / 1000 : SLOT.indexOf(name);
+  if (m) return SLOT.indexOf('approved') + Number(m[1]) / 1000;
+  const at = SLOT.indexOf(name);
+  // Named exits sit on the bottom after unchanged, in the order the boundary lists them.
+  return at >= 0 ? at : SLOT.indexOf('unchanged') + 0.5;
 }
 
 export interface LegalPort extends PortSpec {
@@ -196,7 +227,7 @@ export interface LegalPort extends PortSpec {
  * Every port the node type supports (D-14 hover reveal), in slot order, flagged when enabled. A
  * legacy port is listed only when the node has it.
  */
-export function legalPorts(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>): LegalPort[] {
+export function legalPorts(node: PortNode): LegalPort[] {
   const enabled = new Set(portsFor(node).map((p) => p.name));
   const defaults = defaultPortNames(node);
   const names = [
@@ -204,6 +235,7 @@ export function legalPorts(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>):
     ...OPTIONAL[node.type].filter(
       (p) => !defaults.includes(p) && (!LEGACY_PORTS.has(p) || enabled.has(p)),
     ),
+    ...namedExits(node),
   ];
   return names
     .map((name) => ({
@@ -214,7 +246,11 @@ export function legalPorts(node: Pick<FlowNode, 'type' | 'branches' | 'ports'>):
 }
 
 /** True if the node type can carry this port at all (default or optional). */
-export function isPortLegal(node: Pick<FlowNode, 'type' | 'branches'>, name: string): boolean {
+export function isPortLegal(
+  node: Pick<FlowNode, 'type' | 'branches'> & { subflow?: FlowNode['subflow'] },
+  name: string,
+): boolean {
+  if (namedExits(node as PortNode).includes(name)) return true;
   if (node.type === 'parallel') {
     const m = BRANCH.exec(name);
     return name === 'in' || (m !== null && Number(m[1]) >= 1 && Number(m[1]) <= branchCount(node));

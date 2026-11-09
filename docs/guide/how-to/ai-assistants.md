@@ -94,6 +94,18 @@ Good to know:
 | `source_outline`    | reads a playbook, a folder, a role or an AWX export: its structure, and per task the binding to copy ([import](import.md))         |
 | `flow_import`       | imports a playbook or an AWX template one to one, one step per task ([import](import.md))                                          |
 | `flow_scenarios`    | lists, checks, adds, updates and deletes [scenario tests](scenario-tests.md), and verifies them in Ansible                         |
+- **Large flows:** every answer stays under about 40,000 characters; a longer one comes in pages
+  (`page`) or says how to ask for less. `flow_validate` takes `summary: true` (problems by code,
+  the fix once), `code`, `node` and `severity`; `flow_describe` takes `nodes`, `detail: brief`
+  and, with `layout`, `only_problems`. `flow_import` answers with counts, notes, problems by code
+  and the top level; `source_outline` takes `focus: "#3,#9"` or `"#25-#37"`, or `full: true`.
+- **Accepting a warning:** `flow_validate` prints the key after each warning,
+  `[accept: check:<code>:<subject>]`, for the `accept` op; one that matches nothing is refused.
+  Variables set outside the flow go into `external_vars` with `update_flow`, not one accept each.
+- **Mechanical edits:** `rename` takes a key map, `replace_text` finds and replaces in bindings,
+  `dissolve_subflow` moves a subflow's steps up (the reverse of `extract_subflow`), and
+  `regenerate` writes `generated/` again after the file was changed outside the tools.
+  `flow_validate` says whether `generated/` matches the flow.
 - **Answers:** a `flow_edit` answer lists the nodes created, the problems it added or solved
   (counted one by one), and what it did besides the ops: a node put on a wire, an output lifted
   into a subflow, the end node a pattern used.

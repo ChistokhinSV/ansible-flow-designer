@@ -1,0 +1,4 @@
+# Engine test task file (AFD-177): included from phases/step.yml through afd_repo_root.
+- name: Event
+  ansible.builtin.set_fact:
+    events_seen: "{{ events_seen | default(0) | int + 1 }}"

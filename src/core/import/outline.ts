@@ -13,6 +13,7 @@ import {
 import { duration } from '../engine/util';
 import { createIdFactory } from '../flow/ids';
 import type { ImplBinding, NodeSettings } from '../flow/types';
+import { fromRoot, localize } from './paths';
 import { importPlaybook } from './playbook';
 import {
   basename,
@@ -22,11 +23,11 @@ import {
   join,
   normalize,
   parseAnsible,
-  relative,
   type SourceIO,
 } from './read';
 import { VAULT } from './secrets';
 import {
+  type IncludeForm,
   type Item,
   type PlaybookForm,
   type PlayForm,
@@ -42,8 +43,10 @@ const LONG = 240;
 
 export interface OutlineRequest {
   path: string;
-  /** `#7`: one task in full. */
+  /** `#7`, `#3,#9` or `#25-#37`: those tasks in full (AFD-190). */
   focus?: string;
+  /** AFD-190: no long value cut; the outline pages instead. */
+  full?: boolean;
   /** The flow the design goes to (flows/<key>/<key>.flow.yaml): file paths are rewritten for it. */
   flow?: string;
   page?: number;
@@ -65,27 +68,22 @@ function shown(value: unknown, name = 'value'): unknown {
   return value;
 }
 
-/** The binding and settings an as-is import writes for a task (paths rewritten for `generated`). */
+/**
+ * The binding and settings an as-is import writes for a task: paths from `afd_repo_root`, the
+ * repository root generated plays set (AFD-176); `playDir` is the folder of the task's playbook.
+ */
 export function taskBinding(
   t: TaskForm,
-  generated: string,
+  playDir: string,
 ): { impl: ImplBinding; settings?: NodeSettings } {
-  const params: Record<string, unknown> = { ...t.params };
-  for (const f of t.files)
-    if (f.path) {
-      const local = `{{ playbook_dir }}/${relative(generated, f.path)}`;
-      params[f.param] =
-        f.param === 'cmd' && typeof params.cmd === 'string'
-          ? params.cmd.replace(f.written, local)
-          : local;
-    }
+  const { params, keywords } = localize(t.params, t.keywords, t.files, playDir);
   const impl: ImplBinding = {
     kind: 'module',
     ref: t.fqcn ?? t.module,
     ...(Object.keys(params).length ? { params: shown(params) as Record<string, unknown> } : {}),
     ...(t.register ? { register: t.register } : {}),
-    ...(Object.keys(t.keywords).length
-      ? { keywords: shown(t.keywords) as Record<string, unknown> }
+    ...(Object.keys(keywords).length
+      ? { keywords: shown(keywords) as Record<string, unknown> }
       : {}),
   };
   const settings: NodeSettings = {};
@@ -109,10 +107,10 @@ function roleBinding(r: RoleForm): ImplBinding {
   };
 }
 
-/** JSON on one line, long strings cut (focus shows them whole). */
-function compact(value: unknown, n: number): string {
+/** JSON on one line, long strings cut (focus shows them whole; `full` cuts nothing). */
+function compact(value: unknown, n: number, full = false): string {
   return JSON.stringify(value, (_k, v) =>
-    typeof v === 'string' && v.length > LONG
+    !full && typeof v === 'string' && v.length > LONG
       ? `${v.slice(0, LONG)}…(+${v.length - LONG} chars; focus #${n})`
       : v,
   );
@@ -125,9 +123,11 @@ const short = (v: unknown, max = 60): string => {
 };
 
 interface Ctx {
-  generated: string;
+  /** The folder of the playbook of the play being outlined (playbook_dir, AFD-176). */
+  playDir: string;
+  full: boolean;
   lines: string[];
-  tasks: Map<number, { form: TaskForm | RoleForm; play: string }>;
+  tasks: Map<number, { form: TaskForm | RoleForm; play: string; playDir: string }>;
   n: number;
   play: string;
 }
@@ -137,7 +137,7 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
     switch (item.kind) {
       case 'task': {
         const n = ++ctx.n;
-        ctx.tasks.set(n, { form: item, play: ctx.play });
+        ctx.tasks.set(n, { form: item, play: ctx.play, playDir: ctx.playDir });
         const kw = Object.keys(item.keywords);
         const parts = [
           `#${n} ${item.name || '(no name)'}`,
@@ -151,9 +151,9 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
           item.dropped.length ? `no flow form: ${item.dropped.join(', ')}` : '',
         ].filter(Boolean);
         ctx.lines.push(`${indent}${parts.join(' · ')}`);
-        const { impl, settings } = taskBinding(item, ctx.generated);
+        const { impl, settings } = taskBinding(item, ctx.playDir);
         ctx.lines.push(
-          `${indent}   impl: ${compact(impl, n)}${settings ? ` settings: ${compact(settings, n)}` : ''}`,
+          `${indent}   impl: ${compact(impl, n, ctx.full)}${settings ? ` settings: ${compact(settings, n, ctx.full)}` : ''}`,
         );
         break;
       }
@@ -179,11 +179,18 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
             `${indent}include ${item.file} (${item.path})${item.name ? ` "${item.name}"` : ''}`,
           );
           itemLines(item.items, ctx, `${indent}  `);
-        } else ctx.lines.push(`${indent}include ${item.file}: not read in, ${item.dynamic}`);
+        } else {
+          ctx.lines.push(`${indent}include ${item.file}: not read in, ${item.dynamic}`);
+          // AFD-179: one step that runs the file as the source does.
+          if (item.path)
+            ctx.lines.push(
+              `${indent}   step impl: ${JSON.stringify(includeBinding(item, ctx.playDir))}${item.portability?.length ? ` (the file ${item.portability.join(' and ')}: from generated/ it needs {{ afd_repo_root | default(playbook_dir) }})` : ''}`,
+            );
+        }
         break;
       case 'role': {
         const n = ++ctx.n;
-        ctx.tasks.set(n, { form: item, play: ctx.play });
+        ctx.tasks.set(n, { form: item, play: ctx.play, playDir: ctx.playDir });
         const parts = [
           `#${n} role ${item.ref}${item.name !== item.ref ? ` "${item.name}"` : ''}`,
           item.dir ? `in ${item.dir}` : 'not in the repository',
@@ -199,7 +206,7 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
           item.become ? 'become' : '',
         ].filter(Boolean);
         ctx.lines.push(`${indent}${parts.join(' · ')}`);
-        ctx.lines.push(`${indent}   impl: ${compact(roleBinding(item), n)}`);
+        ctx.lines.push(`${indent}   impl: ${compact(roleBinding(item), n, ctx.full)}`);
         // A split role becomes a subflow bound to the role, one step per task file.
         for (const s of item.split ?? [])
           ctx.lines.push(
@@ -209,7 +216,7 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
       }
       case 'meta':
         ctx.lines.push(
-          `${indent}meta ${item.action}${item.action === 'flush_handlers' ? ' (handlers run here)' : ''}`,
+          `${indent}meta ${item.action}${item.keywords.when !== undefined ? ` when ${short(item.keywords.when)}` : ''}${item.action === 'flush_handlers' ? ' (handlers run here)' : /^end_/.test(item.action) ? ' (an end node: true side of a decision on its when; the always steps do not run)' : ''}`,
         );
         break;
     }
@@ -218,6 +225,7 @@ function itemLines(items: Item[], ctx: Ctx, indent: string): void {
 
 function playLines(p: PlayForm, ctx: Ctx, indent: string): void {
   ctx.play = p.name;
+  ctx.playDir = dirname(p.origin.path);
   const head = [
     `Play "${p.name || '(no name)'}"`,
     `hosts ${p.hosts}`,
@@ -239,7 +247,7 @@ function playLines(p: PlayForm, ctx: Ctx, indent: string): void {
     // As a step at the play's start; its keys are the step's outputs.
     if (f.path)
       ctx.lines.push(
-        `${indent}     step impl: ${JSON.stringify({ kind: 'module', ref: 'ansible.builtin.include_vars', params: { file: `{{ playbook_dir }}/${relative(ctx.generated, f.path)}` } })}`,
+        `${indent}     step impl: ${JSON.stringify({ kind: 'module', ref: 'ansible.builtin.include_vars', params: { file: fromRoot(f.path) } })}`,
       );
   }
   if (p.gatherFacts)
@@ -275,7 +283,21 @@ function bookLines(book: PlaybookForm, ctx: Ctx, indent: string): void {
   }
 }
 
-function paged(lines: string[], page: number, more: string): string {
+/** The binding of an include the import runs as include_tasks (AFD-179). */
+function includeBinding(item: IncludeForm, playDir: string): ImplBinding {
+  const { keywords } = localize({}, item.keywords, [], playDir);
+  return {
+    kind: 'module',
+    ref: 'ansible.builtin.include_tasks',
+    params: { file: fromRoot(item.path ?? item.file) },
+    ...(Object.keys(keywords).length
+      ? { keywords: shown(keywords) as Record<string, unknown> }
+      : {}),
+  };
+}
+
+/** Lines split into pages of about OUTLINE_PAGE characters (AFD-189: tools page the same way). */
+export function paged(lines: string[], page: number, more: string): string {
   const pages: string[][] = [[]];
   let size = 0;
   for (const line of lines) {
@@ -300,27 +322,38 @@ async function playbookOutline(io: SourceIO, req: OutlineRequest): Promise<strin
   );
   if (!read.playbook) return read.notes.join('\n') || `${req.path} is not a playbook.`;
   const generated = generatedDirOf(req.flow, basename(req.path).replace(/\.ya?ml$/, ''));
-  const ctx: Ctx = { generated, lines: [], tasks: new Map(), n: 0, play: '' };
+  const ctx: Ctx = {
+    playDir: dirname(req.path),
+    full: !!req.full,
+    lines: [],
+    tasks: new Map(),
+    n: 0,
+    play: '',
+  };
   bookLines(read.playbook, ctx, '');
-  const focus = /^#?(\d+)$/.exec(req.focus?.trim() ?? '');
-  if (focus) {
-    const hit = ctx.tasks.get(Number(focus[1]));
-    if (!hit) return `No task #${focus[1]}: the playbook has ${ctx.n}.`;
-    const f = hit.form;
-    const binding = f.kind === 'task' ? taskBinding(f, generated) : { impl: roleBinding(f) };
-    return [
-      `#${focus[1]} ${f.name || '(no name)'} · play "${hit.play}" · ${f.origin.path}:${f.origin.line ?? '?'}`,
-      `impl: ${JSON.stringify(binding.impl, null, 2)}`,
-      ...('settings' in binding && binding.settings
-        ? [`settings: ${JSON.stringify(binding.settings)}`]
-        : []),
-      ...(f.kind === 'task' && f.notify.length ? [`notify: ${f.notify.join(', ')}`] : []),
-      ...(f.kind === 'role' && f.split
-        ? [
-            `split role, steps: ${f.split.map((s) => `${s.name} (tasks_from ${s.tasksFrom})`).join(', ')}`,
-          ]
-        : []),
-    ].join('\n');
+  if (req.focus?.trim()) {
+    const wanted = focusList(req.focus, ctx.n);
+    if (typeof wanted === 'string') return wanted;
+    const blocks = wanted.map((n) => {
+      const hit = ctx.tasks.get(n);
+      if (!hit) return `No task #${n}: the playbook has ${ctx.n}.`;
+      const f = hit.form;
+      const binding = f.kind === 'task' ? taskBinding(f, hit.playDir) : { impl: roleBinding(f) };
+      return [
+        `#${n} ${f.name || '(no name)'} · play "${hit.play}" · ${f.origin.path}:${f.origin.line ?? '?'}`,
+        `impl: ${JSON.stringify(binding.impl, null, 2)}`,
+        ...('settings' in binding && binding.settings
+          ? [`settings: ${JSON.stringify(binding.settings)}`]
+          : []),
+        ...(f.kind === 'task' && f.notify.length ? [`notify: ${f.notify.join(', ')}`] : []),
+        ...(f.kind === 'role' && f.split
+          ? [
+              `split role, steps: ${f.split.map((s) => `${s.name} (tasks_from ${s.tasksFrom})`).join(', ')}`,
+            ]
+          : []),
+      ].join('\n');
+    });
+    return paged(blocks.join('\n\n').split('\n'), req.page ?? 1, ' and the same focus');
   }
   const asIs = importPlaybook(read.playbook, {
     key: 'outline',
@@ -329,8 +362,8 @@ async function playbookOutline(io: SourceIO, req: OutlineRequest): Promise<strin
   });
   const header = [
     `Playbook ${read.playbook.path}: ${ctx.n} task(s) and role(s). Files read: ${read.files.length}.`,
-    `Paths in impl are written for ${generated} (the flow ${req.flow ?? `flows/<key>/<key>.flow.yaml`}).`,
-    'Each #n line is a task; its impl is the binding to copy into add_node (impl) or bind. focus "#n" shows one in full.',
+    `Paths in impl are written from {{ afd_repo_root }}, the repository root the generated plays set (they run from ${generated}, the flow ${req.flow ?? `flows/<key>/<key>.flow.yaml`}).`,
+    `Each #n line is a task; its impl is the binding to copy into add_node (impl) or bind.${ctx.full ? '' : ' Long values are cut: focus "#n", "#3,#9" or "#25-#37" shows those tasks in full, or full: true the whole outline.'}`,
     '',
   ];
   const tail = [
@@ -338,7 +371,29 @@ async function playbookOutline(io: SourceIO, req: OutlineRequest): Promise<strin
     `An as-is import (flow_import) would make ${asIs.counts.steps} step(s); it notes:`,
     ...(asIs.notes.length ? asIs.notes.map((n) => `- ${n}`) : ['- nothing']),
   ];
-  return paged([...header, ...ctx.lines, ...tail], req.page ?? 1, '');
+  return paged(
+    [...header, ...ctx.lines, ...tail],
+    req.page ?? 1,
+    ctx.full ? ' and full: true' : '',
+  );
+}
+
+/** `#7`, `#3,#9`, `#25-#37` or a mix: task numbers in order, at most 60 (AFD-190). */
+function focusList(focus: string, count: number): number[] | string {
+  const out: number[] = [];
+  for (const part of focus
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)) {
+    const m = /^#?(\d+)(?:\s*-\s*#?(\d+))?$/.exec(part);
+    if (!m) return `focus takes task numbers: "#7", "#3,#9" or "#25-#37" (not "${part}").`;
+    const from = Number(m[1]);
+    const to = Number(m[2] ?? m[1]);
+    for (let n = Math.min(from, to); n <= Math.max(from, to) && out.length < 60; n++)
+      if (!out.includes(n)) out.push(n);
+  }
+  if (!out.length) return `focus names no task: the playbook has ${count}.`;
+  return out;
 }
 
 async function folderOutline(io: SourceIO, req: OutlineRequest): Promise<string> {

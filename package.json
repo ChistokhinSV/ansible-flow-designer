@@ -731,6 +731,30 @@
             "layout": {
               "type": "boolean",
               "description": "Also list where each node is (\"at x,y\" for a stored position, \"auto x,y\" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow. flow_edit runs the same check on the levels it placed nodes on."
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only these nodes (key paths; a subflow key also covers the steps inside it) and the wires touching them."
+            },
+            "detail": {
+              "type": "string",
+              "enum": [
+                "full",
+                "brief"
+              ],
+              "description": "brief: one short line per node (key, type, status, title, binding). Default full."
+            },
+            "only_problems": {
+              "type": "boolean",
+              "description": "With layout: only the layout check per level, without the nodes and wires."
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page of a long answer (default 1)."
             }
           }
         }
@@ -744,14 +768,42 @@
         "tags": [
           "ansible-flow"
         ],
-        "userDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it.",
-        "modelDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "userDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it and, for a warning, the key an accept op takes. Says whether generated/ matches the flow. On a large flow start with summary: true, then filter by code or node; long lists come in pages.",
+        "modelDescription": "List the problems of a flow (errors, warnings, info) by node key, each with how to fix it and, for a warning, the key an accept op takes. Says whether generated/ matches the flow. On a large flow start with summary: true, then filter by code or node; long lists come in pages. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
         "inputSchema": {
           "type": "object",
           "properties": {
             "path": {
               "type": "string",
               "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+            },
+            "summary": {
+              "type": "boolean",
+              "description": "Problems grouped by code: how many, the nodes with most of them, what they are about, the fix once."
+            },
+            "code": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Only these problem codes (binding-unknown-var, ref-may-be-undefined, …)."
+            },
+            "node": {
+              "type": "string",
+              "description": "Only problems of this node, or of the steps inside this subflow (a key path)."
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "info"
+              ]
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page of a long list (default 1)."
             }
           }
         }
@@ -988,11 +1040,15 @@
                               "description": "Inputs: a run must provide a value."
                             },
                             "default": {
-                              "description": "Inputs: value used when none is given."
+                              "description": "Flow inputs: the value a run uses when none is given. Node inputs: what the step gets when its from left nothing (the generated play var falls back to it); with no from, the value itself."
                             },
                             "from": {
                               "type": "string",
-                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name."
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                            },
+                            "optional": {
+                              "type": "boolean",
+                              "description": "Node inputs: the value may be undefined when the step runs, and the step checks it (x is defined, | default). The check that the producer ran on every path is skipped."
                             },
                             "targets": {
                               "type": "boolean",
@@ -1078,11 +1134,15 @@
                               "description": "Inputs: a run must provide a value."
                             },
                             "default": {
-                              "description": "Inputs: value used when none is given."
+                              "description": "Flow inputs: the value a run uses when none is given. Node inputs: what the step gets when its from left nothing (the generated play var falls back to it); with no from, the value itself."
                             },
                             "from": {
                               "type": "string",
-                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name."
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                            },
+                            "optional": {
+                              "type": "boolean",
+                              "description": "Node inputs: the value may be undefined when the step runs, and the step checks it (x is defined, | default). The check that the producer ran on every path is skipped."
                             },
                             "targets": {
                               "type": "boolean",
@@ -1992,11 +2052,15 @@
                             "description": "Inputs: a run must provide a value."
                           },
                           "default": {
-                            "description": "Inputs: value used when none is given."
+                            "description": "Flow inputs: the value a run uses when none is given. Node inputs: what the step gets when its from left nothing (the generated play var falls back to it); with no from, the value itself."
                           },
                           "from": {
                             "type": "string",
-                            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name."
+                            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                          },
+                          "optional": {
+                            "type": "boolean",
+                            "description": "Node inputs: the value may be undefined when the step runs, and the step checks it (x is defined, | default). The check that the producer ran on every path is skipped."
                           },
                           "targets": {
                             "type": "boolean",
@@ -2103,6 +2167,19 @@
                         ],
                         "pattern": "^([0-9]+[smhd])+$",
                         "description": "Longest time the flow may take, as a duration: 4h, 2h30m, 45m (not a schedule or a sentence)."
+                      },
+                      "external_vars": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "description": "Variables something outside the flow sets at run time (AWX or Kestra extra vars, inventory, a caller): name -> where it comes from, merged with those already declared; null for a name removes it. Steps read them without an input and without a finding to accept."
                       }
                     },
                     "required": [
@@ -2138,7 +2215,7 @@
                   },
                   {
                     "type": "object",
-                    "description": "Let an inner step's output leave the subflow through one of the subflow's ports.",
+                    "description": "Let an inner step's output leave the subflow through one of the subflow's ports, or through a named exit: a new name (dry_run_done) gives the subflow a port of that name, which the parent wires like ok_hosts. An end node inside a subflow instead ends the host's whole run.",
                     "properties": {
                       "op": {
                         "const": "add_exit"
@@ -2149,7 +2226,7 @@
                       },
                       "port": {
                         "type": "string",
-                        "description": "Port of the subflow node, e.g. ok_hosts."
+                        "description": "Port of the subflow node (ok_hosts, failed_hosts, …) or a named exit: lowercase letters, digits and _ (dry_run_done)."
                       },
                       "reason": {
                         "type": "string",
@@ -2251,6 +2328,107 @@
                       "op",
                       "nodes",
                       "title"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Move a subflow's steps up to its level and remove the subflow (the inverse of extract_subflow): wires into it go to its entry step, each exit becomes wires from the inner ports that left by it, and from: references follow. Keys must be free on that level (rename first).",
+                    "properties": {
+                      "op": {
+                        "const": "dissolve_subflow"
+                      },
+                      "subflow": {
+                        "type": "string",
+                        "description": "The subflow to dissolve."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "subflow"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Rename several nodes at once: old key (path) -> new key; from: references follow, as with update_node key.",
+                    "properties": {
+                      "op": {
+                        "const": "rename"
+                      },
+                      "keys": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        },
+                        "description": "Old key or key path -> new key (on the same level)."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "keys"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Find and replace text in the bindings (params, keywords or both) of the named nodes, the steps inside a subflow, or the whole flow. Fails when nothing matches. For mechanical changes such as a path or variable name in many steps.",
+                    "properties": {
+                      "op": {
+                        "const": "replace_text"
+                      },
+                      "find": {
+                        "type": "string",
+                        "description": "Text to find (a regular expression with regex: true)."
+                      },
+                      "replace": {
+                        "type": "string",
+                        "description": "Replacement; with regex, $1 and the like insert groups."
+                      },
+                      "regex": {
+                        "type": "boolean",
+                        "description": "find is a JavaScript regular expression."
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config)."
+                        },
+                        "description": "Only these nodes."
+                      },
+                      "level": {
+                        "type": "string",
+                        "description": "Only the steps inside this subflow (at any depth)."
+                      },
+                      "in": {
+                        "type": "string",
+                        "enum": [
+                          "params",
+                          "keywords",
+                          "all"
+                        ],
+                        "description": "Where to replace (default all)."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "find",
+                      "replace"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Write the flow's generated/ code again from the file as it is (after the file was changed outside the tools, or to overwrite hand edits). Changes nothing in the flow.",
+                    "properties": {
+                      "op": {
+                        "const": "regenerate"
+                      }
+                    },
+                    "required": [
+                      "op"
                     ],
                     "additionalProperties": false
                   },
@@ -2893,11 +3071,15 @@
             },
             "flow": {
               "type": "string",
-              "description": "The flow you will write (flows/<key>/<key>.flow.yaml): template, copy and vars file paths in impl are rewritten so its generated playbooks find them."
+              "description": "The flow you will write (flows/<key>/<key>.flow.yaml). Paths in impl are written from {{ afd_repo_root }}, the repository root its generated plays set."
             },
             "focus": {
               "type": "string",
-              "description": "A task number (\"#7\") to see one task in full (long parameters uncut)."
+              "description": "Tasks to see in full (long parameters uncut): a number \"#7\", a list \"#3,#9\" or a range \"#25-#37\" (up to 60)."
+            },
+            "full": {
+              "type": "boolean",
+              "description": "The whole outline with nothing cut; it comes in more pages. Default false (long values cut)."
             },
             "page": {
               "type": "integer",

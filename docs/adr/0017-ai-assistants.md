@@ -249,3 +249,26 @@ server traces (`AFD_MCP_TRACE`).
 - **Writers:**
   - Only our keys of an existing entry change (`command`, `args`, `env`), so agent and user toggles survive.
   - A skill copy from a newer extension version is left alone, so editors on one machine do not overwrite each other.
+
+## Amendment: large flows and mechanical edits (AFD-189, AFD-190, AFD-191, AFD-193, AFD-196, 2026-11-09)
+
+On a 218-step flow, the tool answers ran from 97,000 to 160,000 characters. Agents read a tool result of about 25,000 tokens; anything longer is saved to a file and read in pieces.
+
+- **Size cap:** every tool answer stays under 40,000 characters. Longer answers come in pages of about 24,000 characters (`page`), and the cut says how to ask for less.
+- **`flow_validate`:**
+  - `summary: true` groups problems by code, with a count per node and the fix once;
+  - it filters by `code`, `node` and `severity`;
+  - it prints the accept key after each warning;
+  - it says whether `generated/` matches the flow (`FlowIO.codeState`).
+- **`flow_describe`:** takes `nodes`, `detail: brief` and `only_problems` (with `layout`).
+- **`flow_import`:** answers with counts, the notes (capped), the problems by code, the top level and the subflows by size.
+- **`source_outline`:** `focus` takes lists and ranges; `full: true` turns off the cut.
+- **New ops:**
+  - `rename` (a key map);
+  - `replace_text` (find and replace in bindings, refused when nothing matches);
+  - `dissolve_subflow` (the inverse of extract);
+  - `regenerate` (`FlowIO.generate`, even when nothing changed).
+- **`delete`:** removes the subflow outputs that lifted a deleted step, and the `from:` of fields that read it, with notes.
+- **Accepting a check:** the `accept` op is refused when no warning on the node matches. `check:<code>` without a subject covers every subject of that code on the node.
+- **The import prompt and the skill:** for more than about 40 tasks, import first, then restructure.
+- **Out of scope:** importing repeated include files as shared subflows stays outside the AI ops (ADR-0027); it is AFD-198.

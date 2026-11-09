@@ -21,6 +21,23 @@ export const INCLUDE_OPTIONS = new Set([
   'rolespec_validate',
 ]);
 
+/** Keywords ansible-core accepts on include_tasks itself; the others go into its apply. */
+const INCLUDE_TASK_KEYWORDS: ReadonlySet<string> = new Set([
+  'when',
+  'loop',
+  'loop_control',
+  'vars',
+  'ignore_errors',
+  'no_log',
+  'run_once',
+  'debugger',
+]);
+
+/** A binding that runs a task file at run time (its tasks are not known to the flow). */
+export function isIncludeTasks(ref: string | undefined): boolean {
+  return /^(ansible\.(builtin|legacy)\.)?include_tasks$/.test(ref ?? '');
+}
+
 /** The module task or include_role of a bound node (without Option A's routing around it). */
 export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number | string): OutMap {
   const tag = `node_${node.id}`;
@@ -47,6 +64,22 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number 
     };
   }
   const reg = registerName(node, impl);
+  if (isIncludeTasks(impl.ref)) {
+    // AFD-179: ansible-core refuses keywords outside its include list on include_tasks (no
+    // ignore_unreachable, retries or until). Conditions, loops and vars stay on the include; the
+    // rest reach every included task through apply, with the node's tag, as for a role.
+    const onTask: OutMap = {};
+    const applied: OutMap = {};
+    for (const [k, v] of keywords)
+      (INCLUDE_TASK_KEYWORDS.has(k) || WITH.test(k) ? onTask : applied)[k] = v as Out;
+    const params = typeof impl.params === 'string' ? { file: impl.params } : (impl.params ?? {});
+    return {
+      name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
+      [impl.ref]: { ...(params as OutMap), apply: { tags: flow([tag]), timeout, ...applied } },
+      ...onTask,
+      register: reg,
+    };
+  }
   const { retries, delay, until } = node.settings ?? {};
   // A polling step stops when `until` holds (AFD-21); plain retries stop on the first success.
   const condition = until?.trim() || (retries ? `${reg} is succeeded` : undefined);
@@ -130,12 +163,34 @@ export function inputVars(model: FlowModel, level: string, node: FlowNode, via?:
   const vars: OutMap = {};
   for (const [name, field] of Object.entries(node.inputs ?? {})) {
     const from = field?.from?.trim();
-    if (!from) continue;
+    // AFD-187: an input's default is what the step gets when its source left nothing; before, the
+    // checker counted it as fed while the code never saw it.
+    const fallback = field?.default;
+    if (!from) {
+      if (fallback !== undefined) vars[name] = fallback as Out;
+      continue;
+    }
     const src = sourceExpr(model, node, level, from);
     const expr = src && (src.host && via ? `${via}.${src.expr}` : src.expr);
-    if (expr && expr !== name) vars[name] = `{{ ${expr} }}`;
+    if (!expr || expr === name) continue;
+    vars[name] =
+      fallback === undefined ? `{{ ${expr} }}` : `{{ ${expr} | default(${jinjaValue(fallback)}) }}`;
   }
   return vars;
+}
+
+/** A YAML value as a Jinja literal: strings quoted, null as none, lists and dicts element-wise. */
+export function jinjaValue(value: unknown): string {
+  if (value === null || value === undefined) return 'none';
+  if (typeof value === 'string')
+    return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `[${value.map(jinjaValue).join(', ')}]`;
+  if (typeof value === 'object')
+    return `{${Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => `${jinjaValue(k)}: ${jinjaValue(v)}`)
+      .join(', ')}}`;
+  return 'none';
 }
 
 const PLACEHOLDER: Record<ContractType, Out> = {

@@ -468,3 +468,19 @@ describe('inputs nothing feeds (AFD-106)', () => {
     );
   });
 });
+
+describe('delete leaves no dangling reference (AFD-193)', () => {
+  it('drops the subflow output that lifted a deleted step and the from of its readers', () => {
+    const text = fixture();
+    const store = entry(docOf(text), 'backup/store').node;
+    const r = run(text, { kind: 'deleteNodes', ids: [store.id], edges: [] });
+    const after = docOf(r.text);
+    expect(entry(after, 'backup').node.outputs?.backup_file).toBeUndefined();
+    expect(entry(after, 'rollback').node.inputs?.backup_file).toEqual({ type: 'string' });
+    expect(r.notes).toEqual([
+      'Removed output backup.backup_file: it lifted store.backup_file, which is gone',
+      'rollback.inputs.backup_file read backup.backup_file, which is gone: it has no from now',
+    ]);
+    expect(codes(after, 'from-unresolved')).toEqual([]);
+  });
+});

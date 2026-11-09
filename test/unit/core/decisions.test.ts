@@ -182,8 +182,33 @@ describe('the AI tools', () => {
       opts,
     );
     expect(decisions(port.text).at(-1)).toMatchObject({ finding: 'port:failed_hosts' });
-    const check = await applyOps(
+    // AFD-184: an accept must cover a warning the node has; the error lists the keys it has.
+    const reads = await applyOps(
       V2,
+      [
+        {
+          op: 'bind',
+          node: 'precheck',
+          impl: {
+            kind: 'module',
+            ref: 'ansible.builtin.debug',
+            params: { msg: '{{ ntp_servers }} {{ syslog_host }}' },
+          },
+        },
+      ],
+      opts,
+    );
+    await expect(
+      applyOps(
+        reads.text,
+        [{ op: 'accept', at: 'precheck', finding: 'check:binding-unknown-var:nope', reason: 'x' }],
+        opts,
+      ),
+    ).rejects.toThrow(
+      /matches no warning on precheck; its warnings: .*check:binding-unknown-var:ntp_servers/,
+    );
+    const check = await applyOps(
+      reads.text,
       [
         {
           op: 'accept',
@@ -202,7 +227,7 @@ describe('the AI tools', () => {
       [{ op: 'unaccept', at: 'precheck', finding: 'check:binding-unknown-var:ntp_servers' }],
       opts,
     );
-    expect(decisions(undone.text)).toEqual(decisions(V2));
+    expect(decisions(undone.text)).toEqual(decisions(reads.text));
     const alias = await applyOps(
       V2,
       [{ op: 'leave_open', at: 'validate.failed_hosts', reason: 'Same as accept' }],
@@ -210,5 +235,31 @@ describe('the AI tools', () => {
     );
     expect(decisions(alias.text).at(-1)).toMatchObject({ kind: 'accepted' });
     expect(buildModel(doc(alias.text)).doc.decisions?.length).toBe(decisions(V2).length + 1);
+  });
+});
+
+describe('external variables (AFD-185)', () => {
+  it('update_flow merges flow.external_vars by name; null removes one, or all', async () => {
+    const opts = { newId: createIdFactory() };
+    const added = await applyOps(
+      V2,
+      [{ op: 'update_flow', external_vars: { on_behalf_of: 'Kestra', _pe_host: 'the caller' } }],
+      opts,
+    );
+    expect(doc(added.text).flow.external_vars).toEqual({
+      on_behalf_of: 'Kestra',
+      _pe_host: 'the caller',
+    });
+    const one = await applyOps(
+      added.text,
+      [{ op: 'update_flow', external_vars: { _pe_host: null } }],
+      opts,
+    );
+    expect(doc(one.text).flow.external_vars).toEqual({ on_behalf_of: 'Kestra' });
+    const none = await applyOps(one.text, [{ op: 'update_flow', external_vars: null }], opts);
+    expect(doc(none.text).flow.external_vars).toBeUndefined();
+    await expect(
+      applyOps(V2, [{ op: 'update_flow', external_vars: { 'not a name': 'x' } }], opts),
+    ).rejects.toThrow(/not a variable name/);
   });
 });

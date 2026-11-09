@@ -52,8 +52,10 @@ the ports a node has). Correct that op and send the whole batch again.
 ## Import playbooks or AWX templates
 
 Design by intent unless the user asks for an exact copy (then `flow_import` does it in one call).
+For more than about 40 tasks, `flow_import` first, then regroup and rename by intent
+(`extract_subflow`, `dissolve_subflow`, `rename`, `replace_text`); `flow_validate summary`.
 1. `source_outline` the playbook, folder or AWX export, with `flow` set to the file you will write.
-   Each `#n` task has the `impl` (module or role, params, register, keywords) to copy as is.
+   Each `#n` task has the `impl` to copy as is (`focus: "#3-#9"` for long ones in full).
 2. Plan a few subflows by purpose (pre-checks, backup, change, verify, rollback or notify), steps
    named by what they achieve, in the order the source runs them.
 3. `flow_new`, then a `flow_edit` batch per level: `add_node` with the copied `impl` (`in:` puts it
@@ -62,7 +64,7 @@ Design by intent unless the user asks for an exact copy (then `flow_import` does
 4. Keep behaviour: task keywords stay in `impl.keywords`; handle a fail port only where the source
    does (rescue, `ignore_errors`, retries), leave the rest open; a handler is a step with
    `keywords.when: "(<register> | default({})) is changed"`.
-5. `flow_validate`, then report how you grouped the tasks and what you left out.
+5. `flow_validate`; AWX or caller extra vars go in `update_flow external_vars`. Report the grouping.
 
 ## Rules
 
@@ -97,11 +99,14 @@ Design by intent unless the user asks for an exact copy (then `flow_import` does
 
 ## Data between steps
 
-Values pass through node inputs and outputs, never through variables a step happens to leave on
-the host. The designer checks every name a step reads, and the generated code passes inputs in.
+Values pass through node inputs and outputs. The designer checks every name a step reads, and
+the generated code passes inputs in as play vars: a fact or register of the same name set earlier
+on the host wins over them, so give inputs names no step sets as a fact. Paths next to the
+playbook: `{{ afd_repo_root }}/...`; a failure in a later step: `afd_failed_result.msg`.
 
-- An output: `set_io` on the producer, e.g. `fgt_facts` with `from: impl.register` (the module's
-  registered result) or `impl.register.dest`. A `set_fact` step's outputs need no `from`.
+- An output: `set_io` on the producer, e.g. `fgt_facts` with `from: impl.register` or
+  `impl.register.dest`. A `set_fact` step's outputs need no `from`. `optional: true` on an
+  input the step checks itself (`is defined`); a `default` makes it always defined.
 - An input: `set_io` on the reader with `from:`
   - `<key>.<output>`: a node that runs before, on this level or around it;
   - `flow.<input>`: a flow input;
@@ -149,24 +154,19 @@ it handles).
 ```json
 {"op": "add_node", "type": "subflow", "title": "Pre-checks", "after": "start.ok_hosts"}
 {"op": "add_node", "type": "task", "title": "Check NTP", "on_wire": "precheck.ok_hosts"}
-{"op": "add_node", "type": "task", "title": "Verify sync", "after": "fix-ntp/push-config.ok_hosts"}
 {"op": "connect", "from": "check-ntp.ok_hosts", "to": "backup-config"}
-{"op": "rewire", "from": "check-ntp.ok_hosts", "to": "report"}
 {"op": "apply_pattern", "at": "push-config.failed_hosts", "pattern": "rollback"}
 {"op": "leave_open", "at": "check-ntp.failed_hosts", "reason": "Read-only check"}
-{"op": "enable_port", "node": "push-config", "port": "unreachable"}
-{"op": "update_node", "node": "check-ntp", "intent": "Compare NTP servers with the standard"}
 {"op": "set_io", "node": "check-ntp", "side": "outputs", "name": "ntp_ok", "field": {"type": "boolean"}}
 {"op": "set_io", "node": "rollback/restore", "side": "inputs", "name": "backup_file", "field": {"type": "string", "from": "rollback.backup_file"}}
 {"op": "set_io", "node": "upgrade/load-image", "side": "inputs", "name": "fos_platform", "field": {"type": "string", "from": "precheck/normalize-facts.fos_platform"}}
 {"op": "update_node", "node": "upgrade/wait-ha", "settings": {"retries": 60, "delay": 30, "until": "wait_ha_result.json.results.ha_members | length == 2"}}
-{"op": "apply_pattern", "at": "approve.rejected", "pattern": "stop", "end": "not-approved"}
 {"op": "bind", "node": "check-ntp", "impl": {"kind": "module", "ref": "cisco.ios.ios_command", "params": {"commands": ["show ntp associations"]}}}
 {"op": "extract_subflow", "nodes": ["backup-config", "push-config"], "title": "Change"}
 {"op": "add_node", "type": "task", "title": "Notify on-call", "after": "rollback.ok_hosts", "position": {"below": "rollback"}}
 {"op": "move", "nodes": {"failed": {"below": "notify-on-call"}, "report": {"x": 480, "y": 640}}}
-{"op": "unplace", "level": "top"}
 {"op": "delete", "nodes": ["old-step"]}
+{"op": "dissolve_subflow", "subflow": "phase-event"}
 ```
 
 `flow_reference` with topic `ops` lists every op with its fields; `ports` lists the ports of each

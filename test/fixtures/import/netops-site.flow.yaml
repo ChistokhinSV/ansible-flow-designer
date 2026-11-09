@@ -1,6 +1,6 @@
 schema_version: 2
 flow:
-  id: 01JDPBK0000000000000000054
+  id: 01JDPBK0000000000000000057
   key: imported
   name: site
   version: 1
@@ -38,7 +38,6 @@ nodes:
       key: create-the-report-folder
       type: task
       title: Create the report folder
-      intent: Create the report folder
       status: implemented
       impl:
         kind: module
@@ -49,7 +48,7 @@ nodes:
           mode: '0755'
       origin:
         task: playbooks/prechecks.yml#Create the report folder#1
-        design: 864fb6ef
+        design: 7aa229ec
       inputs:
         out_dir:
           type: string
@@ -58,7 +57,6 @@ nodes:
       key: read-the-software-version
       type: task
       title: Read the software version
-      intent: Read the software version
       status: implemented
       impl:
         kind: module
@@ -70,7 +68,7 @@ nodes:
           changed_when: false
       origin:
         task: playbooks/prechecks.yml#Read the software version#1
-        design: dcba04e8
+        design: 96014bea
       outputs:
         version_check:
           type: dict
@@ -79,7 +77,6 @@ nodes:
       key: check-the-version-is-supported
       type: task
       title: Check the version is supported
-      intent: Check the version is supported
       status: implemented
       impl:
         kind: module
@@ -90,7 +87,7 @@ nodes:
           fail_msg: Unsupported version {{ version_check.stdout }}
       origin:
         task: playbooks/prechecks.yml#Check the version is supported#1
-        design: 2ee713fb
+        design: 554dabbe
       inputs:
         version_check:
           type: dict
@@ -99,7 +96,6 @@ nodes:
       key: record-the-pre-check
       type: task
       title: Record the pre-check
-      intent: Record the pre-check
       status: implemented
       impl:
         kind: module
@@ -112,7 +108,7 @@ nodes:
           when: version_check.stdout is version('17.0', '>=')
       origin:
         task: playbooks/prechecks.yml#Record the pre-check#1
-        design: fc9c3c61
+        design: 11cac47b
       inputs:
         version_check:
           type: dict
@@ -171,7 +167,7 @@ nodes:
             kind: module
             ref: ansible.builtin.include_vars
             params:
-              file: '{{ playbook_dir }}/../../../vars/baseline.yml'
+              file: '{{ afd_repo_root }}/vars/baseline.yml'
           outputs:
             uplinks:
               type: any
@@ -196,19 +192,18 @@ nodes:
               key: render-the-motd
               type: task
               title: Render the MOTD
-              intent: Render the MOTD
               status: implemented
               impl:
                 kind: module
                 ref: ansible.builtin.template
                 params:
-                  src: '{{ playbook_dir }}/../../../playbooks/templates/motd.j2'
+                  src: '{{ afd_repo_root }}/playbooks/templates/motd.j2'
                   dest: '{{ out_dir }}/{{ inventory_hostname }}/motd.txt'
                   mode: '0644'
                 register: render_the_motd_result
               origin:
                 task: playbooks/baseline.yml#Render the MOTD#1
-                design: c9984aac
+                design: d75eab50
               inputs:
                 out_dir:
                   type: string
@@ -221,7 +216,6 @@ nodes:
               key: configure-the-uplinks
               type: task
               title: Configure the uplinks
-              intent: Configure the uplinks
               status: implemented
               impl:
                 kind: module
@@ -235,7 +229,7 @@ nodes:
                   loop: '{{ uplinks }}'
               origin:
                 task: playbooks/baseline.yml#Configure the uplinks#1
-                design: 190cc509
+                design: 40eaf454
               inputs:
                 out_dir:
                   type: string
@@ -251,7 +245,6 @@ nodes:
               key: set-the-snmp-community
               type: task
               title: Set the SNMP community
-              intent: Set the SNMP community
               status: implemented
               impl:
                 kind: module
@@ -264,7 +257,7 @@ nodes:
                   no_log: true
               origin:
                 task: playbooks/baseline.yml#Set the SNMP community#1
-                design: 86d991b0
+                design: 8c8dec50
               inputs:
                 snmp_community:
                   type: string
@@ -276,7 +269,6 @@ nodes:
               key: refuse-the-change-on-the-canary-switch
               type: task
               title: Refuse the change on the canary switch
-              intent: Refuse the change on the canary switch
               status: implemented
               impl:
                 kind: module
@@ -287,7 +279,7 @@ nodes:
                   when: inventory_hostname == 'sw-edge-04'
               origin:
                 task: playbooks/baseline.yml#Refuse the change on the canary switch#1
-                design: 0a10a270
+                design: c5e630a7
             edges:
             - id: 01JDPBK0000000000000000019
               from:
@@ -328,7 +320,6 @@ nodes:
           key: record-the-rollback
           type: task
           title: Record the rollback
-          intent: Record the rollback
           status: implemented
           impl:
             kind: module
@@ -339,16 +330,26 @@ nodes:
               mode: '0644'
           origin:
             task: playbooks/baseline.yml#Record the rollback#1
-            design: e3909ddb
+            design: '238e8829'
           inputs:
             out_dir:
               type: string
               from: flow.out_dir
         - id: 01JDPBK0000000000000000027
+          key: mark-the-failure-of-push-the-baseline
+          type: task
+          title: Mark the failure of Push the baseline
+          intent: Hosts that failed in Push the baseline run the always steps, then fail
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.set_fact
+            params:
+              afd_failed_push_the_baseline: true
+        - id: 01JDPBK0000000000000000029
           key: record-the-attempt
           type: task
           title: Record the attempt
-          intent: Record the attempt
           status: implemented
           impl:
             kind: module
@@ -359,36 +360,22 @@ nodes:
               mode: '0644'
           origin:
             task: playbooks/baseline.yml#Record the attempt#1
-            design: 3de95439
+            design: a0abd3a0
           inputs:
             out_dir:
               type: string
               from: flow.out_dir
-        - id: 01JDPBK0000000000000000030
-          key: record-the-attempt-after-failure
-          type: task
-          title: Record the attempt
-          intent: Record the attempt
+        - id: 01JDPBK0000000000000000033
+          key: push-the-baseline-failed
+          type: decision
+          title: Failed in Push the baseline?
+          intent: Hosts that failed before the always steps fail here, as in the source
+          condition: afd_failed_push_the_baseline | default(false) | bool
           status: implemented
-          impl:
-            kind: module
-            ref: ansible.builtin.copy
-            params:
-              content: "attempted\n"
-              dest: '{{ out_dir }}/{{ inventory_hostname }}/attempt.txt'
-              mode: '0644'
-          origin:
-            task: playbooks/baseline.yml#Record the attempt#2
-            design: 3de95439
-          inputs:
-            out_dir:
-              type: string
-              from: flow.out_dir
-        - id: 01JDPBK0000000000000000032
+        - id: 01JDPBK0000000000000000035
           key: check-the-enable-secret-was-given
           type: task
           title: Check the enable secret was given
-          intent: Check the enable secret was given
           status: implemented
           impl:
             kind: module
@@ -399,22 +386,21 @@ nodes:
               quiet: true
           origin:
             task: playbooks/baseline.yml#Check the enable secret was given#1
-            design: 3f1829da
+            design: 52dbdb6e
           inputs:
             enable_secret:
               type: string
               from: flow.enable_secret
-        - id: 01JDPBK0000000000000000034
+        - id: 01JDPBK0000000000000000037
           key: verify-ntp
           type: subflow
           title: Verify NTP
           subflow:
             nodes:
-            - id: 01JDPBK0000000000000000035
+            - id: 01JDPBK0000000000000000038
               key: read-the-ntp-status
               type: task
               title: Read the NTP status
-              intent: Read the NTP status
               status: implemented
               impl:
                 kind: module
@@ -426,7 +412,7 @@ nodes:
                   changed_when: false
               origin:
                 task: playbooks/tasks/verify.yml#Read the NTP status#1
-                design: 1cbf39e2
+                design: 0417ed41
               inputs:
                 ntp_servers:
                   type: any
@@ -435,11 +421,10 @@ nodes:
                 ntp_status:
                   type: dict
                   from: impl.register
-            - id: 01JDPBK0000000000000000036
+            - id: 01JDPBK0000000000000000039
               key: record-the-ntp-status
               type: task
               title: Record the NTP status
-              intent: Record the NTP status
               status: implemented
               impl:
                 kind: module
@@ -450,7 +435,7 @@ nodes:
                   mode: '0644'
               origin:
                 task: playbooks/tasks/verify.yml#Record the NTP status#1
-                design: d08a6f3a
+                design: edf4f45a
               inputs:
                 ntp_status:
                   type: dict
@@ -459,21 +444,21 @@ nodes:
                   type: string
                   from: flow.out_dir
             edges:
-            - id: 01JDPBK0000000000000000037
+            - id: 01JDPBK0000000000000000040
               from:
-                node: 01JDPBK0000000000000000035
+                node: 01JDPBK0000000000000000038
                 port: ok_hosts
               to:
-                node: 01JDPBK0000000000000000036
+                node: 01JDPBK0000000000000000039
                 port: in
             boundary:
-              in: 01JDPBK0000000000000000035
+              in: 01JDPBK0000000000000000038
               outputs:
                 ok_hosts:
-                - node: 01JDPBK0000000000000000036
+                - node: 01JDPBK0000000000000000039
                   port: ok_hosts
           status: implemented
-        - id: 01JDPBK0000000000000000039
+        - id: 01JDPBK0000000000000000042
           key: apply-the-ntp-and-aaa-baseline
           type: subflow
           title: Apply the NTP and AAA baseline
@@ -483,7 +468,7 @@ nodes:
           intent: Runs role push_baseline, one step per task file
           subflow:
             nodes:
-            - id: 01JDPBK0000000000000000040
+            - id: 01JDPBK0000000000000000043
               key: ntp
               type: task
               title: NTP
@@ -494,7 +479,7 @@ nodes:
                 ref: push_baseline
                 params:
                   tasks_from: ntp
-            - id: 01JDPBK0000000000000000041
+            - id: 01JDPBK0000000000000000044
               key: aaa
               type: task
               title: AAA
@@ -506,25 +491,24 @@ nodes:
                 params:
                   tasks_from: aaa
             edges:
-            - id: 01JDPBK0000000000000000042
+            - id: 01JDPBK0000000000000000045
               from:
-                node: 01JDPBK0000000000000000040
+                node: 01JDPBK0000000000000000043
                 port: ok_hosts
               to:
-                node: 01JDPBK0000000000000000041
+                node: 01JDPBK0000000000000000044
                 port: in
             boundary:
-              in: 01JDPBK0000000000000000040
+              in: 01JDPBK0000000000000000043
               outputs:
                 ok_hosts:
-                - node: 01JDPBK0000000000000000041
+                - node: 01JDPBK0000000000000000044
                   port: ok_hosts
           status: implemented
-        - id: 01JDPBK0000000000000000044
+        - id: 01JDPBK0000000000000000047
           key: save-config
           type: task
           title: Save config
-          intent: Save config
           status: implemented
           impl:
             kind: module
@@ -537,7 +521,7 @@ nodes:
               when: (render_the_motd_result | default({})) is changed or (configure_the_uplinks_result | default({})) is changed
           origin:
             task: playbooks/baseline.yml#Save config#1
-            design: d9aac021
+            design: f06cc5e4
           inputs:
             out_dir:
               type: string
@@ -572,71 +556,85 @@ nodes:
             port: in
         - id: 01JDPBK0000000000000000028
           from:
-            node: 01JDPBK0000000000000000016
-            port: ok_hosts
+            node: 01JDPBK0000000000000000025
+            port: failed_hosts
           to:
             node: 01JDPBK0000000000000000027
             port: in
-        - id: 01JDPBK0000000000000000029
+        - id: 01JDPBK0000000000000000030
           from:
-            node: 01JDPBK0000000000000000025
+            node: 01JDPBK0000000000000000016
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000027
+            node: 01JDPBK0000000000000000029
             port: in
         - id: 01JDPBK0000000000000000031
           from:
             node: 01JDPBK0000000000000000025
-            port: failed_hosts
+            port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000030
+            node: 01JDPBK0000000000000000029
             port: in
-        - id: 01JDPBK0000000000000000033
+        - id: 01JDPBK0000000000000000032
           from:
             node: 01JDPBK0000000000000000027
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000032
+            node: 01JDPBK0000000000000000029
             port: in
-        - id: 01JDPBK0000000000000000038
+        - id: 01JDPBK0000000000000000034
           from:
-            node: 01JDPBK0000000000000000032
+            node: 01JDPBK0000000000000000029
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000034
+            node: 01JDPBK0000000000000000033
             port: in
-        - id: 01JDPBK0000000000000000043
+        - id: 01JDPBK0000000000000000036
           from:
-            node: 01JDPBK0000000000000000034
+            node: 01JDPBK0000000000000000033
+            port: 'false'
+          to:
+            node: 01JDPBK0000000000000000035
+            port: in
+        - id: 01JDPBK0000000000000000041
+          from:
+            node: 01JDPBK0000000000000000035
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000039
+            node: 01JDPBK0000000000000000037
             port: in
-        - id: 01JDPBK0000000000000000045
+        - id: 01JDPBK0000000000000000046
           from:
-            node: 01JDPBK0000000000000000039
+            node: 01JDPBK0000000000000000037
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000044
+            node: 01JDPBK0000000000000000042
+            port: in
+        - id: 01JDPBK0000000000000000048
+          from:
+            node: 01JDPBK0000000000000000042
+            port: ok_hosts
+          to:
+            node: 01JDPBK0000000000000000047
             port: in
         boundary:
           in: 01JDPBK0000000000000000013
           outputs:
             failed_hosts:
-            - node: 01JDPBK0000000000000000030
-              port: ok_hosts
+            - node: 01JDPBK0000000000000000033
+              port: 'true'
               reason: 'Push the baseline: failed before the always steps'
             ok_hosts:
-            - node: 01JDPBK0000000000000000044
+            - node: 01JDPBK0000000000000000047
               port: ok_hosts
       status: implemented
-    - id: 01JDPBK0000000000000000046
+    - id: 01JDPBK0000000000000000049
       key: report
       type: subflow
       title: Report
       subflow:
         nodes:
-        - id: 01JDPBK0000000000000000047
+        - id: 01JDPBK0000000000000000050
           key: gather-facts
           type: task
           title: Gather facts
@@ -645,11 +643,10 @@ nodes:
           impl:
             kind: module
             ref: ansible.builtin.gather_facts
-        - id: 01JDPBK0000000000000000048
+        - id: 01JDPBK0000000000000000051
           key: write-the-summary
           type: task
           title: Write the summary
-          intent: Write the summary
           status: implemented
           impl:
             kind: module
@@ -660,44 +657,44 @@ nodes:
               mode: '0644'
           origin:
             task: playbooks/baseline.yml#Write the summary#1
-            design: c85407a7
+            design: 80e6e7f7
           inputs:
             out_dir:
               type: string
               from: flow.out_dir
         edges:
-        - id: 01JDPBK0000000000000000049
+        - id: 01JDPBK0000000000000000052
           from:
-            node: 01JDPBK0000000000000000047
+            node: 01JDPBK0000000000000000050
             port: ok_hosts
           to:
-            node: 01JDPBK0000000000000000048
+            node: 01JDPBK0000000000000000051
             port: in
         boundary:
-          in: 01JDPBK0000000000000000047
+          in: 01JDPBK0000000000000000050
           outputs:
             ok_hosts:
-            - node: 01JDPBK0000000000000000048
+            - node: 01JDPBK0000000000000000051
               port: ok_hosts
       status: implemented
       settings:
         inventory_target: local
     edges:
-    - id: 01JDPBK0000000000000000050
+    - id: 01JDPBK0000000000000000053
       from:
         node: 01JDPBK0000000000000000012
         port: ok_hosts
       to:
-        node: 01JDPBK0000000000000000046
+        node: 01JDPBK0000000000000000049
         port: in
     boundary:
       in: 01JDPBK0000000000000000012
       outputs:
         ok_hosts:
-        - node: 01JDPBK0000000000000000046
+        - node: 01JDPBK0000000000000000049
           port: ok_hosts
   status: implemented
-- id: 01JDPBK0000000000000000052
+- id: 01JDPBK0000000000000000055
   key: done
   type: end
   title: Done
@@ -710,17 +707,17 @@ edges:
   to:
     node: 01JDPBK0000000000000000002
     port: in
-- id: 01JDPBK0000000000000000051
+- id: 01JDPBK0000000000000000054
   from:
     node: 01JDPBK0000000000000000002
     port: ok_hosts
   to:
     node: 01JDPBK0000000000000000011
     port: in
-- id: 01JDPBK0000000000000000053
+- id: 01JDPBK0000000000000000056
   from:
     node: 01JDPBK0000000000000000011
     port: ok_hosts
   to:
-    node: 01JDPBK0000000000000000052
+    node: 01JDPBK0000000000000000055
     port: in

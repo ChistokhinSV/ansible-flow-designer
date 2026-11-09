@@ -324,7 +324,7 @@ describe('MCP server', () => {
     });
     expect(o.isError).toBe(false);
     expect(o.text).toContain('#6 Render the MOTD · ansible.builtin.template · notify Save config');
-    expect(o.text).toContain('{{ playbook_dir }}/../../../netops/playbooks/templates/motd.j2');
+    expect(o.text).toContain('{{ afd_repo_root }}/netops/playbooks/templates/motd.j2');
     expect(o.text).not.toContain('ANSIBLE_VAULT');
     expect((await call('source_outline', { path: 'netops' })).text).toContain('top level');
     // Not YAML, or outside the root: never read.
@@ -350,7 +350,7 @@ describe('MCP server', () => {
       join(repo, 'flows/site/generated/site.baseline.edge-baseline.push-the-baseline.yml'),
       'utf8',
     );
-    expect(generated).toContain('{{ playbook_dir }}/../../../netops/playbooks/templates/motd.j2');
+    expect(generated).toContain('{{ afd_repo_root }}/netops/playbooks/templates/motd.j2');
   });
 });
 

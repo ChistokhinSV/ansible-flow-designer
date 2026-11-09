@@ -119,6 +119,33 @@ describe('plays', () => {
     expect(text).toContain('Ended at [failed] Failed (outcome: failed)');
   });
 
+  it('a rescue keeps the failure as host facts for the step on failed_hosts (AFD-186)', () => {
+    const text = generate('edge-baseline.flow.yaml').files[0]?.text ?? '';
+    expect(text.match(/keep the failure/g)).toHaveLength(5);
+    expect(text).toContain('afd_failed_result: "{{ ansible_failed_result | default({}) }}"');
+    expect(text).toContain('afd_failed_node: push-baseline');
+  });
+
+  it('afd_repo_root only where the code reads it or runs files the flow cannot see (AFD-177)', () => {
+    const doc = docOf(readExample('edge-baseline.flow.yaml'));
+    const nodes = doc.nodes ?? [];
+    const push = nodes.find((n) => n.key === 'push-baseline');
+    const validate = nodes.find((n) => n.key === 'validate');
+    if (!push || !validate) throw new Error('fixture changed');
+    push.impl = { kind: 'module', ref: 'ansible.builtin.include_tasks', params: { file: 'x.yml' } };
+    validate.impl = {
+      kind: 'module',
+      ref: 'ansible.builtin.command',
+      params: { cmd: 'python3 {{ afd_repo_root }}/tool.py' },
+    };
+    const text =
+      optionA.generate(doc, { source: 'edge-baseline.flow.yaml', root: '../..' }).files[0]?.text ??
+      '';
+    const root = `afd_repo_root: "{{ (playbook_dir ~ '/../..') | ansible.builtin.realpath }}"`;
+    expect(text.split(root)).toHaveLength(3);
+    expect(text).not.toMatch(/include_tasks:[\s\S]{0,200}ignore_unreachable/);
+  });
+
   it('module bindings route unreachable and unchanged; inner ports bubble to the subflow', () => {
     const inner = generate('os-upgrade.flow.yaml').files[1]?.text ?? '';
     expect(inner).toContain(

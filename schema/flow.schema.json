@@ -114,6 +114,15 @@
         "inputs": {
           "$ref": "#/$defs/contract",
           "description": "Inputs a run asks for. A host_list input with targets: true seeds the hosts entering the start node."
+        },
+        "external_vars": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "additionalProperties": {
+            "type": "string",
+            "description": "Where the variable comes from (AWX extra vars, Kestra, inventory, a caller)."
+          },
+          "description": "Variables the flow reads that something outside it sets at run time (AWX or Kestra extra vars, inventory variables, the vars a caller passes): name -> where it comes from. Steps may read them without an input; they are not run inputs and get no survey question."
         }
       },
       "additionalProperties": false,
@@ -314,11 +323,15 @@
             "description": "Inputs: a run must provide a value."
           },
           "default": {
-            "description": "Inputs: value used when none is given."
+            "description": "Flow inputs: the value a run uses when none is given. Node inputs: what the step gets when its from left nothing (the generated play var falls back to it); with no from, the value itself."
           },
           "from": {
             "type": "string",
-            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name."
+            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "Node inputs: the value may be undefined when the step runs, and the step checks it (x is defined, | default). The check that the producer ran on every path is skipped."
           },
           "targets": {
             "type": "boolean",
@@ -947,7 +960,7 @@
                     },
                     "description": "Inner outputs leaving through this port."
                   },
-                  "description": "Exits: a parent port name -> the inner outputs that leave through it."
+                  "description": "Exits: a port of the subflow node (ok_hosts, failed_hosts, unreachable, …) or a named exit of its own (lowercase letters, digits and _, such as dry_run_done; it becomes a port of the subflow node) -> the inner outputs that leave through it."
                 }
               },
               "description": "How hosts enter and leave the subflow."

@@ -100,7 +100,8 @@ describe('the netops repository (site.yml)', () => {
     expect(doc.nodes.map((n) => n.key)).toEqual(['start', 'pre-checks', 'baseline', 'done']);
     expect(node(doc, 'report').settings).toEqual({ inventory_target: 'local' });
     expect(node(doc, 'gather-facts').impl?.ref).toBe('ansible.builtin.gather_facts');
-    // Block with rescue and always: subflow, rescue from failed_hosts, always on both paths.
+    // Block with rescue and always: subflow, rescue from failed_hosts, one always chain for both
+    // paths; hosts that failed are marked first and fail after it (AFD-178).
     expect(node(doc, 'push-the-baseline').type).toBe('subflow');
     const edge = node(doc, 'edge-baseline');
     const wires = (edge.subflow?.edges ?? []).map((e) => {
@@ -112,13 +113,16 @@ describe('the netops repository (site.yml)', () => {
         'push-the-baseline.failed_hosts -> record-the-rollback',
         'push-the-baseline.ok_hosts -> record-the-attempt',
         'record-the-rollback.ok_hosts -> record-the-attempt',
-        'record-the-rollback.failed_hosts -> record-the-attempt-after-failure',
-        'record-the-attempt.ok_hosts -> check-the-enable-secret-was-given',
+        'record-the-rollback.failed_hosts -> mark-the-failure-of-push-the-baseline',
+        'mark-the-failure-of-push-the-baseline.ok_hosts -> record-the-attempt',
+        'record-the-attempt.ok_hosts -> push-the-baseline-failed',
+        'push-the-baseline-failed.false -> check-the-enable-secret-was-given',
       ]),
     );
+    expect(wires.filter((w) => w.includes('after-failure'))).toEqual([]);
     expect(edge.subflow?.boundary?.outputs?.failed_hosts).toEqual([
       expect.objectContaining({
-        port: 'ok_hosts',
+        port: 'true',
         reason: 'Push the baseline: failed before the always steps',
       }),
     ]);
@@ -134,12 +138,12 @@ describe('the netops repository (site.yml)', () => {
     expect(node(doc, 'save-config').impl?.keywords?.when).toBe(
       '(render_the_motd_result | default({})) is changed or (configure_the_uplinks_result | default({})) is changed',
     );
-    // Local files are found from the generated playbooks.
+    // Local files are found from the repository root the generated plays set (AFD-176).
     expect(node(doc, 'render-the-motd').impl?.params?.src).toBe(
-      '{{ playbook_dir }}/../../../playbooks/templates/motd.j2',
+      '{{ afd_repo_root }}/playbooks/templates/motd.j2',
     );
     expect(node(doc, 'load-baseline-yml').impl?.params?.file).toBe(
-      '{{ playbook_dir }}/../../../vars/baseline.yml',
+      '{{ afd_repo_root }}/vars/baseline.yml',
     );
     // Data: registered results and loaded variables reach the steps that read them.
     expect(node(doc, 'check-the-version-is-supported').inputs).toEqual({
@@ -241,7 +245,9 @@ describe('mappings', () => {
     expect(r.notes).toEqual([
       'include-os-yml: {{ os }}.yml is not read in because its file name is templated: a draft step.',
       'odd-module: module frobnicate is not fully qualified and not known here; check the binding (draft).',
-      'meta-end-host: meta end_host has no flow equivalent: a draft step that lets hosts through.',
+      // AFD-180: end_host ends those hosts; what follows it never runs for them.
+      "ended-end-host: meta end_host became an end node. In the flow it ends these hosts' run.",
+      'ended-end-host: the steps after an unconditional meta end_host never run; they stay in the flow without a wire into them.',
       'ask: the pause with a prompt became an approval (approved locally, asked in AWX).',
       'tolerant: any_errors_fatal have no place in a flow and were left out.',
     ]);

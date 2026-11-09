@@ -10,7 +10,7 @@ import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
 import { defaultPortNames, portsFor } from '../flow/ports';
 import type { Annotation, ContractField, FlowNode, Position } from '../flow/types';
-import type { Finding } from '../flow/validate';
+import { acceptKey, type Finding } from '../flow/validate';
 import { plainText } from '../view/markdown';
 import { keyPath, levelName, withoutIds } from './refs';
 import { LAYOUT_RULES } from './specs';
@@ -83,6 +83,59 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
   return parts.filter(Boolean).join(' · ');
 }
 
+/** AFD-189: one line per node, for large flows (key, type, status, title, binding). */
+function briefLine(node: FlowNode): string {
+  return `${node.key} (${node.type}${node.status ? `, ${node.status}` : ''}) "${node.title}"${node.impl ? ` · ${node.impl.ref}` : ''}${node.type === 'subflow' ? ` · ${node.subflow?.nodes?.length ?? 0} step(s)` : ''}`;
+}
+
+/** AFD-189: how much of a flow describeFlow shows. */
+export interface DescribeView {
+  /** One short line per node. */
+  brief?: boolean;
+  /** Only nodes whose key path starts with one of these, and the wires touching them. */
+  nodes?: string[];
+  /** With layout: only the layout check, no nodes or wires. */
+  onlyProblems?: boolean;
+}
+
+/**
+ * AFD-189: problems grouped by code (count, the nodes with most of them, the fix once), so a flow
+ * with hundreds of warnings fits in one answer.
+ */
+export function summarizeFindings(model: FlowModel, findings: readonly Finding[]): string {
+  if (findings.length === 0) return 'No problems.';
+  const order = { error: 0, warning: 1, info: 2 } as const;
+  const groups = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const k = `${f.severity} ${f.code}`;
+    groups.set(k, [...(groups.get(k) ?? []), f]);
+  }
+  const lines: string[] = [];
+  for (const [k, fs] of [...groups.entries()].sort(
+    (a, b) =>
+      order[a[1][0]?.severity ?? 'info'] - order[b[1][0]?.severity ?? 'info'] ||
+      b[1].length - a[1].length,
+  )) {
+    const byNode = new Map<string, number>();
+    for (const f of fs) {
+      const where = f.node ? keyPath(model, f.node) : f.path.join('.') || 'flow';
+      byNode.set(where, (byNode.get(where) ?? 0) + 1);
+    }
+    const top = [...byNode.entries()].sort((a, b) => b[1] - a[1]);
+    const subjects = [...new Set(fs.map((f) => f.subject).filter(Boolean))];
+    const fix = FINDING_CODES[fs[0]?.code ?? '']?.fix;
+    lines.push(
+      `- ${k} ×${fs.length} at ${byNode.size} place(s): ${top
+        .slice(0, 8)
+        .map(([w, n]) => (n > 1 ? `${w} (${n})` : w))
+        .join(
+          ', ',
+        )}${top.length > 8 ? ', …' : ''}${subjects.length ? `; about: ${subjects.slice(0, 12).join(', ')}${subjects.length > 12 ? ', …' : ''}` : ''}${fix ? ` Fix: ${fix}` : ''}`,
+    );
+  }
+  return lines.join('\n');
+}
+
 /** Problems by key, with the fix for each code. */
 export function formatFindings(model: FlowModel, findings: readonly Finding[], max = 60): string {
   if (findings.length === 0) return 'No problems.';
@@ -91,7 +144,10 @@ export function formatFindings(model: FlowModel, findings: readonly Finding[], m
   const lines = sorted.slice(0, max).map((f) => {
     const where = f.node ? keyPath(model, f.node) : f.path.join('.');
     const fix = FINDING_CODES[f.code]?.fix;
-    return `- ${f.severity} ${f.code}${where ? ` at ${where}` : ''}: ${withoutIds(model, f.message)}${fix ? ` Fix: ${fix}` : ''}`;
+    // AFD-184: the exact finding an accept op takes, so a wrong key is never guessed.
+    const key =
+      f.severity === 'warning' && f.node && f.code !== 'open-fail-port' ? acceptKey(f) : '';
+    return `- ${f.severity} ${f.code}${where ? ` at ${where}` : ''}: ${withoutIds(model, f.message)}${fix ? ` Fix: ${fix}` : ''}${key ? ` [accept: ${key}]` : ''}`;
   });
   if (sorted.length > max) lines.push(`- … ${sorted.length - max} more`);
   return lines.join('\n');
@@ -123,6 +179,7 @@ export function describeFlow(
   layout?: ShownLayout,
   /** AFD-69: the layout check per level, with layout. */
   layoutIssues?: ReadonlyMap<string, readonly LayoutProblem[]>,
+  view: DescribeView = {},
 ): string {
   const { doc } = model;
   const f = doc.flow;
@@ -142,15 +199,36 @@ export function describeFlow(
             .join(', ')}`,
         ]
       : []),
+    // AFD-185: what steps may read without an input.
+    ...(f?.external_vars && Object.keys(f.external_vars).length
+      ? [
+          `Set outside the flow: ${Object.entries(f.external_vars)
+            .map(([k, v]) => `${k} (${v})`)
+            .join(', ')}`,
+        ]
+      : []),
     `Revision: ${revision} (pass it to flow_edit)`,
     ...(layout ? [`Layout: ${LAYOUT_RULES}`] : []),
   ];
   const open = openFailPorts(model);
   const decided = acceptedAll(doc).filter((a) => a.area === 'port' && a.node);
+  const picked = (id: string) =>
+    !view.nodes?.length ||
+    view.nodes.some((p) => {
+      const k = keyPath(model, id);
+      return k === p || k.startsWith(`${p}/`);
+    });
   for (const lv of model.levels.values()) {
     if (level && level !== 'all' && lv.id !== level) continue;
+    if (view.nodes?.length && !lv.nodes.some((n) => n?.id && picked(n.id))) continue;
+    if (view.onlyProblems && !(layoutIssues?.get(lv.id)?.length ?? 0)) continue;
     const parent = lv.parent ? model.nodes.get(lv.parent)?.node : undefined;
     out.push('', lv.id === ROOT ? 'Top level' : `Subflow ${keyPath(model, lv.id)} (inner level)`);
+    if (view.onlyProblems) {
+      out.push('  layout problems:');
+      for (const p of layoutIssues?.get(lv.id) ?? []) out.push(`    ${p.text}`);
+      continue;
+    }
     if (parent?.subflow?.boundary) {
       const b = parent.subflow.boundary;
       if (b.in) out.push(`  entry: ${keyPath(model, b.in)}`);
@@ -160,9 +238,13 @@ export function describeFlow(
         );
     }
     out.push('  nodes:');
-    for (const n of lv.nodes) if (n?.key) out.push(`    ${nodeLine(n, layout)}`);
+    for (const n of lv.nodes)
+      if (n?.key && picked(n.id))
+        out.push(`    ${view.brief ? briefLine(n) : nodeLine(n, layout)}`);
     out.push('  wires:');
-    const wires = lv.edges.filter((e) => e?.from && e.to);
+    const wires = lv.edges.filter(
+      (e) => e?.from && e.to && (picked(e.from.node) || picked(e.to.node)),
+    );
     if (wires.length === 0) out.push('    (none)');
     for (const e of wires)
       out.push(

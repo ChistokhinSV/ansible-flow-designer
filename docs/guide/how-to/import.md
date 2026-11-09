@@ -27,31 +27,38 @@ side by side.
 
 ### How playbooks map
 
-| Playbook                                         | Flow                                                                                                                                                            |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| one play                                         | its steps on the top level                                                                                                                                      |
-| several plays, `import_playbook`                 | a subflow each                                                                                                                                                  |
-| the first play's `hosts`                         | the default of the `devices` input (the hosts the flow runs on)                                                                                                 |
-| a later play on other hosts                      | its subflow runs on them (_Inventory target_)                                                                                                                   |
-| `gather_facts` (on by default)                   | a _Gather facts_ step                                                                                                                                           |
-| a task                                           | a step bound to its module, with its parameters; `when`, `loop`, `ignore_errors` and the like stay as [task keywords](binding-and-catalog.md#task-keywords)     |
-| `register`, `set_fact`, `vars_files`             | outputs; the steps that read them get inputs (`from:`)                                                                                                          |
-| `block` with `rescue` / `always`                 | a subflow; its `failed_hosts` lead to the rescue steps, and the always steps run after both paths                                                               |
-| a plain `block`                                  | its tasks, with the block's keywords on each                                                                                                                    |
-| `include_tasks` / `import_tasks` of a file       | a subflow named after the file; an `include_tasks` with `when` gets a decision in front (checked once, as Ansible does), an `import_tasks` puts it on each task |
-| a role                                           | a step bound to the role                                                                                                                                        |
-| a role whose `main.yml` only includes task files | a subflow bound to the role, one step per file (`tasks_from`)                                                                                                   |
-| handlers                                         | steps after the play's tasks, run when a step that notified them changed something                                                                              |
-| play `vars`, `vars_prompt`                       | flow inputs; vault values and prompted secrets by name only                                                                                                     |
-| `template` / `copy` sources, vars files          | paths the generated playbooks find (`{{ playbook_dir }}/…`)                                                                                                     |
+| Playbook                                                                         | Flow                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| one play                                                                         | its steps on the top level                                                                                                                                                                                    |
+| several plays, `import_playbook`                                                 | a subflow each                                                                                                                                                                                                |
+| the first play's `hosts`                                                         | the default of the `devices` input (the hosts the flow runs on)                                                                                                                                               |
+| a later play on other hosts                                                      | its subflow runs on them (_Inventory target_)                                                                                                                                                                 |
+| `gather_facts` (on by default)                                                   | a _Gather facts_ step                                                                                                                                                                                         |
+| a task                                                                           | a step bound to its module, with its parameters; `when`, `loop`, `ignore_errors` and the like stay as [task keywords](binding-and-catalog.md#task-keywords)                                                   |
+| `register`, `set_fact`, `vars_files`                                             | outputs; the steps that read them get inputs (`from:`)                                                                                                                                                        |
+| `block` with `rescue` / `always`                                                 | a subflow; its `failed_hosts` lead to the rescue steps. The always steps run once after both paths: hosts that failed are marked first and fail after them                                                    |
+| a plain `block`                                                                  | its tasks, with the block's keywords on each                                                                                                                                                                  |
+| `include_tasks` / `import_tasks` of a file                                       | a subflow named after the file (a file of one task: that step, on the level); an `include_tasks` with `when` gets a decision in front (checked once, as Ansible does), an `import_tasks` puts it on each task |
+| `include_tasks` in a loop, or of a file that includes itself                     | a step bound to `include_tasks` with the file, its `vars`, `loop` and `when`: it runs as in the playbook                                                                                                      |
+| `meta: end_play` / `end_host` / `end_batch`                                      | an end node (after a decision on its `when`): those hosts stop there, without the always steps                                                                                                                |
+| a role                                                                           | a step bound to the role                                                                                                                                                                                      |
+| a role whose `main.yml` only includes task files                                 | a subflow bound to the role, one step per file (`tasks_from`)                                                                                                                                                 |
+| handlers                                                                         | steps after the play's tasks, run when a step that notified them changed something                                                                                                                            |
+| play `vars`, `vars_prompt`                                                       | flow inputs; vault values and prompted secrets by name only                                                                                                                                                   |
+| `template` / `copy` sources, vars files, `{{ playbook_dir }}/…` in any parameter | paths from the repository root: `{{ afd_repo_root }}/…`, which the generated plays set                                                                                                                        |
+| a rescue task reading `ansible_failed_result`                                    | reads `afd_failed_result` (and `afd_failed_task`), which the failed step keeps                                                                                                                                |
 
 A failure the playbook does not handle stays an open fail port: the banner shows it, because
 Ansible stops that host there too.
 
 These have no one-to-one form and are noted; the import counts them "to check" next to the steps
 ready to run:
-- a dynamic include (templated file name, or in a loop): a draft step;
-- `meta` tasks other than `flush_handlers`: a draft step;
+- an include with a templated file name: a draft step;
+- a task file kept as `include_tasks` that reads `playbook_dir` itself, or includes files found
+  only next to the playbook: noted. From `generated/`, `playbook_dir` is the flow's folder; write
+  paths in the file as `{{ afd_repo_root | default(playbook_dir) }}/…`, which works from the
+  playbook and from the flow;
+- `meta` tasks other than `flush_handlers`, `noop` and the end ones: a draft step;
 - a module with an unknown short name: a step bound as the playbook writes it (implemented in a
   format 2 flow, since its status follows the binding), to check;
 - play `serial`, `any_errors_fatal` and `max_fail_percentage`: they apply to each step;

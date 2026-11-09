@@ -23,7 +23,7 @@ import type { SchemaValidator } from '../flow/schema';
 import { newFlowText } from '../flow/template';
 import { flowText } from '../flow/text';
 import { type Finding, validateFlow } from '../flow/validate';
-import { generatedDirOf, sourceOutline } from '../import/outline';
+import { generatedDirOf, paged, sourceOutline } from '../import/outline';
 import { importPlaybook } from '../import/playbook';
 import type { SourceIO } from '../import/read';
 import type { ImportResult } from '../import/result';
@@ -31,7 +31,7 @@ import { type PlaybookForm, readPlaybook } from '../import/source';
 import { checkLive } from '../scenario/live';
 import type { ScenarioResult } from '../scenario/scenarios';
 import { diffEdits } from '../yaml/edits';
-import { countFindings, describeFlow, formatFindings } from './describe';
+import { countFindings, describeFlow, formatFindings, summarizeFindings } from './describe';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
 import { type ReferenceTopic, reference } from './reference';
 import { keyPath, RefError, resolveNode, withoutIds } from './refs';
@@ -85,6 +85,13 @@ export interface FlowIO {
    * when `names` is absent. Absent where the host cannot run them.
    */
   verifyScenarios?(flowPath: string, names?: string[]): Promise<ScenarioResult[] | string>;
+  /**
+   * AFD-191: generates the flow's code (generated/) from the file as it is now, as a save does;
+   * notes for the answer. Absent where the host cannot.
+   */
+  generate?(path: string): Promise<string[]>;
+  /** AFD-191: whether generated/ matches the flow ("current", "out of date: …"); undefined if unknown. */
+  codeState?(path: string): Promise<string | undefined>;
 }
 
 export interface ToolResult {
@@ -171,7 +178,15 @@ export async function flowList(io: FlowIO): Promise<ToolResult> {
 
 export async function flowDescribe(
   io: FlowIO,
-  input: { path?: string; level?: string; layout?: boolean },
+  input: {
+    path?: string;
+    level?: string;
+    layout?: boolean;
+    nodes?: string[] | string;
+    detail?: string;
+    only_problems?: boolean;
+    page?: number;
+  },
 ): Promise<ToolResult> {
   const l = await load(io, input.path);
   if (isResult(l)) return l;
@@ -201,9 +216,15 @@ export async function flowDescribe(
   // AFD-117: one line on the flow's scenarios, so an agent knows they are there.
   const scenarios = complete ? await scenarioCheckOf(io, l) : undefined;
   const line = scenarios ? scenariosLine(scenarios) : undefined;
-  return {
-    text: `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues)}${line ? `\n${line}` : ''}`,
+  const nodes = typeof input.nodes === 'string' ? [input.nodes] : (input.nodes ?? []);
+  const view = {
+    ...(input.detail === 'brief' ? { brief: true } : {}),
+    ...(nodes.length ? { nodes } : {}),
+    ...(input.only_problems && issues ? { onlyProblems: true } : {}),
   };
+  const text = `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues, view)}${line ? `\n${line}` : ''}`;
+  // AFD-189: a large flow comes in pages, as an outline does.
+  return { text: paged(text.split('\n'), input.page ?? 1, ' and the same arguments') };
 }
 
 /** AFD-117: the live check of a loaded flow's scenarios, where the host reads them. */
@@ -214,21 +235,52 @@ async function scenarioCheckOf(io: FlowIO, l: Loaded) {
   return text === undefined ? undefined : checkLive(l.model.doc, text);
 }
 
-export async function flowValidate(io: FlowIO, input: { path?: string }): Promise<ToolResult> {
+export async function flowValidate(
+  io: FlowIO,
+  input: {
+    path?: string;
+    code?: string | string[];
+    node?: string;
+    severity?: string;
+    summary?: boolean;
+    page?: number;
+  },
+): Promise<ToolResult> {
   const l = await load(io, input.path);
   if (isResult(l)) return l;
   const gaps = l.findings.some((f) => f.code === 'missing-id');
   // AFD-117: the scenarios file's problems and the scenarios the simulation fails.
   const scenarios = gaps ? undefined : await scenarioCheckOf(io, l);
   const extra = scenarios ? scenarioProblemLines(l.model.doc, scenarios) : [];
+  // AFD-189: filters, so the next batch of problems to fix is one call away.
+  const codes = (Array.isArray(input.code) ? input.code : (input.code ?? '').split(','))
+    .map((c) => c.trim())
+    .filter(Boolean);
+  const prefix = input.node?.trim();
+  const shown = l.findings.filter(
+    (f) =>
+      (!codes.length || codes.includes(f.code)) &&
+      (!input.severity || f.severity === input.severity) &&
+      (!prefix ||
+        (f.node !== undefined &&
+          (keyPath(l.model, f.node) === prefix ||
+            keyPath(l.model, f.node).startsWith(`${prefix}/`)))),
+  );
+  const filtered = shown.length !== l.findings.length;
+  // AFD-191: whether generated/ matches the flow.
+  const code = gaps ? undefined : await io.codeState?.(l.path).catch(() => undefined);
+  const lines = [
+    `${l.path}: ${countFindings(l.findings)}${filtered ? ` (showing ${shown.length}: ${[codes.length ? `code ${codes.join(', ')}` : '', prefix ? `node ${prefix}` : '', input.severity ?? ''].filter(Boolean).join(', ')})` : ''}`,
+    ...(code ? [`Generated code: ${code}`] : []),
+    ...(input.summary
+      ? [summarizeFindings(l.model, shown)]
+      : formatFindings(l.model, shown, Number.POSITIVE_INFINITY).split('\n')),
+    ...(extra.length ? ['Scenarios:', ...extra] : []),
+    ...(gaps ? ['', 'The file was written by hand: run flow_complete_ids first.'] : []),
+    `Revision: ${revisionOf(l.text)}`,
+  ];
   return {
-    text: [
-      `${l.path}: ${countFindings(l.findings)}`,
-      formatFindings(l.model, l.findings),
-      ...(extra.length ? ['Scenarios:', ...extra] : []),
-      ...(gaps ? ['', 'The file was written by hand: run flow_complete_ids first.'] : []),
-      `Revision: ${revisionOf(l.text)}`,
-    ].join('\n'),
+    text: paged(lines, input.page ?? 1, ' and the same filters (or summary: true, code, node)'),
   };
 }
 
@@ -334,7 +386,16 @@ export async function flowEdit(
       return fail(`${e.message}\nflow_describe shows the keys and ports.`);
     throw e;
   }
-  if (result.text === l.text) return { text: `Nothing changed. Revision: ${now}` };
+  // AFD-191: regenerate writes generated/ from the file even when no op changed the flow.
+  const regenerate = ops.some((o) => o.op === 'regenerate');
+  if (result.text === l.text) {
+    if (!regenerate) return { text: `Nothing changed. Revision: ${now}` };
+    if (input.dry_run)
+      return { text: `Dry run: regenerate would write generated/. Revision: ${now}` };
+    if (!io.generate) return fail('Generating code is not available here');
+    const written = await io.generate(l.path).catch((e: Error) => [`Not generated: ${e.message}`]);
+    return { text: [`The flow is unchanged.`, ...written, `Revision: ${now}`].join('\n') };
+  }
 
   const before = problemKeys(l.model, l.findings);
   const report = (text: string, model: FlowModel, findings: Finding[], notes: string[]) => {
@@ -349,7 +410,15 @@ export async function flowEdit(
       ...result.notes,
       ...notes,
       `Problems: ${countFindings(findings)}${solvedText(solved)}`,
-      ...(added.length ? ['New problems:', formatFindings(model, added, 30)] : []),
+      // AFD-189: many new problems come grouped by code; flow_validate lists them one by one.
+      ...(added.length > 30
+        ? [
+            `New problems (${added.length}, by code; flow_validate with code or node lists them):`,
+            summarizeFindings(model, added),
+          ]
+        : added.length
+          ? ['New problems:', formatFindings(model, added, 30)]
+          : []),
       `Revision: ${revisionOf(text)}`,
     ].join('\n');
   };
@@ -531,7 +600,7 @@ export async function flowExport(
  */
 export async function sourceOutlineTool(
   io: FlowIO,
-  input: { path?: string; focus?: string; flow?: string; page?: number },
+  input: { path?: string; focus?: string; flow?: string; page?: number; full?: boolean },
 ): Promise<ToolResult> {
   const path = input.path?.trim();
   if (!path)
@@ -549,6 +618,7 @@ export async function sourceOutlineTool(
       text: await sourceOutline(at.io, {
         path: at.path,
         ...(input.focus ? { focus: input.focus } : {}),
+        ...(input.full === true ? { full: true } : {}),
         ...(flow ? { flow } : {}),
         ...(input.page ? { page: input.page } : {}),
         ...(io.resolveModule ? { resolveModule: io.resolveModule } : {}),
@@ -654,20 +724,63 @@ export async function flowImport(
   const checked = check(created.text, io.schema);
   if (typeof checked === 'string') return fail(checked);
   const c = result.counts;
+  // AFD-189: a compact answer: the notes (capped), problems by code, the top level and the
+  // subflows by size; flow_describe and flow_validate page through the rest.
+  const notes = result.notes.slice(0, 40);
+  const subflows = [...checked.model.nodes.values()]
+    .filter((e) => e.node.type === 'subflow' && e.node.subflow?.nodes?.length)
+    .map((e) => `${keyPath(checked.model, e.node.id)} (${e.node.subflow?.nodes?.length} node(s))`);
   return {
     text: [
       `Created ${path} from ${source}${input.template ? ` (${input.template})` : ''}: ${c.steps} step(s), ${c.implemented} ready to run, ${c.drafts} to check (the notes say why). One step per task, as the source has them.`,
       ...created.notes,
-      ...(result.notes.length
-        ? ['What did not map one to one:', ...result.notes.map((n) => `- ${n}`)]
+      ...(notes.length
+        ? [
+            'What did not map one to one:',
+            ...notes.map((n) => `- ${n}`),
+            ...(result.notes.length > notes.length
+              ? [`- … ${result.notes.length - notes.length} more note(s) of the same kinds`]
+              : []),
+          ]
         : []),
-      describeFlow(checked.model, checked.findings, revisionOf(created.text)),
+      `Problems: ${countFindings(checked.findings)}`,
+      ...(checked.findings.length ? [summarizeFindings(checked.model, checked.findings)] : []),
+      describeFlow(checked.model, [], revisionOf(created.text), ROOT, undefined, undefined, {
+        brief: true,
+      }).replace(/\n\nProblems: .*$/, ''),
+      ...(subflows.length
+        ? [
+            '',
+            `Subflows (flow_describe with level <key> shows one): ${subflows.slice(0, 60).join(', ')}${subflows.length > 60 ? ', …' : ''}`,
+          ]
+        : []),
     ].join('\n'),
   };
 }
 
+/**
+ * AFD-189: the largest answer a tool gives. Agents take about 25k tokens per tool result; a
+ * larger one is saved to a file they read in pieces.
+ */
+export const MAX_TOOL_TEXT = 40_000;
+
 /** Runs a tool by name: the adapters' single entry point. */
 export async function runTool(io: FlowIO, name: string, input: unknown): Promise<ToolResult> {
+  const r = await runOne(io, name, input);
+  if (r.text.length <= MAX_TOOL_TEXT) return r;
+  const cut = r.text.lastIndexOf('\n', MAX_TOOL_TEXT - 400);
+  const hint: Record<string, string> = {
+    flow_describe: 'level <subflow>, nodes, detail: brief, only_problems or page',
+    flow_validate: 'summary: true, code, node or page',
+    source_outline: 'page or focus',
+  };
+  return {
+    ...r,
+    text: `${r.text.slice(0, cut > 0 ? cut : MAX_TOOL_TEXT - 400)}\n… cut: ${r.text.length - (cut > 0 ? cut : MAX_TOOL_TEXT - 400)} more characters. Ask for less: ${hint[name] ?? 'a narrower request'}.`,
+  };
+}
+
+async function runOne(io: FlowIO, name: string, input: unknown): Promise<ToolResult> {
   const args = (input && typeof input === 'object' ? input : {}) as Record<string, never>;
   switch (name) {
     case 'flow_list':

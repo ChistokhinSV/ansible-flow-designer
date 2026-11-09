@@ -38,6 +38,14 @@ on the right.
 Hosts that leave through an exit continue from the subflow node's port of the same name on the
 parent level.
 
+- **Named exits:** an exit can have a name of its own, such as `dry_run_done` or `nothing_to_do`
+  (lowercase letters, digits and `_`; not a port name a node uses). The subflow node then has a
+  port of that name, drawn below next to `ok_hosts`, which you wire on the parent level like any
+  other. Use it for hosts that stop early inside the subflow and go somewhere of their own; with
+  the AI tools, `add_exit` with the new name.
+- **An end node inside a subflow** ends the run for the hosts that reach it: they do not come back
+  to the parent level, and nothing after the subflow runs for them (as `meta: end_play` does).
+
 ## Extract steps into a subflow
 
 1. Select several connected steps: Ctrl+click, or Shift+drag a box.
@@ -48,10 +56,13 @@ parent level.
 
 The steps and the wires between them move into the new subflow, with their IDs, in one undo step:
 - wires in must reach one step, which becomes the entry;
-- wires out become exits through the subflow's ports;
+- wires out become exits through the subflow's ports; normal hosts that leave for two places
+  get a named exit for the second one (named after the step and port, such as `check_true`);
 - outputs that steps outside read become subflow outputs, and those references are rewritten.
 
-It works inside subflows too.
+It works inside subflows too. The reverse, moving a subflow's steps back up to its level, is the
+AI tools' `dissolve_subflow` op: wires into the subflow go to its entry step, its exits become
+wires from the inner ports, and references follow.
 
 ## Data across the boundary
 

@@ -96,3 +96,16 @@ The budget was 928 KB by the 0.74 releases. Epic AFD-170 (agents built into VS C
 - the developer experiments.
 
 Phase 2 (AFD-173/174) adds the integration for each editor, so the budget is now 960 KB. The experiments go when Phase 2 lands. The other budgets stay: `mcp.js` 1,088 KB, webview 1,216 KB.
+
+## Amendment: budgets 1,024 KB and 1,152 KB (AFD-197, 2026-11-09)
+
+The fixes for agents converting large playbooks (AFD-176 to AFD-196) went into the core both bundles carry:
+
+- import paths and include handling;
+- Jinja scopes in the checker;
+- paging and summaries in the tools;
+- the dissolve, rename and replace ops;
+- named exits;
+- the repair of stale agent registrations.
+
+`extension.js` reached about 968 KB and `mcp.js` about 1,100 KB. The budgets are now 1,024 KB and 1,152 KB. The webview stays at 1,216 KB.

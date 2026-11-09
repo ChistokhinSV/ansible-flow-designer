@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.76.0 — AFD-197 (AFD-176 to AFD-196)
+
+An AI agent converted eight real playbooks (5 to 210 tasks) into flows, then filed everything that slowed it down or made the result wrong. This release fixes all of it. Imported flows now pass the checks as imported and run as the playbooks did, and the tools give large flows in pieces an agent can read. Far fewer warnings need an accept.
+
+Generated code and import:
+- **Paths work from `generated/`:** generated playbooks run from the flow's `generated/` folder, so `{{ playbook_dir }}` pointed there and scripts next to the playbook were not found. Validation stayed clean. Import and the outline now write every path next to the playbook, including script paths inside commands, from `{{ afd_repo_root }}`, the repository root the generated plays set. The new `binding-playbook-dir` warning flags `playbook_dir` left in a binding.
+- **Shared task files:** a task file run as `include_tasks` can write its paths as `{{ afd_repo_root | default(playbook_dir) }}/…`, and then works from the playbook and from the flow. The import notes each such file that needs this.
+- **A rescue step knows what failed:** every step keeps the failure as host facts (`afd_failed_result`, `afd_failed_task`, `afd_failed_node`), so the step on its `failed_hosts` can report it. Before, Ansible's `ansible_failed_result` was gone by then, and reports said "unknown error". Imported rescue steps read the new names.
+- **block/rescue/always imports cleanly:** the always steps are imported once. Hosts that failed are marked, run them, and fail after them, as in Ansible. A second copy of the always steps registered every variable twice, so a fresh import had 28 errors and no generated code.
+- **Looped and self-including includes run as written:** an `include_tasks` in a loop, or of a file that includes itself, becomes one step bound to `include_tasks` with its vars, loop and when. Before, it was a draft step, or a copy inlined one level deep. Such a step's code keeps only the keywords Ansible allows on an include.
+- **`meta: end_play` ends the hosts:** it becomes an end node, after a decision on its `when`. Before, it was a step that let hosts through, so a dry run would have carried on into the upgrade.
+- **Readable names:** keys are cut at a word boundary, a `{{ var }}` in a title reads `<var>`, and the intent no longer repeats the title. A file of one task is that step on the level, titled by the include (for example "phase_event: preflight started"). Include vars stay only on the steps that read them.
+- **A node input's default reaches the code:** the generated play var falls back to it. Before, the default only quieted the check.
+- **Re-import:** flows imported before this version are offered updates for many steps on their next re-import, because imported steps now look different.
+
+Checks:
+- **No more false unknown variables:**
+  - `x is not skipped` reads only `x`.
+  - Names a template sets itself (`{% set %}`, `{% for %}`) are not reads.
+  - A `set_fact` that builds up its own value over a loop is fine.
+  - AWX's `awx_*` and `tower_*` variables are known.
+  - A variable read only with `| default` or `is defined` is an info, not a warning.
+- **Variables set outside the flow:** `flow.external_vars` lists what AWX or Kestra extra vars, the inventory or a caller sets at run time, and steps read those without an input. One `update_flow` replaces the hundreds of accepts the agent needed.
+- **"May be undefined" knows guards:** a read behind an `is defined` test, in the step's `when` or a decision before it, is fine. So is an input marked `optional: true`. The suggested fix no longer says "give it a default", since a default makes `is defined` always true.
+- **Accepting a warning:** `flow_validate` prints the exact key after each warning, and `check:<code>` without a subject accepts every warning of that code on the step. An accept that matches no warning is refused, and one that stops matching later is flagged (`stale-decision`). Before, a wrong key was saved and hid nothing.
+
+AI tools:
+- **Large flows fit:**
+  - Every answer stays under 40,000 characters and comes in pages.
+  - `flow_validate` has `summary: true` and filters by code, node and severity.
+  - `flow_describe` has `nodes`, `detail: brief` and `only_problems`.
+  - `flow_import` answers in about 6,000 to 13,000 characters, where it took 38,000 to 157,000.
+  - `source_outline` shows `#3,#9` or `#25-#37` in full in one call, or everything with `full: true`.
+- **New edit ops:**
+  - `rename` (several keys at once);
+  - `replace_text` (find and replace in bindings);
+  - `dissolve_subflow` (move a subflow's steps up, the reverse of extract);
+  - `regenerate` (write `generated/` again after an edit outside the tools).
+- **Generated code:** `flow_validate` says whether `generated/` is current.
+- **Deleting a step leaves nothing dangling:** subflow outputs that lifted it go, and inputs that read it lose their `from:`, with a note each.
+- **Renaming an input** also rewrites the step's keywords (`when`, `loop`) and a decision's condition.
+- **Large playbooks:** the import prompt and the skill suggest importing a playbook of more than about 40 tasks first and restructuring it, instead of adding its steps one by one.
+
+Subflows and layout:
+- **Named exits:** a subflow can have exits of its own, such as `dry_run_done`. Each is a port on the subflow node that the parent wires like `ok_hosts`. Extract into Subflow creates one where the selection leaves for two places. An end node inside a subflow ends the host's run.
+- **Auto layout uses the canvas's ports:** a decision's true and false labels no longer overlap, steps fed by `failed_hosts` stand right of the column they handle, and simple chains stand in one straight column. Over the test flows, the problems the layout check finds went from 28 to 10.
+- **The AI layout check follows the canvas:** the check and `tidy_up` use the canvas direction (`afd.canvas.direction`). The MCP server reads it from the workspace's settings, then the user's.
+
+AI setup:
+- **Agents set up before 0.69.1 work again:** their registrations pointed at the server copy of the old publisher ID, which is gone, so the flow tools failed to start (CONNECTION_CLOSED). At start, the extension now finds registrations of a server that no longer exists and offers to repair them.
+- **The server copy is refreshed at every start:** it is replaced in one step and now includes the Ansible probe that scenario verification needs.
+- **Show AI Integration Diagnostics** shows which server file each agent's registration starts, and whether it exists.
+- **The MCP server** writes startup errors to its log and to `AFD_MCP_TRACE`.
+
 ## 0.75.0 — AFD-170 (AFD-171 to AFD-174)
 
 The agents built into Cursor, Kiro, Antigravity IDE and Devin Desktop (Windsurf) can now design and change Ansible flows, the way Copilot does in VS Code. These editors install the extension from [Open VSX](https://open-vsx.org/extension/chistokhinsv/ansible-flow-designer). It now installs in VS Code 1.94 or later; it asked for 1.140 before.

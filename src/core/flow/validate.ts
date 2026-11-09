@@ -117,14 +117,45 @@ export function validateFlow(
   }
   // AFD-51: warnings accepted with a reason (format 2) stay out of the problems.
   const checks = acceptedAll(checked).filter((a) => a.area === 'check');
+  // AFD-184: an accepted check no warning matches hides nothing (a wrong key, or fixed since).
+  for (const a of checks) {
+    const entry = a.node ? model.nodes.get(a.node) : undefined;
+    if (!entry) continue;
+    if (
+      findings.some(
+        (f) => f.severity === 'warning' && f.node === a.node && acceptMatches(a.what, f),
+      )
+    )
+      continue;
+    findings.push({
+      code: 'stale-decision',
+      severity: 'warning',
+      message: `Accepted problem ${a.what} for ${label(entry.node)} matches no warning: it hides nothing (unaccept it, or accept the key the warning shows)`,
+      path: ['decisions', a.index],
+      node: a.node,
+    });
+  }
   const kept = checks.length
     ? findings.filter(
         (f) =>
           f.severity !== 'warning' ||
-          !checks.some((a) => a.node === f.node && a.what === checkWhat(f.code, f.subject)),
+          !checks.some((a) => a.node === f.node && acceptMatches(a.what, f)),
       )
     : findings;
   return { model, findings: kept };
+}
+
+/**
+ * AFD-184: what an accepted check decision covers: its exact key (`<code>:<subject>`, the port
+ * for port warnings), or with the code alone every subject of that code on the node.
+ */
+export function acceptMatches(what: string, f: Finding): boolean {
+  return what === f.code || what === checkWhat(f.code, f.subject ?? f.port);
+}
+
+/** AFD-184: the `finding` string an accept op takes for a warning (check:<code>[:<subject>]). */
+export function acceptKey(f: Finding): string {
+  return `check:${checkWhat(f.code, f.subject ?? f.port)}`;
 }
 
 function checkIdentity(model: FlowModel, add: (f: Finding) => void): void {
@@ -585,7 +616,7 @@ function checkApprovalSplit(
 
 /** Variables every task can read: Ansible's magic and connection variables, loop items, omit. */
 export const MAGIC_VARS =
-  /^(ansible_[a-z0-9_]*|inventory_hostname(_short)?|inventory_dir|inventory_file|hostvars|groups|group_names|play_hosts|playbook_dir|role_path|role_name|omit|item|ansible_loop_var|lookup|query|q|now|range|dict|namespace|loop|afd_[a-z0-9_]*)$/;
+  /^(ansible_[a-z0-9_]*|inventory_hostname(_short)?|inventory_dir|inventory_file|hostvars|groups|group_names|play_hosts|playbook_dir|role_path|role_name|omit|item|ansible_loop_var|lookup|query|q|now|range|dict|namespace|loop|afd_[a-z0-9_]*|awx_[a-z0-9_]*|tower_[a-z0-9_]*)$/;
 
 /** Module parameters Ansible evaluates as bare expressions, by module short name. */
 const BARE_PARAMS: Record<string, readonly string[]> = { assert: ['that'], debug: ['var'] };
@@ -635,6 +666,7 @@ function checkBindingVars(
   level: string,
   path: Path,
   flowInputs: Set<string>,
+  external: Set<string>,
   add: (f: Finding) => void,
 ): void {
   const impl = node.impl;
@@ -643,7 +675,12 @@ function checkBindingVars(
   // Task keywords read inputs too (AFD-26); loop variables and task vars are their own names, and
   // changed_when / failed_when may read the step's result.
   const kw = keywordReads(impl);
-  const known = new Set([...kw.own, ...(impl.kind === 'module' ? [registerName(node)] : [])]);
+  const known = new Set([
+    ...kw.own,
+    ...(impl.kind === 'module' ? [registerName(node)] : []),
+    ...setFactNames(impl),
+    ...external,
+  ]);
   const reads: [Set<string>, Path][] = [
     [
       new Set([...refsIn(impl.params ?? {}), ...exprRefs(bareParams(impl))]),
@@ -652,18 +689,23 @@ function checkBindingVars(
     [new Set([...kw.templated, ...kw.bare]), [...path, 'impl', 'keywords']],
   ];
   const reported = new Set<string>();
+  const bindingText = JSON.stringify([impl.params ?? {}, impl.keywords ?? {}]);
   for (const [read, where] of reads)
     for (const name of read) {
       if (inputs.has(name) || known.has(name) || MAGIC_VARS.test(name) || reported.has(name))
         continue;
       reported.add(name);
       const flow = flowInputs.has(name);
+      // AFD-185: a value read only with a fallback (| default, is defined) cannot fail the task.
+      const optional = !flow && onlyGuarded(bindingText, name);
       add({
         code: 'binding-unknown-var',
-        severity: flow ? 'info' : 'warning',
+        severity: flow || optional ? 'info' : 'warning',
         message: flow
           ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
-          : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
+          : optional
+            ? `${label(node)} reads "${name}" only with a fallback (default or is defined): fine when nothing sets it; an input, or flow.external_vars, shows where it comes from`
+            : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
         path: where,
         node: node.id,
         subject: name,
@@ -695,12 +737,14 @@ function checkConditions(
   level: string,
   path: Path,
   flowInputs: Set<string>,
+  external: Set<string>,
   add: (f: Finding) => void,
 ): void {
   const inputs = new Set(Object.keys(node.inputs ?? {}));
   const check = (expr: string, where: Path, what: string, result?: string) => {
     for (const name of exprRefs(expr)) {
-      if (inputs.has(name) || name === result || MAGIC_VARS.test(name)) continue;
+      if (inputs.has(name) || name === result || MAGIC_VARS.test(name) || external.has(name))
+        continue;
       const flow = flowInputs.has(name);
       add({
         code: 'condition-unknown-var',
@@ -710,6 +754,7 @@ function checkConditions(
           : `${label(node)} ${what} reads "${name}", which is not ${result ? `its result (${result}) or ` : ''}an input of this node${hintFor(model, node, level, name)}`,
         path: where,
         node: node.id,
+        subject: name,
       });
     }
   };
@@ -764,6 +809,7 @@ function checkTimingInputs(
   level: string,
   path: Path,
   flowInputs: Set<string>,
+  external: Set<string>,
   add: (f: Finding) => void,
 ): void {
   if (node.type === 'approval') {
@@ -784,7 +830,7 @@ function checkTimingInputs(
     if (!templated(value)) continue;
     const where = [...path, 'settings', key];
     for (const name of exprRefs(value)) {
-      if (name in inputs || MAGIC_VARS.test(name)) continue;
+      if (name in inputs || MAGIC_VARS.test(name) || external.has(name)) continue;
       const flow = flowInputs.has(name);
       add({
         code: 'setting-unknown-var',
@@ -828,7 +874,7 @@ function checkUnfed(
 ): void {
   if (node.type !== 'task' && node.type !== 'approval') return;
   const field = node.inputs?.[name];
-  if (!field || field.default !== undefined || field.type === 'host_list') return;
+  if (!field || field.default !== undefined || field.optional || field.type === 'host_list') return;
   const flow = flowInputs.has(name);
   const registers = upstreamNodes(model, node.id).find(
     (up) => up.impl?.kind === 'module' && registerName(up) === name,
@@ -869,6 +915,7 @@ function checkLifts(node: FlowNode, path: Path, add: (f: Finding) => void): void
 
 function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   const flowInputs = new Set(Object.keys(model.doc.flow?.inputs ?? {}));
+  const external = externalVars(model);
   for (const { node, path, level } of model.nodes.values()) {
     for (const side of ['inputs', 'outputs'] as const) {
       for (const [name, field] of Object.entries(node[side] ?? {})) {
@@ -881,8 +928,8 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         if (src.kind === 'output' && side === 'inputs') {
           const at: Path = [...path, side, name, 'from'];
           checkCollision(model, node, src.node, src.name, from, at, name, add);
-          if (field.default === undefined && !guarded(node, name))
-            checkProducerRuns(model, node, src.node, from, at, name, add);
+          if (field.default === undefined && !field.optional && !guarded(node, name))
+            checkProducerRuns(model, node, src.node, src.name, from, at, name, add);
         }
         if (src.kind !== 'unresolved') continue;
         add({
@@ -891,6 +938,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
           message: `${label(node)} ${side}.${name}: "${from}" ${src.why}`,
           path: [...path, side, name, 'from'],
           node: node.id,
+          subject: name,
         });
       }
     }
@@ -898,9 +946,10 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
   }
   checkTopLevelOutcomes(model, add);
   for (const { node, path, level } of model.nodes.values()) {
-    checkBindingVars(model, node, level, path, flowInputs, add);
-    checkConditions(model, node, level, path, flowInputs, add);
-    checkTimingInputs(model, node, level, path, flowInputs, add);
+    checkBindingVars(model, node, level, path, flowInputs, external, add);
+    checkConditions(model, node, level, path, flowInputs, external, add);
+    checkTimingInputs(model, node, level, path, flowInputs, external, add);
+    checkPlaybookDir(node, path, add);
   }
   const runtime = model.doc.flow?.runtime?.kind;
   const v2 = formatOf(model.doc) >= 2;
@@ -1082,11 +1131,37 @@ function checkTopLevelOutcomes(model: FlowModel, add: (f: Finding) => void): voi
  * Every use of an input in the binding goes through `| default(…)`, as the handlers an import
  * writes do (`(x_result | default({})) is changed`): a missing value is expected there.
  */
+/**
+ * Every read of `name` in the text goes through `| default` or tests whether it is defined, so a
+ * missing value is handled where it is read (AFD-185, AFD-187).
+ */
+function onlyGuarded(text: string, name: string): boolean {
+  const uses = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+  const safe =
+    (text.match(new RegExp(`\\b${name}\\s*\\|\\s*default\\b`, 'g'))?.length ?? 0) +
+    (text.match(new RegExp(`\\b${name}\\s+is\\s+(not\\s+)?(defined|undefined|none)\\b`, 'g'))
+      ?.length ?? 0);
+  return uses > 0 && uses <= safe;
+}
+
 function guarded(node: FlowNode, input: string): boolean {
-  const text = JSON.stringify([node.impl?.params ?? {}, node.impl?.keywords ?? {}]);
+  // A when (or a list item of it) that tests the input guards the whole step.
+  const when = node.impl?.keywords?.when;
+  const tests = new RegExp(`\\b${input}\\s+is\\s+defined\\b`);
+  if ((Array.isArray(when) ? when : [when]).some((w) => typeof w === 'string' && tests.test(w)))
+    return true;
+  const text = JSON.stringify([
+    node.impl?.params ?? {},
+    node.impl?.keywords ?? {},
+    node.condition ?? '',
+    node.settings?.until ?? '',
+  ]);
   const uses = text.match(new RegExp(`\\b${input}\\b`, 'g'))?.length ?? 0;
-  const safe = text.match(new RegExp(`\\b${input}\\s*\\|\\s*default\\b`, 'g'))?.length ?? 0;
-  return uses > 0 && uses === safe;
+  const safe =
+    (text.match(new RegExp(`\\b${input}\\s*\\|\\s*default\\b`, 'g'))?.length ?? 0) +
+    (text.match(new RegExp(`\\b${input}\\s+is\\s+(not\\s+)?(defined|undefined|none)\\b`, 'g'))
+      ?.length ?? 0);
+  return uses > 0 && uses <= safe;
 }
 
 /** The step that really sets a node's output: a subflow output follows its lift inward. */
@@ -1152,12 +1227,20 @@ function checkCollision(
 }
 
 /** The nodes reachable on a level from `start` over its wires, never passing `skip`. */
-function reachable(edges: { from: PortRef; to: PortRef }[], start: Ulid[], skip?: Ulid): Set<Ulid> {
+function reachable(
+  edges: { from: PortRef; to: PortRef }[],
+  start: Ulid[],
+  skip?: Ulid,
+  blocked?: Set<string>,
+): Set<Ulid> {
   const seen = new Set<Ulid>(start.filter((s) => s !== skip));
   const queue = [...seen];
+  const open = blocked?.size
+    ? edges.filter((e) => !blocked.has(`${e?.from?.node}|${e?.from?.port}`))
+    : edges;
   // AFD-162: wires by node, built once per level, instead of every wire per visited node.
   for (let i = 0; i < queue.length; i++)
-    for (const to of successors(edges, queue[i] as Ulid)) {
+    for (const to of successors(open, queue[i] as Ulid)) {
       if (to === skip || seen.has(to)) continue;
       seen.add(to);
       queue.push(to);
@@ -1174,6 +1257,7 @@ function checkProducerRuns(
   model: FlowModel,
   reader: FlowNode,
   producer: FlowNode,
+  output: string | undefined,
   from: string,
   path: Path,
   input: string,
@@ -1201,15 +1285,18 @@ function checkProducerRuns(
       message: `${label(reader)} inputs.${input}: "${from}" ${why}: those hosts arrive without the value`,
       path,
       node: reader.id,
+      subject: input,
     });
-  if (entries.length > 0 && reachable(level.edges, entries, producer.id).has(target)) {
+  // AFD-187: a decision that tests the value is defined keeps hosts without it off its true side.
+  const guards = definedGuards(level.nodes, [input, ...(output ? [output] : [])]);
+  if (entries.length > 0 && reachable(level.edges, entries, producer.id, guards).has(target)) {
     say(`is set by ${label(producer)}, which some paths to here do not run`);
     return;
   }
   const failed = level.edges
     .filter((e) => e?.from?.node === producer.id && isFailPort(e.from.port))
     .map((e) => e.to.node);
-  if (failed.length > 0 && reachable(level.edges, failed).has(target))
+  if (failed.length > 0 && reachable(level.edges, failed, undefined, guards).has(target))
     say(`is set by ${label(producer)}, and hosts that fail in it still get here`);
 }
 
@@ -1307,5 +1394,50 @@ function checkDecisions(model: FlowModel, add: (f: Finding) => void): void {
         path,
         ...(a.node ? { node: a.node } : {}),
       });
+  });
+}
+
+/**
+ * AFD-187: the true ports of decisions that test one of `names` is defined (`x is defined`, not
+ * negated): hosts without the value take false there, so paths through true do not count.
+ */
+function definedGuards(nodes: (FlowNode | undefined)[], names: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const n of nodes) {
+    if (n?.type !== 'decision' || typeof n.condition !== 'string') continue;
+    for (const name of names)
+      if (new RegExp(`\\b${name}\\s+is\\s+defined\\b`).test(n.condition)) out.add(`${n.id}|true`);
+  }
+  return out;
+}
+
+/** AFD-183: the facts a set_fact step sets, which its own parameters may read (accumulators). */
+function setFactNames(impl: NonNullable<FlowNode['impl']>): string[] {
+  if (impl.kind !== 'module' || !/^(ansible\.(builtin|legacy)\.)?set_fact$/.test(impl.ref))
+    return [];
+  return Object.keys(impl.params ?? {}).filter((k) => k !== 'cacheable');
+}
+
+/** AFD-185: variables the flow says are set outside it at run time (flow.external_vars). */
+function externalVars(model: FlowModel): Set<string> {
+  const ext = model.doc.flow?.external_vars;
+  return new Set(ext && typeof ext === 'object' ? Object.keys(ext) : []);
+}
+
+/**
+ * AFD-176: generated plays run from generated/, so a parameter that reads playbook_dir finds
+ * nothing the source kept next to its playbook. afd_repo_root is the repository root.
+ */
+function checkPlaybookDir(node: FlowNode, path: Path, add: (f: Finding) => void): void {
+  const impl = node.impl;
+  if (!impl || impl.kind === 'playbook') return;
+  if (!/\bplaybook_dir\b/.test(JSON.stringify([impl.params ?? null, impl.keywords ?? null])))
+    return;
+  add({
+    code: 'binding-playbook-dir',
+    severity: 'warning',
+    message: `${label(node)} reads playbook_dir, which is the flow's generated/ folder when it runs: write repository paths from {{ afd_repo_root }}, the repository root the generated play sets`,
+    path: [...path, 'impl'],
+    node: node.id,
   });
 }

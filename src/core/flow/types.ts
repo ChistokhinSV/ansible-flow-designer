@@ -29,6 +29,8 @@ export interface ContractField {
   targets?: boolean;
   /** AFD-95: what the input is for, in words: shown when a run asks for it (round 1: W9). */
   description?: string;
+  /** AFD-187: node inputs: may be undefined when the step runs; the step checks it itself. */
+  optional?: boolean;
 }
 
 export type Contract = Record<string, ContractField>;
@@ -244,6 +246,8 @@ export interface FlowHeader {
   /** Longest time the flow may take (`4h`, `2h30m`), checked by the Timing lens (M8). */
   maintenance_window?: string;
   inputs?: Contract;
+  /** AFD-185: variables set outside the flow at run time (AWX/Kestra extra vars): name -> where. */
+  external_vars?: Record<string, string>;
 }
 
 export interface FlowDocument {

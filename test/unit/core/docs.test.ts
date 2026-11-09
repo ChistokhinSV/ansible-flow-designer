@@ -332,7 +332,9 @@ describe('sample playbooks to import (Tutorial 5)', () => {
         'push-the-baseline',
         'record-the-rollback',
         'record-the-attempt',
-        'record-the-attempt-after-failure',
+        // AFD-178: one always chain; failed hosts are marked, run it, then fail.
+        'mark-the-failure-of-push-the-baseline',
+        'push-the-baseline-failed',
         'verify-ntp',
         'apply-the-ntp-and-aaa-baseline',
         'save-config',

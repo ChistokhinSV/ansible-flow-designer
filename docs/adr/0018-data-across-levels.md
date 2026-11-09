@@ -79,3 +79,13 @@ read the host variable directly, not the designer's way.
 - The @ list (`refChoices`) offers an upstream module step's registered result that is not an
   output yet: picking it stages the input here (`from: <step>.<register>`) and makes the result an
   output there (`setContractField`, `from: impl.register`), so the input has a source.
+
+## Amendment: optional inputs, defaults, external variables, precedence (AFD-185, AFD-187, AFD-188, 2026-11-09)
+
+- **`optional: true`** on a node input says the step handles a missing value itself. `ref-may-be-undefined` and `input-unfed` skip it.
+- **`ref-may-be-undefined` sees guards:** an `is defined` test in the step's `when`, in its condition or until, and a decision before the reader whose true port tests the value is defined.
+- **A default** now reaches the generated code (ADR-0009 amendment). So the fix the checker suggests no longer says "give it a default", which would make every `is defined` test pass.
+- **`flow.external_vars`** (name -> where it comes from) lists variables something outside the flow sets at run time. The binding, condition and setting checks treat them as known. `awx_*` and `tower_*` are known everywhere.
+- **Reads with a fallback:** a variable that is not an input and is read only with `| default` or `is defined` is an info, not a warning.
+- **Precedence:** node inputs are play vars, so a fact or register of the same name set earlier on the host wins over them, and extra vars win over both. The docs and the skill now say so: give inputs names that no step sets as a fact.
+- **Jinja scopes:** names a template binds itself (`{% set %}`, `{% for %}`, `with`, `macro`) are not reads. `x is not <test>` reads only `x`. A `set_fact` step may read its own facts (accumulators).

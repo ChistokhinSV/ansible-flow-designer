@@ -18,7 +18,7 @@ import {
   platformCollection,
   platformsOf,
 } from '../../../src/core/catalog/rank';
-import { bindingTaskText, inputVars } from '../../../src/core/engine/binding';
+import { bindingTask, bindingTaskText, inputVars } from '../../../src/core/engine/binding';
 import { CommandError, type FlowCommand, planCommand } from '../../../src/core/flow/commands';
 import { outputVar } from '../../../src/core/flow/dataNames';
 import { createIdFactory } from '../../../src/core/flow/ids';
@@ -204,6 +204,57 @@ describe('data passing helpers', () => {
     });
   });
 
+  it('an input default reaches the code: a fallback for its source, or the value itself (AFD-187)', () => {
+    const doc = docOf(OS);
+    const model = buildModel(doc);
+    const reloadEntry = [...model.nodes.values()].find((e) => e.node.key === 'reload');
+    if (!reloadEntry) throw new Error('no reload');
+    reloadEntry.node.inputs = {
+      boot: { type: 'dict', from: 'set-boot-variable.boot_result', default: { changed: false } },
+      mode: { type: 'string', default: "it's" },
+      wait: { type: 'list', from: 'set-boot-variable.boot_result.items', default: [1, null] },
+    };
+    expect(inputVars(model, reloadEntry.level, reloadEntry.node)).toEqual({
+      boot: "{{ boot_result | default({'changed': false}) }}",
+      mode: "it's",
+      wait: '{{ boot_result.items | default([1, none]) }}',
+    });
+  });
+
+  it('include_tasks keeps conditions, loops and vars on the include, the rest under apply (AFD-179)', () => {
+    const sbv = nodeOf(OS, 'set-boot-variable');
+    const task = bindingTask(
+      sbv,
+      {
+        kind: 'module',
+        ref: 'ansible.builtin.include_tasks',
+        params: { file: '{{ afd_repo_root }}/phases/poll.yml' },
+        keywords: {
+          when: 'x is defined',
+          loop: '{{ items }}',
+          loop_control: { loop_var: 'step' },
+          vars: { a: 1 },
+          delegate_to: 'localhost',
+        },
+      },
+      30,
+    );
+    expect(task).toEqual({
+      name: `[set-boot-variable] ${sbv.title}`,
+      'ansible.builtin.include_tasks': {
+        file: '{{ afd_repo_root }}/phases/poll.yml',
+        apply: { tags: expect.anything(), timeout: 30, delegate_to: 'localhost' },
+      },
+      when: 'x is defined',
+      loop: '{{ items }}',
+      loop_control: { loop_var: 'step' },
+      vars: { a: 1 },
+      register: 'set_boot_variable_result',
+    });
+    expect(task).not.toHaveProperty('ignore_unreachable');
+    expect(task).not.toHaveProperty('until');
+  });
+
   it('previews the task the binding generates', () => {
     const sbv = nodeOf(OS, 'set-boot-variable');
     const text = bindingTaskText(sbv, sbv.impl ?? { kind: 'module', ref: '' });
@@ -297,5 +348,34 @@ describe('binding draft (properties page)', () => {
     // Upstream of reload inside upgrade-os: set-boot-variable outputs boot_result.
     expect(labels).toContain('set-boot-variable.boot_result');
     expect(upstreamNodes(model, reload.id).map((n) => n.key)).toContain('set-boot-variable');
+  });
+});
+
+describe('renaming an input follows it everywhere the node reads it (AFD-191)', () => {
+  it('rewrites keywords and a decision condition too', () => {
+    const text = readExample('os-upgrade.flow.yaml');
+    const node = nodeOf(text, 'set-boot-variable');
+    const withKw = apply(text, {
+      kind: 'setBinding',
+      id: node.id,
+      impl: {
+        kind: 'module',
+        ref: 'ansible.builtin.debug',
+        params: { msg: '{{ target_image }}' },
+        keywords: { when: 'target_image is defined', loop: '{{ target_image | list }}' },
+      },
+    });
+    const renamed = apply(withKw, {
+      kind: 'setContractField',
+      target: node.id,
+      side: 'inputs',
+      name: 'target_image',
+      rename: 'image',
+      field: { type: 'string', from: 'flow.target_image' },
+    });
+    expect(nodeOf(renamed, 'set-boot-variable').impl?.keywords).toEqual({
+      when: 'image is defined',
+      loop: '{{ image | list }}',
+    });
   });
 });

@@ -27,13 +27,15 @@ export function importPrompt(p: ImportPromptInput): string {
     `1. Read the source with the source_outline tool${awx ? ' (the export file, then each playbook it lists as in this repository)' : ''}, passing flow as the file to write, so file paths in impl fit it.`,
     '2. Plan the flow by purpose before editing: a few subflows such as pre-checks, backup, the change, verification, rollback or notification, and steps named by what they achieve. Group related tasks; keep the order the source runs them in.',
     '3. Build it with flow_new, then flow_edit (a batch per level is fine): add_node with the impl from the outline copied as is (module, params, register, keywords), add_node with in: <subflow> or extract_subflow for levels, and set_io for the data later steps read (registered results, loaded variables).',
+    // AFD-196: step by step does not scale to playbooks of a hundred tasks or more.
+    '   For a playbook of more than about 40 tasks, start from flow_import instead (exact impls and data wiring in one call), then restructure by intent: extract_subflow and dissolve_subflow to regroup, rename to name steps by what they achieve, replace_text for mechanical changes. flow_validate with summary: true shows the problems by code; filter it by code or node to work through them.',
     awx
       ? "4. Keep what AWX does: success → ok_hosts, failure → failed_hosts, always → both; approvals stay approvals; survey questions and extra vars become flow inputs. Keep the playbooks' behaviour as in 5."
       : '4. Make the flow inputs from the play variables and prompts (secrets without a default); the hosts input (devices, host_list) defaults to a list, e.g. [edge].',
     '5. Keep the playbook\'s behaviour: when, loop and other task keywords stay in impl.keywords. Where the source handles a failure (block/rescue, ignore_errors, retries), handle that fail port the same way (apply_pattern, or a wire to the rescue steps); leave the others open, as the source does, and do not invent handling. Handlers become steps after their play with keywords.when "(<register> | default({})) is changed".',
     // AFD-69: the agent never sees the canvas; the layout check says what a person would see.
     '6. Check the layout: flow_describe with layout: true ends with a layout check per level (a wire through a node, a label on a node or on another label, overlaps, crossings). Wires step round nodes by themselves, so a wire through a node means there is no room: fix it and labels on nodes with move (put the node in the way beside the wire, or give it space) and check again; leave crossings no move removes.',
-    '7. Finish with flow_validate (no errors). Then report how you grouped the tasks, what you changed, and what you left out or could not map.',
+    '7. Finish with flow_validate (no errors). Variables set outside the flow at run time (AWX or Kestra extra vars, a caller) go into flow.external_vars with update_flow, not one accept per step. Then report how you grouped the tasks, what you changed, and what you left out or could not map.',
     '',
     'If an exact copy is wanted instead, flow_import makes one in a single call.',
   ].join('\n');

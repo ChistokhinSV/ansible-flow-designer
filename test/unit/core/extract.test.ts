@@ -164,12 +164,20 @@ describe('extract into a subflow', () => {
     ).toContain('os-upgrade-edge.upgrade-os.restart.yml');
   });
 
-  it('refuses two ways in, two different exits on one port, gaps, start and end', () => {
+  it('refuses two ways in, gaps, start and end; a second way out becomes a named exit', () => {
     const fail = (path: string, keys: string[]) => () => extract(path, keys);
     expect(fail(PORTS, ['br1', 'br2', 'join'])).toThrow(
       /one way in.*"Branch 1" and "Branch 2"|one way in/,
     );
-    expect(fail(PORTS, ['probe', 'work'])).toThrow(/two ok_hosts wires/);
+    // AFD-181: normal hosts leaving for two places: the second place gets a named exit.
+    const { after, sub } = extract(PORTS, ['probe', 'work']);
+    const exits = Object.keys(sub.subflow?.boundary?.outputs ?? {});
+    expect(exits).toContain('ok_hosts');
+    expect(
+      exits.some((p) => /^[a-z0-9_]+$/.test(p) && !['ok_hosts', 'failed_hosts'].includes(p)),
+    ).toBe(true);
+    expect(schema(after)).toEqual([]);
+    expect(validateFlow(after).findings.filter((f) => f.severity === 'error')).toEqual([]);
     expect(fail(PORTS, ['probe', 'rollback'])).toThrow(/not connected/);
     expect(fail(PORTS, ['start', 'probe'])).toThrow(/Start and end nodes stay/);
   });

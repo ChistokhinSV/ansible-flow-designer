@@ -2,7 +2,8 @@
 // one-time copy that starts a design.
 // - one play is the top level; several plays (or import_playbook) are one subflow each;
 // - a block with rescue/always is a subflow: its failed_hosts lead to the rescue steps, and the
-//   always steps run after both paths, with a copy for hosts that failed (they fail after it);
+//   always steps run once after both paths; hosts that failed are marked first and fail after it
+//   (AFD-178);
 // - roles are steps bound to the role; a role whose main only includes task files is a subflow
 //   bound to the role with a step per file (include_role tasks_from);
 // - handlers are steps at each flush point, run when a notifying step changed something;
@@ -13,7 +14,7 @@ import { duration } from '../engine/util';
 import { importedFlow, LevelBuilder } from '../flow/builder';
 import { groupPart } from '../flow/dataNames';
 import { type IdFactory, slugify } from '../flow/ids';
-import { exprRefs, refsIn, templated } from '../flow/jinja';
+import { exprRefs, mapStrings, parseRefs, refsIn, templated } from '../flow/jinja';
 import { keywordReads } from '../flow/keywords';
 import type {
   BoundaryExit,
@@ -28,7 +29,8 @@ import type {
 import { bareParams, MAGIC_VARS } from '../flow/validate';
 import { walkNodes } from '../flow/walk';
 import { shortName } from './builtins';
-import { basename, relative } from './read';
+import { fromRoot, localize } from './paths';
+import { basename, dirname } from './read';
 import { stepDesign } from './reimport';
 import type { ImportResult } from './result';
 import { isSecret, SECRET, VAULT } from './secrets';
@@ -98,8 +100,29 @@ const typeOf = (v: unknown): ContractType =>
             ? 'dict'
             : 'any';
 
-const keyBase = (text: string, fallback: string) =>
-  slugify(text, fallback).slice(0, 40).replace(/-+$/, '') || fallback;
+/** A key from a title, cut at a word boundary (AFD-194: a cut mid-word read as a typo). */
+const keyBase = (text: string, fallback: string): string => {
+  const slug = slugify(text, fallback);
+  if (slug.length <= 40) return slug;
+  const cut = slug.slice(0, 41);
+  const at = cut.lastIndexOf('-');
+  return (at >= 20 ? cut.slice(0, at) : slug.slice(0, 40)).replace(/-+$/, '') || fallback;
+};
+
+/**
+ * A task name as a title (AFD-194): `{{ x }}` reads `<x>`, so a title says what varies without the
+ * template; an expression shows its first variable.
+ */
+export function cleanTitle(name: string): string {
+  return name
+    .replaceAll(
+      /\{\{-?([\s\S]*?)-?\}\}/g,
+      (_m, body: string) => `<${parseRefs(`{{${body}}}`)[0] ?? '…'}>`,
+    )
+    .replaceAll(/\{%[\s\S]*?%\}|\{#[\s\S]*?#\}/g, '')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
+}
 
 class PlaybookImporter {
   readonly notes: string[] = [];
@@ -111,6 +134,8 @@ class PlaybookImporter {
   private targets = 'devices';
   private hosts?: string;
   private readonly unknownReads = new Set<string>();
+  /** The folder of the playbook the current play is in: playbook_dir for its tasks (AFD-176). */
+  private playDir = '';
   /** Tasks seen per file and name, for their re-import identity (AFD-61). */
   private readonly occurrences = new Map<string, number>();
 
@@ -162,7 +187,7 @@ class PlaybookImporter {
       );
     if (this.unknownReads.size)
       this.notes.push(
-        `Read but not set in the playbook (inventory, role defaults or extra vars): ${[...this.unknownReads].sort().join(', ')}. The banner shows them as unknown variables.`,
+        `Read but not set in the playbook (inventory, role defaults or extra vars): ${[...this.unknownReads].sort().join(', ')}. The banner shows them as unknown variables; those set at run time outside the flow (AWX or Kestra extra vars, a caller) go into flow.external_vars (update_flow).`,
       );
     // What each step looks like as imported: a re-import tells the designer's edits by it.
     for (const n of walkNodes(top.nodes)) if (n.origin) n.origin.design = stepDesign(n);
@@ -374,6 +399,16 @@ class PlaybookImporter {
   }
 
   private play(play: PlayForm, level: Level): void {
+    const outer = this.playDir;
+    this.playDir = dirname(play.origin.path);
+    try {
+      this.playSteps(play, level);
+    } finally {
+      this.playDir = outer;
+    }
+  }
+
+  private playSteps(play: PlayForm, level: Level): void {
     const before = new Set(this.steps.keys());
     const handlers: Handlers = {
       list: play.handlers
@@ -396,7 +431,7 @@ class PlaybookImporter {
         title: `Load ${basename(f.file)}`,
         intent: `Load the variables of ${f.file}`,
         ref: 'ansible.builtin.include_vars',
-        params: { file: `{{ playbook_dir }}/${relative(this.opts.generatedDir, f.path)}` },
+        params: { file: fromRoot(f.path) },
       });
       const info = this.steps.get(node.id);
       for (const k of f.keys) info?.produces.set(k, 'fact');
@@ -480,7 +515,14 @@ class PlaybookImporter {
     }
   }
 
-  private task(t: TaskForm, level: Level, handlers: Handlers, suffix: string, when?: string): void {
+  private task(
+    t: TaskForm,
+    level: Level,
+    handlers: Handlers,
+    suffix: string,
+    when?: string,
+    titled?: string,
+  ): void {
     if (shortName(t.module) === 'pause' && typeof t.params.prompt === 'string') {
       const node: FlowNode = {
         id: this.opts.newId(),
@@ -496,24 +538,20 @@ class PlaybookImporter {
       );
       return;
     }
-    const key = this.key(level, `${t.name || shortName(t.module)}${suffix}`, 'step');
+    const title = titled || cleanTitle(t.name) || shortName(t.module);
+    const key = this.key(level, `${title}${suffix}`, 'step');
     const origin = this.origin(t.origin.path, t.name || t.module);
     const notifies = t.notify.length > 0;
     const register = t.register ?? (notifies ? `${groupPart(key)}_result` : undefined);
-    const params: Record<string, unknown> = { ...t.params };
-    for (const f of t.files) {
-      if (f.path) {
-        const local = `{{ playbook_dir }}/${relative(this.opts.generatedDir, f.path)}`;
-        params[f.param] =
-          f.param === 'cmd' && typeof params.cmd === 'string'
-            ? params.cmd.replace(f.written, local)
-            : local;
-      } else
+    for (const f of t.files)
+      if (!f.path)
         this.notes.push(
           `${key}: ${f.written} (${f.param}) was not found next to ${t.origin.path}; kept as written.`,
         );
-    }
-    let keywords = { ...t.keywords };
+    // AFD-176: local files and playbook_dir as the generated play finds them.
+    const local = localize(t.params, t.keywords, t.files, this.playDir);
+    const params = local.params;
+    let keywords = { ...local.keywords };
     if (when) {
       const list = [...(keywords.when === undefined ? [] : [keywords.when].flat()), when];
       keywords.when = list.length === 1 ? list[0] : list;
@@ -541,8 +579,13 @@ class PlaybookImporter {
       id: this.opts.newId(),
       key,
       type: 'task',
-      title: t.name || shortName(ref),
-      intent: t.name || `Runs ${ref}`,
+      title: titled || cleanTitle(t.name) || shortName(ref),
+      // AFD-194: the title already says what the source's name says.
+      ...(titled && t.name && t.name !== titled
+        ? { intent: t.name }
+        : t.name
+          ? {}
+          : { intent: `Runs ${ref}` }),
       status: t.fqcn ? 'implemented' : 'draft',
       impl,
       ...(Object.keys(settings).length ? { settings } : {}),
@@ -627,7 +670,6 @@ class PlaybookImporter {
     const sub = this.subflow(level, `${title}${suffix}`, (inner) =>
       this.items(b.items, inner, handlers, suffix),
     );
-    if (suffix) sub.title = `${title} (after a failure)`;
     const ok: PortRef[] = [{ node: sub.id, port: 'ok_hosts' }];
     let failed: PortRef[] = [{ node: sub.id, port: 'failed_hosts' }];
     if (b.rescue.length) {
@@ -635,9 +677,10 @@ class PlaybookImporter {
       const first = level.nodes.length;
       this.items(b.rescue, level, handlers, suffix);
       ok.push(...level.cursor);
+      const rescue = level.nodes.slice(first);
+      this.failureFacts(rescue);
       // Hosts that fail inside the rescue still run the always steps, then fail.
-      failed = level.nodes
-        .slice(first)
+      failed = rescue
         .filter((n) => n.type === 'task' || n.type === 'subflow')
         .map((n) => ({ node: n.id, port: 'failed_hosts' }));
     }
@@ -645,17 +688,67 @@ class PlaybookImporter {
       level.cursor = ok;
       return;
     }
-    level.cursor = ok;
+    // AFD-178: one always chain. Hosts on the failure path are marked first, run the same steps,
+    // and fail after them; a copy of the chain registered every variable twice.
+    const flag = `afd_failed_${groupPart(sub.key)}`;
+    let marker: FlowNode | undefined;
+    if (failed.length) {
+      level.cursor = failed;
+      marker = this.module(level, {
+        title: `Mark the failure of ${title}`,
+        intent: `Hosts that failed in ${title} run the always steps, then fail`,
+        ref: 'ansible.builtin.set_fact',
+        params: { [flag]: true },
+      });
+    }
+    level.cursor = [...ok, ...(marker ? [{ node: marker.id, port: 'ok_hosts' }] : [])];
     this.items(b.always, level, handlers, suffix);
-    const after = level.cursor;
-    level.cursor = failed;
-    this.items(b.always, level, handlers, `${suffix}-after-failure`);
-    this.failExit(level, level.cursor, `${title}: failed before the always steps`);
-    level.cursor = after;
+    if (!marker || !level.cursor.length) return;
+    const gate: FlowNode = {
+      id: this.opts.newId(),
+      key: this.key(level, `${title} failed${suffix}`, 'decision'),
+      type: 'decision',
+      title: `Failed in ${title}?`,
+      intent: 'Hosts that failed before the always steps fail here, as in the source',
+      condition: `${flag} | default(false) | bool`,
+      status: 'implemented',
+    };
+    this.place(level, gate);
+    this.failExit(
+      level,
+      [{ node: gate.id, port: 'true' }],
+      `${title}: failed before the always steps`,
+    );
+    level.cursor = [{ node: gate.id, port: 'false' }];
+  }
+
+  /**
+   * AFD-186: a rescue step reads the failure from the host facts every step's rescue keeps, since
+   * it runs in a play of its own (ansible_failed_result is gone there).
+   */
+  private failureFacts(nodes: FlowNode[]): void {
+    const fix = (s: string) =>
+      s
+        .replaceAll(/\bansible_failed_task\.name\b/g, 'afd_failed_task')
+        .replaceAll(/\bansible_failed_task\b/g, 'afd_failed_task')
+        .replaceAll(/\bansible_failed_result\b/g, 'afd_failed_result');
+    for (const n of walkNodes(nodes)) {
+      const impl = n.impl;
+      if (!impl || !readsFailure(impl)) continue;
+      if (impl.params) impl.params = mapStrings(impl.params, fix) as Record<string, unknown>;
+      if (impl.keywords) impl.keywords = mapStrings(impl.keywords, fix) as Record<string, unknown>;
+      this.notes.push(
+        `${n.key}: reads the failure as afd_failed_result and afd_failed_task (the failed step's rescue keeps them; ansible_failed_result is gone in a later play).`,
+      );
+    }
   }
 
   private include(inc: IncludeForm, level: Level, handlers: Handlers, suffix: string): void {
     if (!inc.items) {
+      if (inc.path) {
+        this.includeStep(inc, level, suffix);
+        return;
+      }
       const node = this.draft(
         level,
         inc.name || `Include ${inc.file}`,
@@ -666,18 +759,99 @@ class PlaybookImporter {
       );
       return;
     }
-    const title = inc.name || basename(inc.file).replace(/\.ya?ml$/, '');
+    const file = basename(inc.file).replace(/\.ya?ml$/, '');
+    // AFD-194: an include without a name is told apart by the plain values it passes.
+    const hint = Object.values(inc.vars ?? {})
+      .filter((v): v is string => typeof v === 'string' && v.length <= 30 && !v.includes('{'))
+      .join(' ');
+    const title = inc.name || (hint ? `${file}: ${hint}` : file);
     // AFD-149: include_tasks checks its `when` once, before the file runs: a decision whose
     // false side goes around the file's subflow (import_tasks puts it on each task instead).
     const gate = inc.when?.length ? this.includeGate(level, title, suffix, inc.when) : undefined;
-    this.subflow(level, `${title}${suffix}`, (inner) =>
-      this.items(inc.items ?? [], inner, handlers, suffix),
-    );
+    const first = level.nodes.length;
+    const only = inc.items.length === 1 ? inc.items[0] : undefined;
+    if (only?.kind === 'task') {
+      // AFD-194: a one-task file is a step on this level, titled by the include.
+      this.task(only, level, handlers, suffix, undefined, title);
+    } else
+      this.subflow(level, `${title}${suffix}`, (inner) =>
+        this.items(inc.items ?? [], inner, handlers, suffix),
+      );
+    this.pruneVars(level.nodes.slice(first), Object.keys(inc.vars ?? {}));
     if (gate) level.cursor = [...level.cursor, { node: gate.id, port: 'false' }];
   }
 
+  /**
+   * AFD-179: an include the import cannot read in (a loop, a file that includes itself) runs as
+   * in the source: a step bound to include_tasks with the include's vars, loop and when.
+   */
+  private includeStep(inc: IncludeForm, level: Level, suffix: string): void {
+    const file = basename(inc.file).replace(/\.ya?ml$/, '');
+    const title = cleanTitle(inc.name) || `Run ${file}`;
+    const key = this.key(level, `${title}${suffix}`, 'step');
+    const keywords = this.scrub(
+      localize({}, inc.keywords, [], this.playDir).keywords,
+      'keywords',
+    ) as Record<string, unknown>;
+    const node: FlowNode = {
+      id: this.opts.newId(),
+      key,
+      type: 'task',
+      title,
+      intent: `Runs ${inc.file} as include_tasks (${inc.dynamic})`,
+      status: 'implemented',
+      impl: {
+        kind: 'module',
+        ref: 'ansible.builtin.include_tasks',
+        params: { file: fromRoot(inc.path ?? inc.file) },
+        ...(Object.keys(keywords).length ? { keywords } : {}),
+      },
+      ...(inc.tags.length ? { settings: { tags: [...new Set(inc.tags)] } } : {}),
+      origin: this.origin(inc.origin.path, inc.name || inc.file),
+    };
+    this.info(node, level);
+    this.place(level, node);
+    this.notes.push(
+      `${key}: ${inc.file} runs as include_tasks because ${inc.dynamic}; its tasks are not steps of the flow.`,
+    );
+    if (inc.portability?.length)
+      this.notes.push(
+        `${key}: ${inc.file} ${inc.portability.join(' and ')}, which point at generated/ when the flow runs: write paths in it from {{ afd_repo_root | default(playbook_dir) }}.`,
+      );
+  }
+
+  /**
+   * AFD-187: the vars an include passes reach every task read in; a step keeps those it reads
+   * (template and role steps and includes keep all: their files read vars the import cannot see).
+   */
+  private pruneVars(nodes: FlowNode[], names: string[]): void {
+    if (!names.length) return;
+    for (const n of walkNodes(nodes)) {
+      const impl = n.impl;
+      const vars = impl?.keywords?.vars;
+      if (impl?.kind !== 'module' || !vars || typeof vars !== 'object') continue;
+      if (/(^|\.)(template|include_tasks|import_tasks|include_role|import_role)$/.test(impl.ref))
+        continue;
+      const { vars: _drop, ...rest } = impl.keywords ?? {};
+      const reads = new Set(readsOf({ ...n, impl: { ...impl, keywords: rest } }));
+      const kept = Object.fromEntries(
+        Object.entries(vars as Record<string, unknown>).filter(
+          ([k]) => !names.includes(k) || reads.has(k),
+        ),
+      );
+      impl.keywords = Object.keys(kept).length ? { ...rest, vars: kept } : rest;
+      if (!Object.keys(impl.keywords).length) delete impl.keywords;
+    }
+  }
+
   /** A decision that lets the hosts for which an include's `when` holds into the include. */
-  private includeGate(level: Level, title: string, suffix: string, when: unknown[]): FlowNode {
+  private includeGate(
+    level: Level,
+    title: string,
+    suffix: string,
+    when: unknown[],
+    as?: { title: string; note: string },
+  ): FlowNode {
     const parts = when.map((w) => (typeof w === 'string' ? w.trim() : JSON.stringify(w)));
     const condition =
       parts.length === 1 ? (parts[0] as string) : parts.map((p) => `(${p})`).join(' and ');
@@ -685,14 +859,14 @@ class PlaybookImporter {
       id: this.opts.newId(),
       key: this.key(level, `${title} when${suffix}`, 'decision'),
       type: 'decision',
-      title: `Run ${title}?`,
+      title: as?.title ?? `Run ${title}?`,
       condition,
       status: 'implemented',
     };
     this.place(level, gate);
     level.cursor = [{ node: gate.id, port: 'true' }];
     this.notes.push(
-      `${gate.key}: include_tasks checks its when once, before ${title} runs: a decision (true runs it, false goes around it).`,
+      `${gate.key}: ${as?.note ?? `include_tasks checks its when once, before ${title} runs: a decision (true runs it, false goes around it).`}`,
     );
     return gate;
   }
@@ -773,10 +947,47 @@ class PlaybookImporter {
       return;
     }
     if (m.action === 'noop') return;
+    if (/^end_(play|host|batch)$/.test(m.action)) {
+      this.endMeta(m, level);
+      return;
+    }
     const node = this.draft(level, m.name || `meta ${m.action}`, `meta: ${m.action}`);
     this.notes.push(
       `${node.key}: meta ${m.action} has no flow equivalent: a draft step that lets hosts through.`,
     );
+  }
+
+  /**
+   * AFD-180: meta end_play / end_host / end_batch ends the hosts it applies to, skipping the
+   * always steps: an end node (a decision on its `when` first). A pass-through step would carry a
+   * dry run on into the change.
+   */
+  private endMeta(m: MetaForm, level: Level): void {
+    const when = m.keywords.when;
+    const label = m.name ? cleanTitle(m.name) : `meta ${m.action}`;
+    let gate: FlowNode | undefined;
+    if (when !== undefined)
+      gate = this.includeGate(level, label, '', Array.isArray(when) ? when : [when], {
+        title: `End here? (${m.action})`,
+        note: `meta ${m.action} with when: a decision; true ends those hosts, false goes on.`,
+      });
+    const end: FlowNode = {
+      id: this.opts.newId(),
+      key: this.key(level, `ended ${m.action}`, 'end'),
+      type: 'end',
+      title: m.name ? cleanTitle(m.name) : `Ended (${m.action})`,
+      outcome: 'success',
+      intent: `meta ${m.action}: the source ends ${m.action === 'end_host' ? 'the host' : 'the play for these hosts'} here, without the always steps`,
+    };
+    this.place(level, end);
+    if (gate) level.cursor = [{ node: gate.id, port: 'false' }];
+    this.notes.push(
+      `${end.key}: meta ${m.action} became an end node${gate ? ' after a decision on its when' : ''}. In the flow it ends these hosts' run${level.top ? '' : " (they do not return to the subflow's parent)"}${m.action === 'end_play' ? '; the source ends the play for every host at once, the flow decides per host' : ''}.`,
+    );
+    if (!gate)
+      this.notes.push(
+        `${end.key}: the steps after an unconditional meta ${m.action} never run; they stay in the flow without a wire into them.`,
+      );
   }
 
   // ---- data --------------------------------------------------------------------------------------
@@ -871,7 +1082,12 @@ function readsOf(node: FlowNode): string[] {
   const impl = node.impl;
   if (!impl) return [];
   const kw = keywordReads(impl);
-  const own = new Set([...kw.own, ...(impl.register ? [impl.register] : [])]);
+  // AFD-183: a set_fact step may read its own facts (a value it builds up over a loop).
+  const facts =
+    impl.kind === 'module' && shortName(impl.ref) === 'set_fact'
+      ? Object.keys(impl.params ?? {}).filter((k) => k !== 'cacheable')
+      : [];
+  const own = new Set([...kw.own, ...(impl.register ? [impl.register] : []), ...facts]);
   const s = node.settings ?? {};
   const read = [
     ...refsIn(impl.params ?? {}),
@@ -882,6 +1098,11 @@ function readsOf(node: FlowNode): string[] {
     ...(s.until ? exprRefs(s.until) : []),
   ];
   return [...new Set(read)].filter((n) => !own.has(n));
+}
+
+/** Whether a binding reads the failure Ansible gives a rescue (ansible_failed_result / _task). */
+function readsFailure(impl: ImplBinding): boolean {
+  return /\bansible_failed_(result|task)\b/.test(JSON.stringify([impl.params, impl.keywords]));
 }
 
 const isDone = (n: FlowNode): boolean =>

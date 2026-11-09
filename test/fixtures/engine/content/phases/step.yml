@@ -1,0 +1,7 @@
+# Engine test task file (AFD-177/179): run in a loop by an include_tasks step; it finds the files
+# next to it from the repository root, as a shared file written for playbooks and flows does.
+- name: Record the step
+  ansible.builtin.set_fact:
+    seen: "{{ seen | default([]) + [label ~ '-' ~ step_n] }}"
+- name: Emit the event
+  ansible.builtin.include_tasks: "{{ afd_repo_root | default(playbook_dir) }}/callbacks/event.yml"

@@ -173,3 +173,18 @@ Product-owner decision: "Merge, keep designer edits". An as-is playbook import w
   - keep records the fresh design without touching the fields, so a change not taken is not offered again until the source changes that task again.
 - **VS Code** (`src/extension/import/reimport.ts`, `afd.import.reimport` Re-import from Source): reads `imported_from.path` through the workspace source (open editors win) with the catalog's module resolution, plans, and shows a multi-select preview (conflicts unpicked, the rest picked). Unpicked updates and conflicts become `keep`. Tests pass `{take}` instead of picking.
 - **Limits:** wires, inputs, outputs and decisions are never merged; a new step brings its own data contract, and wiring `from:` to it is left to the designer and the validator. Flows imported before 0.39 have no origins and are refused with a message. AWX and AI-assisted imports are not re-imported.
+
+## Amendment: what the FortiGate conversion found (AFD-176 to AFD-180, AFD-187, AFD-194, AFD-196, 2026-11-09)
+
+- **Paths:** one helper (`import/paths.ts`) writes local files and every `{{ playbook_dir }}` read as `{{ afd_repo_root }}/<path from the repository root>`. The play's own folder stands in for `playbook_dir`. The import and the outline share it.
+- **One always chain:** hosts on the failure path pass a marker step (`afd_failed_<block>`), run the same always steps, and a decision after them sends them to the failure exit. The `-after-failure` copies registered every variable twice (`register-collision` right after import).
+- **Includes the import cannot read in** (in a loop, or of a file that includes itself at any depth) become `include_tasks` steps with their file, vars, loop and when. Before, they were draft stubs or inlined one level deep. Such a file that reads `playbook_dir`, or includes files found only next to the playbook, is noted.
+- **`meta: end_play`, `end_host` and `end_batch`** become an end node, after a decision on their `when`. Before, they were a step that let hosts through.
+- **Rescue steps** read `afd_failed_result` and `afd_failed_task` instead of Ansible's names, which a later play does not have.
+- **Names:**
+  - keys are cut at a word boundary;
+  - Jinja in a title reads `<variable>`;
+  - intent is not a copy of the title;
+  - a file of one task is that step on the level, titled by the include (its name, or the file and the plain values it passes).
+- **Include vars** stay only on the steps that read them (template, role and include steps keep all).
+- **Fingerprints:** these change the imported steps' fingerprints, so a re-import offers updates for flows imported before.

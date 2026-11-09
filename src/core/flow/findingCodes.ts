@@ -101,8 +101,9 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'Detach the note (its menu, or remove `on`), or attach it again; for format 1, Upgrade Flow Format.',
   },
   'stale-decision': {
-    meaning: 'A decision refers to a node, port or item that is gone.',
-    fix: 'Remove the decision (reopen).',
+    meaning:
+      'A decision refers to a node, port or item that is gone, or an accepted check that no warning matches any more.',
+    fix: 'Remove the decision (reopen, or unaccept).',
   },
   'layout-orphan': {
     meaning: 'A position for a node that does not exist.',
@@ -198,11 +199,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   'ref-may-be-undefined': {
     meaning:
       'A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value.',
-    fix: 'Read it after the paths join on the producing step, wire the failure path elsewhere, or give the input a default.',
+    fix: 'Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass.',
+  },
+  'binding-playbook-dir': {
+    meaning:
+      "A binding reads playbook_dir. Generated plays run from the flow's generated/ folder, so paths next to the source playbook are not found there.",
+    fix: 'Write repository paths from {{ afd_repo_root }}, the repository root the generated play sets; a shared task file can use {{ afd_repo_root | default(playbook_dir) }} so it works from the source playbook too.',
   },
   'binding-unknown-var': {
     meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
-    fix: 'Add the input the message names (set_io) or fix the name.',
+    fix: 'Add the input the message names (set_io) or fix the name. A variable set outside the flow at run time (AWX or Kestra extra vars, inventory, a caller) goes into flow.external_vars (update_flow).',
   },
   'condition-braces': {
     meaning:

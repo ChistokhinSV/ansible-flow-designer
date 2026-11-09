@@ -11,6 +11,7 @@ import {
   type ToolResult,
 } from '../../../../src/core/ai/handlers';
 import { checkOps, OP_SPECS } from '../../../../src/core/ai/specs';
+import { optionA } from '../../../../src/core/engine/optionA';
 import { flowLayoutProblems } from '../../../../src/core/export/layoutCheck';
 import { scenesOf } from '../../../../src/core/export/scene';
 import { createIdFactory } from '../../../../src/core/flow/ids';
@@ -633,17 +634,19 @@ describe('AFD-27: import tools', () => {
     const book = (
       await call(io, 'source_outline', { path: 'site.yml', flow: 'flows/edge/edge.flow.yaml' })
     ).text;
-    expect(book).toContain('Paths in impl are written for flows/edge/generated');
+    // AFD-176: paths from the repository root the generated plays set.
+    expect(book).toContain('Paths in impl are written from {{ afd_repo_root }}');
+    expect(book).toContain('they run from flows/edge/generated');
     expect(book).toContain(
       '#2 Read the software version · ansible.builtin.command · register version_check · changed_when',
     );
-    expect(book).toContain('"src":"{{ playbook_dir }}/../../../playbooks/templates/motd.j2"');
+    expect(book).toContain('"src":"{{ afd_repo_root }}/playbooks/templates/motd.j2"');
     expect(book).toContain('rescue (runs for hosts that failed in the block');
     expect(book).toContain('#15 role push_baseline "Apply the NTP and AAA baseline"');
     expect(book).toContain('snmp_community=<secret snmp_community>');
     // What the as-is import adds itself is spelled out too: vars files, gathered facts, split roles.
     expect(book).toContain(
-      'step impl: {"kind":"module","ref":"ansible.builtin.include_vars","params":{"file":"{{ playbook_dir }}/../../../vars/baseline.yml"}}',
+      'step impl: {"kind":"module","ref":"ansible.builtin.include_vars","params":{"file":"{{ afd_repo_root }}/vars/baseline.yml"}}',
     );
     expect(book).toContain(
       'gathers facts first: step impl: {"kind":"module","ref":"ansible.builtin.gather_facts"}',
@@ -658,6 +661,12 @@ describe('AFD-27: import tools', () => {
       /^#7 Configure the uplinks · play "Edge baseline" · playbooks\/baseline.yml:34/,
     );
     expect(one).toContain('"loop": "{{ uplinks }}"');
+    // AFD-190: a list or range of tasks in one call.
+    const some = (await call(io, 'source_outline', { path: 'site.yml', focus: '#2,#5-#7' })).text;
+    expect(some.match(/^#\d+ /gm)).toEqual(['#2 ', '#5 ', '#6 ', '#7 ']);
+    expect((await call(io, 'source_outline', { path: 'site.yml', focus: 'seven' })).text).toMatch(
+      /focus takes task numbers/,
+    );
     expect((await call(io, 'source_outline', { path: 'roles/push_baseline' })).text).toContain(
       'argument_specs main: ntp_servers',
     );
@@ -724,5 +733,152 @@ describe('AFD-27: import tools', () => {
     expect((await call(io, 'flow_import', { source: 'site.yml' })).text).toMatch(
       /not available here/,
     );
+  });
+});
+
+describe('large flows and mechanical edits (AFD-189, AFD-191, AFD-196)', () => {
+  const OS = 'examples/os-upgrade.flow.yaml';
+  const withOs = () => {
+    const io = memoryIO();
+    io.files.set(OS, read(OS));
+    return io;
+  };
+
+  it('flow_validate filters by code and node, and sums up by code', async () => {
+    const io = memoryIO();
+    const all = (await call(io, 'flow_validate', { path: EDGE })).text;
+    const open = (await call(io, 'flow_validate', { path: EDGE, code: ['open-fail-port'] })).text;
+    expect(open).toMatch(/\(showing \d+: code open-fail-port\)/);
+    expect(open.match(/^- /gm)?.every((l) => l)).toBe(true);
+    expect(open).not.toMatch(/^- (error|warning|info) (?!open-fail-port)/m);
+    const sum = (await call(io, 'flow_validate', { path: EDGE, summary: true })).text;
+    expect(sum).toMatch(/^- warning open-fail-port ×\d+ at \d+ place\(s\): /m);
+    expect(sum.length).toBeLessThanOrEqual(all.length + 200);
+  });
+
+  it('every answer stays under the cap, with a hint to ask for less', async () => {
+    const io = withOs();
+    const big = 'x'.repeat(50_000);
+    io.files.set(OS, read(OS).replace('title: Upgrade OS', `title: Upgrade OS\n  intent: ${big}`));
+    const d = await call(io, 'flow_describe', { path: OS });
+    expect(d.text.length).toBeLessThanOrEqual(40_000);
+    expect(d.text).toMatch(
+      /Ask for less: level <subflow>, nodes, detail: brief|call again with page 2/,
+    );
+  });
+
+  it('flow_describe with nodes and detail brief shows just those, one line each', async () => {
+    const io = withOs();
+    const d = (
+      await call(io, 'flow_describe', { path: OS, nodes: ['upgrade-os'], detail: 'brief' })
+    ).text;
+    expect(d).toContain('upgrade-os (subflow');
+    expect(d).toContain('step(s)');
+    expect(d).not.toContain('backup-config (task');
+  });
+
+  it('replace_text changes bindings in one op and fails when nothing matches', async () => {
+    const io = withOs();
+    const r = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [{ op: 'replace_text', find: 'boot system flash:', replace: 'boot system bootflash:' }],
+    });
+    expect(r.isError).toBeFalsy();
+    expect(r.text).toMatch(/replace_text changed \d+ step\(s\): /);
+    expect(io.files.get(OS)).toContain('boot system bootflash:{{ target_image }}');
+    const none = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [{ op: 'replace_text', find: 'no-such-text-anywhere', replace: 'x' }],
+    });
+    expect(none.isError).toBe(true);
+    expect(none.text).toContain('is in no binding');
+  });
+
+  it('rename takes a key map; regenerate needs no change to the flow', async () => {
+    const io = withOs();
+    const r = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [{ op: 'rename', keys: { 'backup-config': 'backup', 'post-checks': 'verify' } }],
+    });
+    expect(r.isError).toBeFalsy();
+    const doc = parse(io.files.get(OS) as string) as FlowDocument;
+    expect(doc.nodes.map((n) => n.key)).toEqual(expect.arrayContaining(['backup', 'verify']));
+    const gen: string[] = [];
+    const io2 = Object.assign(withOs(), {
+      generate: async (p: string) => {
+        gen.push(p);
+        return ['generated/: wrote os-upgrade-edge.yml'];
+      },
+    });
+    const again = await call(io2, 'flow_edit', { path: OS, ops: [{ op: 'regenerate' }] });
+    expect(again.text).toContain('The flow is unchanged.');
+    expect(again.text).toContain('generated/: wrote os-upgrade-edge.yml');
+    expect(gen).toEqual([OS]);
+  });
+
+  it('dissolve_subflow moves the steps up and keeps the flow valid', async () => {
+    const io = withOs();
+    const before = parse(io.files.get(OS) as string) as FlowDocument;
+    const inner = before.nodes
+      .find((n) => n.key === 'upgrade-os')
+      ?.subflow?.nodes?.map((n) => n.key);
+    const r = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [{ op: 'dissolve_subflow', subflow: 'upgrade-os' }],
+    });
+    expect(r.isError).toBeFalsy();
+    expect(r.text).toContain('upgrade-os dissolved:');
+    const text = io.files.get(OS) as string;
+    const doc = parse(text) as FlowDocument;
+    expect(doc.nodes.some((n) => n.key === 'upgrade-os')).toBe(false);
+    for (const k of inner ?? []) expect(doc.nodes.some((n) => n.key === k)).toBe(true);
+    expect(errorsOf(text)).toEqual([]);
+    // Wires that entered the subflow now enter its entry step.
+    const keyOf = (id: string) => doc.nodes.find((n) => n.id === id)?.key;
+    expect(
+      doc.edges.map((e) => `${keyOf(e.from.node)}.${e.from.port}->${keyOf(e.to.node)}`),
+    ).toEqual(expect.arrayContaining(['drain-traffic.ok_hosts->stage-image']));
+  });
+});
+
+describe('named subflow exits (AFD-181)', () => {
+  it('add_exit with a new name gives the subflow a port the parent wires', async () => {
+    const OS = 'examples/os-upgrade.flow.yaml';
+    const io = memoryIO();
+    io.files.set(OS, read(OS));
+    const r = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [
+        {
+          op: 'add_node',
+          type: 'decision',
+          title: 'Dry run',
+          in: 'upgrade-os',
+          condition: 'dry_run | bool',
+        },
+        { op: 'add_node', type: 'task', title: 'Report dry run', after: 'upgrade-os/dry-run.true' },
+        { op: 'rewire', from: 'upgrade-os/stage-image.ok_hosts', to: 'upgrade-os/dry-run' },
+        { op: 'connect', from: 'upgrade-os/dry-run.false', to: 'upgrade-os/verify-checksum' },
+        { op: 'add_exit', from: 'upgrade-os/report-dry-run.ok_hosts', port: 'dry_run_done' },
+        { op: 'connect', from: 'upgrade-os.dry_run_done', to: 'done' },
+      ],
+    });
+    expect(r.isError).toBeFalsy();
+    const text = io.files.get(OS) as string;
+    expect(errorsOf(text)).toEqual([]);
+    const d = (await call(io, 'flow_describe', { path: OS, nodes: ['upgrade-os'], detail: 'full' }))
+      .text;
+    expect(d).toContain('+dry_run_done');
+    expect(d).toContain('upgrade-os.dry_run_done -> done');
+    const doc = parse(text) as FlowDocument;
+    const gen = optionA.generate(doc, { source: 'os-upgrade.flow.yaml' });
+    expect(gen.ok).toBe(true);
+    expect(gen.files.map((f) => f.text).join('\n')).toMatch(/dry_run_done/);
+    // A port name a node type uses is not a named exit.
+    const bad = await call(io, 'flow_edit', {
+      path: OS,
+      ops: [{ op: 'add_exit', from: 'upgrade-os/report-dry-run.ok_hosts', port: 'approved' }],
+    });
+    expect(bad.isError).toBe(true);
   });
 });

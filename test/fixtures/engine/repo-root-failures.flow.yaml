@@ -1,0 +1,127 @@
+# Engine test flow (AFD-177, AFD-179, AFD-181, AFD-186; written by key):
+# - a looped include_tasks step runs a task file through afd_repo_root, with vars and loop_control;
+# - a step on failed_hosts reads the failure the failed step kept (afd_failed_result);
+# - a subflow lets some hosts leave through a named exit to an end of their own.
+schema_version: 2
+flow:
+  key: repo-root-failures
+  name: Engine test · repository root, failures, named exits
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - key: start
+    type: start
+    title: Start
+  - key: loop-include
+    type: task
+    title: Run the step file twice
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.include_tasks
+      params:
+        file: "{{ afd_repo_root }}/phases/step.yml"
+      keywords:
+        loop: [1, 2]
+        loop_control:
+          loop_var: step_n
+        vars:
+          label: run
+  - key: check-seen
+    type: task
+    title: Check both runs and their events
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - seen == ['run-1', 'run-2']
+          - events_seen | int == 2
+  - key: fail-some
+    type: task
+    title: Fail on h02
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.fail
+      params:
+        msg: "boom on {{ inventory_hostname }}"
+      keywords:
+        when: inventory_hostname == 'h02'
+  - key: report-failure
+    type: task
+    title: Report what failed
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - afd_failed_result.msg == 'boom on ' ~ inventory_hostname
+          - afd_failed_node == 'fail-some'
+          - afd_failed_task is search('Fail on h02')
+  - key: change
+    type: subflow
+    title: Change
+    status: implemented
+    subflow:
+      nodes:
+        - key: dry
+          type: decision
+          title: Dry run?
+          condition: inventory_hostname == 'h01'
+          status: implemented
+        - key: apply
+          type: task
+          title: Apply
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.debug
+            params:
+              msg: applied
+      edges:
+        - from: {node: dry, port: 'false'}
+          to: {node: apply, port: in}
+      boundary:
+        in: dry
+        outputs:
+          ok_hosts:
+            - {node: apply, port: ok_hosts}
+          dry_run_done:
+            - {node: dry, port: 'true'}
+  - key: handled
+    type: end
+    title: Failure reported
+    outcome: success
+  - key: dry-done
+    type: end
+    title: Dry run done
+    outcome: success
+  - key: done
+    type: end
+    title: Done
+    outcome: success
+edges:
+  - from: {node: start, port: ok_hosts}
+    to: {node: loop-include, port: in}
+  - from: {node: loop-include, port: ok_hosts}
+    to: {node: check-seen, port: in}
+  - from: {node: check-seen, port: ok_hosts}
+    to: {node: fail-some, port: in}
+  - from: {node: fail-some, port: failed_hosts}
+    to: {node: report-failure, port: in}
+  - from: {node: report-failure, port: ok_hosts}
+    to: {node: handled, port: in}
+  - from: {node: fail-some, port: ok_hosts}
+    to: {node: change, port: in}
+  - from: {node: change, port: dry_run_done}
+    to: {node: dry-done, port: in}
+  - from: {node: change, port: ok_hosts}
+    to: {node: done, port: in}

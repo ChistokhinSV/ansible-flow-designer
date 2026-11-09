@@ -46,6 +46,20 @@ A step input needs a source: a `from:` or a default. One with neither (`input-un
 and its message names where the value is: the step that registers a result of that name, or the
 flow input of that name.
 
+- **A default** is what the step gets when its `from:` left nothing (the generated play var falls
+  back to it), or, without a `from:`, the value itself. A value with a default is always defined,
+  so an `is defined` test on it always passes.
+- **Optional:** `optional: true` on an input says the step checks for a missing value itself
+  (`x is defined`, `| default`). The designer then does not warn that some paths reach the step
+  without it.
+- **Set outside the flow:** variables something else gives at run time (AWX or Kestra extra vars,
+  inventory variables, the vars a caller passes) go into `flow.external_vars`, with where they
+  come from. Steps read them without an input. AWX's own `awx_*` and `tower_*` variables need no
+  entry.
+- **Inputs are play variables:** a fact (`set_fact`) or a register of the same name, set earlier on
+  the host, wins over them, and an extra var wins over both. Give inputs names that no step sets
+  as a fact, so `from:` decides what the step reads.
+
 ![Inputs and outputs of a step inside a subflow](../images/properties-io-light.png)
 
 ## Across subflow boundaries
@@ -117,5 +131,13 @@ name of a flow input (an extra var, which always wins): give one step its own re
 A step can only read what has run for its hosts. The designer warns (`ref-may-be-undefined`) when
 the producing step is not on every path to the reader (a branch or a failure path goes around it),
 or when hosts that failed in it are wired on to the reader. Read the value after the paths join,
-wire the failure path elsewhere, give the input a default, or read it with `| default(…)` in the
-binding, as imported handlers do.
+wire the failure path elsewhere, or read it with `| default(…)` or behind an `is defined` test (in
+the step's `when`, or a decision before it), as imported handlers do. A step that handles the
+missing value itself can mark the input `optional: true`.
+
+### A failure, read in a later step
+
+Each step runs in a play of its own, so the step its `failed_hosts` lead to cannot see Ansible's
+`ansible_failed_result`. Every step's rescue keeps the failure as host facts instead:
+`afd_failed_result` (the failed task's result, e.g. `afd_failed_result.msg`), `afd_failed_task`
+(its name) and `afd_failed_node` (the step's key path).

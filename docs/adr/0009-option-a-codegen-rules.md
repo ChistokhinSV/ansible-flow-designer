@@ -168,3 +168,12 @@ A Note on a node (ADR-0028) becomes `# Note: <first line>` and `#   <next lines>
   - start, end and unreached nodes get none.
 - **Text:** the Markdown is made plain (`plainText`) and split on every YAML line break (`\r\n`, `\r`, `\n`, U+0085, U+2028, U+2029), so no text can end the comment and become YAML. Unit and engine tests try each one.
 - **Not design:** generated files can change while `flow.version` stays, because annotations are not design. Codegen on save compares text and rewrites only what changed; the body checksum covers the comments, so hand-edit protection holds; drift parses YAML and ignores comments.
+
+## Amendment: the repository root and failures for later steps (AFD-177, AFD-186, AFD-179, AFD-187, 2026-11-09)
+
+An agent converted eight playbooks and found three ways the generated code ran wrong while the flow validated.
+
+- **`afd_repo_root`:** generated plays run from `flows/<key>/generated`, so `playbook_dir` points there, and Ansible lets no play change it. A play now gets `afd_repo_root: "{{ (playbook_dir ~ '/<root>') | ansible.builtin.realpath }}"` when its step reads it or runs files the flow cannot see (an `include_tasks` file, a role). `<root>` is the generator's root option, the same one playbook bindings use. Import and outline write local paths as `{{ afd_repo_root }}/<repository path>`, and `binding-playbook-dir` warns about `playbook_dir` in a binding. A shared task file works from the source playbook and from the flow with `{{ afd_repo_root | default(playbook_dir) }}`.
+- **Failure facts:** each step is its own play, so the step its `failed_hosts` lead to had no `ansible_failed_result`. Every rescue now ends with a `set_fact` of `afd_failed_result`, `afd_failed_task` and `afd_failed_node` (`ignore_errors`, after the routing, so it never changes where a host goes). An inventory-target step copies them from the target to the arriving hosts.
+- **`include_tasks` bindings:** ansible-core refuses keywords outside its include list on `include_tasks`. Such a step keeps `when`, `loop`, `loop_control`, `vars`, `ignore_errors`, `no_log`, `run_once` and `debugger` on the include, and puts the node's tag, its timeout and the other keywords under `apply`. It has no `ignore_unreachable`, retries or until.
+- **Input defaults:** a node input's `default` now reaches the code: `x: "{{ <source> | default(<value>) }}"`, or the value itself when the input has no `from`. Before, it only silenced the checker.
