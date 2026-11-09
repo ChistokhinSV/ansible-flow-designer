@@ -24,6 +24,7 @@ import {
   type ToolInvocationOptions,
   type ToolPrepareOptions,
 } from '../compat';
+import { layoutDirection } from '../flowSession';
 import { authorName } from '../gitHead';
 import { stillInside, workspaceSource } from '../import/common';
 import { followScenarios } from '../run/scenarioFollow';
@@ -233,8 +234,9 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
             return undefined;
           }
         },
-        layout: layoutLevel,
-        positions: shownPositions,
+        // AFD-192: the canvas direction, so the layout check sees what the canvas shows.
+        layout: (level) => layoutLevel(level, layoutDirection()),
+        positions: (model) => shownPositions(model, layoutDirection()),
       };
     },
     schema: deps.schema,

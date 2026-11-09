@@ -145,8 +145,9 @@ describe('draw.io export (AFD-25)', () => {
         if (w.bends) routed++;
       }
     }
-    // The sample's top level had three wires through nodes, its Pre-checks one.
-    expect(routed).toBe(4);
+    // The sample's top level had three wires through nodes, its Pre-checks one. AFD-192: with ELK
+    // laying out on the canvas ports two of them have no node in their way any more.
+    expect(routed).toBe(2);
   });
 
   it('details: contract fields on one line each, problems with their code', async () => {

@@ -1,8 +1,10 @@
 // Top-down layered layout with ELK, run in the host (5–15 nodes per level: milliseconds, no worker).
 import type ELK from 'elkjs/lib/elk.bundled.js';
 import { nodeSize } from '../core/flow/geometry';
+import { portOffsets } from '../core/flow/levelView';
 import { buildModel, type FlowModel, type Level } from '../core/flow/model';
-import type { FlowDocument, Layout, Position, Ulid } from '../core/flow/types';
+import type { PortSide } from '../core/flow/ports';
+import type { FlowDocument, FlowNode, Layout, Position, Ulid } from '../core/flow/types';
 
 // ELK is three quarters of the host code (about 160 ms to load). It loads at the first layout, not
 // at activation; the build ships it as dist/elk.js next to the extension (scripts/build.mjs).
@@ -19,24 +21,69 @@ const OPTIONS = {
   'elk.algorithm': 'layered',
   'elk.layered.spacing.nodeNodeBetweenLayers': '56',
   'elk.spacing.nodeNode': '48',
+  // AFD-192: room between a wire and a node it passes (ELK's default is 10). A step fed from a
+  // right side port lines up beside the wire of the column it leaves; at 10 the wire's label
+  // (`failed_hosts`, 80 px) then lay on the column's nodes.
+  'elk.spacing.edgeNode': '40',
   'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
   'elk.edgeRouting': 'ORTHOGONAL',
 };
 
-/** Positions for every node of a level. */
+const SIDE: Record<PortSide, string> = {
+  top: 'NORTH',
+  bottom: 'SOUTH',
+  right: 'EAST',
+  left: 'WEST',
+};
+
+const portId = (node: Ulid, port: string) => `${node}:${port}`;
+
+/**
+ * A node for ELK with its ports where the canvas draws them (AFD-192). Without ports ELK invented
+ * one bottom port per wire, in wire order: a decision's `true` target could land under the canvas's
+ * `false` handle (the two labels then shared one gap), and a step fed by `failed_hosts` (a right
+ * side port) could land left of the column it handles, its wires across that column.
+ */
+function elkNode(n: FlowNode) {
+  const size = nodeSize(n.type);
+  const ports = portOffsets(n).map((p) => {
+    const across = p.side === 'top' || p.side === 'bottom';
+    const along = Math.round((across ? size.width : size.height) * p.offset);
+    return {
+      id: portId(n.id, p.name),
+      x: across ? along : p.side === 'right' ? size.width : 0,
+      y: across ? (p.side === 'bottom' ? size.height : 0) : along,
+      width: 0,
+      height: 0,
+      layoutOptions: { 'elk.port.side': SIDE[p.side] },
+    };
+  });
+  return { id: n.id, ...size, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } };
+}
+
+/**
+ * Positions for every node of a level. Wires run port to port. Model order
+ * (`considerModelOrder`) and straightness priority on main outputs were tried for AFD-192: both
+ * gave more crossings on the fixtures, so ELK orders the layers by crossings alone.
+ */
 export async function layoutLevel(
   level: Level,
   direction: LayoutDirection = 'TB',
 ): Promise<Record<Ulid, Position>> {
   const nodes = level.nodes.filter((n) => n?.id);
+  const children = nodes.map(elkNode);
+  const ports = new Set(children.flatMap((c) => c.ports.map((p) => p.id)));
   const ids = new Set(nodes.map((n) => n.id));
+  // A wire on a port the node does not have (the validator reports it) ends at the node itself.
+  const end = (r: { node: Ulid; port: string }) =>
+    ports.has(portId(r.node, r.port)) ? portId(r.node, r.port) : r.node;
   const graph = await (await elk()).layout({
     id: level.id,
     layoutOptions: { ...OPTIONS, 'elk.direction': direction === 'LR' ? 'RIGHT' : 'DOWN' },
-    children: nodes.map((n) => ({ id: n.id, ...nodeSize(n.type) })),
+    children,
     edges: level.edges
       .filter((e) => e && ids.has(e.from?.node) && ids.has(e.to?.node))
-      .map((e) => ({ id: e.id, sources: [e.from.node], targets: [e.to.node] })),
+      .map((e) => ({ id: e.id, sources: [end(e.from)], targets: [end(e.to)] })),
   });
   const out: Record<Ulid, Position> = {};
   for (const c of graph.children ?? [])
@@ -157,14 +204,16 @@ export function shownLayout(model: FlowModel): Layout | undefined {
 
 /**
  * Where the canvas shows every node (AFD-24), for the AI tools: `stored` positions (the old
- * template's dropped, as in the view) and `auto` positions for the rest, on every level.
+ * template's dropped, as in the view) and `auto` positions for the rest, on every level. Pass the
+ * canvas direction (`afd.canvas.direction`) so the layout check sees what the canvas shows (AFD-192).
  */
 export async function shownPositions(
   model: FlowModel,
+  direction: LayoutDirection = 'TB',
 ): Promise<{ stored: Layout; auto: Record<Ulid, Position> }> {
   const stored = shownLayout(model) ?? {};
   const auto: Record<Ulid, Position> = {};
   for (const level of model.levels.values())
-    Object.assign(auto, await autoPositions(level, stored));
+    Object.assign(auto, await autoPositions(level, stored, direction));
   return { stored, auto };
 }

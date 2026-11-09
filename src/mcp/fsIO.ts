@@ -22,8 +22,8 @@ import { resolveEnvironment, settingsFromJson } from '../core/run/environment';
 import { followPaths, pathChanges } from '../core/scenario/follow';
 import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
 import { applyEdits } from '../core/yaml/edits';
-import { layoutLevel, shownPositions } from '../node/autoLayout';
-import { environmentSettings } from '../node/env/userSettings';
+import { type LayoutDirection, layoutLevel, shownPositions } from '../node/autoLayout';
+import { canvasDirection, environmentSettings } from '../node/env/userSettings';
 import { runScenarios } from '../node/scenario/runner';
 
 const MAX_BYTES = SOURCE_MAX_BYTES;
@@ -446,14 +446,18 @@ export class FsFlowIO implements FlowIO {
   }
 
   ops(path: string): OpsContext {
+    const root = () => this.roots.find((r) => inside(r, resolve(r, path))) ?? this.roots[0];
+    // AFD-192: lay out as the canvas does, in the user's afd.canvas.direction.
+    let direction: Promise<LayoutDirection> | undefined;
+    const dir = () => {
+      direction ??= canvasDirection(root() ?? '.');
+      return direction;
+    };
     return {
       newId: this.newId,
-      author: async () => {
-        const root = this.roots.find((r) => inside(r, resolve(r, path))) ?? this.roots[0];
-        return (await git(root ?? '.', ['config', 'user.name']))?.trim() || undefined;
-      },
-      layout: layoutLevel,
-      positions: shownPositions,
+      author: async () => (await git(root() ?? '.', ['config', 'user.name']))?.trim() || undefined,
+      layout: async (level) => layoutLevel(level, await dir()),
+      positions: async (model) => shownPositions(model, await dir()),
     };
   }
 }
