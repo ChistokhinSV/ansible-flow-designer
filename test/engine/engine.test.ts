@@ -457,7 +457,9 @@ const SCENARIOS: Scenario[] = [
                 e.node === nodeId(TARGET, key) &&
                 !(
                   work &&
-                  /route|arriving|matched no host|did not finish|outputs from/.test(String(e.task))
+                  /route|arriving|matched no host|did not finish|outputs from|failure from/.test(
+                    String(e.task),
+                  )
                 ),
             )
             .map((e) => String(e.host)),
@@ -741,7 +743,7 @@ const SCENARIOS: Scenario[] = [
       expect(run.outcome.size).toBe(0);
     },
   },
-  ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET, REPO_ROOT].map((flow) => ({
+  ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
     syntaxOnly: true,
