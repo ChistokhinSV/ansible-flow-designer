@@ -2,15 +2,21 @@
 // side offers, how the MCP server would start, and how each fork's agent is configured on this
 // machine. A Markdown report for the developer's notes and the tickets; read-only.
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import * as vscode from 'vscode';
 import { COPILOT_PREFIX } from '../../core/ai/contributions';
-import { configLines, hostConfigs } from '../../node/ai/hostConfig';
+import {
+  agentRegistrations,
+  configLines,
+  hostConfigs,
+  registrationLines,
+} from '../../node/ai/hostConfig';
 import { detectHost, HOSTS } from '../../node/ai/hosts';
 import { sqliteAvailable } from '../../node/catalog/catalogIndex';
 import { cursorApi, extraNamespaces, hasMcpProviderApi, lmTools, membersOf } from '../compat';
 import { logChannel } from '../log';
-import { onPath } from './launcher';
+import { onPath, serverPath } from './launcher';
 
 /** The editor's own agent: command prefixes (`cursor.`, not `cursorMove`) and extension IDs. */
 const AGENT_PREFIX =
@@ -91,11 +97,15 @@ export async function aiDiagnostics(context: vscode.ExtensionContext): Promise<s
   const setup = context.globalState.get<{ agents?: string[]; scope?: string; version?: string }>(
     'afd.ai.setup',
   );
-  const configs = await hostConfigs({
+  const files = {
     home: homedir(),
     platform: process.platform,
     xdgConfig: process.env.XDG_CONFIG_HOME,
-  });
+  };
+  const configs = await hostConfigs(files);
+  // AFD-195: what each agent's entry starts, against this extension's copy.
+  const server = serverPath(context);
+  const registered = await agentRegistrations(files);
   const ext = (context.extension.packageJSON as { version: string }).version;
   const lines = [
     `# AI integration diagnostics: ${vscode.env.appName}`,
@@ -150,7 +160,12 @@ export async function aiDiagnostics(context: vscode.ExtensionContext): Promise<s
     '',
     '## Agent configuration on this machine',
     '',
-    ...configs.flatMap(configLines),
+    ...configs.flatMap((c) => configLines(c, server)),
+    '## Flow tools registered for agents',
+    '',
+    `- This extension's server: \`${server}\` (${existsSync(server) ? 'there' : '**missing**'})`,
+    ...registrationLines(registered, server),
+    '',
     '## Set Up AI Assistants',
     '',
     setup

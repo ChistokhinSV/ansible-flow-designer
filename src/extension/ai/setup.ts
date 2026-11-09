@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { AGENT_INFO, agentLabel, findAgents, mcpJson, otherAgentGuide } from '../../node/ai/agents';
+import { detectHost } from '../../node/ai/hosts';
 import {
   AGENTS,
   type Agent,
@@ -17,6 +18,7 @@ import {
   type Env,
   type Item,
   type Launch,
+  planMcp,
   planSetup,
   removeSetup,
   type Scope,
@@ -24,15 +26,21 @@ import {
   type SkillFiles,
   skillDirs,
   skillState,
+  staleRegistrations,
   writeSkill,
 } from '../../node/ai/writers';
 import { logChannel } from '../log';
-import { installServer, launchFor, onPath, programsOnPath } from './launcher';
+import { HOST_AGENT } from './hostIntegration';
+import { installServer, launchFor, onPath, programsOnPath, serverPath } from './launcher';
 
 const STATE = 'afd.ai.setup';
 /** Agents already offered the setup (asked again only for new ones). */
 const OFFERED = 'afd.ai.offered';
 const NEVER = 'afd.ai.neverOffer';
+/** AFD-195: Don't Ask Again on the notice about registrations of a server that is gone. */
+const NEVER_REPAIR = 'afd.ai.neverRepair';
+/** HostIntegration's consent for this editor's own agent. */
+const HOST_STATE = 'afd.ai.host';
 
 interface SetupRecord {
   version: string;
@@ -71,7 +79,17 @@ export class AiSetup {
 
   private async env(home = homedir(), repo?: string): Promise<Env> {
     const claude = await onPath('claude');
-    return { home, ...(repo ? { repo } : {}), ...(claude ? { claude: claudeRunner(claude) } : {}) };
+    return {
+      ...this.files(home),
+      ...(repo ? { repo } : {}),
+      ...(claude ? { claude: claudeRunner(claude) } : {}),
+    };
+  }
+
+  /** Where the agents' files are (Devin's depends on the platform and XDG_CONFIG_HOME). */
+  private files(home = homedir()): Env {
+    const xdg = process.env.XDG_CONFIG_HOME;
+    return { home, platform: process.platform, ...(xdg ? { xdgConfig: xdg } : {}) };
   }
 
   /** The known agents installed here, with why each was found. */
@@ -346,16 +364,30 @@ export class AiSetup {
   }
 
   /**
-   * After activation: refresh the server copy, and when the setup is from an older version (or the
-   * VS Code runtime it uses moved), offer one update per version.
+   * After activation: refresh the server copy; when the setup is from an older version (or the
+   * VS Code runtime it uses moved), offer one update per version; else repair registrations that
+   * no longer start this server (AFD-195). One notice per start at most.
    */
   async checkStale(): Promise<void> {
     await this.refreshContext();
+    // AFD-195: at every start, with or without a setup here: entries another window, an older
+    // version or the editor's own agent wrote start this copy too.
+    let server = serverPath(this.context);
+    try {
+      server = await installServer(this.context);
+    } catch (e) {
+      this.log.warn(`AI setup: the flow tools server was not copied: ${(e as Error).message}`);
+    }
     const record = this.record;
-    if (!record) return;
-    await installServer(this.context);
+    if (record && (await this.offerUpdate(record))) return;
+    await this.repairStale(server);
+  }
+
+  /** The update of an older setup; whether it asked. */
+  private async offerUpdate(record: SetupRecord): Promise<boolean> {
     const moved = record.runtime !== 'node' && record.runtime !== process.execPath;
-    if ((record.version === this.version && !moved) || record.dismissed === this.version) return;
+    if ((record.version === this.version && !moved) || record.dismissed === this.version)
+      return false;
     const env: Env = { home: homedir(), ...(record.repo ? { repo: record.repo } : {}) };
     const dirs = [...new Set(record.agents.flatMap((a) => skillDirs(a, record.scope, env)))];
     const edited = (await Promise.all(dirs.map(skillState))).some((s) => s?.edited.length);
@@ -376,6 +408,93 @@ export class AiSetup {
       );
     else if (pick === 'Not now')
       await this.context.globalState.update(STATE, { ...record, dismissed: this.version });
+    return true;
+  }
+
+  /**
+   * This editor's own agent when its files are HostIntegration's to keep: it updates them at
+   * every start (yes; Cursor's agent gets the tools through its API, so a file entry is not), or
+   * the user declined them (never).
+   */
+  private hostOwned(): Agent | undefined {
+    const agent = HOST_AGENT[detectHost(vscode.env)];
+    const state = this.context.globalState.get<{ state?: string }>(HOST_STATE)?.state;
+    const on = vscode.workspace.getConfiguration('afd.ai').get<boolean>('hostIntegration', true);
+    if (state === 'never' || (state === 'yes' && on && agent !== 'cursor')) return agent;
+    return undefined;
+  }
+
+  /**
+   * AFD-195: agents whose ansible-flow entry starts a server that is gone (an older publisher
+   * ID's storage) or another extension ID's copy fail at every start (CONNECTION_CLOSED). The
+   * setup record cannot tell: globalState is kept per extension ID, so a new ID never sees the
+   * old one's. Asked at every start until repaired or Don't Ask Again. Not in a remote window
+   * (like HostIntegration): there the home folder is the remote machine's.
+   */
+  private async repairStale(server: string): Promise<void> {
+    if (vscode.env.remoteName || this.context.globalState.get<boolean>(NEVER_REPAIR)) return;
+    const skip = this.hostOwned();
+    const files = this.files();
+    const stale = await staleRegistrations(
+      AGENTS.filter((a) => a !== skip),
+      files,
+      server,
+    );
+    if (stale.length === 0) return;
+    for (const s of stale)
+      this.log.info(
+        `AI setup: ${agentLabel(s.agent)} (${this.show(s.file, files.home)}) starts ${s.server}, ${s.why === 'missing' ? 'which does not exist' : 'another extension ID’s copy'}`,
+      );
+    const agents = [...new Set(stale.map((s) => s.agent))];
+    const several = agents.length > 1;
+    const pick = await vscode.window.showWarningMessage(
+      `${list(agents.map(agentLabel))} ${several ? 'point' : 'points'} at an Ansible Flow server that no longer exists, so ${several ? 'their' : 'its'} flow tools fail to start. Repair ${several ? 'them' : 'it'}?`,
+      'Repair',
+      'Not Now',
+      'Don’t Ask Again',
+    );
+    if (pick === 'Repair') await this.repair(agents);
+    else if (pick === 'Don’t Ask Again') await this.context.globalState.update(NEVER_REPAIR, true);
+  }
+
+  /**
+   * Rewrites these agents' flow tools entries only (no skill), through Set Up's plan and apply:
+   * keys of an entry that are not ours stay, a hand-written Codex table is skipped.
+   */
+  async repair(agents: Agent[], home?: string): Promise<Item[]> {
+    const env = await this.env(home);
+    const launch = await this.launch();
+    const items = await Promise.all(agents.map((a) => planMcp(a, env, launch)));
+    await applySetup(items, env, launch, { version: this.version, files: {} });
+    this.log.info(`AI setup: repaired (${this.version}):`);
+    for (const line of this.describe(items, env.home)) this.log.info(`AI setup:   ${line}`);
+    if (!home) {
+      // Set up already: the offer to agents found without the setup leaves them out.
+      const offered = this.context.globalState.get<Agent[]>(OFFERED) ?? [];
+      await this.context.globalState.update(OFFERED, [...new Set([...offered, ...agents])]);
+      void this.announceRepair(items, launch);
+    }
+    return items;
+  }
+
+  private async announceRepair(items: Item[], launch: Launch): Promise<void> {
+    const done = items.filter((i) => i.action === 'create' || i.action === 'update');
+    const claudeSkipped = items.some((i) => i.agent === 'claude' && i.action === 'skip');
+    const message = [
+      done.length
+        ? `${list(done.map((i) => agentLabel(i.agent)))} ${done.length > 1 ? 'start' : 'starts'} the flow tools again. Restart running agents to load them.`
+        : 'Nothing was rewritten; see the log.',
+      claudeSkipped ? 'Claude Code is not on PATH: copy the command and run it.' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const pick = await vscode.window.showInformationMessage(
+      message,
+      ...(claudeSkipped ? ['Copy Command'] : []),
+      'Show Log',
+    );
+    if (pick === 'Copy Command') await vscode.env.clipboard.writeText(claudeCommandLine(launch));
+    if (pick === 'Show Log') this.log.show();
   }
 
   /**

@@ -637,6 +637,15 @@ export function claudeRunner(path: string): Env['claude'] {
 
 // ---- plan, apply, remove ----------------------------------------------------------------------
 
+/** The registration of the flow tools for one agent (no skill). */
+export function planMcp(agent: Agent, env: Env, launch: Launch): Promise<Item> {
+  return agent === 'claude'
+    ? planClaude(env, launch)
+    : agent === 'codex'
+      ? planCodex(env, launch)
+      : planJson(agent, env, launch);
+}
+
 export async function planSetup(
   agents: Agent[],
   scope: Scope,
@@ -665,13 +674,7 @@ export async function planSetup(
           : {}),
       });
     }
-    items.push(
-      await (agent === 'claude'
-        ? planClaude(env, launch)
-        : agent === 'codex'
-          ? planCodex(env, launch)
-          : planJson(agent, env, launch)),
-    );
+    items.push(await planMcp(agent, env, launch));
   }
   return items;
 }
@@ -713,4 +716,107 @@ export async function removeSetup(agents: Agent[], env: Env): Promise<Item[]> {
       removed.push({ agent, what: 'mcp', target: await mcpTarget(agent, env), action: 'remove' });
   }
   return removed;
+}
+
+// ---- AFD-195: registrations that no longer start this server ----------------------------------
+
+/** Claude Code's user-scope servers, read from the file: `claude mcp get` starts the server. */
+export const claudeConfig = (env: Env) => join(env.home, '.claude.json');
+
+/** What an agent's ansible-flow entry starts, read from its config file (never by running it). */
+export interface Registration {
+  agent: Agent;
+  /** The config file the entry is in. */
+  file: string;
+  command?: string;
+  /** The mcp.js it starts; none when it starts something else (npx, a script of the user's). */
+  server?: string;
+  /** Codex: a table the user wrote outside our block, which Set Up never changes. */
+  hand?: boolean;
+}
+
+const isServer = (a: unknown): a is string => typeof a === 'string' && /(^|[\\/])mcp\.js$/i.test(a);
+
+/** The command and the mcp.js of an MCP entry: stdio (command, args) or OpenCode's command list. */
+export function entryServer(entry: unknown): { command?: string; server?: string } {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return {};
+  const e = entry as Record<string, unknown>;
+  const words = Array.isArray(e.command)
+    ? (e.command as unknown[])
+    : [e.command, ...(Array.isArray(e.args) ? (e.args as unknown[]) : [])];
+  const [command] = words;
+  const server = words.slice(1).find(isServer);
+  return {
+    ...(typeof command === 'string' ? { command } : {}),
+    ...(server ? { server } : {}),
+  };
+}
+
+const parseOr = (text: string | undefined): unknown => {
+  try {
+    return text === undefined ? undefined : JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+
+export async function registration(agent: Agent, env: Env): Promise<Registration | undefined> {
+  const file = agent === 'claude' ? claudeConfig(env) : await mcpTarget(agent, env);
+  const text = await readText(file);
+  // ~/.claude.json holds Claude Code's history too (megabytes): parsed only when it names us.
+  if (!text?.includes(SERVER_NAME)) return undefined;
+  if (agent === 'codex') {
+    if (handWritten(text)) return { agent, file, hand: true };
+    const { block } = splitBlock(text);
+    if (block === undefined) return undefined;
+    // Our block, as codexBlock writes it: TOML basic strings in JSON's escapes.
+    const command = parseOr(/^command = (".*")\s*$/m.exec(block)?.[1]);
+    const args = parseOr(/^args = (\[.*\])\s*$/m.exec(block)?.[1]);
+    return { agent, file, ...entryServer({ command, args }) };
+  }
+  let entry: unknown;
+  if (agent === 'claude') {
+    const data = parseOr(text) as { mcpServers?: Record<string, unknown> } | undefined;
+    entry = data?.mcpServers?.[SERVER_NAME];
+  } else {
+    if (broken(text)) return undefined;
+    entry = current(text, JSON_MCP[agent].path);
+  }
+  return entry === undefined ? undefined : { agent, file, ...entryServer(entry) };
+}
+
+/** The extension ID of a server copied into an editor's storage: …/globalStorage/<id>/mcp/mcp.js. */
+export function storageId(server: string): string | undefined {
+  return /[\\/]globalStorage[\\/]([^\\/]+)[\\/]mcp[\\/]mcp\.js$/i.exec(server)?.[1]?.toLowerCase();
+}
+
+export interface StaleRegistration extends Registration {
+  server: string;
+  /** missing: the mcp.js is gone; elsewhere: another extension ID's copy (an older publisher). */
+  why: 'missing' | 'elsewhere';
+}
+
+/**
+ * Entries of ours that no longer start this server (`server`, this extension's installed copy):
+ * the mcp.js they name is gone, as when the publisher ID changed and the old ID's storage went
+ * with it, or it is another extension ID's copy. Only an entry that starts an mcp.js in an
+ * editor's global storage is ours: one the user wrote (a Codex table outside our block, a path of
+ * their own) is never reported. Another editor's copy under the same ID is not stale.
+ */
+export async function staleRegistrations(
+  agents: readonly Agent[],
+  env: Env,
+  server: string,
+): Promise<StaleRegistration[]> {
+  const ours = storageId(server);
+  const found: StaleRegistration[] = [];
+  for (const agent of agents) {
+    const r = await registration(agent, env);
+    if (!r?.server || r.hand) continue;
+    const id = storageId(r.server);
+    if (!id) continue;
+    if (!(await exists(r.server))) found.push({ ...r, server: r.server, why: 'missing' });
+    else if (ours && id !== ours) found.push({ ...r, server: r.server, why: 'elsewhere' });
+  }
+  return found;
 }

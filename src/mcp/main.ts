@@ -2,7 +2,7 @@
 // stdio MCP server (Set Up AI Assistants registers it). It shares the tool core with Copilot's
 // tools; files are read and written on disk. stdout carries the protocol: log to stderr only.
 
-import { appendFileSync, statSync } from 'node:fs';
+import { appendFileSync, statSync, writeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/server';
@@ -44,6 +44,25 @@ function trace(event: string, data: Record<string, unknown> = {}): void {
     // Tracing never stops the server.
   }
 }
+
+/**
+ * AFD-195: an error the server did not handle, as one line on stderr (what the agent keeps in its
+ * MCP log) and an error event in the trace. Written synchronously: exit may follow at once.
+ */
+function failure(where: string, e: unknown): void {
+  const message = e instanceof Error ? e.message : String(e);
+  trace('error', { where, message, ...(e instanceof Error ? { stack: e.stack } : {}) });
+  try {
+    writeSync(2, `ansible-flow: ${where}: ${message.replaceAll(/\s*\n\s*/g, ' ')}\n`);
+  } catch {}
+}
+// A promise no one waited for does not stop the server; an exception that reached the top does,
+// as Node would stop it (what state it left is unknown).
+process.on('unhandledRejection', (e) => failure('unhandled rejection', e));
+process.on('uncaughtException', (e) => {
+  failure('uncaught exception', e);
+  process.exit(1);
+});
 
 /**
  * AFD-172/173: the folders to work in until the client sends roots: AFD_MCP_ROOTS, else the working
@@ -132,6 +151,7 @@ server.setRequestHandler('tools/call', (request) => {
       };
     } catch (e) {
       trace('call', { tool: request.params.name, ms: Date.now() - started, ok: false });
+      trace('error', { where: `tools/call ${request.params.name}`, message: (e as Error).message });
       return {
         content: [{ type: 'text' as const, text: `Error: ${io.hidePaths((e as Error).message)}` }],
         isError: true,
@@ -142,4 +162,9 @@ server.setRequestHandler('tools/call', (request) => {
   return call;
 });
 
-void server.connect(new StdioServerTransport());
+// AFD-195: protocol errors (a message that does not parse, a failed send) go to the trace.
+server.onerror = (e) => trace('error', { where: 'protocol', message: e.message });
+server.connect(new StdioServerTransport()).catch((e: unknown) => {
+  failure('connect', e);
+  process.exit(1);
+});
