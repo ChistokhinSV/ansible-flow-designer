@@ -113,7 +113,21 @@ function updateCounter() {
   counter.classList.toggle('near-limit', text.value.length >= TEXT_WARN);
 }
 
+/** The line under the name: which extension, in which editor, which version. */
 function describeContext() {
+  const editorName = EDITOR_NAMES[ctx.editor];
+  let line;
+  if (isUninstall)
+    line = editorName
+      ? `The extension you removed from ${editorName}`
+      : 'The editor extension you removed';
+  else line = `Extension for ${editorName || 'VS Code and compatible editors'}`;
+  if (ctx.version) line += ` · version ${ctx.version}`;
+  return line;
+}
+
+/** "Ansible Flow Designer 0.77.0 in VS Code", the first line of an answer copied to GitHub. */
+function productLine() {
   const editorName = EDITOR_NAMES[ctx.editor];
   let line = 'Ansible Flow Designer';
   if (ctx.version) line += ` ${ctx.version}`;
@@ -146,7 +160,7 @@ function buildPayload() {
 
 /** The answer as plain text for a GitHub issue; the email stays out, since issues are public. */
 function answerAsText() {
-  const lines = [describeContext()];
+  const lines = [productLine()];
   if (isUninstall) {
     const reason = form.querySelector('input[name="reason"]:checked');
     if (reason) lines.push(`Reason: ${labelOf(reason)}`);

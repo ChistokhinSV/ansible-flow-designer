@@ -52,7 +52,11 @@ Product-owner decisions (2026-11-10):
 
 - No usage data reaches the author unless someone fills in the form.
 - The uninstall page opens only after a full restart of VS Code, which may be days later, and
-  never for someone who removed the extension from a remote window.
+  never for someone who removed the extension from a remote window. VS Code runs the script when
+  its shared process deletes the folder of an extension marked for removal, at start-up (seen on
+  1.145.2). An uninstall from the command line (`code --uninstall-extension`) only takes the
+  extension out of the profile, so the first start marks the folder and the second runs the
+  script.
 - A read-only install (a system folder) cannot hold the marker: there the page opens even after
   **Don't Ask Again**.
 - The form page and the Worker can change without a release; the extension only knows the page's

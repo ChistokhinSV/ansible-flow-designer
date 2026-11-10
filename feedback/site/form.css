@@ -81,10 +81,30 @@ a {
   padding: 2rem 1rem 2.5rem;
 }
 
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.product-icon {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.product-name {
+  margin: 0;
+  font-size: clamp(1.4rem, 1.05rem + 1.6vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .product {
-  margin: 0 0 0.25rem;
+  margin: 0.25rem 0 0;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 
 h1 {
