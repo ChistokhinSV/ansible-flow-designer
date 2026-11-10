@@ -368,7 +368,8 @@ export class AiSetup {
    * VS Code runtime it uses moved), offer one update per version; else repair registrations that
    * no longer start this server (AFD-195). One notice per start at most.
    */
-  async checkStale(): Promise<void> {
+  /** One notice per start at most; whether it asked (AFD-201: the feedback notice waits). */
+  async checkStale(): Promise<boolean> {
     await this.refreshContext();
     // AFD-195: at every start, with or without a setup here: entries another window, an older
     // version or the editor's own agent wrote start this copy too.
@@ -379,8 +380,8 @@ export class AiSetup {
       this.log.warn(`AI setup: the flow tools server was not copied: ${(e as Error).message}`);
     }
     const record = this.record;
-    if (record && (await this.offerUpdate(record))) return;
-    await this.repairStale(server);
+    if (record && (await this.offerUpdate(record))) return true;
+    return this.repairStale(server);
   }
 
   /** The update of an older setup; whether it asked. */
@@ -431,8 +432,8 @@ export class AiSetup {
    * old one's. Asked at every start until repaired or Don't Ask Again. Not in a remote window
    * (like HostIntegration): there the home folder is the remote machine's.
    */
-  private async repairStale(server: string): Promise<void> {
-    if (vscode.env.remoteName || this.context.globalState.get<boolean>(NEVER_REPAIR)) return;
+  private async repairStale(server: string): Promise<boolean> {
+    if (vscode.env.remoteName || this.context.globalState.get<boolean>(NEVER_REPAIR)) return false;
     const skip = this.hostOwned();
     const files = this.files();
     const stale = await staleRegistrations(
@@ -440,7 +441,7 @@ export class AiSetup {
       files,
       server,
     );
-    if (stale.length === 0) return;
+    if (stale.length === 0) return false;
     for (const s of stale)
       this.log.info(
         `AI setup: ${agentLabel(s.agent)} (${this.show(s.file, files.home)}) starts ${s.server}, ${s.why === 'missing' ? 'which does not exist' : 'another extension ID’s copy'}`,
@@ -455,6 +456,7 @@ export class AiSetup {
     );
     if (pick === 'Repair') await this.repair(agents);
     else if (pick === 'Don’t Ask Again') await this.context.globalState.update(NEVER_REPAIR, true);
+    return true;
   }
 
   /**
@@ -502,8 +504,9 @@ export class AiSetup {
    * flow with a step (not in any workspace at startup); Set Up… shows what it writes before writing
    * it; an agent counts as offered once the user answered (or closed the notice).
    */
-  async offer(exclude?: Agent): Promise<void> {
-    if (this.context.globalState.get<boolean>(NEVER)) return;
+  /** The one-time offer; whether it asked. */
+  async offer(exclude?: Agent): Promise<boolean> {
+    if (this.context.globalState.get<boolean>(NEVER)) return false;
     const record = this.record;
     const offered = new Set(this.context.globalState.get<Agent[]>(OFFERED) ?? []);
     const found = await this.found();
@@ -511,7 +514,7 @@ export class AiSetup {
     const pending = [...found.keys()].filter(
       (a) => a !== exclude && !record?.agents.includes(a) && !offered.has(a),
     );
-    if (pending.length === 0) return;
+    if (pending.length === 0) return false;
     const names = list(pending.map(agentLabel));
     const pick = await vscode.window.showInformationMessage(
       `${names} can help you design flows once ${pending.length > 1 ? 'they have' : 'it has'} the ansible-flow skill and flow tools. Set ${pending.length > 1 ? 'them' : 'it'} up for every repository? You see what is written first.`,
@@ -526,5 +529,6 @@ export class AiSetup {
       await this.setup({ agents, scope: 'user' }, true, true);
     } else if (pick === 'Choose…') await this.setup();
     else if (pick === 'Don’t Ask Again') await this.context.globalState.update(NEVER, true);
+    return true;
   }
 }

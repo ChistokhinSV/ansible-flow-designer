@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.77.0 — AFD-200 (feedback)
+
+Feedback, without telemetry: the extension still sends nothing itself. It only opens links, and you decide what to send.
+
+- **Send Feedback…** (Command Palette, and the designer's **…** menu) opens a short form in the browser. **Report a Problem…** opens a GitHub issue, with new forms for a bug report or an idea.
+- **One notice after a week of real use** (three days with a flow in the designer, seven since the first) asks for a rating or a few words. **Not Now** asks once more, a month and three days of use later at most; **Don't Ask Again** ends it. It never shows when another notice asked at the same start.
+- **After uninstall**, at the next restart of VS Code, the browser opens a short "why did you leave?" page once. Not after **Don't Ask Again**, on a remote server or in CI.
+- **`afd.feedback.prompt`** (default on) turns off the notice and the uninstall page. The README's new "Feedback and privacy" section says what happens to an answer (ADR-0033).
+
 ## 0.76.0 — AFD-197 (AFD-176 to AFD-196)
 
 An AI agent converted eight real playbooks (5 to 210 tasks) into flows, then filed everything that slowed it down or made the result wrong. This release fixes all of it. Imported flows now pass the checks as imported and run as the playbooks did, and the tools give large flows in pieces an agent can read. Far fewer warnings need an accept.

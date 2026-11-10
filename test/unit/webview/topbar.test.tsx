@@ -106,6 +106,7 @@ describe('top bar', () => {
       'Hide First-Flow Checklist',
       'Keyboard Shortcuts',
       'User Guide',
+      'Send Feedback…',
     ]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Tidy Up' }));
     expect(posted.at(-1)).toEqual({ type: 'tidyUp', level: 'root' });
@@ -116,6 +117,10 @@ describe('top bar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'User Guide' }));
     expect(posted.at(-1)).toEqual({ type: 'openGuide' });
+    // AFD-201: the feedback form opens on the host, in the browser.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Send Feedback…' }));
+    expect(posted.at(-1)).toEqual({ type: 'sendFeedback' });
   });
 
   it('Code mode: Tidy Up says the graph is read-only; the menu button toggles', () => {

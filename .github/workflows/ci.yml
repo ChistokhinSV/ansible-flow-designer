@@ -35,6 +35,7 @@ jobs:
         run: |
           npx --no-install tsc -p tsconfig.json
           npx --no-install tsc -p tsconfig.webview.json
+          npx --no-install tsc -p test/unit/feedback
 
       - name: Lint and format
         run: npx --no-install biome ci .

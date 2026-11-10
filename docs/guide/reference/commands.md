@@ -13,6 +13,8 @@ the [guide](../README.md).
 | `afd.help.getStarted` · Get Started                     | opens the "Design your first Ansible flow" walkthrough                                                                       |
 | `afd.help.openGuide` · Open User Guide                  | opens this guide in the Markdown preview                                                                                     |
 | `afd.help.openSample` · Open Sample Flow…               | copies a sample flow into the workspace and opens it, or sample playbooks to import into an empty folder (Tutorial 5)        |
+| `afd.help.feedback` · Send Feedback…                    | opens a short feedback form in the browser (also in the designer's **…** menu); the extension sends nothing itself           |
+| `afd.help.reportIssue` · Report a Problem…              | opens GitHub's new-issue page: a bug report or an idea                                                                       |
 | `afd.flows.refresh` · Refresh                           | reads the flows of the **Ansible Flows** view (Activity Bar) again; on the view's title bar                                  |
 | `afd.flows.run` · Run as Skeleton                       | on a flow in the **Ansible Flows** view: opens it and its launch dialog                                                      |
 | `afd.flows.peekCode` · Peek Code                        | on a flow in the **Ansible Flows** view: opens its generated root playbook                                                   |

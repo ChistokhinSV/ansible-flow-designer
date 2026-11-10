@@ -75,3 +75,20 @@ The **[first tutorial](docs/guide/tutorials/01-first-flow.md)** takes 10 minutes
   source.
 
 Requires VS Code 1.94 or later (the module catalog: 1.101 or later). MIT licensed.
+
+## Feedback and privacy
+
+The extension sends no telemetry and nothing about your flows. It only opens links:
+
+- **Ansible Flow: Send Feedback…** (also in the designer's **…** menu) opens a short form in the
+  browser; **Report a Problem…** opens a GitHub issue.
+- After a week of real use (three days with a flow open in the designer), one notice asks for a
+  rating or a few words. **Not Now** asks once more a month later at most; **Don't Ask Again**
+  ends it. The days are counted on your machine only.
+- After you uninstall it, VS Code runs the extension's uninstall script once, at its next restart:
+  it opens a "why did you leave?" page in the browser. It does not open after **Don't Ask Again**,
+  on a remote server, or in CI.
+- The setting `afd.feedback.prompt` turns off both the notice and the uninstall page.
+
+What you send through the form goes to the author's issue tracker, with a chat notification that
+leaves out the email. The email is optional and used only to answer you.

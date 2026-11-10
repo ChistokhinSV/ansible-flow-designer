@@ -1,0 +1,58 @@
+# AFD-205: GitHub's form for a bug report (Report a Problem… opens the chooser).
+name: Bug report
+description: Something in Ansible Flow Designer does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Please leave out passwords, tokens, real host names and
+        addresses: this issue is public.
+  - type: dropdown
+    id: editor
+    attributes:
+      label: Editor
+      options:
+        - VS Code
+        - Cursor
+        - Kiro
+        - Antigravity IDE
+        - Windsurf / Devin
+        - VSCodium
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Extensions view → Ansible Flow Designer, or `code --list-extensions --show-versions`.
+      placeholder: 0.77.0
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a flow with a subflow
+        2. Run as Skeleton
+        3. ...
+  - type: textarea
+    id: flow
+    attributes:
+      label: Flow snippet (optional)
+      description: The smallest part of the .flow.yaml that shows the problem, without secrets.
+      render: yaml
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (optional)
+      description: Output panel → Ansible Flow, the lines around the problem.
+      render: text

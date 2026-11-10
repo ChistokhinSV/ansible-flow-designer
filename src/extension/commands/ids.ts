@@ -44,4 +44,7 @@ export const CMD = {
   openGuide: 'afd.help.openGuide',
   getStarted: 'afd.help.getStarted',
   openSample: 'afd.help.openSample',
+  /** AFD-201: the feedback form, and GitHub's issue chooser. */
+  sendFeedback: 'afd.help.feedback',
+  reportIssue: 'afd.help.reportIssue',
 } as const;

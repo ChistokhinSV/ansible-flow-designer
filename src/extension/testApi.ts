@@ -6,6 +6,7 @@ import type { ToolResult } from '../core/ai/handlers';
 import { type FlowIO, runTool } from '../core/ai/handlers';
 import type { CollectionFile } from '../core/catalog/types';
 import type { CodeScan, DriftAction } from '../core/drift/types';
+import type { FeedbackState } from '../core/feedback/feedback';
 import type { FlowCommand } from '../core/flow/commands';
 import { parseFlow } from '../core/flow/document';
 import type { LensFacts, LensId } from '../core/lens/types';
@@ -23,6 +24,7 @@ import type { AiSetup, SetupPicks } from './ai/setup';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
 import { type AwxPicks, launchInAwx, setToken, setupTemplate } from './awx/awxRun';
 import type { CodegenOutcome } from './codegen';
+import type { Feedback } from './feedback';
 import type { CommandOutcome, PerfEvent } from './flowSession';
 import type { Host } from './host';
 import {
@@ -138,6 +140,8 @@ export interface AfdTestApi {
   aiDiagnostics(): Promise<string>;
   /** AFD-174: an editor's built-in agent set up as after its consent, into a temporary home. */
   hostAi(host: HostId, home: string): Promise<{ written: string[]; again: string[] }>;
+  /** AFD-201: the days of use counted, and the links the feedback commands opened (no browser). */
+  feedback(): { state: FeedbackState; links: string[]; extensionPath: string };
 }
 
 export function createTestApi(
@@ -145,6 +149,7 @@ export function createTestApi(
   flowIO: FlowIO,
   aiSetup: AiSetup,
   context: vscode.ExtensionContext,
+  feedback: { feedback: Feedback; links: string[] },
 ): AfdTestApi {
   const get = (uri: vscode.Uri) => {
     const s = host.sessions.get(uri.toString());
@@ -273,5 +278,10 @@ export function createTestApi(
       const folder = vscode.workspace.getWorkspaceFolder(uri);
       return folder ? host.catalog.status(folder) : undefined;
     },
+    feedback: () => ({
+      state: feedback.feedback.state,
+      links: [...feedback.links],
+      extensionPath: context.extensionPath,
+    }),
   };
 }

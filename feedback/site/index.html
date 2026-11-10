@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Only this folder and Cloudflare Turnstile may run; answers go to the Worker over HTTPS
+         (localhost is allowed for testing against a local mock). -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://afd-feedback.sergei-chistokhin.workers.dev https://challenges.cloudflare.com http://localhost:* http://127.0.0.1:*; img-src 'self' data:; style-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Ansible Flow Designer feedback</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="form.css" />
+    <script type="module" src="form.js"></script>
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <p class="product" id="product">Ansible Flow Designer</p>
+        <h1 id="heading">How is Ansible Flow Designer working for you?</h1>
+      </header>
+
+      <noscript>
+        <p class="notice">
+          This form needs JavaScript. You can also reach the developer through
+          <a href="https://github.com/ChistokhinSV/ansible-flow-designer/issues/new/choose"
+            >GitHub issues</a
+          >.
+        </p>
+      </noscript>
+
+      <form id="form" class="card" novalidate hidden>
+        <div id="in-use" class="group">
+          <fieldset class="field">
+            <legend>Your rating <span class="optional">(optional)</span></legend>
+            <div class="stars" id="stars">
+              <input class="visually-hidden" type="radio" name="rating" id="rating-1" value="1" />
+              <label class="star" for="rating-1"
+                ><span aria-hidden="true">&#9733;</span
+                ><span class="visually-hidden">1 of 5, poor</span></label
+              >
+              <input class="visually-hidden" type="radio" name="rating" id="rating-2" value="2" />
+              <label class="star" for="rating-2"
+                ><span aria-hidden="true">&#9733;</span
+                ><span class="visually-hidden">2 of 5, fair</span></label
+              >
+              <input class="visually-hidden" type="radio" name="rating" id="rating-3" value="3" />
+              <label class="star" for="rating-3"
+                ><span aria-hidden="true">&#9733;</span
+                ><span class="visually-hidden">3 of 5, good</span></label
+              >
+              <input class="visually-hidden" type="radio" name="rating" id="rating-4" value="4" />
+              <label class="star" for="rating-4"
+                ><span aria-hidden="true">&#9733;</span
+                ><span class="visually-hidden">4 of 5, very good</span></label
+              >
+              <input class="visually-hidden" type="radio" name="rating" id="rating-5" value="5" />
+              <label class="star" for="rating-5"
+                ><span aria-hidden="true">&#9733;</span
+                ><span class="visually-hidden">5 of 5, excellent</span></label
+              >
+              <span class="rating-word" id="rating-word" aria-hidden="true"></span>
+            </div>
+            <button type="button" class="link-button" data-clear="rating" hidden>
+              Clear rating
+            </button>
+          </fieldset>
+
+          <fieldset class="field">
+            <legend>What do you use it for?</legend>
+            <div class="choices">
+              <label><input type="checkbox" name="uses" value="design" /> Designing flows</label>
+              <label
+                ><input type="checkbox" name="uses" value="import" /> Importing playbooks or AWX
+                templates</label
+              >
+              <label><input type="checkbox" name="uses" value="ai" /> With an AI assistant</label>
+              <label><input type="checkbox" name="uses" value="awx" /> Running in AWX</label>
+              <label
+                ><input type="checkbox" name="uses" value="runs" /> Runs and scenario tests</label
+              >
+              <label><input type="checkbox" name="uses" value="other" /> Something else</label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div id="uninstall" class="group" hidden>
+          <fieldset class="field">
+            <legend>The main reason <span class="optional">(optional)</span></legend>
+            <div class="choices">
+              <label
+                ><input type="radio" name="reason" value="not-needed" /> I didn't need it</label
+              >
+              <label><input type="radio" name="reason" value="hard-to-use" /> Hard to use</label>
+              <label
+                ><input type="radio" name="reason" value="missing-feature" /> A feature was
+                missing</label
+              >
+              <label><input type="radio" name="reason" value="bug" /> Something didn't work</label>
+              <label><input type="radio" name="reason" value="slow" /> Too slow</label>
+              <label
+                ><input type="radio" name="reason" value="other-tool" /> I use another tool</label
+              >
+              <label
+                ><input type="radio" name="reason" value="just-trying" /> I was just trying
+                it</label
+              >
+              <label><input type="radio" name="reason" value="other" /> Other</label>
+            </div>
+            <button type="button" class="link-button" data-clear="reason" hidden>
+              Clear choice
+            </button>
+          </fieldset>
+        </div>
+
+        <div class="field">
+          <label class="label" for="text" id="text-label">What would make it better?</label>
+          <textarea
+            id="text"
+            name="text"
+            rows="6"
+            maxlength="4000"
+            aria-describedby="text-count"
+          ></textarea>
+          <p class="hint counter" id="text-count">0 / 4000 characters</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="email"
+            >Email, if you'd like an answer <span class="optional">(optional)</span></label
+          >
+          <input
+            id="email"
+            name="email"
+            type="email"
+            maxlength="200"
+            autocomplete="email"
+            spellcheck="false"
+            aria-describedby="email-hint email-error"
+          />
+          <p class="hint" id="email-hint">Stored privately with your answer, used only to reply.</p>
+          <p class="error" id="email-error" hidden>
+            This doesn't look like an email address. Fix it or leave it empty.
+          </p>
+        </div>
+
+        <div class="field">
+          <div id="turnstile" class="turnstile"></div>
+          <p class="hint" id="captcha-note">Spam check by Cloudflare Turnstile.</p>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary" id="send" disabled aria-describedby="send-hint">
+            Send
+          </button>
+          <p class="hint" id="send-hint">
+            Answer at least one question and finish the spam check to send.
+          </p>
+        </div>
+
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+
+        <div class="failure" id="failure" hidden>
+          <p>
+            You can
+            <a
+              id="failure-issues"
+              href="https://github.com/ChistokhinSV/ansible-flow-designer/issues/new/choose"
+              target="_blank"
+              rel="noopener noreferrer"
+              >open a GitHub issue</a
+            >
+            instead and paste your answer there.
+          </p>
+          <p>
+            <button type="button" class="secondary" id="copy">Copy your answer</button>
+            <span class="copy-note" id="copy-note" role="status" aria-live="polite"></span>
+          </p>
+          <textarea
+            id="copy-text"
+            class="copy-text"
+            rows="6"
+            readonly
+            aria-label="Your answer as text"
+            hidden
+          ></textarea>
+        </div>
+      </form>
+
+      <section class="card done" id="done" tabindex="-1" aria-labelledby="done-title" hidden>
+        <h2 id="done-title">Thank you, your answer reached the developer.</h2>
+        <p id="rate" hidden>
+          <a
+            id="rate-link"
+            href="https://open-vsx.org/extension/chistokhinsv/ansible-flow-designer"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Rate it</a
+          >
+        </p>
+      </section>
+
+      <footer class="footer">
+        <p>
+          Bugs and ideas:
+          <a
+            id="issues-link"
+            href="https://github.com/ChistokhinSV/ansible-flow-designer/issues/new/choose"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub issues</a
+          >
+        </p>
+        <p>This page sends only what you type here; the extension itself sends nothing.</p>
+      </footer>
+    </main>
+  </body>
+</html>

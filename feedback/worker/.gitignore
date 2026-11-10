@@ -1,0 +1,8 @@
+node_modules/
+# wrangler's local state and build cache
+.wrangler/
+# Local secrets for `wrangler dev`; never committed
+.dev.vars
+.dev.vars.*
+.env
+.env.*

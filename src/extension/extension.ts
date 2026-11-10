@@ -13,6 +13,7 @@ import { registerImportCommands } from './commands/importCommands';
 import { registerRunCommands } from './commands/runCommands';
 import { registerDocuments } from './documents';
 import { registerExport } from './export';
+import { Feedback, registerFeedback } from './feedback';
 import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
@@ -54,6 +55,21 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   context.subscriptions.push(...registerFlowTools(flowIO, (line) => logChannel().warn(line)));
   // AFD-22: the user guide, the walkthroughs and the sample flows.
   context.subscriptions.push(...registerHelp(context, (uri) => host.openDesigner(uri)));
+  // AFD-201: feedback without telemetry; the uninstall page's marker follows its answers.
+  // Tests see the links the feedback commands open; no browser opens.
+  const feedbackLinks: string[] = [];
+  const feedback = new Feedback(
+    context,
+    host.testMode
+      ? {
+          open: async (url) => {
+            feedbackLinks.push(url);
+          },
+        }
+      : {},
+  );
+  context.subscriptions.push(...registerFeedback(feedback));
+  void feedback.syncMarker();
   // AFD-25: draw.io and image exports of the flow the user means.
   context.subscriptions.push(
     ...registerExport({
@@ -89,16 +105,24 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   // AFD-20: the extension also starts after VS Code does (onStartupFinished) and checks a setup
   // from an older version. AFD-73: agents without it are offered it once a designer shows a flow
   // with a step, not before anyone has seen a flow.
-  void (host.testMode ? aiSetup.refreshContext() : aiSetup.checkStale()).catch(() => undefined);
+  const staleAsked: Promise<boolean> = host.testMode
+    ? aiSetup.refreshContext().then(
+        () => true,
+        () => true,
+      )
+    : aiSetup.checkStale().catch(() => true);
   if (!host.testMode) void hostAi.start().catch(() => undefined);
   let offerPending = !host.testMode;
   const offerOnce = (document: vscode.TextDocument) => {
     if (!offerPending || !hasSteps(document.getText())) return;
     offerPending = false;
     // This editor's own agent first; the general offer leaves it out and waits if that asked.
+    // AFD-201: the feedback notice last, only when nothing else asked at this start.
     void (async () => {
       if (await hostAi.offer()) return;
-      await aiSetup.offer(hostAi.agent);
+      if (await aiSetup.offer(hostAi.agent)) return;
+      if (await staleAsked) return;
+      await feedback.maybeAsk();
     })().catch(() => undefined);
   };
   // The schema compiles on first use; where flows exist, do it now, before the first one opens.
@@ -115,6 +139,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   const provider: vscode.CustomTextEditorProvider = {
     async resolveCustomTextEditor(document, panel) {
       host.sessionFor(document).attach(panel);
+      // AFD-201: a day of real use is a day the designer showed a flow with steps.
+      if (hasSteps(document.getText())) void feedback.noteUse().catch(() => undefined);
       offerOnce(document);
     },
   };
@@ -159,7 +185,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   for (const doc of vscode.workspace.textDocuments)
     if (isFlow(doc)) void host.sessionFor(doc).refresh();
 
-  return host.testMode ? createTestApi(host, flowIO, aiSetup, context) : undefined;
+  return host.testMode
+    ? createTestApi(host, flowIO, aiSetup, context, { feedback, links: feedbackLinks })
+    : undefined;
 }
 
 export function deactivate(): void {}

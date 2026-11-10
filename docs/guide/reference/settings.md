@@ -21,6 +21,7 @@ the [guide](../README.md).
 | `afd.awx.verifyTls`                | `true`      | Verify AWX's TLS certificate. Turn off only for a lab AWX with a self-signed certificate. User settings only.                                                                                               |
 | `afd.awx.allowHttp`                | `false`     | Send the token over plain `http://` to an AWX on another machine (a lab without TLS). User settings only.                                                                                                   |
 | `afd.ai.hostIntegration`           | `true`      | The agent built into this editor gets the flow tools and skill: Cursor automatically, Kiro, Antigravity IDE and Devin Desktop after you agree once. User settings only.                                     |
+| `afd.feedback.prompt`              | `true`      | Ask for feedback: one notice after a week of real use (at most twice), and a feedback page in the browser once after you uninstall. Nothing is sent by the extension. User settings only.                   |
 
 ## Restricted Mode
 

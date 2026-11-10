@@ -30,6 +30,7 @@ gen-ai:
 check:
     npx --no-install tsc -p tsconfig.json
     npx --no-install tsc -p tsconfig.webview.json
+    npx --no-install tsc -p test/unit/feedback
     npx --no-install biome check .
 
 # Apply Biome formatting and safe lint fixes

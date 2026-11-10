@@ -1,0 +1,104 @@
+# Deploys the feedback form and its Worker (AFD-206, ADR-0033) when they change on main, or by hand.
+# - pages: feedback/site/ is published at https://chistokhinsv.github.io/ansible-flow-designer/feedback/
+#   (Settings → Pages → Source: GitHub Actions, once).
+# - worker: `wrangler deploy` of feedback/worker/ with the wrangler its lockfile pins. Needs the repo
+#   secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID; skipped, with a notice, until they are
+#   set. The Worker's own secrets (YouTrack, Telegram, Turnstile) live in Cloudflare, never here.
+#   The repo variable FEEDBACK_YOUTRACK_PROJECT_ID and the repo secret FEEDBACK_TELEGRAM_CHAT_ID,
+#   when set, fill the vars wrangler.toml leaves empty. The chat ID is a secret, not a variable:
+#   wrangler deploy prints every var's value, and this public repository's logs are public; GitHub
+#   masks secrets in them.
+# CI (ci.yml) runs the Worker's unit tests with the others.
+name: Feedback
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - feedback/**
+      - .github/workflows/feedback.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feedback
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}feedback/
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # The site's root sends visitors to the repository; the form lives under /feedback/.
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/feedback
+          cp -R feedback/site/. _site/feedback/
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Ansible Flow Designer</title>
+          <meta http-equiv="refresh" content="0; url=https://github.com/ChistokhinSV/ansible-flow-designer">
+          <a href="https://github.com/ChistokhinSV/ansible-flow-designer">Ansible Flow Designer on GitHub</a>
+          HTML
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: feedback-worker
+    defaults:
+      run:
+        working-directory: feedback/worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: feedback/worker/package-lock.json
+
+      - run: npm ci --no-fund --no-audit
+
+      - name: Type check
+        run: npm run check
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          YOUTRACK_PROJECT_ID: ${{ vars.FEEDBACK_YOUTRACK_PROJECT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.FEEDBACK_TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set: the Worker was not deployed."
+            exit 0
+          fi
+          args=()
+          if [ -n "$YOUTRACK_PROJECT_ID" ]; then args+=(--var "YOUTRACK_PROJECT_ID:$YOUTRACK_PROJECT_ID"); fi
+          if [ -n "$TELEGRAM_CHAT_ID" ]; then args+=(--var "TELEGRAM_CHAT_ID:$TELEGRAM_CHAT_ID"); fi
+          npx --no-install wrangler deploy "${args[@]}"

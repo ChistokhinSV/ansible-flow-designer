@@ -1,0 +1,9 @@
+# AFD-205: the issue chooser. A short answer without a GitHub account goes to the feedback form.
+blank_issues_enabled: true
+contact_links:
+  - name: Quick feedback (no GitHub account needed)
+    url: https://chistokhinsv.github.io/ansible-flow-designer/feedback/
+    about: A short form, what works and what is missing. An email is optional.
+  - name: User guide
+    url: https://github.com/ChistokhinSV/ansible-flow-designer/blob/main/docs/guide/README.md
+    about: Tutorials, how-to pages and the reference.

@@ -1,12 +1,15 @@
 // AFD-22 inside VS Code: Open Sample Flow copies a bundled sample and opens it in the designer
 // (and never overwrites one already there), Open User Guide shows a guide page in the Markdown
 // preview (and nothing outside docs/guide), Get Started opens the walkthrough, and designer edits
-// set the walkthrough's tour keys.
+// set the walkthrough's tour keys. AFD-201: the feedback commands open links and send nothing; a
+// designer showing a flow with steps counts a day of use; the uninstall page's marker follows the
+// setting.
 import * as assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
+import { dayOf, FEEDBACK_PAGE, ISSUES_URL } from '../../src/core/feedback/feedback';
 import type { FlowDocument } from '../../src/core/flow/types';
 import { closeAll, flowUri, openDesigner, testApi, VIEW_TYPE } from './helpers';
 
@@ -127,5 +130,41 @@ describe('AFD-22 acceptance: user help', () => {
     });
     assert.ok(pattern.ok, pattern.error);
     assert.deepEqual(api.tour().sort(), ['failureHandled', 'nodeAdded', 'subflow']);
+  });
+
+  it('AFD-201: Send Feedback opens the form with the version and editor; Report a Problem opens GitHub', async () => {
+    const api = await testApi();
+    await vscode.commands.executeCommand('afd.help.feedback');
+    const form = new URL(api.feedback().links.at(-1) ?? '');
+    assert.equal(form.origin + form.pathname, FEEDBACK_PAGE);
+    const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+    assert.deepEqual(Object.fromEntries(form.searchParams), {
+      source: 'command',
+      version,
+      editor: 'vscode',
+    });
+    await vscode.commands.executeCommand('afd.help.reportIssue');
+    assert.equal(api.feedback().links.at(-1), ISSUES_URL);
+  });
+
+  it('AFD-201: a designer showing a flow with steps counts today as a day of use', async () => {
+    const api = await testApi();
+    await openDesigner(flowUri('edge-baseline'));
+    const today = dayOf(new Date());
+    await until(() => api.feedback().state.days?.includes(today) === true, 'a day of use');
+    assert.ok(api.feedback().state.first);
+  });
+
+  it('AFD-202: turning the notice off writes the uninstall page marker; on again removes it', async () => {
+    const api = await testApi();
+    const marker = join(api.feedback().extensionPath, '.no-feedback');
+    const config = vscode.workspace.getConfiguration('afd.feedback');
+    try {
+      await config.update('prompt', false, vscode.ConfigurationTarget.Global);
+      await until(() => existsSync(marker), 'marker written');
+    } finally {
+      await config.update('prompt', undefined, vscode.ConfigurationTarget.Global);
+    }
+    await until(() => !existsSync(marker), 'marker removed');
   });
 });

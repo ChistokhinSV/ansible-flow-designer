@@ -314,6 +314,13 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       title: 'Tutorials and how-to pages, in a Markdown preview',
       onSelect: () => send({ type: 'openGuide' }),
     },
+    {
+      type: 'item',
+      label: 'Send Feedback…',
+      icon: 'feedback',
+      title: 'A short form: what works, what is missing (opens in the browser)',
+      onSelect: () => send({ type: 'sendFeedback' }),
+    },
   ];
 }
 

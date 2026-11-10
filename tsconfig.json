@@ -9,6 +9,7 @@
     "src/extension",
     "src/node",
     "src/cli",
+    "src/uninstall",
     "test/unit/core",
     "test/integration",
     "scripts/vsix-readme.ts"

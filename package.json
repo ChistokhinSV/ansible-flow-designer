@@ -281,6 +281,18 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.help.feedback",
+        "title": "Send Feedback…",
+        "category": "Ansible Flow",
+        "icon": "$(feedback)"
+      },
+      {
+        "command": "afd.help.reportIssue",
+        "title": "Report a Problem…",
+        "category": "Ansible Flow",
+        "icon": "$(bug)"
+      },
+      {
         "command": "afd.export.drawio",
         "title": "Export as draw.io Diagram…",
         "category": "Ansible Flow"
@@ -639,6 +651,12 @@
           "default": true,
           "scope": "machine",
           "markdownDescription": "Give the agent built into this editor the flow tools and the `ansible-flow` skill: Cursor's agent automatically through Cursor's extension API; Kiro, Antigravity IDE and Devin Desktop after you agree once (their MCP and skill files), kept up to date. Off: none of this; **Set Up AI Assistants…** still works."
+        },
+        "afd.feedback.prompt": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Ask for feedback: one notice after a week of real use (at most twice), and a feedback page in the browser once after you uninstall the extension. The extension sends nothing itself; it only opens the form. Off: neither. **Send Feedback…** still works."
         }
       }
     },
@@ -3505,6 +3523,7 @@
   },
   "scripts": {
     "vscode:prepublish": "node scripts/build.mjs --production",
+    "vscode:uninstall": "node ./dist/uninstall.js",
     "test:int": "vscode-test"
   },
   "dependencies": {

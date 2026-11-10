@@ -244,6 +244,8 @@ export type WebviewMessage =
   | { type: 'validate' }
   /** AFD-22: a page of the user guide (docs/guide), README.md when none. */
   | { type: 'openGuide'; page?: string }
+  /** AFD-201: the feedback form, from the designer's menu. */
+  | { type: 'sendFeedback' }
   /** The empty-flow card (AFD-48): an import or a sample instead of the first step; or the tour. */
   | { type: 'startFrom'; what: 'playbooks' | 'awx' | 'sample' | 'tour' }
   /** AFD-73: the first-flow checklist hidden for good, or shown again. */

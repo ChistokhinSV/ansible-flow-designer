@@ -18,6 +18,14 @@ export default defineConfig({
           include: ['test/unit/core/**/*.test.ts'],
         },
       },
+      // The feedback Worker (feedback/worker) with a mocked fetch.
+      {
+        test: {
+          name: 'feedback',
+          environment: 'node',
+          include: ['test/unit/feedback/**/*.test.ts'],
+        },
+      },
       // Catalog search gates on a full environment dump: `just test-catalog <dir>`.
       ...(process.env.AFD_CATALOG_DIR
         ? [

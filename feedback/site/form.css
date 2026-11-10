@@ -1,0 +1,404 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --field: #ffffff;
+  --text: #1b2025;
+  --muted: #59636e;
+  --border: #c5ccd3;
+  --accent: #0f766e;
+  --accent-hover: #115e59;
+  --accent-text: #ffffff;
+  --accent-soft: #e6f6f4;
+  --link: #0f766e;
+  --focus: #0d9488;
+  --star-on: #d97706;
+  --star-off: #8d97a1;
+  --error: #b42318;
+  --error-soft: #fdf0ef;
+  --ok: #0f766e;
+  --ok-soft: #e6f6f4;
+  --disabled: #e3e7ea;
+  --radius: 8px;
+  --font:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101315;
+    --surface: #181d21;
+    --field: #11161a;
+    --text: #e4e8eb;
+    --muted: #9aa4ad;
+    --border: #3a444d;
+    --accent: #2dd4bf;
+    --accent-hover: #5eead4;
+    --accent-text: #05211d;
+    --accent-soft: #12302c;
+    --link: #5eead4;
+    --focus: #5eead4;
+    --star-on: #fbbf24;
+    --star-off: #66717c;
+    --error: #ff9c92;
+    --error-soft: #2e1b1a;
+    --ok: #5eead4;
+    --ok-soft: #12302c;
+    --disabled: #262d33;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.15em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.page {
+  max-width: 38rem;
+  margin: 0 auto;
+  padding: 2rem 1rem 2.5rem;
+}
+
+.product {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: clamp(1.4rem, 1rem + 2vw, 1.85rem);
+  line-height: 1.25;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.card {
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Flat on a phone: the card padding would leave Turnstile less than its 300 px. */
+@media (max-width: 30rem) {
+  .card {
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+}
+
+/* A 320 px phone: narrower gutters keep the 300 px the flexible Turnstile widget needs. */
+@media (max-width: 21.25rem) {
+  .page {
+    padding-inline: 0.625rem;
+  }
+}
+
+.notice {
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+legend,
+.label {
+  display: block;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+.optional {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.field + .field,
+.group + .field,
+.field + .actions {
+  margin-top: 1.5rem;
+}
+
+.hint {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.error {
+  margin: 0.35rem 0 0;
+  color: var(--error);
+  font-size: 0.875rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Rating: radios drawn as stars; form.js adds .on to the stars up to the chosen (or hovered) one. */
+.stars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.star {
+  padding: 0.1rem 0.2rem;
+  color: var(--star-off);
+  font-size: 2rem;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.star.on {
+  color: var(--star-on);
+}
+
+.stars input:focus-visible + .star {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.rating-word {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.choices {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.choices label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.choices label:has(:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.choices input {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0.2rem 0 0;
+  accent-color: var(--accent);
+}
+
+textarea,
+input[type="email"] {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  color: var(--text);
+  font: inherit;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+textarea:focus-visible,
+input[type="email"]:focus-visible {
+  outline-offset: 1px;
+  border-color: var(--focus);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.counter.near-limit {
+  color: var(--error);
+}
+
+.turnstile {
+  min-height: 65px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary,
+.secondary {
+  min-height: 2.75rem;
+  padding: 0.6rem 1.4rem;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.primary {
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.primary:disabled {
+  color: var(--muted);
+  background: var(--disabled);
+  border-color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.secondary {
+  color: var(--link);
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+
+.secondary:hover {
+  background: var(--accent-soft);
+}
+
+.link-button {
+  margin-top: 0.35rem;
+  padding: 0;
+  color: var(--link);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  background: none;
+  border: 0;
+}
+
+.status {
+  margin: 1rem 0 0;
+}
+
+.status:empty {
+  display: none;
+}
+
+.status[data-kind="error"],
+.status[data-kind="captcha"] {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.failure {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--error-soft);
+  border-left: 4px solid var(--error);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.failure p {
+  margin: 0.35rem 0;
+}
+
+.copy-note {
+  margin-left: 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.copy-text {
+  margin-top: 0.5rem;
+  min-height: 6rem;
+}
+
+.done {
+  border-left: 4px solid var(--ok);
+  background: var(--ok-soft);
+}
+
+@media (max-width: 30rem) {
+  .done {
+    padding: 1rem;
+  }
+}
+
+.done:focus {
+  outline: none;
+}
+
+.done p {
+  margin: 0.75rem 0 0;
+}
+
+.footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border);
+}
+
+.footer p {
+  margin: 0.25rem 0;
+}
+
+/* Last, so that the hidden attribute wins over the display of any class above. */
+[hidden] {
+  display: none;
+}

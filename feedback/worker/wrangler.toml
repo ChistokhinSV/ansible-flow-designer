@@ -1,0 +1,31 @@
+# Cloudflare Worker for Ansible Flow Designer feedback. Setup and the API contract: README.md.
+# Secrets are never in this file: YOUTRACK_TOKEN, TELEGRAM_BOT_TOKEN and TURNSTILE_SECRET are set
+# with `npx wrangler secret put <NAME>`.
+name = "afd-feedback"
+main = "src/index.ts"
+compatibility_date = "2026-11-10"
+workers_dev = true
+
+[vars]
+YOUTRACK_URL = "https://chistokhin.youtrack.cloud"
+# These two stay empty here and come with `wrangler deploy --var NAME:value` (README: "Where the
+# two vars go"), so the chat ID stays out of this public repository.
+# Database ID of the AF project, like "0-12". Empty: POST /feedback answers 503.
+YOUTRACK_PROJECT_ID = ""
+# Telegram chat the bot writes to. Empty: no Telegram message.
+TELEGRAM_CHAT_ID = ""
+ALLOWED_ORIGIN = "https://chistokhinsv.github.io"
+
+# 10 POST requests per minute per client IP, counted per Cloudflare location.
+# Remove this block if a deploy refuses it: the Worker then runs without the limit.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1701"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
+
+# Workers Logs: the one log line per request (Free plan: 200,000 events a day, kept 3 days).
+[observability]
+enabled = true

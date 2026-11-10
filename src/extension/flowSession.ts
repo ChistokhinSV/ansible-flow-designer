@@ -742,6 +742,9 @@ export class FlowSession implements vscode.Disposable {
       case 'openGuide':
         await vscode.commands.executeCommand(CMD.openGuide, m.page);
         break;
+      case 'sendFeedback':
+        await vscode.commands.executeCommand(CMD.sendFeedback);
+        break;
       case 'startFrom':
         await vscode.commands.executeCommand(
           m.what === 'playbooks'
