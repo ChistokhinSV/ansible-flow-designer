@@ -327,7 +327,7 @@
           },
           "from": {
             "type": "string",
-            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it. The checks follow that: a step that sets the same name counts as setting the input, and input-shadowed warns when one runs after the from: step."
           },
           "optional": {
             "type": "boolean",

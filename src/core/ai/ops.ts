@@ -107,8 +107,8 @@ export type Op =
   | { op: 'enable_port' | 'disable_port'; node: string; port: string }
   | { op: 'leave_open'; at: string; reason: string }
   | { op: 'reopen'; at: string }
-  | { op: 'accept'; at: string; finding?: string; reason: string }
-  | { op: 'unaccept'; at: string; finding?: string }
+  | { op: 'accept'; at: string | string[]; finding?: string; reason: string }
+  | { op: 'unaccept'; at: string | string[]; finding?: string }
   | { op: 'apply_pattern'; at: string; pattern: PatternId; end?: string; position?: Place }
   | {
       op: 'set_io';
@@ -606,6 +606,14 @@ async function commandsOf(
     }
     case 'accept':
     case 'unaccept': {
+      // AFD-211: several places with one reason, as one op each.
+      if (Array.isArray(op.at)) {
+        if (op.at.length === 0) throw new RefError(`${op.op}: at lists nothing`);
+        const all: FlowCommand[] = [];
+        for (const at of op.at)
+          all.push(...(await commandsOf(st, { ...op, at }, ctx, notes, placed)));
+        return all;
+      }
       // AFD-51: one op for every decision. No finding (or port:): `at` is a fail port.
       const finding = op.finding?.trim() ?? '';
       const area = finding.slice(0, Math.max(0, finding.indexOf(':')));

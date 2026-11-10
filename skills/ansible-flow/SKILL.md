@@ -100,8 +100,8 @@ For more than about 40 tasks, `flow_import` first, then regroup and rename by in
 ## Data between steps
 
 Values pass through node inputs and outputs. The designer checks every name a step reads, and
-the generated code passes inputs in as play vars: a fact or register of the same name set earlier
-on the host wins over them, so give inputs names no step sets as a fact. Paths next to the
+the generated code passes inputs in as play vars: a fact or register of the same name wins over
+them, and the checks count it (`input-shadowed`: one set after the `from:` step). Paths next to the
 playbook: `{{ afd_repo_root }}/...`; a failure in a later step: `afd_failed_result.msg`.
 
 - An output: `set_io` on the producer, e.g. `fgt_facts` with `from: impl.register` or

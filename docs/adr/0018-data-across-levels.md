@@ -89,3 +89,25 @@ read the host variable directly, not the designer's way.
 - **Reads with a fallback:** a variable that is not an input and is read only with `| default` or `is defined` is an info, not a warning.
 - **Precedence:** node inputs are play vars, so a fact or register of the same name set earlier on the host wins over them, and extra vars win over both. The docs and the skill now say so: give inputs names that no step sets as a fact.
 - **Jinja scopes:** names a template binds itself (`{% set %}`, `{% for %}`, `with`, `macro`) are not reads. `x is not <test>` reads only `x`. A `set_fact` step may read its own facts (accumulators).
+
+## Amendment: the checks follow Ansible precedence (AFD-212, 2026-11-10)
+
+An agent converting a playbook wired a reader to the step that creates an issue key on one branch,
+while an earlier step set the same fact on every path. `ref-may-be-undefined` warned, yet the
+flow ran on both branches: the reader's input is a play var, and the fact (precedence 19) wins
+over it (play vars, 12), so Ansible never evaluates the `from:` value. Checked with ansible-core
+2.22: a play var pointing at an undefined variable is not templated when a fact of that name
+exists.
+
+Product-owner decision: no change to the generated code; the checks follow what runs.
+
+- **A step that sets the input's own name** counts as setting the input: a set_fact of it, a
+  register of it, or an output of that name (a step's output is a fact of its own name). On the
+  `from:` step's level, `ref-may-be-undefined` walks the wires with those steps' success wires cut
+  (they set it), then with only their fail wires open (a host that fails in one keeps what it had).
+  A subflow on that level with an output of the name counts as setting it, as the `from:` step does.
+- **`input-shadowed`** (warning, at the reader, subject the input): another step that sets the
+  input's name runs after the `from:` step on a path to the reader (or before the reader, when the
+  `from:` step does not set that name). The step reads the value set last, not the one `from:`
+  names. A subflow counts when any step inside it sets the name.
+- Accepts of `ref-may-be-undefined` the new rule makes unnecessary show as `stale-decision`.

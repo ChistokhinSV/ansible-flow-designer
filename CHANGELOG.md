@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.78.0 — AFD-208 (fixes from an agent's report)
+
+An agent converted eight more playbooks into flows and wrote down what slowed it down. Fixes:
+
+- **The checks follow Ansible on variables set twice.** A node input is a play var, and a set_fact or register of the same name wins over it. So a step that sets the input's own name now counts as setting the input: a value created on one branch, with a default set on every path before it, no longer warns "may be undefined". The new warning `input-shadowed` flags the opposite case, where another step sets the name after the `from:` step and the step reads that value instead. Accepts the new rule makes unnecessary show as stale (ADR-0018 amendment).
+- **Steps that ignore errors:** an open fail port on a step with `ignore_errors: true` or `failed_when: false` is an info, not a warning. Ansible still fails such a step on an undefined variable, so it stays listed.
+- **One accept for several ports:** `accept` (and `unaccept`) take a list in `at`, with one reason.
+- **`flow:` works where `path:` is asked:** the flow tools take `flow` as another name for the flow file, the name `source_outline` uses. Before, it was ignored, and with two flows in the workspace the tool failed.
+- **Imported flow names:** a playbook of several plays is named after the play with the most tasks, not a helper play that comes first.
+- **Layout check first:** `flow_describe` with `layout: true` gives the layout check total near the top, so page 1 of a long answer has it.
+
 ## 0.77.0 — AFD-200 (feedback)
 
 Feedback, without telemetry: the extension still sends nothing itself. It only opens links, and you decide what to send.

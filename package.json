@@ -740,7 +740,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             },
             "level": {
               "type": "string",
@@ -748,7 +748,7 @@
             },
             "layout": {
               "type": "boolean",
-              "description": "Also list where each node is (\"at x,y\" for a stored position, \"auto x,y\" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow. flow_edit runs the same check on the levels it placed nodes on."
+              "description": "Also list where each node is (\"at x,y\" for a stored position, \"auto x,y\" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow; the total comes first, and only_problems: true leaves out the nodes and wires. flow_edit runs the same check on the levels it placed nodes on."
             },
             "nodes": {
               "type": "array",
@@ -793,7 +793,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             },
             "summary": {
               "type": "boolean",
@@ -871,7 +871,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             },
             "ops": {
               "type": "array",
@@ -1062,7 +1062,7 @@
                             },
                             "from": {
                               "type": "string",
-                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it. The checks follow that: a step that sets the same name counts as setting the input, and input-shadowed warns when one runs after the from: step."
                             },
                             "optional": {
                               "type": "boolean",
@@ -1156,7 +1156,7 @@
                             },
                             "from": {
                               "type": "string",
-                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                              "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it. The checks follow that: a step that sets the same name counts as setting the input, and input-shadowed warns when one runs after the from: step."
                             },
                             "optional": {
                               "type": "boolean",
@@ -1871,8 +1871,19 @@
                         "const": "accept"
                       },
                       "at": {
-                        "type": "string",
-                        "description": "The fail port (node.port) when accepting a port; else the node."
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1
+                          }
+                        ],
+                        "description": "The fail port (node.port) when accepting a port; else the node. A list accepts each with the same finding and reason, e.g. every open fail port of read-only steps."
                       },
                       "finding": {
                         "type": "string",
@@ -1898,8 +1909,19 @@
                         "const": "unaccept"
                       },
                       "at": {
-                        "type": "string",
-                        "description": "The port (node.port), or the node."
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "minItems": 1
+                          }
+                        ],
+                        "description": "The port (node.port), or the node; a list for several."
                       },
                       "finding": {
                         "type": "string",
@@ -2074,7 +2096,7 @@
                           },
                           "from": {
                             "type": "string",
-                            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it, so give inputs names no step sets as a fact."
+                            "description": "Where the value comes from: <node_key>.<output> (an earlier node's output, on this level or around it), flow.<input> (a flow input), <subflow_key>.<input> inside that subflow (its input), or impl.register[.path] (outputs: the bound task's registered result). A subflow's outputs name an inner step's output (<step>.<output>); without from, the inner output of the same name. A node input is a play var: a fact or register of the same name set earlier on the host wins over it. The checks follow that: a step that sets the same name counts as setting the input, and input-shadowed warns when one runs after the from: step."
                           },
                           "optional": {
                             "type": "boolean",
@@ -3027,7 +3049,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             }
           }
         }
@@ -3048,7 +3070,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             },
             "format": {
               "type": "string",
@@ -3162,7 +3184,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow."
+              "description": "The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow."
             },
             "action": {
               "enum": [

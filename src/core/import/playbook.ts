@@ -195,10 +195,11 @@ class PlaybookImporter {
       this.opts.newId(),
       {
         key: this.opts.key,
-        // A playbook of imports (site.yml) is named after its file, a playbook of plays after the first.
+        // A playbook of imports (site.yml) is named after its file; a playbook of plays after its
+        // largest play (AFD-210: a one-task helper play first named a 112-task flow).
         name:
           this.opts.name ??
-          ((book.plays[0]?.kind === 'play' && first?.name) ||
+          ((book.plays[0]?.kind === 'play' && mainPlay(plays)?.name) ||
             basename(book.path).replace(/\.ya?ml$/, '')),
         imported_from: { kind: 'playbook', path: book.path },
         inputs,
@@ -1113,6 +1114,31 @@ const isDone = (n: FlowNode): boolean =>
       : n.type !== 'approval';
 
 /** Plays in source order, imported ones included. */
+/** Tasks a list runs: blocks with their rescue and always, read-in includes; a role counts once. */
+function taskCount(items: readonly Item[]): number {
+  let n = 0;
+  for (const i of items)
+    if (i.kind === 'block') n += taskCount(i.items) + taskCount(i.rescue) + taskCount(i.always);
+    else if (i.kind === 'include') n += i.items ? taskCount(i.items) : 1;
+    else n += 1;
+  return n;
+}
+
+/** The play with the most tasks, the first of equals; named plays only. */
+export function mainPlay(plays: readonly PlayForm[]): PlayForm | undefined {
+  let best: PlayForm | undefined;
+  let most = -1;
+  for (const p of plays) {
+    if (!p.name) continue;
+    const n = taskCount([...p.preTasks, ...p.roles, ...p.tasks, ...p.postTasks]);
+    if (n > most) {
+      best = p;
+      most = n;
+    }
+  }
+  return best;
+}
+
 export function flatPlays(book: PlaybookForm): PlayForm[] {
   return book.plays.flatMap((p) =>
     p.kind === 'play' ? [p] : p.playbook ? flatPlays(p.playbook) : [],

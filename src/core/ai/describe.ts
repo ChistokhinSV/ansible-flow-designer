@@ -171,6 +171,14 @@ function annotationLine(model: FlowModel, a: Annotation, layout?: ShownLayout): 
 }
 
 /** The flow by key: header, then each level's nodes, wires, boundary and open fail ports. */
+/** The layout check over every level, in one line. */
+function layoutTotal(layoutIssues: ReadonlyMap<string, readonly LayoutProblem[]>): string {
+  const n = [...layoutIssues.values()].reduce((sum, l) => sum + l.length, 0);
+  return n
+    ? `Layout check: ${n} problem(s), listed per level. ${LAYOUT_FIX}`
+    : 'Layout check: no problems (no overlap, no wire through a box, no label on a box or another label, no crossing).';
+}
+
 export function describeFlow(
   model: FlowModel,
   findings: readonly Finding[],
@@ -209,6 +217,8 @@ export function describeFlow(
       : []),
     `Revision: ${revision} (pass it to flow_edit)`,
     ...(layout ? [`Layout: ${LAYOUT_RULES}`] : []),
+    // AFD-213: the total first, so page 1 of a long answer says whether the layout is clean.
+    ...(layoutIssues ? [layoutTotal(layoutIssues)] : []),
   ];
   const open = openFailPorts(model);
   const decided = acceptedAll(doc).filter((a) => a.area === 'port' && a.node);
@@ -271,15 +281,6 @@ export function describeFlow(
       out.push('  layout problems:');
       for (const p of issues) out.push(`    ${p.text}`);
     }
-  }
-  if (layoutIssues) {
-    const n = [...layoutIssues.values()].reduce((sum, l) => sum + l.length, 0);
-    out.push(
-      '',
-      n
-        ? `Layout check: ${n} problem(s), listed per level. ${LAYOUT_FIX}`
-        : 'Layout check: no problems (no overlap, no wire through a box, no label on a box or another label, no crossing).',
-    );
   }
   out.push(
     '',

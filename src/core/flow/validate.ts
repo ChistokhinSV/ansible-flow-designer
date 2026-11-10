@@ -4,7 +4,7 @@ import type { Path } from '../yaml/parse';
 import { successors } from './adjacency';
 import { fedByBubbling, levelTaken, untaken } from './bubbling';
 import { idGaps, withIds } from './completeIds';
-import { outputVar, registerName } from './dataNames';
+import { fromRegister, outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { durationSeconds } from './duration';
@@ -52,6 +52,20 @@ function label(node: FlowNode | undefined): string {
   return node ? `"${node.title ?? node.key}"` : 'unknown node';
 }
 
+/** A YAML true/false written as a boolean or a word (`yes`, `"false"`). */
+function literal(value: unknown, want: boolean): boolean {
+  if (typeof value === 'boolean') return value === want;
+  if (typeof value !== 'string') return false;
+  const word = value.trim().toLowerCase();
+  return want ? ['true', 'yes', 'on'].includes(word) : ['false', 'no', 'off'].includes(word);
+}
+
+/** AFD-211: a step bound with ignore_errors: true or failed_when: false. */
+function ignoresErrors(node: FlowNode | undefined): boolean {
+  const kw = node?.impl?.keywords;
+  return !!kw && (literal(kw.ignore_errors, true) || literal(kw.failed_when, false));
+}
+
 export interface ValidationResult {
   model: FlowModel;
   findings: Finding[];
@@ -93,11 +107,16 @@ export function validateFlow(
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
+    // AFD-211: a step that ignores its errors fails only where Ansible will not ignore them (an
+    // undefined variable, a module that cannot run): still listed, not a warning per step.
+    const quiet = open.port === 'failed_hosts' && ignoresErrors(entry?.node);
     add({
       code: 'open-fail-port',
-      severity: 'warning',
+      severity: quiet ? 'info' : 'warning',
       // AFD-72: what happens to the hosts, and the two ways out, in plain words.
-      message: `Open fail port: ${label(entry?.node)} · ${open.port} has nowhere to go, so its hosts fail the run. Wire a failure pattern to it, or Accept with Reason… to keep it open`,
+      message: quiet
+        ? `Open fail port: ${label(entry?.node)} · ${open.port} has nowhere to go; the step ignores errors (ignore_errors or failed_when: false), so only an undefined variable or a module that cannot run fails its hosts`
+        : `Open fail port: ${label(entry?.node)} · ${open.port} has nowhere to go, so its hosts fail the run. Wire a failure pattern to it, or Accept with Reason… to keep it open`,
       path: entry?.path ?? [],
       node: open.node,
       port: open.port,
@@ -928,6 +947,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
         if (src.kind === 'output' && side === 'inputs') {
           const at: Path = [...path, side, name, 'from'];
           checkCollision(model, node, src.node, src.name, from, at, name, add);
+          checkShadowed(model, node, src.node, from, at, name, add);
           if (field.default === undefined && !field.optional && !guarded(node, name))
             checkProducerRuns(model, node, src.node, src.name, from, at, name, add);
         }
@@ -1248,10 +1268,84 @@ function reachable(
   return seen;
 }
 
+type ModelLevel = NonNullable<ReturnType<FlowModel['levels']['get']>>;
+
+/** Where a `from:` is checked: the producer's level, the reader (or the subflow around it) on it. */
+function producerPlace(
+  model: FlowModel,
+  reader: FlowNode,
+  producer: FlowNode,
+): { level: ModelLevel; target: Ulid; entries: Ulid[] } | undefined {
+  const where = model.nodes.get(producer.id)?.level;
+  const level = where ? model.levels.get(where) : undefined;
+  if (!level) return undefined;
+  let at = model.nodes.get(reader.id);
+  while (at && at.level !== where) at = model.nodes.get(at.level);
+  if (!at || at.node.id === producer.id) return undefined;
+  const parent = level.parent ? model.nodes.get(level.parent)?.node : undefined;
+  const entries =
+    level.id === ROOT
+      ? level.nodes.filter((n) => n?.type === 'start').map((n) => n.id)
+      : parent?.subflow?.boundary?.in
+        ? [parent.subflow.boundary.in]
+        : [];
+  return { level, target: at.node.id, entries };
+}
+
+/**
+ * AFD-212: whether a step sets a host variable of this name: its register, a set_fact of it, or an
+ * output of that name (a step's output is a fact of its own name, AFD-53). Generated plays pass an
+ * input as a play var, and Ansible ranks set_fact and register above play vars: once a step has
+ * set the input's name, the reader gets that fact, whatever its `from:` names.
+ */
+function setsName(node: FlowNode, name: string): boolean {
+  if (node.type === 'subflow') return false;
+  const impl = node.impl;
+  if (impl?.kind === 'module' && (registerName(node) === name || setFactNames(impl).includes(name)))
+    return true;
+  return !!node.outputs && name in node.outputs && !fromRegister(node, name);
+}
+
+/** The steps that set a name, and those with every subflow around them (which may set it). */
+interface NameSetters {
+  sets: Set<Ulid>;
+  may: Set<Ulid>;
+}
+
+const settersByModel = new WeakMap<FlowModel, Map<string, NameSetters>>();
+
+function nameSetters(model: FlowModel, name: string): NameSetters {
+  let byName = settersByModel.get(model);
+  if (!byName) {
+    byName = new Map();
+    settersByModel.set(model, byName);
+  }
+  let found = byName.get(name);
+  if (!found) {
+    found = { sets: new Set(), may: new Set() };
+    for (const { node } of model.nodes.values()) {
+      if (!setsName(node, name)) continue;
+      found.sets.add(node.id);
+      for (let at = model.nodes.get(node.id); at; at = model.nodes.get(at.level))
+        found.may.add(at.node.id);
+    }
+    byName.set(name, found);
+  }
+  return found;
+}
+
+/** Where a node's wires lead from its success ports (not its fail ports). */
+function okTargets(level: ModelLevel, node: Ulid): Ulid[] {
+  return level.edges
+    .filter((e) => e?.from?.node === node && !isFailPort(e.from.port))
+    .map((e) => e.to.node);
+}
+
 /**
  * The step a `from:` reads must have run, and succeeded, for every host that gets here (AFD-31):
  * on its level it lies on every path from the entry to the reader (or the subflow holding it), and
- * no path from its fail ports leads there.
+ * no path from its fail ports leads there. AFD-212: a step on that level that sets the input's own
+ * name does as well, since the reader gets that fact (see setsName).
  */
 function checkProducerRuns(
   model: FlowModel,
@@ -1263,21 +1357,21 @@ function checkProducerRuns(
   input: string,
   add: (f: Finding) => void,
 ): void {
-  const where = model.nodes.get(producer.id)?.level;
-  const level = where ? model.levels.get(where) : undefined;
-  if (!level) return;
-  // The reader, or the subflow around it, on the producer's level.
-  let at = model.nodes.get(reader.id);
-  while (at && at.level !== where) at = model.nodes.get(at.level);
-  if (!at || at.node.id === producer.id) return;
-  const target = at.node.id;
-  const parent = level.parent ? model.nodes.get(level.parent)?.node : undefined;
-  const entries =
-    level.id === ROOT
-      ? level.nodes.filter((n) => n?.type === 'start').map((n) => n.id)
-      : parent?.subflow?.boundary?.in
-        ? [parent.subflow.boundary.in]
-        : [];
+  const place = producerPlace(model, reader, producer);
+  if (!place) return;
+  const { level, target, entries } = place;
+  const setters = nameSetters(model, input);
+  const others = level.nodes.filter(
+    (n): n is FlowNode =>
+      !!n &&
+      n.id !== producer.id &&
+      n.id !== target &&
+      (setters.sets.has(n.id) || (n.type === 'subflow' && input in (n.outputs ?? {}))),
+  );
+  const covers = new Set([producer.id, ...others.map((n) => n.id)]);
+  const by = others.length
+    ? `${label(producer)} or ${others.map(label).join(', ')} (which set ${input} too)`
+    : label(producer);
   const say = (why: string) =>
     add({
       code: 'ref-may-be-undefined',
@@ -1289,15 +1383,68 @@ function checkProducerRuns(
     });
   // AFD-187: a decision that tests the value is defined keeps hosts without it off its true side.
   const guards = definedGuards(level.nodes, [input, ...(output ? [output] : [])]);
-  if (entries.length > 0 && reachable(level.edges, entries, producer.id, guards).has(target)) {
-    say(`is set by ${label(producer)}, which some paths to here do not run`);
+  // Past a step that sets the value, a host has it; one that fails in it has what it had before.
+  const notRun = new Set(guards);
+  const notSet = new Set(guards);
+  for (const e of level.edges) {
+    if (!e?.from || !covers.has(e.from.node)) continue;
+    const key = `${e.from.node}|${e.from.port}`;
+    notRun.add(key);
+    if (!isFailPort(e.from.port)) notSet.add(key);
+  }
+  if (entries.length > 0 && reachable(level.edges, entries, undefined, notRun).has(target)) {
+    say(`is set by ${by}, which some paths to here do not run`);
     return;
   }
   const failed = level.edges
-    .filter((e) => e?.from?.node === producer.id && isFailPort(e.from.port))
+    .filter((e) => e?.from && covers.has(e.from.node) && isFailPort(e.from.port))
     .map((e) => e.to.node);
-  if (failed.length > 0 && reachable(level.edges, failed, undefined, guards).has(target))
-    say(`is set by ${label(producer)}, and hosts that fail in it still get here`);
+  const starts = entries.length > 0 ? entries : failed;
+  if (failed.length > 0 && reachable(level.edges, starts, undefined, notSet).has(target))
+    say(`is set by ${by}, and hosts that fail in it still get here`);
+}
+
+/**
+ * AFD-212: another step sets the input's own name where it wins over the `from:` (see setsName):
+ * after the `from:` step when that step sets the name too, else anywhere before the reader.
+ */
+function checkShadowed(
+  model: FlowModel,
+  reader: FlowNode,
+  producer: FlowNode,
+  from: string,
+  path: Path,
+  input: string,
+  add: (f: Finding) => void,
+): void {
+  const setters = nameSetters(model, input);
+  if (setters.may.size === 0) return;
+  const place = producerPlace(model, reader, producer);
+  if (!place) return;
+  const { level, target, entries } = place;
+  const producerSets = setters.may.has(producer.id);
+  const before = producerSets
+    ? reachable(level.edges, okTargets(level, producer.id))
+    : reachable(level.edges, entries);
+  const later = level.nodes.filter(
+    (n): n is FlowNode =>
+      !!n &&
+      n.id !== producer.id &&
+      n.id !== target &&
+      setters.may.has(n.id) &&
+      before.has(n.id) &&
+      reachable(level.edges, okTargets(level, n.id)).has(target),
+  );
+  if (later.length === 0) return;
+  const names = later.map(label).join(', ');
+  add({
+    code: 'input-shadowed',
+    severity: 'warning',
+    message: `${label(reader)} inputs.${input}: "${from}" is not what the step reads after ${names}: ${later.length > 1 ? 'they set' : 'it sets'} ${input} too, and a set_fact or register wins over the input, so the step reads the value set last`,
+    path,
+    node: reader.id,
+    subject: input,
+  });
 }
 
 /** D-09: you cannot roll back a device you cannot reach. */

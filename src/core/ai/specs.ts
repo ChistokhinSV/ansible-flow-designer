@@ -249,8 +249,9 @@ export const OP_SPECS: OpSpec[] = [
       'Accept something as it is, with a reason recorded in the flow: a fail port left unwired on purpose (at: the port), a warning from the problems (finding: check:<code>[:<subject>], at: the node; needs flow format 2), a drift item (drift:<item>) or a lens finding (lens:<id>).',
     properties: {
       at: {
-        type: 'string',
-        description: 'The fail port (node.port) when accepting a port; else the node.',
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1 }],
+        description:
+          'The fail port (node.port) when accepting a port; else the node. A list accepts each with the same finding and reason, e.g. every open fail port of read-only steps.',
       },
       finding: {
         type: 'string',
@@ -271,7 +272,10 @@ export const OP_SPECS: OpSpec[] = [
     op: 'unaccept',
     summary: 'Take back an accept (the same at and finding).',
     properties: {
-      at: { type: 'string', description: 'The port (node.port), or the node.' },
+      at: {
+        anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' }, minItems: 1 }],
+        description: 'The port (node.port), or the node; a list for several.',
+      },
       finding: { type: 'string', description: 'As given to accept; omit for a port.' },
     },
     required: ['at'],
@@ -646,7 +650,7 @@ function opSchema(spec: OpSpec): Json {
 const PATH = {
   type: 'string',
   description:
-    'The flow file (*.flow.yaml), relative to the workspace root. Default: the flow open in the designer, or the only flow.',
+    'The flow file (*.flow.yaml), relative to the workspace root (also accepted as flow). Default: the flow open in the designer, or the only flow.',
 };
 
 export interface ToolSpec {
@@ -685,7 +689,7 @@ export const TOOL_SPECS: ToolSpec[] = [
         layout: {
           type: 'boolean',
           description:
-            'Also list where each node is ("at x,y" for a stored position, "auto x,y" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow. flow_edit runs the same check on the levels it placed nodes on.',
+            'Also list where each node is ("at x,y" for a stored position, "auto x,y" where the canvas places it now) and run the layout check: what a person sees on the canvas that you cannot, per level (boxes overlapping, a wire through a box, a wire label on a box or another label, wires crossing). Use it before move, to place new nodes next to existing ones, and after building a flow; the total comes first, and only_problems: true leaves out the nodes and wires. flow_edit runs the same check on the levels it placed nodes on.',
         },
         nodes: {
           type: 'array',

@@ -781,7 +781,12 @@ export async function runTool(io: FlowIO, name: string, input: unknown): Promise
 }
 
 async function runOne(io: FlowIO, name: string, input: unknown): Promise<ToolResult> {
-  const args = (input && typeof input === 'object' ? input : {}) as Record<string, never>;
+  let args = (input && typeof input === 'object' ? input : {}) as Record<string, never>;
+  // AFD-209: source_outline calls the flow it will write `flow` (its `path` is the playbook); an
+  // agent coming from it passes `flow:` to the flow tools, which call the flow `path`.
+  const named = args as Record<string, unknown>;
+  if (name !== 'source_outline' && named.path === undefined && typeof named.flow === 'string')
+    args = { ...named, path: named.flow } as unknown as Record<string, never>;
   switch (name) {
     case 'flow_list':
       return flowList(io);

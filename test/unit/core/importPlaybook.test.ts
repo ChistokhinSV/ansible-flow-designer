@@ -187,6 +187,26 @@ describe('mappings', () => {
     expect(doc.nodes.map((n) => n.key)).toEqual(['start', 'gather-facts', 'ping', 'done']);
   });
 
+  it('AFD-210: several plays: the flow is named after the largest, not a helper play first', async () => {
+    const book = [
+      '- name: Resolve target devices',
+      '  hosts: localhost',
+      '  tasks:',
+      '    - ping:',
+      '- name: Health check',
+      '  hosts: all',
+      '  tasks:',
+      '    - ping:',
+      '    - block:',
+      '        - ping:',
+      '      rescue:',
+      '        - ping:',
+      '',
+    ].join('\n');
+    const { doc } = check(await load(memory({ 'p.yml': book }), 'p.yml'));
+    expect(doc.flow.name).toBe('Health check');
+  });
+
   it('plays settings onto each step, with a note', async () => {
     const r = await load(
       memory({

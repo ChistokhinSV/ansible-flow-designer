@@ -226,6 +226,93 @@ describe('honest checks (AFD-31)', () => {
     );
     expect(codes(straight.doc, 'ref-may-be-undefined')).toEqual([]);
   });
+
+  // AFD-212: the generated play passes an input as a play var; a set_fact or register of the same
+  // name wins over it (Ansible precedence), so such a step sets the value the reader gets.
+  it('a step that sets the input name earlier counts: branches that skip the from: step are fine', () => {
+    const steps: Step[] = [
+      { key: 'q', outputs: { x: { type: 'any' } } },
+      { key: 's' },
+      { key: 'p', outputs: { x: { type: 'any' } } },
+      { key: 'r', inputs: { x: { type: 'any', from: 'p.x' } } },
+    ];
+    const wires: [string, string, string][] = [
+      ['start', 'ok_hosts', 'q'],
+      ['q', 'ok_hosts', 's'],
+      ['s', 'ok_hosts', 'p'],
+      ['s', 'failed_hosts', 'r'],
+      ['p', 'ok_hosts', 'r'],
+      ['r', 'ok_hosts', 'done'],
+    ];
+    const converging = flowOf(steps, wires).doc;
+    expect(codes(converging, 'ref-may-be-undefined')).toEqual([]);
+    expect(codes(converging, 'input-shadowed')).toEqual([]);
+    // Without the earlier step, the path around p still lacks the value.
+    const alone = flowOf(steps.slice(1), [['start', 'ok_hosts', 's'], ...wires.slice(2)]).doc;
+    expect(codes(alone, 'ref-may-be-undefined')).toHaveLength(1);
+    // Hosts that fail in the earlier step never set it.
+    const failing = flowOf([steps[0], steps[2], steps[3]] as Step[], [
+      ['start', 'ok_hosts', 'q'],
+      ['q', 'ok_hosts', 'p'],
+      ['q', 'failed_hosts', 'r'],
+      ['p', 'ok_hosts', 'r'],
+      ['r', 'ok_hosts', 'done'],
+    ]).doc;
+    expect(codes(failing, 'ref-may-be-undefined')[0]?.message).toContain(
+      '"p" or "q" (which set x too), and hosts that fail in it still get here',
+    );
+  });
+
+  it('input-shadowed: a later step sets the input name, so the step reads that, not its from:', () => {
+    const later = flowOf(
+      [
+        { key: 'p', outputs: { x: { type: 'any' } } },
+        { key: 'q', outputs: { x: { type: 'any' } } },
+        { key: 'r', inputs: { x: { type: 'any', from: 'p.x' } } },
+      ],
+      [
+        ['start', 'ok_hosts', 'p'],
+        ['p', 'ok_hosts', 'q'],
+        ['q', 'ok_hosts', 'r'],
+        ['r', 'ok_hosts', 'done'],
+      ],
+    ).doc;
+    const shadowed = codes(later, 'input-shadowed');
+    expect(shadowed).toHaveLength(1);
+    expect(shadowed[0]?.message).toContain('is not what the step reads after "q"');
+    expect(shadowed[0]?.subject).toBe('x');
+    // The from: step does not set the input's name: an earlier step that does wins.
+    const renamed = flowOf(
+      [
+        {
+          key: 'q',
+          impl: { kind: 'module', ref: 'ansible.builtin.set_fact', params: { y: 1 } },
+        },
+        { key: 'p', outputs: { v: { type: 'any' } } },
+        { key: 'r', inputs: { y: { type: 'any', from: 'p.v' } } },
+      ],
+      [
+        ['start', 'ok_hosts', 'q'],
+        ['q', 'ok_hosts', 'p'],
+        ['p', 'ok_hosts', 'r'],
+        ['r', 'ok_hosts', 'done'],
+      ],
+    ).doc;
+    expect(codes(renamed, 'input-shadowed')[0]?.message).toContain('after "q"');
+    // A different input name, nobody else sets it: no finding.
+    const plain = flowOf(
+      [
+        { key: 'p', outputs: { v: { type: 'any' } } },
+        { key: 'r', inputs: { y: { type: 'any', from: 'p.v' } } },
+      ],
+      [
+        ['start', 'ok_hosts', 'p'],
+        ['p', 'ok_hosts', 'r'],
+        ['r', 'ok_hosts', 'done'],
+      ],
+    ).doc;
+    expect(codes(plain, 'input-shadowed')).toEqual([]);
+  });
 });
 
 describe('fewer false unknown-variable findings (AFD-182..187)', () => {

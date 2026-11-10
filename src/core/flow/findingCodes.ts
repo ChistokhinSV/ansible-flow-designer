@@ -198,8 +198,13 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'ref-may-be-undefined': {
     meaning:
-      'A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value.',
+      "A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. A step that sets the input's own name (set_fact, register, an output of that name) counts too: the generated play passes the input as a play var, and that fact wins over it.",
     fix: 'Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass.',
+  },
+  'input-shadowed': {
+    meaning:
+      "Another step sets the input's own name (set_fact, register, an output of that name) where it runs after the from: step, or before the reader when the from: step does not set that name. The generated play passes the input as a play var, and Ansible ranks set_fact and register above play vars: the step reads the value set last, not the one from: names.",
+    fix: 'Rename the input (the binding then reads the new name), or read from: the step that sets the name last. If the value set last is what the step should get, accept it with that reason.',
   },
   'binding-playbook-dir': {
     meaning:

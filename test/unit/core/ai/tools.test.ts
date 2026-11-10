@@ -96,6 +96,55 @@ describe('AI tools', () => {
     expect(v.text).toMatch(/warning open-fail-port at precheck: .* Fix: /);
     expect((await call(io, 'flow_list', {})).text).toContain('"Edge baseline" (key edge-baseline');
     expect((await call(io, 'flow_describe', {})).isError).toBe(true);
+    // AFD-209: source_outline's name for the flow works here too.
+    const named = await call(io, 'flow_describe', { flow: EDGE });
+    expect(named.isError).toBeUndefined();
+    expect(named.text).toContain('backup-config.ok_hosts -> push-baseline');
+    expect((await call(io, 'flow_validate', { flow: EDGE })).text).toContain('open-fail-port');
+  });
+
+  it('AFD-211: a step that ignores errors gets info, not a warning; one accept takes several ports', async () => {
+    const io = memoryIO();
+    const r = await call(io, 'flow_edit', {
+      path: EDGE,
+      revision: revisionOf(io.files.get(EDGE) as string),
+      ops: [
+        { op: 'add_node', type: 'task', title: 'Show facts', on_wire: 'precheck.ok_hosts' },
+        {
+          op: 'bind',
+          node: 'show-facts',
+          impl: {
+            kind: 'module',
+            ref: 'ansible.builtin.debug',
+            params: { msg: 'hello' },
+            keywords: { ignore_errors: true },
+          },
+        },
+      ],
+    });
+    expect(r.isError, r.text).toBeUndefined();
+    const v = (await call(io, 'flow_validate', { path: EDGE })).text;
+    expect(v).toMatch(/info open-fail-port at show-facts: .*ignores errors/);
+    expect(v).toMatch(/warning open-fail-port at precheck/);
+    const accepted = await call(io, 'flow_edit', {
+      path: EDGE,
+      revision: revisionOf(io.files.get(EDGE) as string),
+      ops: [
+        {
+          op: 'accept',
+          at: ['precheck.failed_hosts', 'show-facts.failed_hosts'],
+          reason: 'Read-only steps; the report lists these hosts',
+        },
+      ],
+    });
+    expect(accepted.isError, accepted.text).toBeUndefined();
+    const after = (await call(io, 'flow_validate', { path: EDGE })).text;
+    expect(after).not.toContain('open-fail-port at precheck');
+    expect(after).not.toContain('open-fail-port at show-facts');
+    const doc = parse(io.files.get(EDGE) as string) as FlowDocument;
+    expect(JSON.stringify(doc.decisions)).toContain(
+      'Read-only steps; the report lists these hosts',
+    );
   });
 
   it('set_io writes a flow input with its description (AFD-100)', async () => {
@@ -365,6 +414,8 @@ describe('AI tools', () => {
     const d = await call(io, 'flow_describe', { path, layout: true });
     expect(d.text).toContain('  layout problems:\n    wire a.ok_hosts -> c runs through b');
     expect(d.text).toContain('Layout check: 1 problem(s), listed per level.');
+    // AFD-213: the total comes before the levels, so page 1 of a long answer has it.
+    expect(d.text.indexOf('Layout check:')).toBeLessThan(d.text.indexOf('Top level'));
     expect((await call(io, 'flow_describe', { path })).text).not.toContain('Layout check');
     // The hint works: the node in the way goes beside the wire.
     const moved = await call(io, 'flow_edit', {

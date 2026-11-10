@@ -125,7 +125,7 @@ Disable an optional port; its wire is removed.
 
 Accept something as it is, with a reason recorded in the flow: a fail port left unwired on purpose (at: the port), a warning from the problems (finding: check:<code>[:<subject>], at: the node; needs flow format 2), a drift item (drift:<item>) or a lens finding (lens:<id>).
 
-- `at` (string, required): The fail port (node.port) when accepting a port; else the node.
+- `at` (string | list of string, required): The fail port (node.port) when accepting a port; else the node. A list accepts each with the same finding and reason, e.g. every open fail port of read-only steps.
 - `finding` (string): What is accepted: omit (or port:<port>) for a port; check:<code>[:<subject>] for a problem, e.g. check:binding-unknown-var:ntp_servers; drift:<item>; lens:<finding id>.
 - `reason` (string, required): Why it stays as it is (shown in reviews).
 
@@ -137,7 +137,7 @@ Accept something as it is, with a reason recorded in the flow: a fail port left 
 
 Take back an accept (the same at and finding).
 
-- `at` (string, required): The port (node.port), or the node.
+- `at` (string | list of string, required): The port (node.port), or the node; a list for several.
 - `finding` (string): As given to accept; omit for a port.
 
 ```json
@@ -448,7 +448,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | no-targets | No flow input seeds the hosts entering the start node. | Add a host_list flow input with targets: true (set_io flow). |
 | from-unresolved | A from: names nothing this node can read. | Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow. |
 | register-collision | A from: reads a register (impl.register) that another step also registers, or that a flow input also names: the generated code reads whichever ran last, and a flow input always wins. | Give one of the steps its own register name (Binding › Register result as), or rename the flow input. |
-| ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. | Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass. |
+| ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. A step that sets the input's own name (set_fact, register, an output of that name) counts too: the generated play passes the input as a play var, and that fact wins over it. | Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass. |
+| input-shadowed | Another step sets the input's own name (set_fact, register, an output of that name) where it runs after the from: step, or before the reader when the from: step does not set that name. The generated play passes the input as a play var, and Ansible ranks set_fact and register above play vars: the step reads the value set last, not the one from: names. | Rename the input (the binding then reads the new name), or read from: the step that sets the name last. If the value set last is what the step should get, accept it with that reason. |
 | binding-playbook-dir | A binding reads playbook_dir. Generated plays run from the flow's generated/ folder, so paths next to the source playbook are not found there. | Write repository paths from {{ afd_repo_root }}, the repository root the generated play sets; a shared task file can use {{ afd_repo_root | default(playbook_dir) }} so it works from the source playbook too. |
 | binding-unknown-var | A binding parameter (assert that included) uses a variable no input provides. | Add the input the message names (set_io) or fix the name. A variable set outside the flow at run time (AWX or Kestra extra vars, inventory, a caller) goes into flow.external_vars (update_flow). |
 | condition-braces | A decision condition has {{ }} or {% %} inside it; it is a bare expression, as a when: is, so every host would hit a condition error. | Write the expression without the braces: x == 1, not {{ x }} == 1. |
