@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.80.0 — AFD-219 (agents group long chains into subflows)
+
+AI agents could always group steps into a subflow with `extract_subflow`, but they rarely did. On a long change they built one chain of steps on the top level instead. Their guidance taught grouping by purpose only for imports.
+
+- **The rule:** the skill's planning step, the MCP server's instructions and the Copilot instructions now say to put the steps of one purpose (pre-checks, backup, change, verify, rollback) in a subflow, not one long chain. The import guidance points to the same rule.
+- **A hint in the answer:** when a `flow_edit` batch grows a level past 8 steps, its answer names the level and its steps in run order, and suggests `extract_subflow` with them. Start and end nodes do not count. Edits that do not add steps to that level get no hint, so a long imported flow is not flagged on every edit. The hint is for agents only: it is not a problem and does not show on the canvas or in the Problems list.
+
 ## 0.79.0 — AFD-216, AFD-217 (agents annotate flows)
 
 AI agents could always add notes, sections and text to a flow, but in practice they did it only when asked. Their guidance said how, never when.
