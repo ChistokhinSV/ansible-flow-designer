@@ -353,6 +353,7 @@ Add a note, section or text (format 2): words on the canvas that explain the flo
 - `text` (string, required): Markdown: **bold**, *italic*, `code`, - bullet lists and [links](https://...). A section's title; the words of a text.
 - `on` (string): Notes only: the node this note is about (its level is the note's).
 - `in` (string): Subflow whose inner level gets it (default: the top level, or the level of on).
+- `around` (list of string): A section drawn around these nodes of one level and the notes on them, wholly inside with room for its title, as the canvas draws one around picked nodes; kind defaults to section. It sets the place and size, so leave out position, width and height. Nodes the canvas still places are kept where they are shown, so they stay inside.
 - `position` (object): Where it goes on the canvas: {x, y} (for a note on a node, still canvas pixels: the note keeps that distance to its node), or one of below / above / right_of / left_of naming a node of its level. Default: a note on a node right of it; anything else right of the level.
 - `width` (number): Width in pixels. Absent: the kind's default (note 200, section 480, text fits its words).
 - `height` (number): Height in pixels. Absent: the kind's default (note 120, section 320, text fits its words).

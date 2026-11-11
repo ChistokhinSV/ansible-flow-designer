@@ -71,3 +71,13 @@ They live per level: `annotations:` next to `nodes:` (and `subflow.annotations` 
 subflow). See [Hand-written YAML](hand-written-yaml.md#notes-sections-and-text) for an example, and
 the [flow file format](../reference/flow-format.md) for every field. AI assistants add and change
 them with `annotate` and `update_annotation`.
+
+## AI assistants
+
+Ask an assistant for a note, a section or text and it adds one. Without being asked, it adds a
+note on a step only to keep a reason you gave in the conversation that the flow itself cannot show:
+a limit, why the steps run in this order, a manual step, a runbook link. It does not put a note on
+every step or repeat what a step already shows. It draws a section around steps of one level that
+belong together but are not a subflow. It names the steps (`around`), and the section is sized as
+**Add Section Around** sizes one, so dragging the section carries them. On a format 1 flow it adds
+annotations only when you ask.

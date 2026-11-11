@@ -2,7 +2,7 @@
 // order through the same commands as the canvas, all or nothing. A batch first completes any IDs
 // the file was written without. Errors say what went wrong and how to fix it, never with IDs.
 import { flowLayoutProblems, LAYOUT_FIX } from '../export/layoutCheck';
-import { annotationViews, sectionContents, TIE_OFFSET } from '../flow/annotations';
+import { annotationViews, sectionAround, sectionContents, TIE_OFFSET } from '../flow/annotations';
 import {
   type AnnotationPatch,
   CommandError,
@@ -160,6 +160,8 @@ export type Op =
       kind?: AnnotationKind;
       on?: string;
       in?: string;
+      /** AFD-217: a Section drawn around these nodes of one level (and the Notes on them). */
+      around?: string[];
       position?: Place;
       width?: number;
       height?: number;
@@ -457,6 +459,50 @@ function annotationAt(
   }
   const at = resolvePlace(st, shown, level, 'task', place, set, undefined, box);
   return base ? { x: at.x - base.x, y: at.y - base.y } : at;
+}
+
+/**
+ * AFD-217: a Section `around` nodes takes the box the canvas's Add Section Around draws
+ * (`sectionAround`): the nodes and the Notes on them wholly inside, room for the title bar. Agents
+ * would otherwise work the box out from coordinates and miss a node by a few pixels, and a node
+ * not wholly inside is not carried when the Section moves.
+ */
+function sectionAroundNodes(
+  st: State,
+  ctx: OpsContext,
+  shown: Shown,
+  op: Extract<Op, { op: 'annotate' }>,
+  kind: AnnotationKind,
+  inLevel: string | undefined,
+): { level: string; position: Position; width: number; height: number } {
+  if (kind !== 'section')
+    throw new RefError('around draws a section: leave kind out or set it to section');
+  const given = (['position', 'width', 'height'] as const).filter((k) => op[k] !== undefined);
+  if (given.length)
+    throw new RefError(`around sets the section's place and size: leave out ${given.join(', ')}`);
+  if (!ctx.positions)
+    throw new RefError(
+      'around needs where the canvas shows the nodes; positions are not available here',
+    );
+  const nodes = (op.around ?? []).map((ref) => resolveNode(st.model, ref, inLevel));
+  const level = inLevel ?? nodes[0]?.level ?? ROOT;
+  for (const n of nodes)
+    if (n.level !== level)
+      throw new RefError(
+        `${n.path} is on ${levelName(st.model, n.level)}, not on ${levelName(st.model, level)}: a section goes around nodes of one level`,
+      );
+  const ids = new Set(nodes.map((n) => n.id));
+  const boxes = boxesOf(st, shown, level, {}).filter((b) => ids.has(b.id));
+  const placed = new Map(boxes.map((b) => [b.id, { x: b.x, y: b.y }]));
+  const notes = annotationViews(st.model.levels.get(level) ?? { annotations: [] }, placed).filter(
+    (a) => a.kind === 'note' && a.on && ids.has(a.on),
+  );
+  const box = sectionAround([
+    ...boxes.map((b) => ({ position: { x: b.x, y: b.y }, width: b.width, height: b.height })),
+    ...notes,
+  ]);
+  if (!box) throw new RefError('around names no node with a position');
+  return { level, ...box };
 }
 
 async function shownOrStored(st: State, ctx: OpsContext): Promise<Shown> {
@@ -857,17 +903,20 @@ async function commandsOf(
       ];
     }
     case 'annotate': {
-      const kind = op.kind ?? 'note';
+      const kind = op.kind ?? (op.around ? 'section' : 'note');
       const inLevel = op.in ? subflowOf(st, op.in) : undefined;
       const on = op.on ? resolveNode(st.model, op.on, inLevel) : undefined;
       if (on && inLevel && on.level !== inLevel)
         throw new RefError(
           `${on.path} is not inside ${op.in}: a note is on a node of its own level`,
         );
-      const level = on?.level ?? inLevel ?? ROOT;
-      const box = annotationSize({ kind, ...op });
       const shown = await shownOrStored(st, ctx);
-      const at = annotationAt(st, shown, level, box, op.position, on?.id);
+      const around = op.around ? sectionAroundNodes(st, ctx, shown, op, kind, inLevel) : undefined;
+      const level = around?.level ?? on?.level ?? inLevel ?? ROOT;
+      const box = annotationSize({ kind, ...op });
+      const at = around?.position ?? annotationAt(st, shown, level, box, op.position, on?.id);
+      const width = around?.width ?? op.width;
+      const height = around?.height ?? op.height;
       return [
         {
           kind: 'addAnnotation',
@@ -878,8 +927,8 @@ async function commandsOf(
             x: at.x,
             y: at.y,
             ...(on ? { on: on.id } : {}),
-            ...(op.width !== undefined ? { width: op.width } : {}),
-            ...(op.height !== undefined ? { height: op.height } : {}),
+            ...(width !== undefined ? { width } : {}),
+            ...(height !== undefined ? { height } : {}),
             ...(op.color !== undefined ? { color: op.color } : {}),
             ...(op.size !== undefined ? { size: op.size } : {}),
             ...(op.key !== undefined ? { key: op.key } : {}),

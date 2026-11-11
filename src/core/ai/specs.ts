@@ -579,6 +579,13 @@ export const OP_SPECS: OpSpec[] = [
         description:
           'Subflow whose inner level gets it (default: the top level, or the level of on).',
       },
+      around: {
+        type: 'array',
+        items: NODE,
+        minItems: 1,
+        description:
+          'A section drawn around these nodes of one level and the notes on them, wholly inside with room for its title, as the canvas draws one around picked nodes; kind defaults to section. It sets the place and size, so leave out position, width and height. Nodes the canvas still places are kept where they are shown, so they stay inside.',
+      },
       position: ANNOTATION_PLACE,
       width: note('width'),
       height: note('height'),

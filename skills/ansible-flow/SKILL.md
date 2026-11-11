@@ -30,11 +30,9 @@ prefix: `afd_` in VS Code Copilot, `mcp__ansible-flow__` in Claude Code.
 | flow_import       | import a playbook or AWX template one to one (exact copy only)         |
 
 Workflow:
-
-1. `flow_list`, then `flow_describe` the flow you will change. Keep its `revision`. For a new
-   flow use `flow_new`: it starts as `start -> done`, and `add_node` with
-   `after: "start.ok_hosts"` puts the first step between them, `after: "<step>.ok_hosts"` the
-   next, and so on.
+1. `flow_list`, then `flow_describe` the flow you will change. Keep its `revision`. For a new flow
+   use `flow_new`: it starts as `start -> done`; `add_node` with `after: "start.ok_hosts"` puts the
+   first step between them, `after: "<step>.ok_hosts"` the next, and so on.
 2. Plan the change in diagram terms. When the user's intent is unclear (what should happen to
    failed hosts? which module?), ask before editing.
 3. Send one `flow_edit` batch with the revision. Use `dry_run: true` first for large changes.
@@ -147,7 +145,11 @@ it handles).
 ## Notes, sections and text
 
 `annotate` (format 2): a note (`on` a node, it moves with it and becomes a comment in its code), a
-`section` (carries what is inside) or `text`. Markdown; never runs; no version change.
+`section` (carries what is inside) or `text`. Markdown; never runs; no version change. Add a note
+unasked for a reason the user gave that the flow cannot show (a limit, why this order, a manual
+step, a runbook link); not on every node, nor to repeat a title, wire or leave_open reason. A
+section marks steps of one level that belong together but are not a subflow: `around: [keys]`
+sizes it to hold them and their notes. On a format 1 flow, annotate only when asked.
 
 ## Ops cheat sheet
 
@@ -188,11 +190,9 @@ Edit the YAML directly, by key:
 
 - Leave every `id:` out. Wires and references name nodes by key:
   `{from: {node: check-ntp, port: ok_hosts}, to: {node: done, port: in}}`.
-- New nodes need `key`, `type` and `title`; add `intent` in one sentence.
-- Follow the rules above (one wire per output, handle fail ports, no `tested`).
+- New nodes need `key`, `type` and `title` (add a one-sentence `intent`). Follow the Rules above.
 - Then ask the user to run **Complete IDs**: the banner in the designer, or the lightbulb quick fix
   in the YAML editor. It adds the IDs in one edit. Until then the designer shows the flow but
   refuses canvas edits, runs and code generation.
 
-The full format is in [references/format.md](references/format.md); ops and problem codes are in
-[references/ops.md](references/ops.md); scenario tests in [references/scenarios.md](references/scenarios.md).
+Full format: [references/format.md](references/format.md); ops and problem codes: [references/ops.md](references/ops.md).

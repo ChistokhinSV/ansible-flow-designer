@@ -13,6 +13,12 @@ This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes w
 - Steps read data through inputs (`from:`), including parameters, `assert` `that:` and decision
   conditions; inside a subflow `<subflow>.<input>` reads its input. Inputs are play vars: a fact
   of the same name set earlier wins. Repository paths: `{{ afd_repo_root }}/...`.
+- Notes, sections and text (`annotate` in `#flowEdit`, format 2) explain the flow and never run;
+  a note on a node becomes a comment above its code. Add a note without being asked for a reason
+  the user gave that the flow cannot show (a limit, why this order, a manual step, a runbook link);
+  not on every node, and not to repeat what the node shows. A section around steps of one level
+  that belong together but are not a subflow: `around: [keys]` sizes it to hold them. On a format
+  1 flow, only when asked.
 - For a draw.io file or an image of a flow use `#flowExport`, not a drawing by hand.
 - To import playbooks, roles or AWX templates, read them with `#sourceOutline` and build the flow by
   intent (copying each task's `impl`); `#flowImport` only for an exact copy.

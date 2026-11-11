@@ -102,6 +102,51 @@ describe('annotation ops (AFD-64)', () => {
     expect(last.annotations?.[0]?.x).toBe((after.layout?.[precheckId]?.x ?? 0) + 232);
   });
 
+  it('a section around nodes holds them and the notes on them, and a move carries them (AFD-217)', async () => {
+    const r = await run(BASE, [
+      { op: 'annotate', on: 'backup-config', text: 'Kept 30 days' },
+      { op: 'annotate', text: 'Change', around: ['backup-config', 'push-baseline'] },
+    ]);
+    const d = doc(r.text);
+    const section = d.annotations?.find((a) => a.kind === 'section');
+    expect(section).toMatchObject({ key: 'section-1', text: 'Change' });
+    const s = section as { x: number; y: number; width: number; height: number };
+    const idOf = (key: string) => d.nodes.find((n) => n.key === key)?.id as string;
+    const inside = (x: number, y: number, w: number, h: number) =>
+      x >= s.x && y >= s.y && x + w <= s.x + s.width && y + h <= s.y + s.height;
+    const backup = d.layout?.[idOf('backup-config')] as { x: number; y: number };
+    const push = d.layout?.[idOf('push-baseline')] as { x: number; y: number };
+    expect(inside(backup.x, backup.y, 208, 76)).toBe(true);
+    expect(inside(push.x, push.y, 208, 76)).toBe(true);
+    const note = d.annotations?.find((a) => a.kind === 'note') as { x: number; y: number };
+    expect(inside(backup.x + note.x, backup.y + note.y, 200, 120)).toBe(true);
+    // The level was auto-placed: drawing the section stored every node where it was shown.
+    expect(Object.keys(d.layout ?? {})).toHaveLength(d.nodes.length);
+    expect(semanticKey(d)).toBe(semanticKey(doc(BASE)));
+
+    const moved = doc(
+      (await run(r.text, [{ op: 'move', annotations: { 'section-1': { x: s.x + 40, y: s.y } } }]))
+        .text,
+    );
+    expect(moved.layout?.[idOf('push-baseline')]).toEqual({ x: push.x + 40, y: push.y });
+    expect(moved.layout?.[idOf('precheck')]).toEqual(d.layout?.[idOf('precheck')]);
+  });
+
+  it('around refuses a place, another kind and nodes of two levels', async () => {
+    await expect(
+      run(BASE, [{ op: 'annotate', text: 'x', around: ['precheck'], position: { x: 0, y: 0 } }]),
+    ).rejects.toThrow(/leave out position/);
+    await expect(
+      run(BASE, [{ op: 'annotate', kind: 'note', text: 'x', around: ['precheck'] }]),
+    ).rejects.toThrow(/around draws a section/);
+    await expect(
+      run(BASE, [
+        { op: 'extract_subflow', nodes: ['backup-config', 'push-baseline'], title: 'Change' },
+        { op: 'annotate', text: 'x', around: ['change/backup-config', 'validate'] },
+      ]),
+    ).rejects.toThrow(/a section goes around nodes of one level/);
+  });
+
   it('errors name annotations by key, never by ID', async () => {
     await expect(
       run(BASE, [{ op: 'update_annotation', annotation: 'note-9', text: 'x' }]),

@@ -229,7 +229,8 @@ Failures the playbook does not handle stay open; `flow_validate` lists them for 
 ## Explain the flow on the canvas
 
 "Note why the pre-checks are safe to rerun, and mark the change window." (Annotations are format 2,
-so this flow is upgraded first; on a format 2 flow leave `upgrade_format` out.)
+so this flow is upgraded first; on a format 2 flow leave `upgrade_format` out.) `around` sizes the
+section to hold those steps and the notes on them.
 
 ```json
 {
@@ -242,11 +243,8 @@ so this flow is upgraded first; on a format 2 flow leave `upgrade_format` out.)
     },
     {
       "op": "annotate",
-      "kind": "section",
       "text": "Change window",
-      "position": { "left_of": "backup-config", "gap": 24 },
-      "width": 560,
-      "height": 380,
+      "around": ["backup-config", "push-baseline", "validate"],
       "color": "blue"
     },
     { "op": "annotate", "kind": "text", "text": "Edge baseline", "size": "l", "position": { "above": "precheck" } }
