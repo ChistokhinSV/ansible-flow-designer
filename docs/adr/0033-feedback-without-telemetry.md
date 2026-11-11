@@ -61,3 +61,21 @@ Product-owner decisions (2026-11-10):
   **Don't Ask Again**.
 - The form page and the Worker can change without a release; the extension only knows the page's
   address.
+
+## Amendment: the page counts its opens (AFD-215, 2026-11-11)
+
+The product owner wants to know whether the page is visited even when nobody writes anything.
+Turnstile analytics count every load of the page, but only as a total over a short lookback, with
+no split between the uninstall page and the in-use form.
+
+- **The page, not the extension:** on load the page posts `{source, version, editor}` to the
+  Worker's `/visit` once per tab and occasion (sessionStorage guards reloads), with
+  `navigator.sendBeacon`. The extension still sends nothing.
+- **Kept:** one KV key per open and per saved answer: time, kind, occasion, editor, version and a
+  random end; 400-day expiry. No IP (it only keys the rate limit), no cookie, no answer text.
+- **Read back:** a daily cron trigger sends one Telegram message about the day before; the KV
+  keys are readable in the dashboard and with `wrangler kv key list`.
+- **Said where it matters:** the page's note and the README's "Feedback and privacy" section.
+- **Why KV:** the Worker reads it back for the summary with no extra secret; Analytics Engine
+  would need an API token to query, and D1 a database and a schema for a handful of rows a day.
+  One key per event avoids read-modify-write counters.

@@ -1,6 +1,7 @@
 // Feedback form of Ansible Flow Designer: a plain ES module, no build. It reads the URL
-// parameters the extension passes, shows the in-use or the uninstall form, and posts the answer
-// as JSON to the Worker once Cloudflare Turnstile is solved.
+// parameters the extension passes, shows the in-use or the uninstall form, reports once that it
+// was opened (AFD-215), and posts the answer as JSON to the Worker once Cloudflare Turnstile is
+// solved.
 
 import {
   ISSUES_URL,
@@ -47,6 +48,29 @@ function readParams(search) {
 
 const ctx = readParams(window.location.search);
 const isUninstall = ctx.source === 'uninstall';
+
+/**
+ * AFD-215: tells the Worker the page was opened: the occasion, version and editor, nothing else.
+ * Once per tab and occasion, so a reload does not count again. sendBeacon posts text/plain, which
+ * needs no CORS preflight; fetch with keepalive is the fallback. Every error is ignored.
+ */
+function countOpen() {
+  const seen = `afd-feedback-opened:${ctx.source}`;
+  try {
+    if (sessionStorage.getItem(seen)) return;
+    sessionStorage.setItem(seen, '1');
+  } catch {
+    // Storage blocked: count this open anyway.
+  }
+  try {
+    const url = new URL('visit', WORKER_URL).href;
+    const body = JSON.stringify({ source: ctx.source, version: ctx.version, editor: ctx.editor });
+    if (navigator.sendBeacon?.(url, new Blob([body], { type: 'text/plain' }))) return;
+    fetch(url, { method: 'POST', body, keepalive: true, mode: 'no-cors' }).catch(() => {});
+  } catch {
+    // A page that cannot count still works.
+  }
+}
 
 const $ = (id) => document.getElementById(id);
 const form = $('form');
@@ -405,6 +429,7 @@ function setUp() {
   update();
   warnAboutPlaceholders();
   loadTurnstile();
+  countOpen();
 }
 
 setUp();

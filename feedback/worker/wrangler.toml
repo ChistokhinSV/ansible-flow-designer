@@ -26,6 +26,16 @@ namespace_id = "1701"
   limit = 10
   period = 60
 
+# AFD-215: page opens and saved answers, one key per event, kept 400 days (README: "Page opens").
+# The namespace afd-feedback-visits; its ID is not a secret.
+[[kv_namespaces]]
+binding = "VISITS"
+id = "ce1d8aa67fc84bcbb8fd65b5e3158ff1"
+
+# AFD-215: the daily Telegram summary of the day before, at 06:00 UTC.
+[triggers]
+crons = ["0 6 * * *"]
+
 # Workers Logs: the one log line per request (Free plan: 200,000 events a day, kept 3 days).
 [observability]
 enabled = true

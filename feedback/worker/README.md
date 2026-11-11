@@ -11,18 +11,22 @@ and the Worker:
 3. sends the product owner a Telegram message with the summary, the start of the text and the
    issue link. The email address never goes to Telegram.
 
-Nothing is stored in the Worker. Secrets are set with `wrangler secret put` and are never in a
-file of this repository.
+The page also reports once per tab that it was opened (`POST /visit`, AFD-215). The Worker keeps
+one KV key per open and per saved answer, with the occasion, the editor and the version only, and
+sends a Telegram summary of the day before every morning (see "Page opens" below). Answers
+themselves are not stored in the Worker. Secrets are set with `wrangler secret put` and are never
+in a file of this repository.
 
 ## Files
 
-| File             | What                                                                       |
-| ---------------- | -------------------------------------------------------------------------- |
-| `wrangler.toml`  | Name, entry, compatibility date, the non-secret vars, the rate limit, logs |
-| `src/index.ts`   | The fetch export: binds the runtime and calls the handler                  |
-| `src/handler.ts` | Routing, checks, Turnstile, YouTrack, tags, Telegram, the log line         |
-| `src/answer.ts`  | Parsing and validation of the body                                         |
-| `src/format.ts`  | The issue summary and description, the Telegram texts                      |
+| File             | What                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `wrangler.toml`  | Name, entry, compatibility date, the non-secret vars, the rate limit, the KV namespace, cron, logs |
+| `src/index.ts`   | The fetch and scheduled exports: bind the runtime and call the handler                             |
+| `src/handler.ts` | Routing, checks, Turnstile, YouTrack, tags, Telegram, counting opens, the daily summary, the log   |
+| `src/answer.ts`  | Parsing and validation of the body                                                                 |
+| `src/format.ts`  | The issue summary and description, the Telegram texts                                              |
+| `src/visits.ts`  | Page opens and answers: the visit body, the KV key, the daily summary text                         |
 
 Tests: `test/unit/feedback/worker.test.ts` in the repository root (Vitest, mocked fetch).
 
@@ -224,10 +228,50 @@ one answer from the form page and look for the issue and the Telegram message.
 
 Before `YOUTRACK_PROJECT_ID` and the secrets are set, `POST /feedback` answers `503 not configured`.
 
+## Page opens (AFD-215)
+
+### `POST /visit`
+
+The page sends it once per browser tab and occasion when it opens, with `navigator.sendBeacon`
+(`text/plain`, so no preflight; `OPTIONS /visit` answers `204` all the same). The body is JSON, at
+most 1 KB: `{"source":"uninstall","version":"0.78.0","editor":"cursor"}` with the same values as
+`POST /feedback` (`version` may be empty). Answers: `204` when counted, or when the KV binding is
+missing (nothing kept); `403 origin`, `429 rate limited` (its own limit key, `visit:<ip>`),
+`413 too large`, `400 invalid json` or `400 invalid visit`.
+
+### What is kept
+
+One key per event in the KV namespace bound as `VISITS`, with an empty value and a 400-day
+expiry:
+
+```text
+2026-11-10T09:44:37.123Z open uninstall cursor 0.78.0 k3x9q2
+2026-11-10T09:51:02.456Z answer uninstall cursor 0.78.0 p0w7d1
+```
+
+Time (UTC), `open` or `answer` (written after an answer is saved), occasion, editor, version (`-`
+when unknown), and a random end so two events of one millisecond keep both. No IP, no answer text,
+no email.
+
+### How to look
+
+- **Telegram, every morning:** the cron trigger in `wrangler.toml` (06:00 UTC) lists the keys of
+  the day before and sends one message: opens and answers by occasion, editors, versions. A day
+  without events sends nothing.
+- **Dashboard:** Storage & databases → KV → the `VISITS` namespace lists the keys.
+- **Wrangler**, in this folder, logged in: a month, a day or everything:
+
+  ```bash
+  npx wrangler kv key list --binding VISITS --remote --prefix 2026-11
+  ```
+
+Free plan: KV takes 1,000 writes a day (one per open and per answer), and an account has 5 cron
+triggers.
+
 ## Rate limit
 
 The `[[ratelimits]]` binding in `wrangler.toml` allows 10 POST requests a minute per client IP
-(`CF-Connecting-IP`), after the origin check. Cloudflare counts per location and approximately, so
+(`CF-Connecting-IP`), after the origin check; page opens count on their own key. Cloudflare counts per location and approximately, so
 it is a brake, not a hard limit; Turnstile is the real guard. The Workers docs set no plan
 restriction on it (generally available since September 2025). If a deploy refuses it, delete the
 block: the Worker then runs without the limit.

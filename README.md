@@ -91,4 +91,6 @@ The extension sends no telemetry and nothing about your flows. It only opens lin
 - The setting `afd.feedback.prompt` turns off both the notice and the uninstall page.
 
 What you send through the form goes to the author's issue tracker, with a chat notification that
-leaves out the email. The email is optional and used only to answer you.
+leaves out the email. The email is optional and used only to answer you. The form page itself
+counts that it was opened: which page (in use or after uninstall), the version and the editor, once
+per browser tab. No cookie is set and no address is kept; the count is deleted after 400 days.

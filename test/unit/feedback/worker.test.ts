@@ -3,11 +3,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   type Deps,
+  dailySummary,
   type Env,
   type FetchFn,
   handle,
   MAX_BODY_BYTES,
 } from '../../../feedback/worker/src/handler';
+import {
+  type EventStore,
+  eventKey,
+  eventOf,
+  type PageEvent,
+  summaryText,
+} from '../../../feedback/worker/src/visits';
 
 const ORIGIN = 'https://chistokhinsv.github.io';
 const WORKER = 'https://afd-feedback.example.workers.dev';
@@ -430,5 +438,168 @@ describe('feedback worker: saving', () => {
     ]) {
       expect(logs[0]).not.toContain(secret);
     }
+  });
+});
+
+// AFD-215: page opens and answers, one KV key each, and the daily summary.
+describe('feedback worker: counting opens', () => {
+  /** An in-memory KV namespace: keys sorted, listed in pages of `pageSize`. */
+  function memoryStore(pageSize = 1000) {
+    const keys = new Map<string, number>();
+    const store: EventStore = {
+      async put(key, _value, options) {
+        keys.set(key, options.expirationTtl);
+      },
+      async list({ prefix, cursor }) {
+        const all = [...keys.keys()].filter((k) => k.startsWith(prefix)).sort();
+        const from = cursor ? Number(cursor) : 0;
+        const page = all.slice(from, from + pageSize).map((name) => ({ name }));
+        const next = from + pageSize;
+        return next < all.length
+          ? { keys: page, list_complete: false, cursor: String(next) }
+          : { keys: page, list_complete: true };
+      },
+    };
+    return { store, keys };
+  }
+
+  function visit(body: unknown, headers: Record<string, string> = {}): Request {
+    return new Request(`${WORKER}/visit`, {
+      method: 'POST',
+      headers: {
+        Origin: ORIGIN,
+        'Content-Type': 'text/plain;charset=UTF-8',
+        'CF-Connecting-IP': '203.0.113.7',
+        ...headers,
+      },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+  }
+
+  const opened = { source: 'uninstall', version: '0.78.0', editor: 'cursor' };
+
+  it('stores one readable key per open, kept 400 days, with nothing about the visitor', async () => {
+    const { store, keys } = memoryStore();
+    const { response, logs, svc } = await run(visit(opened), services(), {
+      store,
+      random: () => 0.5,
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN);
+    expect([...keys]).toEqual([
+      ['2026-11-10T09:44:37.000Z open uninstall cursor 0.78.0 i00000', 400 * 86_400],
+    ]);
+    expect(svc.calls).toEqual([]);
+    expect(JSON.parse(logs[0] ?? '{}')).toMatchObject({
+      path: '/visit',
+      status: 204,
+      outcome: 'counted',
+      counted: 'ok',
+    });
+    expect(logs[0]).not.toContain('203.0.113');
+    expect([...keys.keys()].join()).not.toContain('203.0.113');
+  });
+
+  it('a page without a version counts as "-"; a JSON content type works too', async () => {
+    const { store, keys } = memoryStore();
+    await run(
+      visit({ ...opened, version: '' }, { 'Content-Type': 'application/json' }),
+      services(),
+      { store },
+    );
+    expect([...keys.keys()][0]).toMatch(/ open uninstall cursor - [0-9a-z]{6}$/);
+  });
+
+  it('refuses another origin, a bad body and unknown values; nothing is stored', async () => {
+    const { store, keys } = memoryStore();
+    const cases: [Request, number, string][] = [
+      [visit(opened, { Origin: 'https://evil.example' }), 403, 'origin'],
+      [visit('{"source":'), 400, 'invalid json'],
+      [visit({ ...opened, source: 'survey' }), 400, 'invalid visit'],
+      [visit({ ...opened, editor: 'emacs' }), 400, 'invalid visit'],
+      [visit({ ...opened, version: 'v 1' }), 400, 'invalid visit'],
+      [visit({ ...opened, pad: 'x'.repeat(2000) }), 413, 'too large'],
+    ];
+    for (const [req, status, error] of cases) {
+      const { response, body } = await run(req, services(), { store });
+      expect([response.status, body?.error]).toEqual([status, error]);
+    }
+    expect(keys.size).toBe(0);
+  });
+
+  it('rate-limits opens on their own key; without a store it still answers 204', async () => {
+    const seen: string[] = [];
+    const limiter = {
+      async limit({ key }: { key: string }) {
+        seen.push(key);
+        return { success: false };
+      },
+    };
+    const limited = await run(visit(opened), services(), { limiter });
+    expect(limited.response.status).toBe(429);
+    expect(seen).toEqual(['visit:203.0.113.7']);
+    const unbound = await run(visit(opened));
+    expect(unbound.response.status).toBe(204);
+    expect(JSON.parse(unbound.logs[0] ?? '{}').counted).toBe('off');
+  });
+
+  it('a saved answer is counted too, without its text or email', async () => {
+    const { store, keys } = memoryStore();
+    const { body, logs } = await run(request(answer), services(), { store });
+    expect(body).toEqual({ ok: true, id: 'AF-12' });
+    const [key] = [...keys.keys()];
+    expect(key).toMatch(/^2026-11-10T09:44:37\.000Z answer prompt vscode 0\.77\.0 [0-9a-z]{6}$/);
+    expect(JSON.parse(logs[0] ?? '{}').counted).toBe('ok');
+  });
+
+  it('the daily summary sends yesterday by occasion, editor and version; nothing on an empty day', async () => {
+    const { store } = memoryStore(2);
+    const at = (iso: string, e: Omit<PageEvent, 'kind'>, kind: PageEvent['kind'] = 'open') =>
+      store.put(eventKey({ kind, ...e }, new Date(iso)), '', { expirationTtl: 60 });
+    await at('2026-11-10T08:00:00Z', { source: 'uninstall', editor: 'cursor', version: '0.77.0' });
+    await at('2026-11-10T09:00:00Z', { source: 'uninstall', editor: 'vscode', version: '0.78.0' });
+    await at('2026-11-10T10:00:00Z', { source: 'prompt', editor: 'vscode', version: '0.78.0' });
+    await at(
+      '2026-11-10T10:05:00Z',
+      { source: 'prompt', editor: 'vscode', version: '0.78.0' },
+      'answer',
+    );
+    await at('2026-11-11T01:00:00Z', { source: 'command', editor: 'kiro', version: '' });
+    const svc = services();
+    const logs: string[] = [];
+    const sent = await dailySummary(
+      env,
+      { fetch: svc.fetch, store, log: (l) => logs.push(l) },
+      new Date('2026-11-11T06:00:00Z'),
+    );
+    expect(sent).toBe('sent 4: telegram ok');
+    expect(svc.to('telegram')[0]?.body?.text).toBe(
+      [
+        'Feedback page, 2026-11-10 (UTC)',
+        'Opened 3: uninstall 2, prompt 1',
+        'Answers 1: prompt 1',
+        'Editors: vscode 2, cursor 1',
+        'Versions: 0.78.0 2, 0.77.0 1',
+      ].join('\n'),
+    );
+    expect(JSON.parse(logs[0] ?? '{}')).toMatchObject({
+      msg: 'feedback summary',
+      day: '2026-11-10',
+    });
+    const quiet = services();
+    const none = await dailySummary(
+      env,
+      { fetch: quiet.fetch, store, log: () => {} },
+      new Date('2026-11-13T06:00:00Z'),
+    );
+    expect(none).toBe('none');
+    expect(quiet.calls).toEqual([]);
+  });
+
+  it('keys round-trip; a key of another shape is skipped', () => {
+    const e: PageEvent = { kind: 'open', source: 'command', editor: 'other', version: '' };
+    expect(eventOf(eventKey(e, NOW))).toEqual(e);
+    expect(eventOf('2026-11-10T00:00:00.000Z visit prompt vscode 1 abc')).toBeUndefined();
+    expect(summaryText('2026-11-10', [])).toBeUndefined();
   });
 });
