@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.79.0 — AFD-216, AFD-217 (agents annotate flows)
+
+AI agents could always add notes, sections and text to a flow, but in practice they did it only when asked. Their guidance said how, never when.
+
+- **When agents annotate:** the skill, the MCP server's instructions and the Copilot instructions now say when. An agent adds a note on a step, without being asked, to keep a reason you gave that the flow cannot show: a limit, why the steps run in this order, a manual step, a runbook link. It does not note every step or repeat what a step shows. It draws a section around steps of one level that belong together but are not a subflow. On a format 1 flow it adds annotations only when you ask. The guide's [Notes, sections and text](docs/guide/how-to/annotations.md) page has a new "AI assistants" section.
+- **`around` on `annotate`:** `{"op": "annotate", "text": "Change window", "around": ["backup-config", "push-baseline"]}` draws a section that holds those steps and the notes on them, sized as **Add Section Around** sizes one, so dragging the section carries them. Before, an agent had to work out the box from coordinates.
+- **Feedback page:** the README now says that the feedback form page counts how often it is opened (which page, the version and the editor; no cookie, no address, deleted after 400 days). The extension still sends nothing itself.
+
 ## 0.78.0 — AFD-208 (fixes from an agent's report)
 
 An agent converted eight more playbooks into flows and wrote down what slowed it down. Fixes:
