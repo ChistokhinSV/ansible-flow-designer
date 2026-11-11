@@ -32,6 +32,7 @@ import { checkLive } from '../scenario/live';
 import type { ScenarioResult } from '../scenario/scenarios';
 import { diffEdits } from '../yaml/edits';
 import { countFindings, describeFlow, formatFindings, summarizeFindings } from './describe';
+import { longLevelHints } from './hints';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
 import { type ReferenceTopic, reference } from './reference';
 import { keyPath, RefError, resolveNode, withoutIds } from './refs';
@@ -409,6 +410,7 @@ export async function flowEdit(
         : []),
       ...result.notes,
       ...notes,
+      ...longLevelHints(l.model, model),
       `Problems: ${countFindings(findings)}${solvedText(solved)}`,
       // AFD-189: many new problems come grouped by code; flow_validate lists them one by one.
       ...(added.length > 30

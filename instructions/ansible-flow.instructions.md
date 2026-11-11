@@ -10,6 +10,9 @@ This file is an Ansible flow (Ansible Flow Designer): a diagram of typed nodes w
   references, then run **Complete IDs** (designer banner or the quick fix).
 - One wire per output port; wires stay on one level; handle every fail port (wire it or leave it
   open on purpose with a reason); never set `status: tested`.
+- Put the steps of one purpose (pre-checks, backup, change, verify, rollback) in a subflow, not one
+  long chain. When an edit grows a level past 8 steps, `#flowEdit`'s answer hints; group them with
+  `extract_subflow`.
 - Steps read data through inputs (`from:`), including parameters, `assert` `that:` and decision
   conditions; inside a subflow `<subflow>.<input>` reads its input. Inputs are play vars: a fact
   of the same name set earlier wins. Repository paths: `{{ afd_repo_root }}/...`.

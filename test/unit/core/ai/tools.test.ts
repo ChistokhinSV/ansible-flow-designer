@@ -103,6 +103,46 @@ describe('AI tools', () => {
     expect((await call(io, 'flow_validate', { flow: EDGE })).text).toContain('open-fail-port');
   });
 
+  it('AFD-219: an edit that grows a level past 8 steps hints at a subflow; other edits do not', async () => {
+    const io = memoryIO();
+    const edit = async (ops: unknown[]) => {
+      const r = await call(io, 'flow_edit', {
+        path: EDGE,
+        revision: revisionOf(io.files.get(EDGE) as string),
+        ops,
+      });
+      expect(r.isError, r.text).toBeUndefined();
+      return r.text;
+    };
+    // Five steps: one more is no hint yet.
+    expect(
+      await edit([
+        { op: 'add_node', type: 'task', title: 'Report A', on_wire: 'validate.ok_hosts' },
+      ]),
+    ).not.toContain('Hint:');
+    const grown = await edit([
+      { op: 'add_node', type: 'task', title: 'Report B', after: 'report-a.ok_hosts' },
+      { op: 'add_node', type: 'task', title: 'Report C', after: 'report-b.ok_hosts' },
+      { op: 'add_node', type: 'task', title: 'Report D', after: 'report-c.ok_hosts' },
+    ]);
+    expect(grown).toContain('Hint: the top level has 9 steps (precheck, backup-config,');
+    expect(grown).toContain('report-a, report-b, report-c, report-d');
+    expect(grown).toContain('extract_subflow');
+    // Not growing the level: no hint, even though it is long.
+    expect(
+      await edit([{ op: 'update_node', node: 'report-d', title: 'Report done' }]),
+    ).not.toContain('Hint:');
+    expect(
+      await edit([
+        {
+          op: 'extract_subflow',
+          nodes: ['report-a', 'report-b', 'report-c', 'report-d'],
+          title: 'Report',
+        },
+      ]),
+    ).not.toContain('Hint:');
+  });
+
   it('AFD-211: a step that ignores errors gets info, not a warning; one accept takes several ports', async () => {
     const io = memoryIO();
     const r = await call(io, 'flow_edit', {

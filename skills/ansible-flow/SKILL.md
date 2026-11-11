@@ -33,8 +33,9 @@ Workflow:
 1. `flow_list`, then `flow_describe` the flow you will change. Keep its `revision`. For a new flow
    use `flow_new`: it starts as `start -> done`; `add_node` with `after: "start.ok_hosts"` puts the
    first step between them, `after: "<step>.ok_hosts"` the next, and so on.
-2. Plan the change in diagram terms. When the user's intent is unclear (what should happen to
-   failed hosts? which module?), ask before editing.
+2. Plan the change in diagram terms. Steps of one purpose (pre-checks, backup, change, verify,
+   rollback) go in a subflow, not one long chain; past 8 steps on a level, `extract_subflow`. When
+   the user's intent is unclear (what happens to failed hosts? which module?), ask before editing.
 3. Send one `flow_edit` batch with the revision. Use `dry_run: true` first for large changes.
 4. Read the answer: `Created`, `New problems`, the new revision. Fix new problems in the next
    batch, or tell the user why they stay.
@@ -54,8 +55,7 @@ For more than about 40 tasks, `flow_import` first, then regroup and rename by in
 (`extract_subflow`, `dissolve_subflow`, `rename`, `replace_text`); `flow_validate summary`.
 1. `source_outline` the playbook, folder or AWX export, with `flow` set to the file you will write.
    Each `#n` task has the `impl` to copy as is (`focus: "#3-#9"` for long ones in full).
-2. Plan a few subflows by purpose (pre-checks, backup, change, verify, rollback or notify), steps
-   named by what they achieve, in the order the source runs them.
+2. Plan subflows by purpose (Workflow step 2), steps named by what they achieve, in source order.
 3. `flow_new`, then a `flow_edit` batch per level: `add_node` with the copied `impl` (`in:` puts it
    in a subflow), `set_io` for what later steps read (registers, loaded variables). Play vars and
    prompts become flow inputs, secrets without a default.

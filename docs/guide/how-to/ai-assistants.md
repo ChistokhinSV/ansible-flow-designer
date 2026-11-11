@@ -109,6 +109,10 @@ Good to know:
 - **Answers:** a `flow_edit` answer lists the nodes created, the problems it added or solved
   (counted one by one), and what it did besides the ops: a node put on a wire, an output lifted
   into a subflow, the end node a pattern used.
+- **Subflows, not long chains:** agents put the steps of one purpose (pre-checks, backup, change,
+  verify, rollback) in a [subflow](subflows.md). When an edit grows a level past 8 steps, the
+  `flow_edit` answer names the level and its steps and suggests `extract_subflow`. Edits that do
+  not add steps to that level get no hint, so a long imported flow is not flagged on every edit.
 - **`set_io`** takes a path into another subflow (`precheck/normalize.fw_version`) and lifts it.
 - **`apply_pattern`** takes an `end` to choose the end node.
 - **Layout:** agents leave positions out unless you ask for an arrangement; the canvas places those
