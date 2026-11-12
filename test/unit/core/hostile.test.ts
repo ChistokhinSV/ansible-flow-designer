@@ -42,6 +42,7 @@ import { FsFlowIO } from '../../../src/mcp/fsIO';
 import { removeSkill, skillState, writeSkill } from '../../../src/node/ai/writers';
 import { checkedManifest } from '../../../src/node/catalog/dumpFiles';
 import {
+  ENVIRONMENT_KEYS,
   environmentSettings,
   userSettingsCandidates,
   workspaceEnvironmentAllowed,
@@ -87,6 +88,14 @@ describe('AFD-126: the MCP server does not run the environment a repository asks
         home: '/home/u',
       }),
     ).toEqual(['/x/settings.json']);
+  });
+
+  it('AFD-252: every environment setting a workspace may not set untrusted is one the server reads', () => {
+    const manifest = JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8'));
+    const restricted: string[] = manifest.capabilities.untrustedWorkspaces.restrictedConfigurations;
+    const environment = restricted.filter((k) => k.startsWith('afd.environment.'));
+    expect(environment.length).toBeGreaterThan(0);
+    for (const key of environment) expect(ENVIRONMENT_KEYS).toContain(key);
   });
 
   it("ignores the workspace's environment keys unless the server is started with the opt-in", async () => {
