@@ -161,6 +161,11 @@ keys there unless you start it with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`. `AFD_USER
 the user settings file when it is not found. The repository's `ansible.cfg` never applies to a
 scenario run.
 
+An SSH host works the same way, with one difference: **Set Up Ansible Environment…** writes an SSH
+host to the workspace settings, which the server ignores. For terminal agents, put
+`afd.environment.kind`, `sshHost` (and `sshDir`, `image`) in your user settings, or start the
+server with `AFD_MCP_WORKSPACE_ENVIRONMENT=1` in a repository you trust.
+
 ## In CI
 
 **Ansible Flow: Copy Scenario Runner to Repository** puts the command-line runner into
