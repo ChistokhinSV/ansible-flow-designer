@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — AFD-247 (a remote Linux host over SSH)
+## 0.83.0 — AFD-247 (a remote Linux host over SSH)
 
 Flows could run in a container image, in WSL or on this machine, and in AWX. A team's shared Linux host was out of reach unless the repository lived there and was opened with VS Code Remote. See [A remote Linux host over SSH](docs/guide/how-to/runs-and-environments.md#a-remote-linux-host-over-ssh).
 
