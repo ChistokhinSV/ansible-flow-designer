@@ -4,6 +4,7 @@
 // with it as the targets). Round 1: P6, and the inventory was the participant's most confusing part
 // and the one thing to change.
 import * as vscode from 'vscode';
+import { showValue } from '../core/inventory/edit';
 import {
   isStatic,
   newInventoryText,
@@ -18,7 +19,14 @@ import { TIMEOUTS } from '../node/timeouts';
 import { environmentFor } from './env/environment';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
-import { type InventoryFiles, readInventoryFiles, type SourceFile } from './inventoryFiles';
+import { registerInventoryEdits } from './inventoryEdit';
+import {
+  type InventoryFiles,
+  readInventoryFiles,
+  type ShownVar,
+  type SourceFile,
+  targetVars,
+} from './inventoryFiles';
 
 export type InventoryItem =
   | { kind: 'group'; group: TreeGroup }
@@ -27,6 +35,8 @@ export type InventoryItem =
   /** AFD-258: the files the inventory is read from. */
   | { kind: 'sources' }
   | { kind: 'source'; source: SourceFile }
+  /** AFD-260: a variable of a host or a group, where it is written. */
+  | { kind: 'var'; variable: ShownVar; host?: string; group?: string }
   | { kind: 'note'; text: string; command?: vscode.Command };
 
 const sourceLabel = (kind: SourceFile['kind']): string =>
@@ -188,8 +198,24 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         }
         return t;
       }
+      if (item.kind === 'var') {
+        const v = item.variable;
+        const t = new vscode.TreeItem(v.key);
+        const shown = showValue(v);
+        t.description = shown.length > 80 ? `${shown.slice(0, 79)}…` : shown;
+        t.tooltip = `${v.key}: ${v.file}, line ${v.line + 1}`;
+        t.iconPath = new vscode.ThemeIcon(v.vaulted ? 'lock' : 'symbol-variable');
+        t.contextValue = v.vaulted ? 'afd-var-vaulted' : 'afd-var';
+        t.command = { command: 'afd.inventory.open', title: 'Open in Editor', arguments: [item] };
+        return t;
+      }
       if (item.kind === 'host') {
-        const t = new vscode.TreeItem(item.host);
+        const vars = files ? targetVars(files, { host: item.host }).length : 0;
+        const t = new vscode.TreeItem(
+          item.host,
+          vars ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        );
+        if (vars) t.description = `${vars} variable${vars === 1 ? '' : 's'}`;
         t.iconPath = new vscode.ThemeIcon('vm');
         t.contextValue = 'afd-host';
         const origin = files?.index.host(item.host, item.group);
@@ -201,21 +227,37 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         return t;
       }
       const g = item.group;
+      const groupVars = files ? targetVars(files, { group: g.name }).length : 0;
       const t = new vscode.TreeItem(
         g.name,
-        g.hosts.length + g.children.length > 0
+        g.hosts.length + g.children.length + groupVars > 0
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None,
       );
-      t.description = `${g.count} host${g.count === 1 ? '' : 's'}`;
+      t.description = `${g.count} host${g.count === 1 ? '' : 's'}${groupVars ? `, ${groupVars} variable${groupVars === 1 ? '' : 's'}` : ''}`;
       t.tooltip = `${g.name}: ${g.count} host${g.count === 1 ? '' : 's'}${g.children.length ? `, groups ${g.children.join(', ')}` : ''}`;
       t.iconPath = new vscode.ThemeIcon('server-environment');
       t.contextValue = 'afd-group';
       return t;
     },
     async getChildren(parent) {
+      if (parent?.kind === 'host')
+        return files
+          ? targetVars(files, { host: parent.host }).map(
+              (variable): InventoryItem => ({ kind: 'var', variable, host: parent.host }),
+            )
+          : [];
       if (parent?.kind === 'group')
         return [
+          ...(files
+            ? targetVars(files, { group: parent.group.name }).map(
+                (variable): InventoryItem => ({
+                  kind: 'var',
+                  variable,
+                  group: parent.group.name,
+                }),
+              )
+            : []),
           ...parent.group.children
             .map(byName)
             .filter((g): g is TreeGroup => !!g)
@@ -267,7 +309,10 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
       if (item.source.uri) await vscode.window.showTextDocument(item.source.uri);
       return;
     }
-    if (item.kind === 'host') {
+    if (item.kind === 'var') {
+      name = item.variable.key;
+      origin = { file: item.variable.file, line: item.variable.line };
+    } else if (item.kind === 'host') {
       name = item.host;
       origin = files?.index.host(item.host, item.group);
     } else if (item.kind === 'group') {
@@ -363,6 +408,15 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand('afd.inventory.switch', switchInventory),
     vscode.commands.registerCommand('afd.inventory.refresh', forget),
     vscode.commands.registerCommand('afd.inventory.open', open),
+    // AFD-259, AFD-260: the edits read the files as they are on disk at that moment.
+    ...registerInventoryEdits({
+      folder,
+      files: async () => {
+        const at = folder();
+        return at ? readInventoryFiles(at, setting(at)).catch(() => undefined) : undefined;
+      },
+      groups: () => (tree?.groups ?? []).map((g) => g.name),
+    }),
     vscode.commands.registerCommand('afd.inventory.new', create),
     vscode.workspace.onDidSaveTextDocument((doc) => onFile(doc.uri)),
     vscode.workspace.onDidCreateFiles((e) => e.files.forEach(onFile)),

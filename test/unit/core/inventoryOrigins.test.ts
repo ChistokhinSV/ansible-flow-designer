@@ -24,7 +24,7 @@ const INI = [
   '',
   '[lab]',
   'h0[1:2]',
-  'h07 ansible_connection=ssh ansible_port=1   ; closed port',
+  'h07 ansible_connection=ssh ansible_port=1   # closed port',
   '',
   '[edge_switches:children]',
   'edge',

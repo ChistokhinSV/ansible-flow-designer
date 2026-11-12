@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — AFD-254 waves 1 and 2 (the Inventory view: switches, files in sync)
+## Unreleased — AFD-254 waves 1 to 3 (the Inventory view: switches, files in sync, editing)
 
 After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
 
@@ -18,6 +18,15 @@ After setting up an SSH host there was no way back to WSL or a container except 
 - **Reads again on save:** saving an inventory file, a file under `group_vars/` or `host_vars/`, or `ansible.cfg` refreshes the view.
 - **New Inventory…:** a YAML inventory with no hosts yet, made the workspace's inventory and opened.
 - **Not done:** a change made outside VS Code (git, another editor) still needs Refresh Inventory; hosts of a dynamic source have no line to open.
+
+**Wave 3 (AFD-259, AFD-260): edit the inventory from the view.** Until now the inventory was edited in its files only.
+
+- **Hosts and groups:** right-click to add a host, add a group or a child group, rename, move a host to another group, delete. Each change is the smallest edit of the YAML or INI file that says it: comments, order and layout stay; the file is saved and the view reads it again.
+- **Variables:** a host and a group show their own variables, each with where it is written (the inventory file, `host_vars/`, `group_vars/`); a click opens it there. **Add Variable…**, **Edit Value…** and **Delete…** change them. A value is typed as in YAML.
+- **Where a new variable goes:** `host_vars/` or `group_vars/` when the repository has that folder, the inventory file otherwise; asked when the host or group has variables in both.
+- **A move takes the host's variables with it; a rename renames its variables file.**
+- **Not edited here** (they open as text): a host of a range (its variables go to a variables file), hosts of a dynamic source, vault-encrypted values and files, YAML with anchors, and Ansible's groups `all` and `ungrouped`. A file with unsaved changes is not touched.
+- **Checked in Ansible:** inventories changed this way read in `ansible-inventory` as asked (INI, YAML, a variables file).
 
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 

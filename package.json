@@ -156,6 +156,48 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "afd.inventory.addHost",
+        "title": "Add Host…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(add)"
+      },
+      {
+        "command": "afd.inventory.addGroup",
+        "title": "Add Group…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "afd.inventory.rename",
+        "title": "Rename…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "afd.inventory.remove",
+        "title": "Delete…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "afd.inventory.moveHost",
+        "title": "Move to Group…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "afd.inventory.addVar",
+        "title": "Add Variable…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "afd.inventory.editVar",
+        "title": "Edit Value…",
+        "category": "Ansible Flow: Inventory",
+        "icon": "$(edit)"
+      },
+      {
         "command": "afd.inventory.runOn",
         "title": "Run Flow on This Group…",
         "category": "Ansible Flow",
@@ -396,9 +438,19 @@
           "group": "navigation@3"
         },
         {
+          "command": "afd.inventory.addGroup",
+          "when": "view == afd.inventory",
+          "group": "1_new@1"
+        },
+        {
+          "command": "afd.inventory.addHost",
+          "when": "view == afd.inventory",
+          "group": "1_new@2"
+        },
+        {
           "command": "afd.inventory.new",
           "when": "view == afd.inventory",
-          "group": "1_new"
+          "group": "2_file"
         }
       ],
       "view/item/context": [
@@ -421,6 +473,51 @@
           "command": "afd.inventory.open",
           "when": "view == afd.inventory && viewItem =~ /^afd-(group|host|source)$/",
           "group": "inline@2"
+        },
+        {
+          "command": "afd.inventory.addHost",
+          "when": "view == afd.inventory && viewItem == afd-group",
+          "group": "inline@3"
+        },
+        {
+          "command": "afd.inventory.editVar",
+          "when": "view == afd.inventory && viewItem == afd-var",
+          "group": "inline@1"
+        },
+        {
+          "command": "afd.inventory.addHost",
+          "when": "view == afd.inventory && viewItem == afd-group",
+          "group": "1_add@1"
+        },
+        {
+          "command": "afd.inventory.addGroup",
+          "when": "view == afd.inventory && viewItem == afd-group",
+          "group": "1_add@2"
+        },
+        {
+          "command": "afd.inventory.addVar",
+          "when": "view == afd.inventory && viewItem =~ /^afd-(group|host)$/",
+          "group": "1_add@3"
+        },
+        {
+          "command": "afd.inventory.moveHost",
+          "when": "view == afd.inventory && viewItem == afd-host",
+          "group": "2_change@1"
+        },
+        {
+          "command": "afd.inventory.editVar",
+          "when": "view == afd.inventory && viewItem == afd-var",
+          "group": "2_change@1"
+        },
+        {
+          "command": "afd.inventory.rename",
+          "when": "view == afd.inventory && viewItem =~ /^afd-(group|host)$/",
+          "group": "2_change@2"
+        },
+        {
+          "command": "afd.inventory.remove",
+          "when": "view == afd.inventory && viewItem =~ /^afd-(group|host|var)$/",
+          "group": "3_remove@1"
         }
       ],
       "editor/title": [
@@ -538,6 +635,26 @@
         },
         {
           "command": "afd.inventory.open",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.rename",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.remove",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.moveHost",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.addVar",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.editVar",
           "when": "false"
         },
         {

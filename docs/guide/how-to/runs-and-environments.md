@@ -207,6 +207,32 @@ The view and the inventory's files stay together:
 - **New Inventory…** (the view's `…` menu, or the link shown when there are no hosts) creates a YAML
   inventory with no hosts yet, makes it this workspace's inventory and opens it.
 
+### Edit the inventory from the view
+
+Right-click a group, a host or a variable (the view's `…` menu has **Add Group…** and **Add
+Host…**). Each change is written into the inventory's YAML or INI file as the smallest edit that
+says it: your comments, order and layout stay. The file is saved, and the view reads it again.
+
+| On         | You can                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| a group    | **Add Host…**, **Add Group…** (a child group), **Add Variable…**, **Rename…**, **Delete…**   |
+| a host     | **Move to Group…**, **Add Variable…**, **Rename…**, **Delete…** (from the group it is under) |
+| a variable | **Edit Value…**, **Delete…**; a click opens it where it is written                           |
+- **Variables** show under their host or group, each with where it is written: the inventory file,
+  or a file in `host_vars/` or `group_vars/`. A value is typed as it would be in YAML: text, a
+  number, `true`, a list `[a, b]`, a mapping `{k: v}`.
+- **Where a new variable goes:** into `host_vars/` or `group_vars/` when the repository has that
+  folder, into the inventory file otherwise; when the host or group already has variables in both,
+  you are asked. An INI line holds simple values only: a list or a mapping goes to a variables file.
+- **A move** takes the variables written on the host with it. **A rename** changes the name
+  everywhere it is written and renames its variables file; playbooks and flows that name a group
+  are not changed.
+- **What is not edited here**, and opens as text instead: a host that is one of a range
+  (`sw[01:10]`; its variables still go to a variables file), hosts of a dynamic source (a plugin, a
+  script), vault-encrypted values and files, YAML that uses anchors, and Ansible's own groups `all`
+  and `ungrouped`.
+- A file with unsaved changes in an editor is not touched: save it first.
+
 The view's title line says which inventory it shows and in which environment. Two buttons there
 change them:
 
