@@ -192,7 +192,20 @@ there, with **Open the Flow**.
 (`afd.run.inventory`, else `ansible.cfg`'s), read in your Ansible environment. Each group shows its
 host count and opens into its child groups and its hosts. **Run Flow on This Group…** (the play
 button on a group or a host) opens the launch dialog of the flow you are working on, with that group
-as its targets. **Refresh Inventory** reads it again after you edit the inventory.
+as its targets.
+
+The view and the inventory's files stay together:
+
+- **Click a host**, or use **Open in Editor** on a host or a group, to go to the line it is written
+  on. A host that is one of a range (`sw[01:10]`) opens at the range.
+- **Sources**, at the top, lists the files the inventory is read from and what each is: YAML or INI
+  (static: the hosts are written there), or dynamic (an inventory plugin's configuration, a script:
+  the hosts come from elsewhere, so they have no line to open). A folder inventory shows the files
+  Ansible reads from it; as Ansible does, it skips `.ini` and `.cfg` files there.
+- **Saving** an inventory file, a file under `group_vars/` or `host_vars/`, or `ansible.cfg` reads
+  the view again. **Refresh Inventory** does it by hand, for a dynamic source that changed.
+- **New Inventory…** (the view's `…` menu, or the link shown when there are no hosts) creates a YAML
+  inventory with no hosts yet, makes it this workspace's inventory and opens it.
 
 The view's title line says which inventory it shows and in which environment. Two buttons there
 change them:

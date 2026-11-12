@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — AFD-254 wave 1 (switch the environment and the inventory)
+## Unreleased — AFD-254 waves 1 and 2 (the Inventory view: switches, files in sync)
 
 After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
 
@@ -10,6 +10,14 @@ After setting up an SSH host there was no way back to WSL or a container except 
 - **In the launch dialog (AFD-257):** "Runs in: … · Inventory: …", each with **Change**, which opens the same switch and then the dialog again with what the new one answers.
 - A switch is this workspace's: it writes the workspace settings.
 - **Limit:** `afd.environment.containerEngine` is still one setting for this machine and the SSH host.
+
+**Wave 2 (AFD-258): the Inventory view and the inventory's files stay together.** The view showed Ansible's merged result and nothing of where it came from.
+
+- **Open at the line:** a click on a host, or **Open in Editor** on a host or a group, goes to the line it is written on, in YAML and INI inventories. A host of a range (`sw[01:10]`) opens at the range, a host in several groups under the group you opened it from.
+- **Sources:** the view lists the files the inventory is read from and what each is: YAML, INI, or dynamic (an inventory plugin, a script) and read-only.
+- **Reads again on save:** saving an inventory file, a file under `group_vars/` or `host_vars/`, or `ansible.cfg` refreshes the view.
+- **New Inventory…:** a YAML inventory with no hosts yet, made the workspace's inventory and opened.
+- **Not done:** a change made outside VS Code (git, another editor) still needs Refresh Inventory; hosts of a dynamic source have no line to open.
 
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 

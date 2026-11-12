@@ -144,6 +144,18 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "afd.inventory.open",
+        "title": "Open in Editor",
+        "category": "Ansible Flow",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "afd.inventory.new",
+        "title": "New Inventory…",
+        "category": "Ansible Flow",
+        "icon": "$(new-file)"
+      },
+      {
         "command": "afd.inventory.runOn",
         "title": "Run Flow on This Group…",
         "category": "Ansible Flow",
@@ -382,6 +394,11 @@
           "command": "afd.inventory.refresh",
           "when": "view == afd.inventory",
           "group": "navigation@3"
+        },
+        {
+          "command": "afd.inventory.new",
+          "when": "view == afd.inventory",
+          "group": "1_new"
         }
       ],
       "view/item/context": [
@@ -399,6 +416,11 @@
           "command": "afd.inventory.runOn",
           "when": "view == afd.inventory && viewItem =~ /^afd-(group|host)$/",
           "group": "inline"
+        },
+        {
+          "command": "afd.inventory.open",
+          "when": "view == afd.inventory && viewItem =~ /^afd-(group|host|source)$/",
+          "group": "inline@2"
         }
       ],
       "editor/title": [
@@ -512,6 +534,10 @@
         },
         {
           "command": "afd.inventory.runOn",
+          "when": "false"
+        },
+        {
+          "command": "afd.inventory.open",
           "when": "false"
         },
         {

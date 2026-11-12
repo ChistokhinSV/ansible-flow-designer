@@ -4,22 +4,50 @@
 // with it as the targets). Round 1: P6, and the inventory was the participant's most confusing part
 // and the one thing to change.
 import * as vscode from 'vscode';
+import {
+  isStatic,
+  newInventoryText,
+  type Origin,
+  SOURCE_LABEL,
+  type SourceKind,
+  touchesInventory,
+} from '../core/inventory/origins';
 import { inventoryCandidates, inventoryPath } from '../core/view/inventorySources';
 import { type InventoryTree as Tree, type TreeGroup, topGroups } from '../core/view/inventoryTree';
 import { TIMEOUTS } from '../node/timeouts';
 import { environmentFor } from './env/environment';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
+import { type InventoryFiles, readInventoryFiles, type SourceFile } from './inventoryFiles';
 
 export type InventoryItem =
   | { kind: 'group'; group: TreeGroup }
-  | { kind: 'host'; host: string }
+  /** `group`: the group it is listed under, so it opens at its line there. */
+  | { kind: 'host'; host: string; group?: string }
+  /** AFD-258: the files the inventory is read from. */
+  | { kind: 'sources' }
+  | { kind: 'source'; source: SourceFile }
   | { kind: 'note'; text: string; command?: vscode.Command };
+
+const sourceLabel = (kind: SourceFile['kind']): string =>
+  kind === 'missing'
+    ? 'not found'
+    : kind === 'outside'
+      ? 'outside the workspace folder (not read here)'
+      : SOURCE_LABEL[kind as SourceKind];
 
 export function registerInventoryView(host: Host): vscode.Disposable[] {
   const changed = new vscode.EventEmitter<InventoryItem | undefined>();
   let tree: Tree | undefined;
   let problem: string | undefined;
+  /** AFD-258: the inventory's files and where its hosts and groups are written in them. */
+  let files: InventoryFiles | undefined;
+  const forget = () => {
+    tree = undefined;
+    problem = undefined;
+    files = undefined;
+    changed.fire(undefined);
+  };
   const folder = () => {
     const flow = host.targetUri();
     return (
@@ -109,6 +137,7 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
     return true;
   };
   const load = async (at: vscode.Uri) => {
+    files = await readInventoryFiles(at, setting(at)).catch(() => undefined);
     const probe = host.probes.forFolder(at);
     if ('error' in probe) {
       problem = probe.error;
@@ -137,10 +166,38 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         if (item.command) t.command = item.command;
         return t;
       }
+      if (item.kind === 'sources') {
+        const t = new vscode.TreeItem('Sources', vscode.TreeItemCollapsibleState.Collapsed);
+        const n = files?.sources.length ?? 0;
+        t.description = `${n} file${n === 1 ? '' : 's'}`;
+        t.tooltip = 'The files this inventory is read from';
+        t.iconPath = new vscode.ThemeIcon('files');
+        return t;
+      }
+      if (item.kind === 'source') {
+        const s = item.source;
+        const t = new vscode.TreeItem(s.path);
+        t.description = sourceLabel(s.kind);
+        t.iconPath = new vscode.ThemeIcon(
+          s.uri ? (isStatic(s.kind as SourceKind) ? 'file' : 'lock') : 'warning',
+        );
+        if (s.uri) {
+          t.resourceUri = s.uri;
+          t.contextValue = 'afd-source';
+          t.command = { command: 'afd.inventory.open', title: 'Open in Editor', arguments: [item] };
+        }
+        return t;
+      }
       if (item.kind === 'host') {
         const t = new vscode.TreeItem(item.host);
         t.iconPath = new vscode.ThemeIcon('vm');
         t.contextValue = 'afd-host';
+        const origin = files?.index.host(item.host, item.group);
+        if (origin) {
+          t.tooltip = `${item.host}: ${origin.file}, line ${origin.line + 1}${origin.range ? ` (one of ${origin.range})` : ''}`;
+          t.command = { command: 'afd.inventory.open', title: 'Open in Editor', arguments: [item] };
+        } else
+          t.tooltip = `${item.host}: not written in a file of this inventory (a dynamic source)`;
         return t;
       }
       const g = item.group;
@@ -163,8 +220,12 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
             .map(byName)
             .filter((g): g is TreeGroup => !!g)
             .map((group): InventoryItem => ({ kind: 'group', group })),
-          ...parent.group.hosts.map((h): InventoryItem => ({ kind: 'host', host: h })),
+          ...parent.group.hosts.map(
+            (h): InventoryItem => ({ kind: 'host', host: h, group: parent.group.name }),
+          ),
         ];
+      if (parent?.kind === 'sources')
+        return (files?.sources ?? []).map((source): InventoryItem => ({ kind: 'source', source }));
       if (parent) return [];
       const at = folder();
       if (!at) return [];
@@ -180,10 +241,106 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
           },
         ];
       const top = topGroups(tree as Tree);
+      const sources: InventoryItem[] = files?.sources.length ? [{ kind: 'sources' }] : [];
       return top.length
-        ? top.map((group): InventoryItem => ({ kind: 'group', group }))
-        : [{ kind: 'note', text: `No hosts in ${(tree as Tree).sources.join(', ')}` }];
+        ? [...sources, ...top.map((group): InventoryItem => ({ kind: 'group', group }))]
+        : [
+            ...sources,
+            { kind: 'note', text: `No hosts in ${(tree as Tree).sources.join(', ')}` },
+            {
+              kind: 'note',
+              text: 'New Inventory…',
+              command: { command: 'afd.inventory.new', title: 'New Inventory…' },
+            },
+          ];
     },
+  };
+  /** AFD-258: a host, a group or a source file in the editor, at the line it is written on. */
+  const open = async (item?: InventoryItem) => {
+    const at = folder();
+    if (!at || !item) return;
+    // Asked before the view was shown (a keybinding, a test): the files are read now.
+    files ??= await readInventoryFiles(at, setting(at)).catch(() => undefined);
+    let origin: Origin | undefined;
+    let name = '';
+    if (item.kind === 'source') {
+      if (item.source.uri) await vscode.window.showTextDocument(item.source.uri);
+      return;
+    }
+    if (item.kind === 'host') {
+      name = item.host;
+      origin = files?.index.host(item.host, item.group);
+    } else if (item.kind === 'group') {
+      name = item.group.name;
+      origin = files?.index.group(name);
+    } else return;
+    if (!origin) {
+      const dynamic = files?.sources.some((s) => s.kind === 'plugin' || s.kind === 'script');
+      void vscode.window.showInformationMessage(
+        dynamic
+          ? `${name} is not written in a file of this inventory: it comes from a dynamic source.`
+          : `${name} is not written in a file of this inventory (Ansible adds some groups itself, such as all and ungrouped).`,
+      );
+      return;
+    }
+    const position = new vscode.Position(origin.line, 0);
+    await vscode.window.showTextDocument(vscode.Uri.joinPath(at, origin.file), {
+      selection: new vscode.Range(position, position),
+    });
+    if (origin.range)
+      vscode.window.setStatusBarMessage(`${name} is one of the range ${origin.range}`, 6000);
+  };
+  /** AFD-258: a YAML inventory to start from, set as this workspace's inventory and opened. */
+  const create = async (): Promise<boolean> => {
+    const at = folder();
+    if (!at) return false;
+    const exists = async (path: string) => {
+      try {
+        await vscode.workspace.fs.stat(vscode.Uri.joinPath(at, path));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const given = await vscode.window.showInputBox({
+      title: 'New Inventory',
+      prompt:
+        'Where to create it, in the repository. A YAML inventory with no hosts yet; it becomes the inventory of this workspace (afd.run.inventory).',
+      value: (await exists('inventory/hosts.yml')) ? 'inventory/new.yml' : 'inventory/hosts.yml',
+      ignoreFocusOut: true,
+      validateInput: async (v) => {
+        const path = inventoryPath(v);
+        if (!/\.ya?ml$/i.test(path)) return 'A file name ending in .yml or .yaml';
+        if (path.startsWith('/') || path.split('/').includes('..'))
+          return 'A path inside the workspace folder';
+        return (await exists(path)) ? `${path} is there already` : undefined;
+      },
+    });
+    if (!given) return false;
+    const path = inventoryPath(given);
+    const uri = vscode.Uri.joinPath(at, path);
+    // The box checked it; a file made in between is not overwritten.
+    if (await exists(path)) return false;
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(newInventoryText()));
+    await vscode.workspace
+      .getConfiguration('afd', at)
+      .update('run.inventory', path, vscode.ConfigurationTarget.Workspace);
+    await vscode.window.showTextDocument(uri);
+    return true;
+  };
+  /** A file of the inventory changed on disk: the view reads again. */
+  const onFile = (uri: vscode.Uri) => {
+    const at = folder();
+    if (!at || (!tree && !problem)) return;
+    const root = at.path.endsWith('/') ? at.path : `${at.path}/`;
+    if (
+      uri.path.startsWith(root) &&
+      touchesInventory(
+        uri.path.slice(root.length),
+        files?.sources.map((s) => s.path),
+      )
+    )
+      forget();
   };
   const runOn = async (item?: InventoryItem) => {
     const target =
@@ -204,11 +361,18 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
     changed,
     view,
     vscode.commands.registerCommand('afd.inventory.switch', switchInventory),
-    vscode.commands.registerCommand('afd.inventory.refresh', () => {
-      tree = undefined;
-      problem = undefined;
-      changed.fire(undefined);
-    }),
+    vscode.commands.registerCommand('afd.inventory.refresh', forget),
+    vscode.commands.registerCommand('afd.inventory.open', open),
+    vscode.commands.registerCommand('afd.inventory.new', create),
+    vscode.workspace.onDidSaveTextDocument((doc) => onFile(doc.uri)),
+    vscode.workspace.onDidCreateFiles((e) => e.files.forEach(onFile)),
+    vscode.workspace.onDidDeleteFiles((e) => e.files.forEach(onFile)),
+    vscode.workspace.onDidRenameFiles((e) =>
+      e.files.forEach((f) => {
+        onFile(f.oldUri);
+        onFile(f.newUri);
+      }),
+    ),
     vscode.commands.registerCommand('afd.inventory.runOn', runOn),
     // Another folder, or an inventory setting changed: read it again when shown.
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -217,9 +381,7 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         !e.affectsConfiguration('afd.environment')
       )
         return;
-      tree = undefined;
-      problem = undefined;
-      changed.fire(undefined);
+      forget();
     }),
   ];
 }
