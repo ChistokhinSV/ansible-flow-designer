@@ -12,6 +12,8 @@ Flows could run in a container image, in WSL or on this machine, and in AWX. A t
 - **Copy a File to the SSH Host…:** copies one file to the host, readable by the account alone, for what the repository does not hold (a vault password file).
 - **Limits:** this machine needs `ssh` and `tar` (Windows 10 1803 or later has both); one environment per workspace, no choice at launch; the command-line scenario runner has no SSH option.
 
+**Fix (AFD-248):** in Code mode a role task file that only the role's `main` includes was never reported as "task not in design", also when the subflow's steps each run a task file of their own and none runs `main`, so the file does not run. It is reported again; a file a step's own task file includes still counts as covered (0.74.3 had widened that to `main` in every case).
+
 ## 0.82.0 — AFD-230 (flow editing, from other flow editors)
 
 Editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer), in four waves. See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete), [Subflows](docs/guide/how-to/subflows.md) and [Runs](docs/guide/how-to/runs-and-environments.md).

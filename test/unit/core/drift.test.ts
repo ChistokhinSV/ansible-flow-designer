@@ -137,6 +137,28 @@ describe('computeDrift (D-29, mockup 04)', () => {
     ).toBeUndefined();
   });
 
+  it('AFD-248: a file only main includes is missing when no step runs main, part of it when one does', () => {
+    const scan = scanOf();
+    const role = scan.roleInfo.find((r) => r.name === 'push_baseline');
+    if (!role) throw new Error('fixture');
+    // As the probe reports the fixture role: main includes every task file.
+    role.includes = { main: ['ntp', 'aaa', 'wait_for_convergence'] };
+    const sub = nodeOf(FLOW, 'push-baseline').id;
+    const missing = (doc: FlowDocument) =>
+      computeDrift(doc, scan).items.some(
+        (i) => i.node === sub && i.id === 'task-file:wait_for_convergence',
+      );
+    // The subflow's steps run ntp and aaa by tasks_from: main is not run.
+    expect(missing(docOf(FLOW))).toBe(true);
+    // One step runs the role's main: what main includes runs with it.
+    const whole = docOf(FLOW);
+    const inner = whole.nodes.find((n) => n.id === sub)?.subflow?.nodes ?? [];
+    const step = inner.find((n) => n.impl?.params?.tasks_from === 'ntp');
+    if (!step?.impl?.params) throw new Error('fixture');
+    delete step.impl.params.tasks_from;
+    expect(missing(whole)).toBe(false);
+  });
+
   it('AFD-151: a collection role that compiles is not missing; one that does not, is', () => {
     const doc = docOf(FLOW);
     const validate = doc.nodes.find((n) => n.key === 'validate') as FlowNode;
