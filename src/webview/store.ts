@@ -9,6 +9,7 @@ import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
+import type { PastRun } from '../core/run/pastRuns';
 import { type NodeRun, runStates } from '../core/run/view';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { Forced, ScenarioResult } from '../core/scenario/scenarios';
@@ -204,6 +205,8 @@ interface UiState {
   saving: boolean;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
+  /** AFD-245: the runs kept of this flow, the newest first. */
+  pastRuns: PastRun[];
   /** The designer asked for a run (AFD-81): when it starts, the canvas switches to Run mode. */
   runAsked: boolean;
   /**
@@ -304,6 +307,7 @@ interface UiState {
   notify(level: ToastLevel, text: string): void;
   dismissToast(id: number): void;
   setRun(r: RunView | null): void;
+  setPastRuns(runs: PastRun[]): void;
   setRunAsked(on: boolean): void;
   setScenarios(results: ScenarioResult[], show?: string): void;
   setScenarioCheck(check: ScenarioCheck, undo?: number): void;
@@ -403,6 +407,7 @@ export const useUi = create<UiState>((set, get) => ({
   saving: false,
   run: null,
   runAsked: false,
+  pastRuns: [],
   launch: null,
   scenarios: null,
   scenarioCheck: null,
@@ -570,6 +575,7 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
+  setPastRuns: (pastRuns) => set({ pastRuns }),
   setRepo: (repo) => set({ repo }),
   setOutside(outside) {
     const doc = get().snapshot?.doc;

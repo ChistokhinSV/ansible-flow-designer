@@ -76,6 +76,10 @@ describe('canvas menu', () => {
       'Open in Text Editor',
       'Peek Code',
       '—',
+      // AFD-244
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
+      '—',
       'Delete',
     ]);
     const status = find(entries, 'Status');
@@ -106,7 +110,17 @@ describe('canvas menu', () => {
   it('Run and Code modes read the graph; Code keeps the binding (AFD-45)', () => {
     const { id, menu } = setup(EDGE);
     const run = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'run' }));
-    expect(run).toEqual(['Details…', '—', 'Copy', '—', 'Open in Text Editor', 'Peek Code']);
+    expect(run).toEqual([
+      'Details…',
+      '—',
+      'Copy',
+      '—',
+      'Open in Text Editor',
+      'Peek Code',
+      '—',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
+    ]);
     const code = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'code' }));
     expect(code).toContain('Binding…');
     for (const edit of ['Rename', 'Cut', 'Duplicate', 'Delete']) expect(code).not.toContain(edit);

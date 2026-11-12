@@ -99,6 +99,8 @@ export type CanvasAction =
   | { do: 'resetPosition'; nodes: Ulid[] }
   | { do: 'showInText'; node: Ulid }
   | { do: 'peekCode'; node: Ulid }
+  /** AFD-244: a skeleton run that starts at this step, or runs it alone. */
+  | { do: 'runPartial'; node: Ulid; only: boolean }
   | { do: 'find' }
   | { do: 'removeEntry'; subflow: Ulid }
   | { do: 'removeExit'; subflow: Ulid; from: PortRef; port: string }
@@ -446,11 +448,28 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   ];
   if (ctx.hasPlay(id)) code.push(item('Peek Code', { do: 'peekCode', node: id }, { icon: 'code' }));
 
+  // AFD-244: part of the flow as a skeleton run; a run starts at a step of the top level.
+  const runs: CanvasMenuEntry[] = [];
+  if (ctx.level === ROOT && !ends && !node.disabled) {
+    runs.push(
+      item(
+        'Run from Here (Skeleton)',
+        { do: 'runPartial', node: id, only: false },
+        { icon: 'debug-start', ...lock },
+      ),
+      item(
+        'Run This Step (Skeleton)',
+        { do: 'runPartial', node: id, only: true },
+        { icon: 'debug-step-over', ...lock },
+      ),
+    );
+  }
+
   const remove = edit
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
     : [];
   const what = ctx.scenario ? scenarioItems(model, id, ctx.scenario) : [];
-  return groups(what, open, design, pick, clip, code, remove);
+  return groups(what, open, design, pick, clip, code, runs, remove);
 }
 
 function groupMenu(

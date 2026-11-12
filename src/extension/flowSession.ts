@@ -59,6 +59,7 @@ import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { logChannel } from './log';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
+import { listRuns, loadRun } from './run/pastRuns';
 import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
@@ -655,6 +656,7 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
+        void this.sendRuns(panel).catch(() => undefined);
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
         // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
         void this.deps.repo?.().then((state) => {
@@ -810,6 +812,15 @@ export class FlowSession implements vscode.Disposable {
       // AFD-82: the designer's Run opens its launch dialog.
       case 'run':
         await vscode.commands.executeCommand(CMD.runLaunch, this.uri, m.mode);
+        break;
+      case 'runPartial':
+        await vscode.commands.executeCommand(CMD.runPartial, this.uri, {
+          node: m.node,
+          only: m.only,
+        });
+        break;
+      case 'showRun':
+        await this.showPastRun(m.id);
         break;
       case 'launchCheck': {
         const deps = this.deps.run?.(this.uri);
@@ -1046,6 +1057,33 @@ export class FlowSession implements vscode.Disposable {
     this.lastRun = run;
     this.broadcast({ type: 'run', run });
     this.lens.ran(run, this.built?.parsed.doc?.flow.id);
+    // AFD-245: a run that ended is in the list of kept runs from now on.
+    if (run.state !== 'running') void this.sendRuns().catch(() => undefined);
+  }
+
+  /** AFD-245: the kept runs of this flow, to one panel or to all. */
+  private async sendRuns(panel?: vscode.WebviewPanel): Promise<void> {
+    const storage = this.deps.run?.(this.uri).storage;
+    const flowId = (await this.snapshot()).doc?.flow.id;
+    if (!storage || !flowId) return;
+    const message = { type: 'runs' as const, runs: await listRuns(storage, flowId) };
+    // The panel may have closed while the list was read.
+    if (!panel) this.broadcast(message);
+    else if (this.readyPanels.has(panel)) this.post(panel, message);
+  }
+
+  /** AFD-245: an earlier run on the canvas again; its per-host output is read from its folder. */
+  private async showPastRun(id: string): Promise<void> {
+    const storage = this.deps.run?.(this.uri).storage;
+    const flowId = (await this.snapshot()).doc?.flow.id;
+    const run = storage && flowId ? await loadRun(storage, flowId, id) : undefined;
+    if (!run) {
+      this.broadcast({ type: 'notify', level: 'error', text: 'That run is no longer kept' });
+      void this.sendRuns().catch(() => undefined);
+      return;
+    }
+    this.lastRun = { ...run, past: true };
+    this.broadcast({ type: 'run', run: this.lastRun });
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */

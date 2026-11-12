@@ -23,6 +23,8 @@ export const CMD = {
   runLaunch: 'afd.run.launch',
   /** AFD-82: Run in a launch dialog, with its single-use token; not in the Command Palette. */
   runLaunched: 'afd.run.launched',
+  /** AFD-244: a skeleton run from a step on, or of one step; from the designer's menus only. */
+  runPartial: 'afd.run.partial',
   stopRun: 'afd.run.stop',
   runScenarios: 'afd.run.scenarios',
   copyScenarioRunner: 'afd.run.copyScenarioRunner',

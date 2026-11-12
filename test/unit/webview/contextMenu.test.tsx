@@ -102,6 +102,8 @@ describe('canvas context menu', () => {
       'Duplicate',
       'Open in Text Editor',
       'Peek Code',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
       'Delete',
     ]);
     const del = screen.getByRole('menuitem', { name: 'Delete' });
@@ -238,6 +240,13 @@ describe('canvas context menu', () => {
     act(() => {
       fireEvent.contextMenu(node('precheck'), { clientX: 200, clientY: 150 });
     });
-    expect(items()).toEqual(['Details…', 'Copy', 'Open in Text Editor', 'Peek Code']);
+    expect(items()).toEqual([
+      'Details…',
+      'Copy',
+      'Open in Text Editor',
+      'Peek Code',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
+    ]);
   });
 });

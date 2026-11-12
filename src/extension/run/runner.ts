@@ -5,6 +5,8 @@
 // the terminal stays out of the way unless the run stalls or the canvas cannot explain it.
 import { existsSync } from 'node:fs';
 import * as vscode from 'vscode';
+import { engineFor } from '../../core/engine/engines';
+import { type PartialRun, partialFlow, partialLine } from '../../core/engine/partial';
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import { flowFileId } from '../../core/flow/ids';
 import { buildModel } from '../../core/flow/model';
@@ -27,11 +29,13 @@ import { stopStarted } from '../../node/run/stop';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { tailFile } from '../../node/run/tail';
 import { TIMEOUTS } from '../../node/timeouts';
+import { rootFromGenerated } from '../codegen';
 import { environmentFor, type ProbeManager } from '../env/environment';
 import { showEnvironmentError } from '../env/setupEnvironment';
 import { CANCELLED } from '../errors';
 import { appendAudit } from './audit';
 import { collectInputs, targetsOf } from './inputs';
+import { keepRun } from './pastRuns';
 import { auditHeader, prepareRun, stamp } from './prepare';
 import { runStarted } from './stop';
 import { showRunTerminal, watchRunTerminal } from './terminal';
@@ -40,6 +44,8 @@ import { showRunTerminal, watchRunTerminal } from './terminal';
 export const LIVE_MS = 500;
 /** No new events for this long: the run may wait for input in its quiet terminal. */
 export const STALL_MS = 20_000;
+/** AFD-244: where a partial run's code is generated, beside generated/; removed after the run. */
+export const PARTIAL_DIR = '.afd-run';
 
 export interface RunOptions {
   mode: 'check' | 'real';
@@ -56,6 +62,8 @@ export interface RunOptions {
   expect?: LaunchFacts;
   /** From the dialog: the vault password for this run (asked for otherwise). */
   vaultPassword?: string;
+  /** AFD-244: start at a top-level step, or run that step alone. Skeleton runs only. */
+  partial?: PartialRun;
 }
 
 export interface RunDeps {
@@ -210,6 +218,32 @@ export async function runFlow(
   if (!prepared.ok) return fail(prepared.error);
   const { folder, generated, doc } = prepared;
   if (!generated.dir) return fail('Code generation failed');
+  // AFD-244: a partial run executes a trimmed copy of the flow, generated beside generated/ for
+  // this run only; the flow's own code is not touched.
+  let code = generated.result;
+  let codeDir = generated.dir;
+  let partial: RunView['partial'];
+  if (options.partial) {
+    if (options.mode !== 'check') return fail('Only a skeleton run can run part of a flow');
+    const trimmed = partialFlow(doc, options.partial);
+    if ('error' in trimmed) return fail(trimmed.error);
+    const built = engineFor(trimmed.doc).generate(trimmed.doc, {
+      source: document.uri.path.split('/').pop() ?? 'flow.yaml',
+      root: rootFromGenerated(document.uri),
+    });
+    if (!built.ok)
+      return fail(
+        `This part of the flow does not generate: ${built.findings.find((f) => f.severity === 'error')?.message ?? 'see the flow problems'}`,
+      );
+    code = built;
+    codeDir = vscode.Uri.joinPath(document.uri, '..', PARTIAL_DIR);
+    const title = doc.nodes && buildModel(doc).nodes.get(options.partial.node)?.node.title;
+    partial = {
+      ...options.partial,
+      line: partialLine(title ?? options.partial.node, options.partial.only, trimmed),
+      stubbed: trimmed.stubbed.map((s) => s.node),
+    };
+  }
 
   const env = environmentFor(folder.uri);
   if (!env.ok) {
@@ -276,9 +310,22 @@ export async function runFlow(
     )
     .then((c) => ({ enabled: c.callbacks_enabled ?? [], paths: c.callback_plugins ?? [] }))
     .catch(() => undefined);
-  const root = generated.result.files[0]?.name ?? `${doc.flow.key}.yml`;
+  if (partial) {
+    // Written last, after every question the run asks: a run given up leaves no folder.
+    await vscode.workspace.fs.delete(codeDir, { recursive: true }).then(undefined, () => undefined);
+    await vscode.workspace.fs.createDirectory(codeDir);
+    const put = (name: string, text: string) =>
+      vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(codeDir, name),
+        new TextEncoder().encode(text),
+      );
+    // Never committed: the folder ignores itself.
+    await put('.gitignore', '*\n');
+    for (const file of code.files) await put(file.name, file.text);
+  }
+  const root = code.files[0]?.name ?? `${doc.flow.key}.yml`;
   const playbook = vscode.workspace
-    .asRelativePath(vscode.Uri.joinPath(generated.dir, root), false)
+    .asRelativePath(vscode.Uri.joinPath(codeDir, root), false)
     .replaceAll('\\', '/');
   const spec = runProcess(
     env.env,
@@ -318,6 +365,7 @@ export async function runFlow(
     source: 'local',
     flowVersion: doc.flow.version,
     design: nodeDesigns(doc),
+    ...(partial ? { partial } : {}),
   };
   deps.report(running);
 
@@ -346,7 +394,7 @@ export async function runFlow(
   // The events as they come: a partial summary for the canvas at most every LIVE_MS, secrets out.
   // AFD-138: the vault password too, if a task prints it.
   const hidden = secretValues(vaultPassword ? { ...secret, '': vaultPassword } : secret);
-  const live = createSummarizer(generated.result.routes);
+  const live = createSummarizer(code.routes);
   const eventsFile = vscode.Uri.joinPath(runDir, 'events.jsonl');
   let lastEvent = Date.now();
   let changed = false;
@@ -419,6 +467,8 @@ export async function runFlow(
   await tail.stop();
 
   await dropVars(runDir.fsPath).catch(() => undefined);
+  if (partial)
+    await vscode.workspace.fs.delete(codeDir, { recursive: true }).then(undefined, () => undefined);
   let text = '';
   try {
     text = new TextDecoder().decode(await vscode.workspace.fs.readFile(eventsFile));
@@ -428,7 +478,7 @@ export async function runFlow(
       await vscode.workspace.fs.writeFile(eventsFile, new TextEncoder().encode(text));
     }
   } catch {}
-  const summary = summarizeRun(text, generated.result.routes);
+  const summary = summarizeRun(text, code.routes);
   if (revealAfterRun({ designerOpen, stopped, rc, events: !!text.trim(), summary }))
     void showRunTerminal(document.uri);
   const done: RunView = {
@@ -454,6 +504,8 @@ export async function runFlow(
     hosts: summary.hosts.length,
     failed: Object.keys(summary.outcome).length + summary.failures.length,
   });
+  // AFD-245: kept with its events, so the Run panel can show it again later.
+  await keepRun(runDir, done);
   deps.report(done);
   return done;
 }

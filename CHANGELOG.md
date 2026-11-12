@@ -25,6 +25,11 @@ The first wave of editing changes taken from other flow editors (n8n, Node-RED, 
 - **Disable a step (AFD-242, ADR-0035):** **D**, or Disable in a step's menu, switches a step off and keeps it. The hosts that reach it pass straight to the next step, and no code is generated for it; scenarios simulate the same. A decision with both branches wired cannot be passed through, and a step that reads a disabled step's output is warned. AI assistants set it with `update_node` (`disabled: true`). Find: `has:disabled`. Before, the only way to try a flow without a step was to delete it and wire the gap by hand.
 - **Expand a subflow in place (AFD-243):** a subflow node has an arrow that grows it into a frame showing its inner steps and wires on its own level, with the entry wire and each exit joined to the subflow's ports. For reading; nothing is written to the flow file. The setting `afd.canvas.expandSubflows` (on by default) takes the arrow away.
 
+**Wave 4 (run and debug):**
+
+- **Run part of a flow (AFD-244):** a top-level step's menu has **Run from Here (Skeleton)** and **Run This Step (Skeleton)**. The run starts the hosts at that step, on a trimmed copy of the flow generated for the run only; the flow's own code is not touched. A bound step that reads a step left out runs as its stub, and the Run panel says which. Skeleton runs only: a real run on part of a flow could act on data that was never made.
+- **Earlier runs (AFD-245):** the Run panel lists the local runs kept of the flow; choose one and the canvas shows it again, with each host's output. A run of an earlier version of the flow says so. Before, only the last run could be seen.
+
 ## 0.81.0 — AFD-221 (Jinja in fields)
 
 Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).

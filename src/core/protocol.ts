@@ -1,4 +1,5 @@
 // Messages between the extension host and the flow editor webview (one request/response scheme).
+
 import type { CatalogOption, CatalogPlugin, PluginType, SearchHit } from './catalog/types';
 import type { CodeScan, DriftAction } from './drift/types';
 import type { FlowCommand } from './flow/commands';
@@ -8,6 +9,7 @@ import type { Finding } from './flow/validate';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
+import type { PastRun } from './run/pastRuns';
 import type { ScenarioRequest } from './scenario/edit';
 import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
@@ -74,6 +76,10 @@ export interface RunView {
   awx?: AwxRunInfo;
   /** A live local run with no new events for a while (AFD-81): it may wait for input. */
   quiet?: boolean;
+  /** AFD-244: the run started at a step, or ran one step alone (skeleton runs only). */
+  partial?: { node: Ulid; only: boolean; line: string; stubbed: Ulid[] };
+  /** AFD-245: an earlier run shown again from the kept runs. */
+  past?: boolean;
   /** AFD-84: a scenario's result shown like a run: its verdict and each host's expected end. */
   scenario?: {
     name: string;
@@ -178,6 +184,8 @@ export interface Notice {
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'run'; run: RunView | null }
+  /** AFD-245: the runs kept of this flow, the newest first. */
+  | { type: 'runs'; runs: PastRun[] }
   | {
       type: 'ack';
       reqId: number;
@@ -257,6 +265,10 @@ export type WebviewMessage =
   | { type: 'firstFlow'; hidden: boolean }
   | { type: 'tidyUp'; level?: string }
   | { type: 'run'; mode: 'check' | 'real' }
+  /** AFD-244: a skeleton run from a top-level step on, or of that step alone. */
+  | { type: 'runPartial'; node: Ulid; only: boolean }
+  /** AFD-245: show a kept run again (an id from `runs`). */
+  | { type: 'showRun'; id: string }
   | { type: 'generate' }
   /** The run's output; with `approval`, that approval node's page in AWX (AFD-11). */
   | { type: 'showRunOutput'; approval?: Ulid }

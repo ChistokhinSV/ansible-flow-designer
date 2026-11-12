@@ -63,6 +63,8 @@ function useHost() {
         ui.setSnapshot(m.snapshot);
       } else if (m.type === 'run') {
         ui.setRun(m.run);
+      } else if (m.type === 'runs') {
+        ui.setPastRuns(m.runs);
       } else if (m.type === 'launch') {
         ui.setLaunch(m.plan, m.notice);
       } else if (m.type === 'launchFacts') {
