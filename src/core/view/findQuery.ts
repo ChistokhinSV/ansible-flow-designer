@@ -12,7 +12,7 @@ export type FilterKey = (typeof FILTER_KEYS)[number];
 export const FILTER_VALUES: Record<FilterKey, readonly string[]> = {
   type: ['task', 'subflow', 'decision', 'approval', 'parallel', 'join', 'end'],
   status: ['draft', 'specified', 'implemented', 'tested'],
-  has: ['no-binding', 'binding', 'problems', 'errors'],
+  has: ['no-binding', 'binding', 'problems', 'errors', 'disabled'],
   open: ['fail'],
   tag: [],
   target: [],
@@ -24,6 +24,7 @@ export const FILTER_MEANING: Record<string, string> = {
   'has:binding': 'Steps bound to a module, role or playbook',
   'has:errors': 'Steps with an error',
   'has:problems': 'Steps with an error or a warning',
+  'has:disabled': 'Steps switched off: their hosts pass through',
   'type:approval': 'Approval steps',
   'open:fail': 'Steps with a fail port nothing handles',
   'status:draft': 'Draft steps, and subflows with a draft step inside',
@@ -38,6 +39,7 @@ const COUNTED: Record<string, readonly [string, string]> = {
   ],
   'has:errors': ['step with an error', 'steps with an error'],
   'has:problems': ['step with an error or a warning', 'steps with an error or a warning'],
+  'has:disabled': ['disabled step', 'disabled steps'],
   'open:fail': ['step with a fail port nothing handles', 'steps with a fail port nothing handles'],
 };
 
@@ -119,7 +121,9 @@ export function matchesFilters(node: FlowNode, q: FindQuery, ctx: FindContext = 
             ? mine.length > 0
             : v === 'errors'
               ? mine.some((f) => f.severity === 'error')
-              : false,
+              : v === 'disabled'
+                ? node.disabled === true
+                : false,
     ) &&
     any('open', (v) => v === 'fail' && (ctx.openPorts ?? []).some((p) => p.node === node.id)) &&
     any('tag', (v) => (node.settings?.tags ?? []).some((t) => t.toLowerCase() === v)) &&

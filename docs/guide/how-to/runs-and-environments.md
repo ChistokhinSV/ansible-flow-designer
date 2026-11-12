@@ -64,6 +64,22 @@ library, so any image with ansible-core works.
 From the Command Palette (**Ansible Flow: Run as Skeleton**), or with no designer open, the run
 asks for each input in an input box instead.
 
+### Run part of a flow
+
+Right-click a step of the top level:
+
+- **Run from Here (Skeleton)** starts the hosts at that step and runs the rest of the flow.
+- **Run This Step (Skeleton)** runs that step alone, then ends.
+
+Both are skeleton runs (check mode), with the inputs remembered from the last run or asked for in
+input boxes. The steps before the one you chose do not run, so what they would have made is not
+there: a bound step that reads one of them runs as its TODO stub instead, and the Run panel says
+which steps those were. This is why a part of a flow cannot be run for real.
+
+The run uses a trimmed copy of the flow, generated into a folder `.afd-run` beside `generated/`
+for the time of the run and removed after it; the flow's own generated code is not touched. The
+folder ignores itself in Git.
+
 ## While a run goes
 
 - **The canvas follows it.** A run started from the designer switches it to **Run** mode. The step
@@ -160,6 +176,10 @@ for a lab only, set `host_key_checking = False` in the lab repository's `ansible
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which
   flow version, which targets, without input values. It rotates at 1 MB and keeps two older files;
   each flow keeps the event logs of its last 30 runs (`afd.runs.keep`).
+- **Earlier runs:** the Run panel lists the local runs kept of the flow, the newest first, each
+  with its time, kind and result. Choose one and the canvas shows it again: where each host went,
+  the failed steps, each host's output. A run of an earlier version of the flow says so, since
+  steps may have changed. Runs made before this list existed, and AWX runs, are not in it.
 - Runs need a trusted workspace: in Restricted Mode you can design and generate, but not run
   ([settings](../reference/settings.md#restricted-mode)).
 - After a passing real run of the current flow version, the run panel offers **Mark N nodes

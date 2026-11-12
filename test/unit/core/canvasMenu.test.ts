@@ -58,8 +58,16 @@ describe('canvas menu', () => {
       'Status ▸',
       'Open Port failed_hosts ▸',
       'Add Next Node…',
+      // AFD-242
+      'Disable',
+      // AFD-235: the step is wired into a path.
+      'Detach from Path',
       // AFD-88: the step has a stored position.
       'Reset Position',
+      '—',
+      // AFD-238
+      'Select Upstream',
+      'Select Downstream',
       '—',
       'Cut',
       'Copy',
@@ -67,6 +75,10 @@ describe('canvas menu', () => {
       '—',
       'Open in Text Editor',
       'Peek Code',
+      '—',
+      // AFD-244
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
       '—',
       'Delete',
     ]);
@@ -98,7 +110,17 @@ describe('canvas menu', () => {
   it('Run and Code modes read the graph; Code keeps the binding (AFD-45)', () => {
     const { id, menu } = setup(EDGE);
     const run = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'run' }));
-    expect(run).toEqual(['Details…', '—', 'Copy', '—', 'Open in Text Editor', 'Peek Code']);
+    expect(run).toEqual([
+      'Details…',
+      '—',
+      'Copy',
+      '—',
+      'Open in Text Editor',
+      'Peek Code',
+      '—',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
+    ]);
     const code = labels(menu({ kind: 'node', id: id('precheck') }, { mode: 'code' }));
     expect(code).toContain('Binding…');
     for (const edit of ['Rename', 'Cut', 'Duplicate', 'Delete']) expect(code).not.toContain(edit);
@@ -116,6 +138,8 @@ describe('canvas menu', () => {
       'Duplicate',
       '—',
       'Extract into Subflow…',
+      'Disable',
+      'Detach from Path',
       'Arrange ▸',
       '—',
       'Delete',

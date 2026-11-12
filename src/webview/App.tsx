@@ -63,6 +63,8 @@ function useHost() {
         ui.setSnapshot(m.snapshot);
       } else if (m.type === 'run') {
         ui.setRun(m.run);
+      } else if (m.type === 'runs') {
+        ui.setPastRuns(m.runs);
       } else if (m.type === 'launch') {
         ui.setLaunch(m.plan, m.notice);
       } else if (m.type === 'launchFacts') {
@@ -77,6 +79,7 @@ function useHost() {
         ui.setRepo(m.state);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
+        ui.setExpandSubflows(m.expandSubflows === true);
       } else if (m.type === 'firstFlow') {
         ui.setFirstFlow({ hidden: m.hidden, done: m.done });
       } else if (m.type === 'reveal') {

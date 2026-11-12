@@ -808,6 +808,10 @@
           ],
           "description": "End nodes"
         },
+        "disabled": {
+          "type": "boolean",
+          "description": "true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes."
+        },
         "join_mode": {
           "enum": [
             "all",

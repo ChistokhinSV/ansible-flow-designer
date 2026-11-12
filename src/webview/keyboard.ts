@@ -10,10 +10,12 @@ import {
   canEdit,
   deleteSelection,
   duplicate,
+  followWire,
   rename,
   selectAll,
   selectedAnnotations,
   selectedNodes,
+  toggleDisabled,
   upLevel,
 } from './editActions';
 import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
@@ -114,7 +116,8 @@ export function installKeyboard(): () => void {
       const edge = ui.selection.edge;
       if (canEdit() && (nodes.length > 0 || notes.length > 0 || edge)) {
         consume();
-        void deleteSelection(nodes, edge ? [edge] : [], notes);
+        // AFD-235: the path closes behind deleted nodes; Shift leaves the gap.
+        void deleteSelection(nodes, edge ? [edge] : [], notes, !e.shiftKey);
       }
     } else if (e.key === 'F2' && !mod && !e.altKey) {
       const ids = selectedNodes();
@@ -134,6 +137,9 @@ export function installKeyboard(): () => void {
         consume();
         void duplicate(ids, notes);
       }
+    } else if (mod && !e.altKey && !e.shiftKey && e.key.startsWith('Arrow')) {
+      // AFD-238: along the wires, when the focus is not on a node (the canvas has its own key).
+      if (followWire(e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 'up' : 'down')) consume();
     } else if (e.altKey && !mod && e.key === 'ArrowUp') {
       consume();
       upLevel();
@@ -146,6 +152,13 @@ export function installKeyboard(): () => void {
       if (target && target !== document.body && !target.closest?.('.react-flow')) return;
       consume();
       selectAll();
+    } else if (e.key.toLowerCase() === 'd' && !mod && !e.altKey && !e.shiftKey) {
+      // AFD-242: switch the selected steps off, or back on.
+      const ids = selectedNodes();
+      if (!canEdit() || ids.length === 0) return;
+      if (e.repeat) return consume();
+      consume();
+      void toggleDisabled(ids);
     } else if (e.key.toLowerCase() === 'n' && !mod && !e.altKey && e.shiftKey) {
       // AFD-65: a Note on the selected node, else where a paste would land.
       if (!canEdit()) return;

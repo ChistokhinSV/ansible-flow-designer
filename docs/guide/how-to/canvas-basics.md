@@ -108,14 +108,29 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
 - **Add:**
   - click or drag a type from the palette; a click with one step selected adds the new one after
     it, wired, and on a flow with no steps yet it goes between Start and Done;
+  - click the **+** under a step whose path stops there: the next step, wired. The **+** shows
+    wherever a main output (`ok_hosts`, a decision's branch) is still open; the port beside it
+    keeps its own menu;
+  - point at a wire, or select it, and click the **+** beside its label: a step on that wire;
   - drag from a port and release on empty canvas (Quick add);
-  - right-click the canvas → **Add Node Here…**;
+  - double-click empty canvas, or right-click it → **Add Node Here…**;
   - or a port's **Insert Node on This Wire**, or drop a palette type onto a wire (it lights while
     you drag over it).
+  - **Find what the step runs while you name it.** Quick Add's **Title** is a name first: type one
+    and press Enter, and the step is added. As you type, a list under the field shows what else
+    the text matches: a step type by the start of its name (`dec` → Decision), modules from the
+    catalog, roles. While the field is empty it lists what this flow already runs. ↓ and Enter
+    pick a row: a type switches the dialog to it; a module or role makes the step bound to it,
+    with a title made from its name (selected, so typing replaces it). Enter again adds the step.
 
   ![Quick add](../images/quick-add-light.png)
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
   number of wires in.
+  - **Move a wire's end:** drag the wire by either end, close to the port, onto another node or
+    port. The far end goes to that node's `in`; the near end to an open output (dropped on a node:
+    its first open main output). Released on empty canvas, the wire is disconnected.
+  - **Put a step into a wire:** drag a step that stands free of any path over a wire; the wire
+    lights, and on release the step sits on it. A step already wired just moves.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
   **Tidy Up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
   added) are placed next to their neighbours until you move them.
@@ -126,8 +141,32 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
     Vertically** (Shift+Alt+D, three or more) in the side panel, or **Arrange ▸** in their
     right-click menu for the other edges and for spacing across. One Ctrl+Z puts them back.
   - **Reset Position** hands a step you placed back to automatic placement.
-- **Delete:** Delete or Backspace. A whole selection is one undo step.
-- **Select several:** Ctrl+click, or Shift+drag a box.
+- **Delete:** Delete or Backspace. A whole selection is one undo step. The path closes behind a
+  deleted step: the wire that came into it goes on to where the step went on, and a message says
+  so. This happens only when there is one answer: a decision with both branches wired, or a step
+  that ended the path, leaves a gap. Inside a subflow the entry moves to the next step, and a step
+  that left the subflow hands its exit to the one before it. **Shift+Delete** leaves the gap.
+- **Disable a step:** select it and press **D**, or **Disable** in its menu (a selection works
+  too). The step stays, drawn dashed and dimmed, and does nothing: the hosts that reach it pass
+  straight to the next step, and no code is generated for it. **D** again, or **Enable**, switches
+  it back on. Everything inside a disabled subflow is disabled with it.
+  - The hosts pass through only when the step goes on to one next step. A decision with both
+    branches wired, or a step whose output is open, stops them, and a warning says so.
+  - A step that reads an output of a disabled step gets a warning: that value is not made.
+  - Find lists the disabled steps with `has:disabled`. Start and end nodes cannot be disabled.
+- **Detach from Path** (a step's or a selection's menu) takes steps out of their path and keeps
+  them: the path closes behind them the same way, and steps detached together keep the wires
+  between them.
+- **Select several:** Ctrl+click, or Shift+drag a box. **Select Upstream** and **Select
+  Downstream** in a step's menu take every step the hosts came through to reach it, or can go on
+  to from it, on this level.
+- **Rename:** F2, or double-click a step's title, and type on the canvas. Enter or a click
+  elsewhere saves; Esc gives up.
+- **Problems on the canvas:** a step with errors or warnings shows their count in its corner, red
+  for an error, amber for warnings only; point at it to read them. Click it for the Details tab of
+  the first one. A subflow also counts the problems of the steps inside it; when they are all
+  inside, the click opens the subflow. Open fail ports keep their own mark and are not counted.
+- **Undo and redo** say what they did in a message ("Undid: removed Validate, added 1 wire").
 
 Every action is one small text edit: Ctrl+Z undoes it, and comments and formatting elsewhere in the
 file never change.
@@ -139,8 +178,8 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 ![The node menu](../images/context-menu-light.png)
 
 - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
-  fail port, Add Next Node…, Reset Position (a step you placed), Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
-- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Arrange ▸ (align, distribute, Reset
+  fail port, Add Next Node…, Disable or Enable, Detach from Path, Dissolve Subflow (a subflow), Reset Position (a step you placed), Select Upstream, Select Downstream, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Disable or Enable, Detach from Path, Arrange ▸ (align, distribute, Reset
   Position), Delete.
 - **Note, section or text:** Edit Text, Color ▸, Attach to Node… or Detach from Node, Cut, Copy,
   Duplicate, Delete ([Notes, sections and text](annotations.md)).
@@ -160,9 +199,13 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | ------------------------ | ---------------------------------------------------------------------------------------------- |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, paste nodes                                                                         |
 | Ctrl+D                   | Duplicate the selection                                                                        |
-| Delete / Backspace       | Delete the selection                                                                           |
-| F2                       | Rename (the Title in the Details), or edit a note                                              |
+| Delete / Backspace       | Delete the selection; the path closes behind it                                                |
+| Shift+Delete             | Delete the selection and leave the gap                                                         |
+| F2                       | Rename the step on the canvas, or edit a note                                                  |
+| Ctrl+↓ / Ctrl+↑          | Follow a wire: select the next step, or the one before                                         |
+| Shift+2                  | Zoom to the selection                                                                          |
 | N                        | Add a node: after the selected one, else at the pointer (on its wire when it already leads on) |
+| D                        | Disable the selected steps (their hosts pass through), or enable them again                    |
 | Shift+N                  | Add a note: on the selected node, else at the pointer                                          |
 | Ctrl+Z / Ctrl+Y          | Undo / Redo                                                                                    |
 | Enter                    | Open the selected subflow, or go to the node's Details                                         |

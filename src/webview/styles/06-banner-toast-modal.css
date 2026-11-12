@@ -238,3 +238,60 @@ fieldset.afd-launch-groups {
   background: var(--vscode-editorWidget-background, var(--afd-panel));
   border-top: 1px solid var(--afd-border);
 }
+
+/* ---------- AFD-232: what matches the title in Quick Add ---------- */
+
+.afd-qa-list {
+  margin: 4px 0 0;
+  padding: 2px 0;
+  max-height: 190px;
+  overflow: auto;
+  border: 1px solid var(--afd-border);
+  border-radius: 3px;
+  background: var(--vscode-editorSuggestWidget-background, var(--afd-bg));
+}
+
+.afd-qa-list > div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.afd-qa-list > div.active,
+.afd-qa-list > div:hover {
+  background: var(--vscode-list-activeSelectionBackground, rgba(128, 128, 128, 0.25));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.afd-qa-list > div.active .muted,
+.afd-qa-list > div:hover .muted {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.afd-qa-what {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-qa-why {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--afd-fs-11);
+}
+
+.afd-qa-bound {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: var(--afd-fs-12);
+}

@@ -60,9 +60,24 @@ The steps and the wires between them move into the new subflow, with their IDs, 
   get a named exit for the second one (named after the step and port, such as `check_true`);
 - outputs that steps outside read become subflow outputs, and those references are rewritten.
 
-It works inside subflows too. The reverse, moving a subflow's steps back up to its level, is the
-AI tools' `dissolve_subflow` op: wires into the subflow go to its entry step, its exits become
-wires from the inner ports, and references follow.
+It works inside subflows too. The reverse is **Dissolve Subflow** in a subflow's right-click menu
+(the AI tools' `dissolve_subflow` op): its steps move back up to its level, in one undo step.
+Wires into the subflow go to its entry step, its exits become wires from the inner ports, and
+references follow. On the canvas the steps keep their arrangement, placed where the subflow
+stood; run **Tidy Up** if they cover their neighbours. A shared subflow is unlinked first.
+
+### Expand a subflow in place
+
+A subflow node has a small arrow in its corner. Click it and the node grows into a frame on its
+own level, with its inner steps and wires drawn inside, the entry wire from its `in` and each
+exit into the port it leaves through; click it again to close it. The setting
+`afd.canvas.expandSubflows` takes the arrow away (reopen the designer after changing it).
+The steps under and beside the frame move aside on screen only: nothing is written to the flow
+file, and a step you drag is saved where it stands with the frame closed.
+
+Inside the frame the steps are for reading: select one to see its Details, double-click the frame
+to open the subflow and edit it there. Ports and wires inside the frame cannot be changed, the
+frame itself is not dragged, and notes of the inner level are not shown.
 
 ## Data across the boundary
 

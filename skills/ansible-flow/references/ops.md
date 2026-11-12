@@ -36,7 +36,7 @@ Add a node. after continues from an output port: a free port is wired to the new
 
 ### update_node
 
-Change fields of a node; null removes a field. A new key renames the node: from: references follow.
+Change fields of a node; null removes a field. A new key renames the node: from: references follow. disabled: true switches a step off and keeps it (its hosts pass straight to the next step, no code is generated for it; null switches it back on): only when the user asks to skip or disable a step, never to silence a problem.
 
 - `node` (string, required): A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config).
 - `title` (string): Human name shown on the canvas.
@@ -48,6 +48,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `purpose` (rollback | notify | retry | exclude | null): Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it.
 - `join_mode` (all | any | null): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer | null): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
+- `disabled` (boolean | null): true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes.
 - `settings` (object): Settings to change; a null value removes that setting.
 - `keywords` (object | null): Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.
 
@@ -447,6 +448,9 @@ Lay out a level again with the auto-layout and store every position (positions o
 | inventory-target-ignored | inventory_target is set where it has no effect. | Remove it, or move it to a task or a subflow without inner steps. |
 | host-list-input | A node-level host_list input is informational: hosts come from the wire. | Usually nothing; the arriving hosts decide. |
 | no-targets | No flow input seeds the hosts entering the start node. | Add a host_list flow input with targets: true (set_io flow). |
+| reads-disabled | A from: reads an output of a disabled node (or of a step inside a disabled subflow), which runs nothing and so makes nothing. | Give the input a default, read the value from another step, or enable the node (update_node with disabled: null). |
+| disabled-ends-path | A disabled node the hosts cannot pass through: it does not go on to one next step (no main output is wired, or a decision or parallel has several), so the hosts that reach it stop there. | Wire exactly one of its main outputs, or enable the node; to take a branching step out, delete it and wire the path by hand. |
+| disabled-not-allowed | disabled: true on a start or an end node, which are the ends of the path. | Remove disabled from the node. |
 | from-unresolved | A from: names nothing this node can read. | Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow. |
 | register-collision | A from: reads a register (impl.register) that another step also registers, or that a flow input also names: the generated code reads whichever ran last, and a flow input always wins. | Give one of the steps its own register name (Binding › Register result as), or rename the flow input. |
 | ref-may-be-undefined | A from: reads an output of a step that does not run before this one on every path, or that hosts reach after failing in it: some hosts arrive without the value. A step that sets the input's own name (set_fact, register, an output of that name) counts too: the generated play passes the input as a play var, and that fact wins over it. | Read it after the paths join on the producing step, or wire the failure path elsewhere. If the step handles a missing value itself (x is defined, | default), guard the read that way or mark the input optional: true; a default makes the value defined, so an "is defined" test would always pass. |

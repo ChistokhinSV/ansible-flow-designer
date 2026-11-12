@@ -44,6 +44,14 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
   };
   return [
     vscode.commands.registerCommand(CMD.runSkeleton, (uri?: vscode.Uri) => run('check', uri)),
+    // AFD-244: skeleton only; the step comes from the designer's menu.
+    vscode.commands.registerCommand(
+      CMD.runPartial,
+      (uri?: vscode.Uri, partial?: { node?: string; only?: boolean }) =>
+        typeof partial?.node === 'string'
+          ? run('check', uri, { partial: { node: partial.node, only: partial.only === true } })
+          : undefined,
+    ),
     vscode.commands.registerCommand(CMD.setUpEnvironment, () => setUpEnvironment()),
     // Scenario tests (AFD-58); `only` names scenarios (tests).
     vscode.commands.registerCommand(

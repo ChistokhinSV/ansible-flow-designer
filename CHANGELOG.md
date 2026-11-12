@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.82.0 — AFD-230 (flow editing, from other flow editors)
+
+Editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer), in four waves. See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete), [Subflows](docs/guide/how-to/subflows.md) and [Runs](docs/guide/how-to/runs-and-environments.md).
+
+**Wave 1 (add and wire faster):**
+
+- **+ where the path stops (AFD-231):** a step whose main output is still open shows a **+** under it; one click opens Quick Add wired from that output. It shows at rest, not on hover only. The port keeps its own menu. A hovered or selected wire shows a **+** beside its label that adds a step on that wire.
+- **Quick Add finds what the step runs (AFD-232):** the Title field lists, as you type, the step types, catalog modules and roles that match, and while it is empty what the flow already runs. A pick adds the step bound to that module or role. Enter alone still adds a step with the title typed. A double-click on empty canvas opens Quick Add there.
+- **Drag a wire's end (AFD-233):** either end of a wire drags to another node or port; released on empty canvas the wire is disconnected. Before, a wire's target could be changed only from a menu, and its source not at all.
+- **Drop a step into a wire (AFD-234):** a step that stands free of any path, dragged over a wire, goes into it on release. Before, only a new step from the palette could.
+- **Delete closes the path (AFD-235):** deleting a step re-points the wire that came into it to where the step went on, in the same undo step, and says so. It happens only when there is one answer; Shift+Delete leaves the gap. **Detach from Path** takes steps out of their path and keeps them.
+- **Not done:** the palette has no filter (it holds 15 fixed items; the search went where the catalog is). Failure patterns and shared subflows are not in Quick Add's list.
+
+**Wave 2 (see and navigate):**
+
+- **Problems on the canvas (AFD-236):** a step with errors or warnings shows their count in its corner; a click opens the Details tab of the first one. A subflow counts the problems of the steps inside it. Before, a problem showed only in the Details and in the Problems panel.
+- **Rename on the canvas (AFD-237):** F2, or a double-click on a title, edits it in place. Before, F2 moved to the Title field of the Details.
+- **Move along the flow (AFD-238):** Ctrl+↓ and Ctrl+↑ follow a wire to the next step or the one before; **Select Upstream** and **Select Downstream** take the whole path; Shift+2 zooms to the selection.
+- **Undo says what it did (AFD-239):** after an undo or a redo a message names the change ("Undid: removed Validate, added 1 wire").
+- **Outline (AFD-240):** a flow open as text has an Outline and breadcrumbs: its nodes, a subflow holding the nodes inside it. A symbol or a problem chosen in the text shows its node on the canvas when the designer is open.
+- **Dissolve Subflow (AFD-241):** on a subflow's menu, the reverse of Extract into Subflow: its steps move up to its level, where the subflow stood, and it goes. Before, only AI assistants could do it.
+
+**Wave 3 (model changes):**
+
+- **Disable a step (AFD-242, ADR-0035):** **D**, or Disable in a step's menu, switches a step off and keeps it. The hosts that reach it pass straight to the next step, and no code is generated for it; scenarios simulate the same. A decision with both branches wired cannot be passed through, and a step that reads a disabled step's output is warned. AI assistants set it with `update_node` (`disabled: true`). Find: `has:disabled`. Before, the only way to try a flow without a step was to delete it and wire the gap by hand.
+- **Expand a subflow in place (AFD-243):** a subflow node has an arrow that grows it into a frame showing its inner steps and wires on its own level, with the entry wire and each exit joined to the subflow's ports. For reading; nothing is written to the flow file. The setting `afd.canvas.expandSubflows` (on by default) takes the arrow away.
+
+**Wave 4 (run and debug):**
+
+- **Run part of a flow (AFD-244):** a top-level step's menu has **Run from Here (Skeleton)** and **Run This Step (Skeleton)**. The run starts the hosts at that step, on a trimmed copy of the flow generated for the run only; the flow's own code is not touched. A bound step that reads a step left out runs as its stub, and the Run panel says which. Skeleton runs only: a real run on part of a flow could act on data that was never made.
+- **Earlier runs (AFD-245):** the Run panel lists the local runs kept of the flow; choose one and the canvas shows it again, with each host's output. A run of an earlier version of the flow says so. Before, only the last run could be seen.
+
 ## 0.81.0 — AFD-221 (Jinja in fields)
 
 Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).

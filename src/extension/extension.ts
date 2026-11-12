@@ -19,6 +19,7 @@ import { registerHelp } from './help';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { registerInventoryView } from './inventoryView';
 import { logChannel } from './log';
+import { registerOutline } from './outline';
 import { ScenarioLive } from './run/scenarioLive';
 import { ScenarioTests } from './run/testController';
 import { watchSharedSources } from './sharedSubflows';
@@ -167,6 +168,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       webviewOptions: { retainContextWhenHidden: true },
     }),
     ...registerDocuments(host),
+    ...registerOutline(host),
     ...registerFlowCommands(host),
     ...registerRunCommands(host),
     host.scenarioLive,

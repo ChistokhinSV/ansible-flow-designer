@@ -54,6 +54,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `undo` (impl): What reverses the node: the Rollback pattern binds this node's undo step to it.
 - `condition` (string): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed): End nodes
+- `disabled` (boolean): true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes.
 - `join_mode` (all | any): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
 - `handler` (rollback | notify | retry | exclude): Format 1 name of purpose. Marks a failure handler node (what kind of handling it does)

@@ -7,7 +7,7 @@
     "color": "#14B8A6",
     "theme": "dark"
   },
-  "version": "0.81.0",
+  "version": "0.82.0",
   "publisher": "chistokhinsv",
   "license": "MIT",
   "repository": {
@@ -540,6 +540,11 @@
           ],
           "default": "workspace",
           "markdownDescription": "Which flows the Problems panel lists. `workspace`: every flow, checked in the background after start-up (open flows also get their binding checks). `open`: only flows open in an editor."
+        },
+        "afd.canvas.expandSubflows": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "A subflow node has a button that expands it in place, so its inner steps and their wires show on the level it is on. A view only: nothing is written to the flow file. Reopen the designer after changing it."
         },
         "afd.canvas.direction": {
           "type": "string",
@@ -1431,7 +1436,7 @@
                   },
                   {
                     "type": "object",
-                    "description": "Change fields of a node; null removes a field. A new key renames the node: from: references follow.",
+                    "description": "Change fields of a node; null removes a field. A new key renames the node: from: references follow. disabled: true switches a step off and keeps it (its hosts pass straight to the next step, no code is generated for it; null switches it back on): only when the user asks to skip or disable a step, never to silence a problem.",
                     "properties": {
                       "op": {
                         "const": "update_node"
@@ -1504,6 +1509,13 @@
                         ],
                         "minimum": 2,
                         "description": "Parallel nodes: number of branch ports branch_1..branch_n (default 2)"
+                      },
+                      "disabled": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ],
+                        "description": "true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes."
                       },
                       "settings": {
                         "type": "object",

@@ -187,6 +187,20 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'No flow input seeds the hosts entering the start node.',
     fix: 'Add a host_list flow input with targets: true (set_io flow).',
   },
+  'reads-disabled': {
+    meaning:
+      'A from: reads an output of a disabled node (or of a step inside a disabled subflow), which runs nothing and so makes nothing.',
+    fix: 'Give the input a default, read the value from another step, or enable the node (update_node with disabled: null).',
+  },
+  'disabled-ends-path': {
+    meaning:
+      'A disabled node the hosts cannot pass through: it does not go on to one next step (no main output is wired, or a decision or parallel has several), so the hosts that reach it stop there.',
+    fix: 'Wire exactly one of its main outputs, or enable the node; to take a branching step out, delete it and wire the path by hand.',
+  },
+  'disabled-not-allowed': {
+    meaning: 'disabled: true on a start or an end node, which are the ends of the path.',
+    fix: 'Remove disabled from the node.',
+  },
   'from-unresolved': {
     meaning: 'A from: names nothing this node can read.',
     fix: 'Use <node_key>.<output> of a node that runs before, flow.<input>, or inside a subflow <subflow_key>.<input>; give a path (sub/step.output) to set_io to lift a step inside another subflow.',

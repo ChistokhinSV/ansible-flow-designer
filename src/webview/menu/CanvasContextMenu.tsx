@@ -1,5 +1,6 @@
 // The canvas context menu (AFD-18): the entries `canvasMenu` gives for what was right-clicked,
 // drawn by the shared menu, each running an existing action (one command, so one undo step).
+
 import { useReactFlow } from '@xyflow/react';
 import {
   type CanvasAction,
@@ -24,14 +25,17 @@ import { copySelection } from '../clipboard';
 import {
   cutNodes,
   deleteSelection,
+  detachNodes,
   duplicate,
   editExitReason,
   rename,
   selectAll,
+  selectFlow,
   startExtract,
   upLevel,
 } from '../editActions';
 import { addNextNode, runPortItem } from '../portActions';
+import { startPartialRun } from '../runActions';
 import { keysOf } from '../shortcuts';
 import { type ContextMenuState, useUi } from '../store';
 import { Menu, type UiMenuEntry } from './Menu';
@@ -148,6 +152,21 @@ export function runCanvasAction(
     case 'extract':
       startExtract(action.nodes);
       return;
+    case 'detach':
+      void detachNodes(action.nodes);
+      return;
+    case 'setDisabled':
+      void run({ kind: 'setDisabled', ids: action.nodes, disabled: action.disabled });
+      return;
+    case 'dissolve':
+      void run({ kind: 'dissolveSubflow', id: action.node, place: true });
+      return;
+    case 'selectFlow':
+      selectFlow(action.node, action.dir);
+      return;
+    case 'zoomSelection':
+      ui.zoomToSelection();
+      return;
     case 'align':
       void alignSelection(action.how, action.nodes);
       return;
@@ -164,6 +183,9 @@ export function runCanvasAction(
     }
     case 'peekCode':
       send({ type: 'peekCode', node: action.node });
+      return;
+    case 'runPartial':
+      startPartialRun(action.node, action.only);
       return;
     case 'removeEntry':
       void run({ kind: 'setBoundaryIn', subflow: action.subflow, node: null });

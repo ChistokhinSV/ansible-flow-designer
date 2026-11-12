@@ -92,12 +92,18 @@ describe('canvas context menu', () => {
       'Status',
       'Open Port failed_hosts',
       'Add Next Node…',
+      'Disable',
+      'Detach from Path',
       'Reset Position',
+      'Select Upstream',
+      'Select Downstream',
       'Cut',
       'Copy',
       'Duplicate',
       'Open in Text Editor',
       'Peek Code',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
       'Delete',
     ]);
     const del = screen.getByRole('menuitem', { name: 'Delete' });
@@ -132,7 +138,7 @@ describe('canvas context menu', () => {
     });
     act(() => screen.getByRole('menuitem', { name: 'Delete' }).click());
     expect(sent('command').map((m) => m.command)).toEqual([
-      { kind: 'deleteNodes', ids: [id('validate')], edges: [] },
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
     ]);
   });
 
@@ -149,6 +155,8 @@ describe('canvas context menu', () => {
       'Copy',
       'Duplicate',
       'Extract into Subflow…',
+      'Disable',
+      'Detach from Path',
       'Arrange',
       'Delete',
     ]);
@@ -222,7 +230,7 @@ describe('canvas context menu', () => {
       fireEvent.keyDown(document.body, { key: 'Delete' });
     });
     expect(sent('command').map((m) => m.command)).toEqual([
-      { kind: 'deleteNodes', ids: [id('validate')], edges: [] },
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
     ]);
   });
 
@@ -232,6 +240,13 @@ describe('canvas context menu', () => {
     act(() => {
       fireEvent.contextMenu(node('precheck'), { clientX: 200, clientY: 150 });
     });
-    expect(items()).toEqual(['Details…', 'Copy', 'Open in Text Editor', 'Peek Code']);
+    expect(items()).toEqual([
+      'Details…',
+      'Copy',
+      'Open in Text Editor',
+      'Peek Code',
+      'Run from Here (Skeleton)',
+      'Run This Step (Skeleton)',
+    ]);
   });
 });

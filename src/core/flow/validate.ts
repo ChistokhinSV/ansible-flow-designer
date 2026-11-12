@@ -8,7 +8,9 @@ import { idGaps, withIds } from './completeIds';
 import { fromRegister, outputVar, registerName } from './dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
+import { canDisable, disabledBy, disabledIds } from './disabled';
 import { durationSeconds } from './duration';
+import { healPlan } from './heal';
 import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
 import { BARE_PARAMS, keywordReads } from './keywords';
 import { formatOf } from './migrate';
@@ -72,6 +74,42 @@ export interface ValidationResult {
   findings: Finding[];
 }
 
+/**
+ * AFD-242: a disabled node the hosts cannot pass through. It goes on only when exactly one of its
+ * main outputs leads somewhere (core/flow/heal); otherwise the hosts that reach it stop there.
+ */
+function checkDisabled(model: FlowModel, add: (f: Finding) => void): void {
+  for (const id of disabledIds(model)) {
+    const entry = model.nodes.get(id);
+    if (!entry || disabledBy(model, entry.level)) continue;
+    if (!canDisable(entry.node)) {
+      add({
+        code: 'disabled-not-allowed',
+        severity: 'error',
+        message: `${label(entry.node)} is a ${entry.node.type} node and cannot be disabled`,
+        path: [...entry.path, 'disabled'],
+        node: id,
+      });
+      continue;
+    }
+    const level = model.levels.get(entry.level);
+    const into = (level?.edges ?? []).filter((e) => e?.to?.node === id);
+    const parent = level?.parent ? model.nodes.get(level.parent)?.node : undefined;
+    const entryStep = parent?.subflow?.boundary?.in === id;
+    if (into.length === 0 && !entryStep) continue;
+    const plan = healPlan(model, [id]);
+    const through = plan.wires.length + plan.exits.length + plan.entries.length;
+    if (through > 0) continue;
+    add({
+      code: 'disabled-ends-path',
+      severity: 'warning',
+      message: `${label(entry.node)} is disabled and does not go on to one next step, so the hosts that reach it stop there: wire its main output, or enable it`,
+      path: [...entry.path, 'disabled'],
+      node: id,
+    });
+  }
+}
+
 export function validateFlow(
   doc: FlowDocument,
   schemaIssues: SchemaIssue[] = [],
@@ -122,6 +160,16 @@ export function validateFlow(
       node: open.node,
       port: open.port,
     });
+  }
+
+  checkDisabled(model, add);
+  // AFD-242: a disabled node does nothing, so warnings about what it would do (its binding, its
+  // open fail ports, its inputs) say nothing useful: only errors and what disabling itself causes.
+  const about = new Set(['disabled-ends-path', 'reads-disabled', 'disabled-not-allowed']);
+  for (let i = findings.length - 1; i >= 0; i--) {
+    const f = findings[i];
+    if (f?.node && f.severity !== 'error' && !about.has(f.code) && disabledBy(model, f.node))
+      findings.splice(i, 1);
   }
 
   const ids = new Set(model.nodes.keys());
@@ -942,6 +990,17 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
           continue;
         }
         const src = resolveFrom(model, node, level, side, from);
+        // AFD-242: a disabled step makes nothing; what reads it has no value at run time.
+        const off = src.kind === 'output' ? disabledBy(model, src.node.id) : undefined;
+        if (off && !disabledBy(model, node.id))
+          add({
+            code: 'reads-disabled',
+            severity: 'warning',
+            message: `${label(node)} ${side}.${name} reads "${from}", but ${label(off)} is disabled and makes nothing: give it a default, or enable ${label(off)}`,
+            path: [...path, side, name, 'from'],
+            node: node.id,
+            subject: name,
+          });
         if (src.kind === 'output' && side === 'inputs') {
           const at: Path = [...path, side, name, 'from'];
           checkCollision(model, node, src.node, src.name, from, at, name, add);

@@ -20,7 +20,9 @@ import {
   findAccepted,
   portAccepted,
 } from './decisions';
+import { canDisable } from './disabled';
 import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
+import { CONTINUES_ON, healPlan, healSummary, spliceProblem } from './heal';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
 import { mapStrings, renameExprRef, renameRef } from './jinja';
 import { BARE_KEYWORDS } from './keywords';
@@ -107,13 +109,31 @@ export type FlowCommand =
   | { kind: 'setDecision'; node: Ulid; port: string; reason: string; by?: string }
   | { kind: 'clearDecision'; node: Ulid; port: string }
   | { kind: 'rewire'; edge: Ulid; to: PortRef }
+  /** AFD-233: the wire now leaves from another output, which must be open. */
+  | { kind: 'rewireFrom'; edge: Ulid; from: PortRef }
+  /**
+   * AFD-234: a node standing free of the path goes into a wire; `positions` (where it was
+   * dropped, and nodes still at auto-layout positions) are written in the same edit.
+   */
+  | { kind: 'spliceNode'; node: Ulid; edge: Ulid; positions?: Record<Ulid, Position> }
+  /** AFD-242: several nodes switched off, or back on, in one edit. */
+  | { kind: 'setDisabled'; ids: Ulid[]; disabled: boolean }
+  /** AFD-235: the nodes leave their path, which closes behind them; they keep their wires to each other. */
+  | { kind: 'detachNodes'; ids: Ulid[] }
   | { kind: 'updateNode'; id: Ulid; patch: NodePatch }
   | { kind: 'deleteNode'; id: Ulid }
   /**
    * AFD-18: a selection (nodes and wires of one level) goes in one edit, so one undo restores it;
    * AFD-64: with its annotations.
    */
-  | { kind: 'deleteNodes'; ids: Ulid[]; edges?: Ulid[]; annotations?: Ulid[] }
+  | {
+      kind: 'deleteNodes';
+      ids: Ulid[];
+      edges?: Ulid[];
+      annotations?: Ulid[];
+      /** AFD-235: wires into the deleted nodes go on to where those nodes went on (core/flow/heal). */
+      heal?: boolean;
+    }
   /** AFD-64: annotations move in the same edit (stored form: relative for a Note on a node). */
   | {
       kind: 'moveNodes';
@@ -247,7 +267,11 @@ export type FlowCommand =
       freeze?: Record<Ulid, Position>;
     }
   /** AFD-196: move a subflow's steps up to its level and remove the subflow (inverse of extract). */
-  | { kind: 'dissolveSubflow'; id: Ulid }
+  /**
+   * `place` (AFD-241, the canvas): the steps keep their arrangement, moved to where the subflow
+   * stood; without stored positions on either side they are left to automatic placement.
+   */
+  | { kind: 'dissolveSubflow'; id: Ulid; place?: boolean }
   /** AFD-7: move a connected selection of one level into a new subflow node. */
   | {
       kind: 'extractSubflow';
@@ -287,6 +311,8 @@ export interface NodePatch {
   purpose?: HandlerKind | null;
   join_mode?: JoinMode | null;
   branches?: number | null;
+  /** AFD-242: true switches the node off; false or null switches it back on. */
+  disabled?: boolean | null;
   /** Merged into `settings`; null removes a setting. */
   settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
   /** Replaces the binding's task keywords (AFD-26); null or {} removes them. */
@@ -678,7 +704,11 @@ function nodeItem(
   }
   if (spec.settings && Object.keys(spec.settings).length > 0)
     node.settings = spec.settings as Record<string, YamlValue>;
-  if (spec.impl) node.impl = implValue(spec.impl);
+  if (spec.impl) {
+    node.impl = implValue(spec.impl);
+    // AFD-232: born bound, so implemented (AFD-31); format 2 settles the status itself.
+    if (node.status) node.status = 'implemented';
+  }
   return { id, item: node };
 }
 
@@ -793,16 +823,6 @@ function insertNode(tx: YamlTransaction, ctx: CommandContext, spec: NodeSpec): U
   return id;
 }
 
-/** Output a node continues on when it is inserted on a wire. */
-const CONTINUES_ON: Partial<Record<NodeType, string>> = {
-  task: 'ok_hosts',
-  subflow: 'ok_hosts',
-  join: 'ok_hosts',
-  decision: 'true',
-  approval: 'approved',
-  parallel: 'branch_1',
-};
-
 function addNode(
   tx: YamlTransaction,
   ctx: CommandContext,
@@ -868,6 +888,129 @@ function rewire(tx: YamlTransaction, edgeId: Ulid, to: PortRef): void {
   }
   retarget(tx, entry.path, edge.to, to);
   ensurePortEnabled(tx, to.node, to.port);
+}
+
+/** AFD-233: the wire's source end moves to another output, open and on the same level. */
+function rewireFrom(tx: YamlTransaction, edgeId: Ulid, from: PortRef): void {
+  const st = state(tx);
+  const entry = st.model.edges.get(edgeId);
+  if (!entry) throw new CommandError('not-found', `No edge ${edgeId}`);
+  const { edge } = entry;
+  if (edge.from.node === from.node && edge.from.port === from.port) return;
+  const level = checkOutput(st, from);
+  if (level.id !== entry.level)
+    throw new CommandError('cross-level', 'Both ends must be in the same level');
+  const without = { ...level, edges: level.edges.filter((e) => e?.id !== edgeId) };
+  if (from.node === edge.to.node || reachable(without, edge.to.node, from.node)) {
+    throw new CommandError('cycle', 'This edge would create a cycle');
+  }
+  const ops: Op[] = [];
+  if (from.node !== edge.from.node)
+    ops.push((f) => setIn(f, [...entry.path, 'from', 'node'], from.node));
+  if (from.port !== edge.from.port)
+    ops.push((f) => setIn(f, [...entry.path, 'from', 'port'], from.port));
+  tx.applyAll(ops);
+  ensurePortEnabled(tx, from.node, from.port);
+  const dropped = decisionRemovalOps(state(tx), from.node, from.port);
+  if (dropped.length) tx.applyAll(dropped);
+}
+
+/** AFD-242: `disabled: true` on the nodes, or the key removed. */
+function setDisabled(tx: YamlTransaction, ids: readonly Ulid[], disabled: boolean): void {
+  for (const id of ids) {
+    const { node, path } = nodeAt(state(tx), id);
+    if (!canDisable(node))
+      throw new CommandError('bad-type', `A ${node.type} node cannot be disabled`);
+    if ((node.disabled === true) === disabled) continue;
+    setField(tx, path, 'disabled', disabled ? true : null, NODE_ORDER);
+  }
+}
+
+/** AFD-234: a free-standing node goes into a wire, as a new one does (insertOnEdge). */
+function spliceNode(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'spliceNode' }>,
+): void {
+  const st = state(tx);
+  const { node } = nodeAt(st, cmd.node);
+  const problem = spliceProblem(st.model, cmd.node, cmd.edge);
+  if (problem) throw new CommandError('bad-command', problem);
+  if (cmd.positions) setPositions(tx, cmd.positions);
+  insertOnEdge(tx, ctx, cmd.edge, cmd.node, CONTINUES_ON[node.type] as string);
+}
+
+/**
+ * AFD-235: the path closes over nodes about to leave it (core/flow/heal): each wire into them is
+ * re-pointed, or takes over the exit they left the subflow by; an entry moves to the next step.
+ */
+function healAround(
+  tx: YamlTransaction,
+  ids: readonly Ulid[],
+  goneEdges: readonly Ulid[],
+  notes: string[],
+): void {
+  const plan = healPlan(state(tx).model, ids, goneEdges);
+  for (const w of plan.wires) {
+    const entry = state(tx).model.edges.get(w.edge);
+    if (entry) retarget(tx, entry.path, entry.edge.to, w.to);
+  }
+  for (const x of plan.exits) {
+    removeEdgeById(tx, x.edge);
+    const st = state(tx);
+    const boundary = subflowAt(st, x.subflow).node.subflow?.boundary ?? {};
+    const ref = { node: x.from.node, port: x.from.port, ...(x.reason ? { reason: x.reason } : {}) };
+    tx.applyAll(
+      boundaryOps(st, x.subflow, {
+        ...boundary,
+        outputs: { ...boundary.outputs, [x.port]: [...(boundary.outputs?.[x.port] ?? []), ref] },
+      }),
+    );
+  }
+  for (const e of plan.entries) setBoundaryIn(tx, { kind: 'setBoundaryIn', ...e });
+  const said = healSummary(plan);
+  if (said) notes.push(said);
+}
+
+/** AFD-235: the nodes stand free: the path closes behind them and their outside wires go. */
+function detachNodes(tx: YamlTransaction, ids: readonly Ulid[], notes: string[]): void {
+  const first = state(tx);
+  const out = new Set(ids);
+  for (const id of ids) nodeAt(first, id);
+  healAround(tx, ids, [], notes);
+  const st = state(tx);
+  const loose: Ulid[] = [];
+  const levels = new Set(ids.map((id) => nodeAt(st, id).level));
+  for (const levelId of levels) {
+    const level = levelOf(st, levelId);
+    for (const e of level.edges)
+      if (e && out.has(e.from?.node) !== out.has(e.to?.node)) loose.push(e.id);
+  }
+  removeEdgesAtOnce(tx, loose);
+  // The detached nodes no longer start the subflow, nor leave it.
+  for (const levelId of levels) {
+    const now = state(tx);
+    const level = levelOf(now, levelId);
+    const parent = level.parent ? now.model.nodes.get(level.parent)?.node : undefined;
+    const boundary = parent?.subflow?.boundary;
+    if (!parent || !boundary) continue;
+    const outputs = Object.fromEntries(
+      Object.entries(boundary.outputs ?? {}).map(([p, refs]) => [
+        p,
+        (refs ?? []).filter((r) => !out.has(r?.node as string)),
+      ]),
+    );
+    const changed =
+      out.has(boundary.in as string) ||
+      Object.entries(outputs).some(([p, refs]) => refs.length !== boundary.outputs?.[p]?.length);
+    if (changed)
+      tx.applyAll(
+        boundaryOps(now, parent.id, {
+          in: out.has(boundary.in as string) ? undefined : boundary.in,
+          outputs,
+        }),
+      );
+  }
 }
 
 function applyPattern(
@@ -1134,6 +1277,7 @@ function updateNode(
   for (const k of ['intent', 'condition', 'outcome', 'join_mode', 'branches'] as const) {
     setField(tx, path, k, patch[k] as YamlValue | undefined, NODE_ORDER);
   }
+  if (patch.disabled !== undefined) setDisabled(tx, [cmd.id], patch.disabled === true);
   // Format 1 calls it handler (AFD-52); a format 1 name left in a format 2 node goes with the edit.
   if (patch.purpose !== undefined) {
     const key = purposeKey(state(tx).doc);
@@ -3154,6 +3298,7 @@ export function planCommand(
     case 'deleteNodes': {
       // AFD-193: what reads the nodes going away, found before they go.
       const dangling = danglingRefs(state(tx), cmd.ids);
+      if (cmd.heal && cmd.ids.length > 0) healAround(tx, cmd.ids, cmd.edges ?? [], notes);
       // Wires first; each item is looked up again, so a wire of a deleted node or the child of a
       // deleted subflow is simply gone already.
       let removed = removeEdgesAtOnce(tx, cmd.edges ?? []);
@@ -3202,6 +3347,19 @@ export function planCommand(
       break;
     case 'rewire':
       rewire(tx, cmd.edge, cmd.to);
+      break;
+    case 'rewireFrom':
+      rewireFrom(tx, cmd.edge, cmd.from);
+      break;
+    case 'spliceNode':
+      spliceNode(tx, ctx, cmd);
+      break;
+    case 'detachNodes':
+      detachNodes(tx, cmd.ids, notes);
+      break;
+    case 'setDisabled':
+      if (cmd.ids.length === 0) throw new CommandError('not-found', 'No nodes named');
+      setDisabled(tx, cmd.ids, cmd.disabled);
       break;
     case 'disconnect':
       removeEdgeById(tx, cmd.edge);
@@ -3301,9 +3459,33 @@ export function planCommand(
       setField(tx, path, 'ref', null, NODE_ORDER);
       break;
     }
-    case 'dissolveSubflow':
+    case 'dissolveSubflow': {
+      // Read before the subflow goes: where it stood, and its steps with their places inside.
+      const was = state(tx);
+      const layout = was.doc.layout ?? {};
+      const at = layout[cmd.id];
+      const steps = (was.model.nodes.get(cmd.id)?.node.subflow?.nodes ?? [])
+        .filter((n) => !!n?.id)
+        .map((n) => n.id);
       rereferenced.push(...dissolveSubflow(tx, ctx, cmd.id, notes));
+      if (cmd.place) {
+        const placed = steps.filter((id) => layout[id]);
+        if (at && placed.length === steps.length && steps.length > 0) {
+          const left = Math.min(...placed.map((id) => (layout[id] as Position).x));
+          const top = Math.min(...placed.map((id) => (layout[id] as Position).y));
+          setPositions(
+            tx,
+            Object.fromEntries(
+              placed.map((id) => {
+                const p = layout[id] as Position;
+                return [id, { x: at.x + p.x - left, y: at.y + p.y - top }];
+              }),
+            ),
+          );
+        } else unplaceNodes(tx, steps);
+      }
       break;
+    }
     case 'extractSubflow': {
       const r = extractSubflow(tx, ctx, cmd);
       created = r.id;

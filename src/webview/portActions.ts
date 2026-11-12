@@ -3,6 +3,7 @@
 import { modelOf } from '../core/flow/model';
 import type { PatternId } from '../core/flow/patterns';
 import { freeOutput, nextFrom, type PortMenuItem, patternTarget } from '../core/flow/portMenu';
+import { portDirection } from '../core/flow/ports';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
 import { attachAnnotation } from './annotationActions';
@@ -98,6 +99,60 @@ export async function runPortItem(item: PortMenuItem, ref: PortRef): Promise<voi
     case 'later':
       return;
   }
+}
+
+/** Insert Node on This Wire, from the wire's + (AFD-231) or its menu. */
+export function insertOnWire(edge: Ulid): void {
+  const ui = useUi.getState();
+  const source = ui.snapshot?.doc ? modelOf(ui.snapshot.doc).edges.get(edge)?.edge.from.node : '';
+  // On a level laid out automatically the new step gets no position: the layout puts it in line.
+  const auto = !!source && source in (ui.snapshot?.autoPositions ?? {});
+  ui.openQuickAdd({
+    type: 'task',
+    insertOn: edge,
+    ...(auto ? {} : { position: insertPosition(edge) }),
+  });
+}
+
+/**
+ * AFD-233: a wire's end dragged off its port and let go: over a node or a port the wire now ends
+ * (or starts) there; over empty canvas it is disconnected. `end` is the end that was dragged.
+ */
+export async function dropWireEnd(
+  edgeId: Ulid,
+  end: 'source' | 'target',
+  on: { node: Ulid; port?: string } | null,
+): Promise<void> {
+  const ui = useUi.getState();
+  const doc = ui.snapshot?.doc;
+  const edge = doc ? modelOf(doc).edges.get(edgeId)?.edge : undefined;
+  if (!doc || !edge) return;
+  if (!on) {
+    await run({ kind: 'disconnect', edge: edgeId });
+    return;
+  }
+  if (end === 'target') {
+    const port = on.port && portDirection(on.port) === 'in' ? on.port : 'in';
+    if (edge.to.node === on.node && edge.to.port === port) return;
+    await run({ kind: 'rewire', edge: edgeId, to: { node: on.node, port } });
+    return;
+  }
+  // The source end: the port it was dropped on, else the node's first main output still open.
+  const next = nextFrom(modelOf(doc), on.node);
+  const port =
+    on.port && portDirection(on.port) === 'out'
+      ? on.port
+      : edge.from.node === on.node
+        ? edge.from.port
+        : next && !next.insertOn
+          ? next.port
+          : undefined;
+  if (!port) {
+    ui.setError('That node has no open output to wire from');
+    return;
+  }
+  if (edge.from.node === on.node && edge.from.port === port) return;
+  await run({ kind: 'rewireFrom', edge: edgeId, from: { node: on.node, port } });
 }
 
 /** Finishes a pick started from a port menu with the clicked node. */

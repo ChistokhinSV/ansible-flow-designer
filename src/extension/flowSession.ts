@@ -33,6 +33,7 @@ import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import type { RepoState } from '../core/view/flowFacts';
 import { isWebLink, linksOf } from '../core/view/markdown';
+import { flowOutline, nodeAtOffset } from '../core/view/outline';
 import {
   addMarks,
   closedMarks,
@@ -40,6 +41,7 @@ import {
   type OutsideMarks,
   outsideChanges,
 } from '../core/view/outsideChanges';
+import { undoSummary } from '../core/view/undoSummary';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
@@ -57,6 +59,7 @@ import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { logChannel } from './log';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
+import { listRuns, loadRun } from './run/pastRuns';
 import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
@@ -419,12 +422,51 @@ export class FlowSession implements vscode.Disposable {
     if (!own) this.outsideEdit = true;
     this.ownText = undefined;
     clearTimeout(this.changeTimer);
+    // AFD-239: an undo or a redo says what it did: the flow before it, against the flow after.
+    const verb =
+      reason === vscode.TextDocumentChangeReason.Undo
+        ? 'Undid'
+        : reason === vscode.TextDocumentChangeReason.Redo
+          ? 'Redid'
+          : undefined;
+    const before = verb && this.hasPanels ? this.built?.parsed.doc : undefined;
+    const refresh = async () => {
+      await this.refresh();
+      if (verb && before) this.sayUndo(before, verb);
+    };
     const typing = vscode.window.visibleTextEditors.some((e) => e.document === this.document);
     if (!typing || this.pendingParse?.text === this.document.getText()) {
-      void this.refresh();
+      void refresh();
       return;
     }
-    this.changeTimer = setTimeout(() => void this.refresh(), TIMEOUTS.typingSettles);
+    this.changeTimer = setTimeout(() => void refresh(), TIMEOUTS.typingSettles);
+  }
+
+  private sayUndo(before: FlowDocument, verb: 'Undid' | 'Redid'): void {
+    const after = this.built?.version === this.document.version ? this.built.parsed.doc : undefined;
+    if (!after) return;
+    try {
+      this.broadcast({
+        type: 'notify',
+        level: 'info',
+        text: undoSummary(before, after, verb).text,
+      });
+    } catch (e) {
+      // The message is a courtesy: a flow the diff cannot read still undoes.
+      logChannel().appendLine(`undo summary: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** AFD-236, AFD-240: shows the node whose YAML holds a place in the text, on the canvas. */
+  revealAt(offset: number): void {
+    const parsed = this.built?.version === this.document.version ? this.built.parsed : undefined;
+    if (!parsed?.doc) return;
+    try {
+      const node = nodeAtOffset(flowOutline(parsed.file, modelOf(parsed.doc)), offset);
+      if (node) this.reveal(node);
+    } catch {
+      // No node there to show.
+    }
   }
 
   openLens(lens: LensId | null, refresh = false): Promise<void> {
@@ -603,10 +645,18 @@ export class FlowSession implements vscode.Disposable {
       case 'ready':
         this.readyPanels.add(panel);
         for (const w of this.readyWaiters.splice(0)) w();
-        this.post(panel, { type: 'config', testMode: this.deps.testMode });
+        this.post(panel, {
+          type: 'config',
+          testMode: this.deps.testMode,
+          expandSubflows:
+            vscode.workspace
+              .getConfiguration('afd', this.document.uri)
+              .get<boolean>('canvas.expandSubflows') !== false,
+        });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });
+        void this.sendRuns(panel).catch(() => undefined);
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
         // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
         void this.deps.repo?.().then((state) => {
@@ -762,6 +812,15 @@ export class FlowSession implements vscode.Disposable {
       // AFD-82: the designer's Run opens its launch dialog.
       case 'run':
         await vscode.commands.executeCommand(CMD.runLaunch, this.uri, m.mode);
+        break;
+      case 'runPartial':
+        await vscode.commands.executeCommand(CMD.runPartial, this.uri, {
+          node: m.node,
+          only: m.only,
+        });
+        break;
+      case 'showRun':
+        await this.showPastRun(m.id);
         break;
       case 'launchCheck': {
         const deps = this.deps.run?.(this.uri);
@@ -998,6 +1057,33 @@ export class FlowSession implements vscode.Disposable {
     this.lastRun = run;
     this.broadcast({ type: 'run', run });
     this.lens.ran(run, this.built?.parsed.doc?.flow.id);
+    // AFD-245: a run that ended is in the list of kept runs from now on.
+    if (run.state !== 'running') void this.sendRuns().catch(() => undefined);
+  }
+
+  /** AFD-245: the kept runs of this flow, to one panel or to all. */
+  private async sendRuns(panel?: vscode.WebviewPanel): Promise<void> {
+    const storage = this.deps.run?.(this.uri).storage;
+    const flowId = (await this.snapshot()).doc?.flow.id;
+    if (!storage || !flowId) return;
+    const message = { type: 'runs' as const, runs: await listRuns(storage, flowId) };
+    // The panel may have closed while the list was read.
+    if (!panel) this.broadcast(message);
+    else if (this.readyPanels.has(panel)) this.post(panel, message);
+  }
+
+  /** AFD-245: an earlier run on the canvas again; its per-host output is read from its folder. */
+  private async showPastRun(id: string): Promise<void> {
+    const storage = this.deps.run?.(this.uri).storage;
+    const flowId = (await this.snapshot()).doc?.flow.id;
+    const run = storage && flowId ? await loadRun(storage, flowId, id) : undefined;
+    if (!run) {
+      this.broadcast({ type: 'notify', level: 'error', text: 'That run is no longer kept' });
+      void this.sendRuns().catch(() => undefined);
+      return;
+    }
+    this.lastRun = { ...run, past: true };
+    this.broadcast({ type: 'run', run: this.lastRun });
   }
 
   /** Plans a command against the current text and applies it as one WorkspaceEdit (one undo step). */

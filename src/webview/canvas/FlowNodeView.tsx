@@ -22,25 +22,32 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { purposeOf } from '../../core/flow/format';
 import { modelOf } from '../../core/flow/model';
-import type { PortSide } from '../../core/flow/ports';
+import { mainOutputs, type PortSide } from '../../core/flow/ports';
+import { sharedAround } from '../../core/flow/refs';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
+import type { Snapshot } from '../../core/protocol';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
 import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
+import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges';
+import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
+import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
 import { StatusIcon } from './StatusIcon';
 
-export type FlowNodeData = { view: NodeView };
+/** `role` (AFD-243): a subflow expanded in place (`frame`), or a step drawn inside one (`inner`). */
+export type FlowNodeData = { view: NodeView; role?: 'inner' | 'frame' };
 export type FlowRFNode = Node<FlowNodeData, 'flow'>;
 
 const SIDE: Record<PortSide, Position> = {
@@ -75,10 +82,13 @@ function PortHandle({
   port,
   focusable,
   preview,
+  readOnly,
 }: {
   nodeId: string;
   type: NodeType;
   port: PortView;
+  /** AFD-243: a step drawn inside an expanded subflow: its ports are shown, not used. */
+  readOnly?: boolean;
   focusable: boolean;
   /** The step has a preview card, which comes back once the pointer leaves the port. */
   preview: boolean;
@@ -88,7 +98,7 @@ function PortHandle({
   const style = port.side === 'top' || port.side === 'bottom' ? { left: along } : { top: along };
   const isOutput = port.direction === 'out';
   // Code and Run modes read the graph; wiring and port menus belong to Design (AFD-45).
-  const locked = useUi((s) => s.mode !== 'design');
+  const locked = useUi((s) => s.mode !== 'design') || readOnly === true;
   const open = (el: HTMLDivElement) => {
     // While picking a target, the click belongs to the node (FlowCanvas onNodeClick).
     if (useUi.getState().pick || locked) return;
@@ -151,6 +161,183 @@ function PortHandle({
         {port.name}
       </span>
     </Handle>
+  );
+}
+
+/**
+ * AFD-231: Add Next Node in one click, beside the open output the flow goes on from. Always shown
+ * there (not on hover only), so a path that stops says where it continues. The port keeps its own
+ * menu (Connect to Done, Connect to Another Node…).
+ */
+function PortPlus({
+  nodeId,
+  port,
+  focusable,
+}: {
+  nodeId: string;
+  port: PortView;
+  focusable: boolean;
+}) {
+  const along = `${Math.round(port.offset * 100)}%`;
+  return (
+    <button
+      type="button"
+      className={`afd-plus afd-port-plus side-${port.side} nodrag nopan`}
+      style={port.side === 'bottom' ? { left: along } : { top: along }}
+      title={`Add Next Node from ${port.name}`}
+      aria-label={`Add Next Node from ${port.name}`}
+      data-port-plus={port.name}
+      tabIndex={focusable ? 0 : -1}
+      onPointerEnter={() => useUi.getState().portHover(true)}
+      onPointerLeave={() => useUi.getState().portHover(false)}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        // Enter and Space press the button; not the node's own Enter.
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        addNextNode({ node: nodeId, port: port.name });
+      }}
+    >
+      <span className="codicon codicon-add" aria-hidden="true" />
+    </button>
+  );
+}
+
+// AFD-236: the badges of one snapshot, worked out once for all its nodes.
+let badged: { snapshot: Snapshot; badges: Map<string, ProblemBadge> } | undefined;
+function badgeOf(snapshot: Snapshot | null, id: string): ProblemBadge | undefined {
+  if (!snapshot?.doc) return undefined;
+  if (badged?.snapshot !== snapshot)
+    badged = { snapshot, badges: problemBadges(modelOf(snapshot.doc), snapshot.findings) };
+  return badged?.badges.get(id);
+}
+
+/**
+ * AFD-236: the node's errors and warnings, as a count in its corner. A click goes to the Details
+ * tab of the first one; on a subflow whose problems are all inside, it opens the subflow.
+ */
+function ProblemMark({ node, badge }: { node: FlowNode; badge: ProblemBadge }) {
+  const own = badge.errors + badge.warnings;
+  const count = own + badge.inside;
+  const what = `${count} problem${count === 1 ? '' : 's'}`;
+  return (
+    <button
+      type="button"
+      className={`afd-node-problem tone-${badge.severity} nodrag nopan`}
+      data-node-problem={badge.severity}
+      title={`${badge.title}\n${own > 0 ? 'Click for the details' : 'Click to open the subflow'}`}
+      aria-label={`${what}: ${own > 0 ? 'show in Details' : 'open the subflow'}`}
+      tabIndex={-1}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        const ui = useUi.getState();
+        if (own > 0) ui.openDetails(node.id, badge.tab ?? 'general');
+        else ui.setLevel(node.id);
+      }}
+    >
+      <span
+        className={`codicon codicon-${badge.severity === 'error' ? 'error' : 'warning'}`}
+        aria-hidden="true"
+      />
+      {count > 1 ? count : null}
+    </button>
+  );
+}
+
+/** The id of the handle a frame's port has on its inside (AFD-243). */
+export const innerHandle = (port: string) => `__inner:${port}`;
+
+// As the boundary frame of an open subflow (BoundaryFrame): the handles sit on the frame's edges
+// and face inward, so the entry leaves `in` into the frame and exits arrive from inside it.
+const FACING: Record<PortSide, Position> = {
+  top: Position.Bottom,
+  bottom: Position.Top,
+  right: Position.Left,
+  left: Position.Right,
+};
+const ON_EDGE: Record<PortSide, Record<string, string | number>> = {
+  top: { top: 0, bottom: 'auto', transform: 'translate(-50%, -50%)' },
+  bottom: { top: 'auto', bottom: 0, transform: 'translate(-50%, 50%)' },
+  right: { left: 'auto', right: 0, transform: 'translate(50%, -50%)' },
+  left: { left: 0, right: 'auto', transform: 'translate(-50%, -50%)' },
+};
+
+/**
+ * AFD-243: a subflow expanded in place joins its inner wires to its own ports: the entry wire
+ * starts inside its `in`, and each exit ends inside the port it leaves through. These handles
+ * lie under the node's ports and are only where those wires attach.
+ */
+function InnerHandles({ ports }: { ports: PortView[] }) {
+  return (
+    <>
+      {ports.map((p) => {
+        const along = `${Math.round(p.offset * 100)}%`;
+        const across = p.side === 'top' || p.side === 'bottom' ? { left: along } : { top: along };
+        return (
+          <Handle
+            key={p.name}
+            id={innerHandle(p.name)}
+            type={p.direction === 'in' ? 'source' : 'target'}
+            position={FACING[p.side]}
+            isConnectable={false}
+            className="afd-inner-handle"
+            style={{ ...ON_EDGE[p.side], ...across }}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** The node's title; edited in place while it is being renamed (AFD-237). */
+function Title({ node }: { node: FlowNode }) {
+  const renaming = useUi((s) => s.renaming === node.id);
+  return renaming ? (
+    <TitleInput node={node} />
+  ) : (
+    <span className="afd-node-title">{node.title}</span>
+  );
+}
+
+/** Enter or leaving the field saves, Esc gives up; an empty or unchanged title changes nothing. */
+function TitleInput({ node }: { node: FlowNode }) {
+  const [value, setValue] = useState(node.title);
+  const field = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    field.current?.focus();
+    field.current?.select();
+  }, []);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    useUi.getState().setRenaming(null);
+    const title = value.trim();
+    if (save && title && title !== node.title)
+      void run({ kind: 'updateNode', id: node.id, patch: { title } });
+    // Back to the node, so the keys that follow are the canvas's again.
+    field.current?.closest<HTMLElement>('.react-flow__node')?.focus();
+  };
+  return (
+    <input
+      ref={field}
+      className="afd-node-title afd-node-title-input nodrag nopan nokey"
+      aria-label="Node title"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
   );
 }
 
@@ -279,16 +466,30 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
   if (node.type === 'start' || node.type === 'end' || BAR.has(node.type)) {
     return (
       <>
-        <span className="afd-node-title">{node.title}</span>
+        <Title node={node} />
         {BAR.has(node.type) ? null : <LensChips id={node.id} />}
       </>
     );
   }
   const status = node.status ?? 'draft';
+  // AFD-242: a disabled step says so in every mode; it has no code and no run to show.
+  if (node.disabled && !near)
+    return (
+      <>
+        <div className="afd-node-head">
+          <StatusIcon status={status} />
+          <Title node={node} />
+        </div>
+        <LensChips id={node.id} />
+        <div className="afd-node-sub" title={subLine(node)}>
+          {subLine(node)}
+        </div>
+      </>
+    );
   const head = (
     <div className="afd-node-head">
       <StatusIcon status={status} />
-      <span className="afd-node-title">{node.title}</span>
+      <Title node={node} />
     </div>
   );
   if (near)
@@ -336,6 +537,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const far = useStore(farSelector);
   const near = useStore(nearSelector);
   const { node, ports } = data.view;
+  const role = data.role;
+  const canExpand = useUi((s) => s.expandSubflows) && node.type === 'subflow' && role !== 'inner';
   const dataLens = useUi((s) => s.lens === 'data');
   // Handles added or removed after mount must be measured again before wires can attach. Only on a
   // toggle: re-measuring every node on mount upsets the initial fit of the view.
@@ -346,6 +549,13 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     shownData.current = dataLens;
     updateInternals(node.id);
   }, [dataLens, node.id, updateInternals]);
+  // AFD-243: the inner handles of a frame come and go with it.
+  const shownRole = useRef(role);
+  useEffect(() => {
+    if (shownRole.current === role) return;
+    shownRole.current = role;
+    updateInternals(node.id);
+  }, [role, node.id, updateInternals]);
   const lensChips = useUi((s) =>
     s.lens ? (s.lensView?.chips[node.id] ?? []).map((c) => c.text).join('|') : undefined,
   );
@@ -377,6 +587,21 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     const change = outside === 'outside-mark' && s.outside?.changes?.find((c) => c.id === node.id);
     return change ? `Changed outside the designer: ${changeWords(change)}` : undefined;
   });
+  const badge = useUi((s) => badgeOf(s.snapshot, node.id));
+  // AFD-231: the first main output still open, in Design mode on a level that can be edited.
+  const canAdd = useUi(
+    (s) =>
+      s.mode === 'design' &&
+      !!s.snapshot?.doc &&
+      !s.snapshot.stale &&
+      !s.snapshot.idGaps &&
+      !sharedAround(s.snapshot.doc, s.level),
+  );
+  const mains = mainOutputs(node);
+  const plusPort =
+    canAdd && !far && !role
+      ? ports.find((p) => p.state === 'open' && mains.includes(p.name))
+      : undefined;
   const classes = [
     outside,
     runMode ? 'run-mode' : '',
@@ -389,6 +614,10 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     selected ? 'selected' : '',
     active ? 'active' : '',
     pickAt ? 'afd-pick-at' : '',
+    badge ? `has-problem problem-${badge.severity}` : '',
+    node.disabled ? 'disabled' : '',
+    role === 'frame' ? 'expanded' : '',
+    role === 'inner' ? 'inner' : '',
     lit,
   ]
     .filter(Boolean)
@@ -398,6 +627,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     <div
       className={classes}
       data-node-id={node.id}
+      data-disabled={node.disabled ? 'true' : undefined}
       data-run-state={runState}
       data-lens={lensChips}
       data-outside={outside || undefined}
@@ -411,10 +641,41 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           nodeId={node.id}
           type={node.type}
           port={p}
-          focusable={selected || active}
+          readOnly={role === 'inner'}
+          focusable={(selected || active) && role !== 'inner'}
           preview={hasPreview(node)}
         />
       ))}
+      {canExpand && !far ? (
+        <button
+          type="button"
+          className="afd-expand icon nodrag nopan"
+          data-expand={role === 'frame' ? 'open' : 'closed'}
+          title={
+            role === 'frame'
+              ? 'Collapse: show the subflow as one step'
+              : 'Expand here: show the steps inside'
+          }
+          aria-label={role === 'frame' ? 'Collapse the subflow' : 'Expand the subflow here'}
+          aria-expanded={role === 'frame'}
+          tabIndex={-1}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            useUi.getState().toggleExpanded(node.id);
+          }}
+        >
+          <span
+            className={`codicon codicon-chevron-${role === 'frame' ? 'up' : 'down'}`}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
+      {badge && !far ? <ProblemMark node={node} badge={badge} /> : null}
+      {role === 'frame' ? <InnerHandles ports={ports} /> : null}
+      {plusPort ? (
+        <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />
+      ) : null}
       {dataLens ? (
         <>
           {/* Data lens (decision 14): derived wires attach here, never to control ports. */}
@@ -436,11 +697,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           />
         </>
       ) : null}
-      {far ? (
-        <span className="afd-node-title">{node.title}</span>
-      ) : (
-        <NodeBody node={node} near={near} />
-      )}
+      {far ? <Title node={node} /> : <NodeBody node={node} near={near} />}
     </div>
   );
 });

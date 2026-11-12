@@ -125,7 +125,9 @@ describe('keyboard', () => {
   it('cut: the YAML on the clipboard and one deleteNodes', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
     expect(clipboard('cut')).toContain('key: validate');
-    expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [id('validate')], edges: [] }]);
+    expect(commands()).toEqual([
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
+    ]);
   });
 
   it('Ctrl+D duplicates without a position (+40, +40) and without the clipboard', () => {
@@ -146,15 +148,32 @@ describe('keyboard', () => {
     expect(commands()).toHaveLength(1);
   });
 
-  it('F2 puts the cursor in the inspector Title, text selected', () => {
+  it('F2 edits the title on the canvas, text selected; Enter saves, Esc gives up (AFD-237)', () => {
+    canvas();
     act(() => useUi.getState().select({ node: id('validate') }));
     render(<Details id={id('validate')} />);
     act(() => {
       fireEvent.keyDown(document.body, { key: 'F2' });
     });
-    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    const title = screen.getByLabelText('Node title') as HTMLInputElement;
     expect(document.activeElement).toBe(title);
     expect([title.selectionStart, title.selectionEnd]).toEqual([0, title.value.length]);
+    // Keys in the field are the field's: Delete does not delete the node.
+    fireEvent.keyDown(title, { key: 'Delete' });
+    fireEvent.change(title, { target: { value: 'Validate NTP' } });
+    fireEvent.keyDown(title, { key: 'Enter' });
+    expect(commands()).toEqual([
+      { kind: 'updateNode', id: id('validate'), patch: { title: 'Validate NTP' } },
+    ]);
+    expect(useUi.getState().renaming).toBeNull();
+    act(() => {
+      fireEvent.keyDown(document.body, { key: 'F2' });
+    });
+    const again = screen.getByLabelText('Node title') as HTMLInputElement;
+    fireEvent.change(again, { target: { value: 'Something else' } });
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(commands()).toHaveLength(1);
+    expect(screen.queryByLabelText('Node title')).toBeNull();
   });
 
   it('Escape closes the innermost thing only, then clears the selection; in a field it keeps it', () => {

@@ -57,6 +57,7 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
     .filter((p) => !defaultPortNames(node).includes(p));
   const parts = [
     `${node.key} (${node.type}${node.status ? `, ${node.status}` : ''}) "${node.title}"`,
+    node.disabled ? 'DISABLED (hosts pass through, nothing is generated)' : '',
     node.intent ? `intent: ${node.intent}` : '',
     node.condition ? `condition: ${node.condition}` : '',
     node.outcome ? `outcome: ${node.outcome}` : '',

@@ -363,7 +363,7 @@ async function onMessage(m: WebviewMessage) {
       );
       break;
     case 'ready':
-      toWebview({ type: 'config', testMode: true });
+      toWebview({ type: 'config', testMode: true, expandSubflows: true });
       // AFD-73: hidden, so other screenshots stay as they were; its own shot shows it.
       toWebview({ type: 'firstFlow', hidden: true, done: [] });
       toWebview({

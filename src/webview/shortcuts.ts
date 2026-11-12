@@ -33,15 +33,26 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'cut', keys: `${MOD}X`, label: 'Cut the selected nodes', group: 'Edit' },
   { id: 'paste', keys: `${MOD}V`, label: 'Paste nodes at the pointer', group: 'Edit' },
   { id: 'duplicate', keys: `${MOD}D`, label: 'Duplicate the selected nodes', group: 'Edit' },
-  { id: 'delete', keys: 'Delete', label: 'Delete the selection, in one undo step', group: 'Edit' },
+  {
+    id: 'delete',
+    keys: 'Delete',
+    label: 'Delete the selection: the path closes behind it (Shift+Delete leaves the gap)',
+    group: 'Edit',
+  },
   {
     id: 'rename',
     keys: 'F2',
-    label: "Rename the selected node, or edit a note's text",
+    label: "Rename the selected node on the canvas, or edit a note's text",
     group: 'Edit',
   },
   { id: 'undo', keys: `${MOD}Z`, label: 'Undo (VS Code keeps one step per change)', group: 'Edit' },
   { id: 'redo', keys: IS_MAC ? '⇧⌘Z' : 'Ctrl+Y', label: 'Redo', group: 'Edit' },
+  {
+    id: 'disable',
+    keys: 'D',
+    label: 'Disable the selected steps (their hosts pass through), or enable them again',
+    group: 'Edit',
+  },
   {
     id: 'addNode',
     keys: 'N',
@@ -73,6 +84,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Move around',
   },
   { id: 'find', keys: `${MOD}F`, label: 'Find a node on any level', group: 'Move around' },
+  {
+    id: 'follow',
+    keys: `${MOD}↓ / ${MOD}↑`,
+    label: 'Follow a wire: the next step, or the one before',
+    group: 'Move around',
+  },
   {
     id: 'ports',
     keys: 'Tab, Enter',
@@ -117,6 +134,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Canvas',
   },
   { id: 'fit', keys: 'Shift+1', label: 'Fit the whole level in view', group: 'Canvas' },
+  { id: 'zoomSelection', keys: 'Shift+2', label: 'Zoom to the selection', group: 'Canvas' },
   {
     id: 'escape',
     keys: 'Esc',

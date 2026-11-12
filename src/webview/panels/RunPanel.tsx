@@ -6,6 +6,7 @@ import { modelOf } from '../../core/flow/model';
 import type { Edge, Ulid } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
 import type { OutputEntry } from '../../core/run/events';
+import { pastRunLabel } from '../../core/run/pastRuns';
 import {
   arrivals,
   edgeHosts,
@@ -29,12 +30,56 @@ import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
+import { showPastRun } from '../runActions';
 import { requestRunOutput } from '../runOutput';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
 
+/**
+ * AFD-245: the runs kept of this flow. Choosing one shows it on the canvas again, with what each
+ * host did; a run of an earlier version of the flow says so.
+ */
+function PastRuns({ run }: { run: RunView | null }) {
+  const runs = useUi((s) => s.pastRuns);
+  const version = useUi((s) => s.snapshot?.doc?.flow.version);
+  if (runs.length === 0 || (runs.length === 1 && runs[0]?.id === run?.id)) return null;
+  const shown = runs.some((r) => r.id === run?.id) ? run?.id : '';
+  const older =
+    run?.past &&
+    run.flowVersion !== undefined &&
+    version !== undefined &&
+    run.flowVersion !== version;
+  return (
+    <div className="afd-field afd-past-runs" data-past-runs={runs.length}>
+      <label htmlFor="afd-past-run">Earlier runs</label>
+      <select
+        id="afd-past-run"
+        className="afd-input"
+        value={shown ?? ''}
+        onChange={(e) => e.target.value && showPastRun(e.target.value)}
+      >
+        {shown ? null : <option value="">The run shown is not among the kept runs</option>}
+        {runs.map((r) => (
+          <option key={r.id} value={r.id} title={r.partial}>
+            {pastRunLabel(r)}
+          </option>
+        ))}
+      </select>
+      {older ? (
+        <p className="muted" data-past-version={run?.flowVersion}>
+          <span className="codicon codicon-history" aria-hidden="true" /> This run is of version{' '}
+          {run?.flowVersion} of the flow; it is at version {version} now, so steps may have changed
+          since.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function describe(run: RunView): string {
   if (run.scenario) return `Scenario: ${run.scenario.name} (stubs, local connection)`;
+  // AFD-244: what a partial run ran, and what it left out.
+  if (run.partial) return `Local skeleton run of part of the flow. ${run.partial.line}`;
   if (run.source === 'awx' && run.awx)
     return `AWX ${run.awx.workflow ? 'workflow' : 'job'} #${run.awx.jobId} · ${run.awx.template}`;
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
@@ -244,6 +289,7 @@ export function RunPanel() {
           No run of this flow yet. Launch it in AWX, or run it as a skeleton in the local
           environment; nodes and wires then show what each host did.
         </p>
+        <PastRuns run={null} />
         <Scenarios />
       </div>
     );
@@ -256,6 +302,7 @@ export function RunPanel() {
         Run <HelpLink topic="runs" about="runs" />
       </h2>
       <Scenarios />
+      <PastRuns run={run} />
       <dl className="afd-run-facts">
         <dt>Run</dt>
         <dd>{describe(run)}</dd>

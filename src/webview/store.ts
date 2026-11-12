@@ -9,6 +9,7 @@ import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
+import type { PastRun } from '../core/run/pastRuns';
 import { type NodeRun, runStates } from '../core/run/view';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { Forced, ScenarioResult } from '../core/scenario/scenarios';
@@ -164,6 +165,10 @@ export interface PickState {
 interface UiState {
   snapshot: Snapshot | null;
   testMode: boolean;
+  /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
+  expandSubflows: boolean;
+  /** The subflows expanded in place: a view, never stored. */
+  expandedSubflows: Ulid[];
   /** AFD-73: the user's first-flow progress from the host; null until it says. */
   firstFlow: { hidden: boolean; done: string[] } | null;
   selection: Selection;
@@ -171,6 +176,10 @@ interface UiState {
   portMenu: PortMenuState | null;
   contextMenu: ContextMenuState | null;
   focusRequest: FocusRequest | null;
+  /** AFD-237: the node whose title is edited on the canvas. */
+  renaming: Ulid | null;
+  /** AFD-238: a count that asks the canvas to bring the selection into view. */
+  zoomNonce: number;
   /** The keyboard shortcuts sheet (`?`). */
   cheatSheet: boolean;
   /** The find bar (AFD-48): what is typed in it, and a count that moves the focus back into it. */
@@ -196,6 +205,8 @@ interface UiState {
   saving: boolean;
   /** Last skeleton or real run of this flow, from the host. */
   run: RunView | null;
+  /** AFD-245: the runs kept of this flow, the newest first. */
+  pastRuns: PastRun[];
   /** The designer asked for a run (AFD-81): when it starts, the canvas switches to Run mode. */
   runAsked: boolean;
   /**
@@ -268,6 +279,8 @@ interface UiState {
   testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
+  setExpandSubflows(on: boolean): void;
+  toggleExpanded(subflow: Ulid): void;
   setFirstFlow(state: { hidden: boolean; done: string[] }): void;
   select(s: Selection): void;
   setAnnotationsHidden(hidden: boolean): void;
@@ -276,6 +289,8 @@ interface UiState {
   openPortMenu(m: PortMenuState | null): void;
   openContextMenu(m: ContextMenuState | null): void;
   requestFocus(field: FocusRequest['field']): void;
+  setRenaming(node: Ulid | null): void;
+  zoomToSelection(): void;
   showCheatSheet(on: boolean): void;
   setPick(p: PickState | null): void;
   setPickAt(id: Ulid | null): void;
@@ -292,6 +307,7 @@ interface UiState {
   notify(level: ToastLevel, text: string): void;
   dismissToast(id: number): void;
   setRun(r: RunView | null): void;
+  setPastRuns(runs: PastRun[]): void;
   setRunAsked(on: boolean): void;
   setScenarios(results: ScenarioResult[], show?: string): void;
   setScenarioCheck(check: ScenarioCheck, undo?: number): void;
@@ -366,12 +382,16 @@ function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftRe
 export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
+  expandSubflows: false,
+  expandedSubflows: [],
   firstFlow: null,
   selection: {},
   quickAdd: null,
   portMenu: null,
   contextMenu: null,
   focusRequest: null,
+  renaming: null,
+  zoomNonce: 0,
   cheatSheet: false,
   find: false,
   findQuery: '',
@@ -387,6 +407,7 @@ export const useUi = create<UiState>((set, get) => ({
   saving: false,
   run: null,
   runAsked: false,
+  pastRuns: [],
   launch: null,
   scenarios: null,
   scenarioCheck: null,
@@ -478,6 +499,12 @@ export const useUi = create<UiState>((set, get) => ({
     });
   },
   setTestMode: (testMode) => set({ testMode }),
+  setExpandSubflows: (expandSubflows) =>
+    set({ expandSubflows, ...(expandSubflows ? {} : { expandedSubflows: [] }) }),
+  toggleExpanded: (id) => {
+    const now = get().expandedSubflows;
+    set({ expandedSubflows: now.includes(id) ? now.filter((x) => x !== id) : [...now, id] });
+  },
   setFirstFlow: (firstFlow) => set({ firstFlow }),
   select(selection) {
     const pending = get().pendingBinding;
@@ -506,6 +533,8 @@ export const useUi = create<UiState>((set, get) => ({
     set({ contextMenu, ...closing('contextMenu') });
   },
   requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
+  setRenaming: (renaming) => set({ renaming }),
+  zoomToSelection: () => set({ zoomNonce: get().zoomNonce + 1 }),
   showCheatSheet: (cheatSheet) => set({ cheatSheet, ...closing('cheatSheet') }),
   setPick: (pick) => set({ pick, pickAt: null, ...closing('pick') }),
   setPickAt: (pickAt) => set({ pickAt }),
@@ -546,6 +575,7 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
+  setPastRuns: (pastRuns) => set({ pastRuns }),
   setRepo: (repo) => set({ repo }),
   setOutside(outside) {
     const doc = get().snapshot?.doc;

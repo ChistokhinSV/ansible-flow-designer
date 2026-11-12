@@ -4,6 +4,7 @@
 
 import type { Forced } from '../scenario/scenarios';
 import { ALIGN_LABEL, type AlignHow, DISTRIBUTE_LABEL, type DistributeHow } from './arrange';
+import { canDisable } from './disabled';
 import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
@@ -54,7 +55,10 @@ export type ShortcutId =
   | 'fit'
   | 'find'
   | 'alignCenter'
-  | 'distribute';
+  | 'distribute'
+  | 'zoomSelection'
+  | 'follow'
+  | 'disable';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -80,12 +84,23 @@ export type CanvasAction =
   | { do: 'attachAnnotation'; id: Ulid }
   | { do: 'detachAnnotation'; id: Ulid }
   | { do: 'extract'; nodes: Ulid[] }
+  /** AFD-241: the subflow's steps move up to its level; the subflow goes. */
+  | { do: 'dissolve'; node: Ulid }
+  /** AFD-238: every step the hosts came through to reach this one, or can reach from it. */
+  | { do: 'selectFlow'; node: Ulid; dir: 'up' | 'down' }
+  | { do: 'zoomSelection' }
+  /** AFD-242: switched off (hosts pass through, nothing generated), or back on. */
+  | { do: 'setDisabled'; nodes: Ulid[]; disabled: boolean }
+  /** AFD-235: out of the path, which closes behind them; the nodes stay. */
+  | { do: 'detach'; nodes: Ulid[] }
   /** AFD-88: line steps up or space them evenly (one move); placed steps back to automatic. */
   | { do: 'align'; nodes: Ulid[]; how: AlignHow }
   | { do: 'distribute'; nodes: Ulid[]; how: DistributeHow }
   | { do: 'resetPosition'; nodes: Ulid[] }
   | { do: 'showInText'; node: Ulid }
   | { do: 'peekCode'; node: Ulid }
+  /** AFD-244: a skeleton run that starts at this step, or runs it alone. */
+  | { do: 'runPartial'; node: Ulid; only: boolean }
   | { do: 'find' }
   | { do: 'removeEntry'; subflow: Ulid }
   | { do: 'removeExit'; subflow: Ulid; from: PortRef; port: string }
@@ -250,6 +265,13 @@ function portItems(model: FlowModel, ref: PortRef, kinds?: PortMenuItem['kind'][
     .map((i) => item(i.label, { do: 'port', ref, item: i }, { icon: PORT_ICON[i.kind] }));
 }
 
+/** A wire joins one of the nodes to a node outside them: there is a path to leave (AFD-235). */
+function wired(model: FlowModel, ids: readonly Ulid[]): boolean {
+  const set = new Set(ids);
+  const level = model.levels.get(model.nodes.get(ids[0] as Ulid)?.level ?? ROOT);
+  return (level?.edges ?? []).some((e) => e && set.has(e.from?.node) !== set.has(e.to?.node));
+}
+
 function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const node = model.nodes.get(id)?.node;
   if (!node) return [];
@@ -289,6 +311,22 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         ),
       );
   }
+
+  // AFD-238: the steps before and after this one, selected with it.
+  const level = model.levels.get(model.nodes.get(id)?.level ?? ROOT);
+  const pick: CanvasMenuEntry[] = [];
+  if (edit && (level?.edges ?? []).some((e) => e?.to?.node === id))
+    pick.push(
+      item('Select Upstream', { do: 'selectFlow', node: id, dir: 'up' }, { icon: 'arrow-up' }),
+    );
+  if (edit && (level?.edges ?? []).some((e) => e?.from?.node === id))
+    pick.push(
+      item(
+        'Select Downstream',
+        { do: 'selectFlow', node: id, dir: 'down' },
+        { icon: 'arrow-down' },
+      ),
+    );
 
   const design: CanvasMenuEntry[] = [];
   if (ctx.mode === 'design')
@@ -343,6 +381,41 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
+  if (edit && canDisable(node))
+    design.push(
+      item(
+        node.disabled ? 'Enable' : 'Disable',
+        { do: 'setDisabled', nodes: [id], disabled: !node.disabled },
+        {
+          icon: node.disabled ? 'circle-large-outline' : 'circle-slash',
+          shortcut: 'disable',
+          ...lock,
+        },
+      ),
+    );
+  if (edit && !ends && wired(model, [id]))
+    design.push(
+      item(
+        'Detach from Path',
+        { do: 'detach', nodes: [id] },
+        { icon: 'debug-disconnect', ...lock },
+      ),
+    );
+  if (edit && node.type === 'subflow') {
+    // AFD-241: the reverse of Extract into Subflow.
+    const why = node.ref
+      ? 'A shared subflow is edited in its source flow'
+      : (node.subflow?.nodes ?? []).length === 0
+        ? 'The subflow has no steps to move up'
+        : undefined;
+    design.push(
+      item(
+        'Dissolve Subflow',
+        { do: 'dissolve', node: id },
+        { icon: 'ungroup-by-ref-type', ...(why ? { disabled: why } : lock) },
+      ),
+    );
+  }
   if (edit && model.doc.layout?.[id])
     design.push(
       item('Reset Position', { do: 'resetPosition', nodes: [id] }, { icon: 'discard', ...lock }),
@@ -375,11 +448,28 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
   ];
   if (ctx.hasPlay(id)) code.push(item('Peek Code', { do: 'peekCode', node: id }, { icon: 'code' }));
 
+  // AFD-244: part of the flow as a skeleton run; a run starts at a step of the top level.
+  const runs: CanvasMenuEntry[] = [];
+  if (ctx.level === ROOT && !ends && !node.disabled) {
+    runs.push(
+      item(
+        'Run from Here (Skeleton)',
+        { do: 'runPartial', node: id, only: false },
+        { icon: 'debug-start', ...lock },
+      ),
+      item(
+        'Run This Step (Skeleton)',
+        { do: 'runPartial', node: id, only: true },
+        { icon: 'debug-step-over', ...lock },
+      ),
+    );
+  }
+
   const remove = edit
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
     : [];
   const what = ctx.scenario ? scenarioItems(model, id, ctx.scenario) : [];
-  return groups(what, open, design, clip, code, remove);
+  return groups(what, open, design, pick, clip, code, runs, remove);
 }
 
 function groupMenu(
@@ -427,6 +517,22 @@ function groupMenu(
       ),
     );
   }
+  const steps = nodes.filter(canDisable);
+  if (edit && steps.length > 0) {
+    // Disable while any of them is on; Enable once all are off.
+    const allOff = steps.every((n) => n.disabled);
+    more.push(
+      item(
+        allOff ? 'Enable' : 'Disable',
+        { do: 'setDisabled', nodes: steps.map((n) => n.id), disabled: !allOff },
+        { icon: allOff ? 'circle-large-outline' : 'circle-slash', shortcut: 'disable', ...lock },
+      ),
+    );
+  }
+  if (edit && wired(model, ids) && !nodes.some((n) => n.type === 'start' || n.type === 'end'))
+    more.push(
+      item('Detach from Path', { do: 'detach', nodes: ids }, { icon: 'debug-disconnect', ...lock }),
+    );
   if (edit && ids.length >= 2) {
     const few = ids.length < 3 ? { disabled: 'Select three steps or more' } : lock;
     const placed = ids.some((id) => model.doc.layout?.[id]);
