@@ -114,8 +114,10 @@ describe('AFD-25 acceptance: export', () => {
         exported.some((e) => alike(d, e)),
         `not exported: ${d}`,
       );
-    // Two of os-upgrade's wires would run through steps: on both, those two, and only those, are
-    // not the plain smooth step between their ends.
+    // One of os-upgrade's wires would run through steps (Upgrade needed? `false` to Done): on both,
+    // that one, and only that one, is not the plain smooth step between its ends. Before AFD-192
+    // there were two; with ELK laying out on the canvas ports Notify on-call sits right of the
+    // column, so Drain traffic's `failed_hosts` wire has no node in its way (AFD-228).
     const sideOf = (p: Position, q: Position) =>
       q.x > p.x ? Side.Right : q.x < p.x ? Side.Left : q.y > p.y ? Side.Bottom : Side.Top;
     const routed = (d: string) => {
@@ -131,8 +133,8 @@ describe('AFD-25 acceptance: export', () => {
       });
       return path !== d;
     };
-    assert.equal(drawn.filter(routed).length, 2);
-    assert.equal(exported.filter(routed).length, 2);
+    assert.equal(drawn.filter(routed).length, 1);
+    assert.equal(exported.filter(routed).length, 1);
   });
 
   it('PNG: the designer opens and draws it at twice the size; the PNG holds the draw.io file', async () => {
