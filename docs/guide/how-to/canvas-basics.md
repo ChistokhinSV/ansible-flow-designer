@@ -123,6 +123,8 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
     pick a row: a type switches the dialog to it; a module or role makes the step bound to it,
     with a title made from its name (selected, so typing replaces it). Enter again adds the step.
 
+    ![Quick Add lists the modules that match](../images/quick-add-find-light.png)
+
   ![Quick add](../images/quick-add-light.png)
 - **Wire:** drag from an output port to another node. One wire per output port; a node takes any
   number of wires in.
