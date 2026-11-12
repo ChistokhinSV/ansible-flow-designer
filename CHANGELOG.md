@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — AFD-254 wave 1 (switch the environment and the inventory)
+
+After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
+
+- **Switch Ansible Environment… (AFD-255):** the Inventory view's title has a button that lists the environments your settings describe (an image for this machine, each WSL distribution, the SSH host), the one in use marked, and **Set Up Another…**. A pick switches at once and asks nothing: the host, the distribution and the images stay, so you can switch back. The view's title line names the environment and the inventory.
+- **The image on an SSH host is its own setting, `afd.environment.sshImage`:** `afd.environment.image` is the image for a container on this machine only, so neither is carried into the other by a switch. A workspace set up with 0.83 keeps working: with `sshImage` not set, `image` still runs on the host.
+- **Switch Inventory… (AFD-256):** lists the inventories found in the repository (a `hosts` or `inventory` file at the root, `inventory/` and its files, one folder or file for each environment under `inventories/`), the default of `ansible.cfg`, and **Browse…**. The pick is the workspace's `afd.run.inventory`.
+- **In the launch dialog (AFD-257):** "Runs in: … · Inventory: …", each with **Change**, which opens the same switch and then the dialog again with what the new one answers.
+- A switch is this workspace's: it writes the workspace settings.
+- **Limit:** `afd.environment.containerEngine` is still one setting for this machine and the SSH host.
+
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 
 **Fix (AFD-252): terminal agents could not verify scenarios on an SSH host.** `flow_scenarios` with action `verify` through the MCP server answered "Set afd.environment.sshHost" with an SSH environment set: the server did not read `afd.environment.sshHost` and `sshDir` from the settings. It now does, from your user settings, and from the workspace's only with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`, as for the other environment settings. Copilot and Run Scenarios in VS Code were not affected. See [Scenario tests](docs/guide/how-to/scenario-tests.md).

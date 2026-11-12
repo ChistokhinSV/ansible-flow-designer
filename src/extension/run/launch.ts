@@ -85,6 +85,9 @@ export async function planLaunch(
       ...(facts ? { facts } : { factsError: found.ok ? undefined : found.error }),
       vault: ask === 'always' || (ask === 'auto' && !!facts?.vault),
       environment: env.env.label,
+      inventory:
+        vscode.workspace.getConfiguration('afd', folder.uri).get<string>('run.inventory', '') ||
+        (facts?.sources.length ? facts.sources.join(', ') : 'the default of ansible.cfg'),
     },
   };
 }

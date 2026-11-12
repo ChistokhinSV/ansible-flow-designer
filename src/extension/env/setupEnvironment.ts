@@ -21,7 +21,7 @@ import { environmentFor, UNTRUSTED } from './environment';
 const GUIDE = 'how-to/runs-and-environments.md';
 
 /** The WSL distributions on this machine (AFD-75); none when WSL is off or missing. */
-function wslDistros(): Promise<string[]> {
+export function wslDistros(): Promise<string[]> {
   if (process.platform !== 'win32') return Promise.resolve([]);
   return new Promise((resolve) =>
     execFile('wsl.exe', ['-l', '-q'], { encoding: 'buffer', timeout: 10_000 }, (err, out) =>
@@ -183,10 +183,9 @@ async function setUpSsh(retry?: () => unknown): Promise<boolean> {
     : vscode.ConfigurationTarget.Global;
   await afd.update('environment.kind', 'ssh', target);
   await afd.update('environment.sshHost', host, target);
-  // AFD-250: an image in the user settings (the Docker setup writes it there) would be used on the
-  // host too, where the host's own Ansible was chosen: an empty value here says "no image".
-  const noImage = userImage() && target === vscode.ConfigurationTarget.Workspace ? '' : undefined;
-  await afd.update('environment.image', image || noImage, target);
+  // AFD-255: the image on the host is a setting of its own, empty for the host's own Ansible, so
+  // an image of this machine (the Docker setup writes one) is neither used there nor lost.
+  await afd.update('environment.sshImage', image, target);
   if (image && engine) await afd.update('environment.containerEngine', engine, target);
   const where = image
     ? `${engine}: ${image} on ${host}`

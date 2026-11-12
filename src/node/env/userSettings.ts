@@ -23,6 +23,7 @@ export const ENVIRONMENT_KEYS = [
   // AFD-252: without these an SSH environment had a kind and no host.
   'afd.environment.sshHost',
   'afd.environment.sshDir',
+  'afd.environment.sshImage',
   'ansible.executionEnvironment.enabled',
   'ansible.executionEnvironment.image',
   'ansible.executionEnvironment.containerEngine',

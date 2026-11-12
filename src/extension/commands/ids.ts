@@ -44,6 +44,8 @@ export const CMD = {
   diagnoseAi: 'afd.ai.diagnose',
   setUpEnvironment: 'afd.environment.setup',
   copyFileToHost: 'afd.environment.copyFile',
+  switchEnvironment: 'afd.environment.switch',
+  switchInventory: 'afd.inventory.switch',
   openGuide: 'afd.help.openGuide',
   getStarted: 'afd.help.getStarted',
   openSample: 'afd.help.openSample',

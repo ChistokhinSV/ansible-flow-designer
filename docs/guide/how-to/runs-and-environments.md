@@ -45,6 +45,16 @@ is not affected.
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.
 
+### Switch between environments
+
+Once more than one is set up (an image for this machine, a WSL distribution, an SSH host), **Switch
+Ansible Environment…** goes from one to another in one click: the first button on the **Inventory**
+view's title, **Change** beside "Runs in" in the launch dialog, or the Command Palette. It lists
+the environments your settings describe and the WSL distributions of this machine, with the one in
+use marked, and **Set Up Another…** for anything else. A switch writes `afd.environment.kind` in
+the workspace settings and asks nothing: the host, the distribution and the images stay as they
+are, so you can switch back.
+
 ### A remote Linux host over SSH
 
 A shared host can run your flows while the repository stays on your machine: a jump host, an
@@ -52,15 +62,15 @@ operations server, the place your team already runs Ansible from. **Set Up Ansib
 offers **A Remote Linux Host over SSH**: it lists the hosts of your SSH config, connects, looks at
 what the host has, and writes the settings of this workspace (an SSH host is per workspace; the
 other choices write your user settings, unless the workspace already sets an environment). A host
-with Ansible on its PATH runs that, also when your user settings name an image: the setup then
-writes an empty `afd.environment.image` for the workspace. By hand:
+with Ansible on its PATH runs that, also when your user settings name an image: the image on the
+host is a setting of its own. By hand:
 
 | Setting                           | Value                                                                                           |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `afd.environment.kind`            | `ssh`                                                                                           |
 | `afd.environment.sshHost`         | a `Host` of your `~/.ssh/config`, or `user@host`                                                |
 | `afd.environment.sshDir`          | the folder there for this workspace; empty is `~/.afd/<workspace folder name>`                  |
-| `afd.environment.image`           | empty: the `ansible-playbook` on the account's PATH runs. Set: Ansible runs in this image there |
+| `afd.environment.sshImage`        | empty: the `ansible-playbook` on the account's PATH runs. Set: Ansible runs in this image there |
 | `afd.environment.containerEngine` | with an image: `docker` (default) or `podman`, the host's                                       |
 - **The connection is yours.** The extension runs your `ssh` with your config, keys and agent. It
   never asks for a password and never stores one: the host must connect from a terminal with
@@ -183,6 +193,18 @@ there, with **Open the Flow**.
 host count and opens into its child groups and its hosts. **Run Flow on This Group…** (the play
 button on a group or a host) opens the launch dialog of the flow you are working on, with that group
 as its targets. **Refresh Inventory** reads it again after you edit the inventory.
+
+The view's title line says which inventory it shows and in which environment. Two buttons there
+change them:
+
+- **Switch Ansible Environment…**: see [Switch between environments](#switch-between-environments).
+- **Switch Inventory…** lists the inventories found in the repository (a `hosts` or `inventory`
+  file at the root, the `inventory/` folder and its files, one folder or file for each environment
+  under `inventories/`), **The Default of ansible.cfg**, and **Browse…** for one kept elsewhere in
+  the repository. The pick is this workspace's `afd.run.inventory`: runs, the launch dialog and the
+  Inventory lens use it from then on.
+
+The launch dialog shows both too ("Runs in: … · Inventory: …"), each with **Change**.
 
 ## Run for real
 

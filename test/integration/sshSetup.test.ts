@@ -22,6 +22,8 @@ const HELLO = flowUri('hello');
 interface Shown {
   kind: 'pick' | 'input' | 'info' | 'error' | 'open';
   labels?: string[];
+  /** The label of the item marked as the one in use. */
+  inUse?: string;
   title?: string;
   value?: string;
   message?: string;
@@ -48,6 +50,9 @@ function watch(): void {
     labels: (items as (string | vscode.QuickPickItem)[]).map((i) =>
       typeof i === 'string' ? i : i.label,
     ),
+    inUse: (items as (string | vscode.QuickPickItem)[])
+      .map((i) => (typeof i === 'string' ? undefined : i.description === 'in use' && i.label))
+      .find((l): l is string => !!l),
   }));
   wrap('showInputBox', ([options]) => ({
     kind: 'input',
@@ -88,7 +93,9 @@ async function choose(pick: Shown, label: string): Promise<void> {
   const at = pick.labels?.indexOf(label) ?? -1;
   assert.ok(at >= 0, `"${label}" is offered in: ${pick.labels?.join(' | ')}`);
   await sleep(500);
-  for (let i = 0; i < at; i++)
+  // A separator (an empty label) is no stop of the list.
+  const steps = (pick.labels ?? []).slice(0, at).filter((l) => l !== '').length;
+  for (let i = 0; i < steps; i++)
     await vscode.commands.executeCommand('workbench.action.quickOpenSelectNext');
   await sleep(200);
   await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
@@ -106,9 +113,11 @@ const setting = (key: string) =>
 describe('AFD-247: Set Up Ansible Environment… for an SSH host', () => {
   before(async function () {
     if (!host) this.skip();
-    await vscode.workspace
-      .getConfiguration('afd')
-      .update('environment.image', userImage, vscode.ConfigurationTarget.Global);
+    const afd = vscode.workspace.getConfiguration('afd');
+    // The test configuration puts AFD_TEST_IMAGE in the workspace settings for the run suites:
+    // here it is the user's (as the Docker setup leaves it), and the workspace starts with none.
+    await afd.update('environment.image', undefined, vscode.ConfigurationTarget.Workspace);
+    await afd.update('environment.image', userImage, vscode.ConfigurationTarget.Global);
     watch();
   });
   after(async () => {
@@ -167,9 +176,10 @@ describe('AFD-247: Set Up Ansible Environment… for an SSH host', () => {
 
     assert.equal(setting('kind'), 'ssh');
     assert.equal(setting('sshHost'), host);
-    // AFD-250: an image of the user settings is switched off here when the host's Ansible runs.
-    assert.equal(setting('image'), image ?? (userImage ? '' : undefined));
-    assert.equal(vscode.workspace.getConfiguration('afd').get('environment.image'), image ?? '');
+    // AFD-255: the host's image is its own setting, empty for the host's own Ansible; the image of
+    // this machine is neither used there nor touched.
+    assert.equal(setting('sshImage'), image ?? '');
+    assert.equal(setting('image'), undefined);
     assert.equal(setting('containerEngine'), image ? 'docker' : undefined);
     const afd = vscode.workspace.getConfiguration('afd');
     assert.equal(afd.inspect('environment.kind')?.globalValue, undefined, 'user settings: kind');
@@ -179,7 +189,7 @@ describe('AFD-247: Set Up Ansible Environment… for an SSH host', () => {
   it('the environment the setup wrote runs the Hello sample as a skeleton on the host', async function () {
     // The public image the setup proposes is pulled by the first run: not here, the lab link is
     // slow. The user's own image (AFD_TEST_IMAGE) is on the host already.
-    if (setting('image') && setting('image') !== userImage) this.skip();
+    if (setting('sshImage') && setting('sshImage') !== userImage) this.skip();
     await openDesigner(HELLO);
     const api = await testApi();
     const run = await withTimeout(
@@ -192,6 +202,65 @@ describe('AFD-247: Set Up Ansible Environment… for an SSH host', () => {
     const folder = vscode.workspace.workspaceFolders?.[0]?.name as string;
     assert.match(onHost(`ls "$HOME/.afd/${folder}"`), /repo/);
   }).timeout(300_000);
+
+  it('AFD-255: Switch Ansible Environment… lists what is configured, and a switch rewrites the kind only', async function () {
+    const before = { sshHost: setting('sshHost'), sshImage: setting('sshImage') };
+    let at = shown.length;
+    let command = vscode.commands.executeCommand('afd.environment.switch');
+    const list = await next(at, ['pick'], 'the list of environments');
+    assert.equal(list.item.title, 'Switch Ansible Environment');
+    assert.equal(list.item.labels?.at(-1), 'Set Up Another…');
+    const ssh = `SSH: ${host}`;
+    assert.equal(list.item.inUse, ssh);
+    const other = list.item.labels?.find((l) => l && l !== ssh && l !== 'Set Up Another…');
+    if (!other) {
+      // No image in the user settings and no WSL here: nothing else is one click away.
+      await vscode.commands.executeCommand('workbench.action.closeQuickOpen');
+      await command;
+      this.skip();
+    }
+    await choose(list.item, other as string);
+    assert.equal(await withTimeout(Promise.resolve(command), 10_000, 'the switch ends'), true);
+    const kind = (other as string).startsWith('WSL: ') ? 'wsl' : 'container';
+    assert.equal(setting('kind'), kind);
+    assert.deepEqual({ sshHost: setting('sshHost'), sshImage: setting('sshImage') }, before);
+    if (kind === 'container') assert.equal(setting('image'), undefined);
+
+    // And back: the host and its image were kept, so nothing is asked.
+    at = shown.length;
+    command = vscode.commands.executeCommand('afd.environment.switch');
+    const again = await next(at, ['pick'], 'the list of environments');
+    assert.equal(again.item.inUse, other);
+    await choose(again.item, ssh);
+    assert.equal(await withTimeout(Promise.resolve(command), 10_000, 'the switch ends'), true);
+    assert.equal(setting('kind'), 'ssh');
+    assert.deepEqual({ sshHost: setting('sshHost'), sshImage: setting('sshImage') }, before);
+    assert.ok(!shown.slice(at).some((x) => x.kind === 'input'), 'nothing was asked');
+  }).timeout(60_000);
+
+  it('AFD-256: Switch Inventory… lists the inventories of the repository and writes the workspace setting', async () => {
+    const inventory = () =>
+      vscode.workspace.getConfiguration('afd').inspect('run.inventory')?.workspaceValue;
+    assert.equal(inventory(), undefined);
+    let at = shown.length;
+    let command = vscode.commands.executeCommand('afd.inventory.switch');
+    const list = await next(at, ['pick'], 'the list of inventories');
+    assert.equal(list.item.title, 'Switch Inventory');
+    assert.equal(list.item.labels?.[0], 'The Default of ansible.cfg');
+    assert.equal(list.item.inUse, 'The Default of ansible.cfg');
+    assert.equal(list.item.labels?.at(-1), 'Browse…');
+    await choose(list.item, 'inventory.ini');
+    assert.equal(await withTimeout(Promise.resolve(command), 10_000, 'the switch ends'), true);
+    assert.equal(inventory(), 'inventory.ini');
+
+    at = shown.length;
+    command = vscode.commands.executeCommand('afd.inventory.switch');
+    const again = await next(at, ['pick'], 'the list of inventories');
+    assert.equal(again.item.inUse, 'inventory.ini');
+    await choose(again.item, 'The Default of ansible.cfg');
+    assert.equal(await withTimeout(Promise.resolve(command), 10_000, 'the switch ends'), true);
+    assert.equal(inventory(), undefined);
+  }).timeout(60_000);
 
   it('Copy a File to the SSH Host… proposes a path beside the copy and writes it for the account alone', async () => {
     const folder = vscode.workspace.workspaceFolders?.[0]?.name as string;

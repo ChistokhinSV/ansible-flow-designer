@@ -842,6 +842,15 @@ export class FlowSession implements vscode.Disposable {
       case 'launchCancel':
         dropLaunch(m.token);
         break;
+      case 'launchSwitch':
+        // AFD-257: the plan was made for the old environment or inventory: a new one after.
+        dropLaunch(m.token);
+        await vscode.commands.executeCommand(
+          m.what === 'environment' ? CMD.switchEnvironment : CMD.switchInventory,
+          this.uri,
+        );
+        await this.openLaunch(m.mode);
+        break;
       case 'clearOutside':
         await this.clearOutside();
         break;

@@ -457,6 +457,7 @@ async function onMessage(m: WebviewMessage) {
           factsError: 'Pick the hosts to run on: a group below, or host names',
           vault: false,
           environment: 'harness (fake)',
+          inventory: 'inventory/lab.ini',
         },
       });
       break;
@@ -467,6 +468,7 @@ async function onMessage(m: WebviewMessage) {
       break;
     }
     case 'launchCancel':
+    case 'launchSwitch':
       break;
     case 'launchRun': {
       // No Ansible in a browser: fake a happy-path run so the run UI can be looked at.

@@ -24,8 +24,9 @@ const MCP_BUDGET = 1152 * 1024;
 // AFD-115 (wave 11) crossed it at 869 KB with the scenario simulator and the live check: the product
 // owner raised it to 928 KB, room for the rest of wave 11 (canvas authoring, the scenario tool).
 // AFD-171 (VS Code forks) raised it to 960 KB; AFD-197 (the same core as the MCP server) crossed it
-// at 968 KB: raised to 1,024 KB.
-const EXTENSION_BUDGET = 1024 * 1024;
+// at 968 KB: raised to 1,024 KB. AFD-254 (the inventory pane: switches, editing, the agents' tool)
+// crossed it at 1,029 KB with wave 1: the product owner raised it to 1,088 KB for the epic.
+const EXTENSION_BUDGET = 1088 * 1024;
 const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */

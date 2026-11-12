@@ -35,6 +35,7 @@
         "afd.environment.wslDistro",
         "afd.environment.sshHost",
         "afd.environment.sshDir",
+        "afd.environment.sshImage",
         "afd.awx.url",
         "afd.awx.verifyTls",
         "afd.awx.allowHttp"
@@ -268,6 +269,18 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.environment.switch",
+        "title": "Switch Ansible Environment…",
+        "category": "Ansible Flow",
+        "icon": "$(server-environment)"
+      },
+      {
+        "command": "afd.inventory.switch",
+        "title": "Switch Inventory…",
+        "category": "Ansible Flow",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "afd.environment.copyFile",
         "title": "Copy a File to the SSH Host…",
         "category": "Ansible Flow"
@@ -356,9 +369,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "afd.inventory.refresh",
+          "command": "afd.environment.switch",
           "when": "view == afd.inventory",
           "group": "navigation@1"
+        },
+        {
+          "command": "afd.inventory.switch",
+          "when": "view == afd.inventory",
+          "group": "navigation@2"
+        },
+        {
+          "command": "afd.inventory.refresh",
+          "when": "view == afd.inventory",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -628,6 +651,11 @@
           "default": "",
           "scope": "resource",
           "markdownDescription": "The folder on the SSH host that holds the copy of this repository, the probe and the runs. Relative to the account's home folder, or absolute. Empty: `.afd/<workspace folder name>`. On an account several people use, give each person, or each purpose, a folder of its own."
+        },
+        "afd.environment.sshImage": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "The execution environment image Ansible runs in on the SSH host, with the host's Docker or Podman. Empty: the `ansible-playbook` on the account's PATH runs. Apart from `afd.environment.image`, which is the image for a container on this machine. Not set at all: `afd.environment.image` is used on the host, as version 0.83 wrote it."
         },
         "afd.run.inventory": {
           "type": "string",

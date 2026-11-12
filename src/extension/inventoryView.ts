@@ -4,8 +4,10 @@
 // with it as the targets). Round 1: P6, and the inventory was the participant's most confusing part
 // and the one thing to change.
 import * as vscode from 'vscode';
+import { inventoryCandidates, inventoryPath } from '../core/view/inventorySources';
 import { type InventoryTree as Tree, type TreeGroup, topGroups } from '../core/view/inventoryTree';
 import { TIMEOUTS } from '../node/timeouts';
+import { environmentFor } from './env/environment';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
 
@@ -24,6 +26,87 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
       (flow && vscode.workspace.getWorkspaceFolder(flow)?.uri) ??
       vscode.workspace.workspaceFolders?.[0]?.uri
     );
+  };
+  const setting = (at: vscode.Uri) =>
+    inventoryPath(vscode.workspace.getConfiguration('afd', at).get<string>('run.inventory', ''));
+  /** AFD-255/256: the title line says which inventory, in which environment. */
+  const describe = (at: vscode.Uri | undefined) => {
+    if (!at) return undefined;
+    const env = environmentFor(at);
+    const inventory = setting(at) || (tree ? tree.sources.join(', ') : 'default inventory');
+    return env.ok ? `${inventory} · ${env.env.label}` : inventory;
+  };
+  /**
+   * AFD-256: the inventories of the repository, the default of ansible.cfg and Browse…; the pick is
+   * this workspace's `afd.run.inventory`. Resolves true when it changed.
+   */
+  const switchInventory = async (): Promise<boolean> => {
+    const at = folder();
+    if (!at) return false;
+    const now = setting(at);
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(
+        at,
+        '{hosts,hosts.*,inventory,inventory.*,inventory/**,inventories/**}',
+      ),
+      undefined,
+      2000,
+    );
+    const root = at.path.endsWith('/') ? at.path : `${at.path}/`;
+    const found = inventoryCandidates(files.map((f) => f.path.slice(root.length)));
+    // Set by hand to something the search does not find: still in the list, as the one in use.
+    if (now && !found.includes(now)) found.unshift(now);
+    type Pick = vscode.QuickPickItem & { value?: string; browse?: true };
+    const icon = (current: boolean) => new vscode.ThemeIcon(current ? 'check' : 'blank');
+    const items: Pick[] = [
+      {
+        label: 'The Default of ansible.cfg',
+        detail: now ? undefined : tree?.sources.join(', '),
+        description: now ? undefined : 'in use',
+        iconPath: icon(!now),
+        value: '',
+      },
+      ...found.map(
+        (path): Pick => ({
+          label: path,
+          description: path === now ? 'in use' : undefined,
+          iconPath: icon(path === now),
+          value: path,
+        }),
+      ),
+      { label: '', kind: vscode.QuickPickItemKind.Separator },
+      { label: 'Browse…', iconPath: new vscode.ThemeIcon('folder-opened'), browse: true },
+    ];
+    const picked = await vscode.window.showQuickPick(items, {
+      title: 'Switch Inventory',
+      placeHolder: 'The inventory runs, the launch dialog and this view use',
+    });
+    if (!picked) return false;
+    let value = picked.value;
+    if (picked.browse) {
+      const [chosen] =
+        (await vscode.window.showOpenDialog({
+          title: 'Switch Inventory',
+          openLabel: 'Use This Inventory',
+          defaultUri: at,
+          canSelectFiles: true,
+          canSelectFolders: true,
+          canSelectMany: false,
+        })) ?? [];
+      if (!chosen) return false;
+      if (!chosen.path.startsWith(root)) {
+        void vscode.window.showErrorMessage(
+          'The inventory has to be inside the workspace folder: runs read it from the repository.',
+        );
+        return false;
+      }
+      value = chosen.path.slice(root.length);
+    }
+    if (value === undefined || value === now) return false;
+    await vscode.workspace
+      .getConfiguration('afd', at)
+      .update('run.inventory', value || undefined, vscode.ConfigurationTarget.Workspace);
+    return true;
   };
   const load = async (at: vscode.Uri) => {
     const probe = host.probes.forFolder(at);
@@ -86,6 +169,7 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
       const at = folder();
       if (!at) return [];
       if (!tree && !problem) await load(at);
+      view.description = describe(at);
       if (problem)
         return [
           { kind: 'note', text: problem },
@@ -114,9 +198,12 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
       .get(doc.uri.toString())
       ?.openLaunch('check', undefined, { targets: target });
   };
+  const view = vscode.window.createTreeView('afd.inventory', { treeDataProvider: provider });
+  view.description = describe(folder());
   return [
     changed,
-    vscode.window.createTreeView('afd.inventory', { treeDataProvider: provider }),
+    view,
+    vscode.commands.registerCommand('afd.inventory.switch', switchInventory),
     vscode.commands.registerCommand('afd.inventory.refresh', () => {
       tree = undefined;
       problem = undefined;
