@@ -50,7 +50,10 @@ library, so any image with ansible-core works.
 A shared host can run your flows while the repository stays on your machine: a jump host, an
 operations server, the place your team already runs Ansible from. **Set Up Ansible Environment…**
 offers **A Remote Linux Host over SSH**: it lists the hosts of your SSH config, connects, looks at
-what the host has, and writes the settings. By hand:
+what the host has, and writes the settings of this workspace (an SSH host is per workspace; the
+other choices write your user settings, unless the workspace already sets an environment). A host
+with Ansible on its PATH runs that, also when your user settings name an image: the setup then
+writes an empty `afd.environment.image` for the workspace. By hand:
 
 | Setting                           | Value                                                                                           |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |

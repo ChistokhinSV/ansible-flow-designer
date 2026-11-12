@@ -193,6 +193,8 @@ export default defineConfig([
   // AFD-22: samples, the user guide, the walkthrough and its tour keys.
   { ...common, label: 'help', files: 'out/test/integration/help.test.js' },
   { ...common, label: 'export', files: 'out/test/integration/export.test.js' },
+  // AFD-250: the SSH setup and Copy a File to the SSH Host… (skipped without AFD_TEST_SSH_SETUP).
+  { ...common, label: 'ssh-setup', files: 'out/test/integration/sshSetup.test.js' },
   { ...common, label: 'perf', files: 'out/test/integration/perf.test.js' },
   {
     ...common,

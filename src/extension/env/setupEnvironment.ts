@@ -56,8 +56,9 @@ export async function setUpEnvironment(retry?: () => unknown): Promise<boolean> 
   if (choice.kind === 'ssh') return setUpSsh(retry);
   if (choice.kind === 'wsl-distro') {
     const afd = vscode.workspace.getConfiguration('afd');
-    await afd.update('environment.kind', 'wsl', vscode.ConfigurationTarget.Global);
-    await afd.update('environment.wslDistro', choice.distro, vscode.ConfigurationTarget.Global);
+    const target = settingsTarget();
+    await afd.update('environment.kind', 'wsl', target);
+    await afd.update('environment.wslDistro', choice.distro, target);
     return done(
       `The Ansible environment is set: WSL ${choice.distro}. It needs ansible-core 2.19 or later there (pipx install ansible-core).`,
       retry,
@@ -77,14 +78,28 @@ export async function setUpEnvironment(retry?: () => unknown): Promise<boolean> 
   });
   if (!image) return false;
   const afd = vscode.workspace.getConfiguration('afd');
-  await afd.update('environment.image', image.trim(), vscode.ConfigurationTarget.Global);
-  await afd.update('environment.containerEngine', choice.engine, vscode.ConfigurationTarget.Global);
+  const target = settingsTarget();
+  await afd.update('environment.image', image.trim(), target);
+  await afd.update('environment.containerEngine', choice.engine, target);
   if (afd.get('environment.kind') !== 'auto' && afd.get('environment.kind') !== 'container')
-    await afd.update('environment.kind', 'container', vscode.ConfigurationTarget.Global);
+    await afd.update('environment.kind', 'container', target);
   return done(
     `The Ansible environment is set: ${choice.engine}: ${image.trim()}. The first run pulls the image.`,
     retry,
   );
+}
+
+/**
+ * Where a container or WSL setup writes: the user settings, unless this workspace sets an
+ * environment of its own (an SSH host). A workspace value hides the user's, so written to the user
+ * settings the setup would say one environment is set while runs went on using the other (AFD-250).
+ */
+function settingsTarget(): vscode.ConfigurationTarget {
+  const afd = vscode.workspace.getConfiguration('afd');
+  const inWorkspace = ['kind', 'image', 'containerEngine', 'wslDistro', 'sshHost'].some(
+    (key) => afd.inspect(`environment.${key}`)?.workspaceValue !== undefined,
+  );
+  return inWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
 }
 
 /** The hosts of the user's SSH config (`~/.ssh/config`); none when it cannot be read. */
@@ -150,7 +165,7 @@ async function setUpSsh(retry?: () => unknown): Promise<boolean> {
         await vscode.window.showInputBox({
           title,
           prompt: `${host} has no ansible-playbook on its PATH, but it has ${engine}: the execution environment image to run in there (ansible-core 2.19 or later).`,
-          value: DEV_TOOLS_IMAGE,
+          value: userImage() || DEV_TOOLS_IMAGE,
           ignoreFocusOut: true,
           validateInput: (v) => (v.trim() ? undefined : 'Enter an image'),
         })
@@ -168,15 +183,29 @@ async function setUpSsh(retry?: () => unknown): Promise<boolean> {
     : vscode.ConfigurationTarget.Global;
   await afd.update('environment.kind', 'ssh', target);
   await afd.update('environment.sshHost', host, target);
-  await afd.update('environment.image', image || undefined, target);
+  // AFD-250: an image in the user settings (the Docker setup writes it there) would be used on the
+  // host too, where the host's own Ansible was chosen: an empty value here says "no image".
+  const noImage = userImage() && target === vscode.ConfigurationTarget.Workspace ? '' : undefined;
+  await afd.update('environment.image', image || noImage, target);
   if (image && engine) await afd.update('environment.containerEngine', engine, target);
   const where = image
     ? `${engine}: ${image} on ${host}`
     : `the ansible-playbook of ${facts.user ?? 'the account'} on ${host}`;
+  const dir = remoteDir(
+    vscode.workspace.getConfiguration('afd').get<string>('environment.sshDir') ?? '',
+    vscode.workspace.workspaceFolders?.[0]?.name ?? 'workspace',
+  );
+  const there = typeof dir === 'string' ? dir.replace('$HOME/', '~/') : '~/.afd/<workspace>';
   return done(
-    `The Ansible environment is set: ${where}. Each run copies the repository to ${afd.get<string>('environment.sshDir') || '~/.afd/<workspace>'} there.`,
+    `The Ansible environment is set: ${where}. Each run copies the repository to ${there} there.`,
     retry,
   );
+}
+
+/** The image of the user settings: what the workspace has when it names none itself. */
+function userImage(): string {
+  const image = vscode.workspace.getConfiguration('afd').inspect<string>('environment.image');
+  return (image?.globalValue ?? '').trim();
 }
 
 /**
