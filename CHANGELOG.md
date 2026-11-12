@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.83.1 — AFD-250 (the setup and an environment the workspace sets)
 
 **Fix (AFD-250): Set Up Ansible Environment… and an environment the workspace sets.** Found by driving the SSH setup in VS Code.
 
