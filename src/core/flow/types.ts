@@ -159,6 +159,8 @@ export interface FlowNode {
   title: string;
   intent?: string;
   status?: NodeStatus;
+  /** AFD-242: switched off: its hosts pass through and its tasks are not generated. */
+  disabled?: boolean;
   /** Format 2: why the node counts as tested (AFD-50); format 1 has no such field. */
   tested?: TestedRecord;
   inputs?: Contract;

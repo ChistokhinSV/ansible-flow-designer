@@ -20,6 +20,11 @@ The first wave of editing changes taken from other flow editors (n8n, Node-RED, 
 - **Outline (AFD-240):** a flow open as text has an Outline and breadcrumbs: its nodes, a subflow holding the nodes inside it. A symbol or a problem chosen in the text shows its node on the canvas when the designer is open.
 - **Dissolve Subflow (AFD-241):** on a subflow's menu, the reverse of Extract into Subflow: its steps move up to its level, where the subflow stood, and it goes. Before, only AI assistants could do it.
 
+**Wave 3 (model changes):**
+
+- **Disable a step (AFD-242, ADR-0035):** **D**, or Disable in a step's menu, switches a step off and keeps it. The hosts that reach it pass straight to the next step, and no code is generated for it; scenarios simulate the same. A decision with both branches wired cannot be passed through, and a step that reads a disabled step's output is warned. AI assistants set it with `update_node` (`disabled: true`). Find: `has:disabled`. Before, the only way to try a flow without a step was to delete it and wire the gap by hand.
+- **Expand a subflow in place (AFD-243, experimental):** with `afd.canvas.expandSubflows` on, a subflow node has an arrow that grows it into a frame showing its inner steps on its own level. For reading; nothing is written to the flow file. Off by default: a trial, to be kept only if it proves useful.
+
 ## 0.81.0 — AFD-221 (Jinja in fields)
 
 Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).

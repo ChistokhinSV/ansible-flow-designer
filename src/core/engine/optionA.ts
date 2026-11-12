@@ -1,6 +1,7 @@
 // Option A code generation (handoff 05, ADR-0003, ADR-0009): one playbook per flow level, one play
 // per node, host sets routed between plays with group_by, and a final outcome play that fails the
 // hosts left on open ports or failed end nodes (no host ever fails inside a node play).
+
 import {
   bubbles,
   type LevelTaken,
@@ -26,6 +27,7 @@ import type { Edge, FlowDocument, FlowNode, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import { plainText } from '../view/markdown';
 import { bindingTask, inputVars, isIncludeTasks, stubFacts } from './binding';
+import { withoutDisabled } from './bypass';
 import { effectiveTargets } from './targets';
 import type {
   Engine,
@@ -1464,7 +1466,9 @@ function choose(
 
 export const optionA: Engine = {
   id: 'option-a',
-  generate: (doc, options) => {
+  generate: (asWritten, options) => {
+    // AFD-242: disabled nodes are not generated; the path closes over them (engine/bypass).
+    const doc = withoutDisabled(asWritten);
     const whole = new Generator(doc, options);
     const result = whole.run();
     if (!result.ok) return result;

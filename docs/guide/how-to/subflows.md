@@ -66,6 +66,19 @@ Wires into the subflow go to its entry step, its exits become wires from the inn
 references follow. On the canvas the steps keep their arrangement, placed where the subflow
 stood; run **Tidy Up** if they cover their neighbours. A shared subflow is unlinked first.
 
+### Expand a subflow in place (experimental)
+
+With the setting `afd.canvas.expandSubflows` on (off by default; reopen the designer after
+changing it), a subflow node has a small arrow in its corner. Click it and the node grows into a
+frame on its own level, with its inner steps and wires drawn inside; click it again to close it.
+The steps under and beside the frame move aside on screen only: nothing is written to the flow
+file, and a step you drag is saved where it stands with the frame closed.
+
+Inside the frame the steps are for reading: select one to see its Details, double-click the frame
+to open the subflow and edit it there. Ports and wires inside the frame cannot be changed, the
+frame itself is not dragged, and notes of the inner level are not shown. This is a trial: say
+whether it helps before it is kept.
+
 ## Data across the boundary
 
 - **An inner step reads its subflow's input** as `from: <subflow key>.<input>`, e.g.

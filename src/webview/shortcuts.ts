@@ -48,6 +48,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'undo', keys: `${MOD}Z`, label: 'Undo (VS Code keeps one step per change)', group: 'Edit' },
   { id: 'redo', keys: IS_MAC ? '⇧⌘Z' : 'Ctrl+Y', label: 'Redo', group: 'Edit' },
   {
+    id: 'disable',
+    keys: 'D',
+    label: 'Disable the selected steps (their hosts pass through), or enable them again',
+    group: 'Edit',
+  },
+  {
     id: 'addNode',
     keys: 'N',
     label: 'Add a node: after the selected one, else at the pointer',

@@ -153,6 +153,9 @@ export function runCanvasAction(
     case 'detach':
       void detachNodes(action.nodes);
       return;
+    case 'setDisabled':
+      void run({ kind: 'setDisabled', ids: action.nodes, disabled: action.disabled });
+      return;
     case 'dissolve':
       void run({ kind: 'dissolveSubflow', id: action.node, place: true });
       return;

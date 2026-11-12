@@ -15,6 +15,7 @@ import {
   selectAll,
   selectedAnnotations,
   selectedNodes,
+  toggleDisabled,
   upLevel,
 } from './editActions';
 import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
@@ -151,6 +152,13 @@ export function installKeyboard(): () => void {
       if (target && target !== document.body && !target.closest?.('.react-flow')) return;
       consume();
       selectAll();
+    } else if (e.key.toLowerCase() === 'd' && !mod && !e.altKey && !e.shiftKey) {
+      // AFD-242: switch the selected steps off, or back on.
+      const ids = selectedNodes();
+      if (!canEdit() || ids.length === 0) return;
+      if (e.repeat) return consume();
+      consume();
+      void toggleDisabled(ids);
     } else if (e.key.toLowerCase() === 'n' && !mod && !e.altKey && e.shiftKey) {
       // AFD-65: a Note on the selected node, else where a paste would land.
       if (!canEdit()) return;

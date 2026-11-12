@@ -40,6 +40,7 @@ export const NODE_ORDER = [
   'title',
   'status',
   'tested',
+  'disabled',
   'intent',
   'condition',
   'outcome',

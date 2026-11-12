@@ -4,6 +4,7 @@
 
 import type { Forced } from '../scenario/scenarios';
 import { ALIGN_LABEL, type AlignHow, DISTRIBUTE_LABEL, type DistributeHow } from './arrange';
+import { canDisable } from './disabled';
 import { formatOf } from './format';
 import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
@@ -56,7 +57,8 @@ export type ShortcutId =
   | 'alignCenter'
   | 'distribute'
   | 'zoomSelection'
-  | 'follow';
+  | 'follow'
+  | 'disable';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -87,6 +89,8 @@ export type CanvasAction =
   /** AFD-238: every step the hosts came through to reach this one, or can reach from it. */
   | { do: 'selectFlow'; node: Ulid; dir: 'up' | 'down' }
   | { do: 'zoomSelection' }
+  /** AFD-242: switched off (hosts pass through, nothing generated), or back on. */
+  | { do: 'setDisabled'; nodes: Ulid[]; disabled: boolean }
   /** AFD-235: out of the path, which closes behind them; the nodes stay. */
   | { do: 'detach'; nodes: Ulid[] }
   /** AFD-88: line steps up or space them evenly (one move); placed steps back to automatic. */
@@ -375,6 +379,18 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
+  if (edit && canDisable(node))
+    design.push(
+      item(
+        node.disabled ? 'Enable' : 'Disable',
+        { do: 'setDisabled', nodes: [id], disabled: !node.disabled },
+        {
+          icon: node.disabled ? 'circle-large-outline' : 'circle-slash',
+          shortcut: 'disable',
+          ...lock,
+        },
+      ),
+    );
   if (edit && !ends && wired(model, [id]))
     design.push(
       item(
@@ -479,6 +495,18 @@ function groupMenu(
           icon: 'type-hierarchy-sub',
           ...(ends ? { disabled: 'Start and end nodes stay on their level' } : lock),
         },
+      ),
+    );
+  }
+  const steps = nodes.filter(canDisable);
+  if (edit && steps.length > 0) {
+    // Disable while any of them is on; Enable once all are off.
+    const allOff = steps.every((n) => n.disabled);
+    more.push(
+      item(
+        allOff ? 'Enable' : 'Disable',
+        { do: 'setDisabled', nodes: steps.map((n) => n.id), disabled: !allOff },
+        { icon: allOff ? 'circle-large-outline' : 'circle-slash', shortcut: 'disable', ...lock },
       ),
     );
   }

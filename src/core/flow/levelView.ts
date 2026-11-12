@@ -43,6 +43,8 @@ export interface EdgeView {
   tone: PortTone;
   /** Problem ports draw dashed wires (04 §2). */
   problem: boolean;
+  /** AFD-243: a wire of a subflow expanded in place: drawn, not edited here. */
+  inner?: boolean;
 }
 
 export interface LevelView {

@@ -97,6 +97,8 @@ export type Op =
       handler?: HandlerKind | null;
       join_mode?: JoinMode | null;
       branches?: number | null;
+      /** AFD-242 */
+      disabled?: boolean | null;
       settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
       keywords?: Record<string, unknown> | null;
     }

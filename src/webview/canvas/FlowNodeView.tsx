@@ -46,7 +46,8 @@ import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
 import { StatusIcon } from './StatusIcon';
 
-export type FlowNodeData = { view: NodeView };
+/** `role` (AFD-243): a subflow expanded in place (`frame`), or a step drawn inside one (`inner`). */
+export type FlowNodeData = { view: NodeView; role?: 'inner' | 'frame' };
 export type FlowRFNode = Node<FlowNodeData, 'flow'>;
 
 const SIDE: Record<PortSide, Position> = {
@@ -81,10 +82,13 @@ function PortHandle({
   port,
   focusable,
   preview,
+  readOnly,
 }: {
   nodeId: string;
   type: NodeType;
   port: PortView;
+  /** AFD-243: a step drawn inside an expanded subflow: its ports are shown, not used. */
+  readOnly?: boolean;
   focusable: boolean;
   /** The step has a preview card, which comes back once the pointer leaves the port. */
   preview: boolean;
@@ -94,7 +98,7 @@ function PortHandle({
   const style = port.side === 'top' || port.side === 'bottom' ? { left: along } : { top: along };
   const isOutput = port.direction === 'out';
   // Code and Run modes read the graph; wiring and port menus belong to Design (AFD-45).
-  const locked = useUi((s) => s.mode !== 'design');
+  const locked = useUi((s) => s.mode !== 'design') || readOnly === true;
   const open = (el: HTMLDivElement) => {
     // While picking a target, the click belongs to the node (FlowCanvas onNodeClick).
     if (useUi.getState().pick || locked) return;
@@ -422,6 +426,20 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
     );
   }
   const status = node.status ?? 'draft';
+  // AFD-242: a disabled step says so in every mode; it has no code and no run to show.
+  if (node.disabled && !near)
+    return (
+      <>
+        <div className="afd-node-head">
+          <StatusIcon status={status} />
+          <Title node={node} />
+        </div>
+        <LensChips id={node.id} />
+        <div className="afd-node-sub" title={subLine(node)}>
+          {subLine(node)}
+        </div>
+      </>
+    );
   const head = (
     <div className="afd-node-head">
       <StatusIcon status={status} />
@@ -473,6 +491,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const far = useStore(farSelector);
   const near = useStore(nearSelector);
   const { node, ports } = data.view;
+  const role = data.role;
+  const canExpand = useUi((s) => s.expandSubflows) && node.type === 'subflow' && role !== 'inner';
   const dataLens = useUi((s) => s.lens === 'data');
   // Handles added or removed after mount must be measured again before wires can attach. Only on a
   // toggle: re-measuring every node on mount upsets the initial fit of the view.
@@ -526,7 +546,9 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   );
   const mains = mainOutputs(node);
   const plusPort =
-    canAdd && !far ? ports.find((p) => p.state === 'open' && mains.includes(p.name)) : undefined;
+    canAdd && !far && !role
+      ? ports.find((p) => p.state === 'open' && mains.includes(p.name))
+      : undefined;
   const classes = [
     outside,
     runMode ? 'run-mode' : '',
@@ -540,6 +562,9 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     active ? 'active' : '',
     pickAt ? 'afd-pick-at' : '',
     badge ? `has-problem problem-${badge.severity}` : '',
+    node.disabled ? 'disabled' : '',
+    role === 'frame' ? 'expanded' : '',
+    role === 'inner' ? 'inner' : '',
     lit,
   ]
     .filter(Boolean)
@@ -549,6 +574,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     <div
       className={classes}
       data-node-id={node.id}
+      data-disabled={node.disabled ? 'true' : undefined}
       data-run-state={runState}
       data-lens={lensChips}
       data-outside={outside || undefined}
@@ -562,10 +588,36 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           nodeId={node.id}
           type={node.type}
           port={p}
-          focusable={selected || active}
+          readOnly={role === 'inner'}
+          focusable={(selected || active) && role !== 'inner'}
           preview={hasPreview(node)}
         />
       ))}
+      {canExpand && !far ? (
+        <button
+          type="button"
+          className="afd-expand icon nodrag nopan"
+          data-expand={role === 'frame' ? 'open' : 'closed'}
+          title={
+            role === 'frame'
+              ? 'Collapse: show the subflow as one step'
+              : 'Expand here: show the steps inside (experimental)'
+          }
+          aria-label={role === 'frame' ? 'Collapse the subflow' : 'Expand the subflow here'}
+          aria-expanded={role === 'frame'}
+          tabIndex={-1}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            useUi.getState().toggleExpanded(node.id);
+          }}
+        >
+          <span
+            className={`codicon codicon-chevron-${role === 'frame' ? 'up' : 'down'}`}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
       {badge && !far ? <ProblemMark node={node} badge={badge} /> : null}
       {plusPort ? (
         <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />

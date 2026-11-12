@@ -146,6 +146,14 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
   so. This happens only when there is one answer: a decision with both branches wired, or a step
   that ended the path, leaves a gap. Inside a subflow the entry moves to the next step, and a step
   that left the subflow hands its exit to the one before it. **Shift+Delete** leaves the gap.
+- **Disable a step:** select it and press **D**, or **Disable** in its menu (a selection works
+  too). The step stays, drawn dashed and dimmed, and does nothing: the hosts that reach it pass
+  straight to the next step, and no code is generated for it. **D** again, or **Enable**, switches
+  it back on. Everything inside a disabled subflow is disabled with it.
+  - The hosts pass through only when the step goes on to one next step. A decision with both
+    branches wired, or a step whose output is open, stops them, and a warning says so.
+  - A step that reads an output of a disabled step gets a warning: that value is not made.
+  - Find lists the disabled steps with `has:disabled`. Start and end nodes cannot be disabled.
 - **Detach from Path** (a step's or a selection's menu) takes steps out of their path and keeps
   them: the path closes behind them the same way, and steps detached together keep the wires
   between them.
@@ -170,8 +178,8 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 ![The node menu](../images/context-menu-light.png)
 
 - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
-  fail port, Add Next Node…, Detach from Path, Dissolve Subflow (a subflow), Reset Position (a step you placed), Select Upstream, Select Downstream, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
-- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Detach from Path, Arrange ▸ (align, distribute, Reset
+  fail port, Add Next Node…, Disable or Enable, Detach from Path, Dissolve Subflow (a subflow), Reset Position (a step you placed), Select Upstream, Select Downstream, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+- **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Disable or Enable, Detach from Path, Arrange ▸ (align, distribute, Reset
   Position), Delete.
 - **Note, section or text:** Edit Text, Color ▸, Attach to Node… or Detach from Node, Cut, Copy,
   Duplicate, Delete ([Notes, sections and text](annotations.md)).
@@ -197,6 +205,7 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Ctrl+↓ / Ctrl+↑          | Follow a wire: select the next step, or the one before                                         |
 | Shift+2                  | Zoom to the selection                                                                          |
 | N                        | Add a node: after the selected one, else at the pointer (on its wire when it already leads on) |
+| D                        | Disable the selected steps (their hosts pass through), or enable them again                    |
 | Shift+N                  | Add a note: on the selected node, else at the pointer                                          |
 | Ctrl+Z / Ctrl+Y          | Undo / Redo                                                                                    |
 | Enter                    | Open the selected subflow, or go to the node's Details                                         |

@@ -164,6 +164,10 @@ export interface PickState {
 interface UiState {
   snapshot: Snapshot | null;
   testMode: boolean;
+  /** AFD-243 (experimental, `afd.canvas.expandSubflows`): subflows can be expanded in place. */
+  expandSubflows: boolean;
+  /** The subflows expanded in place: a view, never stored. */
+  expandedSubflows: Ulid[];
   /** AFD-73: the user's first-flow progress from the host; null until it says. */
   firstFlow: { hidden: boolean; done: string[] } | null;
   selection: Selection;
@@ -272,6 +276,8 @@ interface UiState {
   testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
+  setExpandSubflows(on: boolean): void;
+  toggleExpanded(subflow: Ulid): void;
   setFirstFlow(state: { hidden: boolean; done: string[] }): void;
   select(s: Selection): void;
   setAnnotationsHidden(hidden: boolean): void;
@@ -372,6 +378,8 @@ function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftRe
 export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
+  expandSubflows: false,
+  expandedSubflows: [],
   firstFlow: null,
   selection: {},
   quickAdd: null,
@@ -486,6 +494,12 @@ export const useUi = create<UiState>((set, get) => ({
     });
   },
   setTestMode: (testMode) => set({ testMode }),
+  setExpandSubflows: (expandSubflows) =>
+    set({ expandSubflows, ...(expandSubflows ? {} : { expandedSubflows: [] }) }),
+  toggleExpanded: (id) => {
+    const now = get().expandedSubflows;
+    set({ expandedSubflows: now.includes(id) ? now.filter((x) => x !== id) : [...now, id] });
+  },
   setFirstFlow: (firstFlow) => set({ firstFlow }),
   select(selection) {
     const pending = get().pendingBinding;

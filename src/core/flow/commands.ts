@@ -20,6 +20,7 @@ import {
   findAccepted,
   portAccepted,
 } from './decisions';
+import { canDisable } from './disabled';
 import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
 import { CONTINUES_ON, healPlan, healSummary, spliceProblem } from './heal';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
@@ -115,6 +116,8 @@ export type FlowCommand =
    * dropped, and nodes still at auto-layout positions) are written in the same edit.
    */
   | { kind: 'spliceNode'; node: Ulid; edge: Ulid; positions?: Record<Ulid, Position> }
+  /** AFD-242: several nodes switched off, or back on, in one edit. */
+  | { kind: 'setDisabled'; ids: Ulid[]; disabled: boolean }
   /** AFD-235: the nodes leave their path, which closes behind them; they keep their wires to each other. */
   | { kind: 'detachNodes'; ids: Ulid[] }
   | { kind: 'updateNode'; id: Ulid; patch: NodePatch }
@@ -308,6 +311,8 @@ export interface NodePatch {
   purpose?: HandlerKind | null;
   join_mode?: JoinMode | null;
   branches?: number | null;
+  /** AFD-242: true switches the node off; false or null switches it back on. */
+  disabled?: boolean | null;
   /** Merged into `settings`; null removes a setting. */
   settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
   /** Replaces the binding's task keywords (AFD-26); null or {} removes them. */
@@ -910,6 +915,17 @@ function rewireFrom(tx: YamlTransaction, edgeId: Ulid, from: PortRef): void {
   if (dropped.length) tx.applyAll(dropped);
 }
 
+/** AFD-242: `disabled: true` on the nodes, or the key removed. */
+function setDisabled(tx: YamlTransaction, ids: readonly Ulid[], disabled: boolean): void {
+  for (const id of ids) {
+    const { node, path } = nodeAt(state(tx), id);
+    if (!canDisable(node))
+      throw new CommandError('bad-type', `A ${node.type} node cannot be disabled`);
+    if ((node.disabled === true) === disabled) continue;
+    setField(tx, path, 'disabled', disabled ? true : null, NODE_ORDER);
+  }
+}
+
 /** AFD-234: a free-standing node goes into a wire, as a new one does (insertOnEdge). */
 function spliceNode(
   tx: YamlTransaction,
@@ -1261,6 +1277,7 @@ function updateNode(
   for (const k of ['intent', 'condition', 'outcome', 'join_mode', 'branches'] as const) {
     setField(tx, path, k, patch[k] as YamlValue | undefined, NODE_ORDER);
   }
+  if (patch.disabled !== undefined) setDisabled(tx, [cmd.id], patch.disabled === true);
   // Format 1 calls it handler (AFD-52); a format 1 name left in a format 2 node goes with the edit.
   if (patch.purpose !== undefined) {
     const key = purposeKey(state(tx).doc);
@@ -3339,6 +3356,10 @@ export function planCommand(
       break;
     case 'detachNodes':
       detachNodes(tx, cmd.ids, notes);
+      break;
+    case 'setDisabled':
+      if (cmd.ids.length === 0) throw new CommandError('not-found', 'No nodes named');
+      setDisabled(tx, cmd.ids, cmd.disabled);
       break;
     case 'disconnect':
       removeEdgeById(tx, cmd.edge);

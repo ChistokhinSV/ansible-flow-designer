@@ -243,3 +243,64 @@
     border-color: ButtonText;
   }
 }
+
+/* AFD-242: a disabled step: there, but out of the run. */
+.afd-node.disabled {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--afd-bg) 70%, var(--afd-neutral) 30%);
+}
+
+.afd-node.disabled .afd-node-head,
+.afd-node.disabled .afd-node-sub,
+.afd-node.disabled > .afd-node-title {
+  opacity: 0.6;
+}
+
+.afd-node.disabled::before {
+  background: var(--afd-neutral);
+}
+
+.afd-node.disabled .afd-node-title {
+  text-decoration: line-through;
+}
+
+/* AFD-243 (experimental): a subflow expanded in place: a frame with its steps inside. */
+.afd-node.expanded {
+  justify-content: flex-start;
+  background: color-mix(in srgb, var(--afd-bg) 88%, var(--afd-neutral) 12%);
+}
+
+.afd-node.expanded .afd-node-sub,
+.afd-node.expanded .afd-chips,
+.afd-node.expanded .afd-node-run,
+.afd-node.expanded .afd-node-code {
+  display: none;
+}
+
+.afd-expand {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--afd-muted);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.afd-expand:hover,
+.afd-expand:focus-visible {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.25));
+  color: var(--afd-fg);
+}
+
+.afd-node.inner {
+  cursor: default;
+}

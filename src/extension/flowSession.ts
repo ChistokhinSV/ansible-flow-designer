@@ -644,7 +644,14 @@ export class FlowSession implements vscode.Disposable {
       case 'ready':
         this.readyPanels.add(panel);
         for (const w of this.readyWaiters.splice(0)) w();
-        this.post(panel, { type: 'config', testMode: this.deps.testMode });
+        this.post(panel, {
+          type: 'config',
+          testMode: this.deps.testMode,
+          expandSubflows:
+            vscode.workspace
+              .getConfiguration('afd', this.document.uri)
+              .get<boolean>('canvas.expandSubflows') === true,
+        });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
         this.post(panel, { type: 'run', run: this.lastRun });

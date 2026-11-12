@@ -2,6 +2,7 @@
 // command, so a single undo step: deleting a selection, cutting, duplicating.
 import type { CanvasTarget } from '../core/flow/canvasMenu';
 import { copyNodes } from '../core/flow/clipboard';
+import { canDisable } from '../core/flow/disabled';
 import { healPlan, healSummary } from '../core/flow/heal';
 import { modelOf, ROOT } from '../core/flow/model';
 import { mainOutputs } from '../core/flow/ports';
@@ -113,6 +114,22 @@ export async function deleteSelection(
     ...(healing ? { heal: true } : {}),
   });
   if (ack.ok && said) useUi.getState().notify('info', said);
+}
+
+/**
+ * AFD-242 (D): switches the selected steps off, or back on once all of them are off. Start and
+ * end nodes among them are left as they are.
+ */
+export async function toggleDisabled(ids: Ulid[]): Promise<void> {
+  const doc = useUi.getState().snapshot?.doc;
+  if (!canEdit() || !doc) return;
+  const model = modelOf(doc);
+  const steps = ids
+    .map((id) => model.nodes.get(id)?.node)
+    .filter((n): n is NonNullable<typeof n> => !!n && canDisable(n));
+  if (steps.length === 0) return;
+  const disabled = !steps.every((n) => n.disabled);
+  await run({ kind: 'setDisabled', ids: steps.map((n) => n.id), disabled });
 }
 
 /** AFD-235: the nodes leave their path and stay on the canvas; the path closes behind them. */

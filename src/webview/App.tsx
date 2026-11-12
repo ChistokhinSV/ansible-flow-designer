@@ -77,6 +77,7 @@ function useHost() {
         ui.setRepo(m.state);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
+        ui.setExpandSubflows(m.expandSubflows === true);
       } else if (m.type === 'firstFlow') {
         ui.setFirstFlow({ hidden: m.hidden, done: m.done });
       } else if (m.type === 'reveal') {

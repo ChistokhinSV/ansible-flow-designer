@@ -26,6 +26,8 @@ export function exitLabelledAtRest(e: {
 
 /** Under the title: the bound module or role, else what kind of node it is; a decision's test. */
 export function subLine(node: FlowNode): string {
+  // AFD-242: a disabled step says so first: what it would run is beside the point.
+  if (node.disabled) return 'Disabled · hosts pass through';
   if (node.type === 'decision') return node.condition ? `if ${node.condition}` : 'Decision';
   // AFD-86: a task without a binding says so (round 1: "Task" told the participant nothing, P12).
   const what =

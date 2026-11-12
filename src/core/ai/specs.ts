@@ -146,7 +146,7 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'update_node',
     summary:
-      'Change fields of a node; null removes a field. A new key renames the node: from: references follow.',
+      'Change fields of a node; null removes a field. A new key renames the node: from: references follow. disabled: true switches a step off and keeps it (its hosts pass straight to the next step, no code is generated for it; null switches it back on): only when the user asks to skip or disable a step, never to silence a problem.',
     properties: {
       node: NODE,
       title: field('title'),
@@ -163,6 +163,7 @@ export const OP_SPECS: OpSpec[] = [
       purpose: nullable(field('purpose')),
       join_mode: nullable(field('join_mode')),
       branches: nullable(field('branches')),
+      disabled: nullable(field('disabled')),
       settings: {
         ...SETTINGS,
         properties: Object.fromEntries(
