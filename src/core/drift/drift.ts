@@ -375,9 +375,11 @@ function checkTaskFiles(
       )
       .map((e) => tasksFromOf(e.node) ?? 'main'),
   );
-  // AFD-151: a file that main or a covered step includes runs as part of it; adding it as a
-  // step of its own would run it twice.
-  const reached = new Set(['main', ...covered]);
+  // AFD-151: a file that a covered step includes runs as part of it; adding it as a step of its
+  // own would run it twice. AFD-248: main counts only when a step runs it. In a subflow whose
+  // steps each run a task file of their own, main is not run, so a file that only main includes
+  // is missing from the design.
+  const reached = new Set(covered);
   for (const at of [...reached])
     for (const stack = [at]; stack.length; )
       for (const next of includes[stack.pop() as string] ?? [])
@@ -386,7 +388,8 @@ function checkTaskFiles(
           stack.push(next);
         }
   for (const file of files) {
-    if (reached.has(file)) continue;
+    // main itself is the role's index, never a step to add.
+    if (file === 'main' || reached.has(file)) continue;
     add({
       id: `task-file:${file}`,
       kind: 'code_without_design',
