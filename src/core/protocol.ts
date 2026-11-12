@@ -192,7 +192,7 @@ export type HostMessage =
   | { type: 'openLevel'; level: string }
   /** Switches the canvas mode (tests and commands, M7). */
   | { type: 'setMode'; mode: 'design' | 'code' | 'run' }
-  /** `expandSubflows` (AFD-243, experimental): subflows can be expanded in place. */
+  /** `expandSubflows` (AFD-243, `afd.canvas.expandSubflows`): subflows can be expanded in place. */
   | { type: 'config'; testMode: boolean; expandSubflows?: boolean }
   /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
   | { type: 'firstFlow'; hidden: boolean; done: string[] }

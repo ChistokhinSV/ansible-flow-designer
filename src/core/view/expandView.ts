@@ -1,4 +1,4 @@
-// AFD-243 (experimental): a subflow expanded in place. Its node grows into a frame on its own
+// AFD-243: a subflow expanded in place. Its node grows into a frame on its own
 // level and its inner steps and wires are drawn inside, so a level and what its subflows hold are
 // read together without opening each one. A view only: nothing here is stored, and the steps
 // around the frame are pushed aside on screen, never in the file (`shift` says by how much, so a

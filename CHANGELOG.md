@@ -23,7 +23,7 @@ The first wave of editing changes taken from other flow editors (n8n, Node-RED, 
 **Wave 3 (model changes):**
 
 - **Disable a step (AFD-242, ADR-0035):** **D**, or Disable in a step's menu, switches a step off and keeps it. The hosts that reach it pass straight to the next step, and no code is generated for it; scenarios simulate the same. A decision with both branches wired cannot be passed through, and a step that reads a disabled step's output is warned. AI assistants set it with `update_node` (`disabled: true`). Find: `has:disabled`. Before, the only way to try a flow without a step was to delete it and wire the gap by hand.
-- **Expand a subflow in place (AFD-243, experimental):** with `afd.canvas.expandSubflows` on, a subflow node has an arrow that grows it into a frame showing its inner steps on its own level. For reading; nothing is written to the flow file. Off by default: a trial, to be kept only if it proves useful.
+- **Expand a subflow in place (AFD-243):** a subflow node has an arrow that grows it into a frame showing its inner steps and wires on its own level, with the entry wire and each exit joined to the subflow's ports. For reading; nothing is written to the flow file. The setting `afd.canvas.expandSubflows` (on by default) takes the arrow away.
 
 ## 0.81.0 — AFD-221 (Jinja in fields)
 

@@ -164,7 +164,7 @@ export interface PickState {
 interface UiState {
   snapshot: Snapshot | null;
   testMode: boolean;
-  /** AFD-243 (experimental, `afd.canvas.expandSubflows`): subflows can be expanded in place. */
+  /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
   expandSubflows: boolean;
   /** The subflows expanded in place: a view, never stored. */
   expandedSubflows: Ulid[];

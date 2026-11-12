@@ -69,7 +69,7 @@ import { useUi } from '../store';
 import { type BoundaryEdgeView, boundaryView, levelView, type NodeView } from '../viewModel';
 import { AnnotationNodeView, type AnnotationRFNode, annotationName } from './AnnotationNode';
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
-import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
+import { FlowNodeView, type FlowRFNode, innerHandle } from './FlowNodeView';
 import { GhostNodeView, type GhostRFNode } from './GhostNode';
 import { NodeBoxes, RoutedEdge, WireHover } from './RoutedEdge';
 
@@ -263,7 +263,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [allGhosts, level],
   );
 
-  // AFD-243 (experimental): subflows expanded in place are drawn as frames holding their steps.
+  // AFD-243: subflows expanded in place are drawn as frames holding their steps.
   const levelOnly = useLevelView();
   const expandedIds = useUi((s) => (s.expandSubflows ? s.expandedSubflows : NO_IDS));
   const expansion = useMemo(
@@ -500,10 +500,42 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         reconnectable: false,
       }));
   }, [dataLens, dataWires, view.nodes]);
+  // AFD-243: a subflow expanded in place shows how its steps join its ports: the entry wire from
+  // inside its `in`, and each exit into the port it leaves through, as the open subflow does.
+  const inlineEdges = useMemo<Edge[]>(() => {
+    if (!snapshot || expansion.frames.size === 0) return [];
+    const out: Edge[] = [];
+    for (const sub of expansion.frames) {
+      const inside = boundaryView(snapshot, levelView(snapshot, _optimistic, sub), sub);
+      for (const e of inside?.edges ?? []) {
+        const entry = e.kind === 'entry';
+        out.push({
+          id: `inline:${e.id}`,
+          source: entry ? sub : e.source,
+          sourceHandle: entry ? innerHandle(e.sourcePort) : e.sourcePort,
+          target: entry ? e.target : sub,
+          targetHandle: entry ? e.targetPort : innerHandle(e.targetPort),
+          type: 'routed',
+          className: `afd-edge afd-boundary-edge afd-inline-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
+          },
+          selectable: false,
+          focusable: false,
+          deletable: false,
+          reconnectable: false,
+          zIndex: Z.innerWire,
+        });
+      }
+    }
+    return out;
+  }, [snapshot, expansion.frames, _optimistic]);
   const allEdges = useMemo<Edge[]>(
     () => [
       ...edges,
       ...dataEdges,
+      ...inlineEdges,
       ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
         id: e.id,
         source: e.source,
@@ -522,7 +554,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         reconnectable: false,
       })),
     ],
-    [edges, dataEdges, boundary, selection.edge, shows],
+    [edges, dataEdges, inlineEdges, boundary, selection.edge, shows],
   );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one

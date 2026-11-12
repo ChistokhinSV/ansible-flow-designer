@@ -650,7 +650,7 @@ export class FlowSession implements vscode.Disposable {
           expandSubflows:
             vscode.workspace
               .getConfiguration('afd', this.document.uri)
-              .get<boolean>('canvas.expandSubflows') === true,
+              .get<boolean>('canvas.expandSubflows') !== false,
         });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });

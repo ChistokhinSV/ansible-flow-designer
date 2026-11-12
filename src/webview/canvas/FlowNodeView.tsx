@@ -247,6 +247,52 @@ function ProblemMark({ node, badge }: { node: FlowNode; badge: ProblemBadge }) {
   );
 }
 
+/** The id of the handle a frame's port has on its inside (AFD-243). */
+export const innerHandle = (port: string) => `__inner:${port}`;
+
+// As the boundary frame of an open subflow (BoundaryFrame): the handles sit on the frame's edges
+// and face inward, so the entry leaves `in` into the frame and exits arrive from inside it.
+const FACING: Record<PortSide, Position> = {
+  top: Position.Bottom,
+  bottom: Position.Top,
+  right: Position.Left,
+  left: Position.Right,
+};
+const ON_EDGE: Record<PortSide, Record<string, string | number>> = {
+  top: { top: 0, bottom: 'auto', transform: 'translate(-50%, -50%)' },
+  bottom: { top: 'auto', bottom: 0, transform: 'translate(-50%, 50%)' },
+  right: { left: 'auto', right: 0, transform: 'translate(50%, -50%)' },
+  left: { left: 0, right: 'auto', transform: 'translate(-50%, -50%)' },
+};
+
+/**
+ * AFD-243: a subflow expanded in place joins its inner wires to its own ports: the entry wire
+ * starts inside its `in`, and each exit ends inside the port it leaves through. These handles
+ * lie under the node's ports and are only where those wires attach.
+ */
+function InnerHandles({ ports }: { ports: PortView[] }) {
+  return (
+    <>
+      {ports.map((p) => {
+        const along = `${Math.round(p.offset * 100)}%`;
+        const across = p.side === 'top' || p.side === 'bottom' ? { left: along } : { top: along };
+        return (
+          <Handle
+            key={p.name}
+            id={innerHandle(p.name)}
+            type={p.direction === 'in' ? 'source' : 'target'}
+            position={FACING[p.side]}
+            isConnectable={false}
+            className="afd-inner-handle"
+            style={{ ...ON_EDGE[p.side], ...across }}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </>
+  );
+}
+
 /** The node's title; edited in place while it is being renamed (AFD-237). */
 function Title({ node }: { node: FlowNode }) {
   const renaming = useUi((s) => s.renaming === node.id);
@@ -503,6 +549,13 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     shownData.current = dataLens;
     updateInternals(node.id);
   }, [dataLens, node.id, updateInternals]);
+  // AFD-243: the inner handles of a frame come and go with it.
+  const shownRole = useRef(role);
+  useEffect(() => {
+    if (shownRole.current === role) return;
+    shownRole.current = role;
+    updateInternals(node.id);
+  }, [role, node.id, updateInternals]);
   const lensChips = useUi((s) =>
     s.lens ? (s.lensView?.chips[node.id] ?? []).map((c) => c.text).join('|') : undefined,
   );
@@ -601,7 +654,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           title={
             role === 'frame'
               ? 'Collapse: show the subflow as one step'
-              : 'Expand here: show the steps inside (experimental)'
+              : 'Expand here: show the steps inside'
           }
           aria-label={role === 'frame' ? 'Collapse the subflow' : 'Expand the subflow here'}
           aria-expanded={role === 'frame'}
@@ -619,6 +672,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
         </button>
       ) : null}
       {badge && !far ? <ProblemMark node={node} badge={badge} /> : null}
+      {role === 'frame' ? <InnerHandles ports={ports} /> : null}
       {plusPort ? (
         <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />
       ) : null}

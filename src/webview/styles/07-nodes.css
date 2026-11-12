@@ -264,7 +264,7 @@
   text-decoration: line-through;
 }
 
-/* AFD-243 (experimental): a subflow expanded in place: a frame with its steps inside. */
+/* AFD-243: a subflow expanded in place: a frame with its steps inside. */
 .afd-node.expanded {
   justify-content: flex-start;
   background: color-mix(in srgb, var(--afd-bg) 88%, var(--afd-neutral) 12%);
@@ -303,4 +303,15 @@
 
 .afd-node.inner {
   cursor: default;
+}
+
+/* AFD-243: where the entry and exit wires of an expanded subflow attach, under its ports. */
+.react-flow__handle.afd-inner-handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
 }
