@@ -72,6 +72,8 @@ A subflow node has a small arrow in its corner. Click it and the node grows into
 own level, with its inner steps and wires drawn inside, the entry wire from its `in` and each
 exit into the port it leaves through; click it again to close it. The setting
 `afd.canvas.expandSubflows` takes the arrow away (reopen the designer after changing it).
+
+![A subflow expanded in place](../images/subflow-expanded-light.png)
 The steps under and beside the frame move aside on screen only: nothing is written to the flow
 file, and a step you drag is saved where it stands with the frame closed.
 

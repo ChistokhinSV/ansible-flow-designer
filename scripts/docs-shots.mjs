@@ -87,6 +87,25 @@ const SHOTS = {
       await ui(page, 'openQuickAdd', { type: 'task', insertOn: edge, title: 'Check NTP' });
     },
   },
+  // AFD-232: the Title field finds what the step runs: modules of the fixture catalog listed.
+  'quick-add-find': {
+    flow: 'new',
+    act: async (page) => {
+      const edge = await page.evaluate(() => window.afdUi.getState().snapshot.doc.edges[0].id);
+      await ui(page, 'openQuickAdd', { type: 'task', insertOn: edge });
+      await page.fill('#afd-qa-name', 'ios conf');
+      await page.locator('.afd-qa-list [role="option"]').first().waitFor();
+      await page.keyboard.press('ArrowDown');
+    },
+  },
+  // AFD-243: the Pre-checks subflow expanded in place: its steps and wires on the top level.
+  'subflow-expanded': {
+    flow: 'firewall-upgrade',
+    act: async (page) => {
+      await ui(page, 'toggleExpanded', await idOf(page, 'precheck'));
+      await settle(page, 900);
+    },
+  },
   // AFD-73: the first-flow checklist on a flow with its first step; the playbook seen already.
   'first-flow': {
     flow: 'new',
