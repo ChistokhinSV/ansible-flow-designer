@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased — AFD-230 wave 1 (add and wire faster)
+## 0.82.0 — AFD-230 (flow editing, from other flow editors)
 
-The first wave of editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer). See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete).
+Editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer), in four waves. See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete), [Subflows](docs/guide/how-to/subflows.md) and [Runs](docs/guide/how-to/runs-and-environments.md).
+
+**Wave 1 (add and wire faster):**
 
 - **+ where the path stops (AFD-231):** a step whose main output is still open shows a **+** under it; one click opens Quick Add wired from that output. It shows at rest, not on hover only. The port keeps its own menu. A hovered or selected wire shows a **+** beside its label that adds a step on that wire.
 - **Quick Add finds what the step runs (AFD-232):** the Title field lists, as you type, the step types, catalog modules and roles that match, and while it is empty what the flow already runs. A pick adds the step bound to that module or role. Enter alone still adds a step with the title typed. A double-click on empty canvas opens Quick Add there.
