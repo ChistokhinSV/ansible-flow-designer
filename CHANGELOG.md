@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.81.0 — AFD-221 (Jinja in fields)
+
+Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).
+
+- **Colours:** parameter values, list items, variables and facts, the Timing fields, the Task keywords box, a decision's Condition and Until show their Jinja in VS Code's default colours for the theme (dark, light, high contrast): delimiters, variables, functions and filters, strings, numbers, keywords, and the `%` codes of a date format.
+- **Completion as you type:** inside `{{ }}`, `{% %}` or a test without braces, a list opens with what fits there: the step's variables and Ansible's (`inventory_hostname`, `hostvars`…), `now()`, `lookup()` and the other functions; filters after `|`; tests after `is`; after `.` a result's fields, a string's methods or a date's `strftime`, with ready formats; date codes inside `strftime('`; lookups inside `lookup('`. Filters, tests and lookups of the collections in the catalog are offered too. Ctrl+Space opens the list anywhere; Enter or Tab puts the choice in, Ctrl+Z takes it back.
+- **Inline help:** the chosen entry's signature and what it does under the list; a date format's result now (`'%Y%m%d_%H%M%S'` → `20261112_101530`); with the cursor in a call, its arguments under the field, the current one in bold; a function, filter, test or date code shows its help on hover.
+- **Tests without braces:** a decision's Condition, Until, `assert` `that` and `debug` `var` are completed as tests, and `@` puts in a name without braces. A variable picked that is not an input of the step yet becomes one in the same edit.
+- **set_fact:** its facts show under **Facts**, one row each; a list or a dict is edited as YAML. Before, with the module's docs loaded, the facts were hidden, `key_value` was asked for, and each fact was reported as an unknown parameter.
+- **Fixes:** typing `!` in a parameter field fitted the canvas instead (Shift+1), so `!=` could not be typed. The YAML box ended a string at `''` or `\"` and coloured the rest wrongly.
+- **Smaller webview:** its script is minified fully (1,200 KB to about 950 KB with all of the above).
+
 ## 0.80.0 — AFD-219 (agents group long chains into subflows)
 
 AI agents could always group steps into a subflow with `extract_subflow`, but they rarely did. On a long change they built one chain of steps on the top level instead. Their guidance taught grouping by purpose only for imports.
