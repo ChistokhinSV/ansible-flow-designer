@@ -133,6 +133,6 @@ describe('WSL distributions in Set Up Ansible Environment… (AFD-75)', () => {
       remoteWsl: true,
       distros: ['Debian', 'Ubuntu-24.04'],
     }).map((c) => (c.kind === 'wsl-distro' ? c.distro : c.kind));
-    expect(kinds).toEqual(['Debian', 'Ubuntu-24.04', 'wsl', 'read']);
+    expect(kinds).toEqual(['Debian', 'Ubuntu-24.04', 'wsl', 'ssh', 'read']);
   });
 });

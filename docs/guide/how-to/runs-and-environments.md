@@ -13,12 +13,13 @@ pulls it, which takes a few minutes. On Windows it also lists your WSL distribut
 runs inside the one you pick, from Windows VS Code, and you install it there yourself
 (`pipx install ansible-core`). Or set it by hand:
 
-| You have                                                              | Set                                                                                                  |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Docker or Podman                                                      | `afd.environment.image` = an execution environment image, e.g. `registry.example.net/ee/netops:2.19` |
-| a WSL distribution on Windows with Ansible installed in it            | `afd.environment.kind` = `wsl`, and `afd.environment.wslDistro` = its name (empty: WSL's default)    |
-| VS Code Remote (WSL, SSH, Dev Container) with Ansible installed there | nothing: local mode runs inside the remote                                                           |
-| a local venv with Ansible                                             | `afd.environment.python` = its interpreter, or leave it to `ansible.python.interpreterPath`          |
+| You have                                                                 | Set                                                                                                                             |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Docker or Podman                                                         | `afd.environment.image` = an execution environment image, e.g. `registry.example.net/ee/netops:2.19`                            |
+| a WSL distribution on Windows with Ansible installed in it               | `afd.environment.kind` = `wsl`, and `afd.environment.wslDistro` = its name (empty: WSL's default)                               |
+| a remote Linux host you reach with `ssh`, the repository on this machine | `afd.environment.kind` = `ssh`, and `afd.environment.sshHost` = the host ([A remote Linux host](#a-remote-linux-host-over-ssh)) |
+| VS Code Remote (WSL, SSH, Dev Container) with Ansible installed there    | nothing: local mode runs inside the remote                                                                                      |
+| a local venv with Ansible                                                | `afd.environment.python` = its interpreter, or leave it to `ansible.python.interpreterPath`                                     |
 
 `afd.environment.kind` is `auto`: `container` when an image is set, else `local`. With the Red Hat
 Ansible extension enabled, its execution environment image and container engine are used when ours
@@ -43,6 +44,57 @@ is not affected.
 
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.
+
+### A remote Linux host over SSH
+
+A shared host can run your flows while the repository stays on your machine: a jump host, an
+operations server, the place your team already runs Ansible from. **Set Up Ansible Environment…**
+offers **A Remote Linux Host over SSH**: it lists the hosts of your SSH config, connects, looks at
+what the host has, and writes the settings. By hand:
+
+| Setting                           | Value                                                                                           |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `afd.environment.kind`            | `ssh`                                                                                           |
+| `afd.environment.sshHost`         | a `Host` of your `~/.ssh/config`, or `user@host`                                                |
+| `afd.environment.sshDir`          | the folder there for this workspace; empty is `~/.afd/<workspace folder name>`                  |
+| `afd.environment.image`           | empty: the `ansible-playbook` on the account's PATH runs. Set: Ansible runs in this image there |
+| `afd.environment.containerEngine` | with an image: `docker` (default) or `podman`, the host's                                       |
+- **The connection is yours.** The extension runs your `ssh` with your config, keys and agent. It
+  never asks for a password and never stores one: the host must connect from a terminal with
+  `ssh <host>` without a question. Host keys are checked as your config says.
+- **What runs is what you have now.** Before a run, and before the probe answers (lenses, the
+  module catalog, the launch dialog's host counts), the repository is copied to the host: the
+  files Git tracks and the untracked ones no `.gitignore` names, as they are on disk, so
+  uncommitted work runs. After the first copy only changed files travel, and files you deleted
+  are deleted there. `.git` is not copied. A run of part of a flow copies its `.afd-run` folder
+  too.
+- **Ansible on the host:** either its own (`pipx install ansible-core`, 2.19 or later, on the PATH
+  of a login shell, with the collections your flows use), or an execution environment image with
+  the host's Docker or Podman. An image runs as it does on your machine: the copy mounted
+  read-only at `/work`.
+- **The folder on the host** (`afd.environment.sshDir`) holds the copy (`repo/`), the helper
+  (`probe/`), the runs (`runs/`), the catalog's dumps (`cache/`) and files you copied (`files/`).
+  It is made readable by the account alone. On an account several people share, two people with
+  the same folder overwrite each other's copy: give each person, or each purpose (testing,
+  production), a folder of its own.
+- **Secrets:** a vault password and secret inputs go to the host on the connection's input, never
+  as command arguments, into files only the account reads, removed when the run ends. Other
+  inputs are written to the run's folder there and removed with it.
+- **A vault password file, a key an inventory script needs:** a run finds on the host only what is
+  in the repository. **Ansible Flow: Copy a File to the SSH Host…** copies one file of this
+  machine there, readable by the account alone, to a path you choose (it proposes the `files/`
+  folder); name that path where it is used, for example `vault_password_file` in `ansible.cfg`.
+  Typing the vault password at each run, as with every other environment, needs no file.
+- **While it runs** the canvas shows the run as it goes, and **Stop Run** ends it on the host.
+- **Limits:**
+  - This machine needs OpenSSH's `ssh` and `tar` on its PATH: Windows 10 (1803) or later has
+    both; older Windows does not.
+  - The host needs `tar`, `base64` and a POSIX `sh`.
+  - Files copied from Windows have no executable bit of their own: the ones Git marks executable
+    are made executable there, the rest are not. Line endings travel as they are on disk.
+  - Paths outside the repository (an inventory elsewhere on this machine) are not copied.
+  - The command-line scenario runner (`afd-scenarios`) has no SSH option; scenarios verified from
+    the designer do run on the host.
 
 ## Run as Skeleton
 

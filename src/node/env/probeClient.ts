@@ -63,10 +63,18 @@ export class ProbeClient {
     private readonly spec: ProcessSpec,
     /** Repository root on this machine; probe paths under `inside` map back to it. */
     private readonly root: string,
-    /** The root as the probe sees it (`/work` in a container, `/mnt/c/…` in WSL); none locally. */
-    private readonly inside: string | undefined,
+    /**
+     * The root as the probe sees it (`/work` in a container, `/mnt/c/…` in WSL); none locally.
+     * `ready` (AFD-247): the probe says it when it starts (an SSH host knows its own home folder).
+     */
+    private inside: string | undefined,
     /** Where the probe's stderr and its lifecycle go (the Ansible Flow log). */
     private readonly log: (line: string) => void = () => {},
+    /**
+     * AFD-247: done before the probe starts and before each call; a rejection fails that call. An
+     * SSH host has a copy of the repository, which this keeps current.
+     */
+    private readonly before?: () => Promise<void>,
   ) {}
 
   /** Last stderr lines (Ansible warnings, tracebacks) for error reports. */
@@ -76,6 +84,16 @@ export class ProbeClient {
 
   start(): Promise<ProbeReady> {
     if (this.ready) return this.ready;
+    const ready = (this.before ? this.before() : Promise.resolve()).then(() => this.spawnProbe());
+    this.ready = ready;
+    // The step before failed (no connection): the next call tries again.
+    ready.catch(() => {
+      if (this.ready === ready && !this.proc) this.ready = undefined;
+    });
+    return ready;
+  }
+
+  private spawnProbe(): Promise<ProbeReady> {
     const proc = spawn(this.spec.command, this.spec.args, {
       cwd: this.spec.cwd,
       env: { ...process.env, ...this.spec.env },
@@ -84,7 +102,7 @@ export class ProbeClient {
     });
     this.proc = proc;
     this.log(`probe: starting ${this.spec.command} for ${this.root}`);
-    this.ready = new Promise<ProbeReady>((resolve, reject) => {
+    return new Promise<ProbeReady>((resolve, reject) => {
       let first = true;
       const timer = setTimeout(() => {
         reject(new Error(`The Ansible probe did not start in time\n${this.stderrTail()}`));
@@ -118,6 +136,7 @@ export class ProbeClient {
             this.log(
               `probe: ready (probe ${ready.probe}, ansible-core ${ready.ansible_core}, Python ${ready.python})`,
             );
+            if (this.inside === 'ready') this.inside = ready.root.replace(/\/+$/, '');
             resolve(ready);
             return;
           }
@@ -146,7 +165,6 @@ export class ProbeClient {
       proc.on('error', (e) => end(`Could not start ${this.spec.command}: ${e.message}`));
       proc.on('exit', (code) => end(`The Ansible probe exited (code ${code})`));
     });
-    return this.ready;
   }
 
   /**
@@ -197,21 +215,23 @@ export class ProbeClient {
     const p = this.queue.shift();
     if (!p) return;
     this.inflight = p;
-    this.start().then(
-      () => {
-        if (this.inflight !== p) return;
-        p.timer = setTimeout(() => this.timedOut(p), p.timeoutMs);
-        this.proc?.stdin?.write(
-          `${JSON.stringify({ id: p.id, method: p.method, params: p.params })}\n`,
-        );
-      },
-      (err: Error) => {
-        if (this.inflight !== p) return;
-        this.inflight = undefined;
-        p.reject(err);
-        this.pump();
-      },
-    );
+    this.start()
+      .then(() => this.before?.())
+      .then(
+        () => {
+          if (this.inflight !== p) return;
+          p.timer = setTimeout(() => this.timedOut(p), p.timeoutMs);
+          this.proc?.stdin?.write(
+            `${JSON.stringify({ id: p.id, method: p.method, params: p.params })}\n`,
+          );
+        },
+        (err: Error) => {
+          if (this.inflight !== p) return;
+          this.inflight = undefined;
+          p.reject(err);
+          this.pump();
+        },
+      );
   }
 
   /** A call that took too long: it fails, and the probe restarts for the calls behind it. */

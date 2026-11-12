@@ -56,3 +56,57 @@ Epic AFD-170 gives the agents built into VS Code forks (Cursor, Windsurf / Devin
 - **Bundles:** the host bundles target `node20`, the oldest runtime the floor allows (Electron 30). `mcp.js` runs on Node 20 or later, as the launcher already required.
 - **Test:** `just test-floor` runs the integration suite on VS Code 1.94.2; the Copilot tools test and the catalog suite skip there.
 - **Checked in a fork:** `just test-editor <executable> [label]` runs a suite inside an installed editor built on VS Code (`useInstallation.fromPath`). In Antigravity IDE (VS Code 1.107) it found one difference: the editor keeps a flow's document loaded after its designer closes, so the flow session outlived the designer. A change on disk meanwhile was reloaded only as the designer opened and was marked as a live outside edit, and marks from before the close came back. `FlowSession` now drops the marks when its last panel closes, compares with the file on disk when the designer opens again, and counts the late reload as part of the closed-time marks (the AFD-92 rule in ADR-0001, unchanged in VS Code).
+
+## Amendment: a remote Linux host over SSH (AFD-247, 2026-11-12)
+
+The product owner asked for a remote Linux host as an execution environment, so a team can run on
+a shared host and not only locally or in AWX. This reverses "No raw-SSH repo sync mode" above: a
+host reached through VS Code Remote-SSH already worked as `local`, but only with the repository on
+that host.
+
+Product-owner decisions (2026-11-12): the code is a copy synced from this machine on each run; one
+environment per workspace (no choice at launch); the user's SSH config with keys or an agent, no
+password; `tar` over `ssh` (Windows 10 or later, said as a limit); the current files, untracked and
+uncommitted included; the folder and the account on the host are the user's choice; Ansible on the
+host's PATH and in an image there are both supported; real runs from the first version.
+
+- **A fifth kind:** `afd.environment.kind: ssh` with `afd.environment.sshHost` and
+  `afd.environment.sshDir` (default `.afd/<workspace folder>` under the home folder). With
+  `afd.environment.image` set, Ansible runs in that image with the host's Docker or Podman;
+  without, the `ansible-playbook` on the account's login PATH. `auto` never picks it. The two
+  settings are restricted in untrusted workspaces, as the other environment settings are.
+- **Commands (`core/run/ssh.ts`, pure):** every command is `ssh -T -o BatchMode=yes … <host>` with
+  one argument, `sh -c '<script>'`, so the account's login shell does not matter and ssh's joining
+  of arguments cannot split a word. The host is checked to be a name, never an option. Paths on
+  the host start with `$HOME` unless the setting is absolute; `rq` quotes a word and lets `$HOME`
+  expand there. The probe then reports its real root, and `ProbeClient` maps paths back from it.
+- **The copy (`node/ssh/sync.ts`):** `git ls-files -co --exclude-standard` (a folder that is no
+  repository, or that a repository above ignores whole, is walked), each file's size and time
+  remembered per host and folder. The first sync of a session empties the folder there; later ones
+  send only changed files and a list of files to delete. Two tar archives go down one connection,
+  the lists then the files (bsdtar and GNU tar differ on two source folders with a name list),
+  unpacked with `tar -xif -`. On Windows the system `tar.exe` is used (a GNU tar on the PATH reads
+  `C:\x` as a remote host), and the executable bit comes from Git's index, since Windows has none.
+- **Permissions:** the workspace's folder on the host is 0700; the copies inside are made with
+  umask 022, because an image's own user reads them through its mounts, which do not pass through
+  the folder above. A run folder an image writes to is opened for that (the events), as the
+  scenario runner does here (AFD-159).
+- **Before the probe starts and before each call** the copy is brought up to date (`ProbeClient`'s
+  `before` step; nothing is run when nothing changed). Catalog dumps are written on the host and
+  fetched into the cache here after a dump.
+- **Runs:** the inputs go to the run's folder on the host; the events are followed with
+  `tail -F` over a second connection into the local events file, so the live summary and the
+  kept run work as for any environment, and read whole once more when the run ends; the folder
+  there is removed after.
+- **Secrets:** ssh passes no environment. `ProcessSpec.input` names the variables that go on the
+  connection's input instead, one base64 line each; the script on the host reads them into
+  exported variables before anything else. A run is a VS Code task, whose process reads the
+  terminal, so the task runs `dist/afd-ssh-run.js` (plain Node through the editor's own binary),
+  which writes the lines and is ssh from then on. No value is an argument on either machine.
+- **Stop:** as for WSL, the run's shell carries its name and `pgrep` finds it; in an image,
+  `docker rm -f <name>` on the host.
+- **Not done:** a choice of environment at launch; a command-line `--ssh` for `afd-scenarios`;
+  password sign-in; copying paths outside the repository (Copy a File to the SSH Host… copies
+  single files by hand).
+- **Tested** against a real host in both ways of running (`test/unit/core/sshLab.test.ts` with
+  `AFD_SSH_HOST`, and the integration suite with `AFD_TEST_SSH`).

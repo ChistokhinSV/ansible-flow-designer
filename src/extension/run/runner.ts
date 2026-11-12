@@ -4,6 +4,7 @@
 // the events are read while the run goes, so the canvas follows it; with the flow's designer open
 // the terminal stays out of the way unless the run stalls or the canvas cannot explain it.
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { engineFor } from '../../core/engine/engines';
 import { type PartialRun, partialFlow, partialLine } from '../../core/engine/partial';
@@ -28,6 +29,7 @@ import { groupHosts, type InventoryTree } from '../../core/view/inventoryTree';
 import { stopStarted } from '../../node/run/stop';
 import { dropVars, KEEP_RUNS, pruneRuns } from '../../node/run/storage';
 import { tailFile } from '../../node/run/tail';
+import { followRunFile, putRunFile, removeRunDir, syncWorkspace } from '../../node/ssh/remote';
 import { TIMEOUTS } from '../../node/timeouts';
 import { rootFromGenerated } from '../codegen';
 import { environmentFor, type ProbeManager } from '../env/environment';
@@ -323,6 +325,19 @@ export async function runFlow(
     await put('.gitignore', '*\n');
     for (const file of code.files) await put(file.name, file.text);
   }
+  // AFD-247: an SSH host runs a copy of the repository: brought up to date now, with the code just
+  // generated (a partial run's folder ignores itself in Git, so it is named), and the inputs.
+  const remote = env.env.kind === 'ssh' ? env.env : undefined;
+  if (remote) {
+    const extra = vscode.workspace.asRelativePath(codeDir, false).replaceAll('\\', '/');
+    const failed =
+      (await syncWorkspace(
+        remote,
+        { root: folder.uri.fsPath, probe: deps.probeDir },
+        partial ? [extra] : [],
+      )) ?? (await putRunFile(remote, runDir.fsPath, 'vars.json', JSON.stringify(plain, null, 2)));
+    if (failed) return fail(failed);
+  }
   const root = code.files[0]?.name ?? `${doc.flow.key}.yml`;
   const playbook = vscode.workspace
     .asRelativePath(vscode.Uri.joinPath(codeDir, root), false)
@@ -381,7 +396,19 @@ export async function runFlow(
     folder,
     label,
     'Ansible Flow',
-    new vscode.ProcessExecution(spec.command, spec.args, { cwd: spec.cwd, env: env2 }),
+    // AFD-247: over SSH the secrets go on the connection's input, written by afd-ssh-run.
+    spec.input?.length
+      ? new vscode.ProcessExecution(
+          process.execPath,
+          [
+            join(deps.probeDir, '..', 'afd-ssh-run.js'),
+            spec.input.join(','),
+            spec.command,
+            ...spec.args,
+          ],
+          { cwd: spec.cwd, env: { ...env2, ELECTRON_RUN_AS_NODE: '1' } },
+        )
+      : new vscode.ProcessExecution(spec.command, spec.args, { cwd: spec.cwd, env: env2 }),
   );
   const designerOpen = deps.designerOpen?.() ?? false;
   task.presentationOptions = {
@@ -396,6 +423,10 @@ export async function runFlow(
   const hidden = secretValues(vaultPassword ? { ...secret, '': vaultPassword } : secret);
   const live = createSummarizer(code.routes);
   const eventsFile = vscode.Uri.joinPath(runDir, 'events.jsonl');
+  // AFD-247: the events are written on the host; they are followed into the file here.
+  const following = remote
+    ? followRunFile(remote, runDir.fsPath, 'events.jsonl', eventsFile.fsPath)
+    : undefined;
   let lastEvent = Date.now();
   let changed = false;
   let quiet = false;
@@ -464,7 +495,9 @@ export async function runFlow(
   registration?.dispose();
   clearInterval(ticker);
   terminal.dispose();
+  await following?.stop();
   await tail.stop();
+  if (remote) await removeRunDir(remote, runDir.fsPath);
 
   await dropVars(runDir.fsPath).catch(() => undefined);
   if (partial)

@@ -95,11 +95,15 @@ describe('Set Up Ansible Environment… (AFD-71)', () => {
       ...m,
     }).map((c) => (c.kind === 'container' ? c.engine : c.kind));
   it.each([
-    ['Docker found', { docker: true }, ['docker', 'read']],
-    ['both engines', { docker: true, podman: true }, ['docker', 'podman', 'read']],
-    ['WSL extension on Windows', { remoteWsl: true }, ['wsl', 'read']],
-    ['WSL is no choice off Windows', { platform: 'linux', remoteWsl: true }, ['install', 'read']],
-    ['nothing yet', {}, ['install', 'read']],
+    ['Docker found', { docker: true }, ['docker', 'ssh', 'read']],
+    ['both engines', { docker: true, podman: true }, ['docker', 'podman', 'ssh', 'read']],
+    ['WSL extension on Windows', { remoteWsl: true }, ['wsl', 'ssh', 'read']],
+    [
+      'WSL is no choice off Windows',
+      { platform: 'linux', remoteWsl: true },
+      ['install', 'ssh', 'read'],
+    ],
+    ['nothing yet', {}, ['install', 'ssh', 'read']],
   ])('%s', (_, m, want) => {
     expect(kinds(m)).toEqual(want);
   });

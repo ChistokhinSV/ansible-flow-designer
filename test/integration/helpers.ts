@@ -12,7 +12,8 @@ let api: AfdTestApi | undefined;
  */
 export const runEnvironment =
   process.env.AFD_TEST_IMAGE ??
-  (process.env.AFD_TEST_WSL ? `WSL ${process.env.AFD_TEST_WSL}` : undefined);
+  (process.env.AFD_TEST_WSL ? `WSL ${process.env.AFD_TEST_WSL}` : undefined) ??
+  (process.env.AFD_TEST_SSH ? `SSH ${process.env.AFD_TEST_SSH}` : undefined);
 
 export async function testApi(): Promise<AfdTestApi> {
   if (api) return api;

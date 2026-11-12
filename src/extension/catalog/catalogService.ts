@@ -157,7 +157,12 @@ export class CatalogService implements vscode.Disposable {
 
   private async loadWith(
     folder: vscode.WorkspaceFolder,
-    probe: { client: ProbeClient; label: string; cache?: string },
+    probe: {
+      client: ProbeClient;
+      label: string;
+      cache?: string;
+      fetchCache?: () => Promise<void>;
+    },
     rebuild: boolean,
     report: (message: string) => void,
     e: Entry,
@@ -168,8 +173,16 @@ export class CatalogService implements vscode.Disposable {
       this.set(folder, { state: 'loading', message, environment: probe.label });
     };
     step('Reading plugin docs from the environment…');
-    const call = () =>
-      probe.client.call<Manifest>('catalog', { cache: probe.cache, jobs: 8 }, TIMEOUTS.catalogDump);
+    const call = async () => {
+      const manifest = await probe.client.call<Manifest>(
+        'catalog',
+        { cache: probe.cache, jobs: 8 },
+        TIMEOUTS.catalogDump,
+      );
+      // AFD-247: an SSH host wrote the dumps there; they are read here.
+      await probe.fetchCache?.();
+      return manifest;
+    };
     const cache = cacheDir(this.deps.storage);
     let manifest = checkedManifest(await call(), cache);
     if (rebuild) {

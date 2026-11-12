@@ -33,6 +33,8 @@
         "afd.environment.containerOptions",
         "afd.environment.python",
         "afd.environment.wslDistro",
+        "afd.environment.sshHost",
+        "afd.environment.sshDir",
         "afd.awx.url",
         "afd.awx.verifyTls",
         "afd.awx.allowHttp"
@@ -263,6 +265,11 @@
       {
         "command": "afd.environment.setup",
         "title": "Set Up Ansible Environment…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.environment.copyFile",
+        "title": "Copy a File to the SSH Host…",
         "category": "Ansible Flow"
       },
       {
@@ -565,11 +572,12 @@
             "auto",
             "container",
             "local",
-            "wsl"
+            "wsl",
+            "ssh"
           ],
           "default": "auto",
           "scope": "resource",
-          "markdownDescription": "Where Ansible runs. `auto`: a container when an image is set (here or in the Red Hat Ansible extension's execution environment settings), else a local interpreter (VS Code Remote, venv). `wsl`: a WSL distribution on Windows (`afd.environment.wslDistro`). Native Windows needs a container or WSL."
+          "markdownDescription": "Where Ansible runs. `auto`: a container when an image is set (here or in the Red Hat Ansible extension's execution environment settings), else a local interpreter (VS Code Remote, venv). `wsl`: a WSL distribution on Windows (`afd.environment.wslDistro`). `ssh`: a remote Linux host (`afd.environment.sshHost`), which gets a copy of the repository for each run. Native Windows needs a container, WSL or an SSH host."
         },
         "afd.environment.image": {
           "type": "string",
@@ -608,6 +616,18 @@
           "default": "",
           "scope": "resource",
           "markdownDescription": "The WSL distribution that runs Ansible when `afd.environment.kind` is `wsl` (as `wsl -l` lists it, e.g. `Ubuntu-24.04`). Empty: WSL's default distribution, which may be Docker Desktop's `docker-desktop`, with no Ansible."
+        },
+        "afd.environment.sshHost": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "The remote Linux host that runs Ansible when `afd.environment.kind` is `ssh`: a `Host` of your SSH config, or `user@host`. The connection is your own OpenSSH setup (keys or an agent; it never asks for a password). With `afd.environment.image` set, Ansible runs in that image with the host's Docker or Podman; without it, the `ansible-playbook` on the account's PATH runs."
+        },
+        "afd.environment.sshDir": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "The folder on the SSH host that holds the copy of this repository, the probe and the runs. Relative to the account's home folder, or absolute. Empty: `.afd/<workspace folder name>`. On an account several people use, give each person, or each purpose, a folder of its own."
         },
         "afd.run.inventory": {
           "type": "string",

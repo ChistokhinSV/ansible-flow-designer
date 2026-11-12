@@ -1,15 +1,21 @@
 // Which Ansible environment runs the probe and the flows (ADR-0005): an EE image through Docker or
 // Podman, a WSL distribution from Windows (AFD-75), or a local interpreter (VS Code Remote, venv). Our settings win; when they are unset the
 // redhat.ansible extension's settings are read as defaults (decision 6). Pure: settings in, plan out.
+// AFD-247: or a remote Linux host over SSH, with Ansible on its PATH or in an image there.
+import { remoteDir, sshHostProblem } from './ssh';
 
 export interface AfdEnvSettings {
-  kind: 'auto' | 'container' | 'local' | 'wsl';
+  kind: 'auto' | 'container' | 'local' | 'wsl' | 'ssh';
   containerEngine: 'auto' | 'docker' | 'podman';
   image: string;
   containerOptions: string[];
   python: string;
   /** AFD-75: the WSL distribution for `kind: wsl`; empty is WSL's default one. */
   wslDistro: string;
+  /** AFD-247: for `kind: ssh`, the host as the user's SSH config names it (or user@host). */
+  sshHost?: string;
+  /** AFD-247: the folder on the host; empty is `.afd/<workspace>` under the account's home. */
+  sshDir?: string;
 }
 
 /** The subset of redhat.ansible settings we honour (names checked against its package.json). */
@@ -43,10 +49,24 @@ export type Environment =
    * AFD-75: Ansible inside a WSL distribution, started with wsl.exe from Windows. Without `python`
    * the probe uses the Python that runs ansible-playbook (pipx keeps ansible-core in its own venv).
    */
-  | { kind: 'wsl'; distro?: string; python?: string; label: string };
+  | { kind: 'wsl'; distro?: string; python?: string; label: string }
+  /**
+   * AFD-247: a remote Linux host over SSH. The repository is copied to `dir` there. Ansible is the
+   * one on the account's PATH (with `python` for the probe when set), or runs in `container`: an
+   * image started with the host's Docker or Podman.
+   */
+  | {
+      kind: 'ssh';
+      host: string;
+      /** Absolute, or starting with `$HOME/` (expanded on the host). */
+      dir: string;
+      python?: string;
+      container?: { engine: 'docker' | 'podman'; image: string; options: string[] };
+      label: string;
+    };
 
 /** Why no environment resolves; set up with Set Up Ansible Environment… (AFD-71). */
-export type EnvironmentProblem = 'no-image' | 'windows-native' | 'wsl-not-windows';
+export type EnvironmentProblem = 'no-image' | 'windows-native' | 'wsl-not-windows' | 'no-ssh-host';
 
 export type EnvironmentResult =
   | { ok: true; env: Environment }
@@ -64,7 +84,36 @@ export function resolveEnvironment(
   afd: AfdEnvSettings,
   redhat: RedHatSettings,
   platform: string,
+  /** The workspace folder's name: the default folder on an SSH host is named after it. */
+  workspace = 'workspace',
 ): EnvironmentResult {
+  if (afd.kind === 'ssh') {
+    const host = (afd.sshHost ?? '').trim();
+    const bad = sshHostProblem(host);
+    if (bad) return { ok: false, error: bad, code: 'no-ssh-host' };
+    const dir = remoteDir(afd.sshDir ?? '', workspace);
+    if (typeof dir !== 'string') return { ok: false, error: dir.error, code: 'no-ssh-host' };
+    // An image named in our settings runs there in a container; redhat.ansible's is for this machine.
+    const container = afd.image
+      ? {
+          engine: afd.containerEngine === 'podman' ? ('podman' as const) : ('docker' as const),
+          image: afd.image,
+          options: afd.containerOptions,
+        }
+      : undefined;
+    const how = container ? `${container.engine}: ${container.image}` : 'ansible on its PATH';
+    return {
+      ok: true,
+      env: {
+        kind: 'ssh',
+        host,
+        dir,
+        python: afd.python || undefined,
+        ...(container ? { container } : {}),
+        label: `ssh: ${host} (${how})`,
+      },
+    };
+  }
   if (afd.kind === 'wsl') {
     if (platform !== 'win32')
       return {
@@ -151,6 +200,8 @@ export function settingsFromJson(json: Record<string, unknown>): {
       containerOptions: Array.isArray(list) ? list.map(String) : [],
       python: get('afd.environment.python', ''),
       wslDistro: get('afd.environment.wslDistro', ''),
+      sshHost: get('afd.environment.sshHost', ''),
+      sshDir: get('afd.environment.sshDir', ''),
     },
     redhat: {
       eeEnabled: json['ansible.executionEnvironment.enabled'] as boolean | undefined,

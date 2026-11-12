@@ -68,6 +68,14 @@ const settings = {
   ...(process.env.AFD_TEST_WSL
     ? { 'afd.environment.kind': 'wsl', 'afd.environment.wslDistro': process.env.AFD_TEST_WSL }
     : {}),
+  // AFD-247: or on the SSH host AFD_TEST_SSH (with AFD_TEST_IMAGE: in that image there).
+  ...(process.env.AFD_TEST_SSH
+    ? {
+        'afd.environment.kind': 'ssh',
+        'afd.environment.sshHost': process.env.AFD_TEST_SSH,
+        'afd.environment.sshDir': `.afd/test-int-${process.pid}`,
+      }
+    : {}),
   ...(process.env.AFD_AWX_URL ? { 'afd.awx.url': process.env.AFD_AWX_URL } : {}),
 };
 if (Object.keys(settings).length > 0) {

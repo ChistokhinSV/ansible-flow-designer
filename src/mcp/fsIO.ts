@@ -437,7 +437,7 @@ export class FsFlowIO implements FlowIO {
     const root = this.roots.find((r) => inside(r, file)) ?? dirname(file);
     const settings = await environmentSettings(root);
     const { afd, redhat } = settingsFromJson(settings.json);
-    const env = resolveEnvironment(afd, redhat, process.platform);
+    const env = resolveEnvironment(afd, redhat, process.platform, basename(root));
     if (!env.ok) {
       const ignored = settings.ignoredWorkspace
         ? ` ${this.show(join(root, '.vscode', 'settings.json'))} sets one, which the server uses only when started with AFD_MCP_WORKSPACE_ENVIRONMENT=1.`

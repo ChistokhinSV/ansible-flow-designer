@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — AFD-247 (a remote Linux host over SSH)
+
+Flows could run in a container image, in WSL or on this machine, and in AWX. A team's shared Linux host was out of reach unless the repository lived there and was opened with VS Code Remote. See [A remote Linux host over SSH](docs/guide/how-to/runs-and-environments.md#a-remote-linux-host-over-ssh).
+
+- **A new environment:** `afd.environment.kind: ssh` with `afd.environment.sshHost` runs Ansible on a remote Linux host, with the repository on your machine. **Set Up Ansible Environment…** offers it, lists the hosts of your SSH config and checks what the host has.
+- **What runs is what you have now:** before a run the repository is copied to the host as it is on disk (tracked files and untracked ones no `.gitignore` names), so uncommitted work runs; after the first copy only changes travel.
+- **Two ways to run there:** the `ansible-playbook` on the account's PATH, or an execution environment image with the host's Docker or Podman (`afd.environment.image`).
+- **Everything a local environment does:** skeleton and real runs with live results on the canvas, Stop Run, the launch dialog's host counts, lenses, the module catalog, runs of part of a flow, and scenarios verified from the designer.
+- **Your own SSH:** your config, keys or agent; no password is asked for or stored. A vault password and secret inputs travel on the connection's input, never as arguments.
+- **Copy a File to the SSH Host…:** copies one file to the host, readable by the account alone, for what the repository does not hold (a vault password file).
+- **Limits:** this machine needs `ssh` and `tar` (Windows 10 1803 or later has both); one environment per workspace, no choice at launch; the command-line scenario runner has no SSH option.
+
 ## 0.82.0 — AFD-230 (flow editing, from other flow editors)
 
 Editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer), in four waves. See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete), [Subflows](docs/guide/how-to/subflows.md) and [Runs](docs/guide/how-to/runs-and-environments.md).

@@ -21,6 +21,7 @@ import {
 } from '../../core/scenario/scenarios';
 import { missWhy } from '../../core/scenario/view';
 import { stopStarted } from '../run/stop';
+import { fetchRunFile, putRunFolder, removeRunDir, syncWorkspace } from '../ssh/remote';
 
 export interface ScenarioRunOptions {
   env: Environment;
@@ -134,6 +135,9 @@ async function runOne(
   // An EE image runs as a user of its own, which only reads here and writes the events into
   // EVENTS, open to all and sticky: nothing in it is loaded.
   const shared = o.env.kind === 'container';
+  // AFD-247: an SSH host runs a copy of this folder; in an image there, the events folder too.
+  const ssh = o.env.kind === 'ssh' ? o.env : undefined;
+  const eventsDir = shared || ssh?.container ? EVENTS : undefined;
   chmodSync(dir, shared ? 0o755 : 0o700);
   if (shared) {
     mkdirSync(join(dir, EVENTS));
@@ -143,6 +147,12 @@ async function runOne(
     const generated = stageScenario(o.doc, s, dir, basename(o.flowFile));
     if (!generated)
       return judge(o.doc, s, undefined, 'The flow does not generate: fix its errors first');
+    if (ssh) {
+      const failed =
+        (await syncWorkspace(ssh, { root: o.root, probe: o.probeDir })) ??
+        (await putRunFolder(ssh, dir, eventsDir));
+      if (failed) return judge(o.doc, s, undefined, failed);
+    }
     const inside =
       o.env.kind === 'local'
         ? dir.replaceAll('\\', '/')
@@ -161,12 +171,16 @@ async function runOne(
         // and the empty one written above keeps it from loading from the working directory.
         hasConfig: false,
         emptyConfig: true,
-        eventsDir: shared ? EVENTS : undefined,
+        eventsDir,
       },
       `afd-scenario-${Date.now().toString(36)}-${index}`,
     );
     const rc = await exec(spec, log, o.timeoutMs ?? 300_000, o.signal);
-    const events = join(dir, shared ? EVENTS : '', 'events.jsonl');
+    const events = join(dir, eventsDir ?? '', 'events.jsonl');
+    if (ssh) {
+      await fetchRunFile(ssh, dir, `${eventsDir ? `${eventsDir}/` : ''}events.jsonl`, events);
+      await removeRunDir(ssh, dir);
+    }
     const text = existsSync(events) ? readFileSync(events, 'utf8') : '';
     if (o.signal?.aborted) return judge(o.doc, s, undefined, 'Cancelled');
     // 2: hosts failed in the outcome play, as a scenario with failures expects.

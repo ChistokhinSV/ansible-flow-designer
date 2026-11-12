@@ -43,6 +43,7 @@ export const CMD = {
   removeAi: 'afd.ai.remove',
   diagnoseAi: 'afd.ai.diagnose',
   setUpEnvironment: 'afd.environment.setup',
+  copyFileToHost: 'afd.environment.copyFile',
   openGuide: 'afd.help.openGuide',
   getStarted: 'afd.help.getStarted',
   openSample: 'afd.help.openSample',
