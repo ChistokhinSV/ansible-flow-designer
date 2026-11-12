@@ -75,6 +75,12 @@ test-wsl $AFD_TEST_WSL $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label integration
 
+# The SSH setup in VS Code (AFD-250): Set Up Ansible Environment… and Copy a File to the SSH Host…
+# against a Host of this machine's SSH config, e.g. `just test-ssh-setup gns3`
+test-ssh-setup $AFD_TEST_SSH_SETUP $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label ssh-setup
+
 # Run mode against the lab AWX (M7): AFD_AWX_* from the environment or .env (the VM afd-awx)
 test-awx $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests

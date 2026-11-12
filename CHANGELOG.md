@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+**Fix (AFD-250): Set Up Ansible Environment… and an environment the workspace sets.** Found by driving the SSH setup in VS Code.
+
+- **An image in the user settings no longer runs on the SSH host unasked:** with an image in your user settings (the Docker setup writes it there), choosing an SSH host that has Ansible on its PATH said "the ansible-playbook of … on the host" and then ran in that image there. The setup now writes an empty image for the workspace, so the host's own Ansible runs. A host without Ansible is offered your image before the public one.
+- **Docker, Podman or a WSL distribution chosen in a workspace that has an SSH host:** the setup wrote the user settings, which the workspace's hid, so it said one environment was set and runs went on using the other. It now writes the workspace settings there.
+- **The message names the folder:** `~/.afd/<your workspace>` as it is on the host, not a placeholder.
+- **Tests:** `just test-ssh-setup <host>` drives the setup and Copy a File to the SSH Host… in VS Code.
+
 ## 0.83.0 — AFD-247 (a remote Linux host over SSH)
 
 Flows could run in a container image, in WSL or on this machine, and in AWX. A team's shared Linux host was out of reach unless the repository lived there and was opened with VS Code Remote. See [A remote Linux host over SSH](docs/guide/how-to/runs-and-environments.md#a-remote-linux-host-over-ssh).
