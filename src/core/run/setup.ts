@@ -10,6 +10,8 @@ export type EnvironmentChoice =
   | { kind: 'container'; engine: 'docker' | 'podman'; label: string; detail: string }
   /** AFD-75: Ansible inside this WSL distribution, run from Windows. */
   | { kind: 'wsl-distro'; distro: string; label: string; detail: string }
+  /** AFD-247: a remote Linux host over SSH. */
+  | { kind: 'ssh'; label: string; detail: string }
   | { kind: 'wsl' | 'install' | 'read'; label: string; detail: string };
 
 export interface MachineFindings {
@@ -62,16 +64,37 @@ export function environmentChoices(m: MachineFindings): EnvironmentChoice[] {
   if (out.length === 0)
     out.push({
       kind: 'install',
-      label: 'Install Docker, Podman or WSL First',
+      label: 'Install Docker, Podman or WSL',
       detail:
         m.platform === 'win32'
           ? 'None is here yet: Docker Desktop or Podman Desktop, or the WSL extension with a Linux distribution'
           : 'Neither Docker nor Podman is here: install one, or Ansible on this machine',
     });
   out.push({
+    kind: 'ssh',
+    label: 'A Remote Linux Host over SSH',
+    detail:
+      'Run Ansible on a shared host: it gets a copy of the repository for each run (your SSH config, keys or agent)',
+  });
+  out.push({
     kind: 'read',
     label: 'Read About Ansible Environments',
-    detail: 'Containers, WSL, a venv: what each needs',
+    detail: 'Containers, WSL, an SSH host, a venv: what each needs',
   });
+  return out;
+}
+
+/**
+ * AFD-247: the `Host` names of an OpenSSH config, for the setup's list. Patterns (`*`, `?`, `!`)
+ * name no single host and are left out.
+ */
+export function sshConfigHosts(text: string): string[] {
+  const out: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*Host\s+(.+?)\s*$/i.exec(line);
+    if (!m) continue;
+    for (const name of (m[1] as string).split(/\s+/))
+      if (name && !/[*?!]/.test(name) && !out.includes(name)) out.push(name);
+  }
   return out;
 }

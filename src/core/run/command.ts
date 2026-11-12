@@ -3,6 +3,9 @@
 // and a WSL distribution sees this machine's drives under /mnt (AFD-75).
 import { SECRET } from '../import/secrets';
 import type { Environment } from './environment';
+import { LOGIN_PROFILE, onHost, readFromInput, remotePaths, rq, shQuote } from './ssh';
+
+export { shQuote };
 
 export const CONTAINER = {
   root: '/work',
@@ -24,6 +27,11 @@ export interface ProcessSpec {
    * stopped run, a timed-out scenario or a hung probe call also removes the container by name.
    */
   stop?: { command: string; args: string[] };
+  /**
+   * AFD-247: variables of `env` that go to the process on its input instead (one base64 line
+   * each, in this order): ssh passes no environment to the host, and they are never arguments.
+   */
+  input?: string[];
 }
 
 const containerStop = (env: Extract<Environment, { kind: 'container' }>, name: string) => ({
@@ -103,6 +111,18 @@ export function insidePaths(
       run: paths.run && wslPath(paths.run),
       cache: paths.cache && wslPath(paths.cache),
     };
+  if (env.kind === 'ssh') {
+    // AFD-247: in a container on the host the mounts are the usual ones; else the copies there.
+    if (env.container)
+      return {
+        root: CONTAINER.root,
+        probe: CONTAINER.probe,
+        run: CONTAINER.run,
+        cache: CONTAINER.cache,
+      };
+    const there = remotePaths(env, paths.run);
+    return { root: there.root, probe: there.probe, run: there.run, cache: there.cache };
+  }
   return paths;
 }
 
@@ -119,8 +139,7 @@ function wslArgs(env: Extract<Environment, { kind: 'wsl' }>, cwd: string): strin
  * The login PATH (pipx puts ansible in ~/.local/bin) without a login shell's output, which would
  * garble the probe's protocol on stdout.
  */
-const WSL_PROFILE =
-  'for f in /etc/profile "$HOME/.profile"; do [ -r "$f" ] && . "$f"; done >/dev/null 2>&1';
+const WSL_PROFILE = LOGIN_PROFILE;
 
 /**
  * `$p`: the interpreter on ansible-playbook's #! line, else python3. Used unquoted, so a line like
@@ -128,9 +147,25 @@ const WSL_PROFILE =
  */
 const WSL_ANSIBLE_PYTHON = `p=$(sed -n '1s/^#! *//p' "$(command -v ansible-playbook)" 2>/dev/null); [ -n "$p" ] || p=python3`;
 
-/** Shell-quotes one word for `sh -c`. */
-export function shQuote(word: string): string {
-  return /^[A-Za-z0-9_./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'"'"'`)}'`;
+/** AFD-247: the same stop as WSL's, on the host: the run's shell carries its name. */
+const sshStop = (host: string, name: string) => {
+  const half = Math.ceil(name.length / 2);
+  return onHost(
+    host,
+    `sh -c ${shQuote(WSL_STOP)} afd-stop ${shQuote(name.slice(0, half))} ${shQuote(name.slice(half))}`,
+  );
+};
+
+/** AFD-247: `docker run` words for a container on the host, over the copies there. */
+function remoteContainer(
+  env: Extract<Environment, { kind: 'ssh' }>,
+  name: string,
+  runDir?: string,
+): string[] {
+  const there = remotePaths(env, runDir);
+  const words = ['run', '--rm', '--name', name, '-v', `${there.root}:${CONTAINER.root}:ro`];
+  words.push('-v', `${there.probe}:${CONTAINER.probe}:ro`, '-w', CONTAINER.root);
+  return words;
 }
 
 function containerBase(
@@ -154,6 +189,29 @@ export function probeProcess(env: Environment, paths: Paths, name: string): Proc
     args.push('-e', `PYTHONPATH=${CONTAINER.probe}`, '-e', 'PYTHONDONTWRITEBYTECODE=1');
     args.push(...env.options, env.image, 'python3', ...tail, CONTAINER.root);
     return { command: env.engine, args, env: {}, stop: containerStop(env, name) };
+  }
+  if (env.kind === 'ssh') {
+    // AFD-247: the probe over the copies on the host; its input and output are the connection's.
+    const there = remotePaths(env);
+    if (env.container) {
+      const c = env.container;
+      const words = remoteContainer(env, name);
+      words.splice(1, 0, '-i');
+      words.push('-v', `${there.cache}:${CONTAINER.cache}`);
+      words.push('-e', `PYTHONPATH=${CONTAINER.probe}`, '-e', 'PYTHONDONTWRITEBYTECODE=1');
+      words.push(...c.options, c.image, 'python3', ...tail, CONTAINER.root);
+      const script = `mkdir -p ${rq(there.cache)} && exec ${c.engine} ${words.map(rq).join(' ')}`;
+      return {
+        ...onHost(env.host, script),
+        env: {},
+        stop: onHost(env.host, `${c.engine} rm -f ${shQuote(name)}`),
+      };
+    }
+    const python = env.python ? rq(env.python) : '$p';
+    const vars = `PYTHONPATH=${rq(there.probe)} PYTHONDONTWRITEBYTECODE=1`;
+    const serve = `mkdir -p ${rq(there.cache)} && cd ${rq(there.root)} && exec env ${vars} ${python} ${[...tail, there.root].map(rq).join(' ')}`;
+    const script = [LOGIN_PROFILE, ...(env.python ? [] : [WSL_ANSIBLE_PYTHON]), serve].join('; ');
+    return { ...onHost(env.host, script), env: {} };
   }
   if (env.kind === 'wsl') {
     // The variables are set inside the distribution; WSLENV is only for values from Windows.
@@ -280,7 +338,9 @@ export function runProcess(
   if (request.vault) words.push('--vault-password-file', '"$vp"');
   words.push(request.playbook);
   const raw = new Set(['"$vp"', '@"$sv"']);
-  const line = words.map((w) => (raw.has(w) ? w : shQuote(w))).join(' ');
+  // AFD-247: on an SSH host the paths start at its home folder, expanded there.
+  const q = env.kind === 'ssh' && !env.container ? rq : shQuote;
+  const line = words.map((w) => (raw.has(w) ? w : q(w))).join(' ');
   const setup: string[] = [];
   const temps: string[] = [];
   if (request.vault) {
@@ -310,6 +370,39 @@ export function runProcess(
     if (request.secrets) args.push('-e', 'AFD_SECRET_VARS');
     args.push(...env.options, env.image, 'sh', '-c', script);
     return { command: env.engine, args, env: {}, stop: containerStop(env, name) };
+  }
+  if (env.kind === 'ssh') {
+    // AFD-247: ssh passes no environment, so the secrets come on the connection's input.
+    const input = [
+      ...(request.vault ? ['AFD_VAULT_PASSWORD'] : []),
+      ...(request.secrets ? ['AFD_SECRET_VARS'] : []),
+    ];
+    const first = input.length ? [readFromInput(input)] : [];
+    if (env.container) {
+      const c = env.container;
+      const there = remotePaths(env, request.runDir);
+      const dockerWords = remoteContainer(env, name, request.runDir);
+      dockerWords.push('-v', `${there.run}:${CONTAINER.run}`);
+      for (const [k, v] of Object.entries(variables)) dockerWords.push('-e', `${k}=${v}`);
+      for (const n of input) dockerWords.push('-e', n);
+      dockerWords.push(...c.options, c.image, 'sh', '-c', script);
+      const run = `exec ${c.engine} ${dockerWords.map(rq).join(' ')}`;
+      return {
+        ...onHost(env.host, [...first, run].join(' && ')),
+        env: {},
+        stop: onHost(env.host, `${c.engine} rm -f ${shQuote(name)}`),
+        ...(input.length ? { input } : {}),
+      };
+    }
+    const vars = Object.entries(variables).map(([k, v]) => rq(`${k}=${v}`));
+    // The name is the shell's $0, which the stop finds it by, as for WSL.
+    const run = `cd ${rq(root)} && exec env ${vars.join(' ')} sh -c ${shQuote(script)} ${shQuote(name)}`;
+    return {
+      ...onHost(env.host, `${LOGIN_PROFILE}; ${[...first, run].join(' && ')}`),
+      env: {},
+      stop: sshStop(env.host, name),
+      ...(input.length ? { input } : {}),
+    };
   }
   if (env.kind === 'wsl') {
     // The secrets come from Windows in variables only: WSLENV passes just those names (AFD-29).

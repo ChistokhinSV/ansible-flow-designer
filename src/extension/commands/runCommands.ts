@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import type { Notice, NoticeLevel, RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
 import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun';
-import { setUpEnvironment } from '../env/setupEnvironment';
+import { copyFileToHost, setUpEnvironment } from '../env/setupEnvironment';
 import { isCancelled, showOutcomeError } from '../errors';
 import type { Host } from '../host';
 import { auditUri } from '../run/audit';
@@ -53,6 +53,7 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           : undefined,
     ),
     vscode.commands.registerCommand(CMD.setUpEnvironment, () => setUpEnvironment()),
+    vscode.commands.registerCommand(CMD.copyFileToHost, () => copyFileToHost()),
     // Scenario tests (AFD-58); `only` names scenarios (tests).
     vscode.commands.registerCommand(
       CMD.runScenarios,

@@ -9,6 +9,7 @@ import {
   resolveEnvironment,
 } from '../../core/run/environment';
 import { ProbeClient } from '../../node/env/probeClient';
+import { fetchCache, syncWorkspace } from '../../node/ssh/remote';
 
 /** Why nothing runs in Restricted Mode: the repository's ansible.cfg, plugins and playbooks are code. */
 export const UNTRUSTED =
@@ -24,6 +25,8 @@ export function environmentFor(scope: vscode.Uri): EnvironmentResult {
     containerOptions: c.get<string[]>('environment.containerOptions', []),
     python: c.get('environment.python', ''),
     wslDistro: c.get('environment.wslDistro', ''),
+    sshHost: c.get('environment.sshHost', ''),
+    sshDir: c.get('environment.sshDir', ''),
   };
   // Soft relationship with redhat.ansible: its settings are defaults when ours are unset.
   const a = vscode.workspace.getConfiguration('ansible', scope);
@@ -35,7 +38,9 @@ export function environmentFor(scope: vscode.Uri): EnvironmentResult {
     volumeMounts: a.get<RedHatSettings['volumeMounts']>('executionEnvironment.volumeMounts'),
     interpreterPath: a.get<string>('python.interpreterPath'),
   };
-  return resolveEnvironment(afd, redhat, process.platform);
+  const folder =
+    vscode.workspace.getWorkspaceFolder(scope) ?? vscode.workspace.workspaceFolders?.[0];
+  return resolveEnvironment(afd, redhat, process.platform, folder?.name);
 }
 
 /**
@@ -67,7 +72,15 @@ export class ProbeManager implements vscode.Disposable {
   forFolder(
     folder: vscode.Uri,
     purpose: ProbePurpose = 'main',
-  ): { client: ProbeClient; label: string; cache?: string } | { error: string } {
+  ):
+    | {
+        client: ProbeClient;
+        label: string;
+        cache?: string;
+        /** AFD-247: brings what the probe wrote into its cache to the cache here (an SSH host). */
+        fetchCache?: () => Promise<void>;
+      }
+    | { error: string } {
     const resolved = environmentFor(folder);
     if (!resolved.ok) return { error: resolved.error };
     const env = resolved.env;
@@ -76,12 +89,34 @@ export class ProbeManager implements vscode.Disposable {
     let client = this.clients.get(key);
     if (!client) {
       const spec = probeProcess(env, paths, `afd-probe-${process.pid}-${++this.seq}`);
-      const inside = env.kind === 'local' ? undefined : insidePaths(env, paths).root;
-      client = new ProbeClient(spec, folder.fsPath, inside, this.log);
+      // AFD-247: an SSH host's paths start at its home folder, which the probe reports.
+      const inside =
+        env.kind === 'local'
+          ? undefined
+          : env.kind === 'ssh' && !env.container
+            ? 'ready'
+            : insidePaths(env, paths).root;
+      // An SSH host works on a copy: brought up to date before the probe starts and each call.
+      const before =
+        env.kind === 'ssh'
+          ? async () => {
+              const error = await syncWorkspace(env, paths);
+              if (error) throw new Error(error);
+            }
+          : undefined;
+      client = new ProbeClient(spec, folder.fsPath, inside, this.log, before);
       this.clients.set(key, client);
     }
     const cache = this.cacheDir && insidePaths(env, paths).cache;
-    return { client, label: env.label, cache };
+    const local = this.cacheDir;
+    const fetch =
+      env.kind === 'ssh' && local
+        ? async () => {
+            const error = await fetchCache(env, local);
+            if (error) throw new Error(error);
+          }
+        : undefined;
+    return { client, label: env.label, cache, ...(fetch ? { fetchCache: fetch } : {}) };
   }
 
   /** Stops a folder's probe of this purpose (a catalog probe once its dump is done). */
