@@ -10,6 +10,7 @@ import {
   canEdit,
   deleteSelection,
   duplicate,
+  followWire,
   rename,
   selectAll,
   selectedAnnotations,
@@ -135,6 +136,9 @@ export function installKeyboard(): () => void {
         consume();
         void duplicate(ids, notes);
       }
+    } else if (mod && !e.altKey && !e.shiftKey && e.key.startsWith('Arrow')) {
+      // AFD-238: along the wires, when the focus is not on a node (the canvas has its own key).
+      if (followWire(e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 'up' : 'down')) consume();
     } else if (e.altKey && !mod && e.key === 'ArrowUp') {
       consume();
       upLevel();

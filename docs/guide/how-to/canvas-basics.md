@@ -149,7 +149,16 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
 - **Detach from Path** (a step's or a selection's menu) takes steps out of their path and keeps
   them: the path closes behind them the same way, and steps detached together keep the wires
   between them.
-- **Select several:** Ctrl+click, or Shift+drag a box.
+- **Select several:** Ctrl+click, or Shift+drag a box. **Select Upstream** and **Select
+  Downstream** in a step's menu take every step the hosts came through to reach it, or can go on
+  to from it, on this level.
+- **Rename:** F2, or double-click a step's title, and type on the canvas. Enter or a click
+  elsewhere saves; Esc gives up.
+- **Problems on the canvas:** a step with errors or warnings shows their count in its corner, red
+  for an error, amber for warnings only; point at it to read them. Click it for the Details tab of
+  the first one. A subflow also counts the problems of the steps inside it; when they are all
+  inside, the click opens the subflow. Open fail ports keep their own mark and are not counted.
+- **Undo and redo** say what they did in a message ("Undid: removed Validate, added 1 wire").
 
 Every action is one small text edit: Ctrl+Z undoes it, and comments and formatting elsewhere in the
 file never change.
@@ -161,7 +170,7 @@ Right-click a node, a selection, a wire, a port or the empty canvas.
 ![The node menu](../images/context-menu-light.png)
 
 - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open
-  fail port, Add Next Node…, Detach from Path, Reset Position (a step you placed), Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+  fail port, Add Next Node…, Detach from Path, Dissolve Subflow (a subflow), Reset Position (a step you placed), Select Upstream, Select Downstream, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
 - **Selection:** Cut, Copy, Duplicate, Extract into Subflow…, Detach from Path, Arrange ▸ (align, distribute, Reset
   Position), Delete.
 - **Note, section or text:** Edit Text, Color ▸, Attach to Node… or Detach from Node, Cut, Copy,
@@ -184,7 +193,9 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | Ctrl+D                   | Duplicate the selection                                                                        |
 | Delete / Backspace       | Delete the selection; the path closes behind it                                                |
 | Shift+Delete             | Delete the selection and leave the gap                                                         |
-| F2                       | Rename (the Title in the Details), or edit a note                                              |
+| F2                       | Rename the step on the canvas, or edit a note                                                  |
+| Ctrl+↓ / Ctrl+↑          | Follow a wire: select the next step, or the one before                                         |
+| Shift+2                  | Zoom to the selection                                                                          |
 | N                        | Add a node: after the selected one, else at the pointer (on its wire when it already leads on) |
 | Shift+N                  | Add a note: on the selected node, else at the pointer                                          |
 | Ctrl+Z / Ctrl+Y          | Undo / Redo                                                                                    |

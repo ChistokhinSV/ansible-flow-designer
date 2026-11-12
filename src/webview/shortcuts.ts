@@ -42,7 +42,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   {
     id: 'rename',
     keys: 'F2',
-    label: "Rename the selected node, or edit a note's text",
+    label: "Rename the selected node on the canvas, or edit a note's text",
     group: 'Edit',
   },
   { id: 'undo', keys: `${MOD}Z`, label: 'Undo (VS Code keeps one step per change)', group: 'Edit' },
@@ -78,6 +78,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Move around',
   },
   { id: 'find', keys: `${MOD}F`, label: 'Find a node on any level', group: 'Move around' },
+  {
+    id: 'follow',
+    keys: `${MOD}↓ / ${MOD}↑`,
+    label: 'Follow a wire: the next step, or the one before',
+    group: 'Move around',
+  },
   {
     id: 'ports',
     keys: 'Tab, Enter',
@@ -122,6 +128,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     group: 'Canvas',
   },
   { id: 'fit', keys: 'Shift+1', label: 'Fit the whole level in view', group: 'Canvas' },
+  { id: 'zoomSelection', keys: 'Shift+2', label: 'Zoom to the selection', group: 'Canvas' },
   {
     id: 'escape',
     keys: 'Esc',

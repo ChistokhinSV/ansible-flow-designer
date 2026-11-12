@@ -264,7 +264,11 @@ export type FlowCommand =
       freeze?: Record<Ulid, Position>;
     }
   /** AFD-196: move a subflow's steps up to its level and remove the subflow (inverse of extract). */
-  | { kind: 'dissolveSubflow'; id: Ulid }
+  /**
+   * `place` (AFD-241, the canvas): the steps keep their arrangement, moved to where the subflow
+   * stood; without stored positions on either side they are left to automatic placement.
+   */
+  | { kind: 'dissolveSubflow'; id: Ulid; place?: boolean }
   /** AFD-7: move a connected selection of one level into a new subflow node. */
   | {
       kind: 'extractSubflow';
@@ -3434,9 +3438,33 @@ export function planCommand(
       setField(tx, path, 'ref', null, NODE_ORDER);
       break;
     }
-    case 'dissolveSubflow':
+    case 'dissolveSubflow': {
+      // Read before the subflow goes: where it stood, and its steps with their places inside.
+      const was = state(tx);
+      const layout = was.doc.layout ?? {};
+      const at = layout[cmd.id];
+      const steps = (was.model.nodes.get(cmd.id)?.node.subflow?.nodes ?? [])
+        .filter((n) => !!n?.id)
+        .map((n) => n.id);
       rereferenced.push(...dissolveSubflow(tx, ctx, cmd.id, notes));
+      if (cmd.place) {
+        const placed = steps.filter((id) => layout[id]);
+        if (at && placed.length === steps.length && steps.length > 0) {
+          const left = Math.min(...placed.map((id) => (layout[id] as Position).x));
+          const top = Math.min(...placed.map((id) => (layout[id] as Position).y));
+          setPositions(
+            tx,
+            Object.fromEntries(
+              placed.map((id) => {
+                const p = layout[id] as Position;
+                return [id, { x: at.x + p.x - left, y: at.y + p.y - top }];
+              }),
+            ),
+          );
+        } else unplaceNodes(tx, steps);
+      }
       break;
+    }
     case 'extractSubflow': {
       const r = extractSubflow(tx, ctx, cmd);
       created = r.id;

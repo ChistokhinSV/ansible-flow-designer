@@ -178,3 +178,68 @@
   border-radius: 4px;
   opacity: 0.92;
 }
+
+/* AFD-237: the title edited in place. */
+.afd-node-title-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  margin: -1px 0;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--vscode-input-foreground, inherit);
+  background: var(--vscode-input-background, var(--afd-bg));
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 2px;
+  outline: none;
+}
+
+/* AFD-236: errors and warnings, counted in the node's corner. */
+.afd-node-problem {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 9px;
+  border: 1px solid var(--afd-bg);
+  font-size: var(--afd-fs-10);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 4;
+  white-space: pre-line;
+}
+
+.afd-node-problem .codicon {
+  font-size: var(--afd-fs-12);
+}
+
+.afd-node-problem.tone-error {
+  background: var(--vscode-editorError-foreground, var(--afd-failed));
+  color: var(--afd-bg);
+}
+
+.afd-node-problem.tone-warning {
+  background: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  color: var(--afd-bg);
+}
+
+.afd-node-problem:hover,
+.afd-node-problem:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+@media (forced-colors: active) {
+  .afd-node-problem {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+}

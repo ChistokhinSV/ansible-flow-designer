@@ -171,6 +171,10 @@ interface UiState {
   portMenu: PortMenuState | null;
   contextMenu: ContextMenuState | null;
   focusRequest: FocusRequest | null;
+  /** AFD-237: the node whose title is edited on the canvas. */
+  renaming: Ulid | null;
+  /** AFD-238: a count that asks the canvas to bring the selection into view. */
+  zoomNonce: number;
   /** The keyboard shortcuts sheet (`?`). */
   cheatSheet: boolean;
   /** The find bar (AFD-48): what is typed in it, and a count that moves the focus back into it. */
@@ -276,6 +280,8 @@ interface UiState {
   openPortMenu(m: PortMenuState | null): void;
   openContextMenu(m: ContextMenuState | null): void;
   requestFocus(field: FocusRequest['field']): void;
+  setRenaming(node: Ulid | null): void;
+  zoomToSelection(): void;
   showCheatSheet(on: boolean): void;
   setPick(p: PickState | null): void;
   setPickAt(id: Ulid | null): void;
@@ -372,6 +378,8 @@ export const useUi = create<UiState>((set, get) => ({
   portMenu: null,
   contextMenu: null,
   focusRequest: null,
+  renaming: null,
+  zoomNonce: 0,
   cheatSheet: false,
   find: false,
   findQuery: '',
@@ -506,6 +514,8 @@ export const useUi = create<UiState>((set, get) => ({
     set({ contextMenu, ...closing('contextMenu') });
   },
   requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
+  setRenaming: (renaming) => set({ renaming }),
+  zoomToSelection: () => set({ zoomNonce: get().zoomNonce + 1 }),
   showCheatSheet: (cheatSheet) => set({ cheatSheet, ...closing('cheatSheet') }),
   setPick: (pick) => set({ pick, pickAt: null, ...closing('pick') }),
   setPickAt: (pickAt) => set({ pickAt }),

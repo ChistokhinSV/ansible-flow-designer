@@ -54,7 +54,9 @@ export type ShortcutId =
   | 'fit'
   | 'find'
   | 'alignCenter'
-  | 'distribute';
+  | 'distribute'
+  | 'zoomSelection'
+  | 'follow';
 
 export type CanvasAction =
   | { do: 'openSubflow'; node: Ulid }
@@ -80,6 +82,11 @@ export type CanvasAction =
   | { do: 'attachAnnotation'; id: Ulid }
   | { do: 'detachAnnotation'; id: Ulid }
   | { do: 'extract'; nodes: Ulid[] }
+  /** AFD-241: the subflow's steps move up to its level; the subflow goes. */
+  | { do: 'dissolve'; node: Ulid }
+  /** AFD-238: every step the hosts came through to reach this one, or can reach from it. */
+  | { do: 'selectFlow'; node: Ulid; dir: 'up' | 'down' }
+  | { do: 'zoomSelection' }
   /** AFD-235: out of the path, which closes behind them; the nodes stay. */
   | { do: 'detach'; nodes: Ulid[] }
   /** AFD-88: line steps up or space them evenly (one move); placed steps back to automatic. */
@@ -299,6 +306,22 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
       );
   }
 
+  // AFD-238: the steps before and after this one, selected with it.
+  const level = model.levels.get(model.nodes.get(id)?.level ?? ROOT);
+  const pick: CanvasMenuEntry[] = [];
+  if (edit && (level?.edges ?? []).some((e) => e?.to?.node === id))
+    pick.push(
+      item('Select Upstream', { do: 'selectFlow', node: id, dir: 'up' }, { icon: 'arrow-up' }),
+    );
+  if (edit && (level?.edges ?? []).some((e) => e?.from?.node === id))
+    pick.push(
+      item(
+        'Select Downstream',
+        { do: 'selectFlow', node: id, dir: 'down' },
+        { icon: 'arrow-down' },
+      ),
+    );
+
   const design: CanvasMenuEntry[] = [];
   if (ctx.mode === 'design')
     design.push(
@@ -360,6 +383,21 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'debug-disconnect', ...lock },
       ),
     );
+  if (edit && node.type === 'subflow') {
+    // AFD-241: the reverse of Extract into Subflow.
+    const why = node.ref
+      ? 'A shared subflow is edited in its source flow'
+      : (node.subflow?.nodes ?? []).length === 0
+        ? 'The subflow has no steps to move up'
+        : undefined;
+    design.push(
+      item(
+        'Dissolve Subflow',
+        { do: 'dissolve', node: id },
+        { icon: 'ungroup-by-ref-type', ...(why ? { disabled: why } : lock) },
+      ),
+    );
+  }
   if (edit && model.doc.layout?.[id])
     design.push(
       item('Reset Position', { do: 'resetPosition', nodes: [id] }, { icon: 'discard', ...lock }),
@@ -396,7 +434,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
     : [];
   const what = ctx.scenario ? scenarioItems(model, id, ctx.scenario) : [];
-  return groups(what, open, design, clip, code, remove);
+  return groups(what, open, design, pick, clip, code, remove);
 }
 
 function groupMenu(

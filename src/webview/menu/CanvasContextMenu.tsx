@@ -29,6 +29,7 @@ import {
   editExitReason,
   rename,
   selectAll,
+  selectFlow,
   startExtract,
   upLevel,
 } from '../editActions';
@@ -151,6 +152,15 @@ export function runCanvasAction(
       return;
     case 'detach':
       void detachNodes(action.nodes);
+      return;
+    case 'dissolve':
+      void run({ kind: 'dissolveSubflow', id: action.node, place: true });
+      return;
+    case 'selectFlow':
+      selectFlow(action.node, action.dir);
+      return;
+    case 'zoomSelection':
+      ui.zoomToSelection();
       return;
     case 'align':
       void alignSelection(action.how, action.nodes);

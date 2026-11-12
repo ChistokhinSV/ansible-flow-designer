@@ -94,6 +94,8 @@ describe('canvas context menu', () => {
       'Add Next Node…',
       'Detach from Path',
       'Reset Position',
+      'Select Upstream',
+      'Select Downstream',
       'Cut',
       'Copy',
       'Duplicate',

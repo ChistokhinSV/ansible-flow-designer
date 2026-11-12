@@ -233,3 +233,36 @@ describe('healPlan', () => {
     expect(plan.entries).toEqual([]);
   });
 });
+
+describe('Dissolve from the canvas places the steps (AFD-241)', () => {
+  const sub = id(OS, 'upgrade-os');
+  const steps = ['stage-image', 'verify-checksum', 'reload'].map((k) => id(OS, k));
+
+  it('with stored positions: the steps keep their arrangement, where the subflow stood', () => {
+    const placedText = apply(OS, {
+      kind: 'moveNodes',
+      positions: {
+        [sub]: { x: 500, y: 300 },
+        ...Object.fromEntries(
+          all(OS)
+            .filter((n) => model(OS).nodes.get(n.id)?.level === sub)
+            .map((n, i) => [n.id, { x: 40 + 10 * i, y: 20 + 100 * i }]),
+        ),
+      },
+    }).text;
+    const r = apply(placedText, { kind: 'dissolveSubflow', id: sub, place: true });
+    const layout = docOf(r.text).layout ?? {};
+    expect(layout[sub]).toBeUndefined();
+    expect(layout[steps[0] as string]).toEqual({ x: 500, y: 300 });
+    expect(layout[steps[1] as string]).toEqual({ x: 510, y: 400 });
+  });
+
+  it('without them: left to automatic placement; without place: as before', () => {
+    const inner = Object.fromEntries(steps.map((s, i) => [s, { x: 0, y: 100 * i }]));
+    const some = apply(OS, { kind: 'moveNodes', positions: inner }).text;
+    const r = apply(some, { kind: 'dissolveSubflow', id: sub, place: true });
+    for (const s of steps) expect(docOf(r.text).layout?.[s]).toBeUndefined();
+    const plain = apply(some, { kind: 'dissolveSubflow', id: sub });
+    expect(docOf(plain.text).layout?.[steps[1] as string]).toEqual({ x: 0, y: 100 });
+  });
+});

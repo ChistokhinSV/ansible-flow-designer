@@ -56,7 +56,7 @@ import { addAnnotation, editAnnotation } from '../annotationActions';
 import { command, loadState, saveState } from '../bus';
 import { setPastePlace } from '../clipboard';
 import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
-import { boundaryWire, upLevel } from '../editActions';
+import { boundaryWire, followWire, rename, upLevel } from '../editActions';
 import { useLevelView, useModel } from '../hooks';
 import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
@@ -904,11 +904,27 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       } else if (e.shiftKey && e.code === 'Digit1') {
         e.preventDefault();
         void fitView(FULL_FIT);
+      } else if (e.shiftKey && e.code === 'Digit2') {
+        e.preventDefault();
+        useUi.getState().zoomToSelection();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [view.nodes, setLevel, fitView, editable]);
+
+  // AFD-238: Zoom to Selection (Shift+2, the menus): the selected steps and annotations fill the
+  // view, no closer than 150%.
+  const zoomNonce = useUi((s) => s.zoomNonce);
+  const zoomed = useRef(zoomNonce);
+  useEffect(() => {
+    if (zoomed.current === zoomNonce) return;
+    zoomed.current = zoomNonce;
+    const sel = useUi.getState().selection;
+    const ids = [...(sel.nodes ?? (sel.node ? [sel.node] : [])), ...(sel.annotations ?? [])];
+    if (ids.length === 0) return;
+    void fitView({ nodes: ids.map((id) => ({ id })), padding: 0.25, maxZoom: 1.5, duration: 200 });
+  }, [zoomNonce, fitView]);
 
   // Picking a node with the keyboard (AFD-47): Tab or the arrow keys walk the nodes the pick can
   // choose, Enter or Space wires the one shown. Captured before React Flow, which would otherwise
@@ -1032,8 +1048,11 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         useUi.getState().hoverNode(n.id, { left: r.left, right: r.right, top: r.top });
       }}
       onNodeMouseLeave={() => useUi.getState().hoverNode(null)}
-      onNodeDoubleClick={(_e, n) => {
-        if (n.type === 'flow' && n.data.view.node.type === 'subflow') setLevel(n.id);
+      onNodeDoubleClick={(e, n) => {
+        // AFD-237: a double-click on the title renames; elsewhere on a subflow it opens it.
+        if (n.type === 'flow' && editable && (e.target as Element).closest?.('.afd-node-title'))
+          rename(n.id);
+        else if (n.type === 'flow' && n.data.view.node.type === 'subflow') setLevel(n.id);
         if (n.type === 'annotation' && editable) editAnnotation(n.id);
       }}
       zoomOnDoubleClick={false}
@@ -1103,11 +1122,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }}
       onPaneContextMenu={(e) => openMenu(e, { kind: 'pane' })}
       onKeyDownCapture={(e) => {
-        // Alt+Arrow belongs to the designer (Alt+Up: parent level), not to React Flow's nudge.
-        if (!e.altKey || !e.key.startsWith('Arrow')) return;
+        // Alt+Arrow and Ctrl/Cmd+Arrow belong to the designer (Alt+Up: parent level; AFD-238:
+        // along a wire), not to React Flow's nudge.
+        if (!e.key.startsWith('Arrow') || !(e.altKey || e.ctrlKey || e.metaKey)) return;
+        if ((e.target as Element).closest?.('input, textarea, [contenteditable="true"]')) return;
         e.preventDefault();
         e.stopPropagation();
-        if (e.key === 'ArrowUp') upLevel();
+        if (e.altKey) {
+          if (e.key === 'ArrowUp') upLevel();
+        } else followWire(e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 'up' : 'down');
       }}
       onKeyDown={onNudge}
       onMoveStart={() => {

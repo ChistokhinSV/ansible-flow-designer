@@ -22,6 +22,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { purposeOf } from '../../core/flow/format';
 import { modelOf } from '../../core/flow/model';
@@ -29,12 +30,15 @@ import { mainOutputs, type PortSide } from '../../core/flow/ports';
 import { sharedAround } from '../../core/flow/refs';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
+import type { Snapshot } from '../../core/protocol';
 import { formatSeconds } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
 import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
+import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges';
+import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
 import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
@@ -197,6 +201,96 @@ function PortPlus({
   );
 }
 
+// AFD-236: the badges of one snapshot, worked out once for all its nodes.
+let badged: { snapshot: Snapshot; badges: Map<string, ProblemBadge> } | undefined;
+function badgeOf(snapshot: Snapshot | null, id: string): ProblemBadge | undefined {
+  if (!snapshot?.doc) return undefined;
+  if (badged?.snapshot !== snapshot)
+    badged = { snapshot, badges: problemBadges(modelOf(snapshot.doc), snapshot.findings) };
+  return badged?.badges.get(id);
+}
+
+/**
+ * AFD-236: the node's errors and warnings, as a count in its corner. A click goes to the Details
+ * tab of the first one; on a subflow whose problems are all inside, it opens the subflow.
+ */
+function ProblemMark({ node, badge }: { node: FlowNode; badge: ProblemBadge }) {
+  const own = badge.errors + badge.warnings;
+  const count = own + badge.inside;
+  const what = `${count} problem${count === 1 ? '' : 's'}`;
+  return (
+    <button
+      type="button"
+      className={`afd-node-problem tone-${badge.severity} nodrag nopan`}
+      data-node-problem={badge.severity}
+      title={`${badge.title}\n${own > 0 ? 'Click for the details' : 'Click to open the subflow'}`}
+      aria-label={`${what}: ${own > 0 ? 'show in Details' : 'open the subflow'}`}
+      tabIndex={-1}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        const ui = useUi.getState();
+        if (own > 0) ui.openDetails(node.id, badge.tab ?? 'general');
+        else ui.setLevel(node.id);
+      }}
+    >
+      <span
+        className={`codicon codicon-${badge.severity === 'error' ? 'error' : 'warning'}`}
+        aria-hidden="true"
+      />
+      {count > 1 ? count : null}
+    </button>
+  );
+}
+
+/** The node's title; edited in place while it is being renamed (AFD-237). */
+function Title({ node }: { node: FlowNode }) {
+  const renaming = useUi((s) => s.renaming === node.id);
+  return renaming ? (
+    <TitleInput node={node} />
+  ) : (
+    <span className="afd-node-title">{node.title}</span>
+  );
+}
+
+/** Enter or leaving the field saves, Esc gives up; an empty or unchanged title changes nothing. */
+function TitleInput({ node }: { node: FlowNode }) {
+  const [value, setValue] = useState(node.title);
+  const field = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  useEffect(() => {
+    field.current?.focus();
+    field.current?.select();
+  }, []);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    useUi.getState().setRenaming(null);
+    const title = value.trim();
+    if (save && title && title !== node.title)
+      void run({ kind: 'updateNode', id: node.id, patch: { title } });
+    // Back to the node, so the keys that follow are the canvas's again.
+    field.current?.closest<HTMLElement>('.react-flow__node')?.focus();
+  };
+  return (
+    <input
+      ref={field}
+      className="afd-node-title afd-node-title-input nodrag nopan nokey"
+      aria-label="Node title"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => finish(true)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
 /** Implementation mode (mockup 04): what the node runs and how it stands against the code. */
 function CodeLines({ node }: { node: FlowNode }) {
   const code = useUi((s) => s.drift?.nodes[node.id]);
@@ -322,7 +416,7 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
   if (node.type === 'start' || node.type === 'end' || BAR.has(node.type)) {
     return (
       <>
-        <span className="afd-node-title">{node.title}</span>
+        <Title node={node} />
         {BAR.has(node.type) ? null : <LensChips id={node.id} />}
       </>
     );
@@ -331,7 +425,7 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
   const head = (
     <div className="afd-node-head">
       <StatusIcon status={status} />
-      <span className="afd-node-title">{node.title}</span>
+      <Title node={node} />
     </div>
   );
   if (near)
@@ -420,6 +514,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     const change = outside === 'outside-mark' && s.outside?.changes?.find((c) => c.id === node.id);
     return change ? `Changed outside the designer: ${changeWords(change)}` : undefined;
   });
+  const badge = useUi((s) => badgeOf(s.snapshot, node.id));
   // AFD-231: the first main output still open, in Design mode on a level that can be edited.
   const canAdd = useUi(
     (s) =>
@@ -444,6 +539,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     selected ? 'selected' : '',
     active ? 'active' : '',
     pickAt ? 'afd-pick-at' : '',
+    badge ? `has-problem problem-${badge.severity}` : '',
     lit,
   ]
     .filter(Boolean)
@@ -470,6 +566,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           preview={hasPreview(node)}
         />
       ))}
+      {badge && !far ? <ProblemMark node={node} badge={badge} /> : null}
       {plusPort ? (
         <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />
       ) : null}
@@ -494,11 +591,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           />
         </>
       ) : null}
-      {far ? (
-        <span className="afd-node-title">{node.title}</span>
-      ) : (
-        <NodeBody node={node} near={near} />
-      )}
+      {far ? <Title node={node} /> : <NodeBody node={node} near={near} />}
     </div>
   );
 });

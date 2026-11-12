@@ -12,7 +12,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
-import { deleteSelection, detachNodes } from '../../../src/webview/editActions';
+import { deleteSelection, detachNodes, selectFlow } from '../../../src/webview/editActions';
 import { installKeyboard } from '../../../src/webview/keyboard';
 import { QuickAdd } from '../../../src/webview/panels/QuickAdd';
 import { dropWireEnd, insertOnWire } from '../../../src/webview/portActions';
@@ -251,5 +251,75 @@ describe('Quick Add finds what the step runs (AFD-232)', () => {
       title: 'Ios config',
       impl: { kind: 'module', ref: 'cisco.ios.ios_config' },
     });
+  });
+});
+
+describe('wave 2 on the canvas (AFD-236, 237, 238, 241)', () => {
+  it('a node with a problem shows a badge; a click opens its Details tab', () => {
+    const node = id('validate');
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: Date.now(),
+        doc: EDGE,
+        stale: false,
+        findings: [
+          {
+            code: 'from-unresolved',
+            severity: 'warning',
+            message: 'backup_ref reads a step that is gone',
+            path: ['nodes', 4, 'inputs', 'backup_ref'],
+            node,
+          },
+        ],
+        openPorts: openFailPorts(buildModel(EDGE)),
+        autoPositions: {},
+      }),
+    );
+    canvas();
+    const marks = document.querySelectorAll('[data-node-problem]');
+    expect(marks).toHaveLength(1);
+    const mark = marks[0] as HTMLElement;
+    expect(mark.getAttribute('data-node-problem')).toBe('warning');
+    expect(mark.closest('[data-node-id]')?.getAttribute('data-node-id')).toBe(node);
+    expect(mark.getAttribute('title')).toContain('backup_ref reads a step that is gone');
+    fireEvent.click(mark);
+    expect(useUi.getState().selection.node).toBe(node);
+  });
+
+  it('Select Upstream and Downstream take the steps on the path, on this level', () => {
+    act(() => selectFlow(id('backup-config'), 'up'));
+    expect(new Set(useUi.getState().selection.nodes)).toEqual(
+      new Set(['backup-config', 'precheck', 'start'].map(id)),
+    );
+    act(() => selectFlow(id('validate'), 'down'));
+    expect(new Set(useUi.getState().selection.nodes)).toEqual(
+      new Set(['validate', 'done'].map(id)),
+    );
+  });
+
+  it('Ctrl+arrows follow the wire: the main output down, the incoming wire up', () => {
+    canvas();
+    act(() => useUi.getState().select({ node: id('push-baseline') }));
+    fireEvent.keyDown(document.body, { key: 'ArrowDown', ctrlKey: true });
+    expect(useUi.getState().selection.node).toBe(id('validate'));
+    fireEvent.keyDown(document.body, { key: 'ArrowUp', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'ArrowUp', ctrlKey: true });
+    expect(useUi.getState().selection.node).toBe(id('backup-config'));
+    // Nothing was edited on the way.
+    expect(commands()).toEqual([]);
+  });
+
+  it('a double-click on a title renames in place; Shift+2 asks for the selection in view', () => {
+    canvas();
+    const title = document.querySelector(
+      `[data-node-id="${id('validate')}"] .afd-node-title`,
+    ) as HTMLElement;
+    fireEvent.doubleClick(title);
+    expect(useUi.getState().renaming).toBe(id('validate'));
+    const field = screen.getByLabelText('Node title') as HTMLInputElement;
+    fireEvent.keyDown(field, { key: 'Escape' });
+    const before = useUi.getState().zoomNonce;
+    fireEvent.keyDown(document.body, { key: '@', code: 'Digit2', shiftKey: true });
+    expect(useUi.getState().zoomNonce).toBe(before + 1);
   });
 });

@@ -33,6 +33,7 @@ import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import type { RepoState } from '../core/view/flowFacts';
 import { isWebLink, linksOf } from '../core/view/markdown';
+import { flowOutline, nodeAtOffset } from '../core/view/outline';
 import {
   addMarks,
   closedMarks,
@@ -40,6 +41,7 @@ import {
   type OutsideMarks,
   outsideChanges,
 } from '../core/view/outsideChanges';
+import { undoSummary } from '../core/view/undoSummary';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
@@ -419,12 +421,51 @@ export class FlowSession implements vscode.Disposable {
     if (!own) this.outsideEdit = true;
     this.ownText = undefined;
     clearTimeout(this.changeTimer);
+    // AFD-239: an undo or a redo says what it did: the flow before it, against the flow after.
+    const verb =
+      reason === vscode.TextDocumentChangeReason.Undo
+        ? 'Undid'
+        : reason === vscode.TextDocumentChangeReason.Redo
+          ? 'Redid'
+          : undefined;
+    const before = verb && this.hasPanels ? this.built?.parsed.doc : undefined;
+    const refresh = async () => {
+      await this.refresh();
+      if (verb && before) this.sayUndo(before, verb);
+    };
     const typing = vscode.window.visibleTextEditors.some((e) => e.document === this.document);
     if (!typing || this.pendingParse?.text === this.document.getText()) {
-      void this.refresh();
+      void refresh();
       return;
     }
-    this.changeTimer = setTimeout(() => void this.refresh(), TIMEOUTS.typingSettles);
+    this.changeTimer = setTimeout(() => void refresh(), TIMEOUTS.typingSettles);
+  }
+
+  private sayUndo(before: FlowDocument, verb: 'Undid' | 'Redid'): void {
+    const after = this.built?.version === this.document.version ? this.built.parsed.doc : undefined;
+    if (!after) return;
+    try {
+      this.broadcast({
+        type: 'notify',
+        level: 'info',
+        text: undoSummary(before, after, verb).text,
+      });
+    } catch (e) {
+      // The message is a courtesy: a flow the diff cannot read still undoes.
+      logChannel().appendLine(`undo summary: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** AFD-236, AFD-240: shows the node whose YAML holds a place in the text, on the canvas. */
+  revealAt(offset: number): void {
+    const parsed = this.built?.version === this.document.version ? this.built.parsed : undefined;
+    if (!parsed?.doc) return;
+    try {
+      const node = nodeAtOffset(flowOutline(parsed.file, modelOf(parsed.doc)), offset);
+      if (node) this.reveal(node);
+    } catch {
+      // No node there to show.
+    }
   }
 
   openLens(lens: LensId | null, refresh = false): Promise<void> {

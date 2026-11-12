@@ -11,6 +11,15 @@ The first wave of editing changes taken from other flow editors (n8n, Node-RED, 
 - **Delete closes the path (AFD-235):** deleting a step re-points the wire that came into it to where the step went on, in the same undo step, and says so. It happens only when there is one answer; Shift+Delete leaves the gap. **Detach from Path** takes steps out of their path and keeps them.
 - **Not done:** the palette has no filter (it holds 15 fixed items; the search went where the catalog is). Failure patterns and shared subflows are not in Quick Add's list.
 
+**Wave 2 (see and navigate):**
+
+- **Problems on the canvas (AFD-236):** a step with errors or warnings shows their count in its corner; a click opens the Details tab of the first one. A subflow counts the problems of the steps inside it. Before, a problem showed only in the Details and in the Problems panel.
+- **Rename on the canvas (AFD-237):** F2, or a double-click on a title, edits it in place. Before, F2 moved to the Title field of the Details.
+- **Move along the flow (AFD-238):** Ctrl+↓ and Ctrl+↑ follow a wire to the next step or the one before; **Select Upstream** and **Select Downstream** take the whole path; Shift+2 zooms to the selection.
+- **Undo says what it did (AFD-239):** after an undo or a redo a message names the change ("Undid: removed Validate, added 1 wire").
+- **Outline (AFD-240):** a flow open as text has an Outline and breadcrumbs: its nodes, a subflow holding the nodes inside it. A symbol or a problem chosen in the text shows its node on the canvas when the designer is open.
+- **Dissolve Subflow (AFD-241):** on a subflow's menu, the reverse of Extract into Subflow: its steps move up to its level, where the subflow stood, and it goes. Before, only AI assistants could do it.
+
 ## 0.81.0 — AFD-221 (Jinja in fields)
 
 Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).

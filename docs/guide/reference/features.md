@@ -46,7 +46,7 @@ Everything Ansible Flow Designer does, in one list. New here? Start with [Tutori
   - **Restricted Mode:** an untrusted workspace can design, edit and generate flows; local runs, the probe (catalog, lenses, Re-sync), AWX setup and launch, and the workspace's `afd.environment.*` / `afd.awx.*` values wait for trust.
 - **Syntax check:** _Check Flow_ runs `ansible-playbook --syntax-check` inside the environment. Errors land on the generated files in the Problems panel.
 - **Right-click menu:** right-click a node, a group, a wire, a port or the empty canvas for what you can do there, with the keyboard shortcut next to each item. The menu replaces VS Code's own (Cut/Copy/Paste) on the canvas; text fields keep VS Code's.
-  - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify On-Call and Stop, Accept with Reason…), Add Next Node…, Detach from Path, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
+  - **Node:** Open Subflow, Details…, Binding…, Rename, Status ▸, one submenu per open fail port with its suggestions (Rollback, Notify On-Call and Stop, Accept with Reason…), Add Next Node…, Detach from Path, Dissolve Subflow, Select Upstream, Select Downstream, Cut, Copy, Duplicate, Open in Text Editor, Peek Code, Delete.
   - **Group** (also a right-click on the Shift+drag selection box): Cut, Copy, Duplicate, Extract into Subflow…, Detach from Path, Delete.
   - **Wire:** Insert Node on This Wire, Rewire to Another Node…, Disconnect. Entry and exit wires of a subflow: Remove Entry, Edit Reason…, Remove Exit.
   - **Port:** the port menu. **Empty canvas:** Paste Here, Add Node Here…, Select All, Tidy Up, Fit View, Up to Parent.
@@ -61,6 +61,8 @@ Everything Ansible Flow Designer does, in one list. New here? Start with [Tutori
   | Ctrl+D                   | Duplicate the selection, next to it                       |
   | Delete / Backspace       | Delete the selection, in one undo step                    |
   | Shift+Delete             | Delete and leave the gap (no reconnecting)                |
+  | Ctrl+↓ / Ctrl+↑          | Follow a wire to the next step, or the one before         |
+  | Shift+2                  | Zoom to the selection                                     |
   | F2                       | Rename: the cursor goes to the Title in the Details       |
   | Enter / Alt+↑            | Open the selected subflow / back to the parent level      |
   | Arrow keys               | Nudge the focused node; the move is saved when you stop   |

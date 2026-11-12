@@ -63,6 +63,10 @@ describe('canvas menu', () => {
       // AFD-88: the step has a stored position.
       'Reset Position',
       '—',
+      // AFD-238
+      'Select Upstream',
+      'Select Downstream',
+      '—',
       'Cut',
       'Copy',
       'Duplicate',

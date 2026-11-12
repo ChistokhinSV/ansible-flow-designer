@@ -4,6 +4,7 @@ import type { CanvasTarget } from '../core/flow/canvasMenu';
 import { copyNodes } from '../core/flow/clipboard';
 import { healPlan, healSummary } from '../core/flow/heal';
 import { modelOf, ROOT } from '../core/flow/model';
+import { mainOutputs } from '../core/flow/ports';
 import { sharedAround } from '../core/flow/refs';
 import type { Ulid } from '../core/flow/types';
 import { run } from './actions';
@@ -174,12 +175,68 @@ export function upLevel(): void {
   ui.select({ node: left });
 }
 
-/** F2: the node selected and its title field focused (Design mode's inspector). */
+/** F2, or a double-click on a title (AFD-237): the node selected and its title edited in place. */
 export function rename(node: Ulid): void {
   const ui = useUi.getState();
-  if (ui.mode !== 'design') return;
+  if (!canEdit()) return;
   ui.select({ node });
-  ui.requestFocus('title');
+  ui.setRenaming(node);
+}
+
+/** The wires of the level a node is on. */
+function wiresAround(node: Ulid) {
+  const doc = useUi.getState().snapshot?.doc;
+  if (!doc) return undefined;
+  const model = modelOf(doc);
+  const entry = model.nodes.get(node);
+  const level = entry ? model.levels.get(entry.level) : undefined;
+  return entry && level ? { node: entry.node, edges: level.edges.filter((e) => !!e) } : undefined;
+}
+
+/**
+ * AFD-238: the node with every step upstream of it (the hosts came through them) or downstream
+ * (they can go on to them), on its level.
+ */
+export function selectFlow(node: Ulid, dir: 'up' | 'down'): void {
+  const around = wiresAround(node);
+  if (!around) return;
+  const seen = new Set<Ulid>([node]);
+  for (const stack = [node]; stack.length > 0; ) {
+    const at = stack.pop() as Ulid;
+    for (const e of around.edges) {
+      const [here, there] = dir === 'down' ? [e.from.node, e.to.node] : [e.to.node, e.from.node];
+      if (here === at && !seen.has(there)) {
+        seen.add(there);
+        stack.push(there);
+      }
+    }
+  }
+  const ids = [...seen];
+  useUi.getState().select(ids.length > 1 ? { nodes: ids } : { node });
+}
+
+/**
+ * AFD-238: Ctrl+arrow moves the selection along a wire: down to the step the selected one goes on
+ * to (its first wired main output, else any wire out), up to the step it came from. True when it
+ * moved.
+ */
+export function followWire(dir: 'up' | 'down'): boolean {
+  const ui = useUi.getState();
+  const from = ui.selection.node;
+  const around = from ? wiresAround(from) : undefined;
+  if (!from || !around) return false;
+  let next: Ulid | undefined;
+  if (dir === 'up') next = around.edges.find((e) => e.to.node === from)?.from.node;
+  else {
+    const out = around.edges.filter((e) => e.from.node === from);
+    const mains = mainOutputs(around.node);
+    next = (out.find((e) => mains.includes(e.from.port)) ?? out[0])?.to.node;
+  }
+  if (!next) return false;
+  ui.select({ node: next });
+  // The focus goes with it, so the next key (Enter, arrows, F2) is this node's.
+  document.querySelector<HTMLElement>(`.react-flow__node[data-id="${next}"]`)?.focus();
+  return true;
 }
 
 /** Extract into subflow: the group selected and the selection panel's title focused. */
