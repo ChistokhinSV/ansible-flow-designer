@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { type ResultField, resultFields } from '../core/catalog/draft';
 import type { CatalogRequest, CatalogResults } from '../core/protocol';
+import type { PluginName } from '../core/view/jinjaComplete';
 import { onHostMessage, send } from './bus';
 
 type Op = CatalogRequest['op'];
@@ -11,6 +12,8 @@ const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Err
 let next = 1;
 
 onHostMessage((m) => {
+  // Another environment, or a fresh scan: the plugin names are asked again (AFD-225).
+  if (m.type === 'catalogStatus' && m.status.state === 'ready') names.clear();
   if (m.type !== 'catalogReply') return;
   const p = pending.get(m.reqId);
   pending.delete(m.reqId);
@@ -86,4 +89,40 @@ export function useResultFields(fqcns: string[]): Record<string, ResultField[]> 
     };
   }, [key]);
   return fields;
+}
+
+type PluginKind = 'filter' | 'test' | 'lookup';
+const names = new Map<PluginKind, Promise<PluginName[]>>();
+
+function namesOf(type: PluginKind): Promise<PluginName[]> {
+  let p = names.get(type);
+  if (!p) {
+    p = catalogRequest({ op: 'names', type }).catch(() => []);
+    names.set(type, p);
+  }
+  return p;
+}
+
+/**
+ * AFD-225: the filters, tests and lookups of the environment's collections, for the Jinja
+ * completion list: asked once per webview (and after a new scan), from the index already there.
+ * Empty until they come, and when there is no catalog: the list's own words cover ansible.builtin.
+ */
+export function usePluginNames(
+  active = true,
+): Partial<Record<'filters' | 'tests' | 'lookups', PluginName[]>> {
+  const [state, setState] = useState<
+    Partial<Record<'filters' | 'tests' | 'lookups', PluginName[]>>
+  >({});
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    void Promise.all([namesOf('filter'), namesOf('test'), namesOf('lookup')]).then(
+      ([filters, tests, lookups]) => live && setState({ filters, tests, lookups }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [active]);
+  return state;
 }

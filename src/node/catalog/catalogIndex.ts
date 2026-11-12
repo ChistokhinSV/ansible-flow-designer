@@ -21,6 +21,7 @@ import type {
   SearchContext,
   SearchHit,
 } from '../../core/catalog/types';
+import type { PluginName } from '../../core/view/jinjaComplete';
 
 export const INDEX_SCHEMA = 8;
 /** bm25 column weights: plugin name, short description, option names, long text, collection. */
@@ -282,6 +283,23 @@ export class CatalogIndex {
       );
     }
     return this.versions.get(name);
+  }
+
+  /**
+   * AFD-225: the filters, tests or lookups the environment has, for the Jinja completion list:
+   * ansible.builtin's by short name, a collection's by FQCN (ansible.legacy repeats builtin).
+   */
+  names(type: 'filter' | 'test' | 'lookup'): PluginName[] {
+    const rows = this.db
+      .prepare(
+        "SELECT fqcn, collection, name, short FROM plugins WHERE type = ? AND collection <> 'ansible.legacy' ORDER BY collection <> 'ansible.builtin', fqcn",
+      )
+      .all(type) as { fqcn: string; collection: string; name: string; short: string | null }[];
+    return rows.map((r) => ({
+      name: r.collection === 'ansible.builtin' ? r.name : r.fqcn,
+      fqcn: r.fqcn,
+      ...(r.short ? { doc: r.short } : {}),
+    }));
   }
 
   plugin(fqcn: string, type: PluginType = 'module'): CatalogPlugin | undefined {

@@ -2,17 +2,45 @@
 // `{{ name }}` shows as a chip, typing @ (or the @ button) offers node inputs, flow inputs and
 // upstream outputs. Choosing one that is not an input yet stages it as a new node input. A chip can
 // read a field of a step's result, `{{ name.field }}` (AFD-108): the list offers the fields after
-// a result is chosen, when `.` is typed right after its chip, and for `@name.field`.
+// a result is chosen, when `.` is typed right after its chip, and for `@name.field`. AFD-224: the
+// Jinja in the text is coloured (CSS highlights, no DOM change); in `expr` mode the whole value is
+// a bare expression (a condition) and there are no chips. AFD-226: inside Jinja, a completion list
+// opens as you type (Ctrl+Space opens it anywhere), with help under it; the arguments of the call
+// the caret is in show under the field; a name shows its help on hover.
 import {
+  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react';
 import type { RefChoice, ResultField } from '../../core/catalog/draft';
-import { joinSegments, type Segment, segments } from '../../core/flow/jinja';
+import { segments } from '../../core/flow/jinja';
+import {
+  type Completion,
+  type CompletionItem,
+  complete,
+  type Description,
+  describeAt,
+  type SignatureHint,
+  signatureAt,
+} from '../../core/view/jinjaComplete';
+import { exprMode, jinjaColours, scanJinja } from '../../core/view/jinjaText';
+import { placeMenu } from '../../core/view/menuPlace';
+import { caretOffset, caretRect, offsetOf, pieces, replaceText, serialize } from './editableText';
+import {
+  CompletionList,
+  JinjaTip,
+  listKey,
+  opensList,
+  pickText,
+  SignatureRow,
+  useJinjaContext,
+} from './JinjaAssist';
+import { clearPaint, paint, paintSupported } from './syntaxPaint';
 
 interface Props {
   id: string;
@@ -31,6 +59,8 @@ interface Props {
   onEnter?(): void;
   onEscape?(): void;
   onLeave?(): void;
+  /** `expr`: a bare expression (a condition, assert `that`): coloured as one, and no chips. */
+  mode?: 'template' | 'expr';
 }
 
 type Menu =
@@ -56,19 +86,32 @@ function chip(name: string): HTMLSpanElement {
   return el;
 }
 
-function render(el: HTMLElement, value: string): void {
+function render(el: HTMLElement, value: string, mode: Props['mode']): void {
+  if (mode === 'expr') {
+    el.replaceChildren(...(value ? [document.createTextNode(value)] : []));
+    return;
+  }
   el.replaceChildren(
     ...segments(value).map((s) => ('ref' in s ? chip(s.ref) : document.createTextNode(s.text))),
   );
 }
 
-function serialize(el: HTMLElement): string {
-  const parts: Segment[] = [];
-  for (const n of el.childNodes) {
-    if (n instanceof HTMLElement && n.dataset.ref) parts.push({ ref: n.dataset.ref, raw: '' });
-    else parts.push({ text: (n.textContent ?? '').replaceAll('\n', ' ') });
-  }
-  return joinSegments(parts);
+/** Colours the field's text by its Jinja (AFD-224); chips keep their own look. */
+function paintField(owner: object, el: HTMLElement, value: string, mode: Props['mode']): void {
+  if (!paintSupported()) return;
+  const list = pieces(el).filter((p) => !p.chip && p.end > p.start);
+  const ranges: Parameters<typeof paint>[1] = [];
+  for (const c of jinjaColours(value, { mode: exprMode(value, mode === 'expr') }))
+    for (const p of list) {
+      const from = Math.max(c.start, p.start);
+      const to = Math.min(c.end, p.end);
+      if (from >= to) continue;
+      const range = document.createRange();
+      range.setStart(p.node, from - p.start);
+      range.setEnd(p.node, to - p.start);
+      ranges.push({ colour: c.colour, range });
+    }
+  paint(owner, ranges);
 }
 
 /**
@@ -169,6 +212,7 @@ export function ChipField({
   onEnter,
   onEscape,
   onLeave,
+  mode = 'template',
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -179,19 +223,35 @@ export function ChipField({
    * a chip from the button always went to the end of the value, even over selected text.
    */
   const opened = useRef<Range | undefined>(undefined);
+  // AFD-226: the Jinja completion list, the call hint and the hover help.
+  const [assist, setAssist] = useState<{ c: Completion; active: number } | null>(null);
+  const [hint, setHint] = useState<SignatureHint | null>(null);
+  const [tip, setTip] = useState<{ d: Description; left: number; top: number } | null>(null);
+  const picking = useRef(false);
+  const popup = useRef<HTMLDivElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const hover = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const listId = useId();
+  const ctx = useJinjaContext(choices);
+  const optsOf = (v: string) => ({ mode: exprMode(v, mode === 'expr') });
 
   // Re-render only for values that did not come from typing here (the caret would jump).
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el && value !== emitted.current) render(el, value);
+    if (el && value !== emitted.current) {
+      render(el, value, mode);
+      paintField(ref, el, value, mode);
+    }
     emitted.current = value;
-  }, [value]);
+  }, [value, mode]);
+  useEffect(() => () => clearPaint(ref), []);
 
   const emit = () => {
     const el = ref.current;
     if (!el) return;
     const next = serialize(el);
     emitted.current = next;
+    paintField(ref, el, next, mode);
     if (next !== value) onChange(next);
   };
 
@@ -213,11 +273,24 @@ export function ChipField({
     typed: boolean,
   ) => setMenu({ kind: 'fields', of, query, active: 0, chip: chipEl, typed });
 
+  /**
+   * Whether a chosen reference goes in as a bare name: in an expression field, or with the caret
+   * inside an open `{{ ... ` (a chip there would nest braces).
+   */
+  const bareAt = (el: HTMLElement, at?: { node: Text; start: number }): boolean => {
+    if (mode === 'expr') return true;
+    const caret = at ? offsetOf(el, at.node, at.start) : caretOffset(el);
+    if (caret === undefined) return false;
+    const where = scanJinja(serialize(el).slice(0, caret), { mode: 'template' }).end.where;
+    return where === 'expr' || where === 'stmt';
+  };
+
   const pick = (c: RefChoice) => {
     const el = ref.current;
     if (!el) return;
     const at = menu?.kind === 'refs' && menu.caret ? atQuery(el) : undefined;
-    const node = chip(c.name);
+    const bare = bareAt(el, at);
+    const node = bare ? document.createTextNode(c.name) : chip(c.name);
     const place =
       !at && opened.current && el.contains(opened.current.startContainer)
         ? opened.current
@@ -232,8 +305,9 @@ export function ChipField({
     }
     opened.current = undefined;
     if (c.field) onAddInput(c);
-    // A whole result: its fields come next; typing on (or Esc) keeps the whole result.
-    if (c.fields) fieldsMenu(c, '', node, false);
+    // A whole result: its fields come next; typing on (or Esc) keeps the whole result. A bare name
+    // gets them from the completion list after a `.`.
+    if (c.fields && node instanceof HTMLElement) fieldsMenu(c, '', node, false);
     else setMenu(null);
     emit();
     el.focus();
@@ -257,7 +331,9 @@ export function ChipField({
     } else {
       // `@name.query` typed: the chip takes its place, and the input is added as for the result.
       const at = atQuery(el);
-      target = chip(name);
+      target = bareAt(el, at)
+        ? (document.createTextNode(name) as unknown as HTMLElement)
+        : chip(name);
       if (at) {
         replaceQuery(el, at, target);
       } else {
@@ -292,7 +368,68 @@ export function ChipField({
       list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' });
   }, [menu]);
 
+  /**
+   * The list for the caret: opened when `open` says so, else only kept up to date (or closed)
+   * when it is open already; the call hint follows the caret either way.
+   */
+  const refreshAssist = (open: boolean | ((c: Completion | undefined) => boolean)) => {
+    const el = ref.current;
+    const caret = el ? caretOffset(el) : undefined;
+    if (!el || caret === undefined) {
+      setAssist(null);
+      setHint(null);
+      return;
+    }
+    const v = serialize(el);
+    const c = complete(v, caret, optsOf(v), { ...ctx, now: new Date() });
+    const show = typeof open === 'function' ? open(c) : open;
+    setAssist((prev) =>
+      c && c.items.length > 0 && (show || prev)
+        ? {
+            c,
+            active:
+              prev && prev.c.from === c.from && prev.c.context === c.context
+                ? Math.min(prev.active, c.items.length - 1)
+                : 0,
+          }
+        : null,
+    );
+    setHint(signatureAt(v, caret, optsOf(v), { now: new Date() }) ?? null);
+  };
+
+  const pickAssist = (item: CompletionItem) => {
+    const el = ref.current;
+    if (!el || !assist) return;
+    const v = serialize(el);
+    const { text, caret } = pickText(v, assist.c, item, optsOf(v).mode === 'template');
+    picking.current = true;
+    try {
+      replaceText(el, assist.c.from, assist.c.to, text, caret);
+    } finally {
+      picking.current = false;
+    }
+    if (item.choice) onAddInput(item.choice);
+    emit();
+    el.focus();
+    setAssist(null);
+    refreshAssist(!!item.again);
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    setTip(null);
+    if (
+      !menu &&
+      listKey(e, assist ? { count: assist.c.items.length, active: assist.active } : null, {
+        move: (active) => setAssist((a) => (a ? { ...a, active } : a)),
+        pick: () => {
+          const item = assist?.c.items[assist.active];
+          if (item) pickAssist(item);
+        },
+        close: () => setAssist(null),
+        force: () => refreshAssist(true),
+      })
+    )
+      return;
     if (menu && count > 0) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -326,12 +463,16 @@ export function ChipField({
     }
   };
 
-  const onInput = () => {
+  const onInput = (e?: FormEvent<HTMLDivElement>) => {
     emit();
+    // A completion going in: the pick decides what opens next.
+    if (picking.current) return;
     const el = ref.current;
     if (!el) return;
+    setTip(null);
     const at = atQuery(el);
     if (at) {
+      setAssist(null);
       // `@read_version_result.std`: the fields of that result.
       const dot = at.query.lastIndexOf('.');
       const base = dot > 0 ? at.query.slice(0, dot) : '';
@@ -344,9 +485,71 @@ export function ChipField({
     }
     const dot = dotAfterChip(el);
     const of = dot ? choices.find((c) => c.fields && c.name === dot.chip.dataset.ref) : undefined;
-    if (dot && of) fieldsMenu(of, dot.query, dot.chip, true);
-    else setMenu(null);
+    if (dot && of) {
+      fieldsMenu(of, dot.query, dot.chip, true);
+      setAssist(null);
+      return;
+    }
+    setMenu(null);
+    // Typing opens the list as VS Code's suggestions open; deleting only keeps an open one current.
+    const native = e?.nativeEvent as InputEvent | undefined;
+    const typed = native?.inputType?.startsWith('insert') ? native.data : null;
+    refreshAssist((c) => opensList(typed, c));
   };
+
+  /** Where the caret moved without typing: the open list and the call hint follow it. */
+  const onCaretMove = () => refreshAssist(false);
+
+  // The list goes under the caret's line, in the window (core/view/menuPlace). It is fixed, so a
+  // list wider than the panel's column neither widens nor scrolls it.
+  useLayoutEffect(() => {
+    const box = popup.current;
+    const field = wrap.current;
+    if (!assist || !box || !field) return;
+    const f = field.getBoundingClientRect();
+    const caret = caretRect() ?? { left: f.left, top: f.top, bottom: f.bottom };
+    const at = placeMenu(
+      caret,
+      { left: 0, top: 0 },
+      { width: box.offsetWidth, height: box.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+    box.style.left = `${at.left}px`;
+    box.style.top = `${at.top}px`;
+  }, [assist]);
+
+  // A list scrolls: keep the active row in view.
+  useEffect(() => {
+    if (assist)
+      popup.current
+        ?.querySelector('[aria-selected="true"]')
+        ?.scrollIntoView?.({ block: 'nearest' });
+  }, [assist]);
+
+  /** Help for the name under the pointer, after a short rest (AFD-226). */
+  const onHover = (x: number, y: number) => {
+    clearTimeout(hover.current);
+    hover.current = setTimeout(() => {
+      const el = ref.current;
+      const field = wrap.current;
+      const doc = document as Document & {
+        caretRangeFromPoint?(x: number, y: number): Range | null;
+      };
+      const point = doc.caretRangeFromPoint?.(x, y);
+      if (!el || !field || !point || !el.contains(point.startContainer) || assist) {
+        setTip(null);
+        return;
+      }
+      const v = serialize(el);
+      const offset = offsetOf(el, point.startContainer, point.startOffset);
+      const now = new Date();
+      const d =
+        describeAt(v, offset, optsOf(v), { ...ctx, now }) ??
+        (offset > 0 ? describeAt(v, offset - 1, optsOf(v), { ...ctx, now }) : undefined);
+      setTip(d ? { d, left: x, top: y + 16 } : null);
+    }, 300);
+  };
+  useEffect(() => () => clearTimeout(hover.current), []);
 
   const option = (key: string, i: number, onPick: () => void, body: ReactNode) => (
     <div
@@ -365,23 +568,38 @@ export function ChipField({
   );
 
   return (
-    <div className="afd-chipfield">
+    <div className="afd-chipfield" ref={wrap}>
       {/* biome-ignore lint/a11y/useSemanticElements: an input cannot hold chips; contenteditable can. */}
       <div
         ref={ref}
         id={id}
-        className="afd-input afd-chipfield-input"
+        className={`afd-input afd-chipfield-input${mode === 'expr' ? ' mono' : ''}`}
         contentEditable
         suppressContentEditableWarning
         role="textbox"
         tabIndex={0}
         aria-label={label}
         aria-autocomplete="list"
+        spellCheck={false}
+        aria-controls={assist ? listId : undefined}
+        aria-activedescendant={assist ? `${listId}-${assist.active}` : undefined}
         data-placeholder={placeholder}
         onInput={onInput}
         onKeyDown={onKeyDown}
+        onKeyUp={(e) => {
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) onCaretMove();
+        }}
+        onMouseUp={onCaretMove}
+        onMouseMove={(e) => onHover(e.clientX, e.clientY)}
+        onMouseLeave={() => {
+          clearTimeout(hover.current);
+          setTip(null);
+        }}
         onBlur={() => {
           setTimeout(() => setMenu(null), 150);
+          setAssist(null);
+          setHint(null);
+          setTip(null);
           onLeave?.();
         }}
         onPaste={(e) => {
@@ -427,6 +645,17 @@ export function ChipField({
           )}
         </div>
       ) : null}
+      {assist && !menu ? (
+        <CompletionList
+          ref={popup}
+          id={listId}
+          completion={assist.c}
+          active={assist.active}
+          onPick={pickAssist}
+        />
+      ) : null}
+      {hint && !assist && !menu ? <SignatureRow hint={hint} /> : null}
+      {tip && !assist ? <JinjaTip tip={tip.d} style={{ left: tip.left, top: tip.top }} /> : null}
       {menu?.kind === 'fields' ? (
         <div
           ref={list}

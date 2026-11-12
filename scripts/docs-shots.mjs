@@ -50,6 +50,24 @@ async function scenarioShot(page, menu) {
   await settle(page, 400);
 }
 
+/**
+ * AFD-224/226: the Notify step bound to set_fact with Jinja facts, as real flows stamp their runs,
+ * on the Binding tab.
+ */
+async function jinjaStep(page, params) {
+  const id = await idOf(page, 'notify');
+  const command = {
+    kind: 'setBinding',
+    id,
+    impl: { kind: 'module', ref: 'ansible.builtin.set_fact', params },
+  };
+  await host(page, { type: 'command', reqId: 970, command });
+  await settle(page, 900);
+  await ui(page, 'openDetails', id, 'binding');
+  await ui(page, 'setExpanded', true);
+  await settle(page, 900);
+}
+
 // ---- shots ---------------------------------------------------------------------------------------
 
 /**
@@ -276,6 +294,27 @@ const SHOTS = {
     flow: 'playbook-import',
     act: async (page) => ui(page, 'setLevel', await idOf(page, 'baseline/edge-baseline')),
   },
+  // AFD-224: Jinja in fields, coloured as VS Code colours it, in each theme kind.
+  'jinja-colours': {
+    flow: 'firewall-upgrade',
+    themes: ['light', 'dark', 'hc'],
+    act: (page) =>
+      jinjaStep(page, {
+        report_dir: "/var/lib/reports/{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}",
+        fw_label: "{{ inventory_hostname | upper }} ({{ target_version | default('n/a') }})",
+        healthy: '{{ status_result.rc == 0 and status_result.stdout is search("ready") }}',
+      }),
+  },
+  // AFD-226: the completion list after `now(utc=true).str`: ready formats with what they give.
+  'jinja-complete': {
+    flow: 'firewall-upgrade',
+    act: async (page) => {
+      await jinjaStep(page, { report_ts: '' });
+      await page.locator('[data-param="report_ts"] [contenteditable="true"]').click();
+      await page.keyboard.type('{{ now(utc=true).str', { delay: 15 });
+      await settle(page, 600);
+    },
+  },
   'task-keywords': {
     flow: 'playbook-import',
     act: async (page) => {
@@ -356,7 +395,7 @@ try {
   if (only.includes('icon')) await renderIcon(page);
   for (const [name, shot] of Object.entries(SHOTS)) {
     if (only.length > 0 && !only.includes(name)) continue;
-    for (const theme of shot.walk ? ['light', 'dark'] : ['light'])
+    for (const theme of shot.themes ?? (shot.walk ? ['light', 'dark'] : ['light']))
       await shoot(page, name, shot, theme);
   }
 } finally {

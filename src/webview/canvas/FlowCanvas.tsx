@@ -816,7 +816,13 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select, button, [role="menu"], [role="dialog"]')) return;
+      // A chip field is contenteditable: Shift+1 there types `!` (AFD-222).
+      if (
+        t?.closest(
+          'input, textarea, select, button, [contenteditable="true"], [role="menu"], [role="dialog"]',
+        )
+      )
+        return;
       if (e.key === 'Enter' && !e.shiftKey) {
         const sel = useUi.getState().selection;
         const note = !sel.node && sel.annotations?.length === 1 ? sel.annotations[0] : undefined;

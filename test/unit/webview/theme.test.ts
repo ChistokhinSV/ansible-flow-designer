@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   contrast,
   FILLS,
+  INPUT_BACKGROUNDS,
   LENS_CHIPS,
   NOTE_COLORS,
   REFERENCE_BACKGROUNDS,
+  SYNTAX,
   type ThemeKind,
   TONES,
 } from '../../../src/webview/theme/tokens';
@@ -58,6 +60,13 @@ describe('theme tokens (08: check the 04 palette on dark and high-contrast)', ()
       }
     },
   );
+
+  it.each(KINDS)('%s: Jinja and YAML syntax colours (4.5:1) on the input background', (kind) => {
+    for (const [token, color] of Object.entries(SYNTAX[kind]))
+      expect(contrast(color, INPUT_BACKGROUNDS[kind]), `${kind} ${token}`).toBeGreaterThanOrEqual(
+        4.5,
+      );
+  });
 
   it('contrast() matches known WCAG values', () => {
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 0);

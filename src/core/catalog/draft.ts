@@ -9,6 +9,7 @@ import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
 import type { ContractField, ContractType, FlowNode, ImplBinding, Ulid } from '../flow/types';
 import { MAGIC_VARS } from '../flow/validate';
+import { documentedOptions } from './freeKeys';
 import type { CatalogOption, CatalogPlugin, CatalogReturn } from './types';
 
 export type BindKind = ImplBinding['kind'];
@@ -237,7 +238,7 @@ export function checklist(
   if (impl.kind === 'module' && plugin) {
     const params = impl.params ?? {};
     const given = new Set(Object.keys(params));
-    const missing = Object.entries(plugin.options ?? {})
+    const missing = Object.entries(documentedOptions(impl.ref, plugin.options) ?? {})
       .filter(([name, o]) => o.required && o.default === undefined && !given.has(name))
       .filter(([, o]) => !(o.aliases ?? []).some((a) => given.has(a)))
       .map(([name]) => name);

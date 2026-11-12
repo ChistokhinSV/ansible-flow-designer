@@ -280,3 +280,11 @@ way led to a flow input. ADR-0031 records the format and the checks; this amendm
   says that a try that runs over its timeout ends the step.
 - **The node face** shows `poll (drain_tries)` for retries given at run time.
 - **The Data lens** adds the field that reads an input to its wire's title: "· Retries".
+
+## Amendment: Jinja in the Details fields (AFD-221, 2026-11-12)
+
+The decision's Condition and the Until setting are expression fields (ADR-0034): coloured and
+completed as a test, saving as CommitField saves (Enter, leaving; Escape takes the typing back),
+with a variable picked that is not an input yet saved in the same edit. Until's suggestions became
+completion items: the step's result with its documented fields. The Task keywords box completes
+with the node's variables and its own result.

@@ -2,12 +2,12 @@
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
 import { useId, useMemo, useRef } from 'react';
-import { refChoices } from '../../core/catalog/draft';
+import { type RefChoice, refChoices, resultFields } from '../../core/catalog/draft';
 import { registerName } from '../../core/flow/dataNames';
 import { acceptedAll } from '../../core/flow/decisions';
 import { formatOf, purposeOf } from '../../core/flow/format';
 import { SLUG } from '../../core/flow/ids';
-import { keywordProblem } from '../../core/flow/keywords';
+import { BARE_KEYWORDS, keywordProblem } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
 import { modelOf } from '../../core/flow/model';
 import { portMenu } from '../../core/flow/portMenu';
@@ -45,6 +45,7 @@ import { YamlField, type YamlFieldHandle } from '../properties/YamlField';
 import { useUi } from '../store';
 import type { PortView } from '../viewModel';
 import { levelView, nextRequirement, STATUS_ORDER } from '../viewModel';
+import { ExprField } from './ExprField';
 import { TimingField } from './TimingField';
 
 const HANDLERS: (HandlerKind | '')[] = ['', 'rollback', 'notify', 'retry', 'exclude'];
@@ -297,6 +298,43 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
   );
 }
 
+/**
+ * A decision's condition (AFD-227): a bare expression, completed with what the node can read; a
+ * variable picked that is not an input yet becomes one in the same edit.
+ */
+function ConditionField({
+  node,
+  patch,
+}: {
+  node: FlowNode;
+  patch(p: Record<string, unknown>): void;
+}) {
+  const flowDoc = useUi((s) => s.snapshot?.doc);
+  const choices = useMemo(
+    () => (flowDoc ? refChoices(modelOf(flowDoc), node).filter((c) => !c.expose) : []),
+    [flowDoc, node],
+  );
+  return (
+    <ExprField
+      label="Condition (evaluated per host)"
+      value={node.condition ?? ''}
+      choices={choices}
+      placeholder="facts.version is version('17.9', '<')"
+      onCommit={(v, inputs) =>
+        patch({
+          condition: v.trim() ? v : null,
+          ...(Object.keys(inputs).length ? { inputs } : {}),
+        })
+      }
+    />
+  );
+}
+
+/** A step's own registered result as something an expression reads, with its documented fields. */
+function resultChoice(name: string, returns: Parameters<typeof resultFields>[0]): RefChoice {
+  return { name, label: name, detail: "this step's result", fields: resultFields(returns) };
+}
+
 export function TypeFields({
   node,
   patch,
@@ -306,14 +344,7 @@ export function TypeFields({
 }) {
   switch (node.type) {
     case 'decision':
-      return (
-        <CommitField
-          label="Condition (evaluated per host)"
-          value={node.condition ?? ''}
-          mono
-          onCommit={(v) => patch({ condition: v.trim() ? v : null })}
-        />
-      );
+      return <ConditionField node={node} patch={patch} />;
     case 'end':
       return (
         <div className="afd-field">
@@ -517,7 +548,6 @@ export function ExecutionSection({
   const doc = useCatalog(module ? { op: 'doc', fqcn: module } : null, `doc:module:${module}`);
   const result = registerName(node);
   const returns = Object.keys(doc.data?.returns ?? {});
-  const untilChoices = [`${result} is succeeded`, ...returns.map((r) => `${result}.${r}`)];
   const untilExample = returns.includes('stdout')
     ? `'ready' in ${result}.stdout`
     : returns.includes('rc')
@@ -533,6 +563,14 @@ export function ExecutionSection({
   const timingRefs = useMemo(
     () => (flowDoc ? timingChoices(refChoices(modelOf(flowDoc), node), node) : []),
     [flowDoc, node],
+  );
+  // AFD-227: Until reads the step's inputs and its own result, with the result's fields.
+  const untilRefs = useMemo(
+    () => [
+      ...(flowDoc ? refChoices(modelOf(flowDoc), node).filter((c) => !c.expose) : []),
+      resultChoice(result, doc.data?.returns),
+    ],
+    [flowDoc, node, result, doc.data],
   );
   // AFD-106: what the Access lens would flag, asked here with the lens off too.
   const becomeFlagged = useMemo(
@@ -606,14 +644,33 @@ export function ExecutionSection({
                     {unused}
                   </div>
                 );
+              // AFD-227: Until is a bare expression, completed with the step's result.
+              if (until)
+                return (
+                  <div key={s.key}>
+                    <ExprField
+                      label={`${s.label} · ${s.help}; it reads ${result} (the result) and the inputs`}
+                      value={settingText(value, s)}
+                      choices={untilRefs}
+                      placeholder={untilExample}
+                      problem={fieldProblem(problems, `settings.${s.key}`)}
+                      validate={(v) => settingProblem(s, v, node.type !== 'approval')}
+                      onCommit={(v, inputs) =>
+                        void updatePatch(node.id, {
+                          settings: { [s.key]: settingValue(s, v) },
+                          ...(Object.keys(inputs).length ? { inputs } : {}),
+                        })
+                      }
+                    />
+                    {unused}
+                  </div>
+                );
               return (
                 <div key={s.key}>
                   <CommitField
-                    label={`${s.label} · ${until ? `${s.help}; it reads ${result} (the result) and the inputs` : s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
+                    label={`${s.label} · ${s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
                     value={settingText(value, s)}
                     mono
-                    placeholder={until ? untilExample : undefined}
-                    suggestions={until ? untilChoices : undefined}
                     problem={fieldProblem(problems, `settings.${s.key}`)}
                     validate={(v) => settingProblem(s, v, node.type !== 'approval')}
                     onCommit={(v) => set(s.key, settingValue(s, v))}
@@ -714,6 +771,20 @@ function TaskKeywords({ node }: { node: FlowNode }) {
   const id = useId();
   const box = useRef<YamlFieldHandle>(null);
   const impl = node.impl;
+  // AFD-227: the YAML box completes with the node's variables and its own result (changed_when
+  // reads it); a variable picked that is not an input yet is added with the keywords.
+  const flowDoc = useUi((s) => s.snapshot?.doc);
+  const module = impl?.kind === 'module' && impl.ref ? impl.ref : undefined;
+  const doc = useCatalog(module ? { op: 'doc', fqcn: module } : null, `doc:module:${module}`);
+  const result = registerName(node);
+  const choices = useMemo(
+    () => [
+      ...(flowDoc ? refChoices(modelOf(flowDoc), node).filter((c) => !c.expose) : []),
+      ...(module ? [resultChoice(result, doc.data?.returns)] : []),
+    ],
+    [flowDoc, node, module, result, doc.data],
+  );
+  const added = useRef<Record<string, NonNullable<RefChoice['field']>>>({});
   const present = Object.keys(impl?.keywords ?? {});
   // AFD-44: shown, disabled, with why, rather than missing.
   const blocked = !impl?.ref
@@ -769,6 +840,11 @@ function TaskKeywords({ node }: { node: FlowNode }) {
               key={JSON.stringify(impl.keywords ?? null)}
               id={id}
               rows={4}
+              bareKeys={BARE_KEYWORDS}
+              choices={choices}
+              onAddInput={(c) => {
+                if (c.field) added.current = { ...added.current, [c.name]: c.field };
+              }}
               value={impl.keywords}
               placeholder={`when: version_check.stdout is version("17.9", "<")\nloop: "{{ interfaces }}"`}
               validate={(v) => {
@@ -780,7 +856,20 @@ function TaskKeywords({ node }: { node: FlowNode }) {
                 }
                 return undefined;
               }}
-              onChange={(v) => void updatePatch(node.id, { keywords: v ?? null })}
+              onChange={(v) => {
+                // Only the picked inputs the keywords still read.
+                const text = JSON.stringify(v ?? null);
+                const inputs = Object.fromEntries(
+                  Object.entries(added.current).filter(([n]) =>
+                    new RegExp(`\\b${n}\\b`).test(text),
+                  ),
+                );
+                added.current = {};
+                void updatePatch(node.id, {
+                  keywords: v ?? null,
+                  ...(Object.keys(inputs).length ? { inputs } : {}),
+                });
+              }}
             />
           </div>
         )}

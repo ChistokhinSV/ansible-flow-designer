@@ -46,6 +46,15 @@
     stroke: Highlight;
   }
 
+  /* The YAML box (AFD-224): its own text in the system colour, not the coloured layer under it. */
+  .afd-yaml-layer {
+    display: none;
+  }
+
+  .afd-yaml-text {
+    color: CanvasText;
+  }
+
   /* The running step (AFD-81): a steady outline in the system highlight. */
   .afd-node.run-running {
     outline-color: Highlight;

@@ -16,6 +16,7 @@ import type {
   SearchHit,
 } from '../../core/catalog/types';
 import type { CatalogDoc, CatalogStatus, PlaybookInfo, RoleInfo } from '../../core/protocol';
+import type { PluginName } from '../../core/view/jinjaComplete';
 import {
   CatalogIndex,
   INDEX_SCHEMA,
@@ -301,6 +302,14 @@ export class CatalogService implements vscode.Disposable {
     return plugin
       ? { ...plugin, collection_version: index.collectionVersion(plugin.collection) }
       : null;
+  }
+
+  /**
+   * AFD-225: the filters, tests or lookups of the folder's environment for the completion list,
+   * from the index already there (`cached`): asking never starts the probe. None without one.
+   */
+  names(folder: vscode.WorkspaceFolder, type: 'filter' | 'test' | 'lookup'): PluginName[] {
+    return this.cached(folder)?.index.names(type) ?? [];
   }
 
   /**

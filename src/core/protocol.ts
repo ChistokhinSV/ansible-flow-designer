@@ -12,6 +12,7 @@ import type { ScenarioRequest } from './scenario/edit';
 import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
 import type { RepoState } from './view/flowFacts';
+import type { PluginName } from './view/jinjaComplete';
 import type { OutsideMarks } from './view/outsideChanges';
 import type { Path } from './yaml/parse';
 
@@ -153,7 +154,9 @@ export type CatalogRequest =
   | { op: 'doc'; fqcn: string; type?: PluginType }
   | { op: 'roles' }
   | { op: 'playbooks' }
-  | { op: 'rebuild' };
+  | { op: 'rebuild' }
+  /** AFD-225: the filters, tests or lookups the environment has, for the Jinja completion list. */
+  | { op: 'names'; type: 'filter' | 'test' | 'lookup' };
 
 /** What each request answers. */
 export interface CatalogResults {
@@ -162,6 +165,7 @@ export interface CatalogResults {
   roles: RoleInfo[];
   playbooks: PlaybookInfo[];
   rebuild: CatalogStatus;
+  names: PluginName[];
 }
 
 export type NoticeLevel = 'info' | 'success' | 'error';

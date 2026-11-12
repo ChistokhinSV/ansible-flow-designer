@@ -52,6 +52,8 @@ describe('M5 acceptance: catalog and binding', () => {
     assert.equal(doc.fqcn, 'cisco.ios.ios_config');
     assert.equal(doc.collection_version, '9.0.3');
     assert.ok(Array.isArray(await api.catalog(EDGE, { op: 'playbooks' })));
+    // AFD-225: plugin names for the Jinja completion list, from the loaded index.
+    assert.ok(Array.isArray(await api.catalog(EDGE, { op: 'names', type: 'filter' })));
     assert.equal(api.catalogStatus(EDGE)?.state, 'ready');
   });
 

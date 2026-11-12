@@ -883,6 +883,8 @@ export class FlowSession implements vscode.Disposable {
       case 'rebuild':
         await catalog.ready(folder, true);
         return catalog.status(folder);
+      case 'names':
+        return catalog.names(folder, request.type);
     }
   }
 

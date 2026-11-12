@@ -1,6 +1,6 @@
 // Builds the extension host bundle (esbuild) and the webview bundle (Vite).
 // Flags: --production (minify, no sourcemaps), --watch, --tests (integration test bundles only).
-import { cpSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as esbuild from 'esbuild';
 import { build as viteBuild } from 'vite';
@@ -134,6 +134,22 @@ async function buildWebview() {
     build: watch ? { watch: {} } : {},
     logLevel: 'warn',
   });
+  if (production && !watch) minifyWebview();
+}
+
+/**
+ * AFD-223: Vite's library mode keeps the whitespace and comments of an ES bundle, even minified
+ * (it keeps pure annotations for a later bundler). The webview's bundle is the end of the line: a
+ * second pass takes it from about 1,200 KB to about 890 KB, with the same code. Legal comments stay.
+ */
+function minifyWebview() {
+  const file = 'dist/webview/index.js';
+  const { code } = esbuild.transformSync(readFileSync(file, 'utf8'), {
+    minify: true,
+    format: 'esm',
+    target: 'es2023',
+  });
+  writeFileSync(file, code);
 }
 
 if (testsOnly) {

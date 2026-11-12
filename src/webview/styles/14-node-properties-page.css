@@ -362,6 +362,7 @@
 .afd-chipfield {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   align-items: flex-start;
 }
@@ -372,6 +373,11 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   cursor: text;
+}
+
+/* AFD-227: an expression field reads as code. */
+.afd-chipfield-input.mono {
+  font-family: var(--afd-mono);
 }
 
 .afd-chipfield-input:empty::before {
@@ -410,6 +416,104 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   max-height: 240px;
   overflow: auto;
+}
+
+/* AFD-226: the Jinja completion list, placed under the caret's line (left and top set inline). */
+.afd-jinja-popup {
+  /* Fixed: placeMenu sets left and top in the window. */
+  position: fixed;
+  z-index: 60;
+  /* Wider than a narrow field; placeMenu keeps it in the window. */
+  width: max-content;
+  min-width: 220px;
+  max-width: min(420px, calc(100vw - 8px));
+  margin-top: 2px;
+  background: var(
+    --vscode-editorSuggestWidget-background,
+    var(--vscode-editorWidget-background, var(--afd-panel))
+  );
+  border: 1px solid
+    var(--vscode-editorSuggestWidget-border, var(--vscode-editorWidget-border, var(--afd-border)));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.afd-jinja-popup > .afd-ref-menu {
+  position: static;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  max-height: 200px;
+}
+
+.afd-jinja-popup .afd-jinja-menu > div {
+  flex-wrap: nowrap;
+}
+
+.afd-jinja-menu .codicon {
+  flex: none;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-jinja-label {
+  flex: none;
+  white-space: pre;
+}
+
+.afd-jinja-menu .afd-jinja-preview {
+  color: var(--afd-muted);
+}
+
+.afd-jinja-popup .afd-jinja-menu > div.active .afd-jinja-preview {
+  color: inherit;
+}
+
+.afd-jinja-menu .afd-jinja-preview,
+.afd-jinja-menu .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-jinja-preview {
+  color: var(--afd-syn-string);
+}
+
+.afd-jinja-doc {
+  padding: 4px 8px;
+  border-top: 1px solid var(--vscode-editorSuggestWidget-border, var(--afd-border));
+  font-size: var(--afd-fs-12);
+  overflow-wrap: anywhere;
+}
+
+/* The call the caret is in: a line under the field, as VS Code's parameter hints. */
+.afd-jinja-hint {
+  flex-basis: 100%;
+  padding: 1px 2px;
+  font-size: var(--afd-fs-11);
+  overflow-wrap: anywhere;
+}
+
+.afd-jinja-hint strong {
+  color: var(--afd-syn-var);
+}
+
+.afd-jinja-tip {
+  position: fixed;
+  z-index: 61;
+  max-width: min(100%, 360px);
+  padding: 4px 8px;
+  font-size: var(--afd-fs-12);
+  background: var(
+    --vscode-editorHoverWidget-background,
+    var(--vscode-editorWidget-background, var(--afd-panel))
+  );
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--afd-border));
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 /* AFD-108: the fields list says whose fields it offers. */
@@ -584,21 +688,90 @@
   color: var(--afd-input-fg);
 }
 
-.afd-yaml-key {
-  color: var(--vscode-debugTokenExpression-name, #0451a5);
+/* AFD-224 (ADR-0034): syntax colours, VS Code's default token colours per theme (--afd-syn-*, set
+   by applyTheme). Spans in the YAML box's layer; CSS highlights in chip fields, which colour text
+   without touching the DOM. */
+.afd-syn-delim {
+  color: var(--afd-syn-delim);
 }
 
-.afd-yaml-string {
-  color: var(--vscode-debugTokenExpression-string, #a31515);
+::highlight(afd-syn-delim) {
+  color: var(--afd-syn-delim);
 }
 
-.afd-yaml-scalar {
-  color: var(--vscode-debugTokenExpression-number, #098658);
+.afd-syn-keyword {
+  color: var(--afd-syn-keyword);
 }
 
-.afd-yaml-comment,
-.afd-yaml-dash,
-.afd-yaml-punct {
+::highlight(afd-syn-keyword) {
+  color: var(--afd-syn-keyword);
+}
+
+.afd-syn-constant {
+  color: var(--afd-syn-constant);
+}
+
+::highlight(afd-syn-constant) {
+  color: var(--afd-syn-constant);
+}
+
+.afd-syn-var {
+  color: var(--afd-syn-var);
+}
+
+::highlight(afd-syn-var) {
+  color: var(--afd-syn-var);
+}
+
+.afd-syn-func {
+  color: var(--afd-syn-func);
+}
+
+::highlight(afd-syn-func) {
+  color: var(--afd-syn-func);
+}
+
+.afd-syn-string {
+  color: var(--afd-syn-string);
+}
+
+::highlight(afd-syn-string) {
+  color: var(--afd-syn-string);
+}
+
+.afd-syn-format {
+  color: var(--afd-syn-format);
+}
+
+::highlight(afd-syn-format) {
+  color: var(--afd-syn-format);
+}
+
+.afd-syn-number {
+  color: var(--afd-syn-number);
+}
+
+::highlight(afd-syn-number) {
+  color: var(--afd-syn-number);
+}
+
+.afd-syn-comment {
+  color: var(--afd-syn-comment);
+}
+
+::highlight(afd-syn-comment) {
+  color: var(--afd-syn-comment);
+}
+
+.afd-syn-key {
+  color: var(--afd-syn-key);
+}
+
+::highlight(afd-syn-key) {
+  color: var(--afd-syn-key);
+}
+
+.afd-syn-muted {
   color: var(--afd-muted);
 }
 

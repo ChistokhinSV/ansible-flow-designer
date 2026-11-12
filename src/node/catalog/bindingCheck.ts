@@ -1,5 +1,6 @@
 // Catalog-backed checks of module bindings (M5, ADR-0011): what the environment says about the
 // bound module. Runs only with a loaded index; the pure checks live in core/flow/validate.
+import { documentedOptions, takesFreeKeys } from '../../core/catalog/freeKeys';
 import { buildModel } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
 import type { Finding } from '../../core/flow/validate';
@@ -44,7 +45,7 @@ export function checkBindings(
         'info',
         `${who}: ${r.fqcn} does not support check mode, so skeleton runs skip it`,
       );
-    const options = plugin.options ?? {};
+    const options = documentedOptions(impl.ref, plugin.options) ?? {};
     const names = Object.keys(options);
     if (names.length === 0) continue;
     const params = Object.keys(impl.params ?? {});
@@ -60,8 +61,9 @@ export function checkBindings(
           ...path,
           'impl',
         ]);
-    // Free-form modules (command, shell) take `_raw_params` and `cmd`; anything goes there.
-    if (!names.includes('free_form'))
+    // Free-form modules (command, shell) take `_raw_params` and `cmd`; anything goes there, as do
+    // set_fact's facts (AFD-222).
+    if (!names.includes('free_form') && !takesFreeKeys(impl.ref))
       for (const p of params)
         if (!known.has(p))
           add('binding-unknown-param', 'warning', `${who}: ${r.fqcn} has no parameter "${p}"`, [

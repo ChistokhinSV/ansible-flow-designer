@@ -151,3 +151,14 @@ followed by ".stdout". Round 3's participant typed exactly that.
   the output there) as picking the result would. The list is a `listbox` named `Fields of <result>`. Typing anything but `.` after the chip, or Escape, keeps the whole result.
 - **Not done:** a field the docs do not list can still be typed inside the braces by hand, and
   fields of nested returns (`contains`) are not offered.
+
+## Amendment: Jinja colours and completion in fields (AFD-221, 2026-11-12)
+
+Chip fields colour their Jinja and offer a completion list, call hints and hover help (ADR-0034).
+A field Ansible reads as a bare expression (assert `that`, debug `var`, a decision's Condition,
+Until) is a chip field in expression mode: no chips, and `@` puts in a bare name. An `@` pick with
+the caret inside an open `{{` puts in a bare name too. The catalog answers `names` (the
+environment's filters, tests or lookups) from the loaded index. set_fact's doc names one required
+option, `key_value`, for its facts: Configure shows the facts as **Facts**, and neither its
+checklist nor the catalog checks ask for `key_value` or call a fact an unknown parameter
+(AFD-222).

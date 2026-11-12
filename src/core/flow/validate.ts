@@ -1,5 +1,6 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
+import { takesFreeKeys } from '../catalog/freeKeys';
 import type { Path } from '../yaml/parse';
 import { successors } from './adjacency';
 import { fedByBubbling, levelTaken, untaken } from './bubbling';
@@ -9,7 +10,7 @@ import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { durationSeconds } from './duration';
 import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
-import { keywordReads } from './keywords';
+import { BARE_PARAMS, keywordReads } from './keywords';
 import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
 import { openFailPorts } from './openPorts';
@@ -636,9 +637,6 @@ function checkApprovalSplit(
 /** Variables every task can read: Ansible's magic and connection variables, loop items, omit. */
 export const MAGIC_VARS =
   /^(ansible_[a-z0-9_]*|inventory_hostname(_short)?|inventory_dir|inventory_file|hostvars|groups|group_names|play_hosts|playbook_dir|role_path|role_name|omit|item|ansible_loop_var|lookup|query|q|now|range|dict|namespace|loop|afd_[a-z0-9_]*|awx_[a-z0-9_]*|tower_[a-z0-9_]*)$/;
-
-/** Module parameters Ansible evaluates as bare expressions, by module short name. */
-const BARE_PARAMS: Record<string, readonly string[]> = { assert: ['that'], debug: ['var'] };
 
 export function bareParams(impl: NonNullable<FlowNode['impl']>): unknown[] {
   if (impl.kind !== 'module') return [];
@@ -1560,8 +1558,7 @@ function definedGuards(nodes: (FlowNode | undefined)[], names: string[]): Set<st
 
 /** AFD-183: the facts a set_fact step sets, which its own parameters may read (accumulators). */
 function setFactNames(impl: NonNullable<FlowNode['impl']>): string[] {
-  if (impl.kind !== 'module' || !/^(ansible\.(builtin|legacy)\.)?set_fact$/.test(impl.ref))
-    return [];
+  if (impl.kind !== 'module' || !takesFreeKeys(impl.ref)) return [];
   return Object.keys(impl.params ?? {}).filter((k) => k !== 'cacheable');
 }
 

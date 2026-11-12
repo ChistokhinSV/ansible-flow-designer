@@ -244,6 +244,17 @@ describe('shortcuts', () => {
     input.remove();
   });
 
+  it('Shift+1 fits the level, but types ! in a chip field (AFD-222)', () => {
+    render(<App />);
+    const bang = { key: '!', code: 'Digit1', shiftKey: true };
+    // fireEvent returns false when a handler called preventDefault.
+    expect(fireEvent.keyDown(document.body, bang)).toBe(false);
+    const field = document.body.appendChild(document.createElement('div'));
+    field.setAttribute('contenteditable', 'true');
+    expect(fireEvent.keyDown(field, bang)).toBe(true);
+    field.remove();
+  });
+
   it('Alt+1, Alt+2, Alt+3 switch the mode; the first visit to Code compiles the code', () => {
     render(<App />);
     key(document.body, '2', { altKey: true, code: 'Digit2' });

@@ -19,9 +19,11 @@ import {
   stagedNode,
   upstreamNodes,
 } from '../../core/catalog/draft';
+import { documentedOptions, takesFreeKeys } from '../../core/catalog/freeKeys';
 import type { Badge, CatalogOption, SearchHit } from '../../core/catalog/types';
 import { bindingTaskText } from '../../core/engine/binding';
 import { registerName } from '../../core/flow/dataNames';
+import { isBareParam } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
@@ -689,7 +691,7 @@ function Configure({
   const entry = String(draft.params.tasks_from ?? 'main');
   const options =
     draft.kind === 'module'
-      ? doc?.options
+      ? documentedOptions(draft.ref, doc?.options)
       : draft.kind === 'role'
         ? role?.entry_points[entry]?.options
         : undefined;
@@ -713,6 +715,7 @@ function Configure({
       <ParamField
         key={f.name}
         field={f}
+        bare={draft.kind === 'module' && isBareParam(draft.ref, f.name)}
         value={draft.params[f.name]}
         onChange={(v) => setParam(f.name, v)}
         {...fieldProps}
@@ -733,12 +736,18 @@ function Configure({
         </div>
       ) : null}
       {groups.rest.length > 0 ? <ParamPicker fields={groups.rest} onPick={addParam} /> : null}
-      {draft.kind !== 'module' || !options ? (
+      {draft.kind !== 'module' || !options || takesFreeKeys(draft.ref) ? (
         <FreeVars
           names={free}
           params={draft.params}
           onChange={setParam}
-          label={draft.kind === 'playbook' ? 'Extra vars for the playbook' : 'Variables'}
+          label={
+            draft.kind === 'playbook'
+              ? 'Extra vars for the playbook'
+              : takesFreeKeys(draft.ref)
+                ? 'Facts'
+                : 'Variables'
+          }
           {...fieldProps}
         />
       ) : null}
@@ -817,11 +826,18 @@ interface FieldChoices {
 
 function ParamField({
   field,
+  bare,
   value,
   onChange,
   choices,
   onAddInput,
-}: FieldChoices & { field: FormField; value: unknown; onChange(v: unknown): void }) {
+}: FieldChoices & {
+  field: FormField;
+  /** AFD-227: Ansible reads the value as a bare expression (assert `that`, debug `var`). */
+  bare?: boolean;
+  value: unknown;
+  onChange(v: unknown): void;
+}) {
   const id = useId();
   const o = field.option;
   const label = (
@@ -831,7 +847,7 @@ function ParamField({
     </label>
   );
   const help = <span className="afd-help">{o.description.split('\n')[0]}</span>;
-  const chipProps = { choices, onAddInput };
+  const chipProps = { choices, onAddInput, mode: bare ? ('expr' as const) : undefined };
   let control: ReactNode;
   switch (field.control) {
     case 'bool':
@@ -925,7 +941,14 @@ function ListField({
   onChange,
   choices,
   onAddInput,
-}: FieldChoices & { id: string; name: string; value: string[]; onChange(v: string[]): void }) {
+  mode,
+}: FieldChoices & {
+  id: string;
+  name: string;
+  value: string[];
+  onChange(v: string[]): void;
+  mode?: 'template' | 'expr';
+}) {
   // Rows keep empty lines being typed; the value has none.
   const [rows, setRows] = useState<string[]>(value.length > 0 ? value : ['']);
   const key = value.join('\u0000');
@@ -950,6 +973,7 @@ function ListField({
             onChange={(v) => change(rows.map((r, j) => (j === i ? v : r)))}
             choices={choices}
             onAddInput={onAddInput}
+            mode={mode}
           />
           {rows.length > 1 ? (
             <button
@@ -970,7 +994,11 @@ function ListField({
   );
 }
 
-/** Variables for roles without argument specs and extra vars for playbooks (free-form). */
+/**
+ * Variables for roles without argument specs, extra vars for playbooks and set_fact's facts
+ * (free-form). A value that is not a string (a list, a dict, a number) is edited as YAML, so it
+ * stays what it is (AFD-222).
+ */
 function FreeVars({
   names,
   params,
@@ -992,16 +1020,23 @@ function FreeVars({
       {names.map((n) => (
         <div key={n} className="afd-list-row" data-param={n}>
           <span className="mono afd-freevar-name">{n}</span>
-          <ChipField
-            id={`afd-var-${n}`}
-            label={n}
-            value={
-              typeof params[n] === 'string' ? (params[n] as string) : JSON.stringify(params[n])
-            }
-            onChange={(v) => onChange(n, v)}
-            choices={choices}
-            onAddInput={onAddInput}
-          />
+          {typeof params[n] === 'string' ? (
+            <ChipField
+              id={`afd-var-${n}`}
+              label={n}
+              value={params[n] as string}
+              onChange={(v) => onChange(n, v)}
+              choices={choices}
+              onAddInput={onAddInput}
+            />
+          ) : (
+            <YamlField
+              id={`afd-var-${n}`}
+              value={params[n]}
+              rows={1}
+              onChange={(v) => onChange(n, v === undefined ? '' : v)}
+            />
+          )}
           <button
             type="button"
             className="icon"

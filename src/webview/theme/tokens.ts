@@ -52,6 +52,83 @@ export const LENS_CHIPS: Record<ThemeKind, Record<LensToken, { bg: string; fg: s
   },
 };
 
+/**
+ * Syntax colours of Jinja and YAML in fields (AFD-224, ADR-0034): VS Code's default token colours
+ * (Dark+, Light+, the high-contrast themes) by scope, so a field reads as the editor does. Two Dark+
+ * colours are nudged to reach 4.5:1 on Dark Modern's input background: #569cd6 and the comment
+ * green #6a9955.
+ */
+export type SyntaxToken =
+  | 'delim'
+  | 'keyword'
+  | 'constant'
+  | 'var'
+  | 'func'
+  | 'string'
+  | 'format'
+  | 'number'
+  | 'comment'
+  | 'key';
+
+export const SYNTAX: Record<ThemeKind, Record<SyntaxToken, string>> = {
+  light: {
+    delim: '#0000ff',
+    keyword: '#af00db',
+    constant: '#0000ff',
+    var: '#001080',
+    func: '#795e26',
+    string: '#a31515',
+    format: '#ee0000',
+    number: '#098658',
+    comment: '#008000',
+    key: '#800000',
+  },
+  dark: {
+    delim: '#5ca1db',
+    keyword: '#c586c0',
+    constant: '#5ca1db',
+    var: '#9cdcfe',
+    func: '#dcdcaa',
+    string: '#ce9178',
+    format: '#d7ba7d',
+    number: '#b5cea8',
+    comment: '#7ca668',
+    key: '#5ca1db',
+  },
+  'hc-dark': {
+    delim: '#569cd6',
+    keyword: '#c586c0',
+    constant: '#569cd6',
+    var: '#9cdcfe',
+    func: '#dcdcaa',
+    string: '#ce9178',
+    format: '#d7ba7d',
+    number: '#b5cea8',
+    comment: '#7ca668',
+    key: '#569cd6',
+  },
+  'hc-light': {
+    delim: '#0f4a85',
+    keyword: '#b5200d',
+    constant: '#0f4a85',
+    var: '#001080',
+    func: '#5e2cbc',
+    string: '#0f4a85',
+    format: '#ee0000',
+    number: '#096d48',
+    comment: '#515151',
+    key: '#0f4a85',
+  },
+};
+
+/** Input backgrounds of the default themes (Light/Dark Modern, high contrast), for syntax colours. */
+export const INPUT_BACKGROUNDS: Record<ThemeKind, string> = {
+  light: '#ffffff',
+  dark: '#313131',
+  'hc-dark': '#000000',
+  'hc-light': '#ffffff',
+};
+
 /** Representative editor backgrounds of the default themes, for contrast checks. */
 export const REFERENCE_BACKGROUNDS: Record<ThemeKind, string> = {
   light: '#ffffff',
@@ -78,6 +155,7 @@ export function applyTheme(root: HTMLElement, kind: ThemeKind): void {
     root.style.setProperty(`--afd-note-${k}`, v.fill);
     root.style.setProperty(`--afd-note-${k}-ink`, v.ink);
   }
+  for (const [k, v] of Object.entries(SYNTAX[kind])) root.style.setProperty(`--afd-syn-${k}`, v);
   // Data lens wires take the data chip's text color.
   root.style.setProperty('--afd-lens-data', LENS_CHIPS[kind].data.fg);
   root.dataset.theme = kind;

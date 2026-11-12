@@ -55,6 +55,10 @@ A form from the argument spec: choices, booleans, one line per list item, YAML f
   input or a step inside an earlier subflow that is not an input yet adds it, with its `from:`
   ([data between steps](data-between-steps.md)). After a step's result, the list offers the fields
   its module documents; `.` typed right after a result's chip offers them too.
+- **Jinja is coloured and completed** as the editor colours and completes it, in every field that
+  takes Jinja (see below).
+- **set_fact** shows the facts it sets under **Facts**, one row each (a list or a dict as YAML);
+  its doc's `key_value` stands for them, so it is neither asked for nor a problem.
 - **Register result as** names the variable the module result is registered in (default
   `<key>_result`). **Expose as node output** makes the whole result an output.
 - **The checklist** shows required parameters, where each variable comes from, check mode support
@@ -71,6 +75,41 @@ Details saves as you leave it.
 
 While the flow file has YAML errors or missing IDs, the Details are read-only; fix the text first (**Open in Text Editor**).
 
+## Jinja in fields
+
+Parameter values, list items, variables and facts, the Timing fields, the Task keywords box, a
+decision's Condition and Until show their Jinja in VS Code's default colours: delimiters,
+variables, functions and filters, strings, numbers and keywords, and the `%` codes of a date
+format.
+
+![Jinja coloured in a set_fact step's facts](../images/jinja-colours-light.png)
+
+The same step in the [dark](../images/jinja-colours-dark.png) and
+[high contrast](../images/jinja-colours-hc.png) themes.
+
+Inside `{{ }}`, `{% %}`, or a field that is a test without braces, a list opens as you type:
+
+| After               | The list offers                                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| the start of a name | the step's variables (as `@` does), Ansible's (`inventory_hostname`, `hostvars`…), `now()`, `lookup()` and the other functions |
+| `\|`                | filters: Jinja's, ansible.builtin's and those of the collections in the catalog                                                |
+| `is`, `is not`      | tests                                                                                                                          |
+| `.`                 | a value's members: a result's fields, a string's methods, a date's `strftime`                                                  |
+| `strftime('`        | date formats and `%` codes, each with what it gives now                                                                        |
+| `lookup('`          | lookup plugins                                                                                                                 |
+
+![Completing now(utc=true).str: ready date formats with what they give](../images/jinja-complete-light.png)
+
+- **Keys:** the arrows move, Enter or Tab puts the choice in, Esc closes the list (the field keeps
+  your typing). Ctrl+Space opens the list anywhere in the Jinja. Ctrl+Z takes a choice back.
+- **Help:** under the list, the chosen entry's signature and what it does. With the cursor inside
+  a call (`now(`, `lookup('env', `), a line under the field shows its arguments, the one you are
+  typing in bold, and for a date format what it gives now. Rest the pointer on a function, filter,
+  test or `%` code to see its help.
+- **Braces:** choosing a name inside `{{` that is not closed yet adds ` }}`. A variable that is not
+  an input of the step yet becomes one, as with `@`.
+- **Inside quotes in the YAML box,** a quote is put in as YAML writes it there (`''` in `'…'`).
+
 ## Task keywords
 
 The **Execution** tab has a fold of its own, **Task keywords**: a YAML map written on the generated
@@ -81,10 +120,11 @@ task as is, for what a playbook task would say. Examples: `when`, `loop` (or `wi
 - **One click for the common ones:** `+ no_log`, `+ ignore_errors` and `+ run_once` add their line
   and save it; `+ when`, `+ loop`, `+ delegate_to` and `+ changed_when` add theirs and put the
   cursor where the value goes. A keyword already set has its button greyed out.
-- **The box helps as an editor does:** keys, strings, values and comments are coloured; the line a
-  YAML error names is underlined while you type (nothing is saved until you leave the box); Enter
-  keeps the indent, indents after `loop:`, continues a list after `- item`, and ends the list on an
-  empty item.
+- **The box helps as an editor does:** keys, strings, values and comments are coloured, and the
+  Jinja in values too (`when`, `changed_when` and `failed_when` as tests), with the completion list
+  of [Jinja in fields](#jinja-in-fields); the line a YAML error names is underlined while you type
+  (nothing is saved until you leave the box); Enter keeps the indent, indents after `loop:`,
+  continues a list after `- item`, and ends the list on an empty item.
 
 ```yaml
 when: version_check.stdout is version('17.9', '<')

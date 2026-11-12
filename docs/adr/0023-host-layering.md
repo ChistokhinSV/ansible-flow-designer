@@ -109,3 +109,14 @@ The fixes for agents converting large playbooks (AFD-176 to AFD-196) went into t
 - the repair of stale agent registrations.
 
 `extension.js` reached about 968 KB and `mcp.js` about 1,100 KB. The budgets are now 1,024 KB and 1,152 KB. The webview stays at 1,216 KB.
+
+## Amendment: a minify pass for the webview (AFD-223, 2026-11-12)
+
+The webview's `index.js` was about 1,200 KB of its 1,216 KB budget. Most of the margin was lost to
+whitespace: Vite's library mode keeps the whitespace and comments of an ES bundle even when it
+minifies, so that a later bundler still sees the pure annotations. The webview bundle has no later
+bundler. The production build now passes it through esbuild's minifier once more
+(`scripts/build.mjs`, `minifyWebview`), with the same code and its legal comments kept. It is now
+about 893 KB. The budget stays at 1,216 KB, which leaves room for the Jinja colouring and completion
+in fields (AFD-221). The other budgets stay: `extension.js` 1,024 KB (987 KB now), `mcp.js` 1,152 KB
+(1,111 KB).

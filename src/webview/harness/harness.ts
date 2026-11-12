@@ -284,6 +284,12 @@ function catalogAnswer(r: CatalogRequest): unknown {
           };
         });
     }
+    case 'names':
+      return PLUGINS.filter((p) => p.type === r.type).map((p) => ({
+        name: p.collection === 'ansible.builtin' ? p.name : p.fqcn,
+        fqcn: p.fqcn,
+        doc: p.short_description,
+      }));
     case 'doc': {
       const p = PLUGINS.find((x) => x.fqcn === r.fqcn) as CatalogPlugin | undefined;
       const file = ([builtin, ios, eos, utils] as unknown as CollectionFile[]).find(

@@ -106,6 +106,19 @@ function open(key: string) {
   return id;
 }
 
+/** Puts `text` in a chip field with the caret at its end, as typing its last character would. */
+function typeInto(el: HTMLElement, text: string) {
+  el.focus();
+  el.textContent = text;
+  const range = document.createRange();
+  range.setStart(el.firstChild as Text, text.length);
+  range.collapse(true);
+  const sel = window.getSelection() as Selection;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  fireEvent.input(el, { data: text.slice(-1), inputType: 'insertText' });
+}
+
 /** Opens a fold of the Binding tab by its summary (AFD-80) and waits for its toggle event. */
 async function unfold(region: string): Promise<HTMLElement> {
   const section = screen.getByRole('region', { name: region });
@@ -473,17 +486,17 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     expect(document.querySelector('[data-timing-text]')?.textContent).toBe(
       "Tries up to 11 times (once, then 10 retries), 15 s apart, until 'x' in set_boot_variable_result.updates; each try at most 15s, and a try that runs over ends the step; the step takes at most 5 min 15 s in all.",
     );
-    const until = screen.getByLabelText(/^Until/) as HTMLInputElement;
-    const options = [
-      ...(document.getElementById(until.getAttribute('list') ?? '')?.querySelectorAll('option') ??
-        []),
-    ].map((o) => o.getAttribute('value'));
-    expect(options).toEqual([
-      'boot_result is succeeded',
-      'boot_result.commands',
-      'boot_result.updates',
-      'boot_result.backup_path',
-    ]);
+    // AFD-227: Until is an expression field; the result's fields come after `boot_result.`.
+    const until = screen.getByRole('textbox', { name: /^Until/ });
+    expect(until.textContent).toBe("'x' in set_boot_variable_result.updates");
+    typeInto(until, 'boot_result.');
+    const fields = screen.getByRole('listbox', { name: 'Members' });
+    expect(
+      within(fields)
+        .getAllByRole('option')
+        .map((o) => o.querySelector('.afd-jinja-label')?.textContent),
+    ).toEqual(['commands', 'updates', 'backup_path']);
+    fireEvent.keyDown(until, { key: 'Escape' });
     // A timeout the generated code cannot read is refused in the field.
     const timeout = screen.getByRole('textbox', { name: /^Timeout/ });
     timeout.textContent = '15 sec';
@@ -681,5 +694,76 @@ describe('the @ list offers upstream results (AFD-106)', () => {
     expect(configure.querySelector('[data-binding-preview]')?.textContent).toContain(
       '{{ wait_for_ssh_result.elapsed }}',
     );
+  });
+});
+
+describe('Configure: set_fact (AFD-222)', () => {
+  it('shows the facts, a list as YAML, and asks for no key_value', async () => {
+    const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
+    const walk = (nodes: FlowNode[] = []) => {
+      for (const n of nodes) {
+        if (n.key === 'set-boot-variable')
+          n.impl = {
+            kind: 'module',
+            ref: 'ansible.builtin.set_fact',
+            params: { _ts: "{{ now(utc=true).strftime('%Y%m%d') }}", _dirs: ['a', 'b'] },
+          };
+        walk(n.subflow?.nodes);
+      }
+    };
+    walk(copy.nodes);
+    const setFact = (r: CatalogRequest): unknown =>
+      r.op === 'doc' && /set_fact$/.test(r.fqcn)
+        ? {
+            fqcn: 'ansible.builtin.set_fact',
+            name: 'set_fact',
+            type: 'module',
+            collection: 'ansible.builtin',
+            collection_version: '2.19.14',
+            short_description: 'Set host variable(s) and fact(s).',
+            description: 'Sets facts.',
+            options: {
+              key_value: { type: 'str', required: true, description: 'The facts to set.' },
+              cacheable: { type: 'bool', description: 'Whether facts go to the fact cache.' },
+            },
+          }
+        : catalog(r);
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(copy), docVersion: 4 }));
+    open('set-boot-variable');
+    await answer(setFact);
+    const configure = screen.getByRole('region', { name: 'Configure' });
+    expect(configure.querySelector('[data-param="key_value"]')).toBeNull();
+    expect(within(configure).getByRole('group', { name: 'Facts' })).toBeTruthy();
+    expect(
+      configure.querySelector('[data-param="_ts"] [contenteditable="true"]')?.textContent,
+    ).toBe("{{ now(utc=true).strftime('%Y%m%d') }}");
+    expect(
+      (configure.querySelector('[data-param="_dirs"] textarea') as HTMLTextAreaElement).value,
+    ).toBe('- a\n- b');
+    expect(configure.textContent).toContain('Required parameters set');
+  });
+});
+
+describe('Expression fields (AFD-227)', () => {
+  it('a decision condition is coloured and completed as a bare expression, and saves on Enter', async () => {
+    const id = nodeOf('upgrade-needed').id;
+    act(() => useUi.getState().openDetails(id, 'general'));
+    render(<Details id={id} />);
+    await answer(catalog);
+    const condition = screen.getByRole('textbox', { name: /^Condition/ });
+    expect(condition.className).toContain('mono');
+    expect(document.querySelector('[data-expr-field] [data-ref]')).toBeNull();
+    typeInto(condition, "ansible_net_version is version(target_version, '<') and inv");
+    const list = screen.getByRole('listbox', { name: 'Variables and functions' });
+    expect(within(list).getAllByRole('option')[0]?.textContent).toContain('inventory_hostname');
+    fireEvent.keyDown(condition, { key: 'Enter' });
+    fireEvent.keyDown(condition, { key: 'Enter' });
+    expect(commands().at(-1)).toMatchObject({
+      kind: 'updateNode',
+      id,
+      patch: {
+        condition: "ansible_net_version is version(target_version, '<') and inventory_hostname",
+      },
+    });
   });
 });

@@ -39,6 +39,18 @@ export const WITH = /^with_[a-z_]+$/;
 /** Jinja tests written without braces. */
 export const BARE_KEYWORDS: ReadonlySet<string> = new Set(['when', 'changed_when', 'failed_when']);
 
+/** Module parameters Ansible evaluates as bare expressions, by module short name. */
+export const BARE_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  assert: ['that'],
+  debug: ['var'],
+};
+
+/** Whether a module's parameter is a bare expression (assert `that`, debug `var`; AFD-224). */
+export function isBareParam(ref: string | undefined, name: string): boolean {
+  const short = (ref ?? '').replace(/^ansible\.(builtin|legacy)\./, '');
+  return (BARE_PARAMS[short] ?? []).includes(name);
+}
+
 /** On include_role these stay on the task; every other keyword goes into `apply` (static roles). */
 export const ROLE_TASK_KEYWORDS: ReadonlySet<string> = new Set(['when', 'loop', 'loop_control']);
 

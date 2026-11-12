@@ -35,3 +35,51 @@ describe('catalog without node:sqlite', () => {
     index.close();
   });
 });
+
+describe('plugin names for the Jinja completion list (AFD-225)', () => {
+  it("lists a type's plugins: ansible.builtin's by short name first, a collection's by FQCN", async () => {
+    const m = await loadIndex(true);
+    const plugin = (collection: string, name: string, type: string, short: string) => ({
+      type,
+      fqcn: `${collection}.${name}`,
+      collection,
+      name,
+      short_description: short,
+      description: short,
+      notes: '',
+      requirements: '',
+      deprecated: null,
+      options: {},
+      returns: {},
+      examples: '',
+      attributes: {},
+    });
+    const file = (collection: string, plugins: unknown[]) =>
+      ({ format: 1, collection, version: '1.0.0', plugins, routing: {}, errors: [] }) as never;
+    const index = m.CatalogIndex.build(':memory:', [
+      file('community.general', [
+        plugin('community.general', 'json_query', 'filter', 'Query JSON.'),
+      ]),
+      file('ansible.builtin', [
+        plugin('ansible.builtin', 'to_datetime', 'filter', 'Get a datetime from text.'),
+        plugin('ansible.builtin', 'env', 'lookup', 'Read an environment variable.'),
+      ]),
+      file('ansible.legacy', [plugin('ansible.legacy', 'to_datetime', 'filter', 'Again.')]),
+    ]);
+    expect(index.names('filter')).toEqual([
+      {
+        name: 'to_datetime',
+        fqcn: 'ansible.builtin.to_datetime',
+        doc: 'Get a datetime from text.',
+      },
+      {
+        name: 'community.general.json_query',
+        fqcn: 'community.general.json_query',
+        doc: 'Query JSON.',
+      },
+    ]);
+    expect(index.names('lookup').map((p) => p.name)).toEqual(['env']);
+    expect(index.names('test')).toEqual([]);
+    index.close();
+  });
+});

@@ -14,6 +14,9 @@ condition: fw_version == target_version
 - The validator warns (`condition-unknown-var`) when a condition reads anything else, and says where
   the value could come from. Ansible's own variables (`inventory_hostname`, `ansible_*`, …) are
   always fine.
+- The field colours and completes the condition as a test: the node's variables, Ansible's,
+  filters after `|` and tests after `is`; `@` puts in a name without braces, and a variable that is
+  not an input yet becomes one ([Jinja in fields](binding-and-catalog.md#jinja-in-fields)).
 - Write it as a `when:` is written. A condition wrapped whole in `{{ }}` works too, but braces
   inside it (`{{ fw_version }} == target_version`) are an error (`condition-braces`): the
   generated code puts the condition inside a Jinja expression of its own.

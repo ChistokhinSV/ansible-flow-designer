@@ -3,7 +3,7 @@
 // Timing fields took only numbers, and nothing tied "a value given at run time" to them. A field
 // takes an input with @, as a binding parameter does, and "Ask at run time…" makes the flow input,
 // the step input that reads it and the template in one edit.
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import type { RefChoice } from '../../core/catalog/draft';
 import { durationSeconds } from '../../core/flow/duration';
 import type { ContractField, FlowDocument, FlowNode } from '../../core/flow/types';
@@ -16,6 +16,7 @@ import {
 } from '../../core/view/settings';
 import { run } from '../actions';
 import { ChipField } from '../properties/ChipField';
+import { useCommitDraft } from './ExprField';
 
 type RunTimeKey = 'retries' | 'delay' | 'timeout';
 
@@ -36,39 +37,13 @@ export function TimingField({ node, flow, field, label, choices, problem, onComm
   const id = useId();
   const value = node.settings?.[field.key];
   const shown = settingText(value, field);
-  const [draft, setDraft] = useState(shown);
   const [asking, setAsking] = useState(false);
-  const latest = useRef(draft);
-  /** Inputs picked with @ that the step does not have yet, saved with the value. */
-  const added = useRef<Record<string, ContractField>>({});
-  // The stored value changed (a save, an undo): the field shows it.
-  useEffect(() => {
-    latest.current = shown;
-    added.current = {};
-    setDraft(shown);
-  }, [shown]);
-  const change = (v: string) => {
-    latest.current = v;
-    setDraft(v);
-  };
-  const revert = () => {
-    added.current = {};
-    change(shown);
-  };
-  const commit = () => {
-    const text = latest.current;
-    if (text === shown && Object.keys(added.current).length === 0) return;
-    if (settingProblem(field, text)) {
-      revert();
-      return;
-    }
-    // Only the inputs the value still reads.
-    const inputs = Object.fromEntries(
-      Object.entries(added.current).filter(([name]) => text.includes(`{{ ${name} }}`)),
-    );
-    added.current = {};
-    onCommit(settingValue(field, text), inputs);
-  };
+  // AFD-227: the draft, Enter, Escape and leaving, and the inputs picked with @, shared with the
+  // expression fields.
+  const { draft, change, revert, commit, addInput } = useCommitDraft(shown, {
+    invalid: (text) => settingProblem(field, text),
+    onCommit: (text, inputs) => onCommit(settingValue(field, text), inputs),
+  });
   const error = draft !== shown ? settingProblem(field, draft) : problem;
   const asked = askedInput(value, node);
   return (
@@ -80,9 +55,7 @@ export function TimingField({ node, flow, field, label, choices, problem, onComm
         value={draft}
         onChange={change}
         choices={choices}
-        onAddInput={(c) => {
-          if (c.field) added.current = { ...added.current, [c.name]: c.field };
-        }}
+        onAddInput={addInput}
         onEnter={commit}
         onEscape={revert}
         onLeave={commit}

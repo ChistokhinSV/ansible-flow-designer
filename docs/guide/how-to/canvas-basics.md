@@ -182,6 +182,8 @@ Press `?` for the sheet. Ctrl means ⌘ on macOS.
 | F7                       | Check Flow                                                                                     |
 
 While the designer has the focus, Alt+1 to Alt+3 switch its modes instead of VS Code's editor tabs.
+In a field that takes Jinja, Ctrl+Space opens the completion list and Shift+1 types `!`
+([Jinja in fields](binding-and-catalog.md#jinja-in-fields)).
 
 ### With the keyboard only
 

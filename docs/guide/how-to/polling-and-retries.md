@@ -24,9 +24,10 @@ makes up to 4 tries. With Until and no Retries, Ansible retries 3 times.
 ## Polling with Until
 
 **Until** is a Jinja test without braces. It reads the step's registered result by its name (the
-field's label shows it, default `<key with _>_result`) and the step's inputs. As you type, the field
-offers the result's fields from the module's documented returns (`wait_up_result.status`,
-`wait_up_result.stdout`, …):
+field's label shows it, default `<key with _>_result`) and the step's inputs. The field colours and
+completes it as a test: after `wait_up_result.` it offers the result's fields from the module's
+documented returns (`status`, `stdout`, …), after `is` the tests, and `@` puts in an input's name
+([Jinja in fields](binding-and-catalog.md#jinja-in-fields)):
 
 ```yaml
 settings:
