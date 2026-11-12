@@ -187,7 +187,7 @@ describe('read-only panels (AFD-30)', () => {
   it('deletes from the Details through the selection delete (one deleteNodes)', () => {
     render(<Details id={task.id} />);
     fireEvent.click(screen.getByRole('button', { name: 'Delete node' }));
-    expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [task.id], edges: [] }]);
+    expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [task.id], edges: [], heal: true }]);
   });
 });
 

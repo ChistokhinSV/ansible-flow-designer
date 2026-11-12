@@ -24,6 +24,7 @@ import { copySelection } from '../clipboard';
 import {
   cutNodes,
   deleteSelection,
+  detachNodes,
   duplicate,
   editExitReason,
   rename,
@@ -147,6 +148,9 @@ export function runCanvasAction(
       return;
     case 'extract':
       startExtract(action.nodes);
+      return;
+    case 'detach':
+      void detachNodes(action.nodes);
       return;
     case 'align':
       void alignSelection(action.how, action.nodes);

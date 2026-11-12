@@ -58,6 +58,8 @@ describe('canvas menu', () => {
       'Status ▸',
       'Open Port failed_hosts ▸',
       'Add Next Node…',
+      // AFD-235: the step is wired into a path.
+      'Detach from Path',
       // AFD-88: the step has a stored position.
       'Reset Position',
       '—',
@@ -116,6 +118,7 @@ describe('canvas menu', () => {
       'Duplicate',
       '—',
       'Extract into Subflow…',
+      'Detach from Path',
       'Arrange ▸',
       '—',
       'Delete',

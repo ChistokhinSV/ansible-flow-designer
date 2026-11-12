@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — AFD-230 wave 1 (add and wire faster)
+
+The first wave of editing changes taken from other flow editors (n8n, Node-RED, Logic Apps, the AWX visualizer). See [Add, wire, move, delete](docs/guide/how-to/canvas-basics.md#add-wire-move-delete).
+
+- **+ where the path stops (AFD-231):** a step whose main output is still open shows a **+** under it; one click opens Quick Add wired from that output. It shows at rest, not on hover only. The port keeps its own menu. A hovered or selected wire shows a **+** beside its label that adds a step on that wire.
+- **Quick Add finds what the step runs (AFD-232):** the Title field lists, as you type, the step types, catalog modules and roles that match, and while it is empty what the flow already runs. A pick adds the step bound to that module or role. Enter alone still adds a step with the title typed. A double-click on empty canvas opens Quick Add there.
+- **Drag a wire's end (AFD-233):** either end of a wire drags to another node or port; released on empty canvas the wire is disconnected. Before, a wire's target could be changed only from a menu, and its source not at all.
+- **Drop a step into a wire (AFD-234):** a step that stands free of any path, dragged over a wire, goes into it on release. Before, only a new step from the palette could.
+- **Delete closes the path (AFD-235):** deleting a step re-points the wire that came into it to where the step went on, in the same undo step, and says so. It happens only when there is one answer; Shift+Delete leaves the gap. **Detach from Path** takes steps out of their path and keeps them.
+- **Not done:** the palette has no filter (it holds 15 fixed items; the search went where the catalog is). Failure patterns and shared subflows are not in Quick Add's list.
+
 ## 0.81.0 — AFD-221 (Jinja in fields)
 
 Fields that take Jinja showed it as plain text, with no help to write it. A value like `{{ now(utc=true).strftime('%Y%m%d_%H%M%S') }}` had to be typed from memory. See [Jinja in fields](docs/guide/how-to/binding-and-catalog.md#jinja-in-fields).

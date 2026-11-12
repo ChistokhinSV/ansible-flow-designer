@@ -33,7 +33,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'cut', keys: `${MOD}X`, label: 'Cut the selected nodes', group: 'Edit' },
   { id: 'paste', keys: `${MOD}V`, label: 'Paste nodes at the pointer', group: 'Edit' },
   { id: 'duplicate', keys: `${MOD}D`, label: 'Duplicate the selected nodes', group: 'Edit' },
-  { id: 'delete', keys: 'Delete', label: 'Delete the selection, in one undo step', group: 'Edit' },
+  {
+    id: 'delete',
+    keys: 'Delete',
+    label: 'Delete the selection: the path closes behind it (Shift+Delete leaves the gap)',
+    group: 'Edit',
+  },
   {
     id: 'rename',
     keys: 'F2',

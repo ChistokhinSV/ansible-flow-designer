@@ -80,6 +80,8 @@ export type CanvasAction =
   | { do: 'attachAnnotation'; id: Ulid }
   | { do: 'detachAnnotation'; id: Ulid }
   | { do: 'extract'; nodes: Ulid[] }
+  /** AFD-235: out of the path, which closes behind them; the nodes stay. */
+  | { do: 'detach'; nodes: Ulid[] }
   /** AFD-88: line steps up or space them evenly (one move); placed steps back to automatic. */
   | { do: 'align'; nodes: Ulid[]; how: AlignHow }
   | { do: 'distribute'; nodes: Ulid[]; how: DistributeHow }
@@ -250,6 +252,13 @@ function portItems(model: FlowModel, ref: PortRef, kinds?: PortMenuItem['kind'][
     .map((i) => item(i.label, { do: 'port', ref, item: i }, { icon: PORT_ICON[i.kind] }));
 }
 
+/** A wire joins one of the nodes to a node outside them: there is a path to leave (AFD-235). */
+function wired(model: FlowModel, ids: readonly Ulid[]): boolean {
+  const set = new Set(ids);
+  const level = model.levels.get(model.nodes.get(ids[0] as Ulid)?.level ?? ROOT);
+  return (level?.edges ?? []).some((e) => e && set.has(e.from?.node) !== set.has(e.to?.node));
+}
+
 function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
   const node = model.nodes.get(id)?.node;
   if (!node) return [];
@@ -343,6 +352,14 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'add', shortcut: 'addNode', ...lock },
       ),
     );
+  if (edit && !ends && wired(model, [id]))
+    design.push(
+      item(
+        'Detach from Path',
+        { do: 'detach', nodes: [id] },
+        { icon: 'debug-disconnect', ...lock },
+      ),
+    );
   if (edit && model.doc.layout?.[id])
     design.push(
       item('Reset Position', { do: 'resetPosition', nodes: [id] }, { icon: 'discard', ...lock }),
@@ -427,6 +444,10 @@ function groupMenu(
       ),
     );
   }
+  if (edit && wired(model, ids) && !nodes.some((n) => n.type === 'start' || n.type === 'end'))
+    more.push(
+      item('Detach from Path', { do: 'detach', nodes: ids }, { icon: 'debug-disconnect', ...lock }),
+    );
   if (edit && ids.length >= 2) {
     const few = ids.length < 3 ? { disabled: 'Select three steps or more' } : lock;
     const placed = ids.some((id) => model.doc.layout?.[id]);

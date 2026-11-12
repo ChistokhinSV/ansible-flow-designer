@@ -2,6 +2,7 @@
 // command, so a single undo step: deleting a selection, cutting, duplicating.
 import type { CanvasTarget } from '../core/flow/canvasMenu';
 import { copyNodes } from '../core/flow/clipboard';
+import { healPlan, healSummary } from '../core/flow/heal';
 import { modelOf, ROOT } from '../core/flow/model';
 import { sharedAround } from '../core/flow/refs';
 import type { Ulid } from '../core/flow/types';
@@ -74,11 +75,14 @@ export function selectCreated(ack: Ack): Ulid[] {
 /**
  * Deletes nodes and wires in one edit. Boundary wires are boundary edits of their own (the entry
  * or the exit of the open subflow); those touching a deleted node go with the node.
+ * AFD-235: the path closes behind deleted nodes (`heal`; Shift+Delete leaves the gap), and a
+ * message says so.
  */
 export async function deleteSelection(
   nodes: Ulid[],
   edges: string[] = [],
   annotations: Ulid[] = [],
+  heal = true,
 ): Promise<void> {
   if (!canEdit()) return;
   const gone = new Set(nodes);
@@ -98,12 +102,25 @@ export async function deleteSelection(
     } else plain.push(id);
   }
   if (nodes.length === 0 && plain.length === 0 && annotations.length === 0) return;
-  await run({
+  const healing = heal && nodes.length > 0;
+  const said = healing && doc ? healSummary(healPlan(modelOf(doc), nodes, plain)) : undefined;
+  const ack = await run({
     kind: 'deleteNodes',
     ids: nodes,
     edges: plain,
     ...(annotations.length ? { annotations } : {}),
+    ...(healing ? { heal: true } : {}),
   });
+  if (ack.ok && said) useUi.getState().notify('info', said);
+}
+
+/** AFD-235: the nodes leave their path and stay on the canvas; the path closes behind them. */
+export async function detachNodes(ids: Ulid[]): Promise<void> {
+  const doc = useUi.getState().snapshot?.doc;
+  if (!canEdit() || ids.length === 0 || !doc) return;
+  const said = healSummary(healPlan(modelOf(doc), ids));
+  const ack = await run({ kind: 'detachNodes', ids });
+  if (ack.ok && said) useUi.getState().notify('info', said);
 }
 
 /** Cut from the menu: the text goes to the clipboard through the host, then one delete. */

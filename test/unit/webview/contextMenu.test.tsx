@@ -92,6 +92,7 @@ describe('canvas context menu', () => {
       'Status',
       'Open Port failed_hosts',
       'Add Next Node…',
+      'Detach from Path',
       'Reset Position',
       'Cut',
       'Copy',
@@ -132,7 +133,7 @@ describe('canvas context menu', () => {
     });
     act(() => screen.getByRole('menuitem', { name: 'Delete' }).click());
     expect(sent('command').map((m) => m.command)).toEqual([
-      { kind: 'deleteNodes', ids: [id('validate')], edges: [] },
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
     ]);
   });
 
@@ -149,6 +150,7 @@ describe('canvas context menu', () => {
       'Copy',
       'Duplicate',
       'Extract into Subflow…',
+      'Detach from Path',
       'Arrange',
       'Delete',
     ]);
@@ -222,7 +224,7 @@ describe('canvas context menu', () => {
       fireEvent.keyDown(document.body, { key: 'Delete' });
     });
     expect(sent('command').map((m) => m.command)).toEqual([
-      { kind: 'deleteNodes', ids: [id('validate')], edges: [] },
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
     ]);
   });
 

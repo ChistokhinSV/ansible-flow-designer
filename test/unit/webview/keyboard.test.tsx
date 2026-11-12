@@ -125,7 +125,9 @@ describe('keyboard', () => {
   it('cut: the YAML on the clipboard and one deleteNodes', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
     expect(clipboard('cut')).toContain('key: validate');
-    expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [id('validate')], edges: [] }]);
+    expect(commands()).toEqual([
+      { kind: 'deleteNodes', ids: [id('validate')], edges: [], heal: true },
+    ]);
   });
 
   it('Ctrl+D duplicates without a position (+40, +40) and without the clipboard', () => {

@@ -23,6 +23,9 @@
 .afd-node.active .afd-port.reveal,
 .afd-connecting .afd-port.reveal.side-top,
 .afd-connecting .afd-port.reveal.side-left,
+/* AFD-233: a wire's source end is being moved: the outputs it can go to show. */
+.afd-reconnect-source .afd-port.reveal.state-open,
+.afd-reconnect-source .afd-port.reveal.state-available,
 body.afd-dragging-pattern .afd-port.reveal.side-right {
   visibility: visible;
 }

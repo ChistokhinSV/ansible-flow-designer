@@ -114,7 +114,8 @@ export function installKeyboard(): () => void {
       const edge = ui.selection.edge;
       if (canEdit() && (nodes.length > 0 || notes.length > 0 || edge)) {
         consume();
-        void deleteSelection(nodes, edge ? [edge] : [], notes);
+        // AFD-235: the path closes behind deleted nodes; Shift leaves the gap.
+        void deleteSelection(nodes, edge ? [edge] : [], notes, !e.shiftKey);
       }
     } else if (e.key === 'F2' && !mod && !e.altKey) {
       const ids = selectedNodes();

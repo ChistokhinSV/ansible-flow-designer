@@ -25,7 +25,8 @@ import {
 } from 'react';
 import { purposeOf } from '../../core/flow/format';
 import { modelOf } from '../../core/flow/model';
-import type { PortSide } from '../../core/flow/ports';
+import { mainOutputs, type PortSide } from '../../core/flow/ports';
+import { sharedAround } from '../../core/flow/refs';
 import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import { formatSeconds } from '../../core/run/view';
@@ -35,6 +36,7 @@ import { subLine } from '../../core/view/nodeFace';
 import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
 import { STATE_LABEL } from '../constants';
+import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
@@ -151,6 +153,47 @@ function PortHandle({
         {port.name}
       </span>
     </Handle>
+  );
+}
+
+/**
+ * AFD-231: Add Next Node in one click, beside the open output the flow goes on from. Always shown
+ * there (not on hover only), so a path that stops says where it continues. The port keeps its own
+ * menu (Connect to Done, Connect to Another Node…).
+ */
+function PortPlus({
+  nodeId,
+  port,
+  focusable,
+}: {
+  nodeId: string;
+  port: PortView;
+  focusable: boolean;
+}) {
+  const along = `${Math.round(port.offset * 100)}%`;
+  return (
+    <button
+      type="button"
+      className={`afd-plus afd-port-plus side-${port.side} nodrag nopan`}
+      style={port.side === 'bottom' ? { left: along } : { top: along }}
+      title={`Add Next Node from ${port.name}`}
+      aria-label={`Add Next Node from ${port.name}`}
+      data-port-plus={port.name}
+      tabIndex={focusable ? 0 : -1}
+      onPointerEnter={() => useUi.getState().portHover(true)}
+      onPointerLeave={() => useUi.getState().portHover(false)}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        // Enter and Space press the button; not the node's own Enter.
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        addNextNode({ node: nodeId, port: port.name });
+      }}
+    >
+      <span className="codicon codicon-add" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -377,6 +420,18 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     const change = outside === 'outside-mark' && s.outside?.changes?.find((c) => c.id === node.id);
     return change ? `Changed outside the designer: ${changeWords(change)}` : undefined;
   });
+  // AFD-231: the first main output still open, in Design mode on a level that can be edited.
+  const canAdd = useUi(
+    (s) =>
+      s.mode === 'design' &&
+      !!s.snapshot?.doc &&
+      !s.snapshot.stale &&
+      !s.snapshot.idGaps &&
+      !sharedAround(s.snapshot.doc, s.level),
+  );
+  const mains = mainOutputs(node);
+  const plusPort =
+    canAdd && !far ? ports.find((p) => p.state === 'open' && mains.includes(p.name)) : undefined;
   const classes = [
     outside,
     runMode ? 'run-mode' : '',
@@ -415,6 +470,9 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           preview={hasPreview(node)}
         />
       ))}
+      {plusPort ? (
+        <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />
+      ) : null}
       {dataLens ? (
         <>
           {/* Data lens (decision 14): derived wires attach here, never to control ports. */}

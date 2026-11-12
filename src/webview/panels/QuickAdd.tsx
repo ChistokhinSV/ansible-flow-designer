@@ -1,13 +1,26 @@
 // Quick add (04 §4, mockup 02): context, type, title (→ key), intent, inputs suggested from the
 // upstream node's outputs, preset optional ports, and "wire failed_hosts to the existing Rollback".
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+// AFD-232: the Title field also finds what the step runs. As you type it lists the step types,
+// modules and roles that match (and, while it is empty, what this flow already uses); Enter alone
+// still adds a step with the title typed, a pick from the list makes the step bound to it.
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { slugify, uniqueKey } from '../../core/flow/ids';
 import { modelOf, ROOT } from '../../core/flow/model';
 import { findRollback } from '../../core/flow/patterns';
 import { offeredPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { portHint } from '../../core/view/portHints';
+import { type Suggestion, suggestSteps, titleFor, usedBindings } from '../../core/view/quickAdd';
 import { run } from '../actions';
+import { useCatalog } from '../catalog';
 import { TYPE_LABEL } from '../constants';
 import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
@@ -42,6 +55,11 @@ function QuickAddDialog() {
   const [ports, setPorts] = useState<string[]>([]);
   const [inputs, setInputs] = useState<string[]>([]);
   const [wireRollback, setWireRollback] = useState(true);
+  // AFD-232: what the step runs, picked from the list under the title; the row the arrows are on.
+  const [bound, setBound] = useState<{ kind: 'module' | 'role'; ref: string } | null>(null);
+  const [typed, setTyped] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLFormElement>(null);
   const trap = useDialogFocus(box);
@@ -54,11 +72,27 @@ function QuickAddDialog() {
     setPorts([]);
     setInputs([]);
     setWireRollback(true);
+    setBound(null);
+    setTyped(false);
+    setActive(-1);
     setTimeout(() => titleRef.current?.focus(), 0);
   }, [quick]);
 
   const model = useMemo(() => (snapshot?.doc ? modelOf(snapshot.doc) : undefined), [snapshot]);
   const levelId = useUi((s) => s.level);
+  // A prefilled title (Cleanup Task) is a name, not a search: the list waits for typing.
+  const query = typed && !bound ? title.trim() : '';
+  const finds = type === 'task' && !bound;
+  const hits = useCatalog(
+    finds && query.length >= 2 ? { op: 'search', query, types: ['module'] } : null,
+    `quick-add:${finds ? query : ''}`,
+    200,
+  );
+  const roles = useCatalog(
+    finds && typed ? { op: 'roles' } : null,
+    `quick-add-roles:${finds && typed}`,
+  );
+  const used = useMemo(() => (model ? usedBindings(model) : []), [model]);
   if (!quick || !model) return null;
   // Undefined inside a subflow that has no inner steps yet (the new node creates the level).
   const level = model.levels.get(levelId);
@@ -74,6 +108,47 @@ function QuickAddDialog() {
   const allowed = NODE_TYPES.filter((t) =>
     quick.insertOn ? INSERTABLE.includes(t) : !quick.connectFrom || t !== 'start',
   );
+  const suggestions: Suggestion[] = bound
+    ? []
+    : suggestSteps({
+        query: typed ? title.trim() : '',
+        type,
+        types: allowed.map((t) => ({ type: t, label: TYPE_LABEL[t] })),
+        modules: hits.data ?? [],
+        roles: (roles.data ?? []).map((r) => r.name),
+        used,
+      });
+  const at = active < suggestions.length ? active : -1;
+  const choose = (s: Suggestion) => {
+    setActive(-1);
+    if (s.kind === 'type') {
+      setType(s.type);
+      setPorts([]);
+      setTitle('');
+      setTyped(false);
+    } else {
+      setType('task');
+      setPorts([]);
+      setBound({ kind: s.kind, ref: s.ref });
+      setTitle(titleFor(s.ref));
+      // The made-up title is selected: typing replaces it, Enter keeps it.
+      setTimeout(() => titleRef.current?.select(), 0);
+    }
+    titleRef.current?.focus();
+  };
+  const onTitleKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      // From the last row, and up from the first, back to the field: Enter adds what is typed.
+      const next = at + step;
+      setActive(next >= suggestions.length || next < -1 ? -1 : next);
+    } else if (e.key === 'Enter' && at >= 0) {
+      e.preventDefault();
+      choose(suggestions[at] as Suggestion);
+    }
+  };
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -97,6 +172,7 @@ function QuickAddDialog() {
       intent: intent.trim() || undefined,
       ports,
       inputs: chosen,
+      ...(bound && type === 'task' ? { impl: bound } : {}),
       position: quick.position,
       connectFrom: quick.connectFrom,
       insertOn: quick.insertOn,
@@ -153,6 +229,7 @@ function QuickAddDialog() {
               onClick={() => {
                 setType(t);
                 setPorts([]);
+                if (t !== 'task') setBound(null);
               }}
             >
               {TYPE_LABEL[t]}
@@ -166,9 +243,60 @@ function QuickAddDialog() {
             ref={titleRef}
             className="afd-input"
             value={title}
-            placeholder="e.g. Check NTP"
-            onChange={(e) => setTitle(e.target.value)}
+            placeholder={type === 'task' ? 'A name, or a module or role to find' : 'e.g. Check NTP'}
+            role="combobox"
+            aria-expanded={suggestions.length > 0}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={at >= 0 ? `${listId}-${at}` : undefined}
+            autoComplete="off"
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setTyped(true);
+              setActive(-1);
+            }}
+            onKeyDown={onTitleKey}
           />
+          {bound ? (
+            <div className="afd-qa-bound" data-bound={bound.ref}>
+              <span className="muted">Runs {bound.kind}</span>{' '}
+              <span className="mono">{bound.ref}</span>
+              <button
+                type="button"
+                className="icon"
+                aria-label={`Do not bind to ${bound.ref}`}
+                title="Add the step without a binding"
+                onClick={() => {
+                  setBound(null);
+                  titleRef.current?.focus();
+                }}
+              >
+                <span className="codicon codicon-close" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+          {suggestions.length > 0 ? (
+            <div className="afd-qa-list" id={listId} role="listbox" aria-label="Matching steps">
+              {suggestions.map((s, i) => (
+                // biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/useFocusableInteractive: the combobox owns the keys and the focus (aria-activedescendant)
+                <div
+                  key={`${s.kind}:${s.kind === 'type' ? s.type : s.ref}`}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={i === at}
+                  className={i === at ? 'active' : ''}
+                  // The field keeps the focus; the click is the pick.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => choose(s)}
+                >
+                  <span className="afd-qa-what mono">{s.label}</span>
+                  <span className="afd-qa-why muted" title={s.hint}>
+                    {s.hint}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div
             className="muted mono afd-key-preview"
             title="The step's name in the file and in the generated code; its ID is made when you add it"

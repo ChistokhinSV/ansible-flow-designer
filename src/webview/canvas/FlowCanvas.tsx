@@ -40,6 +40,7 @@ import {
 import { type AnnotationView, sectionContents } from '../../core/flow/annotations';
 import { type Box as ArrangeBox, type Guides, guides as guidesFor } from '../../core/flow/arrange';
 import type { CanvasTarget } from '../../core/flow/canvasMenu';
+import { spliceProblem } from '../../core/flow/heal';
 import { ROOT } from '../../core/flow/model';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import { sharedAround } from '../../core/flow/refs';
@@ -61,7 +62,7 @@ import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
 import { FirstFlow, useFirstFlowShown } from '../panels/FirstFlow';
 import { INSERTABLE } from '../panels/QuickAdd';
-import { completePick, dropPattern } from '../portActions';
+import { completePick, dropPattern, dropWireEnd } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import { type BoundaryEdgeView, boundaryView, type NodeView } from '../viewModel';
@@ -69,7 +70,7 @@ import { AnnotationNodeView, type AnnotationRFNode, annotationName } from './Ann
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode } from './FlowNodeView';
 import { GhostNodeView, type GhostRFNode } from './GhostNode';
-import { NodeBoxes, RoutedEdge } from './RoutedEdge';
+import { NodeBoxes, RoutedEdge, WireHover } from './RoutedEdge';
 
 const nodeTypes = {
   flow: FlowNodeView,
@@ -81,6 +82,7 @@ type CanvasNode = FlowRFNode | FrameRFNode | GhostRFNode | AnnotationRFNode;
 const edgeTypes = { routed: RoutedEdge };
 
 const NO_NOTES: AnnotationView[] = [];
+const NO_RECONNECT = () => {};
 
 /** The minimap draws Sections as outlines, Notes as small fills and Text not at all. */
 const miniKind = (n: { type?: string; data: unknown }) =>
@@ -202,8 +204,19 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const level = useUi((s) => s.level);
   const setLevel = useUi((s) => s.setLevel);
   const [connecting, setConnecting] = useState(false);
+  // AFD-233: the end of a wire being dragged to another port ('source': its start).
+  const [reconnecting, setReconnecting] = useState<'source' | 'target' | null>(null);
+  const reconnect = useRef(false);
   const testMode = useUi((s) => s.testMode);
   const [hoverEdge, setHoverEdge] = useState<string | null>(null);
+  // AFD-231: the hover outlives the pointer's trip from the wire to its +.
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hoverWire = useCallback((id: string | null) => {
+    clearTimeout(hoverTimer.current);
+    if (id) setHoverEdge(id);
+    else hoverTimer.current = setTimeout(() => setHoverEdge(null), 250);
+  }, []);
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
   // The wire under a palette step being dragged: it lights, and the drop inserts the step there.
   const dropWire = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -415,12 +428,16 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         },
         selected: selection.edge === e.id,
         deletable: !readOnly,
+        reconnectable: editable,
+        data: { plus: editable && (hoverEdge === e.id || selection.edge === e.id) },
       })),
     [
       view.edges,
       selection.edge,
       ran,
       readOnly,
+      editable,
+      hoverEdge,
       hostsOn,
       lensWires,
       dataLens,
@@ -448,6 +465,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selectable: false,
         deletable: false,
         focusable: false,
+        reconnectable: false,
       }));
   }, [dataLens, dataWires, view.nodes]);
   const allEdges = useMemo<Edge[]>(
@@ -469,6 +487,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         },
         selected: selection.edge === e.id,
         deletable: true,
+        reconnectable: false,
       })),
     ],
     [edges, dataEdges, boundary, selection.edge, shows],
@@ -508,8 +527,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     [select],
   );
 
+  // AFD-234: a free step dragged over a wire goes into it on release.
+  const spliceable = useRef(false);
   const saveMoves = useCallback(
-    (moved: CanvasNode[]) => {
+    (moved: CanvasNode[], into?: { node: string; edge: string }) => {
       if (moved.length === 0) return;
       const positions: Record<string, Position> = {};
       const annotations: Record<string, Position> = {};
@@ -526,11 +547,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           positions[n.id] = round(n.position);
       const shown = { ...positions, ...annotations };
       setOptimistic(shown);
-      void command({
-        kind: 'moveNodes',
-        positions,
-        ...(Object.keys(annotations).length ? { annotations } : {}),
-      }).then((ack) => {
+      void command(
+        into
+          ? { kind: 'spliceNode', ...into, positions }
+          : {
+              kind: 'moveNodes',
+              positions,
+              ...(Object.keys(annotations).length ? { annotations } : {}),
+            },
+      ).then((ack) => {
         if (ack.ok) return;
         // AFD-156: back to where the file has them.
         useUi.getState().dropOptimistic(shown);
@@ -546,6 +571,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     (_e: unknown, n: CanvasNode) => {
       useUi.getState().setPreview(null);
       carry.current = null;
+      spliceable.current = n.type === 'flow' && editable && !!model && !spliceProblem(model, n.id);
       if (n.type !== 'annotation' || n.data.view.kind !== 'section') return;
       const inside = sectionContents(view, n.id);
       const items = new Map<string, Position>();
@@ -554,41 +580,63 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           items.set(m.id, m.position);
       carry.current = { id: n.id, from: n.position, items };
     },
-    [view],
+    [view, editable, model],
   );
   // AFD-88: guide lines while one step is dragged: a shared edge or centre (it snaps there on
   // release) and even gaps (round 1: T10, three steps lined up by eye).
   const [guide, setGuide] = useState<(Guides & { box: ArrangeBox }) | null>(null);
   const snapTo = useRef<{ id: string; at: Position } | null>(null);
-  const onNodeDrag = useCallback((_e: unknown, n: CanvasNode, dragged: CanvasNode[] = [n]) => {
-    const c = carry.current;
-    if (!c || c.id !== n.id) {
-      if (n.type !== 'flow' || dragged.length !== 1) return;
-      const boxOf = (m: FlowRFNode): ArrangeBox => ({
-        id: m.id,
-        x: m.position.x,
-        y: m.position.y,
-        width: m.data.view.width,
-        height: m.data.view.height,
-      });
-      const others = latest.current
-        .filter((m): m is FlowRFNode => m.type === 'flow' && m.id !== n.id)
-        .map(boxOf);
-      const g = guidesFor(boxOf(n), others);
-      const lined = g.xs.length > 0 || g.ys.length > 0;
-      snapTo.current = lined ? { id: n.id, at: g.snap } : null;
-      setGuide(lined || g.even ? { ...g, box: { ...boxOf(n), ...g.snap } } : null);
-      return;
-    }
-    const dx = n.position.x - c.from.x;
-    const dy = n.position.y - c.from.y;
-    setNodes((ns) =>
-      ns.map((m) => {
-        const at = c.items.get(m.id);
-        return at ? { ...m, position: { x: at.x + dx, y: at.y + dy } } : m;
-      }),
-    );
-  }, []);
+  const onNodeDrag = useCallback(
+    (e: unknown, n: CanvasNode, dragged: CanvasNode[] = [n]) => {
+      const c = carry.current;
+      if (!c || c.id !== n.id) {
+        if (n.type !== 'flow' || dragged.length !== 1) return;
+        // The wire under the pointer, through the dragged step: screen space, so any zoom.
+        const at = e as { clientX?: number; clientY?: number };
+        let wire: string | null = null;
+        if (spliceable.current && model && at.clientX !== undefined && at.clientY !== undefined)
+          for (const el of document.elementsFromPoint?.(at.clientX, at.clientY) ?? []) {
+            const id = el.closest<HTMLElement>('.react-flow__edge')?.dataset.id;
+            if (id && !spliceProblem(model, n.id, id)) {
+              wire = id;
+              break;
+            }
+          }
+        if (wire !== dropWire.current) {
+          dropWire.current = wire;
+          setDropTarget(wire);
+        }
+        const boxOf = (m: FlowRFNode): ArrangeBox => ({
+          id: m.id,
+          x: m.position.x,
+          y: m.position.y,
+          width: m.data.view.width,
+          height: m.data.view.height,
+        });
+        const others = latest.current
+          .filter((m): m is FlowRFNode => m.type === 'flow' && m.id !== n.id)
+          .map(boxOf);
+        const g = guidesFor(boxOf(n), others);
+        const lined = g.xs.length > 0 || g.ys.length > 0;
+        snapTo.current = lined ? { id: n.id, at: g.snap } : null;
+        setGuide(lined || g.even ? { ...g, box: { ...boxOf(n), ...g.snap } } : null);
+        return;
+      }
+      if (dropWire.current) {
+        dropWire.current = null;
+        setDropTarget(null);
+      }
+      const dx = n.position.x - c.from.x;
+      const dy = n.position.y - c.from.y;
+      setNodes((ns) =>
+        ns.map((m) => {
+          const at = c.items.get(m.id);
+          return at ? { ...m, position: { x: at.x + dx, y: at.y + dy } } : m;
+        }),
+      );
+    },
+    [model],
+  );
   const onNodeDragStop = useCallback(
     (_e: unknown, _n: CanvasNode, dragged: CanvasNode[]) => {
       const c = carry.current;
@@ -600,7 +648,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         ? dragged.map((d) => (d.id === snap.id ? { ...d, position: snap.at } : d))
         : dragged;
       const extra = c ? latest.current.filter((m) => c.items.has(m.id)) : [];
-      saveMoves([...moved, ...extra.filter((m) => !moved.some((d) => d.id === m.id))]);
+      const wire = dropWire.current;
+      dropWire.current = null;
+      setDropTarget(null);
+      const one = dragged.length === 1 && dragged[0]?.type === 'flow' ? dragged[0].id : undefined;
+      saveMoves(
+        [...moved, ...extra.filter((m) => !moved.some((d) => d.id === m.id))],
+        wire && one && spliceable.current ? { node: one, edge: wire } : undefined,
+      );
     },
     [saveMoves],
   );
@@ -663,6 +718,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
       setConnecting(false);
+      // AFD-233: a wire's end let go belongs to onReconnectEnd, which follows.
+      if (reconnect.current) return;
       if (
         state.isValid ||
         !state.fromNode ||
@@ -926,8 +983,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           select({});
         }
       }}
-      onEdgeMouseEnter={(_e, edge) => setHoverEdge(edge.id)}
-      onEdgeMouseLeave={() => setHoverEdge(null)}
+      onEdgeMouseEnter={(_e, edge) => hoverWire(edge.id)}
+      onEdgeMouseLeave={() => hoverWire(null)}
       onNodeDragStart={onNodeDragStart}
       onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
@@ -937,6 +994,33 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         useUi.getState().setPreview(null);
       }}
       onConnectEnd={onConnectEnd}
+      // AFD-233: a wire's end drags to another port. The drop is read here, not by React Flow,
+      // whose own check refuses an output as the place a wire can be let go.
+      onReconnect={NO_RECONNECT}
+      onReconnectStart={(_e, _edge, fixed) => {
+        reconnect.current = true;
+        setReconnecting(fixed === 'target' ? 'source' : 'target');
+      }}
+      onReconnectEnd={(e, edge, fixed) => {
+        reconnect.current = false;
+        setReconnecting(null);
+        const point = 'changedTouches' in e ? e.changedTouches[0] : e;
+        if (!point) return;
+        const hit = document.elementFromPoint(point.clientX, point.clientY);
+        // Let go outside the canvas, or on the subflow's frame: the wire stays as it was.
+        if (!hit?.closest('.react-flow') || hit.closest('.react-flow__node-boundary')) return;
+        if (hit.closest('.react-flow__panel, .react-flow__minimap, .react-flow__controls')) return;
+        // A slip of a few pixels ends on the wire itself: not a disconnect.
+        if (hit.closest<HTMLElement>('.react-flow__edge')?.dataset.id === edge.id) return;
+        const node = hit.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+        const port = hit.closest<HTMLElement>('[data-port]')?.dataset.port;
+        void dropWireEnd(
+          edge.id,
+          fixed === 'target' ? 'source' : 'target',
+          node ? { node, ...(port ? { port } : {}) } : null,
+        );
+      }}
+      reconnectRadius={9}
       connectOnClick={false}
       connectionDragThreshold={4}
       onNodeClick={(_e, n) => {
@@ -953,6 +1037,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         if (n.type === 'annotation' && editable) editAnnotation(n.id);
       }}
       zoomOnDoubleClick={false}
+      // AFD-232: a double-click on empty canvas adds a node there.
+      onDoubleClick={(e) => {
+        if (!editable || !(e.target as Element).classList?.contains('react-flow__pane')) return;
+        openQuickAdd({
+          type: 'task',
+          position: screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+        });
+      }}
       onPaneClick={(e) => {
         clickedAt.current = { x: e.clientX, y: e.clientY };
         if (picking) setPick(null);
@@ -1024,7 +1116,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         useUi.getState().setPreview(null);
       }}
       className={[
-        connecting ? 'afd-connecting' : '',
+        connecting && reconnecting !== 'source' ? 'afd-connecting' : '',
+        reconnecting === 'source' ? 'afd-reconnect-source' : '',
         picking ? 'afd-picking' : '',
         dimNotes ? 'afd-dim-annotations' : '',
       ]
@@ -1128,7 +1221,11 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       ) : null}
     </ReactFlow>
   );
-  return <NodeBoxes.Provider value={boxes}>{canvas}</NodeBoxes.Provider>;
+  return (
+    <WireHover.Provider value={hoverWire}>
+      <NodeBoxes.Provider value={boxes}>{canvas}</NodeBoxes.Provider>
+    </WireHover.Provider>
+  );
 }
 
 /** AFD-88: the lines a dragged step shares with others, and a mark when its gaps are even. */
