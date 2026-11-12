@@ -107,7 +107,11 @@ export class ProbeManager implements vscode.Disposable {
       client = new ProbeClient(spec, folder.fsPath, inside, this.log, before);
       this.clients.set(key, client);
     }
-    const cache = this.cacheDir && insidePaths(env, paths).cache;
+    // AFD-247: on an SSH host the path starts at `$HOME`, which only a shell expands, and this one
+    // goes to the probe as a value: beside the copy it runs in, where it was made at the start.
+    const cache =
+      this.cacheDir &&
+      (env.kind === 'ssh' && !env.container ? '../cache' : insidePaths(env, paths).cache);
     const local = this.cacheDir;
     const fetch =
       env.kind === 'ssh' && local
