@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 
 **Fix (AFD-252): terminal agents could not verify scenarios on an SSH host.** `flow_scenarios` with action `verify` through the MCP server answered "Set afd.environment.sshHost" with an SSH environment set: the server did not read `afd.environment.sshHost` and `sshDir` from the settings. It now does, from your user settings, and from the workspace's only with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`, as for the other environment settings. Copilot and Run Scenarios in VS Code were not affected. See [Scenario tests](docs/guide/how-to/scenario-tests.md).
 
