@@ -877,7 +877,7 @@
           "type": "boolean",
           "default": true,
           "scope": "application",
-          "markdownDescription": "Ask for feedback: one notice after a week of real use (at most twice), and a feedback page in the browser once after you uninstall the extension. The extension sends nothing itself; it only opens the form. Off: neither. **Send Feedback…** still works."
+          "markdownDescription": "Ask for feedback: one notice after a week of real use (at most twice), and one when the extension is uninstalled. Each is a notification; a page opens in the browser only from its button. Nothing is sent by the extension."
         }
       }
     },
@@ -3882,7 +3882,6 @@
   },
   "scripts": {
     "vscode:prepublish": "node scripts/build.mjs --production",
-    "vscode:uninstall": "node ./dist/uninstall.js",
     "test:int": "vscode-test"
   },
   "dependencies": {

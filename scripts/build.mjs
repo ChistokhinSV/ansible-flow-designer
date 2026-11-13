@@ -80,8 +80,6 @@ const hostOptions = {
     mcp: 'src/mcp/main.ts',
     // Scenario tests for CI (AFD-58): one file, the routing callback inside.
     'afd-scenarios': 'src/cli/scenarios.ts',
-    // `vscode:uninstall` (AFD-202): plain Node at the restart after removal; a few KB, no vscode.
-    uninstall: 'src/uninstall/main.ts',
     // AFD-247: starts a run's ssh with the run's secrets on its input (plain Node, a few KB).
     'afd-ssh-run': 'src/node/ssh/sshRun.ts',
   },

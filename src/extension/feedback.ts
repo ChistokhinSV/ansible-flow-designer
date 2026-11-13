@@ -1,8 +1,9 @@
 // Feedback without telemetry (AFD-200, AFD-201): days of real use counted on this machine, one
 // notice after a week of it, and commands that open the form or GitHub's issue chooser. The
 // extension sends nothing: links open in the browser, and the person decides what to send.
-import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
+// AFD-263: no page opens by itself. Every ask is a notification; the page opens from its button.
+import { promises as fs, unwatchFile, watchFile } from 'node:fs';
+import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
 import {
   afterAnswer,
@@ -13,6 +14,7 @@ import {
   type FeedbackState,
   feedbackUrl,
   ISSUES_URL,
+  listedAsInstalled,
   rateUrl,
   recordUse,
   shouldAsk,
@@ -20,11 +22,8 @@ import {
 import { CMD } from './commands/ids';
 
 const STATE = 'afd.feedback';
-/**
- * AFD-202: the uninstall script cannot read VS Code's state; this file next to it says "no page"
- * (Don't Ask Again, or the setting off). Updates install a new folder: activation writes it again.
- */
-export const NO_FEEDBACK_MARKER = '.no-feedback';
+/** AFD-202 wrote this file next to the extension for its uninstall script; removed when found. */
+const OLD_MARKER = '.no-feedback';
 
 export interface FeedbackOptions {
   /** Tests fix the clock. */
@@ -92,7 +91,64 @@ export class Feedback {
     );
     if (answer === 'rate') await this.openRating();
     else if (answer === 'more') await this.openForm('prompt');
-    await this.syncMarker();
+    return true;
+  }
+
+  /**
+   * AFD-263: asks why, in this window, when the extension is uninstalled. The editor takes an
+   * uninstalled extension off its list at once and leaves it running until the next restart, so
+   * there is a moment to ask politely; the page opens only from the button. (Before, a script
+   * the editor ran at its next restart opened the page in the browser by itself.)
+   *
+   * `list`: the editor's list of installed extensions, beside the folder this one is installed
+   * in. Not watched when it does not name this extension to begin with (a development host, a
+   * profile that keeps its own list): then nothing is known.
+   */
+  watchUninstall(
+    list = join(dirname(this.context.extensionPath), 'extensions.json'),
+    id = this.context.extension.id,
+    timing = { interval: 3000, settle: 2500 },
+  ): vscode.Disposable {
+    const listed = async () => {
+      try {
+        return listedAsInstalled(await fs.readFile(list, 'utf8'), id);
+      } catch {
+        return undefined;
+      }
+    };
+    let asked = false;
+    let stopped = false;
+    const check = async () => {
+      if (asked || stopped || (await listed()) !== false) return;
+      // An update rewrites the list too: only an extension still off it a moment later is gone.
+      await new Promise((r) => setTimeout(r, timing.settle));
+      if (asked || stopped || (await listed()) !== false) return;
+      asked = true;
+      await this.askWhyLeaving();
+    };
+    const onChange = () => void check().catch(() => undefined);
+    void listed().then((there) => {
+      if (there !== true || stopped) return;
+      watchFile(list, { interval: timing.interval }, onChange);
+    });
+    return {
+      dispose: () => {
+        stopped = true;
+        unwatchFile(list, onChange);
+      },
+    };
+  }
+
+  /** The notice after an uninstall; whether it asked. Not after Don't Ask Again or the setting off. */
+  async askWhyLeaving(): Promise<boolean> {
+    if (!this.enabled || this.state.never) return false;
+    const yes = 'Tell Us Why';
+    const pick = await vscode.window.showInformationMessage(
+      'Ansible Flow Designer was uninstalled. Sorry it did not fit. If you have a minute, would you tell us what was missing? It shapes the next version. Nothing is sent unless you fill in the form.',
+      yes,
+      'No, Thanks',
+    );
+    if (pick === yes) await this.openForm('uninstall');
     return true;
   }
 
@@ -110,25 +166,20 @@ export class Feedback {
     await this.open(rateUrl(editorOf(vscode.env)));
   }
 
-  /** The uninstall page's marker matches Don't Ask Again and the setting. Never fails. */
-  async syncMarker(): Promise<void> {
-    const marker = join(this.context.extensionPath, NO_FEEDBACK_MARKER);
-    try {
-      if (this.state.never || !this.enabled) await fs.writeFile(marker, 'no feedback page\n');
-      else await fs.rm(marker, { force: true });
-    } catch {
-      // A read-only install (a system folder, a store package): the page opens as usual.
-    }
+  /** The marker AFD-202 kept for its uninstall script has no reader any more. Never fails. */
+  async removeOldMarker(): Promise<void> {
+    await fs
+      .rm(join(this.context.extensionPath, OLD_MARKER), { force: true })
+      .catch(() => undefined);
   }
 }
 
-/** Send Feedback… and Report a Problem…, and the setting's effect on the marker. */
+/** Send Feedback… and Report a Problem…, and the ask when the extension is uninstalled. */
 export function registerFeedback(feedback: Feedback): vscode.Disposable[] {
+  void feedback.removeOldMarker();
   return [
     vscode.commands.registerCommand(CMD.sendFeedback, () => feedback.openForm('command')),
     vscode.commands.registerCommand(CMD.reportIssue, () => feedback.openIssues()),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('afd.feedback.prompt')) void feedback.syncMarker();
-    }),
+    feedback.watchUninstall(),
   ];
 }

@@ -141,7 +141,13 @@ export interface AfdTestApi {
   /** AFD-174: an editor's built-in agent set up as after its consent, into a temporary home. */
   hostAi(host: HostId, home: string): Promise<{ written: string[]; again: string[] }>;
   /** AFD-201: the days of use counted, and the links the feedback commands opened (no browser). */
-  feedback(): { state: FeedbackState; links: string[]; extensionPath: string };
+  feedback(): {
+    state: FeedbackState;
+    links: string[];
+    extensionPath: string;
+    /** AFD-263: the uninstall ask, watching this list for this extension id. */
+    watchUninstall(list: string, id: string): vscode.Disposable;
+  };
 }
 
 export function createTestApi(
@@ -282,6 +288,8 @@ export function createTestApi(
       state: feedback.feedback.state,
       links: [...feedback.links],
       extensionPath: context.extensionPath,
+      watchUninstall: (list, id) =>
+        feedback.feedback.watchUninstall(list, id, { interval: 200, settle: 300 }),
     }),
   };
 }

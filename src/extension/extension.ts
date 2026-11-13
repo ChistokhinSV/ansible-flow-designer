@@ -56,7 +56,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
   context.subscriptions.push(...registerFlowTools(flowIO, (line) => logChannel().warn(line)));
   // AFD-22: the user guide, the walkthroughs and the sample flows.
   context.subscriptions.push(...registerHelp(context, (uri) => host.openDesigner(uri)));
-  // AFD-201: feedback without telemetry; the uninstall page's marker follows its answers.
+  // AFD-201: feedback without telemetry. AFD-263: an uninstall is asked about in the window.
   // Tests see the links the feedback commands open; no browser opens.
   const feedbackLinks: string[] = [];
   const feedback = new Feedback(
@@ -70,7 +70,6 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       : {},
   );
   context.subscriptions.push(...registerFeedback(feedback));
-  void feedback.syncMarker();
   // AFD-25: draw.io and image exports of the flow the user means.
   context.subscriptions.push(
     ...registerExport({

@@ -43,6 +43,8 @@ After setting up an SSH host there was no way back to WSL or a container except 
 - **What an agent does not see:** vault-encrypted values, and the value of a variable whose name contains `password`, `passwd`, `secret`, `token` or `key`. Other values reach the agent's model as written.
 - **Copilot** asks before a change and lists each op, without the values. The MCP server reads and writes inside the repository only.
 
+**Feedback (AFD-263): no page opens by itself.** After an uninstall, a script the editor ran at its next restart opened the feedback page in the browser. Now a notice in the editor asks, at the moment of the uninstall, whether you would say why; the form opens only from **Tell Us Why**. The script is gone. The notice after a week of use was a notification with buttons already. `afd.feedback.prompt` still turns both off. See [ADR-0033](docs/adr/0033-feedback-without-telemetry.md).
+
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 
 **Fix (AFD-252): terminal agents could not verify scenarios on an SSH host.** `flow_scenarios` with action `verify` through the MCP server answered "Set afd.environment.sshHost" with an SSH environment set: the server did not read `afd.environment.sshHost` and `sshDir` from the settings. It now does, from your user settings, and from the workspace's only with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`, as for the other environment settings. Copilot and Run Scenarios in VS Code were not affected. See [Scenario tests](docs/guide/how-to/scenario-tests.md).

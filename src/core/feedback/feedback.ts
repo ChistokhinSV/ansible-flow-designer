@@ -119,3 +119,25 @@ export function feedbackUrl(p: {
 export function rateUrl(editor: FeedbackEditor): string {
   return editor === 'vscode' ? MARKETPLACE_REVIEW : OPEN_VSX;
 }
+
+/**
+ * AFD-263: whether an editor's `extensions.json` (the list of installed extensions, in the folder
+ * they are installed in) still names this extension. An uninstall takes it off the list at once,
+ * while its folder stays until the next restart; an update leaves it on, with the new version.
+ * Undefined when the text is not that list: then nothing is known, and nothing is asked.
+ */
+export function listedAsInstalled(extensionsJson: string, id: string): boolean | undefined {
+  let list: unknown;
+  try {
+    list = JSON.parse(extensionsJson);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(list)) return undefined;
+  const want = id.toLowerCase();
+  return list.some(
+    (e) =>
+      typeof (e as { identifier?: { id?: unknown } })?.identifier?.id === 'string' &&
+      (e as { identifier: { id: string } }).identifier.id.toLowerCase() === want,
+  );
+}
