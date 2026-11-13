@@ -16,6 +16,7 @@ import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
 import { MODES } from '../modes';
 import { startRun } from '../runActions';
+import { waitsForApproval } from '../runApproval';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
@@ -497,11 +498,13 @@ function LiveRun({ run }: { run: RunView }) {
       }
     >
       <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" />{' '}
-      {run.quiet
-        ? 'No new events for 20 s · Show Terminal'
-        : step
-          ? `Running: ${step}`
-          : 'Running…'}
+      {waitsForApproval(run)
+        ? 'Waiting for approval'
+        : run.quiet
+          ? 'No new events for 20 s · Show Terminal'
+          : step
+            ? `Running: ${step}`
+            : 'Running…'}
     </button>
   );
 }
@@ -519,9 +522,7 @@ function RunStatus({ run }: { run: RunView | null }) {
       >
         <span className="codicon codicon-loading codicon-modifier-spin" aria-hidden="true" /> AWX{' '}
         {run.awx.workflow ? 'workflow' : 'job'} #{run.awx.jobId}
-        {Object.values(run.awx.approvals ?? {}).some((a) => a.status === 'waiting')
-          ? ' · waiting for approval'
-          : ''}
+        {waitsForApproval(run) ? ' · waiting for approval' : ''}
       </button>
     );
   if (run?.state === 'running') return <LiveRun run={run} />;

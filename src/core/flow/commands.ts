@@ -48,6 +48,7 @@ import {
   ANNOTATION_KINDS,
   type AnnotationColor,
   type AnnotationKind,
+  type ApprovalFields,
   type BoundaryExit,
   type ContractField,
   type FlowDocument,
@@ -322,6 +323,23 @@ export interface NodePatch {
    * @ and the input it reads are one edit, so one undo takes back both.
    */
   inputs?: Record<string, ContractField | null>;
+  /** AFD-273: an approval's approvers, notify and message, replacing them; null removes them. */
+  approval?: ApprovalFields | null;
+}
+
+/** An approval's fields as written: names trimmed, empty and repeated ones left out. */
+export function cleanApproval(fields: ApprovalFields): ApprovalFields {
+  const names = (list?: string[]) => [
+    ...new Set((list ?? []).map((n) => String(n).trim()).filter(Boolean)),
+  ];
+  const approvers = names(fields.approvers);
+  const notify = names(fields.notify);
+  const message = fields.message?.trim();
+  return {
+    ...(approvers.length ? { approvers } : {}),
+    ...(notify.length ? { notify } : {}),
+    ...(message ? { message } : {}),
+  };
 }
 
 /** The settings a step may take at run time (AFD-112). */
@@ -1314,6 +1332,22 @@ function updateNode(
         else setField(tx, path, 'settings', { [k]: v as YamlValue }, NODE_ORDER);
       }
     }
+  }
+  if (patch.approval !== undefined) {
+    const node = nodeAt(state(tx), cmd.id).node;
+    if (patch.approval !== null && node.type !== 'approval')
+      throw new CommandError(
+        'not-approval',
+        `${node.title} is not an approval: approvers, notify and message belong to approval nodes`,
+      );
+    const fields = patch.approval ? cleanApproval(patch.approval) : {};
+    setField(
+      tx,
+      path,
+      'approval',
+      Object.keys(fields).length ? (fields as YamlValue) : null,
+      NODE_ORDER,
+    );
   }
   for (const [name, field] of Object.entries(patch.inputs ?? {}))
     setContractField(

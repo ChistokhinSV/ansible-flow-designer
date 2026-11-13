@@ -382,6 +382,8 @@ export function TypeFields({
           validate={(v) => (/^[0-9]+$/.test(v) && Number(v) >= 2 ? undefined : 'At least 2')}
         />
       );
+    case 'approval':
+      return <ApprovalFields node={node} patch={patch} />;
     case 'task':
     case 'subflow':
       return (
@@ -403,6 +405,55 @@ export function TypeFields({
     default:
       return null;
   }
+}
+
+/** Names typed as a list: commas or new lines between them. */
+const namesOf = (text: string) =>
+  text
+    .split(/[,\n]/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+
+/**
+ * AFD-273: who decides an approval, who is told, what they read. Runners that wait for a person
+ * (Ansible Flow Server) read them; AWX sets its approvers in AWX.
+ */
+function ApprovalFields({
+  node,
+  patch,
+}: {
+  node: FlowNode;
+  patch(p: Record<string, unknown>): void;
+}) {
+  const fields = node.approval ?? {};
+  const set = (change: Record<string, unknown>) => patch({ approval: { ...fields, ...change } });
+  return (
+    <>
+      <CommitField
+        label="Approvers · users or groups who may decide (commas between); empty: whoever the runner lets approve"
+        value={(fields.approvers ?? []).join(', ')}
+        placeholder="change-board, dana"
+        onCommit={(v) => set({ approvers: namesOf(v) })}
+      />
+      <CommitField
+        label="Notify · users or groups told it waits, beside the approvers"
+        value={(fields.notify ?? []).join(', ')}
+        placeholder="netops-oncall"
+        onCommit={(v) => set({ notify: namesOf(v) })}
+      />
+      <CommitField
+        label="Message · what the approvers check before deciding"
+        value={fields.message ?? ''}
+        multiline
+        placeholder="Check the change ticket and the maintenance window"
+        onCommit={(v) => set({ message: v })}
+      />
+      <p className="muted" data-approval-note>
+        Ansible Flow Server asks these people. AWX workflows set their approvers in AWX; local runs
+        approve by themselves.
+      </p>
+    </>
+  );
 }
 
 /** One port: state, where it leads, a menu button, and quick resolutions for open fail ports. */
@@ -668,7 +719,7 @@ export function ExecutionSection({
               return (
                 <div key={s.key}>
                   <CommitField
-                    label={`${s.label} · ${s.key === 'timeout' && node.type === 'approval' ? 'How long the AWX approval waits before its hosts take the timeout port (30m, 4h)' : s.help}`}
+                    label={`${s.label} · ${s.key === 'timeout' && node.type === 'approval' ? 'How long the approval waits (in AWX or on the server) before its hosts take the timeout port (30m, 4h)' : s.help}`}
                     value={settingText(value, s)}
                     mono
                     problem={fieldProblem(problems, `settings.${s.key}`)}

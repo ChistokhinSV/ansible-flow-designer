@@ -49,6 +49,7 @@ Change fields of a node; null removes a field. A new key renames the node: from:
 - `join_mode` (all | any | null): Join nodes: per host, all = every branch delivered the host (default), any = at least one
 - `branches` (integer | null): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
 - `disabled` (boolean | null): true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes.
+- `approval` (object | null): Approval nodes only: who may decide (approvers: user logins or group names), who is told (notify), what they read (message), replacing what it has; null removes them. Read by runners that wait for a person (Ansible Flow Server); AWX sets approvers in AWX.
 - `settings` (object): Settings to change; a null value removes that setting.
 - `keywords` (object | null): Task keywords of the binding (when, loop, ignore_errors, ...), replacing the ones it has; null removes them. Needs a module or role binding.
 
@@ -466,6 +467,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | until-whole-result | settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds. | Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until). |
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
+| approval-fields | A node that is not an approval has approval fields (approvers, notify, message): nothing reads them. | Remove them, or make the node an approval. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become segments: AWX workflows and Ansible Flow Server wait at top-level approvals, one at a time. | Keep approvals on the top level, one at a time. |
 | runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals); in format 2, it is derived and not written. | Use awx_workflow with approvals, awx_job without; in format 2, remove it. |
 | rollback-unreachable | A Rollback node cannot be reached by any failed hosts. | Wire a fail port to it, or delete it. |

@@ -64,6 +64,10 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
     purposeOf(node) ? `purpose: ${purposeOf(node)}` : '',
     node.type === 'parallel' && node.branches ? `branches: ${node.branches}` : '',
     node.join_mode ? `join: ${node.join_mode}` : '',
+    // AFD-273: who decides an approval, for runners that wait for a person.
+    node.approval?.approvers?.length ? `approvers: ${node.approval.approvers.join(', ')}` : '',
+    node.approval?.notify?.length ? `notify: ${node.approval.notify.join(', ')}` : '',
+    node.approval?.message ? `approval message: ${node.approval.message}` : '',
     extra.length ? `ports +${extra.join(' +')}` : '',
     node.impl ? `impl: ${node.impl.kind} ${node.impl.ref}` : '',
     // until reads the registered result by name (AFD-21).

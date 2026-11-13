@@ -21,6 +21,7 @@ import { portDirection } from '../flow/ports';
 import type {
   AnnotationColor,
   AnnotationKind,
+  ApprovalFields,
   ContractField,
   HandlerKind,
   ImplBinding,
@@ -101,6 +102,8 @@ export type Op =
       disabled?: boolean | null;
       settings?: { [K in keyof NodeSettings]?: NodeSettings[K] | null };
       keywords?: Record<string, unknown> | null;
+      /** AFD-273 */
+      approval?: ApprovalFields | null;
     }
   | { op: 'delete'; nodes?: string[]; wires?: string[]; annotations?: string[] }
   | { op: 'connect'; from: string; to: string }

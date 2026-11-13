@@ -61,6 +61,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `branches` (integer): Parallel nodes: number of branch ports branch_1..branch_n (default 2)
 - `handler` (rollback | notify | retry | exclude): Format 1 name of purpose. Marks a failure handler node (what kind of handling it does)
 - `purpose` (rollback | notify | retry | exclude): Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it.
+- `approval` (object): Approval nodes: who decides when a runner waits for a person (Ansible Flow Server). AWX workflows ignore it: their approvers are set in AWX.
 - `settings` (object): How the node runs (play keywords).
 - `subflow` (object): Subflow nodes: the inner level and how hosts enter and leave it.
 

@@ -1027,6 +1027,15 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
     checkConditions(model, node, level, path, flowInputs, external, add);
     checkTimingInputs(model, node, level, path, flowInputs, external, add);
     checkPlaybookDir(node, path, add);
+    // AFD-273: who decides is a question only an approval asks.
+    if (node.approval && node.type !== 'approval')
+      add({
+        code: 'approval-fields',
+        severity: 'warning',
+        message: `"${node.title}" is not an approval: its approvers, notify and message mean nothing`,
+        path: [...path, 'approval'],
+        node: node.id,
+      });
   }
   const runtime = model.doc.flow?.runtime?.kind;
   const v2 = formatOf(model.doc) >= 2;

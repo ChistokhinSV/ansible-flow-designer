@@ -1733,6 +1733,41 @@
                         ],
                         "description": "true: the node is switched off. Hosts that reach it pass straight on to where its one wired main output leads, and its tasks are not generated. Not for start and end nodes."
                       },
+                      "approval": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Approval nodes only: who may decide (approvers: user logins or group names), who is told (notify), what they read (message), replacing what it has; null removes them. Read by runners that wait for a person (Ansible Flow Server); AWX sets approvers in AWX.",
+                        "properties": {
+                          "approvers": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "maxItems": 50,
+                            "description": "Users or groups who may decide (by login or group name); absent: whoever the runner lets approve."
+                          },
+                          "notify": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "maxItems": 50,
+                            "description": "Users or groups told the approval waits, beside the approvers."
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 2000,
+                            "description": "What the approvers read: what to check before deciding."
+                          }
+                        }
+                      },
                       "settings": {
                         "type": "object",
                         "properties": {

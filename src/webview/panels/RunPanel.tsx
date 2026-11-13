@@ -31,6 +31,7 @@ import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
 import { showPastRun } from '../runActions';
+import { approvalOf, type ShownApproval } from '../runApproval';
 import { requestRunOutput } from '../runOutput';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
@@ -428,7 +429,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
-  const approval = useUi((s) => s.run?.awx?.approvals?.[id]);
+  const approval = approvalOf(run, id);
   const model = doc ? modelOf(doc) : undefined;
   const node = model?.nodes.get(id)?.node;
   if (!model || !node) return null;
@@ -584,9 +585,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
           </table>
         </>
       )}
-      {approval ? (
-        <p data-approval={approval.status}>
-          AWX approval: <strong>{approval.status}</strong>{' '}
+      {approval && run?.awx ? (
+        <p data-approval={approval.label}>
+          AWX approval: <strong>{approval.label}</strong>{' '}
           <button
             type="button"
             className="secondary"
@@ -597,9 +598,76 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
             AWX
           </button>
         </p>
+      ) : approval ? (
+        <ApprovalDecision id={id} approval={approval} message={node.approval?.message} />
       ) : null}
       {run && !run.scenario ? <OpenRun run={run} /> : null}
     </div>
+  );
+}
+
+/**
+ * AFD-273: an approval of a run that is not AWX's: how it was decided, by whom, when and why;
+ * while it waits, Approve and Reject with a comment where the host lets this person decide.
+ */
+function ApprovalDecision({
+  id,
+  approval,
+  message,
+}: {
+  id: Ulid;
+  approval: ShownApproval;
+  message?: string;
+}) {
+  const [comment, setComment] = useState('');
+  const [sent, setSent] = useState<'approved' | 'rejected'>();
+  const decide = (decision: 'approved' | 'rejected') => {
+    setSent(decision);
+    send({
+      type: 'approve',
+      node: id,
+      decision,
+      ...(comment.trim() ? { comment: comment.trim() } : {}),
+    });
+  };
+  const when = approval.at ? new Date(approval.at).toLocaleString() : undefined;
+  return (
+    <section className="afd-approval" data-approval={approval.label}>
+      <p>
+        Approval:{' '}
+        <strong>{approval.status === 'waiting' ? 'waiting for a decision' : approval.label}</strong>
+        {approval.by ? ` by ${approval.by}` : ''}
+        {when ? `, ${when}` : ''}
+      </p>
+      {approval.comment ? <blockquote>{approval.comment}</blockquote> : null}
+      {message && approval.status === 'waiting' ? <p className="muted">{message}</p> : null}
+      {approval.status === 'waiting' && approval.mayDecide ? (
+        sent ? (
+          <p role="status">Sent: {sent}. The run goes on once the server has it.</p>
+        ) : (
+          <>
+            <label htmlFor={`afd-approval-${id}`}>Comment</label>
+            <textarea
+              id={`afd-approval-${id}`}
+              rows={2}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Why, for the record"
+            />
+            <div className="afd-approval-actions">
+              <button type="button" onClick={() => decide('approved')}>
+                Approve
+              </button>
+              <button type="button" className="secondary" onClick={() => decide('rejected')}>
+                Reject
+              </button>
+            </div>
+          </>
+        )
+      ) : approval.status === 'waiting' ? (
+        <p className="muted">Someone allowed to approve decides it.</p>
+      ) : null}
+    </section>
   );
 }
 

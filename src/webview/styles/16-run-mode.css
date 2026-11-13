@@ -153,3 +153,23 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* AFD-273: an approval decided here (a server's run): how it went, and the decision while it waits. */
+.afd-approval {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.afd-approval blockquote {
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-textBlockQuote-border, currentColor);
+}
+.afd-approval textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.afd-approval-actions {
+  display: flex;
+  gap: 8px;
+}
