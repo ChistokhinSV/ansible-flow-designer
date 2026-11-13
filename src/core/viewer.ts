@@ -17,6 +17,8 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'showRun',
   'runOutput',
   'showRunOutput',
+  // AFD-273: deciding an approval of the run shown, where the host lets this person decide.
+  'approve',
   // Reading: what a module or role is, text for the clipboard, a link.
   'catalog',
   'copyText',
