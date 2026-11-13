@@ -120,3 +120,17 @@ bundler. The production build now passes it through esbuild's minifier once more
 about 893 KB. The budget stays at 1,216 KB, which leaves room for the Jinja colouring and completion
 in fields (AFD-221). The other budgets stay: `extension.js` 1,024 KB (987 KB now), `mcp.js` 1,152 KB
 (1,111 KB).
+
+## Amendment: the layers are also packages (AFD-266, 2026-11-13)
+
+`src/core`, `src/node` and `src/webview` are published as `@ansible-flow/core`, `node` and
+`designer` (ADR-0036). The layer rules do not change. Two things follow from them being used by
+another repository:
+
+- a file's path under `src/core` or `src/node` is an import path of a package, so a rename is a
+  change the server sees;
+- the package build fails when a file of these layers imports from outside its layer (other than
+  `schema/`, and `src/core` for `src/node`), which the Biome rules did not check for `test/` or
+  `probe/`.
+
+The VSIX budgets stay as they are; the packages have none.
