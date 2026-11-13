@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.85.0 — AFD-265 (npm packages for other hosts)
+
+Nothing changes in how the extension works. This version is the first whose code is also built as npm packages, so that another program can read, check, generate and run flows exactly as the extension does. The first user is Ansible Flow Server, which runs flows for a team. See [npm packages for other hosts](docs/packages.md).
+
+**Packages**
+
+- **`@ansible-flow/core` (AFD-267):** the flow model, commands, validation, code generation, run summaries and the designer's message protocol, for any JavaScript host.
+- **`@ansible-flow/node` (AFD-268, AFD-271):** layout, the probe client, the AWX client, the module catalog, SSH, and the run itself: `runFlow` is the code the extension's local run now uses, without VS Code.
+- **`@ansible-flow/assets` (AFD-268):** the Python probe, the run events callback and the JSON schemas, found by path.
+- **`@ansible-flow/designer` (AFD-269, AFD-270):** the designer for a web page. A page gives it a transport to its host and calls `mount()`; with `viewer: true` it shows a flow and runs it and changes nothing.
+- All four carry the extension's version and are released with it. Before 1.0 a release may change any module; the documented entry points are listed in the guide above.
+
+**In the extension**
+
+- A local run goes through the same steps as before; what it does once every question is answered moved out of the VS Code part (AFD-271). Checked with real runs: skeleton and real runs, the launch dialog, Stop Run and scenarios.
+- **Not checked in this version:** a partial run and a run on an SSH host, whose code moved with the rest.
+
 ## 0.84.0 — AFD-254 (the Inventory view: switches, files in sync, editing; agents)
 
 After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
