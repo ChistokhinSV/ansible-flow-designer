@@ -207,16 +207,30 @@ package after the ones it depends on, with provenance. It installs nothing. A ve
 already on npm is skipped, so the job can be run again after a failure. It does not block the
 VSIX, and the VSIX does not block it.
 
-To switch it on (once, by the owner of the npm account):
+It publishes by npm Trusted Publishing only: the job proves to npm that it is this repository's
+`publish.yml` in the `release` environment, and npm lets it publish. There is no token to store,
+leak or renew, and npm attaches provenance by itself. npm's granular tokens that bypass two-factor
+authentication are being withdrawn, so the job reads none.
+
+npm sets a trusted publisher on a package that exists, so each package's first version is
+published by hand. Once, by the owner of the npm account:
 
 1. Create the npm organisation `ansible-flow`.
-2. Add a granular access token for that scope as the secret `NPM_TOKEN` of the `release`
-   environment. A package's first publish needs it: a trusted publisher can only be set on a
-   package that exists.
-3. Set the repository variable `NPM_PUBLISH` to `true` and release.
-4. On npmjs.com, add a trusted publisher to each package: this repository, the workflow
-   `publish.yml`, the environment `release`. Then delete the `NPM_TOKEN` secret; later releases
-   publish with Trusted Publishing (npm 11.5.1 or later).
+2. On the release's tag, run `just packages-publish` in a terminal where `npm login` is done. It
+   builds and checks the packages and publishes those whose version is not on npm yet; npm asks
+   for the second factor. Nothing is stored.
+3. On npmjs.com, in each package's settings, add a trusted publisher: GitHub Actions, this
+   repository, the workflow `publish.yml`, the environment `release`. Then choose "Require
+   two-factor authentication and disallow tokens".
+4. Set the repository variable `NPM_PUBLISH` to `true`.
+
+A new trusted publisher must publish successfully within 2 days or npm expires it, so do steps 3
+and 4 at most 2 days before the next release. An expired one is deleted and added again.
+
+A package added later (a fifth one) is first published the same way: `just packages-publish`
+leaves the versions that are on npm as they are.
+
+The job needs npm 11.5.1 or later (Node 24 has it) and fails with a message on an older one.
 
 A manual run with `dry_run` builds and checks the packages and uploads the tarballs as the
 artifact `npm`; it publishes nothing.

@@ -173,6 +173,12 @@ demo-gif *takes: package
 packages:
     node scripts/packages.mjs --check
 
+# A package's first version, from this terminal with your npm login and second factor (releases
+# publish by Trusted Publishing, which npm sets up on a package that exists). Run it on the
+# release's tag; versions already on npm are left as they are
+packages-publish:
+    node scripts/packages.mjs --check --publish
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish). Its README
 # is the repository's without relative images and links, which the Extensions view cannot show (AFD-79).
 package:

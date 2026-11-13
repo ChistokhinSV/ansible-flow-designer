@@ -10,11 +10,12 @@
 # Open VSX: the OVSX_PAT secret; without it the step is skipped.
 #
 # npm (ADR-0036): the job "npm" publishes the packages other hosts use (@ansible-flow/core, assets,
-# node) with the extension's version. It runs only when the repository variable NPM_PUBLISH is
-# "true", so nothing goes to npm before the organisation exists. A package's first publish needs
-# the NPM_TOKEN secret (a trusted publisher is set on a package that exists); after that, name this
-# repository, this file and the environment "release" as each package's trusted publisher and
-# delete the secret. A version that is already on npm is skipped, so the job can be run again.
+# node, designer) with the extension's version, by Trusted Publishing (OIDC) only: no token is
+# stored and none is read. Each package's trusted publisher names this repository, this file and
+# the environment "release". npm sets a trusted publisher on a package that exists, so a package's
+# first version is published by hand (`just packages-publish`, docs/packages.md). The job runs
+# only when the repository variable NPM_PUBLISH is "true". A version that is already on npm is
+# skipped, so the job can be run again.
 #
 # AFD-132: two jobs. "build" installs the dependencies, checks, tests and packages with no secret
 # and no OIDC token, so an install script of a dependency can publish nothing. "publish" gets the
@@ -165,7 +166,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      id-token: write # npm Trusted Publishing and provenance
+      id-token: write # npm Trusted Publishing
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -178,20 +179,19 @@ jobs:
           path: out/npm
 
       # order.txt lists "<name>@<version> <tarball>", a package after the ones it depends on.
+      # Provenance is attached by npm itself when it publishes by Trusted Publishing.
       - name: npm
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            export NODE_AUTH_TOKEN="$NPM_TOKEN"
-          else
-            # Trusted Publishing needs npm 11.5.1 or later.
-            echo "npm $(npm --version), no NPM_TOKEN: Trusted Publishing"
+          # Trusted Publishing needs npm 11.5.1 or later; an older npm would ask for a token.
+          NPM=$(npm --version)
+          if [ "$(printf '%s\n' 11.5.1 "$NPM" | sort -V | head -n 1)" != 11.5.1 ]; then
+            echo "::error::npm $NPM cannot publish by Trusted Publishing (11.5.1 or later)"
+            exit 1
           fi
           while read -r spec tarball; do
             if npm view "$spec" version </dev/null >/dev/null 2>&1; then
               echo "::notice::$spec is already on npm; left as is"
               continue
             fi
-            npm publish "out/npm/$tarball" --access public --provenance </dev/null
+            npm publish "out/npm/$tarball" --access public </dev/null
           done < out/npm/order.txt
