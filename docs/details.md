@@ -111,6 +111,7 @@ just package
 | `just harness`                   | The webview harness on http://localhost:5178/harness/index.html?flow=os-upgrade   |
 | `just docs-shots [names…]`       | The user guide's screenshots, taken from the harness in Edge                      |
 | `just demo-gif [takes…]`         | The README's animated demos, recorded in VS Code with the VSIX (ffmpeg, WSL)      |
+| `just packages`                  | Stage and check the npm packages for other hosts ([packages](packages.md))        |
 | `just package`                   | Build the VSIX into `out/`                                                        |
 
 **Tests that need Docker.** `AFD_TEST_IMAGE=afd-ee:2.19 just test-int` also runs the integration

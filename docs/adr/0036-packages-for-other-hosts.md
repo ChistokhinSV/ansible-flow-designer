@@ -61,7 +61,7 @@ plain Node script parsed a flow, built its model and loaded the layout from the 
 
 **Format.** ES modules only, target ES2023. `core` has no `node:` imports and is checked as browser
 code by `tsconfig.webview.json` already. Types come from `tsc --emitDeclarationOnly` with a
-`tsconfig.build.json`, in the same tree as the code. The flow schema JSON that three core files
+build tsconfig the script writes, in the same tree as the code. The flow schema JSON that three core files
 import from `schema/` is inlined by the build and also shipped as a file in `assets`.
 
 **The designer** is the bundle the VSIX ships (`index.js` and `index.css` from the Vite library

@@ -168,6 +168,11 @@ docs-shots *names:
 demo-gif *takes: package
     node scripts/demo-gif.mjs {{ takes }}
 
+# The npm packages other hosts use (ADR-0036): staged in dist/packages/, packed (dry run) and used
+# from a plain Node script and a TypeScript file
+packages:
+    node scripts/packages.mjs --check
+
 # Package the VSIX into out/ (vsce runs the production build through vscode:prepublish). Its README
 # is the repository's without relative images and links, which the Extensions view cannot show (AFD-79).
 package:

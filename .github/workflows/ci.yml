@@ -42,3 +42,8 @@ jobs:
 
       - name: Unit and component tests
         run: npx --no-install vitest run
+
+      # ADR-0036: the npm packages other hosts use build, pack and load outside this repository's
+      # bundles (as `just packages`).
+      - name: Packages
+        run: node scripts/packages.mjs --check

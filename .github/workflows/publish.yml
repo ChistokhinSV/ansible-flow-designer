@@ -65,6 +65,7 @@ jobs:
           npx --no-install tsc -p tsconfig.webview.json
           npx --no-install biome ci .
           npx --no-install vitest run
+          node scripts/packages.mjs --check
 
       # The same as `just package`: the README rewrite, then vsce (which runs the production build).
       - name: Package
