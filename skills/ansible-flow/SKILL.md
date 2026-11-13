@@ -181,8 +181,8 @@ A scenario plants failures for chosen hosts and says where each host must end. U
 name, `hosts` and `force` (step key or `sub/step` -> `failed`, `unreachable`, `timeout`,
 `unchanged`, or `false` on a decision -> hosts) and expects where the simulation sends each host
 unless you give `expect`; `update` with `accept_ends: true` takes the new ends; `verify` runs them
-in Ansible. After changing a flow's wiring, `check` its scenarios. See
-[references/scenarios.md](references/scenarios.md).
+in Ansible; after changing a flow's wiring, `check` them ([references/scenarios.md](references/scenarios.md)).
+The runs' inventory (hosts, groups, variables): the `inventory` tool (`list`, `edit` with ops), not edits of its files.
 
 ## Without the tools
 

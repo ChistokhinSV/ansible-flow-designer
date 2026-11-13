@@ -23,6 +23,7 @@ export const ENVIRONMENT_KEYS = [
   // AFD-252: without these an SSH environment had a kind and no host.
   'afd.environment.sshHost',
   'afd.environment.sshDir',
+  'afd.environment.sshImage',
   'ansible.executionEnvironment.enabled',
   'ansible.executionEnvironment.image',
   'ansible.executionEnvironment.containerEngine',
@@ -129,4 +130,23 @@ export async function canvasDirection(
       break;
     }
   return value === 'LR' ? 'LR' : 'TB';
+}
+
+/**
+ * `afd.run.inventory` for a root (AFD-261), so the agents' inventory tool works on the inventory
+ * the runs use: the workspace's .vscode/settings.json, else the first user settings.json found.
+ * Not a restricted key: it names a file of the repository, which the tool reads inside the root
+ * only. Empty when neither sets it (the default of ansible.cfg).
+ */
+export async function runInventory(root: string, host: SettingsHost = thisHost()): Promise<string> {
+  const workspace = await readSettings(join(root, '.vscode', 'settings.json'));
+  let value = workspace?.['afd.run.inventory'];
+  if (value === undefined)
+    for (const path of userSettingsCandidates(host)) {
+      const user = await readSettings(path);
+      if (!user) continue;
+      value = user['afd.run.inventory'];
+      break;
+    }
+  return typeof value === 'string' ? value.trim() : '';
 }

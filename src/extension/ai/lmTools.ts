@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { COPILOT_PREFIX } from '../../core/ai/contributions';
 import { type FlowIO, runTool } from '../../core/ai/handlers';
+import type { InventoryIO } from '../../core/ai/inventory';
 import { type Op, opLabel } from '../../core/ai/ops';
 import { isSourceFile, SKIP_GLOB, SOURCE_MAX_BYTES } from '../../core/ai/sourceRules';
 import { TOOL_SPECS, type ToolSpec } from '../../core/ai/specs';
@@ -12,8 +13,10 @@ import { parseFlow } from '../../core/flow/document';
 import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
+import { readInventory } from '../../core/inventory/files';
 import { type ScenarioResult, scenariosFileName } from '../../core/scenario/scenarios';
 import { flowFacts } from '../../core/view/flowFacts';
+import { inventoryPath } from '../../core/view/inventorySources';
 import { diffEdits } from '../../core/yaml/edits';
 import { layoutLevel, shownPositions } from '../../node/autoLayout';
 import { generatedDir, generateFlow, rootFromGenerated } from '../codegen';
@@ -29,6 +32,8 @@ import {
 import { layoutDirection } from '../flowSession';
 import { authorName } from '../gitHead';
 import { stillInside, workspaceSource } from '../import/common';
+import { writeInventoryFiles } from '../inventoryEdit';
+import { workspaceFs } from '../inventoryFiles';
 import { followScenarios } from '../run/scenarioFollow';
 
 const FLOWS = '**/*.flow.yaml';
@@ -130,9 +135,47 @@ async function scenariosOf(
   }
 }
 
+/** AFD-261: the inventory of the folder the open flow is in, else of the first folder. */
+function hostInventory(deps: HostToolDeps): InventoryIO {
+  const folder = () => {
+    const flow = deps.activeFlow();
+    return (
+      (flow && vscode.workspace.getWorkspaceFolder(flow)) ?? vscode.workspace.workspaceFolders?.[0]
+    );
+  };
+  return {
+    async read(inventory) {
+      const at = folder();
+      if (!at) return 'Open a folder to work on its inventory';
+      const setting = inventoryPath(
+        inventory ??
+          vscode.workspace.getConfiguration('afd', at.uri).get<string>('run.inventory', ''),
+      );
+      const data = await readInventory(workspaceFs(at.uri), setting);
+      const label = setting
+        ? setting
+        : data.named.length
+          ? `${data.named.join(', ')} (the default of ansible.cfg)`
+          : 'the default inventory (ansible.cfg names none in the repository)';
+      return { data, label };
+    },
+    async write(writes, renames) {
+      const at = folder();
+      if (!at) throw new Error('no folder is open');
+      // The view's writer: through the editor when a file is open, never over unsaved changes.
+      if (!(await writeInventoryFiles(at.uri, writes, renames)))
+        throw new Error(
+          'VS Code did not write the files (a file with unsaved changes is not touched)',
+        );
+      return ['Saved.'];
+    },
+  };
+}
+
 export function hostFlowIO(deps: HostToolDeps): FlowIO {
   let sourceFolder: vscode.WorkspaceFolder | undefined;
   return {
+    inventory: hostInventory(deps),
     async readScenarios(path, key) {
       return (await scenariosOf(path, key)).text;
     },
@@ -347,6 +390,56 @@ export function scenariosConfirmation(
   };
 }
 
+/**
+ * AFD-261: what an inventory call does. list only reads, so it asks nothing; edit says each change
+ * before it is made (a variable's value is not repeated: it may be a secret).
+ */
+export function inventoryConfirmation(input: Record<string, unknown>): PreparedToolInvocation {
+  const invocationMessage = 'Inventory';
+  if (input.action !== 'edit') return { invocationMessage };
+  const ops = Array.isArray(input.ops) ? (input.ops as Record<string, unknown>[]) : [];
+  const say = (o: Record<string, unknown>) => {
+    const s = (k: string) => (typeof o[k] === 'string' ? (o[k] as string) : '?');
+    switch (o.op) {
+      case 'add_host':
+        return `add the host ${s('host')} to ${s('group')}`;
+      case 'remove_host':
+        return `remove the host ${s('host')} from ${typeof o.group === 'string' ? o.group : 'every group'}`;
+      case 'rename_host':
+        return `rename the host ${s('host')} to ${s('to')}`;
+      case 'move_host':
+        return `move the host ${s('host')} from ${s('from')} to ${s('to')}`;
+      case 'add_group':
+        return `add the group ${s('group')}${typeof o.parent === 'string' ? ` under ${o.parent}` : ''}`;
+      case 'remove_group':
+        return `delete the group ${s('group')}`;
+      case 'rename_group':
+        return `rename the group ${s('group')} to ${s('to')}`;
+      case 'set_var':
+        return `set the variable ${s('key')} of ${typeof o.host === 'string' ? o.host : s('group')}`;
+      case 'remove_var':
+        return `remove the variable ${s('key')} of ${typeof o.host === 'string' ? o.host : s('group')}`;
+      default:
+        return String(o.op);
+    }
+  };
+  return {
+    invocationMessage,
+    confirmationMessages: {
+      title: 'Change the Inventory?',
+      message: new vscode.MarkdownString(
+        [
+          `Change the inventory${typeof input.inventory === 'string' ? ` **${input.inventory}**` : ' the runs use'}:`,
+          ...ops.slice(0, 20).map((o) => `- ${say(o)}`),
+          ...(ops.length > 20 ? [`- and ${ops.length - 20} more`] : []),
+          '',
+          'All or none; the files are saved. A file with unsaved changes is not touched.',
+        ].join('\n'),
+      ),
+    },
+  };
+}
+
 class FlowTool implements LanguageModelTool<Input> {
   constructor(
     private readonly spec: ToolSpec,
@@ -367,6 +460,7 @@ class FlowTool implements LanguageModelTool<Input> {
     // AFD-165: flow_scenarios reads (list, check), writes the scenarios file (add, update,
     // delete) or runs Ansible (verify); the generic "Change <flow>" said none of that.
     if (this.spec.name === 'flow_scenarios') return scenariosConfirmation(input, where, message);
+    if (this.spec.name === 'inventory') return inventoryConfirmation(input);
     const ops = Array.isArray(input.ops) ? (input.ops as Op[]) : [];
     const detail =
       this.spec.name === 'flow_new'

@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased — AFD-254 (the Inventory view: switches, files in sync, editing; agents)
+
+After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
+
+- **Switch Ansible Environment… (AFD-255):** the Inventory view's title has a button that lists the environments your settings describe (an image for this machine, each WSL distribution, the SSH host), the one in use marked, and **Set Up Another…**. A pick switches at once and asks nothing: the host, the distribution and the images stay, so you can switch back. The view's title line names the environment and the inventory.
+- **The image on an SSH host is its own setting, `afd.environment.sshImage`:** `afd.environment.image` is the image for a container on this machine only, so neither is carried into the other by a switch. A workspace set up with 0.83 keeps working: with `sshImage` not set, `image` still runs on the host.
+- **Switch Inventory… (AFD-256):** lists the inventories found in the repository (a `hosts` or `inventory` file at the root, `inventory/` and its files, one folder or file for each environment under `inventories/`), the default of `ansible.cfg`, and **Browse…**. The pick is the workspace's `afd.run.inventory`.
+- **In the launch dialog (AFD-257):** "Runs in: … · Inventory: …", each with **Change**, which opens the same switch and then the dialog again with what the new one answers.
+- A switch is this workspace's: it writes the workspace settings.
+- **Limit:** `afd.environment.containerEngine` is still one setting for this machine and the SSH host.
+
+**Wave 2 (AFD-258): the Inventory view and the inventory's files stay together.** The view showed Ansible's merged result and nothing of where it came from.
+
+- **Open at the line:** a click on a host, or **Open in Editor** on a host or a group, goes to the line it is written on, in YAML and INI inventories. A host of a range (`sw[01:10]`) opens at the range, a host in several groups under the group you opened it from.
+- **Sources:** the view lists the files the inventory is read from and what each is: YAML, INI, or dynamic (an inventory plugin, a script) and read-only.
+- **Reads again on save:** saving an inventory file, a file under `group_vars/` or `host_vars/`, or `ansible.cfg` refreshes the view.
+- **New Inventory…:** a YAML inventory with no hosts yet, made the workspace's inventory and opened.
+- **Not done:** a change made outside VS Code (git, another editor) still needs Refresh Inventory; hosts of a dynamic source have no line to open.
+
+**Wave 3 (AFD-259, AFD-260): edit the inventory from the view.** Until now the inventory was edited in its files only.
+
+- **Hosts and groups:** right-click to add a host, add a group or a child group, rename, move a host to another group, delete. Each change is the smallest edit of the YAML or INI file that says it: comments, order and layout stay; the file is saved and the view reads it again.
+- **Variables:** a host and a group show their own variables, each with where it is written (the inventory file, `host_vars/`, `group_vars/`); a click opens it there. **Add Variable…**, **Edit Value…** and **Delete…** change them. A value is typed as in YAML.
+- **Where a new variable goes:** `host_vars/` or `group_vars/` when the repository has that folder, the inventory file otherwise; asked when the host or group has variables in both.
+- **A move takes the host's variables with it; a rename renames its variables file.**
+- **Not edited here** (they open as text): a host of a range (its variables go to a variables file), hosts of a dynamic source, vault-encrypted values and files, YAML with anchors, and Ansible's groups `all` and `ungrouped`. A file with unsaved changes is not touched.
+- **Checked in Ansible:** inventories changed this way read in `ansible-inventory` as asked (INI, YAML, a variables file).
+
+**Wave 4 (AFD-261): AI assistants list and edit the inventory.** A new tool, `inventory` (Copilot's `#inventory`, and in the MCP server for terminal agents). See [AI assistants](docs/guide/how-to/ai-assistants.md#the-inventory).
+
+- **list:** the inventory's files and what each is, its groups and hosts as written; with a host or a group, its variables and where each is written.
+- **edit:** ops in order, all or none: `add_host`, `remove_host`, `rename_host`, `move_host`, `add_group`, `remove_group`, `rename_group`, `set_var`, `remove_var`. The same engine and the same read-only rules as the Inventory view; a new variable goes where the view puts it.
+- **What an agent does not see:** vault-encrypted values, and the value of a variable whose name contains `password`, `passwd`, `secret`, `token` or `key`. Other values reach the agent's model as written.
+- **Copilot** asks before a change and lists each op, without the values. The MCP server reads and writes inside the repository only.
+
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 
 **Fix (AFD-252): terminal agents could not verify scenarios on an SSH host.** `flow_scenarios` with action `verify` through the MCP server answered "Set afd.environment.sshHost" with an SSH environment set: the server did not read `afd.environment.sshHost` and `sshDir` from the settings. It now does, from your user settings, and from the workspace's only with `AFD_MCP_WORKSPACE_ENVIRONMENT=1`, as for the other environment settings. Copilot and Run Scenarios in VS Code were not affected. See [Scenario tests](docs/guide/how-to/scenario-tests.md).

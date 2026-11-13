@@ -71,6 +71,11 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     send({ type: 'launchCancel', token: plan.token });
     useUi.getState().setLaunch(null);
   };
+  // AFD-257: the host opens the switch and then this dialog again, for what the new one answers.
+  const change = (what: 'environment' | 'inventory') => {
+    send({ type: 'launchSwitch', token: plan.token, mode: plan.mode, what });
+    useUi.getState().setLaunch(null);
+  };
   const submit = () => {
     const r = readFields(plan.fields, texts);
     if ('error' in r) {
@@ -119,7 +124,20 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
           {real
             ? 'Not check mode: bound steps change the devices.'
             : 'Check mode: bound steps report what they would change, and change nothing.'}{' '}
-          In {plan.environment}.
+        </p>
+        <p className="muted afd-launch-where">
+          Runs in: <span data-launch-environment>{plan.environment}</span>{' '}
+          <button type="button" className="link" onClick={() => change('environment')}>
+            Change
+          </button>
+          {plan.inventory ? (
+            <>
+              {' · '}Inventory: <span data-launch-inventory>{plan.inventory}</span>{' '}
+              <button type="button" className="link" onClick={() => change('inventory')}>
+                Change
+              </button>
+            </>
+          ) : null}
         </p>
         {notice ? (
           <p className="afd-launch-notice" role="alert">

@@ -16,6 +16,12 @@ export interface AfdEnvSettings {
   sshHost?: string;
   /** AFD-247: the folder on the host; empty is `.afd/<workspace>` under the account's home. */
   sshDir?: string;
+  /**
+   * AFD-255: the image Ansible runs in on the SSH host; empty is the host's own Ansible. Not set
+   * at all (undefined): `image` is used, as 0.83 wrote it. Apart from `image`, so that switching
+   * between a container here and the SSH host carries neither into the other.
+   */
+  sshImage?: string;
 }
 
 /** The subset of redhat.ansible settings we honour (names checked against its package.json). */
@@ -94,10 +100,11 @@ export function resolveEnvironment(
     const dir = remoteDir(afd.sshDir ?? '', workspace);
     if (typeof dir !== 'string') return { ok: false, error: dir.error, code: 'no-ssh-host' };
     // An image named in our settings runs there in a container; redhat.ansible's is for this machine.
-    const container = afd.image
+    const image = (afd.sshImage ?? afd.image).trim();
+    const container = image
       ? {
           engine: afd.containerEngine === 'podman' ? ('podman' as const) : ('docker' as const),
-          image: afd.image,
+          image,
           options: afd.containerOptions,
         }
       : undefined;
@@ -202,6 +209,9 @@ export function settingsFromJson(json: Record<string, unknown>): {
       wslDistro: get('afd.environment.wslDistro', ''),
       sshHost: get('afd.environment.sshHost', ''),
       sshDir: get('afd.environment.sshDir', ''),
+      ...(typeof json['afd.environment.sshImage'] === 'string'
+        ? { sshImage: json['afd.environment.sshImage'] }
+        : {}),
     },
     redhat: {
       eeEnabled: json['ansible.executionEnvironment.enabled'] as boolean | undefined,

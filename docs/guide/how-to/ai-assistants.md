@@ -8,9 +8,9 @@ silently. A step-by-step example: [Tutorial 4](../tutorials/04-ai-assistant.md).
 
 - In **agent mode**, the `ansible-flow` skill and the instructions for `*.flow.yaml` load when they
   are relevant.
-- Eleven tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
+- Twelve tools: `#flowList`, `#flowDescribe`, `#flowValidate`, `#flowReference`, `#flowEdit`,
   `#flowNew`, `#flowCompleteIds`, `#flowExport`, `#sourceOutline`, `#flowImport`,
-  `#flowScenarios`.
+  `#flowScenarios`, `#inventory`.
 - An edit asks for confirmation and is one undo step. It is saved when the file had no unsaved
   changes, so the version bump and `generated/` follow.
 
@@ -81,19 +81,20 @@ Good to know:
 
 ## What the tools do
 
-| Tool                | Does                                                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `flow_list`         | finds the flows in the workspace                                                                                                   |
-| `flow_describe`     | shows a flow by key: nodes, wires `precheck.ok_hosts -> check-ntp`, subflows as `fix-ntp/push-config`, open fail ports, a revision |
-| `flow_validate`     | lists problems, each with its fix                                                                                                  |
-| `flow_reference`    | the format, ports, patterns, ops and problem codes                                                                                 |
-| `flow_edit`         | a batch of ops, in order, all or nothing                                                                                           |
-| `flow_new`          | a new flow, `start -> done`, keyed by its file name                                                                                |
-| `flow_complete_ids` | adds the IDs a hand-written flow lacks                                                                                             |
-| `flow_export`       | writes a draw.io file (a page per level, node details as data) or SVG images of the flow ([export](export.md))                     |
-| `source_outline`    | reads a playbook, a folder, a role or an AWX export: its structure, and per task the binding to copy ([import](import.md))         |
-| `flow_import`       | imports a playbook or an AWX template one to one, one step per task ([import](import.md))                                          |
-| `flow_scenarios`    | lists, checks, adds, updates and deletes [scenario tests](scenario-tests.md), and verifies them in Ansible                         |
+| Tool                | Does                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flow_list`         | finds the flows in the workspace                                                                                                              |
+| `flow_describe`     | shows a flow by key: nodes, wires `precheck.ok_hosts -> check-ntp`, subflows as `fix-ntp/push-config`, open fail ports, a revision            |
+| `flow_validate`     | lists problems, each with its fix                                                                                                             |
+| `flow_reference`    | the format, ports, patterns, ops and problem codes                                                                                            |
+| `flow_edit`         | a batch of ops, in order, all or nothing                                                                                                      |
+| `flow_new`          | a new flow, `start -> done`, keyed by its file name                                                                                           |
+| `flow_complete_ids` | adds the IDs a hand-written flow lacks                                                                                                        |
+| `flow_export`       | writes a draw.io file (a page per level, node details as data) or SVG images of the flow ([export](export.md))                                |
+| `source_outline`    | reads a playbook, a folder, a role or an AWX export: its structure, and per task the binding to copy ([import](import.md))                    |
+| `flow_import`       | imports a playbook or an AWX template one to one, one step per task ([import](import.md))                                                     |
+| `flow_scenarios`    | lists, checks, adds, updates and deletes [scenario tests](scenario-tests.md), and verifies them in Ansible                                    |
+| `inventory`         | lists the inventory the runs use (its files, groups, hosts and variables as written) and changes it: hosts, groups and variables, all or none |
 - **Large flows:** every answer stays under about 40,000 characters; a longer one comes in pages
   (`page`) or says how to ask for less. `flow_validate` takes `summary: true` (problems by code,
   the fix once), `code`, `node` and `severity`; `flow_describe` takes `nodes`, `detail: brief`
@@ -131,6 +132,24 @@ Good to know:
 - **Terminal agents** write the file like a save: `flow.version` once per commit, tested nodes that
   changed drop back to implemented, `generated/` is refreshed. They touch only `*.flow.yaml` inside
   the agent's roots.
+
+### The inventory
+
+`inventory` works on the inventory the runs use (`afd.run.inventory`, else `ansible.cfg`'s), with
+the same rules as the [Inventory view](runs-and-environments.md#edit-the-inventory-from-the-view):
+
+- **It reads the files**, not Ansible's merged result: what is written, and where. Hosts of a
+  dynamic source (an inventory plugin, a script) are not listed.
+- **Changes** are minimal edits of the YAML or INI file that keep comments; a batch applies whole
+  or not at all. A new variable goes to `host_vars/` or `group_vars/` when the repository has that
+  folder, else into the inventory file.
+- **Read-only:** hosts of a range or of a dynamic source (their variables still go to
+  `host_vars/`), vault-encrypted values and files.
+- **What an agent does not see:** a vaulted value, and the value of any variable whose name
+  contains `password`, `passwd`, `secret`, `token` or `key`. It sees that the variable is there
+  and where. Other values go to the agent's model as they are written: keep secrets vaulted, or
+  under such a name.
+- In Copilot, a change asks first and lists each op; a variable's value is not repeated there.
 
 ## See what an agent changed
 

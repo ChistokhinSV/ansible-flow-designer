@@ -45,6 +45,16 @@ is not affected.
 The extension talks to the environment through a small Python helper that uses only the standard
 library, so any image with ansible-core works.
 
+### Switch between environments
+
+Once more than one is set up (an image for this machine, a WSL distribution, an SSH host), **Switch
+Ansible Environment…** goes from one to another in one click: the first button on the **Inventory**
+view's title, **Change** beside "Runs in" in the launch dialog, or the Command Palette. It lists
+the environments your settings describe and the WSL distributions of this machine, with the one in
+use marked, and **Set Up Another…** for anything else. A switch writes `afd.environment.kind` in
+the workspace settings and asks nothing: the host, the distribution and the images stay as they
+are, so you can switch back.
+
 ### A remote Linux host over SSH
 
 A shared host can run your flows while the repository stays on your machine: a jump host, an
@@ -52,15 +62,15 @@ operations server, the place your team already runs Ansible from. **Set Up Ansib
 offers **A Remote Linux Host over SSH**: it lists the hosts of your SSH config, connects, looks at
 what the host has, and writes the settings of this workspace (an SSH host is per workspace; the
 other choices write your user settings, unless the workspace already sets an environment). A host
-with Ansible on its PATH runs that, also when your user settings name an image: the setup then
-writes an empty `afd.environment.image` for the workspace. By hand:
+with Ansible on its PATH runs that, also when your user settings name an image: the image on the
+host is a setting of its own. By hand:
 
 | Setting                           | Value                                                                                           |
 | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `afd.environment.kind`            | `ssh`                                                                                           |
 | `afd.environment.sshHost`         | a `Host` of your `~/.ssh/config`, or `user@host`                                                |
 | `afd.environment.sshDir`          | the folder there for this workspace; empty is `~/.afd/<workspace folder name>`                  |
-| `afd.environment.image`           | empty: the `ansible-playbook` on the account's PATH runs. Set: Ansible runs in this image there |
+| `afd.environment.sshImage`        | empty: the `ansible-playbook` on the account's PATH runs. Set: Ansible runs in this image there |
 | `afd.environment.containerEngine` | with an image: `docker` (default) or `podman`, the host's                                       |
 - **The connection is yours.** The extension runs your `ssh` with your config, keys and agent. It
   never asks for a password and never stores one: the host must connect from a terminal with
@@ -182,7 +192,58 @@ there, with **Open the Flow**.
 (`afd.run.inventory`, else `ansible.cfg`'s), read in your Ansible environment. Each group shows its
 host count and opens into its child groups and its hosts. **Run Flow on This Group…** (the play
 button on a group or a host) opens the launch dialog of the flow you are working on, with that group
-as its targets. **Refresh Inventory** reads it again after you edit the inventory.
+as its targets.
+
+The view and the inventory's files stay together:
+
+- **Click a host**, or use **Open in Editor** on a host or a group, to go to the line it is written
+  on. A host that is one of a range (`sw[01:10]`) opens at the range.
+- **Sources**, at the top, lists the files the inventory is read from and what each is: YAML or INI
+  (static: the hosts are written there), or dynamic (an inventory plugin's configuration, a script:
+  the hosts come from elsewhere, so they have no line to open). A folder inventory shows the files
+  Ansible reads from it; as Ansible does, it skips `.ini` and `.cfg` files there.
+- **Saving** an inventory file, a file under `group_vars/` or `host_vars/`, or `ansible.cfg` reads
+  the view again. **Refresh Inventory** does it by hand, for a dynamic source that changed.
+- **New Inventory…** (the view's `…` menu, or the link shown when there are no hosts) creates a YAML
+  inventory with no hosts yet, makes it this workspace's inventory and opens it.
+
+### Edit the inventory from the view
+
+Right-click a group, a host or a variable (the view's `…` menu has **Add Group…** and **Add
+Host…**). Each change is written into the inventory's YAML or INI file as the smallest edit that
+says it: your comments, order and layout stay. The file is saved, and the view reads it again.
+
+| On         | You can                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| a group    | **Add Host…**, **Add Group…** (a child group), **Add Variable…**, **Rename…**, **Delete…**   |
+| a host     | **Move to Group…**, **Add Variable…**, **Rename…**, **Delete…** (from the group it is under) |
+| a variable | **Edit Value…**, **Delete…**; a click opens it where it is written                           |
+- **Variables** show under their host or group, each with where it is written: the inventory file,
+  or a file in `host_vars/` or `group_vars/`. A value is typed as it would be in YAML: text, a
+  number, `true`, a list `[a, b]`, a mapping `{k: v}`.
+- **Where a new variable goes:** into `host_vars/` or `group_vars/` when the repository has that
+  folder, into the inventory file otherwise; when the host or group already has variables in both,
+  you are asked. An INI line holds simple values only: a list or a mapping goes to a variables file.
+- **A move** takes the variables written on the host with it. **A rename** changes the name
+  everywhere it is written and renames its variables file; playbooks and flows that name a group
+  are not changed.
+- **What is not edited here**, and opens as text instead: a host that is one of a range
+  (`sw[01:10]`; its variables still go to a variables file), hosts of a dynamic source (a plugin, a
+  script), vault-encrypted values and files, YAML that uses anchors, and Ansible's own groups `all`
+  and `ungrouped`.
+- A file with unsaved changes in an editor is not touched: save it first.
+
+The view's title line says which inventory it shows and in which environment. Two buttons there
+change them:
+
+- **Switch Ansible Environment…**: see [Switch between environments](#switch-between-environments).
+- **Switch Inventory…** lists the inventories found in the repository (a `hosts` or `inventory`
+  file at the root, the `inventory/` folder and its files, one folder or file for each environment
+  under `inventories/`), **The Default of ansible.cfg**, and **Browse…** for one kept elsewhere in
+  the repository. The pick is this workspace's `afd.run.inventory`: runs, the launch dialog and the
+  Inventory lens use it from then on.
+
+The launch dialog shows both too ("Runs in: … · Inventory: …"), each with **Change**.
 
 ## Run for real
 

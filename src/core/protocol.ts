@@ -284,6 +284,16 @@ export type WebviewMessage =
       vaultPassword?: string;
     }
   | { type: 'launchCancel'; token: string }
+  /**
+   * AFD-257: Change beside the environment or the inventory in the launch dialog. The host opens
+   * that switch, then the dialog again with what the new one answers.
+   */
+  | {
+      type: 'launchSwitch';
+      token: string;
+      mode: 'check' | 'real';
+      what: 'environment' | 'inventory';
+    }
   /** AFD-85: Clear on the outside-edit note. */
   | { type: 'clearOutside' }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */

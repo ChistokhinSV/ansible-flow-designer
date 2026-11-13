@@ -14,8 +14,9 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 // its own copy of yaml and the flow model). At 954 KB after wave 2, the product owner raised it to
 // 1,088 KB for wave 4's core (migration, statuses, decisions); the MCP SDK is 267 KB of it.
 // AFD-197 crossed it at 1,100 KB (import fixes, checker scopes, paging, dissolve and replace ops):
-// raised to 1,152 KB.
-const MCP_BUDGET = 1152 * 1024;
+// raised to 1,152 KB. AFD-261 (the inventory tool and its edit engine) crossed it at 1,161 KB: the
+// product owner raised it to 1,216 KB.
+const MCP_BUDGET = 1216 * 1024;
 // AFD-37: the extension host bundle (activation loads it in every window) and the webview, which
 // loads with each designer. Measured at 0.24.x: 697 KB and 963 KB; the budgets leave room for a wave.
 // At 765 KB after wave 5, the product owner raised the host's to 832 KB (AFD-63). Wave 8's plan
@@ -24,8 +25,9 @@ const MCP_BUDGET = 1152 * 1024;
 // AFD-115 (wave 11) crossed it at 869 KB with the scenario simulator and the live check: the product
 // owner raised it to 928 KB, room for the rest of wave 11 (canvas authoring, the scenario tool).
 // AFD-171 (VS Code forks) raised it to 960 KB; AFD-197 (the same core as the MCP server) crossed it
-// at 968 KB: raised to 1,024 KB.
-const EXTENSION_BUDGET = 1024 * 1024;
+// at 968 KB: raised to 1,024 KB. AFD-254 (the inventory pane: switches, editing, the agents' tool)
+// crossed it at 1,029 KB with wave 1: the product owner raised it to 1,088 KB for the epic.
+const EXTENSION_BUDGET = 1088 * 1024;
 const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */

@@ -74,6 +74,7 @@ describe('MCP server', () => {
         'flow_reference',
         'flow_scenarios',
         'flow_validate',
+        'inventory',
         'source_outline',
       ].sort(),
     );
@@ -170,6 +171,62 @@ describe('MCP server', () => {
     });
     expect(del.text).toContain('Deleted');
     rmSync(scenarios);
+  });
+
+  it('AFD-261: inventory lists what the files write, changes them all or none, and stays in the root', async () => {
+    const hosts = join(repo, 'inv-test/hosts');
+    mkdirSync(join(repo, 'inv-test'), { recursive: true });
+    const before = '# Fictional lab\n[lab]\nh01 ansible_password=hunter2\nh0[2:3]\n';
+    writeFileSync(hosts, before);
+    const at = { inventory: 'inv-test/hosts' };
+    try {
+      const list = await call('inventory', at);
+      expect(list.text).toContain('- inv-test/hosts: INI');
+      expect(list.text).toContain('- lab: 2 host lines: h01, h0[2:3]');
+      const host = await call('inventory', { ...at, host: 'h01' });
+      expect(host.text).toContain('ansible_password = (hidden: the name looks like a secret)');
+      expect(host.text).not.toContain('hunter2');
+
+      const edit = await call('inventory', {
+        ...at,
+        action: 'edit',
+        ops: [
+          { op: 'add_group', group: 'core' },
+          { op: 'add_host', host: 'core-sp-01', group: 'core' },
+          { op: 'set_var', host: 'core-sp-01', key: 'ansible_host', value: '192.0.2.21' },
+          { op: 'set_var', host: 'h03', key: 'vlans', value: [10, 20] },
+        ],
+      });
+      expect(edit.isError, edit.text).toBe(false);
+      expect(edit.text).toContain('Wrote inv-test/hosts, inv-test/host_vars/h03.yml.');
+      expect(readFileSync(hosts, 'utf8')).toBe(
+        `${before}\n[core]\ncore-sp-01 ansible_host=192.0.2.21\n`,
+      );
+      expect(readFileSync(join(repo, 'inv-test/host_vars/h03.yml'), 'utf8')).toBe(
+        '---\nvlans:\n  - 10\n  - 20\n',
+      );
+
+      // One op refused: nothing of the batch is written.
+      const now = readFileSync(hosts, 'utf8');
+      const refused = await call('inventory', {
+        ...at,
+        action: 'edit',
+        ops: [
+          { op: 'add_host', host: 'h09', group: 'lab' },
+          { op: 'remove_host', host: 'h02', group: 'lab' },
+        ],
+      });
+      expect(refused.isError).toBe(true);
+      expect(refused.text).toMatch(/op 2 \(remove_host\).*range h0\[2:3\].*Nothing was changed/);
+      expect(readFileSync(hosts, 'utf8')).toBe(now);
+
+      // An inventory outside the root is not read.
+      const outside = await call('inventory', { inventory: '../elsewhere/hosts' });
+      expect(outside.text).toContain('outside the repository (not read)');
+      expect(outside.text).not.toContain('h01');
+    } finally {
+      rmSync(join(repo, 'inv-test'), { recursive: true, force: true });
+    }
   });
 
   it('wave 4: a format 1 file explains the upgrade, is upgraded by an op and edited in format 2', async () => {

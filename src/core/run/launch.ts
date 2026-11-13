@@ -180,6 +180,8 @@ export interface LaunchPlan {
   /** Ask for the vault password in the dialog. */
   vault: boolean;
   environment: string;
+  /** AFD-257: the inventory the run reads: the setting, or what ansible.cfg names. */
+  inventory?: string;
 }
 
 /** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */

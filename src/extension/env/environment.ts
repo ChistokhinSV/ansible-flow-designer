@@ -18,6 +18,8 @@ export const UNTRUSTED =
 export function environmentFor(scope: vscode.Uri): EnvironmentResult {
   if (!vscode.workspace.isTrusted) return { ok: false, error: UNTRUSTED };
   const c = vscode.workspace.getConfiguration('afd', scope);
+  // AFD-255: set or not matters for this one (not set: 0.83's `image` runs on the host).
+  const sshImage = c.inspect<string>('environment.sshImage');
   const afd: AfdEnvSettings = {
     kind: c.get('environment.kind', 'auto'),
     containerEngine: c.get('environment.containerEngine', 'auto'),
@@ -27,6 +29,7 @@ export function environmentFor(scope: vscode.Uri): EnvironmentResult {
     wslDistro: c.get('environment.wslDistro', ''),
     sshHost: c.get('environment.sshHost', ''),
     sshDir: c.get('environment.sshDir', ''),
+    sshImage: sshImage?.workspaceFolderValue ?? sshImage?.workspaceValue ?? sshImage?.globalValue,
   };
   // Soft relationship with redhat.ansible: its settings are defaults when ours are unset.
   const a = vscode.workspace.getConfiguration('ansible', scope);

@@ -25,6 +25,7 @@ Notes, sections and text on the canvas (annotate, update_annotation; format 2) e
 A draw.io file or an image of a flow: flow_export (draw.io with a page per level and the node details, or SVG), never a drawing by hand.
 Existing playbooks, roles or AWX templates: read them with source_outline (each task's impl to copy), then design the flow by intent with flow_new and flow_edit; flow_import only for an exact copy.
 Scenario tests (<key>.scenarios.yaml: which hosts fail where, and where each must end): flow_scenarios lists and checks them in a simulation, adds or updates them (expectations default to where the simulation sends each host) and verifies them in Ansible; after changing a flow's wiring, check its scenarios.
+The inventory the runs use (hosts, groups, variables): the inventory tool lists what is written in its files and changes it with ops (add_host, move_host, add_group, set_var and others), keeping comments; hosts of a dynamic source or of a range are read-only, vaulted values and values of secret-looking names are not shown.
 flow_reference explains the format, ports, patterns, ops and scenarios. The ansible-flow skill has the full rules and examples.`;
 
 /**

@@ -1,6 +1,7 @@
 // The AI tools themselves (AFD-19), independent of who calls them: Copilot through the extension
 // host, Claude Code, Codex and Gemini through the MCP server. Each adapter supplies a FlowIO (how
 // files are found, read and written there); every answer is plain text by key, never with IDs.
+
 import { importWorkflow } from '../awx/import';
 import {
   type AwxExport,
@@ -33,6 +34,7 @@ import type { ScenarioResult } from '../scenario/scenarios';
 import { diffEdits } from '../yaml/edits';
 import { countFindings, describeFlow, formatFindings, summarizeFindings } from './describe';
 import { longLevelHints } from './hints';
+import { type InventoryInput, type InventoryIO, inventoryTool } from './inventory';
 import { applyOps, type Op, OpError, type OpsContext } from './ops';
 import { type ReferenceTopic, reference } from './reference';
 import { keyPath, RefError, resolveNode, withoutIds } from './refs';
@@ -72,6 +74,8 @@ export interface FlowIO {
   source?(path: string): { io: SourceIO; path: string; prefix: string } | undefined;
   /** Short module name + the play's collections → FQCN, where a catalog is loaded. */
   resolveModule?(name: string, collections: string[]): string | undefined;
+  /** AFD-261: the repository's inventory files, for the inventory tool. Absent where the host has none. */
+  inventory?: InventoryIO;
   /** AFD-117: the scenarios file next to a flow (`<key>.scenarios.yaml`); undefined if none. */
   readScenarios?(flowPath: string, flowKey: string): Promise<string | undefined>;
   /** AFD-117: writes that file (creating it when `before` is undefined); notes for the answer. */
@@ -810,6 +814,8 @@ async function runOne(io: FlowIO, name: string, input: unknown): Promise<ToolRes
       return sourceOutlineTool(io, args);
     case 'flow_import':
       return flowImport(io, args);
+    case 'inventory':
+      return inventoryTool(io.inventory, args as InventoryInput);
     case 'flow_scenarios': {
       const l = await load(io, (args as { path?: string }).path);
       if (isResult(l)) return l;
