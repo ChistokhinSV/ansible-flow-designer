@@ -14,6 +14,13 @@ import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
+import {
+  clearRunnerToken,
+  decideOnServer,
+  launchOnServer,
+  serverHostOutput,
+  setRunnerToken,
+} from '../runner/runnerRun';
 import { markTourKey, SKELETON_RUN } from '../tour';
 import { CMD } from './ids';
 
@@ -224,6 +231,45 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       const scope = host.scopeUri(uri);
       if (scope) await clearToken(scope, host.context.secrets);
     }),
+    // AFD-276: Ansible Flow Server.
+    vscode.commands.registerCommand(CMD.runnerLaunch, async (uri?: vscode.Uri) => {
+      const doc = await host.resolveTargetFlow(uri);
+      if (!doc) return undefined;
+      const result = await launchOnServer(doc, host.awxDeps(doc.uri));
+      if (result.state === 'error')
+        await showOutcomeError(
+          result.error ?? 'The run on the server failed',
+          result.errorCode,
+          doc.uri,
+        );
+      else if (result.state === 'done') void announceRun(result);
+      return result;
+    }),
+    vscode.commands.registerCommand(CMD.runnerSetToken, async (uri?: vscode.Uri) => {
+      const scope = host.scopeUri(uri);
+      if (!scope) return;
+      const error = await setRunnerToken(scope, host.context.secrets);
+      if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
+    }),
+    vscode.commands.registerCommand(CMD.runnerClearToken, async (uri?: vscode.Uri) => {
+      const scope = host.scopeUri(uri);
+      if (scope) await clearRunnerToken(scope, host.context.secrets);
+    }),
+    vscode.commands.registerCommand(
+      CMD.runnerDecide,
+      (
+        uri: vscode.Uri,
+        run: string,
+        node: string,
+        decision: 'approved' | 'rejected',
+        comment?: string,
+      ) => decideOnServer(uri, host.context.secrets, run, node, decision, comment),
+    ),
+    vscode.commands.registerCommand(
+      CMD.runnerHostOutput,
+      (uri: vscode.Uri, run: string, node: string, host2: string) =>
+        serverHostOutput(uri, host.context.secrets, run, node, host2),
+    ),
   ];
 }
 
@@ -233,17 +279,20 @@ async function announceRun(run: RunView): Promise<void> {
   const { ok, failed } = runVerdict(run);
   const what = run.awx
     ? `AWX job #${run.awx.jobId} (${run.awx.status})`
-    : run.mode === 'check'
-      ? 'Skeleton run (check mode)'
-      : 'Run';
+    : run.runner
+      ? `Run ${run.runner.number} on the server (${run.runner.state})`
+      : run.mode === 'check'
+        ? 'Skeleton run (check mode)'
+        : 'Run';
   const text = s?.stoppedEarly
-    ? `${what} stopped early (exit ${run.rc}): see the ${run.awx ? 'job output' : 'terminal'}`
+    ? `${what} stopped early (exit ${run.rc}): see the ${run.awx || run.runner ? 'job output' : 'terminal'}`
     : `${what} finished (exit ${run.rc}): ${s?.hosts.length ?? 0} host(s), ${failed} failed`;
-  const show = run.awx ? 'Open in AWX' : 'Show Terminal';
+  const show = run.awx ? 'Open in AWX' : run.runner ? 'Open on Server' : 'Show Terminal';
   const pick = await (ok
     ? vscode.window.showInformationMessage(text, show)
     : vscode.window.showWarningMessage(text, show));
   if (pick !== show) return;
   if (run.awx) await vscode.env.openExternal(vscode.Uri.parse(run.awx.url));
+  else if (run.runner) await vscode.env.openExternal(vscode.Uri.parse(run.runner.url));
   else await vscode.commands.executeCommand('workbench.action.terminal.focus');
 }

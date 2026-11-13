@@ -80,6 +80,7 @@ function useHost() {
         ui.setRepo(m.state);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
+        ui.setRunner(m.runner === true);
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.viewer) enterViewer();
       } else if (m.type === 'firstFlow') {

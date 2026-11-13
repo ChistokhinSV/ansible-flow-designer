@@ -39,6 +39,12 @@ export const CMD = {
   awxSetupTemplate: 'afd.awx.setupTemplate',
   awxSetToken: 'afd.awx.setToken',
   awxClearToken: 'afd.awx.clearToken',
+  runnerLaunch: 'afd.runner.launch',
+  runnerSetToken: 'afd.runner.setToken',
+  runnerClearToken: 'afd.runner.clearToken',
+  /** Internal: a designer's approval decision, and a host's output, for a run on the server. */
+  runnerDecide: 'afd.runner.decide',
+  runnerHostOutput: 'afd.runner.hostOutput',
   setupAi: 'afd.ai.setup',
   removeAi: 'afd.ai.remove',
   diagnoseAi: 'afd.ai.diagnose',

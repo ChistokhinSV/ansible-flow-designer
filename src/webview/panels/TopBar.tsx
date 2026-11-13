@@ -413,6 +413,7 @@ function ActionButton({
  * run is going the button is Stop (AFD-72), so there is no greyed Stop beside it the rest of the time.
  */
 function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) {
+  const runner = useUi((s) => s.runner);
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <div className="afd-split">
@@ -467,6 +468,20 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
                   disabled: busy,
                   onSelect: () => send({ type: 'launchAwx' }),
                 },
+                // AFD-276: only when afd.runner.url is set.
+                ...(runner
+                  ? [
+                      {
+                        type: 'item',
+                        label: 'Run on Server',
+                        icon: 'cloud-upload',
+                        title:
+                          "Run the flow on Ansible Flow Server: its launch configuration, at the server's commit, followed here",
+                        disabled: busy,
+                        onSelect: () => send({ type: 'launchRunner' }),
+                      },
+                    ]
+                  : []),
               ] as UiMenuEntry[])),
         ]}
       >

@@ -25,7 +25,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In Restricted Mode you can design and edit flows and generate playbooks. Runs, the Ansible probe (module catalog, lenses, code sync) and the environment and AWX address settings of the workspace need a trusted workspace.",
+      "description": "In Restricted Mode you can design and edit flows and generate playbooks. Runs, the Ansible probe (module catalog, lenses, code sync) and the environment, AWX and Ansible Flow Server address settings of the workspace need a trusted workspace.",
       "restrictedConfigurations": [
         "afd.environment.kind",
         "afd.environment.image",
@@ -38,7 +38,10 @@
         "afd.environment.sshImage",
         "afd.awx.url",
         "afd.awx.verifyTls",
-        "afd.awx.allowHttp"
+        "afd.awx.allowHttp",
+        "afd.runner.url",
+        "afd.runner.verifyTls",
+        "afd.runner.allowHttp"
       ]
     }
   },
@@ -312,6 +315,22 @@
       {
         "command": "afd.awx.clearToken",
         "title": "Clear AWX Token",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.runner.launch",
+        "title": "Run on Server",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "afd.runner.setToken",
+        "title": "Set Server Token",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.runner.clearToken",
+        "title": "Clear Server Token",
         "category": "Ansible Flow"
       },
       {
@@ -635,6 +654,18 @@
           "when": "config.afd.awx.url"
         },
         {
+          "command": "afd.runner.launch",
+          "when": "config.afd.runner.url"
+        },
+        {
+          "command": "afd.runner.setToken",
+          "when": "config.afd.runner.url"
+        },
+        {
+          "command": "afd.runner.clearToken",
+          "when": "config.afd.runner.url"
+        },
+        {
           "command": "afd.ai.remove",
           "when": "afd.ai.configured"
         },
@@ -866,6 +897,30 @@
           "default": false,
           "scope": "machine",
           "markdownDescription": "Send the AWX token over plain `http://` to an AWX on another machine. Off by default: the token would travel unencrypted. Turn on only for a lab AWX without TLS. Read from your user settings only. `localhost` needs no setting."
+        },
+        "afd.runner.url": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Ansible Flow Server address for _Run on Server_, e.g. `https://flows.example.net:8443`. The token is kept in VS Code's secret storage (_Set Server Token_), never in settings."
+        },
+        "afd.runner.project": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "The server's project for this repository, as `<workspace>/<project>`. Not needed when the repository was cloned from the server: its git address names the project."
+        },
+        "afd.runner.verifyTls": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "markdownDescription": "Verify the server's TLS certificate. Turn off only for a lab server with a self-signed certificate. Read from your user settings only: a workspace cannot turn it off."
+        },
+        "afd.runner.allowHttp": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "markdownDescription": "Send the server token over plain `http://` to a server on another machine. Off by default: the token would travel unencrypted. Turn on only for a lab server without TLS. Read from your user settings only. `localhost` needs no setting."
         },
         "afd.ai.hostIntegration": {
           "type": "boolean",

@@ -26,6 +26,10 @@ export const TIMEOUTS = {
   awxEventsGrace: 20_000,
   /** An AWX project update before a template is set up. */
   awxProjectSync: 180_000,
+  /** AFD-276: one Ansible Flow Server request without data. */
+  runnerRequest: 30_000,
+  /** AFD-276: between two looks at a run on the server. */
+  runnerPoll: 2_000,
   /** A designer panel loading (PNG export opens one). */
   designerReady: 30_000,
   /** A designer panel drawing a PNG. */
