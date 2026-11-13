@@ -1,16 +1,10 @@
-// Message bus to the extension host: commands are requests answered by `ack`.
+// Message bus to the host: commands are requests answered by `ack`. The host is reached through a
+// transport (transport.ts): VS Code's webview API, or what a web page gave mount().
 import type { DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import type { HostMessage, WebviewMessage } from '../core/protocol';
 import type { ScenarioRequest } from '../core/scenario/edit';
-
-interface VsCodeApi {
-  postMessage(message: unknown): void;
-  getState(): unknown;
-  setState(state: unknown): void;
-}
-
-declare function acquireVsCodeApi(): VsCodeApi;
+import { type DesignerTransport, inVsCode, vscodeTransport } from './transport';
 
 export interface Ack {
   ok: boolean;
@@ -19,7 +13,8 @@ export interface Ack {
   pasted?: string[];
 }
 
-const api: VsCodeApi = acquireVsCodeApi();
+let transport: DesignerTransport | undefined;
+let unsubscribe: (() => void) | undefined;
 const listeners = new Set<(m: HostMessage) => void>();
 const pending = new Map<number, (a: Ack) => void>();
 let nextReq = 1;
@@ -34,8 +29,7 @@ export function onInFlight(listener: (n: number) => void): () => void {
   return () => inFlight.delete(listener);
 }
 
-window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
-  const m = event.data;
+function receive(m: HostMessage): void {
   if (!m || typeof m !== 'object' || !('type' in m)) return;
   if (m.type === 'ack') {
     pending.get(m.reqId)?.({ ok: m.ok, error: m.error, created: m.created, pasted: m.pasted });
@@ -43,10 +37,27 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     told();
   }
   for (const l of listeners) l(m);
-});
+}
+
+/**
+ * The host the designer talks to from now on. In VS Code it is set when this module loads, as
+ * before; a web page sets its own before the designer renders (mount.tsx).
+ */
+export function setTransport(next: DesignerTransport): void {
+  unsubscribe?.();
+  transport = next;
+  unsubscribe = next.subscribe(receive);
+}
+
+if (inVsCode()) setTransport(vscodeTransport());
+
+function host(): DesignerTransport {
+  if (!transport) throw new Error('The designer has no host: call setTransport() first');
+  return transport;
+}
 
 export function send(message: WebviewMessage): void {
-  api.postMessage(message);
+  host().post(message);
 }
 
 export function onHostMessage(listener: (m: HostMessage) => void): () => void {
@@ -68,7 +79,7 @@ function request(make: (reqId: number) => WebviewMessage): Promise<Ack> {
       told();
       resolve({
         ok: false,
-        error: 'VS Code did not answer in 2 minutes: the change may not have been made',
+        error: `${transport?.hostName ?? 'The host'} did not answer in 2 minutes: the change may not have been made`,
       });
     }, REQUEST_TIMEOUT_MS);
     pending.set(reqId, (a) => {
@@ -94,11 +105,11 @@ export const scenarioUndo = () => request((reqId) => ({ type: 'scenarioUndo', re
 export const command = (cmd: FlowCommand): Promise<Ack> =>
   request((reqId) => ({ type: 'command', reqId, command: cmd }));
 
-/** UI-only state kept by VS Code while the panel is hidden (viewport, panel widths). */
+/** UI-only state kept by the host while the designer is hidden (viewport, panel widths). */
 export function loadState<T>(): Partial<T> {
-  return (api.getState() as Partial<T> | undefined) ?? {};
+  return (host().getState() as Partial<T> | undefined) ?? {};
 }
 
 export function saveState<T>(state: T): void {
-  api.setState(state);
+  host().setState(state);
 }

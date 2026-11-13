@@ -64,10 +64,14 @@ code by `tsconfig.webview.json` already. Types come from `tsc --emitDeclarationO
 build tsconfig the script writes, in the same tree as the code. The flow schema JSON that three core files
 import from `schema/` is inlined by the build and also shipped as a file in `assets`.
 
-**The designer** is the bundle the VSIX ships (`index.js` and `index.css` from the Vite library
-build), so a web host shows the code that the extension's tests cover. The `mount` entry and the
-transport that replaces `acquireVsCodeApi` are AFD-269. The harness is left out: it imports
-`src/node` and test fixtures.
+**The designer** is built as the VSIX's webview is (the same Vite configuration and sources, one
+script and one stylesheet with React inside), from another entry: `mount.tsx` exports
+`mount(element, { transport, theme })` where `main.tsx` renders at once. `bus.ts` reaches its host
+through a `DesignerTransport` (`transport.ts`): VS Code's webview API by default, the page's own in
+`mount`. Outside VS Code the page has no theme class and no `--vscode-*` variables, so `mount` sets
+them (`theme/standalone.ts`, the tables the harness used). The designer stays a whole page, as in a
+webview: a host gives it a page or an iframe (AFD-269). The harness is left out of the package: it
+imports `src/node` and test fixtures.
 
 **What is stable.** Before 1.0, nothing is promised. The server pins exact versions and moves to
 each release with a pull request that its contract tests gate.

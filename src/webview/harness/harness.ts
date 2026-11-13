@@ -43,7 +43,9 @@ import { type LaunchFacts, launchFields } from '../../core/run/launch';
 import { planScenarioEdit, type ScenarioRequest } from '../../core/scenario/edit';
 import { followPaths, pathChanges } from '../../core/scenario/follow';
 import { checkLive, simulatedEnds } from '../../core/scenario/live';
+import type { ThemeKind } from '../../core/theme';
 import { autoPositions, layoutLevel, shownLayout } from '../../node/autoLayout';
+import { applyStandaloneTheme } from '../theme/standalone';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
 function fixedIds(): () => string {
@@ -84,65 +86,11 @@ let version = 1;
 const undo: string[] = [];
 const newId = createIdFactory();
 
-const THEMES: Record<string, { cls: string; vars: Record<string, string> }> = {
-  light: {
-    cls: 'vscode-light',
-    vars: {
-      '--vscode-editor-background': '#ffffff',
-      '--vscode-editor-foreground': '#3b3b3b',
-      '--vscode-sideBar-background': '#f8f8f8',
-      '--vscode-panel-border': '#e5e5e5',
-      '--vscode-descriptionForeground': '#717171',
-      '--vscode-focusBorder': '#005fb8',
-      '--vscode-button-background': '#005fb8',
-      '--vscode-button-foreground': '#ffffff',
-      '--vscode-input-background': '#ffffff',
-      '--vscode-input-border': '#cecece',
-    },
-  },
-  dark: {
-    cls: 'vscode-dark',
-    vars: {
-      '--vscode-editor-background': '#1f1f1f',
-      '--vscode-editor-foreground': '#cccccc',
-      '--vscode-sideBar-background': '#181818',
-      '--vscode-panel-border': '#2b2b2b',
-      '--vscode-descriptionForeground': '#9d9d9d',
-      '--vscode-focusBorder': '#0078d4',
-      '--vscode-button-background': '#0078d4',
-      '--vscode-button-foreground': '#ffffff',
-      '--vscode-input-background': '#313131',
-      '--vscode-input-border': '#3c3c3c',
-      '--vscode-editorLineNumber-foreground': '#4a4a4a',
-    },
-  },
-  hc: {
-    cls: 'vscode-high-contrast',
-    vars: {
-      '--vscode-editor-background': '#000000',
-      '--vscode-editor-foreground': '#ffffff',
-      '--vscode-sideBar-background': '#000000',
-      '--vscode-panel-border': '#6fc3df',
-      '--vscode-descriptionForeground': '#ffffff',
-      '--vscode-focusBorder': '#f38518',
-      '--vscode-button-background': '#000000',
-      '--vscode-button-border': '#6fc3df',
-      '--vscode-contrastBorder': '#6fc3df',
-      '--vscode-input-background': '#000000',
-      '--vscode-input-border': '#6fc3df',
-    },
-  },
-};
+/** The harness's theme buttons and `?theme=` values, as kinds of the standalone theme. */
+const THEMES: Record<string, ThemeKind> = { light: 'light', dark: 'dark', hc: 'hc-dark' };
 
 function setTheme(name: string) {
-  const theme = THEMES[name] ?? THEMES.light;
-  if (!theme) return;
-  document.body.className = theme.cls;
-  for (const [k, v] of Object.entries(theme.vars)) document.documentElement.style.setProperty(k, v);
-  for (const t of Object.values(THEMES)) {
-    for (const k of Object.keys(t.vars))
-      if (!(k in theme.vars)) document.documentElement.style.removeProperty(k);
-  }
+  applyStandaloneTheme(document, THEMES[name] ?? 'light');
 }
 
 /**
