@@ -48,7 +48,7 @@ import { validateFlow } from '@ansible-flow/core/flow/validate';
 
 const parsed = parseFlow(text);
 if (parsed.doc) {
-  const findings = validateFlow(parsed.doc, createSchemaValidator()(parsed.file)).findings;
+  const findings = validateFlow(parsed.doc, createSchemaValidator()(parsed.doc)).findings;
   const code = engineFor(parsed.doc).generate(parsed.doc, { source: 'os-upgrade.flow.yaml' });
 }
 ```
