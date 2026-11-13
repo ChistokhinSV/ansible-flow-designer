@@ -75,21 +75,75 @@ import { probeDir, schemaDir } from '@ansible-flow/assets';
 For Node 22.13 or later. It depends on `@ansible-flow/core` at exactly its own version and imports
 it by name, so a host that uses both has one copy of the core.
 
-| Module                               | Main exports                                                  |
-| ------------------------------------ | ------------------------------------------------------------- |
-| `autoLayout`                         | `layoutLevel`, `layoutAll`, `autoPositions`, `shownPositions` |
-| `env/probeClient`                    | `ProbeClient`                                                 |
-| `scenario/runner`                    | `runScenarios`                                                |
-| `run/storage`, `run/tail`            | `pruneRuns`, `dropVars`; `tailFile`                           |
-| `awx/client`, `awx/awxWorkflow`      | `AwxClient`; the workflow follower                            |
-| `catalog/catalogIndex`               | the module catalog index (`node:sqlite`)                      |
-| `ssh/remote`, `ssh/sync`, `ssh/exec` | runs and the probe on a remote Linux host                     |
+| Module                                | Main exports                                                  |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `autoLayout`                          | `layoutLevel`, `layoutAll`, `autoPositions`, `shownPositions` |
+| `env/probeClient`                     | `ProbeClient`                                                 |
+| `scenario/runner`                     | `runScenarios`                                                |
+| `run/runFlow`, `run/exec`, `run/ids`  | `runFlow`; `startProcess`; `stamp`                            |
+| `run/facts`                           | `launchFacts`, `inventoryGroups`, `repositoryCallbacks`       |
+| `run/pastRuns`, `run/audit`           | `listRuns`, `loadRun`, `keepRun`; `appendAudit`, `auditFile`  |
+| `run/storage`, `run/tail`, `run/stop` | `pruneRuns`, `dropVars`; `tailFile`; `stopStarted`            |
+| `awx/client`, `awx/awxWorkflow`       | `AwxClient`; the workflow follower                            |
+| `catalog/catalogIndex`                | the module catalog index (`node:sqlite`)                      |
+| `ssh/remote`, `ssh/sync`, `ssh/exec`  | runs and the probe on a remote Linux host                     |
 
 Two modules are programs, not libraries: they do their work when loaded. `catalog/catalogWorker`
 is started as a worker thread and `ssh/sshRun` as a process; find their files with
 `import.meta.resolve('@ansible-flow/node/catalog/catalogWorker')`.
 
-The run pipeline the extension uses (`runFlow`) moves into this package with AFD-271.
+### Running a flow
+
+`run/runFlow` is the run the extension's own local run uses, without VS Code. The host generates
+the code, resolves the environment, collects the inputs and asks what it asks (a confirmation, a
+vault password); `runFlow` does the rest:
+
+```ts
+import { engineFor } from '@ansible-flow/core/engine/engines';
+import { resolveEnvironment } from '@ansible-flow/core/run/environment';
+import { probeDir } from '@ansible-flow/assets';
+import { stamp } from '@ansible-flow/node/run/ids';
+import { runFlow } from '@ansible-flow/node/run/runFlow';
+
+const code = engineFor(doc).generate(doc, { source: 'os-upgrade.flow.yaml' });
+// ...write code.files into flows/os-upgrade/generated/ of the checkout at `root`...
+const run = await runFlow(
+  {
+    id: stamp(),
+    startedAt: new Date().toISOString(),
+    mode: 'check',
+    doc,
+    code,
+    env, // an Environment: a container image, a local Python, WSL or an SSH host
+    environment: 'afd-ee:2.19 (docker)',
+    root,
+    probeDir,
+    playbook: 'flows/os-upgrade/generated/os-upgrade.yml',
+    inventory: 'inventory/lab.ini',
+    storage: '/var/lib/flows', // runs/<flow id>/<run id>/ and audit.jsonl go here
+    inputs: { devices: ['edge'], target_version: '17.9.4' },
+    audit: { user: 'dana', mode: 'check' },
+    signal: abort.signal, // aborting stops the run
+  },
+  { report: (view) => publish(view), log: (line) => appendToLog(line) },
+);
+```
+
+- `report` gets the run's `RunView` when it starts, at most every 500 ms as its events come, and
+  when it ends. It is what the designer shows (`{ type: 'run', run }`).
+- Secret inputs (names that look secret) and the vault password reach the process in its
+  environment only. `vars.json` holds the other inputs and is removed when the run ends; the kept
+  events have the secret values taken out.
+- The finished run is kept as `run.json` beside its events (`run/pastRuns`: `listRuns`,
+  `loadRun`) and the launch and the finish go to the audit log (`run/audit`) when `audit` is given.
+- `runFlow` never rejects: a run that cannot start or is stopped resolves with `state: 'error'`.
+- Hooks for a host with its own way: `execute` (start the process yourself; the extension uses a
+  terminal task), `started` (get the function that stops the run), `watchQuiet` and `quiet` (no
+  event for 20 s), `ended`, `finished`.
+
+Before a run: `run/facts` has `launchFacts` (the hosts the targets match, what looks like
+production, whether a vault is used), `inventoryGroups` and `repositoryCallbacks`, each asked of a
+`ProbeClient`; `targetsOf` and the launch dialog's rules are in `@ansible-flow/core/run/launch`.
 
 ## `@ansible-flow/designer`
 

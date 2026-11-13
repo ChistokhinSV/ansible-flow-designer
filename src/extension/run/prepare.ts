@@ -8,13 +8,7 @@ import type { FlowDocument } from '../../core/flow/types';
 import { type CodegenOutcome, generateFlow } from '../codegen';
 import { authorName } from '../gitHead';
 
-/** A run id: the start time, sortable (run folders are pruned by it, AFD-29). */
-export function stamp(d = new Date()): string {
-  return d
-    .toISOString()
-    .replaceAll(/[-:]/g, '')
-    .replace(/\.\d+Z$/, 'Z');
-}
+export { stamp } from '../../node/run/ids';
 
 type Generated = CodegenOutcome & { result: NonNullable<CodegenOutcome['result']> };
 
