@@ -123,6 +123,137 @@ export function yamlEntries(file: string, text: string): OriginEntry[] {
   return out;
 }
 
+export interface InventoryProblem {
+  file: string;
+  /** Zero-based line. */
+  line: number;
+  /** What is wrong, and how it is written instead. */
+  message: string;
+}
+
+const scalarText = (node: unknown): string => {
+  const v = (node as { value?: unknown; source?: string } | null) ?? {};
+  return typeof v.source === 'string' ? v.source : String(v.value);
+};
+
+/**
+ * What Ansible refuses in a static YAML inventory: it then reads nothing of the file, and says so
+ * only in a warning of its own. The usual one is a value where a mapping belongs (a host given
+ * its address directly). Found here so the view can point at the line.
+ */
+export function yamlProblems(file: string, text: string): InventoryProblem[] {
+  const lines = new LineCounter();
+  const doc = parseDocument(text, { lineCounter: lines });
+  const at = (node: unknown): number => {
+    const start = (node as { range?: [number, number, number] } | null)?.range?.[0];
+    return start === undefined ? 0 : lines.linePos(start).line - 1;
+  };
+  const out: InventoryProblem[] = doc.errors.map((e) => ({
+    file,
+    line: lines.linePos(e.pos[0]).line - 1,
+    message: `The YAML does not read: ${e.message.split('\n')[0]}`,
+  }));
+  if (out.length) return out;
+  const name = (key: unknown) => (isScalar(key) ? String(key.value) : '?');
+  const empty = (v: unknown) => v === null || v === undefined || (isScalar(v) && v.value === null);
+  const group = (key: unknown, value: unknown, depth: number) => {
+    if (empty(value) || depth > 32) return;
+    if (!isMap(value)) {
+      out.push({
+        file,
+        line: at(key),
+        message: `The group ${name(key)} has a value where its hosts, vars and children belong: write them under it, or leave it empty`,
+      });
+      return;
+    }
+    for (const part of value.items) {
+      const what = name(part.key);
+      if (!['hosts', 'vars', 'children'].includes(what)) {
+        out.push({
+          file,
+          line: at(part.key),
+          message: `${what} under the group ${name(key)}: a group holds hosts, vars and children only (a host goes under hosts:)`,
+        });
+        continue;
+      }
+      if (empty(part.value)) continue;
+      if (!isMap(part.value)) {
+        out.push({
+          file,
+          line: at(part.key),
+          message: `${what} of ${name(key)} is a ${isScalar(part.value) ? 'value' : 'list'}: write ${what === 'vars' ? 'name: value' : 'each name as a key'} under it`,
+        });
+        continue;
+      }
+      if (what === 'hosts')
+        for (const host of part.value.items)
+          if (!empty(host.value) && !isMap(host.value))
+            out.push({
+              file,
+              line: at(host.key),
+              message: isScalar(host.value)
+                ? `${name(host.key)} has the value ${scalarText(host.value)}: a host's variables go under it, so its address is written as ansible_host: ${scalarText(host.value)} on the next line, indented`
+                : `${name(host.key)} has a list: a host's variables go under it as name: value`,
+            });
+      if (what === 'children')
+        for (const child of part.value.items) group(child.key, child.value, depth + 1);
+    }
+  };
+  if (doc.contents && !isMap(doc.contents))
+    out.push({ file, line: 0, message: 'The inventory is not a mapping of groups (all: …)' });
+  else if (isMap(doc.contents)) for (const top of doc.contents.items) group(top.key, top.value, 0);
+  return out;
+}
+
+/** What Ansible refuses in a static INI inventory: a word after a host that is not name=value. */
+export function iniProblems(file: string, text: string): InventoryProblem[] {
+  const out: InventoryProblem[] = [];
+  let section: 'hosts' | 'children' | 'vars' = 'hosts';
+  text.split(/\r?\n/).forEach((raw, line) => {
+    const t = raw.trim();
+    if (!t || t.startsWith('#') || t.startsWith(';')) return;
+    const header = /^\[([^\]:]+)(?::(\w+))?\]/.exec(t);
+    if (header) {
+      if (header[2] && header[2] !== 'vars' && header[2] !== 'children')
+        out.push({
+          file,
+          line,
+          message: `[${header[1]}:${header[2]}]: a section is a group, [group:vars] or [group:children]`,
+        });
+      section = (header[2] as 'vars' | 'children' | undefined) ?? 'hosts';
+      return;
+    }
+    if (t.startsWith('[')) {
+      out.push({ file, line, message: 'A section header that does not close: [group]' });
+      return;
+    }
+    if (section === 'vars' && !t.includes('='))
+      out.push({ file, line, message: `${t}: a variable is written name=value` });
+    if (section !== 'hosts') return;
+    const words = t.replace(/\s+#.*$/, '').match(/(?:[^\s"']+|"(?:\\.|[^"\\])*"|'[^']*')+/g) ?? [];
+    const bad = words.slice(1).find((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
+    if (bad)
+      out.push({
+        file,
+        line,
+        message: `${words[0]}: "${bad}" is not name=value (a host's address is written ansible_host=${bad})`,
+      });
+  });
+  return out;
+}
+
+export function sourceProblems(file: string, text: string, kind: SourceKind): InventoryProblem[] {
+  try {
+    return kind === 'yaml'
+      ? yamlProblems(file, text)
+      : kind === 'ini'
+        ? iniProblems(file, text)
+        : [];
+  } catch {
+    return [];
+  }
+}
+
 export function sourceEntries(file: string, text: string, kind: SourceKind): OriginEntry[] {
   try {
     return kind === 'yaml' ? yamlEntries(file, text) : kind === 'ini' ? iniEntries(file, text) : [];

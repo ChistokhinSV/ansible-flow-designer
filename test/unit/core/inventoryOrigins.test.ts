@@ -7,12 +7,14 @@ import {
   expandRange,
   ignoredInFolder,
   iniEntries,
+  iniProblems,
   newInventoryText,
   OriginIndex,
   sourceEntries,
   sourceKind,
   touchesInventory,
   yamlEntries,
+  yamlProblems,
 } from '../../../src/core/inventory/origins';
 
 const INI = [
@@ -167,6 +169,70 @@ describe('what a source is', () => {
     expect(ignoredInFolder('inventory/group_vars/all.yml')).toBe(true);
     expect(ignoredInFolder('inventory/README.md')).toBe(true);
     expect(ignoredInFolder('inventory/.gitkeep')).toBe(true);
+  });
+});
+
+describe('AFD-262: what Ansible refuses in an inventory file', () => {
+  it('a host given its address as a value: the line, and how it is written instead', () => {
+    const text = [
+      'all:',
+      '  children:',
+      '    lab:',
+      '      hosts:',
+      '        sw-lab-01:',
+      '          ansible_host: 192.0.2.12',
+      '      children:',
+      '        test:',
+      '          hosts:',
+      '            testhost: 192.168.0.1',
+    ].join('\n');
+    expect(yamlProblems('inventory/hosts.yml', text)).toEqual([
+      {
+        file: 'inventory/hosts.yml',
+        line: 9,
+        message:
+          "testhost has the value 192.168.0.1: a host's variables go under it, so its address is written as ansible_host: 192.168.0.1 on the next line, indented",
+      },
+    ]);
+  });
+
+  it('the other shapes Ansible does not take, and what it does take', () => {
+    const one = (text: string) => yamlProblems('h.yml', text).map((p) => [p.line, p.message]);
+    expect(one('all:\n  hosts:\n    - h1\n    - h2\n')[0]?.[1]).toMatch(/hosts of all is a list/);
+    expect(one('all:\n  children:\n    lab: h1\n')[0]).toEqual([
+      2,
+      'The group lab has a value where its hosts, vars and children belong: write them under it, or leave it empty',
+    ]);
+    expect(one('lab:\n  h1:\n    ansible_host: x\n')[0]?.[1]).toMatch(
+      /h1 under the group lab: a group holds hosts, vars and children only/,
+    );
+    expect(one('all:\n  vars: netops\n')[0]?.[1]).toMatch(/vars of all is a value/);
+    expect(one('all: [unclosed')[0]?.[1]).toMatch(/^The YAML does not read/);
+    // Empty and null values are fine: an empty group, a host with no variables.
+    expect(
+      one(
+        'all:\n  children:\n    lab:\n      hosts:\n        h1:\n        h2: {}\n    spare: {}\n    none:\n',
+      ),
+    ).toEqual([]);
+    expect(yamlProblems('hosts.yml', YAML)).toEqual([]);
+  });
+
+  it('INI: a word after a host that is not name=value', () => {
+    expect(
+      iniProblems('hosts', '[lab]\nh01 192.0.2.11\nh02 ansible_host=192.0.2.12 # ok\n'),
+    ).toEqual([
+      {
+        file: 'hosts',
+        line: 1,
+        message:
+          'h01: "192.0.2.11" is not name=value (a host\'s address is written ansible_host=192.0.2.11)',
+      },
+    ]);
+    expect(iniProblems('hosts', '[lab:hosts]\n')[0]?.message).toMatch(/a section is a group/);
+    expect(iniProblems('hosts', '[lab:vars]\nansible_user netops\n')[0]?.message).toMatch(
+      /name=value/,
+    );
+    expect(iniProblems('inventory.ini', INI)).toEqual([]);
   });
 });
 

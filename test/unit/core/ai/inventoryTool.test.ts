@@ -141,10 +141,13 @@ describe('inventory edit', () => {
         { op: 'set_var', host: 'core-sp-01', key: 'ansible_host', value: '192.0.2.21' },
         { op: 'move_host', host: 'h02', from: 'lab', to: 'core' },
         { op: 'rename_group', group: 'edge', to: 'access' },
+        { op: 'move_group', group: 'access', to: 'core' },
       ],
     });
     expect(r.isError).toBeFalsy();
-    expect(r.text).toContain('5 changes.');
+    expect(r.text).toContain('6 changes.');
+    expect(r.text).toContain('- Moved the group access under core.');
+    expect(disk.get('inventory.ini')).toContain('[core:children]\naccess\n');
     expect(r.text).toContain('- Set ansible_host for core-sp-01 in inventory.ini.');
     expect(written).toEqual(['inventory.ini']);
     const text = disk.get('inventory.ini') as string;

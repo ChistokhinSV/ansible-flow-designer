@@ -415,6 +415,8 @@ export function inventoryConfirmation(input: Record<string, unknown>): PreparedT
         return `delete the group ${s('group')}`;
       case 'rename_group':
         return `rename the group ${s('group')} to ${s('to')}`;
+      case 'move_group':
+        return `move the group ${s('group')} ${typeof o.to === 'string' ? `under ${o.to}` : 'to the top level'}`;
       case 'set_var':
         return `set the variable ${s('key')} of ${typeof o.host === 'string' ? o.host : s('group')}`;
       case 'remove_var':

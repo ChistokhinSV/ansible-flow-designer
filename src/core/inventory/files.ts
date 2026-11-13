@@ -5,6 +5,7 @@
 import { fileVars, type InventoryFile, inlineVars, isVaultFile, type VarEntry } from './edit';
 import {
   defaultInventory,
+  type InventoryProblem,
   ignoredInFolder,
   isStatic,
   type OriginEntry,
@@ -12,6 +13,7 @@ import {
   type SourceKind,
   sourceEntries,
   sourceKind,
+  sourceProblems,
 } from './origins';
 
 /** Files of one repository, by path from its root (`/` separated). */
@@ -43,6 +45,8 @@ export interface InventoryData {
   named: string[];
   sources: SourceInfo[];
   entries: OriginEntry[];
+  /** AFD-262: what Ansible will refuse in the static files, with the line. */
+  problems: InventoryProblem[];
   /** The static sources with their text: what the edits work on. */
   texts: InventoryFile[];
   varFiles: VarFile[];
@@ -93,6 +97,7 @@ export async function readInventory(fs: InventoryFs, setting: string): Promise<I
   const named = setting ? [setting] : defaultInventory((await fs.read('ansible.cfg')) ?? '');
   const sources: SourceInfo[] = [];
   const entries: OriginEntry[] = [];
+  const problems: InventoryProblem[] = [];
   const texts: InventoryFile[] = [];
   /** Folders that may hold host_vars/ and group_vars/: where each source is, then the root. */
   const bases: string[] = [];
@@ -122,6 +127,7 @@ export async function readInventory(fs: InventoryFs, setting: string): Promise<I
       sources.push({ path: file, kind: what });
       if (body === undefined) continue;
       entries.push(...sourceEntries(file, body, what));
+      problems.push(...sourceProblems(file, body, what));
       if (isStatic(what)) texts.push({ path: file, kind: what, text: body });
     }
   }
@@ -134,7 +140,7 @@ export async function readInventory(fs: InventoryFs, setting: string): Promise<I
       await varFilesIn(fs, dir, of, varFiles);
       if (!varDirs[of] && (await fs.kind(dir)) === 'dir') varDirs[of] = dir;
     }
-  return { named, sources, entries, texts, varFiles, varDirs };
+  return { named, sources, entries, problems, texts, varFiles, varDirs };
 }
 
 export interface ShownVar extends VarEntry {

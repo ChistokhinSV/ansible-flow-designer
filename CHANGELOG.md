@@ -28,6 +28,14 @@ After setting up an SSH host there was no way back to WSL or a container except 
 - **Not edited here** (they open as text): a host of a range (its variables go to a variables file), hosts of a dynamic source, vault-encrypted values and files, YAML with anchors, and Ansible's groups `all` and `ungrouped`. A file with unsaved changes is not touched.
 - **Checked in Ansible:** inventories changed this way read in `ansible-inventory` as asked (INI, YAML, a variables file).
 
+**After the first real use (AFD-262):**
+
+- **Fix: Add Group… on a group made the group twice in a YAML inventory,** once under the group and once at the top level. It makes it once, under the group, and is now named **Add Child Group…**.
+- **Add Group… is a button on the view's title** and always makes a top-level group. It was only in the `…` menu, so it was not found.
+- **A host's address:** **Add Host…** asks for it after the name; the host shows it; **Set Address…** changes or clears it. It is `ansible_host`.
+- **Move to Group… on a group** moves it, with its hosts, variables, child groups and comments, under another group or to the top level. Agents have the op `move_group`.
+- **Why hosts are missing:** what Ansible will not read in an inventory file (a host given its address as a value, `sw-01: 192.0.2.11`; a list where names belong; a word on an INI host line that is not `name=value`) shows at the top of the view with its line and how to write it; a click goes there. Before, the view said "No hosts", or showed the other groups and nothing about the one left out. The agents' tool lists the same problems.
+
 **Wave 4 (AFD-261): AI assistants list and edit the inventory.** A new tool, `inventory` (Copilot's `#inventory`, and in the MCP server for terminal agents). See [AI assistants](docs/guide/how-to/ai-assistants.md#the-inventory).
 
 - **list:** the inventory's files and what each is, its groups and hosts as written; with a host or a group, its variables and where each is written.

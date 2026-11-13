@@ -983,7 +983,7 @@ export const TOOL_SPECS: ToolSpec[] = [
     name: 'inventory',
     title: 'Inventory',
     description:
-      "The Ansible inventory the repository's runs use (afd.run.inventory, else ansible.cfg's): its files, groups, hosts and variables as they are written. list (default) shows the sources and groups; with host or group, that one's variables and where each is written. edit applies ops in order, all or none: add_host, remove_host, rename_host, move_host, add_group, remove_group, rename_group, set_var, remove_var. Changes are minimal edits of the YAML or INI file that keep comments. Read-only: hosts of a dynamic source (a plugin, a script) and of a range like sw[01:10] (their variables still go to host_vars/), vault-encrypted values. Values that are vaulted or whose name looks like a secret (password, secret, token, key) are not shown.",
+      "The Ansible inventory the repository's runs use (afd.run.inventory, else ansible.cfg's): its files, groups, hosts and variables as they are written. list (default) shows the sources and groups; with host or group, that one's variables and where each is written. edit applies ops in order, all or none: add_host, remove_host, rename_host, move_host, add_group, remove_group, rename_group, move_group (a group with everything in it under another parent, or to the top level), set_var, remove_var. Changes are minimal edits of the YAML or INI file that keep comments. Read-only: hosts of a dynamic source (a plugin, a script) and of a range like sw[01:10] (their variables still go to host_vars/), vault-encrypted values. Values that are vaulted or whose name looks like a secret (password, secret, token, key) are not shown.",
     readOnly: false,
     openWorld: false,
     inputSchema: {
@@ -1012,6 +1012,7 @@ export const TOOL_SPECS: ToolSpec[] = [
                   'add_group',
                   'remove_group',
                   'rename_group',
+                  'move_group',
                   'set_var',
                   'remove_var',
                 ],
@@ -1025,9 +1026,13 @@ export const TOOL_SPECS: ToolSpec[] = [
               to: {
                 type: 'string',
                 description:
-                  'rename_host, rename_group: the new name. move_host: the group to move to.',
+                  'rename_host, rename_group: the new name. move_host: the group to move to. move_group: the new parent group (left out: the top level).',
               },
-              from: { type: 'string', description: 'move_host: the group to move from.' },
+              from: {
+                type: 'string',
+                description:
+                  'move_host: the group to move from. move_group: the parent it leaves (left out: it is at the top level).',
+              },
               parent: { type: 'string', description: 'add_group: make it a child of this group.' },
               file: {
                 type: 'string',

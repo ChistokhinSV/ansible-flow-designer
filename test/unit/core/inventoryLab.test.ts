@@ -62,6 +62,10 @@ const OPS: InventoryOp[] = [
   { op: 'rename_group', group: 'edge', to: 'access' },
   { op: 'set_var', group: 'lab', key: 'ansible_user', value: 'ops' },
   { op: 'remove_var', host: 'h02', key: 'ansible_port' },
+  // AFD-262: groups move in the hierarchy with everything in them.
+  { op: 'add_group', group: 'dc1' },
+  { op: 'move_group', group: 'lab', to: 'dc1' },
+  { op: 'move_group', group: 'spines', from: 'core', to: 'dc1' },
 ];
 
 function after(start: InventoryFile): string {
@@ -117,7 +121,8 @@ describe.skipIf(!HOST)(`edited inventories in Ansible on ${HOST || '(AFD_SSH_HOS
     expect(r.groups.lab).toEqual(['h03', 'h11']);
     expect(r.groups.access).toEqual(['sw-edge-01', 'sw-edge-02']);
     expect(r.groups.edge).toBeUndefined();
-    expect(r.children.core).toEqual(['spines']);
+    expect(r.children.core).toBeUndefined();
+    expect(r.children.dc1).toEqual(['lab', 'spines']);
     expect(r.vars['core-sp-01']).toMatchObject({
       ansible_host: '192.0.2.21',
       site: 'Lab A',

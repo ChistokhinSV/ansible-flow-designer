@@ -29,7 +29,8 @@ import {
 } from './inventoryFiles';
 
 export type InventoryItem =
-  | { kind: 'group'; group: TreeGroup }
+  /** `parent`: the group it is shown under, for a move (absent at the top level). */
+  | { kind: 'group'; group: TreeGroup; parent?: string }
   /** `group`: the group it is listed under, so it opens at its line there. */
   | { kind: 'host'; host: string; group?: string }
   /** AFD-258: the files the inventory is read from. */
@@ -37,6 +38,8 @@ export type InventoryItem =
   | { kind: 'source'; source: SourceFile }
   /** AFD-260: a variable of a host or a group, where it is written. */
   | { kind: 'var'; variable: ShownVar; host?: string; group?: string }
+  /** AFD-262: something Ansible will refuse in an inventory file; opens its line. */
+  | { kind: 'problem'; file: string; line: number; message: string }
   | { kind: 'note'; text: string; command?: vscode.Command };
 
 const sourceLabel = (kind: SourceFile['kind']): string =>
@@ -176,6 +179,17 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         if (item.command) t.command = item.command;
         return t;
       }
+      if (item.kind === 'problem') {
+        const t = new vscode.TreeItem(item.message);
+        t.description = `${item.file}:${item.line + 1}`;
+        t.tooltip = `${item.file}, line ${item.line + 1}: ${item.message}. Ansible leaves out what it cannot read: the group, or the whole file.`;
+        t.iconPath = new vscode.ThemeIcon(
+          'warning',
+          new vscode.ThemeColor('problemsWarningIcon.foreground'),
+        );
+        t.command = { command: 'afd.inventory.open', title: 'Open in Editor', arguments: [item] };
+        return t;
+      }
       if (item.kind === 'sources') {
         const t = new vscode.TreeItem('Sources', vscode.TreeItemCollapsibleState.Collapsed);
         const n = files?.sources.length ?? 0;
@@ -210,12 +224,21 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
         return t;
       }
       if (item.kind === 'host') {
-        const vars = files ? targetVars(files, { host: item.host }).length : 0;
+        const own = files ? targetVars(files, { host: item.host }) : [];
+        const vars = own.length;
         const t = new vscode.TreeItem(
           item.host,
           vars ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
         );
-        if (vars) t.description = `${vars} variable${vars === 1 ? '' : 's'}`;
+        // AFD-262: the address first, where one looks for it; then how many other variables.
+        const address = own.find((v) => v.key === 'ansible_host' && !v.vaulted);
+        const others = vars - (address ? 1 : 0);
+        t.description = [
+          address ? showValue(address) : '',
+          others ? `${others} variable${others === 1 ? '' : 's'}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
         t.iconPath = new vscode.ThemeIcon('vm');
         t.contextValue = 'afd-host';
         const origin = files?.index.host(item.host, item.group);
@@ -261,7 +284,7 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
           ...parent.group.children
             .map(byName)
             .filter((g): g is TreeGroup => !!g)
-            .map((group): InventoryItem => ({ kind: 'group', group })),
+            .map((group): InventoryItem => ({ kind: 'group', group, parent: parent.group.name })),
           ...parent.group.hosts.map(
             (h): InventoryItem => ({ kind: 'host', host: h, group: parent.group.name }),
           ),
@@ -283,12 +306,21 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
           },
         ];
       const top = topGroups(tree as Tree);
-      const sources: InventoryItem[] = files?.sources.length ? [{ kind: 'sources' }] : [];
+      // What Ansible refuses comes first: it is why hosts are missing.
+      const sources: InventoryItem[] = [
+        ...(files?.problems ?? []).map((p): InventoryItem => ({ kind: 'problem', ...p })),
+        ...(files?.sources.length ? [{ kind: 'sources' } as InventoryItem] : []),
+      ];
       return top.length
         ? [...sources, ...top.map((group): InventoryItem => ({ kind: 'group', group }))]
         : [
             ...sources,
-            { kind: 'note', text: `No hosts in ${(tree as Tree).sources.join(', ')}` },
+            {
+              kind: 'note',
+              text: files?.problems.length
+                ? `No hosts: Ansible does not read ${[...new Set(files.problems.map((p) => p.file))].join(', ')} as it is written`
+                : `No hosts in ${(tree as Tree).sources.join(', ')}`,
+            },
             {
               kind: 'note',
               text: 'New Inventory…',
@@ -309,7 +341,10 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
       if (item.source.uri) await vscode.window.showTextDocument(item.source.uri);
       return;
     }
-    if (item.kind === 'var') {
+    if (item.kind === 'problem') {
+      name = item.message;
+      origin = { file: item.file, line: item.line };
+    } else if (item.kind === 'var') {
       name = item.variable.key;
       origin = { file: item.variable.file, line: item.variable.line };
     } else if (item.kind === 'host') {

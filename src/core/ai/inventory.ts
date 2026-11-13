@@ -164,6 +164,11 @@ function list(data: InventoryData, label: string, input: InventoryInput): ToolRe
     );
   if (!data.sources.length)
     lines.push('- (none: ansible.cfg names no inventory in the repository)');
+  if (data.problems.length) {
+    lines.push('Problems (Ansible leaves out what it cannot read: the group, or the whole file):');
+    for (const p of data.problems.slice(0, 20))
+      lines.push(`- ${p.file}:${p.line + 1}: ${p.message}`);
+  }
   lines.push('Groups as written in the files:');
   for (const g of w.groups) {
     const hosts = w.hosts.get(g) ?? [];
@@ -201,6 +206,8 @@ function did(op: InventoryToolOp, extra = ''): string {
       return `Deleted the group ${op.group}.`;
     case 'rename_group':
       return `Renamed the group ${op.group} to ${op.to}.${extra}`;
+    case 'move_group':
+      return `Moved the group ${op.group} ${op.to ? `under ${op.to}` : 'to the top level'}.`;
     case 'set_var':
       return `Set ${op.key} for ${op.host ?? op.group}${extra}.`;
     case 'remove_var':
@@ -243,7 +250,10 @@ async function edit(
   for (const [i, op] of ops.entries()) {
     const no = (why: string) => fail(`op ${i + 1} (${op.op}): ${why} Nothing was changed.`);
     if (!op || typeof op !== 'object' || typeof op.op !== 'string') return no('not an op.');
-    if ((op.op === 'remove_group' || op.op === 'rename_group') && BUILT_IN.has(op.group))
+    if (
+      (op.op === 'remove_group' || op.op === 'rename_group' || op.op === 'move_group') &&
+      BUILT_IN.has(op.group)
+    )
       return no(`${op.group} is Ansible's own group.`);
     if (op.op === 'set_var' || op.op === 'remove_var') {
       const bad = varNameProblem(op.key);

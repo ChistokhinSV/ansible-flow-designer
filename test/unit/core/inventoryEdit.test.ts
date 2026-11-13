@@ -289,6 +289,106 @@ describe('a YAML inventory', () => {
   });
 });
 
+describe('AFD-262: a group moves in the hierarchy with everything in it', () => {
+  const NESTED = [
+    'all:',
+    '  children:',
+    '    lab:',
+    '      hosts:',
+    '        sw-lab-01:',
+    '          ansible_host: 192.0.2.12 # the console server',
+    '      vars:',
+    '        ansible_network_os: cisco.ios.ios',
+    '      children:',
+    '        test:',
+    '          # hosts under test',
+    '          hosts:',
+    '            testhost: {}',
+    '    spare: {}',
+    '',
+  ].join('\n');
+
+  it('YAML: out to the top level, its lines and comments as they were', () => {
+    const up = text(edit(yaml(NESTED), { op: 'move_group', group: 'test', from: 'lab' }));
+    expect(up).toBe(
+      [
+        'all:',
+        '  children:',
+        '    lab:',
+        '      hosts:',
+        '        sw-lab-01:',
+        '          ansible_host: 192.0.2.12 # the console server',
+        '      vars:',
+        '        ansible_network_os: cisco.ios.ios',
+        '      children: {}',
+        '    spare: {}',
+        '    test:',
+        '      # hosts under test',
+        '      hosts:',
+        '        testhost: {}',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('YAML: under another group, and under an empty one; data unchanged', () => {
+    const down = text(edit(yaml(NESTED), { op: 'move_group', group: 'lab', to: 'spare' }));
+    const data = parse(down).all.children;
+    expect(Object.keys(data)).toEqual(['spare']);
+    expect(data.spare.children.lab).toEqual(parse(NESTED).all.children.lab);
+    expect(down).toContain('# the console server');
+    expect(down).toContain('# hosts under test');
+    const across = text(
+      edit(yaml(NESTED), { op: 'move_group', group: 'test', from: 'lab', to: 'spare' }),
+    );
+    expect(parse(across).all.children.spare).toEqual({
+      children: { test: { hosts: { testhost: {} } } },
+    });
+  });
+
+  it('YAML: refused into itself, where it is already, and when it is not there', () => {
+    const run = (op: InventoryOp) => error(edit(yaml(NESTED), op));
+    expect(run({ op: 'move_group', group: 'lab', to: 'test' })).toMatch(/cannot hold itself/);
+    expect(run({ op: 'move_group', group: 'lab', to: 'lab' })).toMatch(/cannot hold itself/);
+    expect(run({ op: 'move_group', group: 'spare' })).toMatch(/already/);
+    expect(run({ op: 'move_group', group: 'test', from: 'spare' })).toMatch(/not a child of spare/);
+    expect(run({ op: 'move_group', group: 'test', from: 'lab', to: 'nope' })).toMatch(
+      /not written/,
+    );
+    const flow = 'all:\n  children: {lab: {hosts: {h1: {}}}, spare: {}}\n';
+    expect(error(edit(yaml(flow), { op: 'move_group', group: 'lab', to: 'spare' }))).toMatch(
+      /inline/,
+    );
+  });
+
+  it('INI: a group is a child by its line in :children; moving changes those lines only', () => {
+    const down = text(edit(ini(), { op: 'move_group', group: 'lab', to: 'edge_switches' }));
+    expect(diff(INI, down)).toEqual({ added: ['lab'], removed: [] });
+    expect(down).toContain('[edge_switches:children]\nedge\nlab\n');
+    const up = text(edit(ini(), { op: 'move_group', group: 'edge', from: 'edge_switches' }));
+    expect(up).not.toMatch(/\[edge_switches:children\]\nedge/);
+    expect(up).toContain('[edge]\nsw-edge-0[1:4]\n');
+    const across = text(
+      edit(ini(), { op: 'move_group', group: 'edge', from: 'edge_switches', to: 'lab' }),
+    );
+    expect(across).toContain('[lab:children]\nedge\n');
+    expect(error(edit(ini(), { op: 'move_group', group: 'edge_switches', to: 'edge' }))).toMatch(
+      /cannot hold itself/,
+    );
+    expect(error(edit(ini(), { op: 'move_group', group: 'edge', to: 'edge_switches' }))).toMatch(
+      /already/,
+    );
+  });
+
+  it('a child group added in YAML is written once, under its parent', () => {
+    const start = 'all:\n  children:\n    lab:\n      hosts:\n        sw-lab-01:\n';
+    const added = text(edit(yaml(start), { op: 'add_group', group: 'test', parent: 'lab' }));
+    expect(parse(added)).toEqual({
+      all: { children: { lab: { hosts: { 'sw-lab-01': null }, children: { test: {} } } } },
+    });
+  });
+});
+
 describe('several files, and files that cannot be changed', () => {
   const plugin: InventoryFile = {
     path: 'inventory/netbox.yml',
