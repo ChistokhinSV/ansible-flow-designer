@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — AFD-254 (the Inventory view: switches, files in sync, editing; agents)
+## 0.84.0 — AFD-254 (the Inventory view: switches, files in sync, editing; agents)
 
 After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
 
