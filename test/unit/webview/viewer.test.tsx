@@ -42,7 +42,7 @@ afterEach(cleanup);
 
 describe('AFD-270: what a viewer may send', () => {
   it('allows showing and running, and nothing that changes the flow or its files', () => {
-    for (const type of ['ready', 'run', 'launchRun', 'stopRun', 'showRun', 'runOutput'])
+    for (const type of ['ready', 'run', 'launchRun', 'stopRun', 'showRun', 'runOutput', 'approve'])
       expect(viewerAllows(type)).toBe(true);
     for (const type of [
       'command',

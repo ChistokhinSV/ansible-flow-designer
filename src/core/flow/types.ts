@@ -152,6 +152,19 @@ export interface TestedRecord {
   at?: string;
 }
 
+/**
+ * Who decides an approval (AFD-273), for runners that wait for a person: names of users or groups
+ * as the runner knows them (Ansible Flow Server). AWX ignores them: its approvers are set in AWX.
+ */
+export interface ApprovalFields {
+  /** Users or groups who may decide; empty or absent: whoever the runner lets approve. */
+  approvers?: string[];
+  /** Users or groups told that the approval waits, beside the approvers. */
+  notify?: string[];
+  /** What the approvers read: what to check before deciding. */
+  message?: string;
+}
+
 export interface FlowNode {
   id: Ulid;
   key: string;
@@ -172,6 +185,8 @@ export interface FlowNode {
   condition?: string;
   outcome?: 'success' | 'failed';
   settings?: NodeSettings;
+  /** AFD-273: approval nodes: who may decide, who is told, what they read. */
+  approval?: ApprovalFields;
   join_mode?: JoinMode;
   branches?: number;
   /** Format 1 name of `purpose`, which reads like an Ansible handler (AFD-52). */

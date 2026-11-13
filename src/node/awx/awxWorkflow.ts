@@ -94,7 +94,10 @@ export async function setupWorkflow(
     const approval = await add({ identifier: gateId(s.name) });
     await awx.post(`/api/v2/workflow_job_template_nodes/${approval.id}/create_approval_template/`, {
       name: `[${gate.key}] ${gate.title}`,
-      description: `${doc.flow.name}: approve to continue with the hosts waiting here`,
+      // AFD-273: what the flow tells its approvers; AWX's own approvers are set in AWX.
+      description:
+        gate.approval?.message ??
+        `${doc.flow.name}: approve to continue with the hosts waiting here`,
       timeout: durationSeconds(gate.settings?.timeout) ?? 0,
     });
     const finish = await add({

@@ -106,3 +106,63 @@ describe('AWX approvals in Run mode', () => {
     expect(document.querySelector<HTMLElement>('[data-approval]')?.dataset.approval).toBe('denied');
   });
 });
+
+// AFD-273: approvals of a run that is not AWX's (a server that runs segments): the run's own
+// approvals, decided in the panel where the host allows it.
+describe('approvals a host decides', () => {
+  const served = (approval: RunView['approvals']): RunView => ({
+    ...run('waiting'),
+    awx: undefined,
+    source: 'local',
+    approvals: approval,
+  });
+
+  it('the node and the top bar wait; who may decide approves with a comment', () => {
+    act(() =>
+      useUi.getState().setRun(served({ [id('gate')]: { status: 'waiting', mayDecide: true } })),
+    );
+    render(<TopBar />);
+    expect(screen.getByText('Waiting for approval')).toBeTruthy();
+    cleanup();
+    render(<NodeRunPanel id={id('gate')} />);
+    fireEvent.change(screen.getByLabelText('Comment'), {
+      target: { value: 'Window confirmed with the NOC' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(posted).toContainEqual({
+      type: 'approve',
+      node: id('gate'),
+      decision: 'approved',
+      comment: 'Window confirmed with the NOC',
+    });
+    expect(screen.getByRole('status').textContent).toMatch(/Sent: approved/);
+  });
+
+  it('someone who may not decide sees it wait, with no buttons', () => {
+    act(() => useUi.getState().setRun(served({ [id('gate')]: { status: 'waiting' } })));
+    render(<NodeRunPanel id={id('gate')} />);
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.getByText(/Someone allowed to approve decides it/)).toBeTruthy();
+  });
+
+  it('a decided one says who, and why', () => {
+    act(() =>
+      useUi.getState().setRun({
+        ...served({
+          [id('gate')]: {
+            status: 'timed out',
+            by: 'the server',
+            at: '2026-11-13T10:30:00Z',
+            comment: 'Nobody decided in 30m',
+          },
+        }),
+        state: 'done',
+      }),
+    );
+    render(<NodeRunPanel id={id('gate')} />);
+    const section = document.querySelector<HTMLElement>('[data-approval]');
+    expect(section?.dataset.approval).toBe('timed out');
+    expect(section?.textContent).toMatch(/timed out by the server/);
+    expect(screen.getByText('Nobody decided in 30m')).toBeTruthy();
+  });
+});

@@ -842,6 +842,30 @@
           ],
           "description": "Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it."
         },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Approval nodes: who decides when a runner waits for a person (Ansible Flow Server). AWX workflows ignore it: their approvers are set in AWX.",
+          "properties": {
+            "approvers": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "maxItems": 50,
+              "description": "Users or groups who may decide (by login or group name); absent: whoever the runner lets approve."
+            },
+            "notify": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "maxItems": 50,
+              "description": "Users or groups told the approval waits, beside the approvers."
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "What the approvers read: what to check before deciding."
+            }
+          }
+        },
         "settings": {
           "type": "object",
           "properties": {

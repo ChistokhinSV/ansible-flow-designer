@@ -860,6 +860,9 @@ export class FlowSession implements vscode.Disposable {
       case 'stopRun':
         await vscode.commands.executeCommand(CMD.stopRun, this.uri);
         break;
+      // AFD-273: VS Code shows approvals; AWX decides them in AWX, local runs by themselves.
+      case 'approve':
+        break;
       case 'generate': {
         const notice = await vscode.commands.executeCommand<Notice | undefined>(
           CMD.generateCode,

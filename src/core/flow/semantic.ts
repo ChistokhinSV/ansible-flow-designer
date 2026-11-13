@@ -82,7 +82,16 @@ export function versionBump(current: unknown, base: unknown): number | undefined
  * (AFD-52), and the undo and cancelled ports never did anything (AFD-54).
  */
 function nodeDesign(node: FlowNode): unknown {
-  const { status: _status, tested: _tested, handler, subflow, ports, ...own } = node;
+  // AFD-273: who approves changes no host's path: it is not the design.
+  const {
+    status: _status,
+    tested: _tested,
+    approval: _approval,
+    handler,
+    subflow,
+    ports,
+    ...own
+  } = node;
   const rest: Record<string, unknown> =
     handler !== undefined && own.purpose === undefined ? { ...own, purpose: handler } : own;
   const kept = ports?.filter((p) => !LEGACY_PORTS.has(p));

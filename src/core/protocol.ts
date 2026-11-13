@@ -337,6 +337,11 @@ export type WebviewMessage =
   | { type: 'launchAwx' }
   /** AFD-39: stop the run going (terminal task or AWX job). */
   | { type: 'stopRun' }
+  /**
+   * AFD-273: decide an approval of the run shown, with a comment. Only a host that can decide
+   * (it marks approvals `mayDecide`) is sent it: Ansible Flow Server, not VS Code.
+   */
+  | { type: 'approve'; node: Ulid; decision: 'approved' | 'rejected'; comment?: string }
   /** Opens a repository file at a line (drift "Open code"). */
   | { type: 'openCode'; path: string; line?: number }
   /** Drift actions the host carries out (stubs, specs, re-sync), answered by `ack`. */

@@ -42,6 +42,7 @@ import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
 import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
+import { approvalOf } from '../runApproval';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
 import { StatusIcon } from './StatusIcon';
@@ -366,14 +367,15 @@ function CodeLines({ node }: { node: FlowNode }) {
 function RunLine({ node }: { node: FlowNode }) {
   const r = useUi((s) => s.runNodes?.[node.id]);
   const running = useUi((s) => s.run?.state === 'running');
-  // An AWX approval (AFD-11): its decision, and how many hosts it decided for.
-  const approval = useUi((s) => s.run?.awx?.approvals?.[node.id]);
+  // An approval (AFD-11, AFD-273): its decision, and how many hosts it decided for.
+  const shown = useUi((s) => s.run);
+  const approval = approvalOf(shown, node.id);
   if (approval) {
     const hosts = r && r.state !== 'idle' ? ` · ${r.hosts} host${r.hosts === 1 ? '' : 's'}` : '';
     const tone = approval.status === 'approved' ? 'ok' : 'warn';
     return (
-      <div className={`afd-node-run tone-${tone}`} data-approval={approval.status}>
-        {approval.status === 'waiting' ? 'waiting for approval' : approval.status}
+      <div className={`afd-node-run tone-${tone}`} data-approval={approval.label}>
+        {approval.status === 'waiting' ? 'waiting for approval' : approval.label}
         {hosts}
       </div>
     );

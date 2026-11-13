@@ -65,6 +65,7 @@ Every problem the designer reports has a code. It shows in the Problems panel, i
 | until-whole-result | settings.until compares the whole registered result with a value (r == "x", "x" in r); the result is a dict, so the test never holds. | Test a field of the result, like <register>.stdout or <register>.rc (update_node settings.until). |
 | until-not-module | settings.until on a role or playbook step, where Ansible cannot retry. | Move the polling into a module step, or remove until. |
 | approval-split | Approval outcomes go to different places in a way AWX cannot express. | Route rejected and timeout the same way. |
+| approval-fields | A node that is not an approval has approval fields (approvers, notify, message): nothing reads them. | Remove them, or make the node an approval. |
 | awx-segments | Approvals inside subflows, or two that can wait at once, cannot become segments: AWX workflows and Ansible Flow Server wait at top-level approvals, one at a time. | Keep approvals on the top level, one at a time. |
 | runtime-kind | flow.runtime.kind does not fit the flow (e.g. a job for a flow with approvals); in format 2, it is derived and not written. | Use awx_workflow with approvals, awx_job without; in format 2, remove it. |
 | rollback-unreachable | A Rollback node cannot be reached by any failed hosts. | Wire a fail port to it, or delete it. |

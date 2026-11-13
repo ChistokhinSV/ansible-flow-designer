@@ -164,6 +164,12 @@ export const OP_SPECS: OpSpec[] = [
       join_mode: nullable(field('join_mode')),
       branches: nullable(field('branches')),
       disabled: nullable(field('disabled')),
+      approval: nullable(
+        field(
+          'approval',
+          'Approval nodes only: who may decide (approvers: user logins or group names), who is told (notify), what they read (message), replacing what it has; null removes them. Read by runners that wait for a person (Ansible Flow Server); AWX sets approvers in AWX.',
+        ),
+      ),
       settings: {
         ...SETTINGS,
         properties: Object.fromEntries(

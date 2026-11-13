@@ -272,6 +272,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     meaning: 'Approval outcomes go to different places in a way AWX cannot express.',
     fix: 'Route rejected and timeout the same way.',
   },
+  'approval-fields': {
+    meaning:
+      'A node that is not an approval has approval fields (approvers, notify, message): nothing reads them.',
+    fix: 'Remove them, or make the node an approval.',
+  },
   'awx-segments': {
     meaning:
       'Approvals inside subflows, or two that can wait at once, cannot become segments: AWX workflows and Ansible Flow Server wait at top-level approvals, one at a time.',

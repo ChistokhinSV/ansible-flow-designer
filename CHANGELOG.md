@@ -2,6 +2,18 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- Approval nodes say who may decide them, who is told, and what they read: **Approvers**, **Notify** and **Message** in the node's Details, or `approval` in the flow file. Ansible Flow Server asks these people; in AWX the message becomes the approval's description. Changing who approves keeps the node tested. See [Approvals](docs/guide/how-to/approvals.md#who-decides).
+- `@ansible-flow/node` runs flows with approvals outside AWX: `runSegments` waits at each approval for a decision, and its step functions let a server wait between runs. See [npm packages](docs/packages.md#running-a-flow-with-approval-gates).
+- Run mode shows approvals from any runner: waiting, then who decided, when, and their comment. Where the runner allows it, the node's Run tab has **Approve** and **Reject** with a comment.
+
+### Changed
+
+- A runner that waits for a person can send hosts that waited too long through the approval's `timeout` port. AWX workflows work as before: AWX cannot tell a timeout from a rejection.
+
 ## 0.85.0 — npm packages
 
 ### Added

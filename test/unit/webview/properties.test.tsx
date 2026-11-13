@@ -397,7 +397,7 @@ describe('Details: Execution per node kind (AFD-71)', () => {
     const approval = nodeOf('change-approval');
     act(() => useUi.getState().openDetails(approval.id, 'execution'));
     render(<Details id={approval.id} />);
-    expect(screen.getByLabelText(/How long the AWX approval waits/)).toBeTruthy();
+    expect(screen.getByLabelText(/How long the approval waits/)).toBeTruthy();
     expect(screen.queryByLabelText(/^Retries/)).toBeNull();
   });
 });

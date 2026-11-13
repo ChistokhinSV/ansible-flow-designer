@@ -233,11 +233,15 @@ message, or in `mount(element, { transport, viewer: true })`. Once on, it stays 
   and a run's output stay.
 - Only these messages leave the page (`VIEWER_MESSAGES` in `@ansible-flow/core/viewer`):
   `ready`; `run`, `launchCheck`, `launchRun`, `launchCancel`, `stopRun`, `showRun`, `runOutput`,
-  `showRunOutput`; `catalog`, `copyText`, `openLink`; `inspectResult`, `pngRendered`,
+  `showRunOutput`, `approve`; `catalog`, `copyText`, `openLink`; `inspectResult`, `pngRendered`,
   `cspViolation`, `perf`. Anything else is dropped in the page, and a request is answered there
   with "This view only shows and runs the flow".
 - **The host must refuse the rest as well**, with `viewerAllows(message.type)` from the same
   module: a page can be changed by whoever opens it.
+
+A run's `approvals` (`RunApproval` per approval node) show on the canvas and in a step's Run tab;
+one with `mayDecide: true` gets Approve and Reject with a comment, which send `approve`. Set it
+only where the person looking may decide.
 
 What a viewer host answers:
 
@@ -252,6 +256,7 @@ What a viewer host answers:
 | `showRun`                   | `run` with `past: true`                                                                              |
 | `runOutput` (has a `reqId`) | `runOutputReply`                                                                                     |
 | `showRunOutput`             | the host's own page for the run's log, if it has one                                                 |
+| `approve`                   | decides the approval (`node`, `approved` or `rejected`, `comment`), then a `run` showing it decided  |
 | `catalog` (has a `reqId`)   | `catalogReply`, `ok: false` when it has no catalog                                                   |
 
 ## Documented entry points of `@ansible-flow/core`

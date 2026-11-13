@@ -52,6 +52,7 @@ export const NODE_ORDER = [
   'inputs',
   'outputs',
   'settings',
+  'approval',
   'impl',
   'undo',
   'ref',
