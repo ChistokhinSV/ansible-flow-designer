@@ -48,6 +48,7 @@ export function canEdit(): boolean {
 export function useEditable(): boolean {
   return useUi(
     (s) =>
+      !s.viewer &&
       !!s.snapshot?.doc &&
       !s.snapshot.stale &&
       !s.snapshot.idGaps &&

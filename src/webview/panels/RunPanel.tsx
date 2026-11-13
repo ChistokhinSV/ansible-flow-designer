@@ -279,6 +279,18 @@ function Scenarios() {
 export function RunPanel() {
   const run = useUi((s) => s.run);
   const doc = useUi((s) => s.snapshot?.doc);
+  const viewer = useUi((s) => s.viewer);
+  if (!run && viewer)
+    return (
+      <div className="afd-panel-body" data-run-panel="none">
+        <h2 className="afd-panel-title">Run</h2>
+        <p className="muted">
+          No run of this flow yet. Run it from the bar above; nodes and wires then show what each
+          host did.
+        </p>
+        <PastRuns run={null} />
+      </div>
+    );
   if (!run)
     return (
       <div className="afd-panel-body" data-run-panel="none">

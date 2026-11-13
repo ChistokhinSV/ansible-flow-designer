@@ -9,6 +9,7 @@ import { App } from './App';
 import { setTransport } from './bus';
 import { applyStandaloneTheme } from './theme/standalone';
 import type { DesignerTransport } from './transport';
+import { enterViewer } from './viewer';
 
 export type { ThemeKind } from '../core/theme';
 export type { DesignerTransport } from './transport';
@@ -21,6 +22,11 @@ export interface MountOptions {
   transport: DesignerTransport;
   /** Default `auto`. */
   theme?: ThemeChoice;
+  /**
+   * The designer only shows and runs the flow (AFD-270), whatever the host's `config` says. The
+   * host must still refuse what a viewer may not send (`@ansible-flow/core/viewer`).
+   */
+  viewer?: boolean;
 }
 
 export interface MountedDesigner {
@@ -36,6 +42,7 @@ export interface MountedDesigner {
  */
 export function mount(el: HTMLElement, options: MountOptions): MountedDesigner {
   setTransport(options.transport);
+  if (options.viewer) enterViewer();
   const doc = el.ownerDocument;
   const dark = doc.defaultView?.matchMedia?.('(prefers-color-scheme: dark)');
   let choice: ThemeChoice = options.theme ?? 'auto';

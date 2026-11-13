@@ -140,7 +140,37 @@ With a bundler: `import { mount } from '@ansible-flow/designer'` and
 - The bundle carries its own copy of the core's code. Messages are plain data, so that copy never
   meets the one a server runs.
 
-A read-only mode for hosts that only show and run flows comes with AFD-270.
+### A viewer: show and run, change nothing
+
+A host that only shows flows and runs them asks for a viewer: `viewer: true` in its `config`
+message, or in `mount(element, { transport, viewer: true })`. Once on, it stays on.
+
+- The designer stays in Run mode, where the canvas and a step's Details only read. The mode switch,
+  the palette, lenses, scenarios, Generate Code, the canvas menu, exports and the links into the
+  editor (text, guide, feedback) are not shown. Run as Skeleton, Run for Real, Stop, earlier runs
+  and a run's output stay.
+- Only these messages leave the page (`VIEWER_MESSAGES` in `@ansible-flow/core/viewer`):
+  `ready`; `run`, `launchCheck`, `launchRun`, `launchCancel`, `stopRun`, `showRun`, `runOutput`,
+  `showRunOutput`; `catalog`, `copyText`, `openLink`; `inspectResult`, `pngRendered`,
+  `cspViolation`, `perf`. Anything else is dropped in the page, and a request is answered there
+  with "This view only shows and runs the flow".
+- **The host must refuse the rest as well**, with `viewerAllows(message.type)` from the same
+  module: a page can be changed by whoever opens it.
+
+What a viewer host answers:
+
+| The designer sends          | The host answers                                                                                     |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ready`                     | `config` (with `viewer: true`), `catalogStatus`, `snapshot`, and `runs` when there are earlier runs  |
+| `run` (`check` or `real`)   | `launch` with a `LaunchPlan` (the dialog), or a `run` at once                                        |
+| `launchCheck`               | `launchFacts` for the hosts typed so far                                                             |
+| `launchRun`                 | `run` with a `RunView`, again as the run goes on (about twice a second), and a last one when it ends |
+| `launchCancel`              | nothing                                                                                              |
+| `stopRun`                   | the last `run`                                                                                       |
+| `showRun`                   | `run` with `past: true`                                                                              |
+| `runOutput` (has a `reqId`) | `runOutputReply`                                                                                     |
+| `showRunOutput`             | the host's own page for the run's log, if it has one                                                 |
+| `catalog` (has a `reqId`)   | `catalogReply`, `ok: false` when it has no catalog                                                   |
 
 ## Documented entry points of `@ansible-flow/core`
 
@@ -163,6 +193,7 @@ can be imported and is internal: it changes without notice.
 | `run/events`, `run/view`                                 | `createSummarizer`, `summarizeRun`, `hostOutput`; `runStates`, `runPassed` |
 | `run/launch`, `run/redact`                               | `launchFields`, `parseInput`, `LaunchPlan`; `redactLine`, `secretValues`   |
 | `protocol`                                               | `HostMessage`, `WebviewMessage`, `Snapshot`, `RunView`                     |
+| `viewer`                                                 | `VIEWER_MESSAGES`, `viewerAllows`                                          |
 | `scenario/scenarios`, `scenario/simulate`                | `parseScenarios`, `checkScenarios`; `simulateScenario`                     |
 | `awx/events`, `awx/workflow`, `awx/import`, `awx/survey` | `awxEventsToLines`; `workflowFromApi`; `importWorkflow`; `surveyFor`       |
 | `ai/specs`, `ai/handlers`                                | `TOOL_SPECS`; `FlowIO`, `runTool`                                          |

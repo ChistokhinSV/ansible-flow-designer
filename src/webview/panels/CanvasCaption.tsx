@@ -16,7 +16,9 @@ export function CanvasCaption() {
   const doc = useUi((s) => s.snapshot?.doc);
   const level = useUi((s) => s.level);
   const targets = useUi((s) => s.lensFacts.inventory?.targets);
-  if (!doc || (mode === 'design' && !lens)) return null;
+  // AFD-270: a viewer has one mode and no lens, so nothing to explain.
+  const viewer = useUi((s) => s.viewer);
+  if (!doc || viewer || (mode === 'design' && !lens)) return null;
   const m = MODES.find((x) => x.id === mode);
   const nodes = (modelOf(doc).levels.get(level)?.nodes ?? []).map((n) => ({
     id: n.id,

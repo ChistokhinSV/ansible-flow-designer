@@ -26,7 +26,18 @@ export function Banner() {
   const dismissedAt = useUi((s) => s.bannerDismissedAt);
   const dismiss = useUi((s) => s.dismissBanner);
   const reveal = useUi((s) => s.reveal);
+  const viewer = useUi((s) => s.viewer);
   if (!snapshot) return null;
+  // AFD-270: a viewer cannot fix the file or answer a design question; it is told what it sees.
+  if (viewer)
+    return snapshot.stale ? (
+      <div className="afd-banner error" role="alert" data-read-only-banner>
+        <span className="codicon codicon-error" aria-hidden="true" />
+        <span>
+          The flow file has YAML errors ({snapshot.parseError}). This is its last valid version.
+        </span>
+      </div>
+    ) : null;
   if (snapshot.stale) {
     return (
       <div className="afd-banner error" role="alert" data-read-only-banner>

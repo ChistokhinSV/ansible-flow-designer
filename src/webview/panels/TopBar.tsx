@@ -33,6 +33,8 @@ export function TopBar() {
     (s) => s.snapshot?.findings.filter((f) => f.severity === 'error').length ?? 0,
   );
   const mode = useUi((s) => s.mode);
+  // AFD-270: a viewer shows the flow and runs it; what changes the flow or its files is not there.
+  const viewer = useUi((s) => s.viewer);
   const lens = useUi((s) => s.lens);
   const setLens = useUi((s) => s.setLens);
   const pickLens = (id: (typeof LENSES)[number]['id'] | null) => {
@@ -82,9 +84,15 @@ export function TopBar() {
             {flow.key} · v{flow.version}
           </span>
         ) : null}
-        <ScenarioChip />
+        {viewer ? null : <ScenarioChip />}
       </nav>
-      <fieldset className="afd-segmented" aria-label="Mode">
+      <fieldset
+        className="afd-segmented"
+        aria-label="Mode"
+        // AFD-270: a viewer stays in Run mode. The stylesheet sets `display`, so `hidden` alone
+        // would not hide it.
+        style={viewer ? { display: 'none' } : undefined}
+      >
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -104,28 +112,30 @@ export function TopBar() {
         ))}
       </fieldset>
       {/* AFD-72: lenses show facts about steps; a flow with none has nothing to show. */}
-      {lens || doc?.nodes?.some((n) => n?.type !== 'start' && n?.type !== 'end') ? (
+      {viewer ? null : lens || doc?.nodes?.some((n) => n?.type !== 'start' && n?.type !== 'end') ? (
         <LensPick lens={lens} pick={pickLens} />
       ) : null}
       <div className="afd-actions">
         <RunStatus run={run} />
-        <RunActions running={running} />
-        <ActionButton
-          icon="file-code"
-          label="Generate Code"
-          title="Write the playbooks in generated/ now"
-          unavailable={
-            errors > 0
-              ? `Fix the ${errors} error${errors === 1 ? '' : 's'} first (see Problems)`
-              : undefined
-          }
-          onClick={() => send({ type: 'generate' })}
-        />
+        <RunActions running={running} viewer={viewer} />
+        {viewer ? null : (
+          <ActionButton
+            icon="file-code"
+            label="Generate Code"
+            title="Write the playbooks in generated/ now"
+            unavailable={
+              errors > 0
+                ? `Fix the ${errors} error${errors === 1 ? '' : 's'} first (see Problems)`
+                : undefined
+            }
+            onClick={() => send({ type: 'generate' })}
+          />
+        )}
         <MenuButton
           label="More actions"
           className="secondary icon"
           title="More actions"
-          items={() => moreActions(mode, level)}
+          items={() => (viewer ? viewerActions() : moreActions(mode, level))}
         >
           <span className="codicon codicon-ellipsis" aria-hidden="true" />
         </MenuButton>
@@ -324,6 +334,30 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
   ];
 }
 
+/** AFD-270: the "…" menu of a viewer: finding a node and arranging the view. */
+function viewerActions(): UiMenuEntry[] {
+  return [
+    {
+      type: 'item',
+      label: 'Find Node…',
+      icon: 'search',
+      shortcut: keysOf('find'),
+      title: 'Find a node on any level by title, key or binding',
+      onSelect: () => useUi.getState().openFind(true),
+    },
+    { type: 'separator' },
+    ...panelActions('run'),
+    { type: 'separator' },
+    {
+      type: 'item',
+      label: 'Keyboard Shortcuts',
+      icon: 'keyboard',
+      shortcut: '?',
+      onSelect: () => useUi.getState().showCheatSheet(true),
+    },
+  ];
+}
+
 function exportActions(level: string): UiMenuEntry[] {
   return [
     {
@@ -377,7 +411,7 @@ function ActionButton({
  * Run ▾ in every mode (AFD-45): a skeleton run up front; a real run and AWX in its menu. While a
  * run is going the button is Stop (AFD-72), so there is no greyed Stop beside it the rest of the time.
  */
-function RunActions({ running }: { running: boolean }) {
+function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) {
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <div className="afd-split">
@@ -387,7 +421,9 @@ function RunActions({ running }: { running: boolean }) {
         title={
           running
             ? 'Stop the run: end the local run, or cancel the job or workflow in AWX'
-            : 'Generate the code and run it in check mode in the local Ansible environment'
+            : viewer
+              ? 'Run the flow in check mode: bound steps report what they would change'
+              : 'Generate the code and run it in check mode in the local Ansible environment'
         }
       >
         <span
@@ -408,24 +444,29 @@ function RunActions({ running }: { running: boolean }) {
             disabled: busy,
             onSelect: () => startRun('real'),
           },
-          {
-            type: 'item',
-            label: 'Run Scenarios',
-            icon: 'beaker',
-            title:
-              'Run the scenario tests next to the flow: every step as its stub on local hosts, then where each host ended',
-            disabled: busy,
-            onSelect: () => send({ type: 'runScenarios' }),
-          },
-          {
-            type: 'item',
-            label: 'Launch in AWX',
-            icon: 'rocket',
-            title:
-              "Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events",
-            disabled: busy,
-            onSelect: () => send({ type: 'launchAwx' }),
-          },
+          // AFD-270: a viewer's host runs the flow itself; scenarios and AWX are the editor's.
+          ...(viewer
+            ? []
+            : ([
+                {
+                  type: 'item',
+                  label: 'Run Scenarios',
+                  icon: 'beaker',
+                  title:
+                    'Run the scenario tests next to the flow: every step as its stub on local hosts, then where each host ended',
+                  disabled: busy,
+                  onSelect: () => send({ type: 'runScenarios' }),
+                },
+                {
+                  type: 'item',
+                  label: 'Launch in AWX',
+                  icon: 'rocket',
+                  title:
+                    "Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events",
+                  disabled: busy,
+                  onSelect: () => send({ type: 'launchAwx' }),
+                },
+              ] as UiMenuEntry[])),
         ]}
       >
         <span className="codicon codicon-chevron-down" aria-hidden="true" />
