@@ -81,13 +81,18 @@ each release with a pull request that its contract tests gate.
   repository (the real server), so a protocol change that breaks either fails a test (AFD-277).
 
 **Versions and publishing.** All four packages carry the extension's version and are published at
-every release, changed or not. `publish.yml` gets a job after the VSIX job, in the same `release`
-environment: `npm publish --provenance --access public` with npm trusted publishing (OIDC), as the
-Marketplace job does. A manual run with `dry_run` stages the packages and runs
-`npm pack --dry-run` only. A failed npm publish does not withdraw the VSIX; the job can be re-run.
+every release, changed or not. `publish.yml` has a job `npm` beside the VSIX's publish job, in the
+same `release` environment: `npm publish --provenance --access public` with npm Trusted Publishing
+(OIDC), as the Marketplace job does. The build job makes the tarballs with no secret and no token;
+the `npm` job installs nothing and publishes them. A manual run with `dry_run` builds, checks and
+uploads the tarballs only. The two publish jobs do not depend on each other, and a version already
+on npm is skipped, so the job can be re-run.
 
 Before the first publish, the npm organisation `ansible-flow` must exist and belong to the
-publisher (an account step for the product owner).
+publisher (an account step for the product owner). Until then the job is off: it runs only when the
+repository variable `NPM_PUBLISH` is `true`. A package's first publish uses a token (`NPM_TOKEN`),
+because npm sets a trusted publisher on a package that exists; the steps are in
+[packages.md](../packages.md#publishing) (AFD-268).
 
 **Checks.**
 

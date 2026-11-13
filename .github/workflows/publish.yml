@@ -9,9 +9,17 @@
 # and the environment "release", so they must not change without changing the policy.
 # Open VSX: the OVSX_PAT secret; without it the step is skipped.
 #
+# npm (ADR-0036): the job "npm" publishes the packages other hosts use (@ansible-flow/core, assets,
+# node) with the extension's version. It runs only when the repository variable NPM_PUBLISH is
+# "true", so nothing goes to npm before the organisation exists. A package's first publish needs
+# the NPM_TOKEN secret (a trusted publisher is set on a package that exists); after that, name this
+# repository, this file and the environment "release" as each package's trusted publisher and
+# delete the secret. A version that is already on npm is skipped, so the job can be run again.
+#
 # AFD-132: two jobs. "build" installs the dependencies, checks, tests and packages with no secret
 # and no OIDC token, so an install script of a dependency can publish nothing. "publish" gets the
 # token and the secrets, installs with --ignore-scripts and publishes the VSIX that "build" made.
+# "npm" installs nothing: it publishes the tarballs that "build" made.
 name: Publish
 
 on:
@@ -65,7 +73,7 @@ jobs:
           npx --no-install tsc -p tsconfig.webview.json
           npx --no-install biome ci .
           npx --no-install vitest run
-          node scripts/packages.mjs --check
+          node scripts/packages.mjs --check --pack
 
       # The same as `just package`: the README rewrite, then vsce (which runs the production build).
       - name: Package
@@ -80,6 +88,12 @@ jobs:
         with:
           name: vsix
           path: out/ansible-flow-designer-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm
+          path: out/npm
           if-no-files-found: error
 
   publish:
@@ -141,3 +155,43 @@ jobs:
           else
             gh release upload "$TAG" "$VSIX"
           fi
+
+  # A failure here does not withdraw the VSIX: the two publish jobs do not depend on each other.
+  npm:
+    needs: build
+    if: (github.event_name == 'push' || !inputs.dry_run) && vars.NPM_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing and provenance
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm
+          path: out/npm
+
+      # order.txt lists "<name>@<version> <tarball>", a package after the ones it depends on.
+      - name: npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            export NODE_AUTH_TOKEN="$NPM_TOKEN"
+          else
+            # Trusted Publishing needs npm 11.5.1 or later.
+            echo "npm $(npm --version), no NPM_TOKEN: Trusted Publishing"
+          fi
+          while read -r spec tarball; do
+            if npm view "$spec" version </dev/null >/dev/null 2>&1; then
+              echo "::notice::$spec is already on npm; left as is"
+              continue
+            fi
+            npm publish "out/npm/$tarball" --access public --provenance </dev/null
+          done < out/npm/order.txt
