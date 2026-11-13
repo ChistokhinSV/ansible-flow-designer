@@ -121,7 +121,12 @@ export interface AfdTestApi {
   runnerToken(uri: vscode.Uri, token: string): Promise<string | undefined>;
   runnerLaunch(
     uri: vscode.Uri,
-    options: { inputs: Record<string, unknown>; mode?: 'check' | 'real'; config?: string },
+    options: {
+      inputs: Record<string, unknown>;
+      mode?: 'check' | 'real';
+      config?: string;
+      dev?: boolean;
+    },
   ): Promise<RunView>;
   /** M8: the lens on the flow's panels, the facts its session gathered, the lens targets. */
   setLens(uri: vscode.Uri, lens: LensId | null): void;

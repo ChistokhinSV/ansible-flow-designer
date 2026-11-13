@@ -68,6 +68,8 @@ export interface RunnerRun {
   state: 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled' | 'lost';
   error?: string;
   endedAt?: string;
+  /** AFD-282: a check run of someone's unpushed work. */
+  dev?: true;
 }
 
 export interface RunnerGate {
@@ -79,6 +81,8 @@ export interface RunnerGate {
 
 export interface LaunchRequest {
   mode?: 'check' | 'real';
+  /** AFD-282: a dev bundle's id: the server runs its commit, in check mode. */
+  dev?: string;
   limit?: string;
   /** The flow's inputs as typed text, by name. */
   inputs?: Record<string, string>;
@@ -131,6 +135,8 @@ export class RunnerClient {
     method: string,
     path: string,
     body?: unknown,
+    /** A body sent as it is, with its content type (a git bundle). */
+    raw?: { bytes: Buffer; type: string },
   ): Promise<{ status: number; text: string }> {
     const url = new URL(`${this.base}${path}`);
     if (url.origin !== this.origin)
@@ -142,7 +148,8 @@ export class RunnerClient {
         ),
       );
     const lib = url.protocol === 'https:' ? https : http;
-    const data = body === undefined ? undefined : JSON.stringify(body);
+    const data = raw?.bytes ?? (body === undefined ? undefined : JSON.stringify(body));
+    const type = raw?.type ?? 'application/json';
     return new Promise((resolve, reject) => {
       const req = lib.request(
         url,
@@ -151,9 +158,7 @@ export class RunnerClient {
           headers: {
             Authorization: `Bearer ${this.token}`,
             Accept: 'application/json',
-            ...(data
-              ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
-              : {}),
+            ...(data ? { 'Content-Type': type, 'Content-Length': Buffer.byteLength(data) } : {}),
           },
           timeout: this.options.timeoutMs ?? TIMEOUTS.runnerRequest,
           ...(url.protocol === 'https:'
@@ -185,8 +190,13 @@ export class RunnerClient {
     });
   }
 
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const { status, text } = await this.send(method, path, body);
+  async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    raw?: { bytes: Buffer; type: string },
+  ): Promise<T> {
+    const { status, text } = await this.send(method, path, body, raw);
     let json: unknown;
     try {
       json = text ? JSON.parse(text) : undefined;
@@ -202,7 +212,9 @@ export class RunnerClient {
     const why =
       status === 401
         ? 'The server does not take the token: set it again (it may have expired or been revoked)'
-        : (e.message ?? `The server answered ${status}`);
+        : status === 413
+          ? 'The work is larger than the server takes (AFS_DEV_BUNDLE_MAX_MB)'
+          : (e.message ?? `The server answered ${status}`);
     throw new RunnerError(why, status, e.error, e.problems);
   }
 
@@ -247,6 +259,14 @@ export class RunnerClient {
       decision,
       ...(comment?.trim() ? { comment: comment.trim() } : {}),
     });
+  /** AFD-282: unpushed work for a dev run; resolves with the bundle's id and commit. */
+  devBundle = (project: string, bytes: Buffer) =>
+    this.request<{ id: string; commit: string; expiresAt: string }>(
+      'POST',
+      `/api/v1/projects/${enc(project)}/dev-bundles`,
+      undefined,
+      { bytes, type: 'application/x-git-bundle' },
+    );
   /** What one host did in one step of the run. */
   hostOutput = (id: string, node: string, host: string) =>
     this.request<{ entries?: unknown[] }>(

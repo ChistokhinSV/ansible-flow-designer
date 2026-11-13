@@ -100,4 +100,33 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
       JSON.stringify(steps),
     );
   });
+
+  it('AFD-282: checks uncommitted work on the server as a dev run', async () => {
+    const t = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    const file = vscode.Uri.joinPath(vscode.Uri.file(root), FILE);
+    const before = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+    // An uncommitted change: the step's title, which the run's output then shows.
+    const changed = before.replace('title: Say hello', 'title: Say hello, from my work');
+    assert.notEqual(changed, before);
+    await vscode.workspace.fs.writeFile(file, new TextEncoder().encode(changed));
+    try {
+      const run: RunView = await t.runnerLaunch(FLOW, {
+        inputs: { devices: ['localhost'] },
+        dev: true,
+      });
+      assert.equal(run.state, 'done', run.error);
+      assert.equal(run.mode, 'check');
+      assert.equal(run.runner?.dev, true);
+      assert.notEqual(run.runner?.commit, head);
+      const output = await (
+        await fetch(`${url}/api/v1/runs/${run.runner?.runId}/output`, {
+          headers: { authorization: `Bearer ${token}` },
+        })
+      ).text();
+      assert.match(output, /Say hello, from my work/);
+    } finally {
+      await vscode.workspace.fs.writeFile(file, new TextEncoder().encode(before));
+    }
+  });
 });

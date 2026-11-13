@@ -46,6 +46,19 @@ the project's branch. The confirmation warns when your HEAD is another commit or
 uncommitted changes in the flow's folder: push first so the server runs what you see. Generated
 code does not count: the server generates it from the flow.
 
+## Check your work before you push it
+
+When the confirmation says the server would run another commit than yours (HEAD not pushed, or
+uncommitted changes), it also offers **Check My Work on Server**, if the server takes dev runs and
+you may push:
+
+- Your work, committed or not (new files too, ignored ones left out), is sent to the server as a git
+  bundle. Your index, working tree and branches are not touched.
+- The server runs it in **check mode** only, with the flow's launch configuration, and marks it a
+  dev run. A real run still needs your work pushed.
+- The server keeps the work for a day under a ref of its own: it never reaches the project's branch
+  or the repository the project comes from.
+
 ## Approvals
 
 A flow with approval steps waits on the server until someone allowed decides. The approval node

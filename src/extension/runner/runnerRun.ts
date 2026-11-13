@@ -18,6 +18,7 @@ import {
   RunnerError,
   type RunnerRun,
 } from '../../node/runner/client';
+import { devBundle } from '../../node/runner/devBundle';
 import { TIMEOUTS } from '../../node/timeouts';
 import type { AwxDeps } from '../awx/awxRun';
 import { generatedDir } from '../codegen';
@@ -187,7 +188,7 @@ const ENDED = new Set(['succeeded', 'failed', 'cancelled', 'lost']);
 function viewOf(
   base: Pick<RunView, 'id' | 'mode' | 'startedAt' | 'flowVersion' | 'design'>,
   run: RunnerRun,
-  info: { url: string; config: string; drift?: string },
+  info: { url: string; config: string; drift?: string; dev?: boolean },
   served: Record<string, unknown> | undefined,
   mayDecide: Set<string>,
 ): RunView {
@@ -208,6 +209,7 @@ function viewOf(
       commit: run.commit,
       config: info.config,
       ...(info.drift ? { drift: info.drift } : {}),
+      ...(info.dev ? { dev: true as const } : {}),
     },
     ...(served?.summary ? { summary: served.summary as RunView['summary'] } : {}),
     ...(approvals
@@ -239,6 +241,8 @@ export async function launchOnServer(
     yes?: boolean;
     mode?: 'check' | 'real';
     config?: string;
+    /** AFD-282: send the local work and check it (a dev run), without asking. */
+    dev?: boolean;
   } = {},
 ): Promise<RunView> {
   const id = stamp();
@@ -269,9 +273,13 @@ export async function launchOnServer(
 
   const flowFile = relativeTo(folder.uri, document.uri);
   let config: RunnerConfig;
+  let projectId: string;
+  let features: string[] = [];
   try {
-    const why = incompatible(await client.meta(), formatOf(doc));
+    const meta = await client.meta();
+    const why = incompatible(meta, formatOf(doc));
     if (why) return fail(why);
+    features = meta.features ?? [];
     const project = await projectOf(client, folder.uri);
     if (!project)
       return fail(
@@ -286,6 +294,7 @@ export async function launchOnServer(
         'runner-project',
       );
     config = found;
+    projectId = project.id;
   } catch (e) {
     return fail((e as Error).message);
   }
@@ -324,6 +333,15 @@ export async function launchOnServer(
       ? `The server runs ${launch.commit.slice(0, 7)}, not your HEAD ${git.commit}: push your work so the server runs it`
       : undefined;
 
+  // AFD-282: work the server does not have can be checked there as a dev run (check mode only).
+  const mayDev = !!drift && features.includes('dev-runs');
+  let devRun = options.dev === true;
+  if (devRun && !features.includes('dev-runs'))
+    return fail(
+      'This server does not take dev runs: push the work, then run it',
+      undefined,
+      'check',
+    );
   if (!(deps.testMode && options.yes)) {
     const detail = [
       `Server: ${client.base}`,
@@ -332,21 +350,41 @@ export async function launchOnServer(
       `Targets: ${launch.targets.length} (${launch.targets.slice(0, 8).join(', ')}${launch.targets.length > 8 ? ', …' : ''})`,
       ...(launch.inventory ? [`Inventory: ${launch.inventory}`] : []),
       ...(drift ? [drift] : []),
+      ...(mayDev
+        ? [
+            'Check My Work on Server sends your work, committed or not, and checks it there (check mode, nothing changes).',
+          ]
+        : []),
     ];
     const check = 'Check on Server';
     const real = 'Run for Real on Server';
+    const work = 'Check My Work on Server';
     const choice = await vscode.window.showWarningMessage(
       `Run "${doc.flow.name}" on Ansible Flow Server?`,
       { modal: true, detail: detail.join('\n') },
+      ...(mayDev ? [work] : []),
       ...(mode === 'real' ? [real, check] : [check, real]),
     );
     if (!choice) return fail(CANCELLED, 'cancelled', mode);
+    devRun = choice === work;
     mode = choice === real ? 'real' : 'check';
+  }
+  if (devRun) mode = 'check';
+
+  // AFD-282: the work, as a bundle the server keeps for a while, then launched as a dev run.
+  let dev: string | undefined;
+  if (devRun) {
+    try {
+      const sent = await devBundle(folder.uri.fsPath, launch.commit);
+      if (sent) dev = (await client.devBundle(projectId, sent.bundle)).id;
+    } catch (e) {
+      return fail(`The work could not be sent: ${(e as Error).message}`, undefined, 'check');
+    }
   }
 
   let run: RunnerRun;
   try {
-    run = await client.launch(config.id, { mode, inputs: asText });
+    run = await client.launch(config.id, { mode, inputs: asText, ...(dev ? { dev } : {}) });
   } catch (e) {
     return fail((e as Error).message, undefined, mode);
   }
@@ -363,11 +401,13 @@ export async function launchOnServer(
       run: run.id,
       number: run.number,
       commit: run.commit,
+      ...(dev ? { dev: true } : {}),
     },
     hosts: launch.targets.length,
   });
   const base = { id, mode, startedAt, flowVersion: doc.flow.version, design: nodeDesigns(doc) };
-  const info = { url, config: config.name, ...(drift ? { drift } : {}) };
+  // A dev run runs the local work: nothing drifted from it.
+  const info = { url, config: config.name, ...(dev ? { dev: true } : drift ? { drift } : {}) };
   deps.report(viewOf(base, run, info, undefined, new Set()));
   // Stop Run (AFD-39) stops it on the server; following then ends with it.
   const stopping = runStarted(document.uri, async () => {
