@@ -18,7 +18,8 @@ import {
 } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { build } from 'esbuild';
+import { build, buildSync, transformSync } from 'esbuild';
+import { build as viteBuild } from 'vite';
 
 const check = process.argv.includes('--check');
 const pack = process.argv.includes('--pack');
@@ -42,6 +43,10 @@ const TSC = join('node_modules', 'typescript', 'bin', 'tsc');
  * - `smoke`, `typed`: what `--check` runs and type-checks after importing every module.
  *
  * A files package (`copy`) is folders copied as they are, with an index that says where they are.
+ *
+ * A web package (`web`) is one browser bundle and its stylesheet, built by Vite as the VSIX's
+ * webview is, from another entry; `web.types` are the modules whose types it publishes, the first
+ * as the package's own.
  */
 const PACKAGES = [
   {
@@ -150,6 +155,43 @@ const doc = parseFlow('').doc;
 const level = doc ? modelOf(doc).levels.get(ROOT) : undefined;
 export const placed = level ? layoutLevel(level) : undefined;
 export type Client = ProbeClient;
+`,
+  },
+  {
+    name: 'designer',
+    src: 'src/webview',
+    web: { entry: 'mount.tsx', types: ['mount', 'transport'] },
+    lib: ['es2023', 'dom', 'dom.iterable'],
+    types: ['vite/client'],
+    uses: [{ dir: 'src/core', name: 'core' }],
+    description:
+      'Ansible Flow Designer for a web page: the flow canvas and its panels, talking to a host over a transport the page supplies.',
+    smoke: `
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const css = readFileSync(fileURLToPath(import.meta.resolve('${SCOPE}/designer/index.css')), 'utf8');
+if (!css.includes('.react-flow')) throw new Error('the stylesheet lacks the canvas styles');
+if (!css.includes('codicon')) throw new Error('the stylesheet lacks the icon font');
+console.log('  stylesheet has the canvas styles and the icon font');
+`,
+    typed: `
+import { type DesignerTransport, type MountedDesigner, mount } from '${SCOPE}/designer';
+import type { HostMessage, WebviewMessage } from '${SCOPE}/core/protocol';
+
+const sent: WebviewMessage[] = [];
+const listeners = new Set<(m: HostMessage) => void>();
+const transport: DesignerTransport = {
+  hostName: 'The server',
+  post: (m) => sent.push(m),
+  subscribe: (l) => {
+    listeners.add(l);
+    return () => listeners.delete(l);
+  },
+  getState: () => undefined,
+  setState: () => undefined,
+};
+export const mounted: MountedDesigner = mount(document.body, { transport, theme: 'auto' });
 `,
   },
 ];
@@ -404,11 +446,130 @@ ${folders.map((f) => `export const ${f}Dir = fileURLToPath(new URL('./${f}', imp
   return [`${SCOPE}/${pkg.name}`];
 }
 
+async function stageWeb(pkg, dir) {
+  const dist = join(dir, 'dist');
+  // The VSIX's webview build (vite.config.mts) with the entry a web page uses.
+  await viteBuild({
+    configFile: 'vite.config.mts',
+    mode: 'production',
+    logLevel: 'warn',
+    build: {
+      outDir: resolve(dist),
+      emptyOutDir: true,
+      lib: {
+        entry: pkg.web.entry,
+        formats: ['es'],
+        fileName: () => 'index.js',
+        cssFileName: 'index',
+      },
+    },
+  });
+  // As build.mjs does for the VSIX (AFD-223): library mode leaves whitespace and comments in.
+  const bundle = join(dist, 'index.js');
+  writeFileSync(
+    bundle,
+    transformSync(readFileSync(bundle, 'utf8'), { minify: true, format: 'esm', target: 'es2023' })
+      .code,
+  );
+
+  // A page loads this one file: it must export mount and import nothing.
+  const [shape] = Object.values(
+    buildSync({
+      entryPoints: [bundle],
+      bundle: true,
+      write: false,
+      metafile: true,
+      packages: 'external',
+      format: 'esm',
+      logLevel: 'silent',
+    }).metafile.outputs,
+  );
+  if (!shape.exports.includes('mount')) throw new Error(`${pkg.name}: the bundle has no mount`);
+  if (shape.imports.length)
+    throw new Error(
+      `${pkg.name}: the bundle imports ${shape.imports.map((i) => i.path).join(', ')}`,
+    );
+
+  // Types of the entry and what its signature names; the core's types come from the core package.
+  const types = `.types-${pkg.name}`;
+  const tsconfig = join(OUT, `tsconfig.${pkg.name}.json`);
+  rmSync(join(OUT, types), { recursive: true, force: true });
+  writeFileSync(
+    tsconfig,
+    JSON.stringify({
+      extends: slash(relative(OUT, 'tsconfig.base.json')),
+      compilerOptions: {
+        noEmit: false,
+        declaration: true,
+        emitDeclarationOnly: true,
+        rootDir: slash(relative(OUT, '.')),
+        outDir: types,
+        lib: pkg.lib,
+        jsx: 'react-jsx',
+        types: pkg.types,
+      },
+      files: [slash(relative(OUT, join(pkg.src, pkg.web.entry)))],
+    }),
+  );
+  execFileSync(process.execPath, [TSC, '-p', tsconfig], { stdio: 'inherit' });
+  const [own, ...others] = pkg.web.types;
+  copyFileSync(join(OUT, types, pkg.src, `${own}.d.ts`), join(dist, 'index.d.ts'));
+  for (const name of others)
+    copyFileSync(join(OUT, types, pkg.src, `${name}.d.ts`), join(dist, `${name}.d.ts`));
+  rmSync(join(OUT, types), { recursive: true, force: true });
+  rmSync(tsconfig);
+  retarget(pkg, dist);
+  // The entry imports its stylesheets for their effect; a type file has no use for that.
+  for (const f of files(dist).filter((f) => f.endsWith('.d.ts')))
+    writeFileSync(f, readFileSync(f, 'utf8').replace(/^import\s+['"][^'"]+['"];\r?\n/gm, ''));
+  const left = files(dist)
+    .filter((f) => f.endsWith('.d.ts'))
+    .flatMap((f) =>
+      [...readFileSync(f, 'utf8').matchAll(/from\s+['"](\.[^'"]*)['"]/g)]
+        .map((m) => m[1])
+        .filter((spec) => !existsSync(join(dirname(f), `${spec}.d.ts`)))
+        .map((spec) => `${relative(dist, f)} imports ${spec}`),
+    );
+  if (left.length) throw new Error(`${pkg.name}: types not in the package: ${left.join('; ')}`);
+
+  writeFileSync(
+    join(dir, 'package.json'),
+    manifest(pkg, {
+      exports: {
+        '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        './index.css': './dist/index.css',
+        './package.json': './package.json',
+      },
+      files: ['dist', 'THIRD_PARTY_NOTICES.md'],
+      // For the types of the messages only: the bundle carries the code it runs.
+      dependencies: { [`${SCOPE}/core`]: rootPkg.version },
+    }),
+  );
+  copyFileSync('THIRD_PARTY_NOTICES.md', join(dir, 'THIRD_PARTY_NOTICES.md'));
+  writeFileSync(
+    join(dir, 'README.md'),
+    readme(
+      pkg,
+      `Load \`${SCOPE}/${pkg.name}/index.css\` and call \`mount(element, { transport })\` from \`${SCOPE}/${pkg.name}\`.
+The designer is made to be the whole page: give it a page or an iframe of its own.`,
+    ),
+  );
+  const size = (f) => Math.round(statSync(join(dist, f)).size / 1024);
+  console.log(
+    `${SCOPE}/${pkg.name} ${rootPkg.version}: index.js ${size('index.js')} KB, index.css ${size('index.css')} KB`,
+  );
+  return [];
+}
+
 async function stage(pkg) {
   const dir = join(OUT, pkg.name);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const modules = pkg.copy ? stageFiles(pkg, dir) : await stageCode(pkg, dir);
+  const modules = pkg.copy
+    ? stageFiles(pkg, dir)
+    : pkg.web
+      ? await stageWeb(pkg, dir)
+      : await stageCode(pkg, dir);
   copyFileSync('LICENSE', join(dir, 'LICENSE'));
   return { dir, modules };
 }
@@ -429,10 +590,13 @@ function verify(pkg, staged) {
   rmSync(join(scope, pkg.name), { recursive: true, force: true });
   symlinkSync(resolve(staged.dir), join(scope, pkg.name), 'junction');
 
+  // A browser bundle has no modules to load in Node; its smoke reads the built files instead.
   const every = join(OUT, `smoke-${pkg.name}-modules.mjs`);
   writeFileSync(every, `${staged.modules.map((m) => `await import('${m}');`).join('\n')}\n`);
-  execFileSync(process.execPath, [every], { stdio: 'inherit' });
-  console.log(`  imported ${staged.modules.length} modules in Node`);
+  if (staged.modules.length) {
+    execFileSync(process.execPath, [every], { stdio: 'inherit' });
+    console.log(`  imported ${staged.modules.length} modules in Node`);
+  }
 
   const smoke = join(OUT, `smoke-${pkg.name}.mjs`);
   writeFileSync(smoke, pkg.smoke);

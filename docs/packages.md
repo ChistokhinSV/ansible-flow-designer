@@ -9,7 +9,7 @@ The decision and its reasons are in [ADR-0036](adr/0036-packages-for-other-hosts
 | `@ansible-flow/core`     | The flow model, commands, validation, code generation, run summaries | Built and checked; not on npm |
 | `@ansible-flow/assets`   | The Python probe, the events callback, the schemas                   | Built and checked; not on npm |
 | `@ansible-flow/node`     | Layout, runs, the probe client, the AWX client, the catalog, SSH     | Built and checked; not on npm |
-| `@ansible-flow/designer` | The designer for a web page                                          | Planned (AFD-269)             |
+| `@ansible-flow/designer` | The designer for a web page                                          | Built and checked; not on npm |
 
 Nothing is published yet: the release's npm job is switched off until the npm organisation exists
 (see [Publishing](#publishing)). Once it is on, every release of the extension publishes all
@@ -91,6 +91,57 @@ is started as a worker thread and `ssh/sshRun` as a process; find their files wi
 
 The run pipeline the extension uses (`runFlow`) moves into this package with AFD-271.
 
+## `@ansible-flow/designer`
+
+The designer for a web page: one script, one stylesheet. React, the canvas and the icon font are
+inside; the page needs nothing else.
+
+```html
+<link rel="stylesheet" href="/designer/index.css" />
+<div id="root"></div>
+<script type="module">
+  import { mount } from '/designer/index.js';
+
+  const socket = new WebSocket('wss://flows.example.net/designer/os-upgrade');
+  const designer = mount(document.getElementById('root'), {
+    theme: 'auto',
+    transport: {
+      hostName: 'The server',
+      post: (message) => socket.send(JSON.stringify(message)),
+      subscribe(listener) {
+        const onMessage = (event) => listener(JSON.parse(event.data));
+        socket.addEventListener('message', onMessage);
+        return () => socket.removeEventListener('message', onMessage);
+      },
+      getState: () => JSON.parse(localStorage.getItem('designer') ?? 'null') ?? undefined,
+      setState: (state) => localStorage.setItem('designer', JSON.stringify(state)),
+    },
+  });
+</script>
+```
+
+With a bundler: `import { mount } from '@ansible-flow/designer'` and
+`import '@ansible-flow/designer/index.css'`.
+
+- **The transport** (`DesignerTransport`) is the designer's only way to its host: `post` sends a
+  `WebviewMessage`, `subscribe` delivers each `HostMessage` (both in
+  `@ansible-flow/core/protocol`), `getState` and `setState` keep the viewport and panel widths.
+  `hostName` is named when a request goes unanswered.
+- **The host does what the extension does:** it answers `ready` with `config`, `catalogStatus` and
+  a `snapshot`, and answers every message that has a `reqId` with an `ack` (or its own reply). The
+  designer never computes file text: the host applies each command with `planCommand` and sends
+  the next snapshot.
+- **The designer is the whole page.** As in a VS Code webview, its stylesheet styles `<body>`, its
+  keys are handled on the window and its menus open on `<body>`. Give it a page or an iframe of its
+  own.
+- **Theme:** `light`, `dark`, `hc-dark`, `hc-light` or `auto` (light or dark as the browser
+  prefers). `mount` returns `{ setTheme, unmount }`.
+- **Open the socket first or queue:** the designer posts `ready` as soon as it is mounted.
+- The bundle carries its own copy of the core's code. Messages are plain data, so that copy never
+  meets the one a server runs.
+
+A read-only mode for hosts that only show and run flows comes with AFD-270.
+
 ## Documented entry points of `@ansible-flow/core`
 
 A breaking change to one of these gets a line under "Packages" in the changelog. Every other module
@@ -150,5 +201,7 @@ artifact `npm`; it publishes nothing.
   `scripts/packages.mjs`, so the check does not import it.
 - Import a file of a package without an `exports` map with its extension
   (`ajv/dist/2020.js`), or Node cannot load the built module.
+- `src/webview/bus.ts` reaches the host only through its transport. Nothing else in `src/webview`
+  may call `acquireVsCodeApi` or listen for host messages on the window.
 - Moving or renaming a file under `src/core` or `src/node` changes an import path of a package. For a
   documented entry point, say so in the changelog.
