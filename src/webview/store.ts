@@ -167,6 +167,8 @@ interface UiState {
   testMode: boolean;
   /** AFD-270: the designer only shows and runs the flow; it stays in Run mode. */
   viewer: boolean;
+  /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
+  runner: boolean;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
   expandSubflows: boolean;
   /** The subflows expanded in place: a view, never stored. */
@@ -281,6 +283,7 @@ interface UiState {
   testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
+  setRunner(on: boolean): void;
   /** AFD-270: turns the viewer on; there is no way back. */
   setViewer(): void;
   setExpandSubflows(on: boolean): void;
@@ -387,6 +390,7 @@ export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
   viewer: false,
+  runner: false,
   expandSubflows: false,
   expandedSubflows: [],
   firstFlow: null,
@@ -504,6 +508,7 @@ export const useUi = create<UiState>((set, get) => ({
     });
   },
   setTestMode: (testMode) => set({ testMode }),
+  setRunner: (runner) => set({ runner }),
   setViewer() {
     if (get().viewer) return;
     get().setMode('run');

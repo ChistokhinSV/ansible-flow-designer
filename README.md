@@ -27,8 +27,9 @@ happens when each one fails; the extension writes the playbook and runs it.</p>
   retries, delay or timeout.
 - **Design versus code:** Code mode compares the flow with the code it runs and fixes drift in
   either direction.
-- **Run** locally (check mode, or for real and audited) or in AWX with approvals. Run mode shows
-  where every host went.
+- **Run** locally (check mode, or for real and audited), in AWX, or on
+  [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), with approvals. Run
+  mode shows where every host went.
 - **Scenario tests:** make chosen steps fail for chosen hosts and say where each must end. A
   simulation checks them as you edit; they also run in Ansible and in CI.
 - **Lenses** over the whole flow: inventory, data, code, access, timing, and changes since a

@@ -18,6 +18,7 @@ interface GitRepository {
     workingTreeChanges: GitChange[];
     indexChanges: GitChange[];
     untrackedChanges?: GitChange[];
+    remotes?: { name: string; fetchUrl?: string; pushUrl?: string }[];
   };
   show(ref: string, path: string): Promise<string>;
   getConfig(key: string): Promise<string>;
@@ -147,6 +148,14 @@ export async function gitState(
     ),
   ].sort();
   return { branch: head?.name, commit: head?.commit?.slice(0, 7), sha: head?.commit, when, dirty };
+}
+
+/** AFD-276: the addresses of the repository's remotes, fetch and push. */
+export async function remoteUrls(folder: vscode.Uri): Promise<string[]> {
+  const repo = (await gitApi())?.getRepository(folder);
+  return (repo?.state.remotes ?? [])
+    .flatMap((r) => [r.fetchUrl, r.pushUrl])
+    .filter((u): u is string => !!u);
 }
 
 /** Who records a decision (decision 13): Git user.name for the file's repository, else the OS user. */

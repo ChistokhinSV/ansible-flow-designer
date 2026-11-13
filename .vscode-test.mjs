@@ -14,10 +14,11 @@ import { defineConfig } from '@vscode/test-cli';
 const version = process.env.AFD_VSCODE_VERSION ?? 'stable';
 
 // M7: the lab AWX for the `m7` suite (AFD_AWX_URL, AFD_AWX_TOKEN, AFD_AWX_GIT_REMOTE,
-// AFD_AWX_GIT_SSH) may come from the gitignored .env; nothing else is read from it.
+// AFD_AWX_GIT_SSH), and AFD-276's server for the `runner` suite (AFD_RUNNER_URL, AFD_RUNNER_TOKEN,
+// AFD_RUNNER_WORKSPACE), may come from the gitignored .env; nothing else is read from it.
 if (existsSync('.env'))
   for (const line of readFileSync('.env', 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*(AFD_AWX_[A-Z_]+)\s*=\s*(.*?)\s*$/);
+    const m = line.match(/^\s*(AFD_(?:AWX|RUNNER)_[A-Z_]+)\s*=\s*(.*?)\s*$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
   }
 
@@ -77,6 +78,7 @@ const settings = {
       }
     : {}),
   ...(process.env.AFD_AWX_URL ? { 'afd.awx.url': process.env.AFD_AWX_URL } : {}),
+  ...(process.env.AFD_RUNNER_URL ? { 'afd.runner.url': process.env.AFD_RUNNER_URL } : {}),
 };
 if (Object.keys(settings).length > 0) {
   mkdirSync(join(workspace, '.vscode'), { recursive: true });
@@ -170,6 +172,8 @@ export default defineConfig([
     files: ['out/test/integration/awx.test.js', 'out/test/integration/awxWorkflow.test.js'],
   },
   { ...common, label: 'm8', files: 'out/test/integration/lens.test.js' },
+  // AFD-276: Run on Server against an Ansible Flow Server (skipped without AFD_RUNNER_*).
+  { ...common, label: 'runner', files: 'out/test/integration/runner.test.js' },
   // M9: import from the export fixture; the skeleton run needs AFD_TEST_IMAGE, the API import the lab AWX.
   { ...common, label: 'm9', files: 'out/test/integration/awxImport.test.js' },
   // AFD-26: playbooks, folders and AWX job templates imported as is.

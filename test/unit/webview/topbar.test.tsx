@@ -72,6 +72,16 @@ describe('top bar', () => {
     expect(lens('Changes')).toMatch(/^What changed since another version/);
   });
 
+  it('Run on Server is offered once a server is set up (AFD-276)', () => {
+    act(() => useUi.getState().setRunner(true));
+    render(<TopBar />);
+    fireEvent.click(screen.getByRole('button', { name: 'More run options' }));
+    expect(items()).toEqual(['Run for Real…', 'Run Scenarios', 'Launch in AWX', 'Run on Server']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Run on Server' }));
+    expect(posted.at(-1)).toEqual({ type: 'launchRunner' });
+    act(() => useUi.getState().setRunner(false));
+  });
+
   it('runs, exports and the "…" menu; what cannot run says why', () => {
     act(() => useUi.getState().setMode('design'));
     render(<TopBar />);

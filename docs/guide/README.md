@@ -60,6 +60,7 @@ playbooks are generated from it.
 - [Scenario tests](how-to/scenario-tests.md)
 - [Approvals](how-to/approvals.md)
 - [AWX](how-to/awx.md)
+- [Ansible Flow Server](how-to/server.md)
 - [Import playbooks and AWX templates](how-to/import.md)
 
 **AI and setup**

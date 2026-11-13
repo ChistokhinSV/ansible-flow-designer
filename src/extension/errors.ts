@@ -15,6 +15,9 @@ const FIXES: Partial<Record<RunErrorCode, { label: string; command: string }>> =
   'awx-token': { label: 'Set AWX Token', command: CMD.awxSetToken },
   'awx-template': { label: 'Set Up AWX Template', command: CMD.awxSetupTemplate },
   'awx-url': { label: 'Open Settings', command: 'workbench.action.openSettings' },
+  'runner-token': { label: 'Set Server Token', command: CMD.runnerSetToken },
+  'runner-url': { label: 'Open Settings', command: 'workbench.action.openSettings' },
+  'runner-project': { label: 'Open Settings', command: 'workbench.action.openSettings' },
 };
 
 /** Shows an error with the button that fixes it, if any; nothing for a cancelled one. */
@@ -32,6 +35,9 @@ export async function showOutcomeError(
   );
   if (!fix || pick !== fix.label) return;
   if (fix.command === 'workbench.action.openSettings')
-    await vscode.commands.executeCommand(fix.command, 'afd.awx');
+    await vscode.commands.executeCommand(
+      fix.command,
+      code?.startsWith('runner') ? 'afd.runner' : 'afd.awx',
+    );
   else await vscode.commands.executeCommand(fix.command, scope);
 }

@@ -38,6 +38,7 @@ import { type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { runTerminalName } from './run/terminal';
 import type { ScenarioOutcome, ScenarioRunKind } from './run/testController';
+import { launchOnServer, setRunnerToken } from './runner/runnerRun';
 import { tourReached } from './tour';
 
 /** Exported from activate() in ExtensionMode.Test only (integration and perf suites). */
@@ -116,6 +117,12 @@ export interface AfdTestApi {
     picks: AwxPicks,
   ): Promise<{ ok: boolean; error?: string; template?: string; survey?: string }>;
   awxLaunch(uri: vscode.Uri, inputs: Record<string, unknown>): Promise<RunView>;
+  /** AFD-276: Ansible Flow Server (the address from afd.runner.url). */
+  runnerToken(uri: vscode.Uri, token: string): Promise<string | undefined>;
+  runnerLaunch(
+    uri: vscode.Uri,
+    options: { inputs: Record<string, unknown>; mode?: 'check' | 'real'; config?: string },
+  ): Promise<RunView>;
   /** M8: the lens on the flow's panels, the facts its session gathered, the lens targets. */
   setLens(uri: vscode.Uri, lens: LensId | null): void;
   lensFacts(uri: vscode.Uri): LensFacts;
@@ -273,6 +280,12 @@ export function createTestApi(
     awxLaunch: async (uri, inputs) =>
       launchInAwx(await vscode.workspace.openTextDocument(uri), host.awxDeps(uri), {
         inputs,
+        yes: true,
+      }),
+    runnerToken: (uri, token) => setRunnerToken(uri, host.context.secrets, token),
+    runnerLaunch: async (uri, options) =>
+      launchOnServer(await vscode.workspace.openTextDocument(uri), host.awxDeps(uri), {
+        ...options,
         yes: true,
       }),
     // Tests import as is unless they ask for the AI mode.

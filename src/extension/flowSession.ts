@@ -63,6 +63,7 @@ import { listRuns, loadRun } from './run/pastRuns';
 import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
+import { runnerConfigured } from './runner/runnerRun';
 import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
@@ -652,6 +653,8 @@ export class FlowSession implements vscode.Disposable {
             vscode.workspace
               .getConfiguration('afd', this.document.uri)
               .get<boolean>('canvas.expandSubflows') !== false,
+          // AFD-276: Run on Server is offered once a server is set up.
+          runner: runnerConfigured(this.document.uri),
         });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
@@ -857,12 +860,33 @@ export class FlowSession implements vscode.Disposable {
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
         break;
+      case 'launchRunner':
+        await vscode.commands.executeCommand(CMD.runnerLaunch, this.uri);
+        break;
       case 'stopRun':
         await vscode.commands.executeCommand(CMD.stopRun, this.uri);
         break;
       // AFD-273: VS Code shows approvals; AWX decides them in AWX, local runs by themselves.
-      case 'approve':
+      // AFD-276: a run on the server: its approval is decided there, as the user.
+      case 'approve': {
+        const runner = this.lastRun?.source === 'runner' ? this.lastRun.runner : undefined;
+        if (!runner) break;
+        const error = await vscode.commands.executeCommand<string | undefined>(
+          CMD.runnerDecide,
+          this.uri,
+          runner.runId,
+          m.node,
+          m.decision,
+          m.comment,
+        );
+        this.tell(
+          panel,
+          error
+            ? { level: 'error', text: error }
+            : { level: 'info', text: `The approval is ${m.decision}; the run goes on.` },
+        );
         break;
+      }
       case 'generate': {
         const notice = await vscode.commands.executeCommand<Notice | undefined>(
           CMD.generateCode,
@@ -876,8 +900,9 @@ export class FlowSession implements vscode.Disposable {
       case 'showRunOutput': {
         // Only URLs the host itself got from AWX: the run, or one of its approvals (AFD-11).
         const url = m.approval
-          ? this.lastRun?.awx?.approvals?.[m.approval]?.url
-          : this.lastRun?.awx?.url;
+          ? (this.lastRun?.awx?.approvals?.[m.approval]?.url ??
+            this.lastRun?.approvals?.[m.approval]?.url)
+          : (this.lastRun?.awx?.url ?? this.lastRun?.runner?.url);
         if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
         // AFD-81: the flow's own run terminal, not whichever terminal was last.
         else if (!m.approval) await showRunTerminal(this.uri);
@@ -1030,6 +1055,17 @@ export class FlowSession implements vscode.Disposable {
    */
   async runOutput(node: Ulid, host: string): Promise<{ entries?: OutputEntry[]; error?: string }> {
     const run = this.lastRun;
+    // AFD-276: a run on the server keeps its output there.
+    if (run?.source === 'runner' && run.runner)
+      return (
+        (await vscode.commands.executeCommand<{ entries?: OutputEntry[]; error?: string }>(
+          CMD.runnerHostOutput,
+          this.uri,
+          run.runner.runId,
+          node,
+          host,
+        )) ?? { error: 'The server did not answer' }
+      );
     const flowId = this.built?.parsed.doc?.flow.id;
     const storage = this.deps.lens?.storage;
     if (run?.source !== 'local' || !isFileId(flowId) || !storage)

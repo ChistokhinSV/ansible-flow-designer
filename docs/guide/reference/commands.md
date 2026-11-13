@@ -88,6 +88,14 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 | `afd.awx.setupTemplate` · Set Up AWX Template | creates or updates the job template (or approval workflow) for the flow |
 | `afd.awx.launch` · Launch in AWX              | launches it and follows the job on the canvas                           |
 
+## Ansible Flow Server
+
+| Command                                      | Does                                                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `afd.runner.setToken` · Set Server Token     | stores a personal access token for `afd.runner.url` in SecretStorage                                     |
+| `afd.runner.clearToken` · Clear Server Token | removes it                                                                                               |
+| `afd.runner.launch` · Run on Server          | runs the flow's launch configuration on the server, at the server's commit, and follows it on the canvas |
+
 ## AI assistants
 
 | Command                                             | Does                                                                                                            |

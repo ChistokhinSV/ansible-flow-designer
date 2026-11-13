@@ -52,6 +52,10 @@ export type RunErrorCode =
   | 'awx-url'
   | 'awx-token'
   | 'awx-template'
+  /** AFD-276: Ansible Flow Server: no address, no token, no project or launch configuration. */
+  | 'runner-url'
+  | 'runner-token'
+  | 'runner-project'
   /** AFD-82: the launch dialog's facts are not the inventory's any more. */
   | 'changed';
 
@@ -67,13 +71,15 @@ export interface RunView {
   errorCode?: RunErrorCode;
   environment?: string;
   summary?: RunSummary;
-  /** Where it ran: a local terminal task (M3) or an AWX job (M7). */
-  source?: 'local' | 'awx' | 'scenario';
+  /** Where it ran: a local terminal task (M3), an AWX job (M7) or Ansible Flow Server (AFD-276). */
+  source?: 'local' | 'awx' | 'scenario' | 'runner';
   /** flow.version the run executed (decision 15: `tested` is per version). */
   flowVersion?: number;
   /** Each node's design fingerprint when the run started (decision 15: `tested` is for what ran). */
   design?: Record<Ulid, string>;
   awx?: AwxRunInfo;
+  /** AFD-276: the run on Ansible Flow Server. */
+  runner?: RunnerRunInfo;
   /**
    * AFD-273: the run's approvals, per approval node, from whatever runs it (AWX, a server that
    * runs segments). A run that waits for one is still `running`.
@@ -112,6 +118,21 @@ export interface AwxRunInfo {
   approvals?: Record<Ulid, AwxApproval>;
   /** The segment jobs in the order AWX ran them. */
   segments?: { name: string; job: number; status: string }[];
+}
+
+/** AFD-276: a run on Ansible Flow Server, as the extension follows it. */
+export interface RunnerRunInfo {
+  runId: string;
+  number: number;
+  /** The run's page on the server. */
+  url: string;
+  /** The server's word for where it is: queued, running, waiting, succeeded, failed, … */
+  state: string;
+  commit: string;
+  /** The launch configuration it came from. */
+  config: string;
+  /** The server ran another commit than the local HEAD, or there were uncommitted changes. */
+  drift?: string;
 }
 
 /** An approval of a run (AFD-273), whoever runs it. */
@@ -220,7 +241,14 @@ export type HostMessage =
   | { type: 'setMode'; mode: 'design' | 'code' | 'run' }
   /** `expandSubflows` (AFD-243, `afd.canvas.expandSubflows`): subflows can be expanded in place. */
   /** `viewer` (AFD-270): the designer only shows and runs the flow (core/viewer.ts). */
-  | { type: 'config'; testMode: boolean; expandSubflows?: boolean; viewer?: boolean }
+  | {
+      type: 'config';
+      testMode: boolean;
+      expandSubflows?: boolean;
+      viewer?: boolean;
+      /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
+      runner?: boolean;
+    }
   /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
   | { type: 'firstFlow'; hidden: boolean; done: string[] }
   /** Test mode: asks the webview for a summary of its DOM. */
@@ -335,6 +363,8 @@ export type WebviewMessage =
   | { type: 'sync' }
   /** Launch the flow's AWX job template (M7). */
   | { type: 'launchAwx' }
+  /** AFD-276: run the flow on Ansible Flow Server. */
+  | { type: 'launchRunner' }
   /** AFD-39: stop the run going (terminal task or AWX job). */
   | { type: 'stopRun' }
   /**
