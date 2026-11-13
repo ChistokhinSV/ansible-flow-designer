@@ -3,6 +3,9 @@
 //   --check  also packs each one (dry run) and uses it from a plain Node script and a TypeScript
 //            file, as another repository would
 //   --pack   also writes the tarballs the release publishes to out/npm/
+//   --publish  packs, then publishes from this terminal the packages whose version is not on npm
+//            yet, with your npm login and its two-factor prompt: for a package's first version
+//            (a release publishes by Trusted Publishing, which needs the package to exist)
 import { execFileSync, execSync } from 'node:child_process';
 import {
   copyFileSync,
@@ -22,7 +25,8 @@ import { build, buildSync, transformSync } from 'esbuild';
 import { build as viteBuild } from 'vite';
 
 const check = process.argv.includes('--check');
-const pack = process.argv.includes('--pack');
+const publish = process.argv.includes('--publish');
+const pack = publish || process.argv.includes('--pack');
 const root = process.cwd();
 const rootPkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const OUT = join('dist', 'packages');
@@ -641,3 +645,21 @@ for (const pkg of PACKAGES) {
 // line is `<name>@<version> <file>`.
 if (pack) writeFileSync(join(TARBALLS, 'order.txt'), `${order.join('\n')}\n`);
 console.log(`Staged in ${OUT}${pack ? `, packed in ${TARBALLS}` : ''}`);
+
+if (publish) {
+  for (const line of order) {
+    const [spec, tarball] = line.split(' ');
+    let onNpm = true;
+    try {
+      execSync(`npm view ${spec} version`, { stdio: 'ignore' });
+    } catch {
+      onNpm = false;
+    }
+    if (onNpm) {
+      console.log(`${spec} is already on npm; left as is`);
+      continue;
+    }
+    // npm asks for the second factor itself; nothing is read or kept here.
+    execSync(`npm publish "${join(TARBALLS, tarball)}" --access public`, { stdio: 'inherit' });
+  }
+}

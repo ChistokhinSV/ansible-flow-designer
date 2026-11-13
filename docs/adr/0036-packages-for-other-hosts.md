@@ -86,17 +86,19 @@ each release with a pull request that its contract tests gate.
 
 **Versions and publishing.** All four packages carry the extension's version and are published at
 every release, changed or not. `publish.yml` has a job `npm` beside the VSIX's publish job, in the
-same `release` environment: `npm publish --provenance --access public` with npm Trusted Publishing
+same `release` environment: `npm publish --access public` with npm Trusted Publishing
 (OIDC), as the Marketplace job does. The build job makes the tarballs with no secret and no token;
 the `npm` job installs nothing and publishes them. A manual run with `dry_run` builds, checks and
 uploads the tarballs only. The two publish jobs do not depend on each other, and a version already
 on npm is skipped, so the job can be re-run.
 
-Before the first publish, the npm organisation `ansible-flow` must exist and belong to the
-publisher (an account step for the product owner). Until then the job is off: it runs only when the
-repository variable `NPM_PUBLISH` is `true`. A package's first publish uses a token (`NPM_TOKEN`),
-because npm sets a trusted publisher on a package that exists; the steps are in
-[packages.md](../packages.md#publishing) (AFD-268).
+The job publishes by Trusted Publishing only and reads no token (AFD-268, amended 2026-11-13: npm
+is withdrawing the tokens that bypass two-factor authentication). npm sets a trusted publisher on
+a package that exists, so a package's first version is published by hand, from the owner's terminal
+with its two-factor prompt (`just packages-publish`). Before that the npm organisation
+`ansible-flow` must exist and belong to the publisher. Until the trusted publishers are set the job
+is off: it runs only when the repository variable `NPM_PUBLISH` is `true`. The steps are in
+[packages.md](../packages.md#publishing).
 
 **Checks.**
 
