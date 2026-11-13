@@ -20,3 +20,11 @@ Status: Accepted · 2026-10-28 · AFD-1
   The Marketplace page is the README, made at package time (`scripts/vsix-readme.ts`). Its
   relative images become `raw.githubusercontent.com` URLs and its relative links become GitHub
   links, so the page shows the screenshots. Before the repository existed, they were dropped.
+
+## Amendment: npm packages for other hosts (AFD-266, 2026-11-13)
+
+The repository is still one npm package with no workspaces, and the VSIX still ships bundled
+`dist/` only. From the same sources, a release also publishes four npm packages under the
+`@ansible-flow` scope (`core`, `node`, `designer`, `assets`) for Ansible Flow Server and other
+hosts. They are staged by a build script with generated manifests, and carry the extension's
+version. See ADR-0036.
