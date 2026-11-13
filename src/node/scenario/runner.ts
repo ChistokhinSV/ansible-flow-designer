@@ -2,7 +2,6 @@
 // SCENARIO build of the flow (every step as its stub), a local-connection inventory and the extra
 // vars go into a folder of their own; ansible-playbook runs in the environment as any run does
 // (runProcess), and its routing events say where each host ended.
-import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { engineFor } from '../../core/engine/engines';
@@ -20,6 +19,7 @@ import {
   scenarioVars,
 } from '../../core/scenario/scenarios';
 import { missWhy } from '../../core/scenario/view';
+import { startProcess } from '../run/exec';
 import { stopStarted } from '../run/stop';
 import { fetchRunFile, putRunFolder, removeRunDir, syncWorkspace } from '../ssh/remote';
 
@@ -53,51 +53,24 @@ const slug = (name: unknown) =>
     .slice(0, 40) || 'scenario';
 
 /** Runs one process to its end, feeding its output to `log`; resolves with the exit code. */
-function exec(
+async function exec(
   spec: ProcessSpec,
   log: (line: string) => void,
   timeoutMs: number,
   signal?: AbortSignal,
 ): Promise<number | null> {
-  return new Promise((resolve) => {
-    // AFD-131: on Linux and macOS the run gets a process group of its own, so a stop ends
-    // ansible-playbook too, not only the shell that started it.
-    const group = process.platform !== 'win32';
-    const child = spawn(spec.command, spec.args, {
-      cwd: spec.cwd,
-      env: { ...process.env, ...spec.env },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      detached: group,
-    });
-    // Killing the client leaves a container or a WSL process running; spec.stop ends those.
-    const stop = () => {
-      try {
-        if (group && child.pid) process.kill(-child.pid, 'SIGTERM');
-        else child.kill();
-      } catch {
-        child.kill();
-      }
-      void stopStarted(spec);
-    };
-    const timer = setTimeout(stop, timeoutMs);
-    signal?.addEventListener('abort', stop, { once: true });
-    const lines = (chunk: Buffer) => {
-      for (const line of chunk.toString().split(/\r?\n/)) if (line.trim()) log(line);
-    };
-    child.stdout.on('data', lines);
-    child.stderr.on('data', lines);
-    child.on('error', (e) => {
-      log(e.message);
-      clearTimeout(timer);
-      resolve(null);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', stop);
-      resolve(code);
-    });
-  });
+  const started = startProcess(spec, spec.env, log);
+  // Killing the client leaves a container or a WSL process running; spec.stop ends those.
+  const stop = () => {
+    started.terminate();
+    void stopStarted(spec);
+  };
+  const timer = setTimeout(stop, timeoutMs);
+  signal?.addEventListener('abort', stop, { once: true });
+  const code = await started.exit;
+  clearTimeout(timer);
+  signal?.removeEventListener('abort', stop);
+  return code ?? null;
 }
 
 /**

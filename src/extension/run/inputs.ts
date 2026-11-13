@@ -84,9 +84,4 @@ export async function collectInputs(
   return values;
 }
 
-export function targetsOf(doc: FlowDocument, inputs: Record<string, unknown>): string[] {
-  const lists = Object.entries(doc.flow.inputs ?? {}).filter(([, f]) => f?.type === 'host_list');
-  const name = (lists.find(([, f]) => f.targets) ?? lists[0])?.[0];
-  const value = name ? inputs[name] : undefined;
-  return Array.isArray(value) ? value.map(String) : [];
-}
+export { targetsOf } from '../../core/run/launch';
