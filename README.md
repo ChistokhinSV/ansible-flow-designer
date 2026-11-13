@@ -85,10 +85,10 @@ The extension sends no telemetry and nothing about your flows. It only opens lin
 - After a week of real use (three days with a flow open in the designer), one notice asks for a
   rating or a few words. **Not Now** asks once more a month later at most; **Don't Ask Again**
   ends it. The days are counted on your machine only.
-- After you uninstall it, VS Code runs the extension's uninstall script once, at its next restart:
-  it opens a "why did you leave?" page in the browser. It does not open after **Don't Ask Again**,
-  on a remote server, or in CI.
-- The setting `afd.feedback.prompt` turns off both the notice and the uninstall page.
+- When you uninstall it, a notice in the editor asks whether you would say why. The form opens in
+  the browser only if you click **Tell Us Why**; nothing opens by itself. It does not ask after
+  **Don't Ask Again**.
+- The setting `afd.feedback.prompt` turns off both notices.
 
 What you send through the form goes to the author's issue tracker, with a chat notification that
 leaves out the email. The email is optional and used only to answer you. The form page itself

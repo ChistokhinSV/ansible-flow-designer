@@ -4,7 +4,6 @@
 !dist/elk.js
 !dist/mcp.js
 !dist/afd-scenarios.js
-!dist/uninstall.js
 !dist/afd-ssh-run.js
 !skills/**
 !instructions/**

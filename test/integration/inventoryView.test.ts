@@ -97,7 +97,7 @@ describe('AFD-259, AFD-260: editing the inventory from the view', () => {
   const lab = { kind: 'group', group: { name: 'lab' } };
 
   it('adds a host to a group, renames it, moves it and removes it; the file is saved each time', async () => {
-    let r = await answering({ input: ['h99'] }, cmd('afd.inventory.addHost', lab));
+    let r = await answering({ input: ['h99', ''] }, cmd('afd.inventory.addHost', lab));
     assert.deepEqual(r, { result: true, errors: [] });
     let text = await lines('inventory.ini');
     assert.equal(text[text.findIndex((l) => l.startsWith('h07 ')) + 1], 'h99');
@@ -140,7 +140,7 @@ describe('AFD-259, AFD-260: editing the inventory from the view', () => {
     assert.deepEqual(r, { result: true, errors: [] });
     r = await answering(
       { input: ['dmz_fw'] },
-      cmd('afd.inventory.addGroup', { kind: 'group', group: { name: 'dmz' } }),
+      cmd('afd.inventory.addChildGroup', { kind: 'group', group: { name: 'dmz' } }),
     );
     assert.deepEqual(r, { result: true, errors: [] });
     let text = await read('inventory.ini');
@@ -211,6 +211,100 @@ describe('AFD-259, AFD-260: editing the inventory from the view', () => {
     assert.equal(r.result, true);
     assert.deepEqual(parse(await read('host_vars/h03.yml')), { vlans: [10, 20] });
     assert.equal(await read('inventory.ini'), original);
+  }).timeout(30_000);
+});
+
+describe('AFD-262: a YAML inventory, as it was first used', () => {
+  const FILE = 'inventory/hosts.yml';
+  const START = [
+    '# An Ansible inventory',
+    'all:',
+    '  children:',
+    '    lab:',
+    '      hosts:',
+    '        sw-lab-01:',
+    '          ansible_host: 192.0.2.12',
+    '      vars:',
+    '        ansible_network_os: cisco.ios.ios',
+    '',
+  ].join('\n');
+  const afd = () => vscode.workspace.getConfiguration('afd');
+  const lab = { kind: 'group', group: { name: 'lab' } };
+  const data = async () => parse(await read(FILE)).all.children;
+
+  beforeEach(async () => {
+    await testApi();
+    await vscode.workspace.fs.writeFile(
+      vscode.Uri.joinPath(root(), FILE),
+      new TextEncoder().encode(START),
+    );
+    await afd().update('run.inventory', FILE, vscode.ConfigurationTarget.Workspace);
+  });
+  afterEach(async () => {
+    await closeAll();
+    await afd().update('run.inventory', undefined, vscode.ConfigurationTarget.Workspace);
+    await vscode.workspace.fs.delete(vscode.Uri.joinPath(root(), 'inventory'), { recursive: true });
+  });
+
+  it('Add Child Group… on a group makes it once, under that group', async () => {
+    const r = await answering({ input: ['test'] }, cmd('afd.inventory.addChildGroup', lab));
+    assert.deepEqual(r, { result: true, errors: [] });
+    const groups = await data();
+    assert.deepEqual(Object.keys(groups), ['lab']);
+    assert.deepEqual(groups.lab.children, { test: {} });
+    assert.equal((await read(FILE)).match(/test:/g)?.length, 1);
+  });
+
+  it('Add Group… on the title makes a top-level group, whatever is selected', async () => {
+    const r = await answering({ input: ['core'] }, cmd('afd.inventory.addGroup', lab));
+    assert.equal(r.result, true);
+    assert.deepEqual(Object.keys(await data()), ['lab', 'core']);
+  });
+
+  it('Add Host… asks for the address with the name; Set Address… changes and clears it', async () => {
+    let r = await answering(
+      { input: ['sw-lab-02', '192.0.2.13'] },
+      cmd('afd.inventory.addHost', lab),
+    );
+    assert.deepEqual(r, { result: true, errors: [] });
+    assert.deepEqual((await data()).lab.hosts['sw-lab-02'], { ansible_host: '192.0.2.13' });
+    // No address: the host alone.
+    r = await answering({ input: ['sw-lab-03', ''] }, cmd('afd.inventory.addHost', lab));
+    assert.equal(r.result, true);
+    assert.deepEqual((await data()).lab.hosts['sw-lab-03'], {});
+    const host = { kind: 'host', host: 'sw-lab-03', group: 'lab' };
+    r = await answering(
+      { input: ['sw-lab-03.example.net'] },
+      cmd('afd.inventory.setAddress', host),
+    );
+    assert.equal(r.result, true);
+    assert.equal((await data()).lab.hosts['sw-lab-03'].ansible_host, 'sw-lab-03.example.net');
+    r = await answering({ input: [''] }, cmd('afd.inventory.setAddress', host));
+    assert.equal(r.result, true);
+    assert.equal((await data()).lab.hosts['sw-lab-03']?.ansible_host, undefined);
+    await assert.rejects(
+      answering({ input: ['not an address'] }, cmd('afd.inventory.setAddress', host)),
+      /refused/,
+    );
+  }).timeout(30_000);
+
+  it('Move to Group… on a group takes it under another, and back to the top level', async () => {
+    await answering({ input: ['core'] }, cmd('afd.inventory.addGroup'));
+    let r = await answering({ pick: ['core'] }, cmd('afd.inventory.moveHost', lab));
+    assert.deepEqual(r, { result: true, errors: [] });
+    let groups = await data();
+    assert.deepEqual(Object.keys(groups), ['core']);
+    assert.equal(groups.core.children.lab.hosts['sw-lab-01'].ansible_host, '192.0.2.12');
+    assert.equal(groups.core.children.lab.vars.ansible_network_os, 'cisco.ios.ios');
+    r = await answering(
+      { pick: ['The Top Level'] },
+      cmd('afd.inventory.moveHost', { ...lab, parent: 'core' }),
+    );
+    assert.equal(r.result, true);
+    groups = await data();
+    assert.deepEqual(Object.keys(groups).sort(), ['core', 'lab']);
+    assert.equal(groups.lab.hosts['sw-lab-01'].ansible_host, '192.0.2.12');
+    assert.ok((await read(FILE)).startsWith('# An Ansible inventory\n'));
   }).timeout(30_000);
 });
 

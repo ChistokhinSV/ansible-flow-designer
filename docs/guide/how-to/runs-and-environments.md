@@ -209,15 +209,25 @@ The view and the inventory's files stay together:
 
 ### Edit the inventory from the view
 
-Right-click a group, a host or a variable (the view's `…` menu has **Add Group…** and **Add
-Host…**). Each change is written into the inventory's YAML or INI file as the smallest edit that
-says it: your comments, order and layout stay. The file is saved, and the view reads it again.
+**Add Group…** on the view's title makes a group at the top level. Everything else is on the
+right-click menu of a group, a host or a variable. Each change is written into the inventory's YAML
+or INI file as the smallest edit that says it: your comments, order and layout stay. The file is
+saved, and the view reads it again.
 
-| On         | You can                                                                                      |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| a group    | **Add Host…**, **Add Group…** (a child group), **Add Variable…**, **Rename…**, **Delete…**   |
-| a host     | **Move to Group…**, **Add Variable…**, **Rename…**, **Delete…** (from the group it is under) |
-| a variable | **Edit Value…**, **Delete…**; a click opens it where it is written                           |
+| On         | You can                                                                                                        |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| a group    | **Add Host…**, **Add Child Group…**, **Add Variable…**, **Move to Group…**, **Rename…**, **Delete…**           |
+| a host     | **Set Address…**, **Add Variable…**, **Move to Group…**, **Rename…**, **Delete…** (from the group it is under) |
+| a variable | **Edit Value…**, **Delete…**; a click opens it where it is written                                             |
+- **A host's address:** **Add Host…** asks for the name and then for the address (an IP address or
+  a DNS name; empty when the name itself resolves). It is the variable `ansible_host`, shown beside
+  the host; **Set Address…** changes or clears it.
+- **Move to Group…** on a group takes it, with everything in it, under another group or to the top
+  level.
+- **A file Ansible will not read as written** shows at the top of the view with its line and how
+  to write it instead; a click goes there. The usual one is a host given its address as a value
+  (`sw-01: 192.0.2.11` instead of `ansible_host: 192.0.2.11` under it): Ansible then leaves out the
+  group, or the whole file, and the hosts are missing.
 - **Variables** show under their host or group, each with where it is written: the inventory file,
   or a file in `host_vars/` or `group_vars/`. A value is typed as it would be in YAML: text, a
   number, `true`, a list `[a, b]`, a mapping `{k: v}`.

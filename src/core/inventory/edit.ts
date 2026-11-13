@@ -28,6 +28,11 @@ export type InventoryOp =
   | { op: 'add_group'; group: string; parent?: string; file?: string }
   | { op: 'remove_group'; group: string }
   | { op: 'rename_group'; group: string; to: string }
+  /**
+   * AFD-262: a group, with everything in it, under another parent. `from`: the parent it leaves
+   * (absent: the top level); `to`: the parent it goes under (absent: the top level).
+   */
+  | { op: 'move_group'; group: string; from?: string; to?: string }
   /** A variable written in the inventory file itself, on a host or in a group's variables. */
   | { op: 'set_var'; host?: string; group?: string; key: string; value: unknown }
   | { op: 'remove_var'; host?: string; group?: string; key: string };
@@ -255,6 +260,39 @@ function iniEdit(file: InventoryFile, op: InventoryOp): string | { error: string
       });
       break;
     }
+    case 'move_group': {
+      if (!lines.some((l) => l.header && l.group === op.group))
+        return { error: `The group ${op.group} is not written in ${file.path}` };
+      const childOf = (parent: string) =>
+        lines.findIndex(
+          (l) => l.group === parent && l.section === 'children' && l.name === op.group,
+        );
+      if (op.from) {
+        const at = childOf(op.from);
+        if (at < 0) return { error: `${op.group} is not a child of ${op.from} in ${file.path}` };
+        lines = lines.filter((_, i) => i !== at);
+      }
+      if (op.to) {
+        if (childOf(op.to) >= 0) return { error: `${op.group} is a child of ${op.to} already` };
+        // Up from the new parent: the group itself must not be there.
+        const parents = (name: string) =>
+          lines.filter((l) => l.section === 'children' && l.name === name).map((l) => l.group);
+        const seen = new Set<string>();
+        const queue = [op.to];
+        while (queue.length) {
+          const name = queue.pop() as string;
+          if (name === op.group)
+            return { error: `${op.to} is ${op.group} or inside it: a group cannot hold itself` };
+          if (seen.has(name)) continue;
+          seen.add(name);
+          queue.push(...parents(name));
+        }
+        if (!lines.some((l) => l.header && l.group === op.to))
+          return { error: `The group ${op.to} is not written in ${file.path}` };
+        lines = iniAdd(lines, op.to, 'children', op.group, op.group);
+      }
+      break;
+    }
     case 'set_var':
     case 'remove_var': {
       const value = op.op === 'set_var' ? iniValue(op.value) : '';
@@ -432,6 +470,102 @@ function yamlEdit(file: InventoryFile, op: InventoryOp): string | { error: strin
       if (named(op.to).length) return { error: `The group ${op.to} is there already` };
       for (const g of at) tx.apply((f) => renameKey(f, g.path.slice(0, -1), op.group, op.to));
       break;
+    }
+    case 'move_group': {
+      const top = groups.find((g) => g.name === 'all' && g.path.length === 1);
+      // Where it is now: under `from`, else at the top (a key of its own, or a child of `all`).
+      const isUnder = (g: YamlGroup, parent: string) =>
+        g.path.length >= 3 && g.path.at(-2) === 'children' && g.path.at(-3) === parent;
+      const source = named(op.group).find((g) =>
+        op.from ? isUnder(g, op.from) : g.path.length === 1 || isUnder(g, 'all'),
+      );
+      if (!source)
+        return {
+          error: op.from
+            ? `${op.group} is not a child of ${op.from} in ${file.path}`
+            : `${op.group} is not at the top level in ${file.path}`,
+        };
+      const target = op.to ? named(op.to)[0] : top;
+      if (op.to && !target) return { error: `The group ${op.to} is not written in ${file.path}` };
+      const inSource = (path: Path) => source.path.every((part, i) => path[i] === part);
+      if (target && inSource(target.path))
+        return { error: `${op.to} is ${op.group} or inside it: a group cannot hold itself` };
+      if (target && isObject(target.value?.children) && op.group in target.value.children)
+        return {
+          error: op.to
+            ? `${op.group} is a child of ${op.to} already`
+            : `${op.group} is at the top level already`,
+        };
+      if (!target && source.path.length === 1)
+        return { error: `${op.group} is at the top level already` };
+      // The group's lines as they are written, comments and all: its key line and every line
+      // after it that is indented deeper.
+      const lineOf = (text: string, name: string, parentPath: Path) => {
+        const doc = new YamlTransaction(text).current.doc;
+        const map = (parentPath.length ? doc.getIn(parentPath, true) : doc.contents) as
+          | { flow?: boolean; items?: { key: { value?: unknown; range?: number[] } | null }[] }
+          | undefined;
+        const pair = map?.items?.find((p) => p.key?.value === name);
+        const at = pair?.key?.range?.[0];
+        if (map?.flow || at === undefined) return undefined;
+        const before = text.slice(0, at);
+        const start = before.lastIndexOf('\n') + 1;
+        // A key that does not start its line is written inline: not moved as lines.
+        if (before.slice(start).trim() !== '') return undefined;
+        return { line: before.split('\n').length - 1, column: at - start };
+      };
+      const inline = {
+        error: `${op.group} is written inline in ${file.path} (a {…} mapping): move it in the file`,
+      };
+      const from = lineOf(file.text, op.group, source.path.slice(0, -1));
+      if (!from) return inline;
+      const eol = eolOf(file.text);
+      const all = file.text.split(/\r?\n/);
+      let end = from.line + 1;
+      while (end < all.length) {
+        const l = all[end] as string;
+        if (l.trim() !== '' && l.length - l.trimStart().length <= from.column) break;
+        end++;
+      }
+      while (end > from.line + 1 && (all[end - 1] as string).trim() === '') end--;
+      const block = all.slice(from.line, end);
+      // Out of the old place and a stand-in at the new one, by the minimal-edit machinery; then
+      // the stand-in's line is replaced with the group's own lines, indented for the new place.
+      tx.apply((f) => deleteKey(f, source.path.slice(0, -1), op.group));
+      const after = yamlGroups(tx.text);
+      const parent = op.to
+        ? after.find((g) => g.name === op.to)
+        : after.find((g) => g.name === 'all' && g.path.length === 1);
+      let parentPath: Path;
+      if (!parent) {
+        tx.apply((f) => setIn(f, [op.group], {}));
+        parentPath = [];
+      } else {
+        parentPath = [...parent.path, 'children'];
+        if (parent.value === null || Object.keys(parent.value).length === 0)
+          tx.apply((f) => setIn(f, parent.path, { children: { [op.group]: {} } }));
+        else put(parentPath, parent.value.children, op.group, {});
+      }
+      const to = lineOf(tx.text, op.group, parentPath);
+      if (!to) return inline;
+      const out = tx.text.split(/\r?\n/);
+      const moved = block.map((l) =>
+        l.trim() === '' ? '' : `${' '.repeat(to.column)}${l.slice(from.column)}`,
+      );
+      out.splice(to.line, 1, ...moved);
+      const text = out.join(eol);
+      // The same data in the new place, or nothing is changed.
+      const path = [...parentPath, op.group].map(String);
+      const dig = (data: unknown, keys: string[]) =>
+        keys.reduce<unknown>((v, k) => (isObject(v) ? v[k] : undefined), data);
+      if (
+        new YamlTransaction(text).text !== text ||
+        JSON.stringify(dig(parse(text, QUIET), path)) !== JSON.stringify(source.value)
+      )
+        return {
+          error: `${op.group} could not be moved safely in ${file.path}: move it in the file`,
+        };
+      return text;
     }
     case 'set_var':
     case 'remove_var': {
@@ -637,6 +771,19 @@ export function editInventory(files: readonly InventoryFile[], op: InventoryOp):
       const targets = withGroup(op.group);
       if (!targets.length)
         return fail(`The group ${op.group} is not written in a file of this inventory`);
+      return apply(targets, op);
+    }
+    case 'move_group': {
+      if (op.from === op.to)
+        return fail(`${op.group} is ${op.to ? `under ${op.to}` : 'at the top level'} already`);
+      if (op.to === op.group) return fail('A group cannot hold itself');
+      const targets = first(withGroup(op.group));
+      if (!targets.length)
+        return fail(`The group ${op.group} is not written in a file of this inventory`);
+      if (op.to && !withGroup(op.to).length)
+        return fail(`The group ${op.to} is not written in a file of this inventory`);
+      if (op.to && !written(targets[0] as InventoryFile).groups.includes(op.to))
+        return fail(`${op.to} is written in another file than ${op.group}: move it in the files`);
       return apply(targets, op);
     }
     case 'set_var':

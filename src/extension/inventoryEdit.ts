@@ -25,7 +25,8 @@ import {
 
 /** What the commands get from the view: its items carry these. */
 export type EditTarget =
-  | { kind: 'group'; group: { name: string } }
+  /** `parent`: the group it is shown under (absent at the top level). */
+  | { kind: 'group'; group: { name: string }; parent?: string }
   | { kind: 'host'; host: string; group?: string }
   | { kind: 'var'; variable: ShownVar; host?: string; group?: string };
 
@@ -153,14 +154,77 @@ async function addHost(ctx: EditContext, item?: EditTarget) {
   }
   const host = await ask(
     `Add Host to ${group}`,
-    'The host name, as Ansible connects to it or as the inventory names it (ansible_host can be added as a variable).',
+    'The host name, as the inventory and the flows name it.',
     '',
     hostNameProblem,
   );
-  return host ? change(ctx, { op: 'add_host', host: host.trim(), group }) : false;
+  if (!host) return false;
+  // AFD-262: the address is asked with the host, not left to be found as a variable.
+  const address = await ask(
+    `Add Host to ${group}: ${host.trim()}`,
+    'Its address: an IP address or a DNS name (ansible_host). Leave it empty when the host name itself resolves.',
+    '',
+    addressProblem,
+  );
+  if (address === undefined) return false;
+  if (!(await change(ctx, { op: 'add_host', host: host.trim(), group }))) return false;
+  return address.trim() ? setAddressOf(ctx, host.trim(), address.trim()) : true;
 }
 
-async function addGroup(ctx: EditContext, item?: EditTarget) {
+/** An IP address or a DNS name; empty is allowed where the box says so. */
+function addressProblem(v: string): string | undefined {
+  if (!v) return undefined;
+  return /^[A-Za-z0-9_.:-]+$/.test(v) ? undefined : 'An IP address or a DNS name, without spaces';
+}
+
+/** Writes ansible_host where it is written already, else where a new variable goes. */
+async function setAddressOf(ctx: EditContext, host: string, address: string): Promise<boolean> {
+  const files = await ctx.files();
+  if (!files) return false;
+  const target = { host };
+  const now = targetVars(files, target).find((v) => v.key === 'ansible_host');
+  const file = now && !now.inline ? files.varFiles.find((f) => f.path === now.file) : undefined;
+  if (now?.vaulted) {
+    void vscode.window.showInformationMessage(
+      `The address of ${host} is vault-encrypted in ${now.file}: change it with ansible-vault.`,
+    );
+    return false;
+  }
+  if (!address) {
+    if (!now) return true;
+    return removeVar(ctx, { kind: 'var', variable: now, host });
+  }
+  let place: { inline: true } | { file: string; text?: string };
+  if (now) place = file ? { file: file.path, text: file.text } : { inline: true };
+  else {
+    // A new host has no variables yet, so the rule gives one place; if it would ask, the
+    // address goes on the host's line, beside its other variables there.
+    const rule = varPlace(files, target);
+    place = 'ask' in rule ? rule.ask[1] : rule;
+  }
+  return setVar(ctx, target, 'ansible_host', address, place);
+}
+
+/** AFD-262: Set Address… on a host: its IP address or DNS name in one step. */
+async function setAddress(ctx: EditContext, item?: EditTarget) {
+  const files = await ctx.files();
+  if (!files || item?.kind !== 'host') return false;
+  const now = targetVars(files, { host: item.host }).find((v) => v.key === 'ansible_host');
+  const address = await ask(
+    `Address of ${item.host}`,
+    'An IP address or a DNS name (ansible_host). Empty: the host name itself is used.',
+    now && !now.vaulted && typeof now.value === 'string' ? now.value : '',
+    addressProblem,
+  );
+  return address === undefined ? false : setAddressOf(ctx, item.host, address.trim());
+}
+
+/** Add Group… (the view's title): a group at the top level, whatever is selected. */
+const addGroup = (ctx: EditContext) => addGroupUnder(ctx);
+/** Add Child Group… (on a group): a group under that one. */
+const addChildGroup = (ctx: EditContext, item?: EditTarget) => addGroupUnder(ctx, item);
+
+async function addGroupUnder(ctx: EditContext, item?: EditTarget) {
   const parent = item?.kind === 'group' && item.group.name !== 'all' ? item.group.name : undefined;
   const known = await groupNames(ctx);
   const group = await ask(
@@ -172,9 +236,8 @@ async function addGroup(ctx: EditContext, item?: EditTarget) {
   );
   if (!group) return false;
   const name = group.trim();
-  // A child that does not exist yet is made first, then put under its parent.
-  if (parent && !known.includes(name) && !(await change(ctx, { op: 'add_group', group: name })))
-    return false;
+  // AFD-262: one change. The engine makes a child where its parent is (and, in INI, its section):
+  // a group made at the top first showed twice in a YAML inventory.
   return parent
     ? change(ctx, { op: 'add_group', group: name, parent })
     : change(ctx, { op: 'add_group', group: name });
@@ -248,7 +311,40 @@ async function remove(ctx: EditContext, item?: EditTarget) {
   return picked === 'Delete Group' ? change(ctx, { op: 'remove_group', group: name }) : false;
 }
 
+/** AFD-262: a group, with everything in it, under another group or to the top level. */
+async function moveGroup(ctx: EditContext, item: Extract<EditTarget, { kind: 'group' }>) {
+  const name = item.group.name;
+  if (BUILT_IN.has(name)) {
+    void vscode.window.showInformationMessage(
+      `${name} is Ansible's own group: it stays where it is.`,
+    );
+    return false;
+  }
+  const from = item.parent && item.parent !== 'all' ? item.parent : undefined;
+  const TOP = 'The Top Level';
+  const picked = await vscode.window.showQuickPick(
+    [
+      ...(from ? [{ label: TOP, description: 'not inside another group' }] : []),
+      ...(await groupNames(ctx))
+        .filter((g) => !BUILT_IN.has(g) && g !== name && g !== from)
+        .map((label) => ({ label, description: 'becomes its parent group' })),
+    ],
+    {
+      title: `Move the Group ${name}`,
+      placeHolder: from ? `From ${from} to` : 'From the top level to',
+    },
+  );
+  if (!picked) return false;
+  return change(ctx, {
+    op: 'move_group',
+    group: name,
+    ...(from ? { from } : {}),
+    ...(picked.label === TOP ? {} : { to: picked.label }),
+  });
+}
+
 async function moveHost(ctx: EditContext, item?: EditTarget) {
+  if (item?.kind === 'group') return moveGroup(ctx, item);
   if (item?.kind !== 'host') return false;
   const from = item.group;
   if (!from || from === 'all') {
@@ -387,6 +483,8 @@ export function registerInventoryEdits(ctx: EditContext): vscode.Disposable[] {
   return [
     on('afd.inventory.addHost', addHost),
     on('afd.inventory.addGroup', addGroup),
+    on('afd.inventory.addChildGroup', addChildGroup),
+    on('afd.inventory.setAddress', setAddress),
     on('afd.inventory.rename', rename),
     on('afd.inventory.remove', remove),
     on('afd.inventory.moveHost', moveHost),

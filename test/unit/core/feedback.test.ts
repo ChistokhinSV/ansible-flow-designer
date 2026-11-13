@@ -6,6 +6,7 @@ import {
   editorOf,
   type FeedbackState,
   feedbackUrl,
+  listedAsInstalled,
   rateUrl,
   recordUse,
   shouldAsk,
@@ -74,5 +75,32 @@ describe('feedback links', () => {
     });
     expect(rateUrl('vscode')).toContain('marketplace.visualstudio.com');
     expect(rateUrl('kiro')).toContain('open-vsx.org');
+  });
+});
+
+describe('AFD-263: whether the editor still lists the extension', () => {
+  const entry = (id: string, version: string) => ({
+    identifier: { id },
+    version,
+    location: { path: `/ext/${id}-${version}` },
+  });
+  const ID = 'chistokhinsv.ansible-flow-designer';
+
+  it('on the list: installed, also after an update and whatever the case of the id', () => {
+    const list = JSON.stringify([entry('redhat.ansible', '26.1.0'), entry(ID, '0.83.2')]);
+    expect(listedAsInstalled(list, ID)).toBe(true);
+    expect(listedAsInstalled(JSON.stringify([entry(ID, '0.84.0')]), ID)).toBe(true);
+    expect(listedAsInstalled(list, 'ChistokhinSV.Ansible-Flow-Designer')).toBe(true);
+  });
+
+  it('off the list: uninstalled', () => {
+    expect(listedAsInstalled('[]', ID)).toBe(false);
+    expect(listedAsInstalled(JSON.stringify([entry('redhat.ansible', '26.1.0')]), ID)).toBe(false);
+  });
+
+  it('not a list of extensions: nothing is known, so nothing is asked', () => {
+    expect(listedAsInstalled('', ID)).toBeUndefined();
+    expect(listedAsInstalled('{"a": 1}', ID)).toBeUndefined();
+    expect(listedAsInstalled('[{"identifier": 1}, null, "x"]', ID)).toBe(false);
   });
 });

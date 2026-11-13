@@ -2,10 +2,11 @@
 // (and never overwrites one already there), Open User Guide shows a guide page in the Markdown
 // preview (and nothing outside docs/guide), Get Started opens the walkthrough, and designer edits
 // set the walkthrough's tour keys. AFD-201: the feedback commands open links and send nothing; a
-// designer showing a flow with steps counts a day of use; the uninstall page's marker follows the
-// setting.
+// designer showing a flow with steps counts a day of use. AFD-263: an uninstall is asked about in a
+// notice, and the form opens only from its button.
 import * as assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { parse } from 'yaml';
@@ -155,16 +156,115 @@ describe('AFD-22 acceptance: user help', () => {
     assert.ok(api.feedback().state.first);
   });
 
-  it('AFD-202: turning the notice off writes the uninstall page marker; on again removes it', async () => {
-    const api = await testApi();
-    const marker = join(api.feedback().extensionPath, '.no-feedback');
-    const config = vscode.workspace.getConfiguration('afd.feedback');
-    try {
+  describe('AFD-263: an uninstall is asked about in the window, and no page opens by itself', () => {
+    const ID = 'example.extension';
+    const listed = JSON.stringify([{ identifier: { id: ID }, version: '1.0.0' }]);
+    const win = vscode.window as unknown as Record<string, (...args: never[]) => unknown>;
+    let dir: string;
+    let list: string;
+    let real: unknown;
+    let asked: { message: string; buttons: string[] }[];
+    let answer: string | undefined;
+    let watch: vscode.Disposable | undefined;
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'afd-uninstall-'));
+      list = join(dir, 'extensions.json');
+      writeFileSync(list, listed);
+      asked = [];
+      answer = undefined;
+      real = win.showInformationMessage;
+      win.showInformationMessage = (async (message: string, ...buttons: string[]) => {
+        asked.push({ message, buttons });
+        return answer;
+      }) as never;
+    });
+    afterEach(() => {
+      watch?.dispose();
+      win.showInformationMessage = real as never;
+      rmSync(dir, { recursive: true, force: true });
+    });
+    const settle = () => new Promise((r) => setTimeout(r, 1500));
+
+    it('taken off the list: a polite notice; the form opens only from its button', async () => {
+      const api = await testApi();
+      const before = api.feedback().links.length;
+      answer = 'Tell Us Why';
+      watch = api.feedback().watchUninstall(list, ID);
+      await settle();
+      assert.equal(asked.length, 0, 'nothing is asked while it is installed');
+      writeFileSync(list, '[]');
+      await until(() => asked.length === 1, 'the notice');
+      assert.match(asked[0]?.message ?? '', /was uninstalled\. Sorry it did not fit\./);
+      assert.deepEqual(asked[0]?.buttons, ['Tell Us Why', 'No, Thanks']);
+      await until(() => api.feedback().links.length === before + 1, 'the form link');
+      const form = new URL(api.feedback().links.at(-1) ?? '');
+      assert.equal(form.origin + form.pathname, FEEDBACK_PAGE);
+      assert.equal(form.searchParams.get('source'), 'uninstall');
+      // Asked once, however the list changes afterwards.
+      writeFileSync(list, '[ ]');
+      await settle();
+      assert.equal(asked.length, 1);
+    }).timeout(20_000);
+
+    it('No, Thanks, or the notice closed: no page', async () => {
+      const api = await testApi();
+      const before = api.feedback().links.length;
+      answer = 'No, Thanks';
+      watch = api.feedback().watchUninstall(list, ID);
+      await settle();
+      writeFileSync(list, '[]');
+      await until(() => asked.length === 1, 'the notice');
+      await settle();
+      assert.equal(api.feedback().links.length, before);
+    }).timeout(20_000);
+
+    it('an update (off the list for a moment, then on it again) asks nothing', async () => {
+      const api = await testApi();
+      watch = api.feedback().watchUninstall(list, ID);
+      await settle();
+      writeFileSync(list, '[]');
+      setTimeout(
+        () => writeFileSync(list, JSON.stringify([{ identifier: { id: ID }, version: '1.1.0' }])),
+        250,
+      );
+      await settle();
+      await settle();
+      assert.equal(asked.length, 0);
+    }).timeout(20_000);
+
+    it('with the setting off, or a list that never named the extension, nothing is asked', async () => {
+      const api = await testApi();
+      const config = vscode.workspace.getConfiguration('afd.feedback');
       await config.update('prompt', false, vscode.ConfigurationTarget.Global);
-      await until(() => existsSync(marker), 'marker written');
-    } finally {
-      await config.update('prompt', undefined, vscode.ConfigurationTarget.Global);
-    }
-    await until(() => !existsSync(marker), 'marker removed');
+      try {
+        watch = api.feedback().watchUninstall(list, ID);
+        await settle();
+        writeFileSync(list, '[]');
+        await settle();
+        await settle();
+        assert.equal(asked.length, 0);
+      } finally {
+        await config.update('prompt', undefined, vscode.ConfigurationTarget.Global);
+      }
+      watch?.dispose();
+      // A development host, or a profile with its own list: not on it to begin with.
+      writeFileSync(list, '[]');
+      watch = api.feedback().watchUninstall(list, ID);
+      await settle();
+      writeFileSync(list, '[ ]');
+      await settle();
+      assert.equal(asked.length, 0);
+    }).timeout(30_000);
+
+    it('the marker file the uninstall script used is removed', async () => {
+      const api = await testApi();
+      await until(
+        () => !existsSync(join(api.feedback().extensionPath, '.no-feedback')),
+        'the old marker is gone',
+      );
+      const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+      assert.equal(manifest.scripts['vscode:uninstall'], undefined);
+    });
   });
 });

@@ -79,3 +79,28 @@ no split between the uninstall page and the in-use form.
 - **Why KV:** the Worker reads it back for the summary with no extra secret; Analytics Engine
   would need an API token to query, and D1 a database and a schema for a handful of rows a day.
   One key per event avoids read-modify-write counters.
+
+## Amendment: no page opens by itself (AFD-263, 2026-11-13)
+
+The product owner: a feedback page must not open on its own. Ask politely in a notification, and
+open the page only when its button is clicked.
+
+- **What opened by itself:** the uninstall page. The `vscode:uninstall` script has no editor UI, so
+  it could only open the browser. The notice after a week of use already was a notification with
+  buttons, and the two commands are the person's own action.
+- **Decision:** the script is removed (`src/uninstall/`, `dist/uninstall.js`, the `.no-feedback`
+  marker). Instead the running extension notices its own uninstall and asks in the window:
+  "Ansible Flow Designer was uninstalled. Sorry it did not fit. …" with **Tell Us Why** and
+  **No, Thanks**. Only **Tell Us Why** opens the form (`source=uninstall`).
+- **How it notices:** the editor takes an uninstalled extension off `extensions.json` (the list
+  beside the folder extensions are installed in) at once, and leaves the extension running until
+  the next restart (seen on VS Code 1.146: the list becomes `[]`, the folder stays). The extension
+  watches that file. An update keeps the extension on the list with the new version, so it asks
+  nothing; a short wait before asking covers a list rewritten in two steps.
+- **Not asked:** after **Don't Ask Again**; with `afd.feedback.prompt` off; when the list did not
+  name the extension to begin with (a development host, a profile that keeps its own list in the
+  user data folder); when no window with the extension active is open at the time (an uninstall
+  from the command line, or from a window where no flow was opened).
+- **Consequence:** fewer people are asked than the script reached, and none of them is surprised
+  by a browser tab. The statement "VS Code shows nothing when an extension is uninstalled" above
+  still holds for VS Code itself; the notice is the extension's own, while it is still running.
