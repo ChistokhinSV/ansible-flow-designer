@@ -1,4 +1,5 @@
-// Approval segments for AWX workflows (AFD-11, ADR-0016). AWX approvals decide for a whole job,
+// Approval segments for AWX workflows (AFD-11, ADR-0016) and runners that wait for a person
+// between segments (runSegments, AFD-272). AWX approvals decide for a whole job,
 // so a flow with top-level approvals runs in AWX as playbook segments with approval nodes between
 // them. The first segment holds everything reachable from start without passing an approval; an
 // approval that ends a segment (its gate) continues in `<key>-approved` (what its approved port
@@ -47,7 +48,7 @@ export function planSegments(model: FlowModel): SegmentPlan | undefined {
     if (node.type === 'approval' && level !== ROOT)
       problems.push({
         node: node.id,
-        message: `"${node.title}" is inside a subflow: AWX workflows split at top-level approvals only`,
+        message: `"${node.title}" is inside a subflow: runs that wait for a person (AWX workflows, Ansible Flow Server) split at top-level approvals only`,
       });
   const gates = nodes.filter((n) => n.type === 'approval');
   if (gates.length === 0 && problems.length === 0) return undefined;
@@ -83,7 +84,7 @@ export function planSegments(model: FlowModel): SegmentPlan | undefined {
     if (waiting.length > 1)
       problems.push({
         node: waiting[0],
-        message: `${waiting.map((id) => `"${byId.get(id)?.title}"`).join(' and ')} can wait for approval at the same time: an AWX workflow runs one approval at a time`,
+        message: `${waiting.map((id) => `"${byId.get(id)?.title}"`).join(' and ')} can wait for approval at the same time: a run that waits for a person (AWX workflow, Ansible Flow Server) waits at one approval at a time`,
       });
     const seg: Segment = { name, nodes: members, entry, parent, gate: waiting[0] };
     segments.push(seg);

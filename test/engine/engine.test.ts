@@ -596,6 +596,31 @@ const SCENARIOS: Scenario[] = [
       expect(todoRuns(run, 'change', 'h01')).toBe(0);
     },
   },
+  // AFD-272: a runner that can tell a timeout from a rejection says so; the hosts take the
+  // approval's timeout port in the rejected segment.
+  {
+    name: 'segments timed out: the waiting hosts take the timeout port',
+    flow: SEG,
+    chain: ['start', 'gate-rejected'],
+    vars: {
+      devices: ['h01', 'h02', 'h03'],
+      afd_simulate: { check: { failed: ['h03'] } },
+      afd_gate_outcome: 'timeout',
+    },
+    rc: 2,
+    expect: {
+      ...Object.fromEntries(
+        ['h01', 'h02'].map((h) => [
+          h,
+          {
+            ports: ['check.ok_hosts', 'gate.timeout', 'notify.ok_hosts'],
+            outcome: '[failed] Failed',
+          },
+        ]),
+      ),
+      h03: { ports: ['check.failed_hosts', 'notify.ok_hosts'], outcome: '[failed] Failed' },
+    },
+  },
   {
     name: 'segments: nobody reaches the gate, start stops and finish fails the right hosts',
     flow: SEG,

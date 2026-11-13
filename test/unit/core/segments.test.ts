@@ -73,7 +73,7 @@ describe('segment plan', () => {
     const edge = doc.edges.find((e) => e.from.node === check.id && e.from.port === 'failed_hosts');
     if (edge) edge.to.node = second.id;
     expect(plan(doc).p?.problems.map((x) => x.message)).toEqual([
-      '"Approve the change" and "Second gate" can wait for approval at the same time: an AWX workflow runs one approval at a time',
+      '"Approve the change" and "Second gate" can wait for approval at the same time: a run that waits for a person (AWX workflow, Ansible Flow Server) waits at one approval at a time',
     ]);
     const inner = load('examples/os-upgrade.flow.yaml');
     const sub = inner.nodes.find((n) => n.subflow?.nodes?.length) as FlowNode;
@@ -84,7 +84,7 @@ describe('segment plan', () => {
       title: 'Inner gate',
     });
     expect(plan(inner).p?.problems.map((x) => x.message)).toContain(
-      '"Inner gate" is inside a subflow: AWX workflows split at top-level approvals only',
+      '"Inner gate" is inside a subflow: runs that wait for a person (AWX workflows, Ansible Flow Server) split at top-level approvals only',
     );
   });
 });
@@ -160,8 +160,10 @@ describe('segment playbooks', () => {
       key: 'flow_gate_approved',
     });
     const rejected = file('gate-rejected');
+    // AFD-272: rejected, or the timeout port when a runner says the gate timed out (AWX never
+    // does: afd_gate_outcome is unset there).
     expect(rejected[1]?.tasks?.[0]?.['ansible.builtin.group_by']).toEqual({
-      key: 'flow_gate_rejected',
+      key: "{{ 'flow_gate_timeout' if (afd_gate_outcome | default('rejected')) == 'timeout' else 'flow_gate_rejected' }}",
     });
     // The whole flow's outcome: hosts that failed before the gate fail here too.
     const whole = parse(out.files[0]?.text ?? '') as Play[];

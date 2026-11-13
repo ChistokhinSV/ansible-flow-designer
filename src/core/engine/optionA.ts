@@ -214,6 +214,19 @@ class Generator {
     if (gate && seg.entry) {
       const port = seg.entry.outcome;
       const waiting = this.group([], gate.key, 'waiting');
+      // AFD-272: AWX cannot tell a timeout from a rejection, so its rejected segment takes both;
+      // a runner that can (runSegments) says which with afd_gate_outcome, and the hosts take the
+      // timeout port when the approval has one.
+      const timeout =
+        port === 'rejected' && portsFor(gate).some((p) => p.name === 'timeout')
+          ? [
+              {
+                test: "(afd_gate_outcome | default('rejected')) == 'timeout'",
+                group: this.target(ctx, gate, 'timeout'),
+                port: 'timeout',
+              },
+            ]
+          : [];
       out.push({
         node: gate.id,
         lines: writeBlock(
@@ -225,7 +238,7 @@ class Generator {
               gather_facts: false,
               tags: flow([`node_${gate.id}`]),
               vars: { flow_node_id: gate.id },
-              tasks: [route(gate, port, this.target(ctx, gate, port))],
+              tasks: [choose(gate, timeout, { group: this.target(ctx, gate, port), port })],
             },
           ],
           0,
