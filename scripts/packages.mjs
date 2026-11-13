@@ -33,7 +33,7 @@ const OUT = join('dist', 'packages');
 const TARBALLS = join('out', 'npm');
 const SCOPE = '@ansible-flow';
 const DOCS = 'https://github.com/ChistokhinSV/ansible-flow-designer/blob/main/docs/packages.md';
-const FIXTURE = resolve('test/fixtures/flows/annotated.flow.yaml');
+const FIXTURE = resolve('samples/hello.flow.yaml');
 const TSC = join('node_modules', 'typescript', 'bin', 'tsc');
 
 /**
@@ -75,11 +75,14 @@ import { validateFlow } from '${SCOPE}/core/flow/validate';
 
 const parsed = parseFlow(readFileSync(process.argv[2], 'utf8'));
 if (!parsed.doc) throw new Error('the fixture flow did not parse');
-const issues = createSchemaValidator()(parsed.file);
+const issues = createSchemaValidator()(parsed.doc);
 const result = validateFlow(parsed.doc, issues);
-const code = engineFor(parsed.doc).generate(parsed.doc, { source: 'annotated.flow.yaml' });
+const code = engineFor(parsed.doc).generate(parsed.doc, { source: 'hello.flow.yaml' });
 if (modelOf(parsed.doc) !== modelOf(parsed.doc)) throw new Error('two models for one document');
 if (!code.files.length) throw new Error('no generated files');
+// The repository's own sample is a correct flow: reading it wrong would show as errors here.
+const errors = result.findings.filter((f) => f.severity === 'error');
+if (errors.length) throw new Error('errors in a correct flow: ' + errors[0].message);
 console.log('  flow: ' + result.findings.length + ' findings, ' + code.files.length + ' generated files');
 `,
     typed: `
