@@ -133,6 +133,8 @@ export interface RunnerRunInfo {
   config: string;
   /** The server ran another commit than the local HEAD, or there were uncommitted changes. */
   drift?: string;
+  /** AFD-282: a dev run: the local work, sent to the server and run in check mode. */
+  dev?: true;
 }
 
 /** An approval of a run (AFD-273), whoever runs it. */

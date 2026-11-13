@@ -10,6 +10,7 @@ All notable changes to Ansible Flow Designer.
   - The confirmation shows the commit the server runs and warns when your HEAD differs or you have uncommitted changes.
   - Check or real; Stop stops it on the server; approvals are decided from the canvas when the server allows you.
   - A server that speaks another API or does not read the flow's format is refused with the reason.
+  - **Check My Work on Server** checks work you have not pushed yet, committed or not, as a dev run in check mode; your index and branches are not touched. See [Check your work before you push it](docs/guide/how-to/server.md#check-your-work-before-you-push-it).
 - Approval nodes say who may decide them, who is told, and what they read: **Approvers**, **Notify** and **Message** in the node's Details, or `approval` in the flow file. Ansible Flow Server asks these people; in AWX the message becomes the approval's description. Changing who approves keeps the node tested. See [Approvals](docs/guide/how-to/approvals.md#who-decides).
 - `@ansible-flow/node` runs flows with approvals outside AWX: `runSegments` waits at each approval for a decision, and its step functions let a server wait between runs. See [npm packages](docs/packages.md#running-a-flow-with-approval-gates).
 - Run mode shows approvals from any runner: waiting, then who decided, when, and their comment. Where the runner allows it, the node's Run tab has **Approve** and **Reject** with a comment.

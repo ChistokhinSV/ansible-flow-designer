@@ -280,7 +280,7 @@ async function announceRun(run: RunView): Promise<void> {
   const what = run.awx
     ? `AWX job #${run.awx.jobId} (${run.awx.status})`
     : run.runner
-      ? `Run ${run.runner.number} on the server (${run.runner.state})`
+      ? `${run.runner.dev ? 'Dev run' : 'Run'} ${run.runner.number} on the server (${run.runner.state})`
       : run.mode === 'check'
         ? 'Skeleton run (check mode)'
         : 'Run';
