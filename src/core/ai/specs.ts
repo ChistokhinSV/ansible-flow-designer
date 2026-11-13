@@ -1,7 +1,7 @@
 // Tool and op specs for AI tools (AFD-19): one source for the MCP server, the Copilot tools in
 // package.json (a test keeps them equal) and the generated ops reference. Field types come from the
 // flow schema, inlined: some agents do not follow $ref in tool schemas.
-import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020';
+import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
 import schema from '../../../schema/flow.schema.json';
 import { PATTERN_IDS } from '../flow/patterns';
 
