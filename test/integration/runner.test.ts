@@ -91,8 +91,9 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     assert.equal(run.runner?.commit, head);
     assert.equal(run.runner?.drift, undefined);
     assert.ok(run.runner?.url.startsWith(`${url}/runs/`));
-    // Every step shows the host on the canvas. (The summary's own host list stays empty when the
-    // target is Ansible's implicit localhost: AFD-281.)
+    // Every step shows the host on the canvas, and the run counts it (AFD-281: Ansible's implicit
+    // localhost is a host of the run).
+    assert.deepEqual(run.summary?.hosts, ['localhost']);
     const steps = Object.values(run.summary?.nodes ?? {});
     assert.ok(steps.length >= 3, JSON.stringify(run.summary));
     assert.ok(

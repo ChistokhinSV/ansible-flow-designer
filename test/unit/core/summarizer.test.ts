@@ -59,6 +59,19 @@ describe('createSummarizer', () => {
     for (const line of lines) s.push(line);
     expect(s.summary({ partial: true }).running).toBeUndefined();
   });
+
+  it("counts Ansible's implicit localhost as a host when a step runs on it, not for bookkeeping", () => {
+    const s = createSummarizer(routes);
+    const result = (node?: string) =>
+      JSON.stringify({ event: 'result', status: 'ok', host: 'localhost', task: 't', ts: 2, node });
+    // A play of the generator's own (restore host sets, outcome): no node.
+    s.push(JSON.stringify({ event: 'play', name: '[x] Segment 1: restore host sets', ts: 1 }));
+    s.push(result());
+    expect(s.summary().hosts).toEqual([]);
+    s.push(JSON.stringify({ event: 'play', name: '[x] work', node: id('work'), ts: 3 }));
+    s.push(result(id('work')));
+    expect(s.summary().hosts).toEqual(['localhost']);
+  });
 });
 
 describe('splitLines', () => {

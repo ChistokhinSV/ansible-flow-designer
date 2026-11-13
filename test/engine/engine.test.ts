@@ -15,6 +15,7 @@ import { completeIds } from '../../src/core/flow/completeIds';
 import { createIdFactory } from '../../src/core/flow/ids';
 import { buildModel } from '../../src/core/flow/model';
 import type { FlowDocument } from '../../src/core/flow/types';
+import { summarizeRun } from '../../src/core/run/events';
 
 const IMAGES = (
   process.env.AFD_ENGINE_IMAGES ?? 'ps-probe-env:2.19,ps-probe-env:2.20,ps-probe-env:2.21'
@@ -78,6 +79,8 @@ const tries = (run: Run, host: string) =>
     .filter((e) => e.event === 'result' && e.host === host && e.task === '[count] Count the tries')
     .map((e) => Number(String((e.out as { stdout?: string } | undefined)?.stdout).split(' ')[0]));
 /** AFD-66: notes on nodes become comments in the code. */
+/** AFD-281: the Hello sample. */
+const HELLO = 'samples/hello.flow.yaml';
 const ANNOTATED = 'test/fixtures/flows/annotated.flow.yaml';
 /** Every YAML line break, in a note that tries to end its comment and become code. */
 const BREAKS = [0x0d, 0x0a, 0x85, 0x2028, 0x2029].map((c) => String.fromCharCode(c));
@@ -785,6 +788,25 @@ const SCENARIOS: Scenario[] = [
     vars: { devices: LAB },
     rc: 0,
     root: '../../content',
+  },
+  // AFD-281: Ansible's implicit localhost (not in the inventory) as the target is a host of the run.
+  {
+    name: "hello on Ansible's implicit localhost: the summary lists it on every step",
+    flow: HELLO,
+    check: true,
+    vars: { devices: ['localhost'] },
+    rc: 0,
+    expect: {
+      localhost: { ports: ['ping.ok_hosts', 'facts.ok_hosts', 'say-hello.ok_hosts'] },
+    },
+    also: (run) => {
+      const doc = parse(readFileSync(flowPath(HELLO), 'utf8')) as FlowDocument;
+      const { routes } = optionA.generate(doc, { source: 'hello.flow.yaml' });
+      const text = run.events.map((e) => JSON.stringify(e)).join('\n');
+      const summary = summarizeRun(text, routes);
+      expect(summary.hosts).toEqual(['localhost']);
+      expect(summary.outcome).toEqual({});
+    },
   },
 ];
 

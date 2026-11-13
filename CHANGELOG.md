@@ -19,6 +19,10 @@ All notable changes to Ansible Flow Designer.
 
 - A runner that waits for a person can send hosts that waited too long through the approval's `timeout` port. AWX workflows work as before: AWX cannot tell a timeout from a rejection.
 
+### Fixed
+
+- A run on `localhost` that is not in your inventory (Ansible's implicit localhost) counted no hosts: the run's host list and counts now include it.
+
 ## 0.85.0 — npm packages
 
 ### Added
