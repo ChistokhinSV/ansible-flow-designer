@@ -127,7 +127,9 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     }
     if (e.event !== 'result' || !e.host) return;
     clock(e.ts);
-    if (e.host !== 'localhost') hosts.add(e.host);
+    // The generator's own plays run on localhost and name no node; a step's play on localhost
+    // (Ansible's implicit localhost as the target, AFD-281) is a host of the run.
+    if (e.host !== 'localhost' || (e.node ?? playNode)) hosts.add(e.host);
     if (e.status === 'ok' && e.group) {
       add(e.group, e.host);
       pending = pending.filter((f) => f.host !== e.host);
