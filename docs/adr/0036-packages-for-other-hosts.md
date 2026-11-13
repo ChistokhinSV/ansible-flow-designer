@@ -56,7 +56,7 @@ So the packages are not bundled per entry point:
   `@ansible-flow/core/<path>`;
 - each manifest exports `"./*": "./dist/*.js"` with its types.
 
-A trial build on 2026-11-13 (0.84.0 sources) gave 1,200 KB for `core` and 34 KB for `node`, and a
+A trial build on 2026-11-13 (the sources after 0.84.0) gave 1,200 KB for `core` and 34 KB for `node`, and a
 plain Node script parsed a flow, built its model and loaded the layout from the two packages.
 
 **Format.** ES modules only, target ES2023. `core` has no `node:` imports and is checked as browser
