@@ -7,7 +7,7 @@ The decision and its reasons are in [ADR-0036](adr/0036-packages-for-other-hosts
 | Package                  | Contents                                                             | State                         |
 | ------------------------ | -------------------------------------------------------------------- | ----------------------------- |
 | `@ansible-flow/core`     | The flow model, commands, validation, code generation, run summaries | Built and checked; not on npm |
-| `@ansible-flow/assets`   | The Python probe, the events callback, the schemas                   | Built and checked; not on npm |
+| `@ansible-flow/assets`   | The Python probe, the events callback, the schemas, the contract     | Built and checked; not on npm |
 | `@ansible-flow/node`     | Layout, runs, the probe client, the AWX client, the catalog, SSH     | Built and checked; not on npm |
 | `@ansible-flow/designer` | The designer for a web page                                          | Built and checked; not on npm |
 
@@ -62,13 +62,16 @@ into a bundle that also imports the package.
 Files a host hands to Python or to a schema tool by path. The package says where they are:
 
 ```ts
-import { probeDir, schemaDir } from '@ansible-flow/assets';
+import { contractDir, probeDir, schemaDir } from '@ansible-flow/assets';
 ```
 
 - `probeDir` holds `afd_probe/` (the probe: `python -m afd_probe serve`) and
   `callback_plugins/afd_events.py` (the callback that writes a run's events). It is the `probe`
   path that `runProcess` and `probeProcess` of the core take.
 - `schemaDir` holds `flow.schema.json` and `scenarios.schema.json`.
+- `contractDir` holds the contract with Ansible Flow Server (AFD-280): `server-api.json`, the
+  exchanges a client relies on, and `repo/`, the project they run against. The server replays
+  them against its routes, a client against a mock; `contract/README.md` says how to read them.
 
 ## `@ansible-flow/node`
 
