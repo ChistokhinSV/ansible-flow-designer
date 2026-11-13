@@ -75,18 +75,19 @@ import { probeDir, schemaDir } from '@ansible-flow/assets';
 For Node 22.13 or later. It depends on `@ansible-flow/core` at exactly its own version and imports
 it by name, so a host that uses both has one copy of the core.
 
-| Module                                | Main exports                                                  |
-| ------------------------------------- | ------------------------------------------------------------- |
-| `autoLayout`                          | `layoutLevel`, `layoutAll`, `autoPositions`, `shownPositions` |
-| `env/probeClient`                     | `ProbeClient`                                                 |
-| `scenario/runner`                     | `runScenarios`                                                |
-| `run/runFlow`, `run/exec`, `run/ids`  | `runFlow`; `startProcess`; `stamp`                            |
-| `run/facts`                           | `launchFacts`, `inventoryGroups`, `repositoryCallbacks`       |
-| `run/pastRuns`, `run/audit`           | `listRuns`, `loadRun`, `keepRun`; `appendAudit`, `auditFile`  |
-| `run/storage`, `run/tail`, `run/stop` | `pruneRuns`, `dropVars`; `tailFile`; `stopStarted`            |
-| `awx/client`, `awx/awxWorkflow`       | `AwxClient`; the workflow follower                            |
-| `catalog/catalogIndex`                | the module catalog index (`node:sqlite`)                      |
-| `ssh/remote`, `ssh/sync`, `ssh/exec`  | runs and the probe on a remote Linux host                     |
+| Module                                | Main exports                                                                       |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `autoLayout`                          | `layoutLevel`, `layoutAll`, `autoPositions`, `shownPositions`                      |
+| `env/probeClient`                     | `ProbeClient`                                                                      |
+| `scenario/runner`                     | `runScenarios`                                                                     |
+| `run/runFlow`, `run/exec`, `run/ids`  | `runFlow`; `startProcess`; `stamp`                                                 |
+| `run/segments`                        | `runSegments`; `segmentOutcome`, `nextSegment`, `segmentInputs`, `segmentsSummary` |
+| `run/facts`                           | `launchFacts`, `inventoryGroups`, `repositoryCallbacks`                            |
+| `run/pastRuns`, `run/audit`           | `listRuns`, `loadRun`, `keepRun`; `appendAudit`, `auditFile`                       |
+| `run/storage`, `run/tail`, `run/stop` | `pruneRuns`, `dropVars`; `tailFile`; `stopStarted`                                 |
+| `awx/client`, `awx/awxWorkflow`       | `AwxClient`; the workflow follower                                                 |
+| `catalog/catalogIndex`                | the module catalog index (`node:sqlite`)                                           |
+| `ssh/remote`, `ssh/sync`, `ssh/exec`  | runs and the probe on a remote Linux host                                          |
 
 Two modules are programs, not libraries: they do their work when loaded. `catalog/catalogWorker`
 is started as a worker thread and `ssh/sshRun` as a process; find their files with
@@ -144,6 +145,33 @@ const run = await runFlow(
 Before a run: `run/facts` has `launchFacts` (the hosts the targets match, what looks like
 production, whether a vault is used), `inventoryGroups` and `repositoryCallbacks`, each asked of a
 `ProbeClient`; `targetsOf` and the launch dialog's rules are in `@ansible-flow/core/run/launch`.
+
+### Running a flow with approval gates
+
+A flow with top-level approvals is generated in segments as well (`code.segments`, the files
+`<key>.seg_*.yml`): `start` runs until hosts wait at an approval, `<approval>-approved` and
+`<approval>-rejected` go on after a decision, `finish` runs when nobody reached the approval.
+`run/segments` chains them outside AWX.
+
+```ts
+import { runSegments } from '@ansible-flow/node/run/segments';
+
+const run = await runSegments(request, code.segments ?? [], {
+  report: (view) => show(view), // view.approvals: each gate's waiting, approved, rejected or timed out
+  decide: async (gate, view) => ({ decision: await askSomeone(gate), by: 'dana' }),
+});
+```
+
+- `decide` resolves with `approved`, `rejected` or `timeout`; a timeout takes the approval's
+  `timeout` port (AWX cannot tell it from a rejection; here the next segment is told with
+  `afd_gate_outcome`). A `decide` that throws stops the run, its approval still waiting.
+- A host that must not wait in one process (a server that may restart) runs one segment at a time
+  with `runFlow`, and between them: `segmentOutcome(segment, events)` reads what the segment
+  carried and whether hosts wait at its gate; `nextSegment(segments, name, decision)` names the next
+  one (`'empty'` when nobody waited: `finish`); `segmentInputs(inputs, carried, decision)` are its
+  inputs; `segmentsSummary([events...], code.routes)` is the run as one.
+- Flows whose approvals cannot be split (`awx-segments`: inside a subflow, or two waiting at once)
+  have no `code.segments`.
 
 ## `@ansible-flow/designer`
 

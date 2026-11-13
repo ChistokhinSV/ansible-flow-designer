@@ -273,7 +273,8 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'Route rejected and timeout the same way.',
   },
   'awx-segments': {
-    meaning: 'Approvals inside subflows, or two that can wait at once, cannot become AWX segments.',
+    meaning:
+      'Approvals inside subflows, or two that can wait at once, cannot become segments: AWX workflows and Ansible Flow Server wait at top-level approvals, one at a time.',
     fix: 'Keep approvals on the top level, one at a time.',
   },
   'runtime-kind': {

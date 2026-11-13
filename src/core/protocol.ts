@@ -74,6 +74,11 @@ export interface RunView {
   /** Each node's design fingerprint when the run started (decision 15: `tested` is for what ran). */
   design?: Record<Ulid, string>;
   awx?: AwxRunInfo;
+  /**
+   * AFD-273: the run's approvals, per approval node, from whatever runs it (AWX, a server that
+   * runs segments). A run that waits for one is still `running`.
+   */
+  approvals?: Record<Ulid, RunApproval>;
   /** A live local run with no new events for a while (AFD-81): it may wait for input. */
   quiet?: boolean;
   /** AFD-244: the run started at a step, or ran one step alone (skeleton runs only). */
@@ -107,6 +112,19 @@ export interface AwxRunInfo {
   approvals?: Record<Ulid, AwxApproval>;
   /** The segment jobs in the order AWX ran them. */
   segments?: { name: string; job: number; status: string }[];
+}
+
+/** An approval of a run (AFD-273), whoever runs it. */
+export interface RunApproval {
+  status: 'waiting' | 'approved' | 'rejected' | 'timed out';
+  /** Who decided, when, and what they said. */
+  by?: string;
+  at?: string;
+  comment?: string;
+  /** Where to decide it or read it (an AWX approval's page). */
+  url?: string;
+  /** The person looking may decide it here: the host takes an `approve` message. */
+  mayDecide?: boolean;
 }
 
 export interface AwxApproval {
