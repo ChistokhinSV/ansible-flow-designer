@@ -1,0 +1,236 @@
+{
+  "about": "The exchanges with Ansible Flow Server that a client (the VS Code extension's runner target) relies on. The server replays them against its routes; a client replays them against a mock. See contract/README.md.",
+  "version": 1,
+  "world": {
+    "users": [
+      { "login": "dana", "name": "Dana Whitfield", "admin": true },
+      { "login": "omar", "name": "Omar Haddad" }
+    ],
+    "tokens": {
+      "dana": { "user": "dana" },
+      "omar": { "user": "omar" },
+      "omar-read": { "user": "omar", "readOnly": true }
+    },
+    "workspace": { "key": "net", "name": "Network" },
+    "grants": [{ "user": "omar", "level": "operator" }],
+    "project": { "key": "edge", "name": "Edge", "branch": "main", "files": "repo" },
+    "launchConfigs": [
+      {
+        "name": "Hello",
+        "flowFile": "flows/hello.flow.yaml",
+        "inventory": "inventory/hosts.yaml",
+        "inputs": { "devices": ["fw-edge-01"] }
+      }
+    ]
+  },
+  "exchanges": [
+    {
+      "name": "what the server is: a client checks it first",
+      "request": { "method": "GET", "path": "/api/v1/meta" },
+      "response": {
+        "status": 200,
+        "body": {
+          "name": "Ansible Flow Server",
+          "version": "$string",
+          "api": "v1",
+          "instance": "$uuid",
+          "designer": {
+            "version": "$string",
+            "format": "$number",
+            "formats": { "$items": "$number" }
+          },
+          "features": { "$items": "$string" }
+        }
+      }
+    },
+    {
+      "name": "no token: sign in first",
+      "request": { "method": "GET", "path": "/api/v1/workspaces" },
+      "response": { "status": 401, "body": { "error": "unauthorized", "message": "$string" } }
+    },
+    {
+      "name": "the workspaces the token's owner may see",
+      "request": { "method": "GET", "path": "/api/v1/workspaces", "token": "omar" },
+      "response": {
+        "status": 200,
+        "body": [{ "id": "$uuid", "key": "net", "name": "Network" }]
+      }
+    },
+    {
+      "name": "a workspace's projects: where git reaches each, and the commit a run takes",
+      "request": { "method": "GET", "path": "/api/v1/workspaces/net/projects", "token": "omar" },
+      "response": {
+        "status": 200,
+        "body": [
+          {
+            "id": "$uuid",
+            "key": "edge",
+            "name": "Edge",
+            "gitPath": "/git/net/edge.git",
+            "gitRef": "main",
+            "commit": "$commit"
+          }
+        ]
+      },
+      "capture": { "project": "0.id", "commit": "0.commit" }
+    },
+    {
+      "name": "a project's flows; one in a newer format than the server reads cannot run",
+      "request": { "method": "GET", "path": "/api/v1/projects/${project}/flows", "token": "omar" },
+      "response": {
+        "status": 200,
+        "body": {
+          "commit": "${commit}",
+          "flows": [
+            { "file": "flows/hello.flow.yaml", "ok": true, "key": "hello", "errors": 0 },
+            {
+              "file": "flows/next.flow.yaml",
+              "ok": false,
+              "problem": { "$contains": "Upgrade the server" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "a project's launch configurations",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/projects/${project}/launch-configs",
+        "token": "omar"
+      },
+      "response": {
+        "status": 200,
+        "body": [
+          {
+            "id": "$uuid",
+            "name": "Hello",
+            "flowFile": "flows/hello.flow.yaml",
+            "inventory": "inventory/hosts.yaml",
+            "mode": "check"
+          }
+        ]
+      },
+      "capture": { "config": "0.id" }
+    },
+    {
+      "name": "what a launch would run",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/launch-configs/${config}/check",
+        "token": "omar",
+        "body": { "mode": "check" }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "launch": {
+            "commit": "${commit}",
+            "flow": { "file": "flows/hello.flow.yaml", "key": "hello", "name": "Hello, Ansible" },
+            "mode": "check",
+            "targets": ["fw-edge-01"]
+          },
+          "form": { "fields": { "$items": { "name": "$string" } } }
+        }
+      }
+    },
+    {
+      "name": "what stands in the way, by field",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/launch-configs/${config}/check",
+        "token": "omar",
+        "body": { "inputs": { "devices": "" } }
+      },
+      "response": {
+        "status": 422,
+        "body": {
+          "error": "$string",
+          "message": "$string",
+          "problems": [{ "field": "devices", "message": "$string" }]
+        }
+      }
+    },
+    {
+      "name": "a read-only token launches nothing",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/launch-configs/${config}/launch",
+        "token": "omar-read",
+        "body": {}
+      },
+      "response": { "status": 403, "body": { "error": "read_only_token", "message": "$string" } }
+    },
+    {
+      "name": "launch: the run is queued",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/launch-configs/${config}/launch",
+        "token": "omar",
+        "body": { "mode": "check" }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "id": "$uuid",
+          "number": 1,
+          "project": "${project}",
+          "commit": "${commit}",
+          "flow": { "file": "flows/hello.flow.yaml", "key": "hello" },
+          "mode": "check",
+          "state": "queued",
+          "requestedBy": { "login": "omar" },
+          "createdAt": "$time"
+        }
+      },
+      "capture": { "run": "id" }
+    },
+    {
+      "name": "a run, as it stands",
+      "request": { "method": "GET", "path": "/api/v1/runs/${run}", "token": "omar" },
+      "response": {
+        "status": 200,
+        "body": { "id": "${run}", "number": 1, "state": "queued", "attempts": 0 }
+      }
+    },
+    {
+      "name": "a run's approvals (none reached yet)",
+      "request": { "method": "GET", "path": "/api/v1/runs/${run}/approvals", "token": "omar" },
+      "response": { "status": 200, "body": [] }
+    },
+    {
+      "name": "stop a run that has not started: it is cancelled at once",
+      "request": { "method": "POST", "path": "/api/v1/runs/${run}/cancel", "token": "omar" },
+      "response": {
+        "status": 202,
+        "body": { "id": "${run}", "state": "cancelled", "cancelledBy": "omar", "endedAt": "$time" }
+      }
+    },
+    {
+      "name": "a run that is not there",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/runs/00000000-0000-4000-8000-000000000000",
+        "token": "omar"
+      },
+      "response": { "status": 404, "body": { "error": "not_found", "message": "$string" } }
+    },
+    {
+      "name": "a launch configuration of a flow in a newer format is refused, at its field",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/projects/${project}/launch-configs",
+        "token": "dana",
+        "body": { "name": "Next", "flowFile": "flows/next.flow.yaml" }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "error": "invalid",
+          "field": "flowFile",
+          "message": { "$contains": "Upgrade the server" }
+        }
+      }
+    }
+  ]
+}
