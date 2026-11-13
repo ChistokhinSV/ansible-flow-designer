@@ -311,7 +311,13 @@ async function onMessage(m: WebviewMessage) {
       );
       break;
     case 'ready':
-      toWebview({ type: 'config', testMode: true, expandSubflows: true });
+      // AFD-270: `?viewer=1` shows the designer as a host that only shows and runs flows gets it.
+      toWebview({
+        type: 'config',
+        testMode: true,
+        expandSubflows: true,
+        ...(params.has('viewer') ? { viewer: true } : {}),
+      });
       // AFD-73: hidden, so other screenshots stay as they were; its own shot shows it.
       toWebview({ type: 'firstFlow', hidden: true, done: [] });
       toWebview({

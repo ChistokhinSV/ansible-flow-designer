@@ -39,6 +39,7 @@ import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
 import { PANEL_WIDTH, useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
+import { enterViewer } from './viewer';
 
 /** Theme tokens follow VS Code's theme class on <body>. */
 function useThemeTokens() {
@@ -80,6 +81,7 @@ function useHost() {
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
         ui.setExpandSubflows(m.expandSubflows === true);
+        if (m.viewer) enterViewer();
       } else if (m.type === 'firstFlow') {
         ui.setFirstFlow({ hidden: m.hidden, done: m.done });
       } else if (m.type === 'reveal') {

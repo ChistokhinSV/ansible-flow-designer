@@ -237,7 +237,9 @@ export function CanvasContextMenu() {
   const editing = useUi((s) => s.scenarioEditing);
   const check = useUi((s) => s.scenarioCheck);
   const flow = useReactFlow();
-  if (!menu || !snapshot?.doc) return null;
+  // AFD-270: every entry changes the flow or opens its files.
+  const viewer = useUi((s) => s.viewer);
+  if (!menu || !snapshot?.doc || viewer) return null;
   const model = modelOf(snapshot.doc);
   const scenario = editing && check ? scenarioMenu(snapshot.doc, check, editing) : undefined;
   const entries = canvasMenu(model, menu.target, {

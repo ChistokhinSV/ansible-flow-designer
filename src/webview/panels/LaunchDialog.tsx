@@ -67,6 +67,8 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     return () => clearTimeout(t);
   }, [targets]);
 
+  // AFD-270: a viewer's host decides where a run goes.
+  const viewer = useUi((s) => s.viewer);
   const close = () => {
     send({ type: 'launchCancel', token: plan.token });
     useUi.getState().setLaunch(null);
@@ -127,15 +129,19 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
         </p>
         <p className="muted afd-launch-where">
           Runs in: <span data-launch-environment>{plan.environment}</span>{' '}
-          <button type="button" className="link" onClick={() => change('environment')}>
-            Change
-          </button>
+          {viewer ? null : (
+            <button type="button" className="link" onClick={() => change('environment')}>
+              Change
+            </button>
+          )}
           {plan.inventory ? (
             <>
               {' · '}Inventory: <span data-launch-inventory>{plan.inventory}</span>{' '}
-              <button type="button" className="link" onClick={() => change('inventory')}>
-                Change
-              </button>
+              {viewer ? null : (
+                <button type="button" className="link" onClick={() => change('inventory')}>
+                  Change
+                </button>
+              )}
             </>
           ) : null}
         </p>

@@ -165,6 +165,8 @@ export interface PickState {
 interface UiState {
   snapshot: Snapshot | null;
   testMode: boolean;
+  /** AFD-270: the designer only shows and runs the flow; it stays in Run mode. */
+  viewer: boolean;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
   expandSubflows: boolean;
   /** The subflows expanded in place: a view, never stored. */
@@ -279,6 +281,8 @@ interface UiState {
   testedReason: Ulid | null;
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
+  /** AFD-270: turns the viewer on; there is no way back. */
+  setViewer(): void;
   setExpandSubflows(on: boolean): void;
   toggleExpanded(subflow: Ulid): void;
   setFirstFlow(state: { hidden: boolean; done: string[] }): void;
@@ -382,6 +386,7 @@ function driftOf(snapshot: Snapshot | null, scan: CodeScan | undefined): DriftRe
 export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
+  viewer: false,
   expandSubflows: false,
   expandedSubflows: [],
   firstFlow: null,
@@ -499,6 +504,12 @@ export const useUi = create<UiState>((set, get) => ({
     });
   },
   setTestMode: (testMode) => set({ testMode }),
+  setViewer() {
+    if (get().viewer) return;
+    get().setMode('run');
+    // setMode asks first while a binding is half made; a viewer has no such question to wait for.
+    set({ viewer: true, mode: 'run', detailsTab: 'run', leave: null });
+  },
   setExpandSubflows: (expandSubflows) =>
     set({ expandSubflows, ...(expandSubflows ? {} : { expandedSubflows: [] }) }),
   toggleExpanded: (id) => {
@@ -752,6 +763,8 @@ export const useUi = create<UiState>((set, get) => ({
   setFindQuery: (findQuery) => set({ findQuery }),
   setMode(mode) {
     if (mode === get().mode) return;
+    // AFD-270: a viewer reads the flow and its runs; Design and Code change it.
+    if (get().viewer) return;
     if (get().pendingBinding) return void set({ leave: { kind: 'mode', mode } });
     // Code and Run modes open their own tab of the Details; Design leaves theirs.
     const tab = get().detailsTab;
