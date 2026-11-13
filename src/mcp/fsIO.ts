@@ -9,6 +9,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { findNodeAtLocation, getNodeValue, parseTree } from 'jsonc-parser';
 import type { FlowIO } from '../core/ai/handlers';
+import type { InventoryIO } from '../core/ai/inventory';
 import type { OpsContext } from '../core/ai/ops';
 import { isSourceFile, SKIP_DIRS, SOURCE_MAX_BYTES } from '../core/ai/sourceRules';
 import { planGenerated } from '../core/engine/writePlan';
@@ -18,13 +19,14 @@ import { isFileKey } from '../core/flow/ids';
 import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
+import { type InventoryFs, readInventory } from '../core/inventory/files';
 import { resolveEnvironment, settingsFromJson } from '../core/run/environment';
 import { followPaths, pathChanges } from '../core/scenario/follow';
 import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
 import { flowFacts } from '../core/view/flowFacts';
 import { applyEdits } from '../core/yaml/edits';
 import { type LayoutDirection, layoutLevel, shownPositions } from '../node/autoLayout';
-import { canvasDirection, environmentSettings } from '../node/env/userSettings';
+import { canvasDirection, environmentSettings, runInventory } from '../node/env/userSettings';
 import { runScenarios } from '../node/scenario/runner';
 
 const MAX_BYTES = SOURCE_MAX_BYTES;
@@ -479,6 +481,93 @@ export class FsFlowIO implements FlowIO {
     } catch {
       return true;
     }
+  }
+
+  /**
+   * AFD-261: the inventory of the first root, for the inventory tool. Every path is taken from
+   * the root and checked to stay inside it with links followed, for reads and for writes.
+   */
+  get inventory(): InventoryIO {
+    const rootOf = () => {
+      this.need();
+      return this.roots[0] as string;
+    };
+    /** The absolute path of a repository path; throws when it leads outside the root. */
+    const within = (root: string, path: string) => {
+      const target = resolve(root, path);
+      if (!inside(root, target) || !inside(root, nearestReal(target)))
+        throw new Error(`${path} is outside the repository`);
+      return target;
+    };
+    const files = (root: string): InventoryFs => ({
+      async read(path) {
+        try {
+          const file = within(root, path);
+          if ((await fs.stat(file)).size > MAX_BYTES) return undefined;
+          return await fs.readFile(file, 'utf8');
+        } catch {
+          return undefined;
+        }
+      },
+      async list(path) {
+        try {
+          const entries = await fs.readdir(within(root, path), { withFileTypes: true });
+          return entries
+            .map((e) => ({ name: e.name, dir: e.isDirectory() }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        } catch {
+          return undefined;
+        }
+      },
+      async kind(path) {
+        try {
+          return (await fs.stat(within(root, path))).isDirectory() ? 'dir' : 'file';
+        } catch {
+          return undefined;
+        }
+      },
+    });
+    return {
+      read: async (inventory) => {
+        const root = rootOf();
+        const setting = (inventory ?? (await runInventory(root))).trim();
+        const data = await readInventory(files(root), setting);
+        const label = setting
+          ? setting
+          : data.named.length
+            ? `${data.named.join(', ')} (the default of ansible.cfg)`
+            : 'the default inventory (ansible.cfg names none in the repository)';
+        return { data, label };
+      },
+      write: async (writes, renames) => {
+        const root = rootOf();
+        const link = async (file: string) =>
+          (await fs.lstat(file).catch(() => undefined))?.isSymbolicLink();
+        // Everything is checked before anything is written.
+        const moves = renames.map(([from, to]) => [within(root, from), within(root, to)] as const);
+        const targets = writes.map((w) => ({ file: within(root, w.path), text: w.text }));
+        for (const file of [...moves.flat(), ...targets.map((t) => t.file)])
+          if (await link(file)) throw new Error(`${this.show(file)} is a link; not written`);
+        for (const [, to] of moves)
+          if (await fs.stat(to).catch(() => undefined))
+            throw new Error(`${this.show(to)} is there already; nothing was renamed`);
+        for (const [from, to] of moves) await fs.rename(from, to);
+        for (const t of targets) {
+          await fs.mkdir(dirname(t.file), { recursive: true });
+          if (await fs.stat(t.file).catch(() => undefined)) await this.replace(t.file, t.text);
+          else await fs.writeFile(t.file, t.text, 'utf8');
+        }
+        const wrote = targets.map((t) => this.show(t.file));
+        return [
+          ...(wrote.length ? [`Wrote ${wrote.join(', ')}.`] : []),
+          ...(moves.length
+            ? [
+                `Renamed ${moves.map(([from, to]) => `${this.show(from)} to ${this.show(to)}`).join(', ')}.`,
+              ]
+            : []),
+        ];
+      },
+    };
   }
 
   ops(path: string): OpsContext {

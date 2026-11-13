@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — AFD-254 waves 1 to 3 (the Inventory view: switches, files in sync, editing)
+## Unreleased — AFD-254 (the Inventory view: switches, files in sync, editing; agents)
 
 After setting up an SSH host there was no way back to WSL or a container except running the setup again from the Command Palette, and the inventory could be changed only in the settings. See [Switch between environments](docs/guide/how-to/runs-and-environments.md#switch-between-environments) and [The Inventory view](docs/guide/how-to/runs-and-environments.md#the-inventory-view).
 
@@ -27,6 +27,13 @@ After setting up an SSH host there was no way back to WSL or a container except 
 - **A move takes the host's variables with it; a rename renames its variables file.**
 - **Not edited here** (they open as text): a host of a range (its variables go to a variables file), hosts of a dynamic source, vault-encrypted values and files, YAML with anchors, and Ansible's groups `all` and `ungrouped`. A file with unsaved changes is not touched.
 - **Checked in Ansible:** inventories changed this way read in `ansible-inventory` as asked (INI, YAML, a variables file).
+
+**Wave 4 (AFD-261): AI assistants list and edit the inventory.** A new tool, `inventory` (Copilot's `#inventory`, and in the MCP server for terminal agents). See [AI assistants](docs/guide/how-to/ai-assistants.md#the-inventory).
+
+- **list:** the inventory's files and what each is, its groups and hosts as written; with a host or a group, its variables and where each is written.
+- **edit:** ops in order, all or none: `add_host`, `remove_host`, `rename_host`, `move_host`, `add_group`, `remove_group`, `rename_group`, `set_var`, `remove_var`. The same engine and the same read-only rules as the Inventory view; a new variable goes where the view puts it.
+- **What an agent does not see:** vault-encrypted values, and the value of a variable whose name contains `password`, `passwd`, `secret`, `token` or `key`. Other values reach the agent's model as written.
+- **Copilot** asks before a change and lists each op, without the values. The MCP server reads and writes inside the repository only.
 
 ## 0.83.2 — AFD-252 (agents verify scenarios on an SSH host)
 

@@ -214,6 +214,71 @@ describe('AFD-259, AFD-260: editing the inventory from the view', () => {
   }).timeout(30_000);
 });
 
+describe('AFD-261: the inventory tool, as Copilot calls it', () => {
+  let original: string;
+  before(async () => {
+    original = await read('inventory.ini');
+  });
+  afterEach(async () => {
+    await vscode.commands.executeCommand('workbench.action.files.revert');
+    await closeAll();
+    await vscode.workspace.fs.writeFile(
+      vscode.Uri.joinPath(root(), 'inventory.ini'),
+      new TextEncoder().encode(original),
+    );
+    await vscode.workspace.fs
+      .delete(vscode.Uri.joinPath(root(), 'host_vars'), { recursive: true })
+      .then(undefined, () => undefined);
+  });
+
+  it('lists the inventory the workspace uses and changes it; the files are saved', async () => {
+    const api = await testApi();
+    const list = await api.aiTool('inventory', {});
+    assert.ok(!list.isError, list.text);
+    assert.match(list.text, /Inventory: inventory\.ini \(the default of ansible\.cfg\)/);
+    assert.match(list.text, /- inventory\.ini: INI/);
+    assert.match(list.text, /- lab: 2 host lines: h0\[1:6\], h07/);
+
+    const edit = await api.aiTool('inventory', {
+      action: 'edit',
+      ops: [
+        { op: 'add_host', host: 'h99', group: 'lab' },
+        { op: 'set_var', host: 'h99', key: 'site', value: 'Lab A' },
+        { op: 'set_var', host: 'h03', key: 'vlans', value: [10, 20] },
+      ],
+    });
+    assert.ok(!edit.isError, edit.text);
+    assert.match(edit.text, /Saved\./);
+    assert.match(await read('inventory.ini'), /\nh99 site="Lab A"\n/);
+    assert.deepEqual(parse(await read('host_vars/h03.yml')), { vlans: [10, 20] });
+    assert.ok(!vscode.workspace.textDocuments.some((d) => d.isDirty));
+
+    const host = await api.aiTool('inventory', { host: 'h99' });
+    assert.match(host.text, /Groups: lab/);
+    assert.match(host.text, /- site = Lab A {2}\(inventory\.ini:\d+\)/);
+  }).timeout(30_000);
+
+  it('a file with unsaved changes is not touched, and the tool says so', async () => {
+    const api = await testApi();
+    const uri = vscode.Uri.joinPath(root(), 'inventory.ini');
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc);
+    const draft = new vscode.WorkspaceEdit();
+    draft.insert(uri, new vscode.Position(0, 0), '# draft\n');
+    await vscode.workspace.applyEdit(draft);
+    const r = await answering({}, () =>
+      api.aiTool('inventory', {
+        action: 'edit',
+        ops: [{ op: 'add_host', host: 'h99', group: 'lab' }],
+      }),
+    );
+    assert.ok(r.result.isError);
+    assert.match(r.result.text, /was not changed.*unsaved changes/);
+    assert.equal(await read('inventory.ini'), original);
+    assert.ok(doc.getText().startsWith('# draft\n'));
+  }).timeout(30_000);
+});
+
 describe('AFD-258: the Inventory view and the inventory files', () => {
   before(async () => {
     await testApi();

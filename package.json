@@ -3457,6 +3457,105 @@
             }
           }
         }
+      },
+      {
+        "name": "afd_inventory",
+        "displayName": "Inventory",
+        "toolReferenceName": "inventory",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy)",
+        "tags": [
+          "ansible-flow"
+        ],
+        "userDescription": "The Ansible inventory the repository's runs use (afd.run.inventory, else ansible.cfg's): its files, groups, hosts and variables as they are written. list (default) shows the sources and groups; with host or group, that one's variables and where each is written. edit applies ops in order, all or none: add_host, remove_host, rename_host, move_host, add_group, remove_group, rename_group, set_var, remove_var. Changes are minimal edits of the YAML or INI file that keep comments. Read-only: hosts of a dynamic source (a plugin, a script) and of a range like sw[01:10] (their variables still go to host_vars/), vault-encrypted values. Values that are vaulted or whose name looks like a secret (password, secret, token, key) are not shown.",
+        "modelDescription": "The Ansible inventory the repository's runs use (afd.run.inventory, else ansible.cfg's): its files, groups, hosts and variables as they are written. list (default) shows the sources and groups; with host or group, that one's variables and where each is written. edit applies ops in order, all or none: add_host, remove_host, rename_host, move_host, add_group, remove_group, rename_group, set_var, remove_var. Changes are minimal edits of the YAML or INI file that keep comments. Read-only: hosts of a dynamic source (a plugin, a script) and of a range like sw[01:10] (their variables still go to host_vars/), vault-encrypted values. Values that are vaulted or whose name looks like a secret (password, secret, token, key) are not shown. Ansible Flow Designer flows (*.flow.yaml); see the ansible-flow skill.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "enum": [
+                "list",
+                "edit"
+              ],
+              "description": "What to do (default list)."
+            },
+            "inventory": {
+              "type": "string",
+              "description": "Another inventory than the one in use: a file or folder in the repository, relative to its root."
+            },
+            "host": {
+              "type": "string",
+              "description": "list: this host, with its variables."
+            },
+            "group": {
+              "type": "string",
+              "description": "list: this group, with its hosts and variables."
+            },
+            "ops": {
+              "type": "array",
+              "description": "edit: the changes, in order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "add_host",
+                      "remove_host",
+                      "rename_host",
+                      "move_host",
+                      "add_group",
+                      "remove_group",
+                      "rename_group",
+                      "set_var",
+                      "remove_var"
+                    ]
+                  },
+                  "host": {
+                    "type": "string",
+                    "description": "The host (host ops; set_var, remove_var)."
+                  },
+                  "group": {
+                    "type": "string",
+                    "description": "The group: where add_host puts the host, which group remove_host takes it from (default every group), the group of a group op, or whose variable it is."
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "rename_host, rename_group: the new name. move_host: the group to move to."
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "move_host: the group to move from."
+                  },
+                  "parent": {
+                    "type": "string",
+                    "description": "add_group: make it a child of this group."
+                  },
+                  "file": {
+                    "type": "string",
+                    "description": "add_group: the file that holds it, when several inventory files could."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "set_var, remove_var: the variable name."
+                  },
+                  "value": {
+                    "description": "set_var: the value (text, a number, true or false, a list, a mapping). An INI inventory line holds simple values only."
+                  },
+                  "where": {
+                    "enum": [
+                      "file",
+                      "inventory"
+                    ],
+                    "description": "set_var for a new variable: file (host_vars/ or group_vars/) or inventory (the inventory file). Default: host_vars/ or group_vars/ when the repository has that folder, else the inventory file."
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              }
+            }
+          }
+        }
       }
     ],
     "walkthroughs": [

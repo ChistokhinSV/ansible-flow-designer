@@ -15,7 +15,13 @@ import {
   varNameProblem,
   written,
 } from '../core/inventory/edit';
-import { type InventoryFiles, type ShownVar, targetVars, writableVarFiles } from './inventoryFiles';
+import {
+  type InventoryFiles,
+  type ShownVar,
+  targetVars,
+  varPlace,
+  varRenames,
+} from './inventoryFiles';
 
 /** What the commands get from the view: its items carry these. */
 export type EditTarget =
@@ -43,7 +49,11 @@ interface Write {
  * Writes whole files (new ones too) and saves them, so runs and the view see them. A file open in
  * an editor is changed there, so Undo takes it back; one with unsaved changes is not touched.
  */
-async function write(at: vscode.Uri, writes: Write[], renames: [string, string][] = []) {
+export async function writeInventoryFiles(
+  at: vscode.Uri,
+  writes: Write[],
+  renames: [string, string][] = [],
+) {
   if (!writes.length && !renames.length) return true;
   const open = (uri: vscode.Uri) =>
     vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
@@ -53,6 +63,16 @@ async function write(at: vscode.Uri, writes: Write[], renames: [string, string][
       `${dirty.path} has unsaved changes: save it first, then change the inventory from the view.`,
     );
     return false;
+  }
+  // Renames first: a file written below may be one that was just renamed.
+  if (renames.length) {
+    const edit = new vscode.WorkspaceEdit();
+    for (const [from, to] of renames)
+      edit.renameFile(vscode.Uri.joinPath(at, from), vscode.Uri.joinPath(at, to));
+    if (!(await vscode.workspace.applyEdit(edit))) {
+      void vscode.window.showErrorMessage('The variables files could not be renamed.');
+      return false;
+    }
   }
   for (const w of writes) {
     const uri = vscode.Uri.joinPath(at, w.path);
@@ -77,15 +97,6 @@ async function write(at: vscode.Uri, writes: Write[], renames: [string, string][
         vscode.Uri.joinPath(at, w.path.slice(0, w.path.lastIndexOf('/'))),
       );
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(w.text));
-  }
-  if (renames.length) {
-    const edit = new vscode.WorkspaceEdit();
-    for (const [from, to] of renames)
-      edit.renameFile(vscode.Uri.joinPath(at, from), vscode.Uri.joinPath(at, to));
-    if (!(await vscode.workspace.applyEdit(edit))) {
-      void vscode.window.showErrorMessage('The variables files could not be renamed.');
-      return false;
-    }
   }
   return true;
 }
@@ -114,7 +125,7 @@ async function change(ctx: EditContext, op: InventoryOp, renames: [string, strin
     void vscode.window.showErrorMessage(result.error);
     return false;
   }
-  return write(at, result.files, renames);
+  return writeInventoryFiles(at, result.files, renames);
 }
 
 const ask = (
@@ -130,19 +141,6 @@ const ask = (
     ignoreFocusOut: true,
     validateInput: (v) => check(v.trim()),
   });
-
-/** The variables files to rename with a host or a group: `<name>.yml` and the folder `<name>/`. */
-function varRenames(files: InventoryFiles, of: 'host' | 'group', from: string, to: string) {
-  const out = new Map<string, string>();
-  for (const f of files.varFiles) {
-    if (f.of !== of || f.name !== from) continue;
-    const dir = f.path.slice(0, f.path.lastIndexOf('/'));
-    // In the folder <name>/: the folder is renamed once, not each file.
-    if (dir.endsWith(`/${from}`)) out.set(dir, `${dir.slice(0, -from.length)}${to}`);
-    else out.set(f.path, `${dir}/${to}${f.path.slice(dir.length + 1 + from.length)}`);
-  }
-  return [...out];
-}
 
 async function addHost(ctx: EditContext, item?: EditTarget) {
   let group = item?.kind === 'group' ? item.group.name : undefined;
@@ -275,36 +273,22 @@ const targetOf = (item: EditTarget) =>
         ? { host: item.host }
         : { group: item.group };
 
-/** Where a new variable goes (the user's rule): the variables folder when the repository has one. */
+/** Where a new variable goes: the shared rule, and a question when both places are in use. */
 async function placeFor(
   files: InventoryFiles,
   target: { host?: string; group?: string },
 ): Promise<{ inline: true } | { file: string; text?: string } | undefined> {
-  const of = target.host ? 'host' : 'group';
+  const place = varPlace(files, target);
+  if (!('ask' in place)) return place;
+  const [inFile, inline] = place.ask;
   const name = (target.host ?? target.group) as string;
-  const existing = writableVarFiles(files, target)[0];
-  const dir = files.varDirs[of];
-  const written = target.host
-    ? files.index.host(name) && !files.index.host(name)?.range
-    : !!files.index.group(name);
-  const inFile = existing
-    ? { file: existing.path, text: existing.text }
-    : {
-        file: `${dir ?? `${files.varDirs.base ? `${files.varDirs.base}/` : ''}${of}_vars`}/${name}.yml`,
-      };
-  // Not written as a plain name in a file (a dynamic source, a range): only a variables file can
-  // hold its variables.
-  if (!written) return inFile;
-  if (!dir && !existing) return { inline: true };
-  const hasInline = targetVars(files, target).some((v) => v.inline);
-  if (!hasInline) return inFile;
   const picked = await vscode.window.showQuickPick(
     [
       { label: inFile.file, description: 'the variables file', place: inFile },
       {
         label: 'The inventory file',
         description: 'beside its other variables there',
-        place: { inline: true as const },
+        place: inline,
       },
     ],
     { title: `Add Variable to ${name}`, placeHolder: 'Both are in use here: where does it go?' },
@@ -327,7 +311,7 @@ async function setVar(
     void vscode.window.showErrorMessage(text.error);
     return false;
   }
-  return write(at, [{ path: place.file, text }]);
+  return writeInventoryFiles(at, [{ path: place.file, text }]);
 }
 
 async function addVar(ctx: EditContext, item?: EditTarget) {
@@ -394,7 +378,7 @@ async function removeVar(ctx: EditContext, item: Extract<EditTarget, { kind: 'va
     void vscode.window.showErrorMessage(text.error);
     return false;
   }
-  return write(at, [{ path: file.path, text }]);
+  return writeInventoryFiles(at, [{ path: file.path, text }]);
 }
 
 export function registerInventoryEdits(ctx: EditContext): vscode.Disposable[] {
