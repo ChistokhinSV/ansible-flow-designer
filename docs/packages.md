@@ -267,28 +267,29 @@ What a viewer host answers:
 A breaking change to one of these gets a line under "Packages" in the changelog. Every other module
 can be imported and is internal: it changes without notice.
 
-| Module                                                   | Main exports                                                               |
-| -------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `flow/document`                                          | `parseFlow`, `ParsedFlow`                                                  |
-| `flow/types`                                             | `FlowDocument`, `FlowNode`, `ImplBinding`, `Ulid` and the other file types |
-| `flow/model`                                             | `modelOf`, `buildModel`, `FlowModel`                                       |
-| `flow/schema`                                            | `createSchemaValidator`                                                    |
-| `flow/validate`                                          | `validateFlow`, `Finding`                                                  |
-| `flow/commands`, `yaml/edits`                            | `FlowCommand`, `planCommand`; `applyEdits`, `TextEdit`                     |
-| `flow/save`                                              | `planSave`                                                                 |
-| `flow/segments`                                          | `planSegments` (approval gates split a flow into segments)                 |
-| `engine/engines`, `engine/types`                         | `engineFor`; `GenerateOptions`, `GenerateResult`, `Route`, `SegmentFile`   |
-| `engine/writePlan`, `engine/partial`                     | `planGenerated`; `partialFlow`                                             |
-| `run/environment`, `run/command`                         | `resolveEnvironment`, `settingsFromJson`; `runProcess`, `probeProcess`     |
-| `run/events`, `run/view`                                 | `createSummarizer`, `summarizeRun`, `hostOutput`; `runStates`, `runPassed` |
-| `run/launch`, `run/redact`                               | `launchFields`, `parseInput`, `LaunchPlan`; `redactLine`, `secretValues`   |
-| `protocol`                                               | `HostMessage`, `WebviewMessage`, `Snapshot`, `RunView`                     |
-| `viewer`                                                 | `VIEWER_MESSAGES`, `viewerAllows`                                          |
-| `scenario/scenarios`, `scenario/simulate`                | `parseScenarios`, `checkScenarios`; `simulateScenario`                     |
-| `awx/events`, `awx/workflow`, `awx/import`, `awx/survey` | `awxEventsToLines`; `workflowFromApi`; `importWorkflow`; `surveyFor`       |
-| `ai/specs`, `ai/handlers`                                | `TOOL_SPECS`; `FlowIO`, `runTool`                                          |
-| `inventory/files`, `inventory/edit`                      | `readInventory`, `InventoryFs`; `editInventory`, `InventoryOp`             |
-| `export/drawio`, `export/svg`                            | `toDrawio`; `toSvg`                                                        |
+| Module                                                   | Main exports                                                                                    |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `flow/document`                                          | `parseFlow`, `ParsedFlow`                                                                       |
+| `flow/types`                                             | `FlowDocument`, `FlowNode`, `ImplBinding`, `Ulid` and the other file types                      |
+| `flow/model`                                             | `modelOf`, `buildModel`, `FlowModel`                                                            |
+| `flow/schema`                                            | `createSchemaValidator`                                                                         |
+| `flow/validate`                                          | `validateFlow`, `Finding`                                                                       |
+| `flow/collections`                                       | `flowCollections`, `mergeRequirements`, `requirementsYaml`: the collections a flow's steps need |
+| `flow/commands`, `yaml/edits`                            | `FlowCommand`, `planCommand`; `applyEdits`, `TextEdit`                                          |
+| `flow/save`                                              | `planSave`                                                                                      |
+| `flow/segments`                                          | `planSegments` (approval gates split a flow into segments)                                      |
+| `engine/engines`, `engine/types`                         | `engineFor`; `GenerateOptions`, `GenerateResult`, `Route`, `SegmentFile`                        |
+| `engine/writePlan`, `engine/partial`                     | `planGenerated`; `partialFlow`                                                                  |
+| `run/environment`, `run/command`                         | `resolveEnvironment`, `settingsFromJson`; `runProcess`, `probeProcess`                          |
+| `run/events`, `run/view`                                 | `createSummarizer`, `summarizeRun`, `hostOutput`; `runStates`, `runPassed`                      |
+| `run/launch`, `run/redact`                               | `launchFields`, `parseInput`, `LaunchPlan`; `redactLine`, `secretValues`                        |
+| `protocol`                                               | `HostMessage`, `WebviewMessage`, `Snapshot`, `RunView`                                          |
+| `viewer`                                                 | `VIEWER_MESSAGES`, `viewerAllows`                                                               |
+| `scenario/scenarios`, `scenario/simulate`                | `parseScenarios`, `checkScenarios`; `simulateScenario`                                          |
+| `awx/events`, `awx/workflow`, `awx/import`, `awx/survey` | `awxEventsToLines`; `workflowFromApi`; `importWorkflow`; `surveyFor`                            |
+| `ai/specs`, `ai/handlers`                                | `TOOL_SPECS`; `FlowIO`, `runTool`                                                               |
+| `inventory/files`, `inventory/edit`                      | `readInventory`, `InventoryFs`; `editInventory`, `InventoryOp`                                  |
+| `export/drawio`, `export/svg`                            | `toDrawio`; `toSvg`                                                                             |
 
 ## Publishing
 
