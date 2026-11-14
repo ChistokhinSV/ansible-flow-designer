@@ -4,16 +4,15 @@ The code that is not tied to VS Code is also built as npm packages, so another p
 check, change and run flows the way the extension does. The first user is Ansible Flow Server.
 The decision and its reasons are in [ADR-0036](adr/0036-packages-for-other-hosts.md).
 
-| Package                  | Contents                                                             | State                         |
-| ------------------------ | -------------------------------------------------------------------- | ----------------------------- |
-| `@ansible-flow/core`     | The flow model, commands, validation, code generation, run summaries | Built and checked; not on npm |
-| `@ansible-flow/assets`   | The Python probe, the events callback, the schemas, the contract     | Built and checked; not on npm |
-| `@ansible-flow/node`     | Layout, runs, the probe client, the AWX client, the catalog, SSH     | Built and checked; not on npm |
-| `@ansible-flow/designer` | The designer for a web page                                          | Built and checked; not on npm |
+| Package                  | Contents                                                             |
+| ------------------------ | -------------------------------------------------------------------- |
+| `@ansible-flow/core`     | The flow model, commands, validation, code generation, run summaries |
+| `@ansible-flow/assets`   | The Python probe, the events callback, the schemas, the contract     |
+| `@ansible-flow/node`     | Layout, runs, the probe client, the AWX client, the catalog, SSH     |
+| `@ansible-flow/designer` | The designer for a web page                                          |
 
-Nothing is published yet: the release's npm job is switched off until the npm organisation exists
-(see [Publishing](#publishing)). Once it is on, every release of the extension publishes all
-packages with the extension's version.
+On npm from 0.85.0. Every release of the extension publishes all packages with the extension's
+version (see [Publishing](#publishing)).
 
 ## Build them
 

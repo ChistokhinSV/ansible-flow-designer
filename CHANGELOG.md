@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.85.0 — Run on Ansible Flow Server, npm packages
 
 ### Added
 
@@ -15,19 +15,6 @@ All notable changes to Ansible Flow Designer.
 - The collections a flow needs are worked out from its steps (every level, step and undo bindings), at least at the version a step chosen from the module catalog was made against; the project's `collections/requirements.yml` wins, and a step made against a version it does not allow is named. Agents see them in `flow_describe`; `@ansible-flow/core` has `flowCollections` and `mergeRequirements`. See [npm packages](docs/packages.md).
 - `@ansible-flow/node` runs flows with approvals outside AWX: `runSegments` waits at each approval for a decision, and its step functions let a server wait between runs. See [npm packages](docs/packages.md#running-a-flow-with-approval-gates).
 - Run mode shows approvals from any runner: waiting, then who decided, when, and their comment. Where the runner allows it, the node's Run tab has **Approve** and **Reject** with a comment.
-
-### Changed
-
-- A runner that waits for a person can send hosts that waited too long through the approval's `timeout` port. AWX workflows work as before: AWX cannot tell a timeout from a rejection.
-
-### Fixed
-
-- A run on `localhost` that is not in your inventory (Ansible's implicit localhost) counted no hosts: the run's host list and counts now include it.
-
-## 0.85.0 — npm packages
-
-### Added
-
 - The extension's code is also published as npm packages, so other programs can read, check, generate and run flows the same way the extension does. See [npm packages for other hosts](docs/packages.md).
   - `@ansible-flow/core`: the flow model, commands, validation, code generation, run summaries and the designer's message protocol, for any JavaScript host.
   - `@ansible-flow/node`: layout, the probe client, the AWX client, the module catalog, SSH, and `runFlow`, the local run without VS Code.
@@ -37,7 +24,12 @@ All notable changes to Ansible Flow Designer.
 
 ### Changed
 
+- A runner that waits for a person can send hosts that waited too long through the approval's `timeout` port. AWX workflows work as before: AWX cannot tell a timeout from a rejection.
 - Local runs use `runFlow` from `@ansible-flow/node`. Run behaviour is unchanged.
+
+### Fixed
+
+- A run on `localhost` that is not in your inventory (Ansible's implicit localhost) counted no hosts: the run's host list and counts now include it.
 
 ## 0.84.0 — Inventory view: switches and editing
 
