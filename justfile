@@ -150,6 +150,11 @@ ee-build core="2.19":
 awx-ee-build core="2.19": (ee-build core)
     docker build -f docker/afd-awx-ee.Dockerfile --build-arg CORE={{ core }} -t afd-awx-ee:{{ core }} docker
 
+# The collections flows need, as requirements.yml (AFD-274): just collections [--requirements collections/requirements.yml] flows/*.flow.yaml
+collections *args:
+    npx --no-install esbuild src/cli/collections.ts --bundle --platform=node --format=cjs --outfile=out/cli/collections.cjs --log-level=warning
+    node out/cli/collections.cjs {{ args }}
+
 # Generate Option A code for flows into generated/ next to each (--check, --simulate, --out DIR)
 codegen *args:
     npx --no-install esbuild src/cli/codegen.ts --bundle --platform=node --format=cjs --outfile=out/cli/codegen.cjs --log-level=warning

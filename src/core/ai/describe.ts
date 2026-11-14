@@ -1,6 +1,8 @@
 // A flow described for AI tools (AFD-19): compact, by key, one line per node and wire, with the
 // open fail ports and the problems. IDs never appear.
+
 import { LAYOUT_FIX, type LayoutProblem } from '../export/layoutCheck';
+import { flowCollections, mergeRequirements } from '../flow/collections';
 import { registerName } from '../flow/dataNames';
 import { liftOf } from '../flow/dataRefs';
 import { acceptedAll } from '../flow/decisions';
@@ -184,6 +186,21 @@ function layoutTotal(layoutIssues: ReadonlyMap<string, readonly LayoutProblem[]>
     : 'Layout check: no problems (no overlap, no wire through a box, no label on a box or another label, no crossing).';
 }
 
+/** The collections the steps use, with the version their bindings were made against (AFD-274). */
+function collectionsLine(doc: FlowModel['doc']): string[] {
+  const needed = mergeRequirements(flowCollections(doc));
+  if (!needed.length) return [];
+  const shown = needed
+    .slice(0, 20)
+    .map(
+      (r) =>
+        `${r.name} ${r.version} (${r.nodes.slice(0, 4).join(', ')}${r.nodes.length > 4 ? ', …' : ''})`,
+    );
+  return [
+    `Collections the steps use: ${shown.join(', ')}${needed.length > 20 ? `, and ${needed.length - 20} more` : ''}`,
+  ];
+}
+
 export function describeFlow(
   model: FlowModel,
   findings: readonly Finding[],
@@ -220,6 +237,8 @@ export function describeFlow(
             .join(', ')}`,
         ]
       : []),
+    // AFD-274: what the flow's environment must hold, from what its steps run.
+    ...collectionsLine(doc),
     `Revision: ${revision} (pass it to flow_edit)`,
     ...(layout ? [`Layout: ${LAYOUT_RULES}`] : []),
     // AFD-213: the total first, so page 1 of a long answer says whether the layout is clean.
