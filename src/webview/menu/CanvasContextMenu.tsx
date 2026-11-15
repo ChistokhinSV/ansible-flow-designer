@@ -161,6 +161,12 @@ export function runCanvasAction(
     case 'dissolve':
       void run({ kind: 'dissolveSubflow', id: action.node, place: true });
       return;
+    case 'expandRole':
+      send({ type: 'expandRole', node: action.node });
+      return;
+    case 'collapseRole':
+      void run({ kind: 'collapseRole', id: action.node });
+      return;
     case 'selectFlow':
       selectFlow(action.node, action.dir);
       return;

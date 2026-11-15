@@ -1,0 +1,6 @@
+---
+- name: Prepare
+  ansible.builtin.include_tasks: prepare.yml
+- name: Apply
+  ansible.builtin.include_tasks: apply.yml
+  when: split_apply | bool

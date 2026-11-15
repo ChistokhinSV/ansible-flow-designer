@@ -9,6 +9,7 @@ import { newFlowText } from '../../core/flow/template';
 import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
+import { ExpandedRoleActions, expandRole } from '../expandRole';
 import { askForFolder } from '../help';
 import type { Host } from '../host';
 import { insertShared, SharedSubflowActions, unlinkShared, updateShared } from '../sharedSubflows';
@@ -109,6 +110,15 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
     ),
     vscode.commands.registerCommand(CMD.unlinkShared, (uri: vscode.Uri, target) =>
       unlinkShared(host, uri, target),
+    ),
+    // Roles expanded into subflows (AFD-293).
+    vscode.languages.registerCodeActionsProvider(
+      { pattern: '**/*.flow.yaml' },
+      new ExpandedRoleActions(),
+      { providedCodeActionKinds: ExpandedRoleActions.kinds },
+    ),
+    vscode.commands.registerCommand(CMD.expandRole, (uri: vscode.Uri, target) =>
+      expandRole(host, uri, target),
     ),
     vscode.commands.registerCommand(
       CMD.acceptProblem,

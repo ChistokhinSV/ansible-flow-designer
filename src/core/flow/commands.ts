@@ -41,7 +41,7 @@ import {
   portDirection,
   portsFor,
 } from './ports';
-import { copySubflow, parseRefFrom, refFor } from './refs';
+import { copySubflow, parseRefFrom, refDesign, refFor } from './refs';
 import { nodeDesigns, testedDropBack } from './semantic';
 import { canMarkTested, contentStatus, hasStatus, statusAfterBinding, statusFor } from './status';
 import {
@@ -51,7 +51,9 @@ import {
   type AnnotationKind,
   type ApprovalFields,
   type BoundaryExit,
+  type Contract,
   type ContractField,
+  type ExpandedFrom,
   type FlowDocument,
   type FlowNode,
   type HandlerKind,
@@ -252,6 +254,18 @@ export type FlowCommand =
   | { kind: 'updateReference'; id: Ulid; version: number; source: FlowNode }
   /** AFD-60: the copy becomes this flow's own subflow, to edit here. */
   | { kind: 'unlinkReference'; id: Ulid }
+  /**
+   * AFD-293: a step bound to a role becomes the subflow the host read from the role (or an expanded
+   * subflow takes the role as it is now: Update Expanded Role).
+   */
+  | {
+      kind: 'expandRole';
+      id: Ulid;
+      source: Pick<FlowNode, 'subflow' | 'inputs' | 'intent'>;
+      expanded: Omit<ExpandedFrom, 'design' | 'step'>;
+    }
+  /** AFD-293: an expanded subflow, as it was made, becomes the role step again. */
+  | { kind: 'collapseRole'; id: Ulid }
   /**
    * AFD-61: a re-import's merge, as the host planned it from a fresh import of the source: the
    * steps that take the source's version, the new steps after the step before them, the steps
@@ -2805,6 +2819,59 @@ function updateReference(
   writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source);
 }
 
+// ---- roles expanded into subflows (AFD-293) ---------------------------------------------------
+
+function expandRole(
+  tx: YamlTransaction,
+  ctx: CommandContext,
+  cmd: Extract<FlowCommand, { kind: 'expandRole' }>,
+): void {
+  requireFormat(state(tx).doc, 2, 'Expand into Subflow');
+  const { node, path } = nodeAt(state(tx), cmd.id);
+  const was = node.expanded_from;
+  if (!was && (node.type !== 'task' || node.impl?.kind !== 'role'))
+    throw new CommandError('not-role', `${node.title} is not a step bound to a role`);
+  if (node.ref) throw new CommandError('shared', `${node.title} is a shared subflow`);
+  if (!cmd.source.subflow?.nodes?.length)
+    throw new CommandError('empty', `Role ${cmd.expanded.role} gave no steps`);
+  const step: ExpandedFrom['step'] = was?.step ?? {
+    impl: structuredClone(node.impl as ImplBinding),
+    ...(node.inputs ? { inputs: structuredClone(node.inputs) } : {}),
+  };
+  const copy = copySubflow({ type: 'subflow', ...cmd.source } as FlowNode, ctx.newId);
+  // The step's own inputs feed the role's variables of the same name.
+  const inputs: Contract = { ...(copy.inputs ?? {}), ...(step.inputs ?? {}) };
+  const made = { subflow: copy.subflow, inputs, outputs: node.outputs };
+  const expanded: ExpandedFrom = { ...cmd.expanded, design: refDesign(made), step };
+  if (node.type !== 'subflow') setField(tx, path, 'type', 'subflow', NODE_ORDER);
+  setField(
+    tx,
+    path,
+    'inputs',
+    (Object.keys(inputs).length ? inputs : null) as YamlValue,
+    NODE_ORDER,
+  );
+  setField(tx, path, 'impl', { kind: 'role', ref: step.impl.ref } as YamlValue, NODE_ORDER);
+  setField(tx, path, 'expanded_from', expanded as unknown as YamlValue, NODE_ORDER);
+  setField(tx, path, 'subflow', copy.subflow as unknown as YamlValue, NODE_ORDER);
+}
+
+function collapseRole(tx: YamlTransaction, cmd: Extract<FlowCommand, { kind: 'collapseRole' }>) {
+  const { node, path } = nodeAt(state(tx), cmd.id);
+  const was = node.expanded_from;
+  if (!was) throw new CommandError('not-expanded', `${node.title} was not expanded from a role`);
+  if (refDesign(node) !== was.design)
+    throw new CommandError(
+      'edited',
+      `${node.title} was changed since it was expanded from role ${was.role}: collapsing would lose those changes`,
+    );
+  setField(tx, path, 'subflow', null, NODE_ORDER);
+  setField(tx, path, 'expanded_from', null, NODE_ORDER);
+  setField(tx, path, 'type', 'task', NODE_ORDER);
+  setField(tx, path, 'inputs', (was.step.inputs ?? null) as YamlValue, NODE_ORDER);
+  setField(tx, path, 'impl', was.step.impl as unknown as YamlValue, NODE_ORDER);
+}
+
 // ---- annotations (AFD-64) -------------------------------------------------------------------
 
 /** Ops removing annotations of one level against one parse; the key goes with the last one. */
@@ -3557,6 +3624,12 @@ export function planCommand(
       break;
     case 'reimport':
       created = reimport(tx, ctx, cmd, notes);
+      break;
+    case 'expandRole':
+      expandRole(tx, ctx, cmd);
+      break;
+    case 'collapseRole':
+      collapseRole(tx, cmd);
       break;
     case 'unlinkReference': {
       const { node, path } = nodeAt(state(tx), cmd.id);

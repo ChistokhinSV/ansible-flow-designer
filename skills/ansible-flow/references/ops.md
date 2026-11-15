@@ -282,6 +282,27 @@ Move a subflow's steps up to its level and remove the subflow (the inverse of ex
 {"op":"dissolve_subflow","subflow":"phase-event-preflight-started"}
 ```
 
+### expand_role
+
+Turn a step bound to a role into a subflow of the role's work, in its place (wires kept), so each part gets its own ports and routing. A role whose tasks/main.yml only includes task files: a step per file (include_role tasks_from), still the role. Any other role: a copy of each task, its handlers as notify links, its defaults and vars (and the params the step passed) as the subflow's inputs, its templates and files from the repository root. On a subflow expanded before: reads the role again (after the role changed). Format 2; the role must be in the repository.
+
+- `node` (string, required): The role step, or a subflow expanded from one.
+- `replace_changes` (boolean): Reading an expanded subflow again that was changed since: true drops those changes.
+
+```json
+{"op":"expand_role","node":"web"}
+```
+
+### collapse_role
+
+Turn a subflow expanded from a role back into the role step it was (binding and inputs as before). Refused when the subflow was changed since it was expanded.
+
+- `node` (string, required): The expanded subflow.
+
+```json
+{"op":"collapse_role","node":"web"}
+```
+
 ### rename
 
 Rename several nodes at once: old key (path) -> new key; from: references follow, as with update_node key.
@@ -444,6 +465,7 @@ Lay out a level again with the auto-layout and store every position (positions o
 | import-gone | Re-import from Source found that the task this step was imported from is no longer in the source; the step stays. | Delete the step, or keep it: remove its origin to make it this flow's own. |
 | shared-edited | A shared subflow (a copy of another flow's subflow) was changed here, so it no longer matches the version it was copied from; or it sits in a format 1 flow. | Edit the source flow and Update, or Unlink to make the copy this flow's own. |
 | shared-source | A shared subflow's source is missing (the file or the subflow key), is not a .flow.yaml inside the workspace folder, or has a newer version than the copy. | Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone. |
+| role-source | A subflow expanded from a role: the role changed since it was expanded (info), or its folder is gone (warning). | Update Expanded Role reads the role again (changes made in the subflow are lost); when the folder is gone, the subflow runs as it is. |
 | rolling-unsupported | A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow. | Move that step out of the subflow, or remove rolling: without it the steps run play by play. |
 | legacy-port | A node has the undo or cancelled port, which were never built: Rollback wires explicit undo steps, and a cancelled job routes no host. | Upgrade Flow Format removes them and their wires (format 2: remove them); apply Rollback for undo steps. |
 | timeout-unreadable | settings.timeout is not a duration the generated code can read, so the step runs without a timeout. A template ({{ … }}) is read at run time on a step, but not on an approval, whose AWX template needs a number. | Write it as 30s, 15m or 1h30m (update_node settings.timeout); on a step, a template of whole seconds reading an input works too. |

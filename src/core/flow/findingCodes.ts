@@ -156,6 +156,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       "A shared subflow's source is missing (the file or the subflow key), is not a .flow.yaml inside the workspace folder, or has a newer version than the copy.",
     fix: 'Update Shared Subflow for a newer version; fix ref.from or Unlink when the source is gone.',
   },
+  'role-source': {
+    meaning:
+      'A subflow expanded from a role: the role changed since it was expanded (info), or its folder is gone (warning).',
+    fix: 'Update Expanded Role reads the role again (changes made in the subflow are lost); when the folder is gone, the subflow runs as it is.',
+  },
   'rolling-unsupported': {
     meaning:
       'A rolling subflow has a step that needs plays of its own (a subflow, approval, parallel, join, playbook binding, inventory_target, or its own serial or max_fail_percentage), or rolling is set on a node that is not a subflow.',

@@ -192,6 +192,30 @@ describe('canvas context menu', () => {
     expect(sent('command')[0]?.command).toMatchObject({ kind: 'pasteNodes', position: at });
   });
 
+  it('a role step: Expand into Subflow asks the host to read the role (AFD-293)', () => {
+    const roles = structuredClone(doc);
+    roles.schema_version = 2;
+    const step = roles.nodes.find((n) => n.key === 'validate') as FlowDocument['nodes'][number];
+    step.impl = { kind: 'role', ref: 'web' };
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: 2,
+        doc: roles,
+        stale: false,
+        findings: [],
+        openPorts: openFailPorts(buildModel(roles)),
+        autoPositions: {},
+      }),
+    );
+    mount();
+    act(() => {
+      fireEvent.contextMenu(node('validate'), { clientX: 200, clientY: 150 });
+    });
+    expect(items()).toContain('Expand into Subflow');
+    act(() => screen.getByRole('menuitem', { name: 'Expand into Subflow' }).click());
+    expect(sent('expandRole')).toEqual([{ type: 'expandRole', node: id('validate') }]);
+  });
+
   it('keys: arrows and Home/End move, Right opens a submenu, Escape closes one level; Delete stays in the menu', () => {
     mount();
     act(() => useUi.getState().select({ node: id('validate') }));

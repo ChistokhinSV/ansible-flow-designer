@@ -402,6 +402,8 @@ export type WebviewMessage =
   | { type: 'lens'; lens: LensId | null; refresh?: boolean }
   /** Canvas menu › Insert Shared Subflow… (AFD-60): the host picks the subflow. */
   | { type: 'insertShared'; level: string; at?: Position }
+  /** AFD-293: Expand into Subflow (or Update Expanded Role): the host reads the role. */
+  | { type: 'expandRole'; node: Ulid }
   /**
    * Run ▾ › Run Scenarios (AFD-58): the flow's scenario tests in the run environment. AFD-116:
    * `names` runs only those (Verify in Ansible).

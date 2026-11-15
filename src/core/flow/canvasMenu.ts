@@ -10,6 +10,7 @@ import { type FlowModel, ROOT } from './model';
 import type { OpenPort } from './openPorts';
 import { nextFrom, type PortMenuItem, portMenu } from './portMenu';
 import { portsFor } from './ports';
+import { refDesign } from './refs';
 import { canMarkTested, contentStatus } from './status';
 import {
   ANNOTATION_COLORS,
@@ -86,6 +87,9 @@ export type CanvasAction =
   | { do: 'extract'; nodes: Ulid[] }
   /** AFD-241: the subflow's steps move up to its level; the subflow goes. */
   | { do: 'dissolve'; node: Ulid }
+  /** AFD-293: a role step into a subflow of the role's work (the host reads the role), and back. */
+  | { do: 'expandRole'; node: Ulid }
+  | { do: 'collapseRole'; node: Ulid }
   /** AFD-238: every step the hosts came through to reach this one, or can reach from it. */
   | { do: 'selectFlow'; node: Ulid; dir: 'up' | 'down' }
   | { do: 'zoomSelection' }
@@ -401,6 +405,38 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         { icon: 'debug-disconnect', ...lock },
       ),
     );
+  if (edit && node.type === 'task' && node.impl?.kind === 'role') {
+    const why =
+      formatOf(model.doc) < 2
+        ? 'Needs flow format 2'
+        : node.impl.params?.tasks_from !== undefined
+          ? 'The step runs one task file of the role'
+          : undefined;
+    design.push(
+      item(
+        'Expand into Subflow',
+        { do: 'expandRole', node: id },
+        { icon: 'unfold', ...(why ? { disabled: why } : lock) },
+      ),
+    );
+  }
+  if (edit && node.expanded_from) {
+    // AFD-293: the way back, while the subflow is as it was made.
+    const edited = refDesign(node) !== node.expanded_from.design;
+    design.push(
+      item(
+        'Collapse to Role Step',
+        { do: 'collapseRole', node: id },
+        {
+          icon: 'fold',
+          ...(edited
+            ? { disabled: 'Changed since it was expanded: collapsing would lose the changes' }
+            : lock),
+        },
+      ),
+      item('Update Expanded Role', { do: 'expandRole', node: id }, { icon: 'refresh', ...lock }),
+    );
+  }
   if (edit && node.type === 'subflow') {
     // AFD-241: the reverse of Extract into Subflow.
     const why = node.ref

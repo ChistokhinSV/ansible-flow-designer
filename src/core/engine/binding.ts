@@ -125,7 +125,7 @@ export function sourceExpr(
   level: string,
   from: string,
   depth = 0,
-): { expr: string; host: boolean } | undefined {
+): { expr: string; host: boolean; fallback?: unknown } | undefined {
   const src = resolveFrom(model, node, level, 'inputs', from);
   switch (src.kind) {
     case 'flow':
@@ -139,7 +139,15 @@ export function sourceExpr(
       const at = model.nodes.get(src.node.id)?.level;
       const inner =
         up && at && depth < 16 ? sourceExpr(model, src.node, at, up, depth + 1) : undefined;
-      if (!inner) return { expr: [src.name, ...src.path].join('.'), host: false };
+      // AFD-293: an input of the subflow that nothing feeds gives its default.
+      if (!inner)
+        return {
+          expr: [src.name, ...src.path].join('.'),
+          host: false,
+          ...(!up && src.path.length === 0 && src.field.default !== undefined
+            ? { fallback: src.field.default }
+            : {}),
+        };
       return { expr: [inner.expr, ...src.path].join('.'), host: inner.host };
     }
     case 'unresolved': {
@@ -174,7 +182,16 @@ export function inputVars(model: FlowModel, level: string, node: FlowNode, via?:
     }
     const src = sourceExpr(model, node, level, from);
     const expr = src && (src.host && via ? `${via}.${src.expr}` : src.expr);
-    if (!expr || expr === name) continue;
+    if (!expr) continue;
+    if (expr === name) {
+      // `x: "{{ x }}"` would recurse; the host's own variables (inventory, facts, extra vars) do
+      // not include task vars, so a value set there still wins over the default (AFD-293).
+      const dflt = fallback ?? src.fallback;
+      if (dflt !== undefined)
+        vars[name] =
+          `{{ hostvars[inventory_hostname][${jinjaValue(name)}] | default(${jinjaValue(dflt)}) }}`;
+      continue;
+    }
     vars[name] =
       fallback === undefined ? `{{ ${expr} }}` : `{{ ${expr} | default(${jinjaValue(fallback)}) }}`;
   }

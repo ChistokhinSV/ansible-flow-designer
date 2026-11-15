@@ -793,6 +793,44 @@
             }
           }
         },
+        "expanded_from": {
+          "type": "object",
+          "required": ["role", "dir", "mode", "source", "design", "step"],
+          "additionalProperties": false,
+          "description": "Format 2: this subflow was expanded from a step bound to a role (Expand into Subflow). Collapse to Role Step turns it back while it is as it was made; when the role changes, Update Expanded Role reads it again.",
+          "properties": {
+            "role": { "type": "string", "description": "The role name." },
+            "dir": { "type": "string", "description": "Repository path of the role's folder." },
+            "mode": {
+              "enum": ["files", "tasks"],
+              "description": "files: a step per task file (include_role tasks_from); tasks: a copy of each task of the role."
+            },
+            "source": {
+              "type": "string",
+              "description": "Fingerprint of the role's tasks, handlers, defaults and vars when it was expanded."
+            },
+            "design": {
+              "type": "string",
+              "description": "Fingerprint of the subflow as it was made: a different one means it was changed here."
+            },
+            "step": {
+              "type": "object",
+              "required": ["impl"],
+              "additionalProperties": false,
+              "description": "The role step before the expand.",
+              "properties": {
+                "impl": {
+                  "$ref": "#/$defs/impl",
+                  "description": "The role binding the step had: Collapse to Role Step writes it back."
+                },
+                "inputs": {
+                  "$ref": "#/$defs/contract",
+                  "description": "The inputs the step had: Collapse to Role Step writes them back."
+                }
+              }
+            }
+          }
+        },
         "undo": {
           "$ref": "#/$defs/impl",
           "description": "What reverses the node: the Rollback pattern binds this node's undo step to it."
