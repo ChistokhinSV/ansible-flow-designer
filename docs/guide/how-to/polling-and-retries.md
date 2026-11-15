@@ -1,6 +1,6 @@
 # Retries and polling
 
-Two different needs, set in the **Timing** group of the **Execution** tab of the step's Details.
+Two different needs, set in the **Timing** group of **How it runs**, on the **Behavior** tab of the step's Details.
 Each group's fold names what it holds ("Timing: timeout, retries, until, delay · 2 set"); on a
 step bound to a module, Timing is open until you close it. Under the fields, one sentence says what
 the generated task will do with them, for example "Tries up to 11 times (once, then 10 retries),
@@ -49,7 +49,7 @@ retries × delay. It succeeds when the test holds, and fails (`failed_hosts`) wh
   (`until-not-module`): put the polling in its own module step.
 - A failed attempt, such as connection refused during a reboot, counts as "not yet": the step
   keeps polling.
-- **Timeout** (Execution tab) limits one attempt, not the time between attempts (that is
+- **Timeout** (Behavior tab, How it runs) limits one attempt, not the time between attempts (that is
   **Delay**). Write it as `30s`, `15m` or `1h30m`: the field refuses anything else, and a timeout
   written otherwise in the file is left out of the task, with a warning (`timeout-unreadable`). With
   the optional `timeout` port enabled, hosts that time out leave through it.

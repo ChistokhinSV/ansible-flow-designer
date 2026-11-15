@@ -177,7 +177,8 @@ describe('read-only panels (AFD-30)', () => {
     const locked = () => !!screen.getByLabelText('Title').closest('fieldset')?.disabled;
     expect(locked()).toBe(true);
     // Leaving the panel through the text stays possible.
-    const text = screen.getByRole('button', { name: 'Open in Text Editor' });
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    const text = screen.getByRole('menuitem', { name: 'Open in Text Editor' });
     expect(text.closest('fieldset')).toBeNull();
     act(() => useUi.getState().setSnapshot(snapshotOf({ docVersion: 2 })));
     expect(locked()).toBe(false);
@@ -185,7 +186,8 @@ describe('read-only panels (AFD-30)', () => {
 
   it('deletes from the Details through the selection delete (one deleteNodes)', () => {
     render(<Details id={task.id} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Delete node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete node' }));
     expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [task.id], edges: [], heal: true }]);
   });
 });
@@ -268,7 +270,7 @@ describe('Details content (AFD-44)', () => {
       'Key used twice',
     );
     fireEvent.click(within(list).getByText('Timeout is shorter than the poll'));
-    expect(screen.getByRole('tab', { name: /Execution/ }).getAttribute('aria-selected')).toBe(
+    expect(screen.getByRole('tab', { name: /Behavior/ }).getAttribute('aria-selected')).toBe(
       'true',
     );
   });

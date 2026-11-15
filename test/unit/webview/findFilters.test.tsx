@@ -65,9 +65,11 @@ describe('Find filters (AFD-86)', () => {
     );
     cleanup();
     posted.length = 0;
+    act(() => useUi.getState().setRepo({ flows: 3, withErrors: 1, editedByHand: 0, outOfDate: 0 }));
     render(<FlowDescription />);
     fireEvent.click(screen.getByRole('button', { name: 'Flows View' }));
     expect(posted).toContainEqual({ type: 'showFlows' });
+    act(() => useUi.getState().setRepo(null));
   });
 });
 
@@ -75,9 +77,8 @@ describe("the workspace's flows in the flow panel; what a filter lists (AFD-93)"
   it('Readiness says what the other flows need; a flow that needs a look is said at the top too', () => {
     act(() => useUi.getState().setRepo({ flows: 7, withErrors: 0, editedByHand: 0, outOfDate: 0 }));
     const { unmount } = render(<FlowDescription />);
-    expect(document.querySelector('[data-flows-link]')?.textContent).toMatch(
-      /^Other flows of this workspace have no problems: Flows View$/,
-    );
+    // AFD-297: nothing to say about healthy flows.
+    expect(document.querySelector('[data-flows-link]')).toBeNull();
     expect(document.querySelector('[data-repo-line]')).toBeNull();
     unmount();
     act(() => useUi.getState().setRepo({ flows: 7, withErrors: 1, editedByHand: 1, outOfDate: 0 }));

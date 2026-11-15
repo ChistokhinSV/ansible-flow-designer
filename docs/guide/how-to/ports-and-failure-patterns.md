@@ -45,8 +45,9 @@ Click a port.
   `unreachable` never offers Rollback: an unreachable host cannot be rolled back.
 - **A wired port** offers Insert Node on This Wire, Rewire to Another Node… and Disconnect.
 - **An optional port** that is off shows, dotted, when you hover or select the node. Its menu
-  starts with **Enable Port**; dragging a wire from it enables it too. The **Ports** tab of the
-  Details lists every port with the same menu.
+  starts with **Enable Port**; dragging a wire from it enables it too. The **Behavior** tab of the
+  Details lists the node's ports with the same menu (the optional ones it has not enabled under
+  **More ports**).
 
 ## Failure patterns
 

@@ -92,10 +92,8 @@ describe('Arrange (AFD-88)', () => {
     });
   });
 
-  it('the flow panel says how to select several steps', () => {
+  it('the flow panel leaves how to select several steps to Help (AFD-297)', () => {
     render(<FlowDescription />);
-    expect(document.querySelector('[data-select-hint]')?.textContent).toMatch(
-      /select them with Ctrl\+click, Shift\+drag/,
-    );
+    expect(document.querySelector('[data-select-hint]')).toBeNull();
   });
 });

@@ -6,6 +6,8 @@ import type { FocusRequest } from '../store';
 
 interface CommitProps {
   label: string;
+  /** AFD-297: what the field is for, in a muted line under it (the label stays short). */
+  help?: string;
   value: string;
   onCommit(value: string): void;
   multiline?: boolean;
@@ -23,6 +25,7 @@ interface CommitProps {
 
 export function CommitField({
   label,
+  help,
   value,
   onCommit,
   multiline,
@@ -100,6 +103,8 @@ export function CommitField({
         <div className="afd-field-error" id={`${id}-error`}>
           {error}
         </div>
+      ) : help ? (
+        <span className="afd-help">{help}</span>
       ) : null}
     </div>
   );

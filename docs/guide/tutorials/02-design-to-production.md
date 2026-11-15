@@ -97,7 +97,7 @@ fw_model: "{{ status.json.model }}"
 `status` is an input of this step (`from: read-status.status`), so the chip resolves. Its outputs
 `fw_version` and `fw_model` are facts of the same name.
 
-Now look at the **Inputs and outputs** tab of a step inside **Rollback**, _Restore the backup_:
+Now look at the **Data** tab of a step inside **Rollback**, _Restore the backup_:
 
 ![Inputs and outputs of an inner step](../images/properties-io-light.png)
 
@@ -119,7 +119,7 @@ Open **Upgrade** and select **Wait for the target version**. A firmware install 
 device, so this step must ask again and again until the device answers on the new version.
 
 1. Bind **ansible.builtin.uri** with `url` = `https://{{ inventory_hostname }}/api/v2/status`.
-2. Open the **Execution** tab. The sample already has:
+2. Open the **Behavior** tab and look under **How it runs**. The sample already has:
    - **Retries** `40` and **Delay** `15`: up to 10 minutes, one try every 15 seconds;
    - **Until** `wait_up_result.status == 200 and wait_up_result.json.version == target_version`.
 

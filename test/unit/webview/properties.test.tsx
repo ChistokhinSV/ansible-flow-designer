@@ -443,7 +443,7 @@ describe('Details: a step selected before it arrives (AFD-71)', () => {
         .setSnapshot({ ...snapshotOf({ ...doc, nodes: [...doc.nodes, added] }), docVersion: 2 }),
     );
     expect(screen.getByRole('heading', { name: 'Check NTP' })).toBeTruthy();
-    expect(screen.getByRole('tab', { name: 'General' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Step' })).toBeTruthy();
   });
 });
 
@@ -557,7 +557,9 @@ describe('Details: Execution explains itself (AFD-103)', () => {
     // Inputs that can hold a number (strings too): the step's, the flow's and an upstream output;
     // no step's whole result (a dict), and not the host list.
     expect(
-      screen.getAllByRole('option').map((o) => o.querySelector('.afd-ref-chip')?.textContent),
+      within(screen.getByRole('listbox'))
+        .getAllByRole('option')
+        .map((o) => o.querySelector('.afd-ref-chip')?.textContent),
     ).toEqual(['target_image', 'site', 'target_version', 'boot_tries', 'backup_ref']);
     fireEvent.mouseDown(screen.getByRole('option', { name: /boot_tries/ }));
     fireEvent.blur(retries);

@@ -228,9 +228,7 @@ describe('a level with only Start and End', () => {
       'details[data-fold="flow-details"]',
     ) as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector('summary')?.textContent).toBe(
-      'More details: edge-checks · version 1',
-    );
+    expect(details.querySelector('summary')?.textContent).toBe('More: edge-checks · version 1');
     expect(screen.getByText(/What a run asks for/)).toBeTruthy();
   });
 
