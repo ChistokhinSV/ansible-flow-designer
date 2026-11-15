@@ -106,13 +106,15 @@ export const kind: HostMessage['type'] = 'snapshot';
       { from: 'schema', to: 'schema' },
       // AFD-280: the exchanges with Ansible Flow Server both sides replay.
       { from: 'contract', to: 'contract' },
+      // AFD-290: the sample flows and the projects Ansible Flow Server starts from them.
+      { from: 'samples', to: 'samples' },
     ],
     description:
-      'Ansible Flow Designer files a host passes by path: the Python probe, the run events callback, the JSON schemas and the contract with Ansible Flow Server.',
+      'Ansible Flow Designer files a host passes by path: the Python probe, the run events callback, the JSON schemas, the contract with Ansible Flow Server and the sample projects.',
     smoke: `
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { contractDir, probeDir, schemaDir } from '${SCOPE}/assets';
+import { contractDir, probeDir, samplesDir, schemaDir } from '${SCOPE}/assets';
 
 for (const file of [
   join(probeDir, 'afd_probe', 'serve.py'),
@@ -121,13 +123,15 @@ for (const file of [
   join(schemaDir, 'scenarios.schema.json'),
   join(contractDir, 'server-api.json'),
   join(contractDir, 'repo', 'flows', 'hello.flow.yaml'),
+  join(samplesDir, 'projects.json'),
+  join(samplesDir, 'hello.flow.yaml'),
 ]) if (!existsSync(file)) throw new Error('missing ' + file);
-console.log('  probe, schemas and contract found by path');
+console.log('  probe, schemas, contract and samples found by path');
 `,
     typed: `
-import { contractDir, probeDir, schemaDir } from '${SCOPE}/assets';
+import { contractDir, probeDir, samplesDir, schemaDir } from '${SCOPE}/assets';
 
-export const dirs: string[] = [probeDir, schemaDir, contractDir];
+export const dirs: string[] = [probeDir, schemaDir, contractDir, samplesDir];
 `,
   },
   {
