@@ -175,7 +175,9 @@ describe('Details: Binding (AFD-43)', () => {
     const id = open('set-boot-variable');
     await answer(catalog);
     const configure = screen.getByRole('region', { name: 'Configure' });
-    const select = within(configure).getByLabelText(/save_when/) as HTMLSelectElement;
+    const select = within(configure).getByLabelText(/save_when/, {
+      selector: 'select',
+    }) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'always' } });
     fireEvent.click(within(await unfold('About')).getByRole('button', { name: 'backup_path' }));
     fireEvent.click(screen.getByText('Save Binding'));
@@ -259,6 +261,15 @@ describe('Details: Binding (AFD-43)', () => {
     expect(within(configure).getByText(/No parameter matches/)).toBeTruthy();
     fireEvent.keyDown(box, { key: 'Escape' });
     expect(within(configure).queryByRole('listbox')).toBeNull();
+    // AFD-296: an added parameter goes back to the picker.
+    fireEvent.click(within(optional).getByRole('button', { name: `Remove ${name}` }));
+    expect(optional.querySelector(`[data-param="${name}"]`)).toBeNull();
+    fireEvent.change(box, { target: { value: name } });
+    expect(
+      within(configure)
+        .getAllByRole('option')
+        .some((o) => (o as HTMLElement).dataset.paramOption === name),
+    ).toBe(true);
   });
 
   it('expanded, both folds are open side by side (AFD-80)', async () => {

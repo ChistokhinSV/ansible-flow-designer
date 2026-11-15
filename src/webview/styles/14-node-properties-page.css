@@ -820,3 +820,11 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* AFD-296: an optional parameter's name with its Remove button. */
+.afd-param-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
