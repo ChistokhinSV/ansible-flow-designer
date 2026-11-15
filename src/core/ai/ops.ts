@@ -30,6 +30,7 @@ import type {
   NodeSettings,
   NodeStatus,
   NodeType,
+  NotifiedFields,
   Position,
   TextSize,
   Ulid,
@@ -104,6 +105,9 @@ export type Op =
       keywords?: Record<string, unknown> | null;
       /** AFD-273 */
       approval?: ApprovalFields | null;
+      /** AFD-292 */
+      notify?: string[] | null;
+      notified?: NotifiedFields | null;
     }
   | { op: 'delete'; nodes?: string[]; wires?: string[]; annotations?: string[] }
   | { op: 'connect'; from: string; to: string }

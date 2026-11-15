@@ -507,3 +507,28 @@
   background: var(--vscode-editorWidget-background, var(--afd-panel));
   font-size: var(--afd-fs-12);
 }
+
+/* AFD-292: notify links: from a step to the handlers it notifies; never a wire. */
+.react-flow__edge.afd-notify-edge .react-flow__edge-path {
+  stroke: var(--afd-notify);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.4;
+}
+
+.react-flow__edge.afd-notify-edge .react-flow__edge-text {
+  fill: var(--afd-notify);
+  font-style: italic;
+}
+
+.afd-notify-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.afd-notify-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: var(--afd-fs-12);
+  color: var(--afd-notify);
+}

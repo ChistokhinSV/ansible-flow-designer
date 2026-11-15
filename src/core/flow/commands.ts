@@ -60,6 +60,7 @@ import {
   type NodeSettings,
   type NodeStatus,
   type NodeType,
+  type NotifiedFields,
   type PortRef,
   type Position,
   type SubflowBody,
@@ -331,6 +332,10 @@ export interface NodePatch {
   inputs?: Record<string, ContractField | null>;
   /** AFD-273: an approval's approvers, notify and message, replacing them; null removes them. */
   approval?: ApprovalFields | null;
+  /** AFD-292: the handlers (keys) or topics the step notifies, replacing them; null or [] removes. */
+  notify?: string[] | null;
+  /** AFD-292: marks a handler (with the topics it listens to); null makes it a plain step. */
+  notified?: NotifiedFields | null;
 }
 
 /** An approval's fields as written: names trimmed, empty and repeated ones left out. */
@@ -1338,6 +1343,29 @@ function updateNode(
         else setField(tx, path, 'settings', { [k]: v as YamlValue }, NODE_ORDER);
       }
     }
+  }
+  // AFD-292: notify links. Names trimmed, empty and repeated ones left out.
+  if (patch.notify !== undefined) {
+    const names = [...new Set((patch.notify ?? []).map((n) => n.trim()).filter(Boolean))];
+    setField(tx, path, 'notify', names.length ? names : null, NODE_ORDER);
+  }
+  if (patch.notified !== undefined) {
+    const node = nodeAt(state(tx), cmd.id).node;
+    if (patch.notified !== null && node.type !== 'task')
+      throw new CommandError(
+        'not-task',
+        `${node.title} is not a step: only a step can run when notified`,
+      );
+    const listen = [
+      ...new Set((patch.notified?.listen ?? []).map((n) => n.trim()).filter(Boolean)),
+    ];
+    setField(
+      tx,
+      path,
+      'notified',
+      patch.notified === null ? null : listen.length ? { listen } : {},
+      NODE_ORDER,
+    );
   }
   if (patch.approval !== undefined) {
     const node = nodeAt(state(tx), cmd.id).node;

@@ -86,7 +86,7 @@ describe('the netops repository (site.yml)', () => {
   });
 
   it('maps plays, blocks, roles, handlers, files and data', async () => {
-    const { doc } = check(await load(fsSource(NETOPS), 'site.yml'));
+    const { doc, generated } = check(await load(fsSource(NETOPS), 'site.yml'));
     expect(doc.flow).toMatchObject({
       name: 'site',
       imported_from: { kind: 'playbook', path: 'site.yml' },
@@ -134,10 +134,13 @@ describe('the netops repository (site.yml)', () => {
       { tasks_from: 'aaa' },
     ]);
     expect(node(doc, 'netops-backup').impl).toEqual({ kind: 'role', ref: 'netops_backup' });
-    // Handlers after the tasks, when a notifying step changed something.
+    // Handlers after the tasks, when a notifying step changed something. Its notifiers are in a
+    // block (a subflow), another level than the handler's, so no notify link (AFD-292).
     expect(node(doc, 'save-config').impl?.keywords?.when).toBe(
       '(render_the_motd_result | default({})) is changed or (configure_the_uplinks_result | default({})) is changed',
     );
+    expect(node(doc, 'save-config').notified).toBeUndefined();
+    expect(generated.ok).toBe(true);
     // Local files are found from the repository root the generated plays set (AFD-176).
     expect(node(doc, 'render-the-motd').impl?.params?.src).toBe(
       '{{ afd_repo_root }}/playbooks/templates/motd.j2',

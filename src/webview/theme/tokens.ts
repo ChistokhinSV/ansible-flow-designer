@@ -158,6 +158,9 @@ export function applyTheme(root: HTMLElement, kind: ThemeKind): void {
   for (const [k, v] of Object.entries(SYNTAX[kind])) root.style.setProperty(`--afd-syn-${k}`, v);
   // Data lens wires take the data chip's text color.
   root.style.setProperty('--afd-lens-data', LENS_CHIPS[kind].data.fg);
+  // AFD-292: notify links and the handler's bell take the inventory chip's text color (blue):
+  // the failure wires are orange.
+  root.style.setProperty('--afd-notify', LENS_CHIPS[kind].inventory.fg);
   root.dataset.theme = kind;
 }
 

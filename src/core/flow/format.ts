@@ -53,6 +53,8 @@ export const NODE_ORDER = [
   'outputs',
   'settings',
   'approval',
+  'notify',
+  'notified',
   'impl',
   'undo',
   'ref',

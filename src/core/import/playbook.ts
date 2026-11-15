@@ -6,7 +6,8 @@
 //   (AFD-178);
 // - roles are steps bound to the role; a role whose main only includes task files is a subflow
 //   bound to the role with a step per file (include_role tasks_from);
-// - handlers are steps at each flush point, run when a notifying step changed something;
+// - handlers are steps at each flush point, marked `notified`, and the steps that notified them
+//   name them in `notify` (AFD-292): they run for the hosts those steps changed;
 // - registered and set variables become outputs, and the steps that read them get inputs.
 // A failure nothing handles stays open: Ansible stops that host there too. Secrets are imported by
 // name only.
@@ -79,10 +80,17 @@ interface StepInfo {
   produces: Map<string, 'register' | 'fact'>;
 }
 
-/** Handlers of the play being built, and what notified them since the last flush. */
+/** Handlers of the play being built, and the steps that notified them since the last flush. */
 interface Handlers {
   list: { form: TaskForm; topics: Set<string> }[];
-  notified: Map<number, Set<string>>;
+  notified: Map<number, Set<Notifier>>;
+}
+
+/** A step that notified a handler: where it is, and the register its change is read from. */
+interface Notifier {
+  node: FlowNode;
+  level: Level;
+  register?: string;
 }
 
 const typeOf = (v: unknown): ContractType =>
@@ -606,12 +614,12 @@ class PlaybookImporter {
     if (shortName(ref) === 'set_fact')
       for (const k of Object.keys(t.params)) if (k !== 'cacheable') info.produces.set(k, 'fact');
     this.place(level, node, t.ignoreUnreachable ? ['unreachable'] : []);
-    // Notifications: what each handler waits for until the next flush.
+    // Notifications: the handlers this step notifies until the next flush (AFD-292).
     for (const topic of t.notify)
       handlers.list.forEach((h, i) => {
-        if (!h.topics.has(topic) || !register) return;
-        const set = handlers.notified.get(i) ?? new Set<string>();
-        set.add(register);
+        if (!h.topics.has(topic)) return;
+        const set = handlers.notified.get(i) ?? new Set<Notifier>();
+        set.add({ node, level, ...(register ? { register } : {}) });
         handlers.notified.set(i, set);
       });
   }
@@ -651,13 +659,32 @@ class PlaybookImporter {
     return node;
   }
 
-  /** Handlers notified since the last flush run now, once each, in the order they are defined. */
+  /**
+   * Handlers notified since the last flush run now, once each, in the order they are defined
+   * (AFD-292): a step marked `notified`, which the steps that notified it name in `notify`. A
+   * handler flushed twice is two steps, each named by the steps before its own flush.
+   */
   private flush(level: Level, handlers: Handlers): void {
     handlers.list.forEach((h, i) => {
-      const regs = handlers.notified.get(i);
-      if (!regs?.size) return;
-      const when = [...regs].map((r) => `(${r} | default({})) is changed`).join(' or ');
+      const by = [...(handlers.notified.get(i) ?? [])];
+      if (!by.length) return;
+      // Notify links are within one level. A handler notified from another level (a task in a
+      // block, which is a subflow) runs on the notifying steps' registers instead, as before.
+      const linked = by.every((n) => n.level === level);
+      const when = linked
+        ? undefined
+        : by
+            .filter((n) => n.register)
+            .map((n) => `(${n.register} | default({})) is changed`)
+            .join(' or ') || undefined;
+      const before = level.nodes.length;
       this.task(h.form, level, { list: [], notified: new Map() }, '', when);
+      if (!linked) return;
+      const handler = level.nodes.slice(before).find((n) => n.type === 'task');
+      if (!handler) return;
+      const listen = h.form.listen.filter(Boolean);
+      handler.notified = listen.length ? { listen } : {};
+      for (const { node } of by) node.notify = [...new Set([...(node.notify ?? []), handler.key])];
     });
     handlers.notified.clear();
   }

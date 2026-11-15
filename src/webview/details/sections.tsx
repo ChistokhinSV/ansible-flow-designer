@@ -387,24 +387,83 @@ export function TypeFields({
     case 'task':
     case 'subflow':
       return (
-        <div className="afd-field">
-          <label htmlFor="afd-purpose">Purpose in failure handling</label>
-          <select
-            id="afd-purpose"
-            value={purposeOf(node) ?? ''}
-            onChange={(e) => patch({ purpose: e.target.value || null })}
-          >
-            {HANDLERS.map((h) => (
-              <option key={h} value={h}>
-                {h || 'none'}
-              </option>
-            ))}
-          </select>
-        </div>
+        <>
+          <div className="afd-field">
+            <label htmlFor="afd-purpose">Purpose in failure handling</label>
+            <select
+              id="afd-purpose"
+              value={purposeOf(node) ?? ''}
+              onChange={(e) => patch({ purpose: e.target.value || null })}
+            >
+              {HANDLERS.map((h) => (
+                <option key={h} value={h}>
+                  {h || 'none'}
+                </option>
+              ))}
+            </select>
+          </div>
+          {node.type === 'task' ? <NotifyFields node={node} patch={patch} /> : null}
+        </>
       );
     default:
       return null;
   }
+}
+
+/**
+ * AFD-292: notify links. A step notifies handlers of its level (by key) or topics; a handler step
+ * runs only for the hosts on which a step notifying it changed something.
+ */
+function NotifyFields({
+  node,
+  patch,
+}: {
+  node: FlowNode;
+  patch(p: Record<string, unknown>): void;
+}) {
+  const level = useUi((s) => s.level);
+  const doc = useUi((s) => s.snapshot?.doc);
+  const here = (doc ? modelOf(doc).levels.get(level)?.nodes : undefined) ?? [];
+  const handlers = here.filter((n) => n.notified && n.id !== node.id);
+  const names = [
+    ...new Set([
+      ...handlers.map((n) => n.key),
+      ...handlers.flatMap((n) => n.notified?.listen ?? []),
+    ]),
+  ];
+  return (
+    <>
+      <CommitField
+        label="Notifies · handlers (their keys) or topics, commas between; they run on the hosts this step changed"
+        value={(node.notify ?? []).join(', ')}
+        placeholder={names.length ? names.slice(0, 3).join(', ') : 'restart-web'}
+        onCommit={(v) => patch({ notify: namesOf(v) })}
+      />
+      {names.length ? (
+        <p className="muted" data-notify-names>
+          Handlers here: {names.join(', ')}
+        </p>
+      ) : null}
+      <div className="afd-field afd-check">
+        <label>
+          <input
+            type="checkbox"
+            checked={!!node.notified}
+            onChange={(e) => patch({ notified: e.target.checked ? (node.notified ?? {}) : null })}
+          />{' '}
+          Runs when notified · only for hosts a step notifying it changed
+        </label>
+      </div>
+      {node.notified ? (
+        <CommitField
+          label="Listens to · topics, commas between (beside its key)"
+          value={(node.notified.listen ?? []).join(', ')}
+          placeholder="web settings changed"
+          onCommit={(v) => patch({ notified: { listen: namesOf(v) } })}
+        />
+      ) : null}
+    </>
+  );
 }
 
 /** Names typed as a list: commas or new lines between them. */

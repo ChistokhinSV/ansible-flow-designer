@@ -1841,6 +1841,39 @@
                           }
                         }
                       },
+                      "notify": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "maxItems": 50,
+                        "description": "Handlers this step notifies when it changes something (Ansible notify): a handler step key on this level, or a topic handlers listen to; replaces the list, null removes it. Only a step bound to a module reports a change."
+                      },
+                      "notified": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Marks a step as a handler (Ansible handlers): it runs at its place for the hosts on which a step notifying it changed something; listen: topics it answers to besides its key. Null makes it a plain step. Put the handler after the steps that notify it, on the same level.",
+                        "properties": {
+                          "listen": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "maxItems": 50,
+                            "description": "Topics it listens to besides its key (Ansible's listen)."
+                          }
+                        }
+                      },
                       "settings": {
                         "type": "object",
                         "properties": {

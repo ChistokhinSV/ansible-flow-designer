@@ -170,6 +170,18 @@ export const OP_SPECS: OpSpec[] = [
           'Approval nodes only: who may decide (approvers: user logins or group names), who is told (notify), what they read (message), replacing what it has; null removes them. Read by runners that wait for a person (Ansible Flow Server); AWX sets approvers in AWX.',
         ),
       ),
+      notify: nullable(
+        field(
+          'notify',
+          'Handlers this step notifies when it changes something (Ansible notify): a handler step key on this level, or a topic handlers listen to; replaces the list, null removes it. Only a step bound to a module reports a change.',
+        ),
+      ),
+      notified: nullable(
+        field(
+          'notified',
+          'Marks a step as a handler (Ansible handlers): it runs at its place for the hosts on which a step notifying it changed something; listen: topics it answers to besides its key. Null makes it a plain step. Put the handler after the steps that notify it, on the same level.',
+        ),
+      ),
       settings: {
         ...SETTINGS,
         properties: Object.fromEntries(
