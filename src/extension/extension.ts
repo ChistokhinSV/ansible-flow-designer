@@ -158,6 +158,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       // snapshot again; refresh answered with the one cached for the unchanged document version.
       if (e.affectsConfiguration('afd.canvas.direction'))
         for (const s of host.sessions.values()) void s.recheck();
+      // AFD-294: open designers redraw their wires at once.
+      if (e.affectsConfiguration('afd.canvas.wireStyle'))
+        for (const s of host.sessions.values()) s.wireStyleChanged();
       // AFD-284: a server set up now: open designers follow it.
       if (e.affectsConfiguration('afd.runner')) host.server.retry();
     }),

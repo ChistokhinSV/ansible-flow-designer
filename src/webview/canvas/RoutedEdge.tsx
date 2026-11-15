@@ -1,10 +1,11 @@
 // Wires on the canvas (AFD-70): React Flow's smooth step, or a route round the nodes in its way, from
-// the router the exports and the layout check use. The boxes are the canvas's own nodes where they
+// the router the exports and the layout check use. AFD-294: or curved, as the setting says. The boxes are the canvas's own nodes where they
 // are drawn now, so a wire steps aside while a node is dragged across it.
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
 import { createContext, memo, useContext, useMemo } from 'react';
 import { type Box, labelBox, routeWire } from '../../core/view/route';
 import { insertOnWire } from '../portActions';
+import { useUi } from '../store';
 
 /** The level's node boxes as the canvas shows them. */
 export const NodeBoxes = createContext<readonly Box[]>([]);
@@ -37,6 +38,7 @@ export const RoutedEdge = memo(function RoutedEdge({
 }: EdgeProps) {
   const boxes = useContext(NodeBoxes);
   const hover = useContext(WireHover);
+  const wireStyle = useUi((s) => s.wireStyle);
   const text = typeof label === 'string' ? label : undefined;
   const route = useMemo(
     () =>
@@ -47,8 +49,9 @@ export const RoutedEdge = memo(function RoutedEdge({
         targetPosition,
         boxes,
         text,
+        wireStyle,
       ),
-    [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, boxes, text],
+    [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, boxes, text, wireStyle],
   );
   // AFD-231: Insert Node on This Wire in one click: beside the label, clear of its text.
   const plus = (data as { plus?: boolean } | undefined)?.plus;

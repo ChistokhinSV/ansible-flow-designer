@@ -98,3 +98,24 @@ describe('wire routes (AFD-70)', () => {
     expect(runsThrough(pointsOf(r.path), [up, down])).toBe(false);
   });
 });
+
+describe('curved wires (AFD-294)', () => {
+  it('a wire that clears every box is a bezier curve from port to port', () => {
+    const [a, b] = [box(0, 0), box(260, 132)];
+    const r = routeWire(okOf(a), Side.Bottom, inOf(b), Side.Top, [a, b], 'ok_hosts', 'curved');
+    expect(r.path).toMatch(/^M[-\d.]+,[-\d.]+ C/);
+    expect(r.bends).toBeUndefined();
+  });
+
+  it('a wire that would cross a box goes round it with round bends, clear of the boxes', () => {
+    const [a, mid, c] = [box(0, 0), box(30, 132), box(0, 264)];
+    const boxes = [a, mid, c];
+    const stepped = routeWire(okOf(a), Side.Bottom, inOf(c), Side.Top, boxes, 'x');
+    const curved = routeWire(okOf(a), Side.Bottom, inOf(c), Side.Top, boxes, 'x', 'curved');
+    // The same way round, drawn rounder.
+    expect(curved.bends).toEqual(stepped.bends);
+    expect(curved.path).not.toEqual(stepped.path);
+    expect(curved.path).toContain('Q');
+    expect(runsThrough(pointsOf(curved.path), boxes)).toBe(false);
+  });
+});

@@ -88,7 +88,10 @@ function useHost() {
         ui.setTestMode(m.testMode);
         ui.setRunner(m.runner === true);
         ui.setExpandSubflows(m.expandSubflows === true);
+        if (m.wireStyle) ui.setWireStyle(m.wireStyle);
         if (m.viewer) enterViewer();
+      } else if (m.type === 'wireStyle') {
+        ui.setWireStyle(m.style);
       } else if (m.type === 'firstFlow') {
         ui.setFirstFlow({ hidden: m.hidden, done: m.done });
       } else if (m.type === 'reveal') {

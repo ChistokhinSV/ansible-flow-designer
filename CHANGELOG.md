@@ -2,6 +2,13 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Curved wires:** a button among the canvas's zoom controls switches wires between stepped (right angles, as before) and curved, and keeps the choice as the setting `afd.canvas.wireStyle`. See [Canvas basics](docs/guide/how-to/canvas-basics.md).
+- **Tidy Up** has a button among the canvas's zoom controls too.
+
 ## 0.87.0 — Server changes in VS Code, facts as data, sample projects
 
 ### Added

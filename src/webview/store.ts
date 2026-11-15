@@ -172,6 +172,9 @@ interface UiState {
   runner: boolean;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
   expandSubflows: boolean;
+  /** AFD-294 (`afd.canvas.wireStyle`): wires stepped (right angles) or curved. */
+  wireStyle: 'stepped' | 'curved';
+  setWireStyle(style: 'stepped' | 'curved'): void;
   /** The subflows expanded in place: a view, never stored. */
   expandedSubflows: Ulid[];
   /** AFD-73: the user's first-flow progress from the host; null until it says. */
@@ -399,6 +402,7 @@ export const useUi = create<UiState>((set, get) => ({
   viewer: false,
   runner: false,
   expandSubflows: false,
+  wireStyle: 'stepped',
   expandedSubflows: [],
   firstFlow: null,
   selection: {},
@@ -524,6 +528,7 @@ export const useUi = create<UiState>((set, get) => ({
     // setMode asks first while a binding is half made; a viewer has no such question to wait for.
     set({ viewer: true, mode: 'run', detailsTab: 'run', leave: null });
   },
+  setWireStyle: (wireStyle) => set({ wireStyle }),
   setExpandSubflows: (expandSubflows) =>
     set({ expandSubflows, ...(expandSubflows ? {} : { expandedSubflows: [] }) }),
   toggleExpanded: (id) => {

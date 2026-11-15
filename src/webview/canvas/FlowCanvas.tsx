@@ -54,7 +54,7 @@ import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import type { Box } from '../../core/view/route';
 import { addAnnotation, editAnnotation } from '../annotationActions';
-import { command, loadState, saveState } from '../bus';
+import { command, loadState, saveState, send } from '../bus';
 import { setPastePlace } from '../clipboard';
 import { ANNOTATION_MIME, DRAG_MIME, PATTERN_MIME, TYPE_LABEL } from '../constants';
 import { boundaryWire, followWire, rename, upLevel } from '../editActions';
@@ -280,6 +280,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const hidden = useUi((s) => s.annotationsHidden);
   const optimistic = useUi((s) => s.optimistic);
   const editable = !readOnly && !handWritten;
+  const wireStyle = useUi((s) => s.wireStyle);
   const marks = useUi((s) => (s.lens === 'changes' ? s.lensView?.annotations : undefined));
   // A stable empty list: a new one per render would rebuild the nodes, and render again.
   const notes = hidden ? NO_NOTES : view.annotations;
@@ -1283,6 +1284,35 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         </ViewportPortal>
       ) : null}
       <Controls showInteractive={false} position="bottom-right">
+        {/* AFD-294: Tidy Up at hand, where the level can be changed. */}
+        {editable ? (
+          <ControlButton
+            onClick={() => send({ type: 'tidyUp', level })}
+            aria-label="Tidy Up"
+            title="Tidy Up: lay out the whole level again"
+          >
+            <span className="codicon codicon-layout" aria-hidden="true" />
+          </ControlButton>
+        ) : null}
+        {/* AFD-294: stepped or curved wires; kept as the user's setting. */}
+        <ControlButton
+          onClick={() => {
+            const next = wireStyle === 'curved' ? 'stepped' : 'curved';
+            useUi.getState().setWireStyle(next);
+            send({ type: 'setWireStyle', style: next });
+          }}
+          aria-label={wireStyle === 'curved' ? 'Stepped Wires' : 'Curved Wires'}
+          title={
+            wireStyle === 'curved'
+              ? 'Stepped wires: right angles, as before'
+              : 'Curved wires: round curves from port to port'
+          }
+        >
+          <span
+            className={`codicon ${wireStyle === 'curved' ? 'codicon-symbol-structure' : 'codicon-pulse'}`}
+            aria-hidden="true"
+          />
+        </ControlButton>
         {partly && !corner ? (
           <ControlButton
             onClick={() => setMiniAsked(!miniAsked)}

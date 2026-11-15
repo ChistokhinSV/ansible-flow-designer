@@ -380,6 +380,12 @@ export class FlowSession implements vscode.Disposable {
   }
 
   /** Builds again for the same text: a file it depends on changed (a shared subflow's source). */
+  /** AFD-294: the wire style setting changed: open panels redraw their wires. */
+  wireStyleChanged(): void {
+    const style = wireStyleOf(this.document.uri);
+    for (const p of this.readyPanels) this.post(p, { type: 'wireStyle', style });
+  }
+
   async recheck(): Promise<void> {
     this.built = undefined;
     this.building = undefined;
@@ -684,6 +690,7 @@ export class FlowSession implements vscode.Disposable {
               .get<boolean>('canvas.expandSubflows') !== false,
           // AFD-276: Run on Server is offered once a server is set up.
           runner: runnerConfigured(this.document.uri),
+          wireStyle: wireStyleOf(this.document.uri),
         });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
@@ -965,6 +972,12 @@ export class FlowSession implements vscode.Disposable {
       case 'peekCode':
         await this.peekCode(m.node);
         break;
+      case 'setWireStyle':
+        // AFD-294: the canvas toggle keeps the style as the user's setting; every designer follows.
+        await vscode.workspace
+          .getConfiguration('afd')
+          .update('canvas.wireStyle', m.style, vscode.ConfigurationTarget.Global);
+        return;
       case 'tidyUp': {
         const outcome = await this.tidyUp(m.level);
         this.tell(
@@ -1564,4 +1577,11 @@ export function layoutDirection(): LayoutDirection {
   return vscode.workspace.getConfiguration('afd.canvas').get<LayoutDirection>('direction') === 'LR'
     ? 'LR'
     : 'TB';
+}
+
+/** AFD-294: how the canvas draws wires (`afd.canvas.wireStyle`). */
+export function wireStyleOf(uri?: vscode.Uri): 'stepped' | 'curved' {
+  return vscode.workspace.getConfiguration('afd', uri).get<string>('canvas.wireStyle') === 'curved'
+    ? 'curved'
+    : 'stepped';
 }
