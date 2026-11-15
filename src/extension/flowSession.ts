@@ -51,6 +51,7 @@ import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, type LayoutDirection, layoutLevel, shownLayout } from '../node/autoLayout';
 import { checkBindings } from '../node/catalog/bindingCheck';
 import { repoFileFindings } from '../node/repoFiles';
+import { roleFindings } from '../node/roleRefs';
 import { sharedFindings } from '../node/sharedRefs';
 import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
@@ -312,6 +313,8 @@ export class FlowSession implements vscode.Disposable {
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
         // Shared subflows against their sources (AFD-60).
         ...sharedFindings(this.uri.fsPath, parsed.doc, folder?.uri.fsPath),
+        // AFD-293: roles expanded into subflows against the role's files.
+        ...roleFindings(parsed.doc, folder?.uri.fsPath),
         // AFD-291: files steps read from the repository.
         ...repoFileFindings(parsed.doc, folder?.uri.fsPath),
       ];
@@ -762,6 +765,9 @@ export class FlowSession implements vscode.Disposable {
           });
         break;
       }
+      case 'expandRole':
+        void vscode.commands.executeCommand(CMD.expandRole, this.uri, m.node);
+        break;
       case 'insertShared':
         void vscode.commands.executeCommand(CMD.insertShared, this.uri, {
           level: m.level,

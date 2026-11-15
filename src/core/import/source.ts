@@ -813,7 +813,9 @@ class Reader {
     if (short === 'script' && typeof written === 'string') written = written.trim().split(/\s+/)[0];
     if (typeof written !== 'string' || !written || isTemplated(written) || written.startsWith('/'))
       return [];
-    const bases = [...new Set([dir, playDir])];
+    // AFD-293: a role's task file finds templates/ and files/ in the role's folder first.
+    const inRole = /(^|\/)(tasks|handlers)$/.test(dir) ? [dirname(dir)] : [];
+    const bases = [...new Set([...inRole, dir, playDir])];
     const candidates = bases.flatMap((b) => [join(b, spec.sub, written), join(b, written)]);
     for (const path of candidates)
       if (await exists(this.io, path)) return [{ param: spec.param, written, path }];

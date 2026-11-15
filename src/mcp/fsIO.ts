@@ -583,6 +583,11 @@ export class FsFlowIO implements FlowIO {
       author: async () => (await git(root() ?? '.', ['config', 'user.name']))?.trim() || undefined,
       layout: async (level) => layoutLevel(level, await dir()),
       positions: async (model) => shownPositions(model, await dir()),
+      // AFD-293: the repository the flow is in, for expand_role.
+      source: async () => {
+        const r = root();
+        return r ? new FsSourceIO(r) : undefined;
+      },
     };
   }
 }

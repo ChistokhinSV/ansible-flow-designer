@@ -240,6 +240,11 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.flow.expandRole",
+        "title": "Expand Role into Subflow",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.run.scenarios",
         "title": "Run Scenarios",
         "category": "Ansible Flow",
@@ -676,6 +681,10 @@
         },
         {
           "command": "afd.flow.unlinkShared",
+          "when": "false"
+        },
+        {
+          "command": "afd.flow.expandRole",
           "when": "false"
         },
         {
@@ -2755,6 +2764,46 @@
                     "required": [
                       "op",
                       "subflow"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Turn a step bound to a role into a subflow of the role's work, in its place (wires kept), so each part gets its own ports and routing. A role whose tasks/main.yml only includes task files: a step per file (include_role tasks_from), still the role. Any other role: a copy of each task, its handlers as notify links, its defaults and vars (and the params the step passed) as the subflow's inputs, its templates and files from the repository root. On a subflow expanded before: reads the role again (after the role changed). Format 2; the role must be in the repository.",
+                    "properties": {
+                      "op": {
+                        "const": "expand_role"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "The role step, or a subflow expanded from one."
+                      },
+                      "replace_changes": {
+                        "type": "boolean",
+                        "description": "Reading an expanded subflow again that was changed since: true drops those changes."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "description": "Turn a subflow expanded from a role back into the role step it was (binding and inputs as before). Refused when the subflow was changed since it was expanded.",
+                    "properties": {
+                      "op": {
+                        "const": "collapse_role"
+                      },
+                      "node": {
+                        "type": "string",
+                        "description": "The expanded subflow."
+                      }
+                    },
+                    "required": [
+                      "op",
+                      "node"
                     ],
                     "additionalProperties": false
                   },

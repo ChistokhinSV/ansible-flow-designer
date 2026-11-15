@@ -1,0 +1,4 @@
+- name: Make the folder
+  ansible.builtin.file:
+    path: /opt/split
+    state: directory

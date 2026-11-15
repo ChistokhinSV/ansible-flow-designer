@@ -54,6 +54,7 @@ playbooks are generated from it.
 - [Files, templates and variables in the repository](how-to/repository-files.md)
 - [Retries and polling](how-to/polling-and-retries.md)
 - [Handlers: notify and listen](how-to/handlers.md)
+- [Roles in a flow: expand into a subflow](how-to/roles.md)
 - [Generated code](how-to/code-generation.md)
 - [Code mode: design vs code](how-to/code-mode.md)
 - [Lenses](how-to/lenses.md)

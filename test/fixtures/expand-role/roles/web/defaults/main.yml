@@ -1,0 +1,3 @@
+---
+web_package: nginx
+web_port: 8080

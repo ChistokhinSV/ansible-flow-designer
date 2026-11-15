@@ -480,6 +480,29 @@ export const OP_SPECS: OpSpec[] = [
     example: { op: 'dissolve_subflow', subflow: 'phase-event-preflight-started' },
   },
   {
+    op: 'expand_role',
+    summary:
+      "Turn a step bound to a role into a subflow of the role's work, in its place (wires kept), so each part gets its own ports and routing. A role whose tasks/main.yml only includes task files: a step per file (include_role tasks_from), still the role. Any other role: a copy of each task, its handlers as notify links, its defaults and vars (and the params the step passed) as the subflow's inputs, its templates and files from the repository root. On a subflow expanded before: reads the role again (after the role changed). Format 2; the role must be in the repository.",
+    properties: {
+      node: { ...NODE, description: 'The role step, or a subflow expanded from one.' },
+      replace_changes: {
+        type: 'boolean',
+        description:
+          'Reading an expanded subflow again that was changed since: true drops those changes.',
+      },
+    },
+    required: ['node'],
+    example: { op: 'expand_role', node: 'web' },
+  },
+  {
+    op: 'collapse_role',
+    summary:
+      'Turn a subflow expanded from a role back into the role step it was (binding and inputs as before). Refused when the subflow was changed since it was expanded.',
+    properties: { node: { ...NODE, description: 'The expanded subflow.' } },
+    required: ['node'],
+    example: { op: 'collapse_role', node: 'web' },
+  },
+  {
     op: 'rename',
     summary:
       'Rename several nodes at once: old key (path) -> new key; from: references follow, as with update_node key.',

@@ -39,18 +39,19 @@ the [guide](../README.md).
 
 ## Designing
 
-| Command                                           | Does                                                                                                                          |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `afd.flow.check` · Check Flow                     | checks the design (problems in the Problems panel) and, when it has no errors, the generated code in your Ansible environment |
-| `afd.canvas.tidyUp` · Tidy Up                     | lays out the open level again                                                                                                 |
-| `afd.flow.openInTextEditor` · Open in Text Editor | the flow's YAML in the text editor                                                                                            |
-| `afd.edit.copy` · Copy Nodes                      | copies the selected nodes as YAML                                                                                             |
-| `afd.edit.paste` · Paste Nodes                    | pastes nodes on the open level                                                                                                |
-| `afd.flow.completeIds` · Complete IDs             | adds the IDs a hand-written flow lacks, in one edit                                                                           |
-| `afd.flow.upgradeFormat` · Upgrade Flow Format    | moves a format 1 flow to format 2, in one edit (one undo step); nothing in the design changes                                 |
-| `afd.flow.insertShared` · Insert Shared Subflow…  | copies a subflow of another flow in the workspace here, pinned to that flow's version (format 2; also in the canvas menu)     |
-| `afd.flow.updateShared` · Update Shared Subflow   | copies a shared subflow again from the newer version of its source (a quick fix on its problem)                               |
-| `afd.flow.unlinkShared` · Unlink Shared Subflow   | makes a shared subflow this flow's own, to edit here (a quick fix on its problem)                                             |
+| Command                                           | Does                                                                                                                                          |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `afd.flow.check` · Check Flow                     | checks the design (problems in the Problems panel) and, when it has no errors, the generated code in your Ansible environment                 |
+| `afd.canvas.tidyUp` · Tidy Up                     | lays out the open level again                                                                                                                 |
+| `afd.flow.openInTextEditor` · Open in Text Editor | the flow's YAML in the text editor                                                                                                            |
+| `afd.edit.copy` · Copy Nodes                      | copies the selected nodes as YAML                                                                                                             |
+| `afd.edit.paste` · Paste Nodes                    | pastes nodes on the open level                                                                                                                |
+| `afd.flow.completeIds` · Complete IDs             | adds the IDs a hand-written flow lacks, in one edit                                                                                           |
+| `afd.flow.upgradeFormat` · Upgrade Flow Format    | moves a format 1 flow to format 2, in one edit (one undo step); nothing in the design changes                                                 |
+| `afd.flow.insertShared` · Insert Shared Subflow…  | copies a subflow of another flow in the workspace here, pinned to that flow's version (format 2; also in the canvas menu)                     |
+| `afd.flow.updateShared` · Update Shared Subflow   | copies a shared subflow again from the newer version of its source (a quick fix on its problem)                                               |
+| `afd.flow.unlinkShared` · Unlink Shared Subflow   | makes a shared subflow this flow's own, to edit here (a quick fix on its problem)                                                             |
+| `afd.flow.expandRole` · Expand Role into Subflow  | turns a step bound to a role into a subflow of the role's work, or reads an expanded one again (canvas menu; the quick fix on a changed role) |
 
 ## Export
 

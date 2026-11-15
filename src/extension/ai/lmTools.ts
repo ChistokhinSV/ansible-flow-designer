@@ -334,6 +334,11 @@ export function hostFlowIO(deps: HostToolDeps): FlowIO {
         // AFD-192: the canvas direction, so the layout check sees what the canvas shows.
         layout: (level) => layoutLevel(level, layoutDirection()),
         positions: (model) => shownPositions(model, layoutDirection()),
+        // AFD-293: the workspace folder the flow is in, for expand_role.
+        source: async () => {
+          const folder = vscode.workspace.getWorkspaceFolder(await resolve(path));
+          return folder ? toolSource(folder) : undefined;
+        },
       };
     },
     schema: deps.schema,

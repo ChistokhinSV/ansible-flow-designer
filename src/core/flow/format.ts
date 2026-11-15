@@ -58,6 +58,7 @@ export const NODE_ORDER = [
   'impl',
   'undo',
   'ref',
+  'expanded_from',
   'origin',
   'subflow',
 ] as const;

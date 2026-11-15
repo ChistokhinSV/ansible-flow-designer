@@ -94,6 +94,24 @@ export interface SubflowRef {
   design: string;
 }
 
+/**
+ * AFD-293: a subflow expanded from a role step: the role, its folder, how it was expanded (a step
+ * per task file, or a copy of each task), the fingerprint of the role's files and of the subflow as
+ * it was made, and the step it was, for Collapse to Role Step.
+ */
+export interface ExpandedFrom {
+  role: string;
+  /** Repository path of the role's folder. */
+  dir: string;
+  mode: 'files' | 'tasks';
+  /** Fingerprint of the role's tasks, handlers, defaults and vars when it was expanded. */
+  source: string;
+  /** Fingerprint of the subflow as it was made: a different one means it was changed here. */
+  design: string;
+  /** The role step's binding and inputs before the expand. */
+  step: { impl: ImplBinding; inputs?: Contract };
+}
+
 export const ANNOTATION_KINDS = ['note', 'section', 'text'] as const;
 export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
 export const ANNOTATION_COLORS = ['yellow', 'blue', 'green', 'pink', 'purple', 'gray'] as const;
@@ -205,6 +223,8 @@ export interface FlowNode {
   purpose?: HandlerKind;
   /** Format 2: this subflow is a copy of one in another flow (AFD-60). */
   ref?: SubflowRef;
+  /** AFD-293: this subflow was expanded from a role step. */
+  expanded_from?: ExpandedFrom;
   /**
    * Where an import took this step from (AFD-61): the source task (`<file>#<name>#<n>`), the
    * fingerprint of the step as imported, and whether the task is gone from the source since.

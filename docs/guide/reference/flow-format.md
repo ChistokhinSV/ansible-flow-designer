@@ -53,6 +53,7 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `impl` (impl): What the node runs: a module, a role or a playbook. Absent: a TODO stub.
 - `origin` (object): Where an import took this step from (Re-import from Source matches by it).
 - `ref` (object): Format 2: this subflow is a copy of a subflow in another flow (a shared subflow). Edit the source flow, then Update; Unlink makes the copy this flow's own.
+- `expanded_from` (object): Format 2: this subflow was expanded from a step bound to a role (Expand into Subflow). Collapse to Role Step turns it back while it is as it was made; when the role changes, Update Expanded Role reads it again.
 - `undo` (impl): What reverses the node: the Rollback pattern binds this node's undo step to it.
 - `condition` (string): Decision nodes: Jinja test without braces, evaluated per host; it reads the node's inputs
 - `outcome` (success | failed): End nodes

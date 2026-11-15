@@ -10,6 +10,8 @@ export const CMD = {
   insertShared: 'afd.flow.insertShared',
   updateShared: 'afd.flow.updateShared',
   unlinkShared: 'afd.flow.unlinkShared',
+  /** AFD-293: Expand into Subflow on a role step, or Update Expanded Role; from the designer. */
+  expandRole: 'afd.flow.expandRole',
   /** The Problems panel's quick fix on a warning (AFD-51); not in the Command Palette. */
   acceptProblem: 'afd.flow.acceptProblem',
   useFact: 'afd.flow.useFact',

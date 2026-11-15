@@ -1,6 +1,7 @@
 // The op language AI tools edit flows with (AFD-19): nodes and ports named by key, applied in
 // order through the same commands as the canvas, all or nothing. A batch first completes any IDs
 // the file was written without. Errors say what went wrong and how to fix it, never with IDs.
+
 import { flowLayoutProblems, LAYOUT_FIX } from '../export/layoutCheck';
 import { annotationViews, sectionAround, sectionContents, TIE_OFFSET } from '../flow/annotations';
 import {
@@ -18,6 +19,7 @@ import { mapStrings } from '../flow/jinja';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { PATTERN_IDS, type PatternId } from '../flow/patterns';
 import { portDirection } from '../flow/ports';
+import { refDesign } from '../flow/refs';
 import type {
   AnnotationColor,
   AnnotationKind,
@@ -36,6 +38,8 @@ import type {
   Ulid,
 } from '../flow/types';
 import { acceptKey, acceptMatches, type Finding, validateFlow } from '../flow/validate';
+import { expandRoleSource } from '../import/expandRole';
+import type { SourceIO } from '../import/read';
 import { parseYaml, type YamlFile } from '../yaml/parse';
 import { YamlEditError } from '../yaml/transaction';
 import {
@@ -150,6 +154,9 @@ export type Op =
   | { op: 'remove_exit'; from: string; port: string }
   | { op: 'extract_subflow'; nodes: string[]; title: string; key?: string; position?: Place }
   | { op: 'dissolve_subflow'; subflow: string }
+  /** AFD-293: a role step into a subflow of the role's work, or an expanded one read again. */
+  | { op: 'expand_role'; node: string; replace_changes?: boolean }
+  | { op: 'collapse_role'; node: string }
   | { op: 'rename'; keys: Record<string, string> }
   | {
       op: 'replace_text';
@@ -213,6 +220,8 @@ export interface OpsContext {
   layout?: (level: Level) => Promise<Record<Ulid, Position>>;
   /** Where the canvas shows every node: stored positions and auto ones (AFD-24). */
   positions?: (model: FlowModel) => Promise<{ stored: Layout; auto: Record<Ulid, Position> }>;
+  /** AFD-293: the repository's files (the role expand_role reads); absent where there are none. */
+  source?: () => Promise<SourceIO | undefined>;
 }
 
 export interface OpsResult {
@@ -835,6 +844,29 @@ async function commandsOf(
     }
     case 'dissolve_subflow':
       return [{ kind: 'dissolveSubflow', id: subflowOf(st, op.subflow) }];
+    case 'expand_role': {
+      const { id, node, path } = resolveNode(st.model, op.node);
+      const was = node.expanded_from;
+      if (!was && (node.type !== 'task' || node.impl?.kind !== 'role'))
+        throw new RefError(`${path} is not a step bound to a role`);
+      if (was && !op.replace_changes && refDesign(node) !== was.design)
+        throw new RefError(
+          `${path} was changed since it was expanded: replace_changes: true reads the role again and drops those changes`,
+        );
+      const io = await ctx.source?.();
+      if (!io) throw new RefError('The repository files are not available here');
+      const read = await expandRoleSource(
+        io,
+        { key: node.key, impl: was ? was.step.impl : node.impl },
+        ctx.newId,
+      );
+      if (!read.source || !read.expanded)
+        throw new RefError(read.error ?? 'The role could not be read');
+      notes.push(...read.notes);
+      return [{ kind: 'expandRole', id, source: read.source, expanded: read.expanded }];
+    }
+    case 'collapse_role':
+      return [{ kind: 'collapseRole', id: resolveNode(st.model, op.node).id }];
     case 'rename': {
       // AFD-196: several keys in one op; a key cannot take a name another one gives up here.
       const entries = Object.entries(op.keys ?? {});

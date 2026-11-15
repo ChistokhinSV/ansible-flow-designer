@@ -1,0 +1,18 @@
+---
+- name: Install the web server
+  ansible.builtin.package:
+    name: "{{ web_package }}"
+    state: present
+
+- name: Write the web config
+  ansible.builtin.template:
+    src: web.conf.j2
+    dest: /etc/web.conf
+    mode: "0644"
+  notify: restart web
+
+- name: Start the web server
+  ansible.builtin.service:
+    name: "{{ web_service }}"
+    state: started
+    enabled: true
