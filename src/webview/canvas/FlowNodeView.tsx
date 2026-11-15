@@ -678,6 +678,35 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       {plusPort ? (
         <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />
       ) : null}
+      {/* AFD-292: notify links attach on the left, clear of the failure wires on the right. */}
+      {node.notify?.length ? (
+        <Handle
+          id="__notify_out"
+          type="source"
+          position={Position.Left}
+          isConnectable={false}
+          className="afd-notify-handle"
+          style={{ top: '80%' }}
+        />
+      ) : null}
+      {node.notified ? (
+        <>
+          <Handle
+            id="__notify_in"
+            type="target"
+            position={Position.Left}
+            isConnectable={false}
+            className="afd-notify-handle"
+            style={{ top: '20%' }}
+          />
+          <span
+            className="afd-notify-badge codicon codicon-bell"
+            role="img"
+            aria-label="Runs when notified"
+            title={`Runs when notified${node.notified.listen?.length ? `; listens to ${node.notified.listen.join(', ')}` : ''}`}
+          />
+        </>
+      ) : null}
       {dataLens ? (
         <>
           {/* Data lens (decision 14): derived wires attach here, never to control ports. */}

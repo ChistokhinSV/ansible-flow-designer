@@ -1,0 +1,20 @@
+# Fictional web servers: two tasks notify the same restart, one through a topic (AFD-292).
+- name: Web servers
+  hosts: web
+  tasks:
+    - name: Write the web config
+      ansible.builtin.template:
+        src: /etc/templates/web.conf.j2
+        dest: /etc/web.conf
+      notify: Restart web
+    - name: Write the TLS settings
+      ansible.builtin.copy:
+        content: "ssl on\n"
+        dest: /etc/web-tls.conf
+      notify: web settings changed
+  handlers:
+    - name: Restart web
+      listen: web settings changed
+      ansible.builtin.service:
+        name: web
+        state: restarted

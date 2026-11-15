@@ -21,6 +21,7 @@ import { privilegeOf } from '../flow/inherit';
 import { conditionExpr } from '../flow/jinja';
 import { localFileOf } from '../flow/localFiles';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
+import { notifiersOf, reportsChange } from '../flow/notify';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import { rollingObstacles } from '../flow/rolling';
 import { planSegments, type Segment } from '../flow/segments';
@@ -1042,6 +1043,18 @@ class Generator {
     const extra: Out[] = [];
     if (kind !== 'todo' && impl) {
       body = bindingTask(node, impl, timeout);
+      // AFD-292: a handler runs for the hosts on which a step notifying it changed something.
+      if (node.notified) {
+        const changed = notifiersOf(node, ctx.level.nodes)
+          .filter(reportsChange)
+          .map((n) => `(${registerName(n, n.impl ?? undefined)} | default({})) is changed`);
+        const notified = changed.length ? changed.join(' or ') : 'false';
+        const before = body.when;
+        body.when =
+          before === undefined
+            ? notified
+            : [...(Array.isArray(before) ? before : [before]), notified];
+      }
     } else {
       const facts = stubFacts(node);
       if (facts) extra.push(facts);

@@ -525,3 +525,51 @@ describe('canvas controls (AFD-294)', () => {
     act(() => useUi.setState({ mode: 'design' }));
   });
 });
+
+describe('notify links (AFD-292)', () => {
+  /** edge-baseline with its first step notifying the last task, marked as a handler. */
+  function withNotify() {
+    const doc = example('edge-baseline.flow.yaml');
+    const tasks = doc.nodes.filter((n) => n.type === 'task');
+    const [first, last] = [tasks[0], tasks.at(-1)] as [FlowNode, FlowNode];
+    first.notify = [last.key];
+    last.notified = { listen: ['baseline changed'] };
+    return { doc, first, last };
+  }
+
+  it('anchors a link from the step to its handler, and shows a bell on the handler', () => {
+    const { doc, first, last } = withNotify();
+    render(
+      <ReactFlowProvider>
+        <FlowCanvas cull={false} />
+      </ReactFlowProvider>,
+    );
+    show(snapshotOf(doc));
+    // jsdom draws no edges (no layout): the link's two ends are there.
+    expect(
+      document.querySelector(`[data-node-id="${first.id}"] [data-handleid="__notify_out"]`),
+    ).toBeTruthy();
+    expect(
+      document.querySelector(`[data-node-id="${last.id}"] [data-handleid="__notify_in"]`),
+    ).toBeTruthy();
+    const bell = document.querySelector(`[data-node-id="${last.id}"] .afd-notify-badge`);
+    expect(bell?.getAttribute('title')).toBe('Runs when notified; listens to baseline changed');
+  });
+
+  it('Details sets what a step notifies and whether a step runs when notified', () => {
+    const { doc, first, last } = withNotify();
+    act(() => useUi.setState({ mode: 'design', level: 'root' }));
+    show(snapshotOf(doc));
+    const { unmount } = render(<Details id={last.id} />);
+    posted.length = 0;
+    fireEvent.click(screen.getByLabelText(/Runs when notified/));
+    expect((posted[0] as { command?: unknown }).command).toEqual({
+      kind: 'updateNode',
+      id: last.id,
+      patch: { notified: null },
+    });
+    unmount();
+    render(<Details id={first.id} />);
+    expect(screen.getByText(`Handlers here: ${last.key}, baseline changed`)).toBeTruthy();
+  });
+});

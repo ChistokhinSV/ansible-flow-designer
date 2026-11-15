@@ -62,6 +62,8 @@ A step of the flow. Its type decides its ports; its status says how far it is bu
 - `handler` (rollback | notify | retry | exclude): Format 1 name of purpose. Marks a failure handler node (what kind of handling it does)
 - `purpose` (rollback | notify | retry | exclude): Format 2: what the node is for in failure handling (rollback, notify, retry, exclude); the patterns set it, and a Rollback is found by it.
 - `approval` (object): Approval nodes: who decides when a runner waits for a person (Ansible Flow Server). AWX workflows ignore it: their approvers are set in AWX.
+- `notify` (list of string): Handlers this step notifies when it changes something: a handler step's key on this level, or a topic handlers listen to (Ansible's notify).
+- `notified` (object): A handler: the step runs, at its place in the flow, only for the hosts on which a step that notifies it changed something; other hosts pass by it (Ansible's handlers).
 - `settings` (object): How the node runs (play keywords).
 - `subflow` (object): Subflow nodes: the inner level and how hosts enter and leave it.
 

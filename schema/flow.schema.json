@@ -866,6 +866,25 @@
             }
           }
         },
+        "notify": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "maxItems": 50,
+          "description": "Handlers this step notifies when it changes something: a handler step's key on this level, or a topic handlers listen to (Ansible's notify)."
+        },
+        "notified": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A handler: the step runs, at its place in the flow, only for the hosts on which a step that notifies it changed something; other hosts pass by it (Ansible's handlers).",
+          "properties": {
+            "listen": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "maxItems": 50,
+              "description": "Topics it listens to besides its key (Ansible's listen)."
+            }
+          }
+        },
         "settings": {
           "type": "object",
           "properties": {

@@ -6,6 +6,7 @@
 // AFD-65: Notes, Sections and Text are nodes without ports, layered by hand (zIndexMode manual):
 // Sections behind everything, a Note on a node as that node's child, in front of it.
 // AFD-70: wires step round the nodes in their way (RoutedEdge), as in the exports.
+
 import {
   applyNodeChanges,
   Background,
@@ -42,6 +43,7 @@ import { type Box as ArrangeBox, type Guides, guides as guidesFor } from '../../
 import type { CanvasTarget } from '../../core/flow/canvasMenu';
 import { spliceProblem } from '../../core/flow/heal';
 import { ROOT } from '../../core/flow/model';
+import { handlersNotifiedBy } from '../../core/flow/notify';
 import { PATTERN_IDS, type PatternId } from '../../core/flow/patterns';
 import { sharedAround } from '../../core/flow/refs';
 import type { AnnotationKind, NodeType, Position } from '../../core/flow/types';
@@ -506,6 +508,27 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         reconnectable: false,
       }));
   }, [dataLens, dataWires, view.nodes]);
+  // AFD-292: notify links, dashed, from a step to the handlers it notifies (never wires).
+  const notifyEdges = useMemo<Edge[]>(() => {
+    const here = view.nodes.map((v) => v.node);
+    return here.flatMap((n) =>
+      handlersNotifiedBy(n, here).map((h) => ({
+        id: `notify:${n.id}:${h.id}`,
+        source: n.id,
+        sourceHandle: '__notify_out',
+        target: h.id,
+        targetHandle: '__notify_in',
+        type: 'default',
+        label: 'notifies',
+        className: 'afd-edge afd-notify-edge',
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--afd-notify)' },
+        selectable: false,
+        deletable: false,
+        focusable: false,
+        reconnectable: false,
+      })),
+    );
+  }, [view.nodes]);
   // AFD-243: a subflow expanded in place shows how its steps join its ports: the entry wire from
   // inside its `in`, and each exit into the port it leaves through, as the open subflow does.
   const inlineEdges = useMemo<Edge[]>(() => {
@@ -541,6 +564,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     () => [
       ...edges,
       ...dataEdges,
+      ...notifyEdges,
       ...inlineEdges,
       ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
         id: e.id,
@@ -560,7 +584,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         reconnectable: false,
       })),
     ],
-    [edges, dataEdges, inlineEdges, boundary, selection.edge, shows],
+    [edges, dataEdges, notifyEdges, inlineEdges, boundary, selection.edge, shows],
   );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one

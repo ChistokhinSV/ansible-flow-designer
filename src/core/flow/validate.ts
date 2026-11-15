@@ -15,6 +15,13 @@ import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './ji
 import { BARE_PARAMS, keywordReads } from './keywords';
 import { formatOf } from './migrate';
 import { buildModel, type FlowModel, ROOT } from './model';
+import {
+  handlersNotifiedBy,
+  notifiersOf,
+  reaches,
+  reportsChange,
+  unknownNotifyNames,
+} from './notify';
 import { openFailPorts } from './openPorts';
 import { isRollback } from './patterns';
 import { isFailPort, isPortLegal, LEGACY_PORTS, portDirection, portsFor } from './ports';
@@ -1031,6 +1038,7 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
     checkConditions(model, node, level, path, flowInputs, external, add);
     checkTimingInputs(model, node, level, path, flowInputs, external, add);
     checkPlaybookDir(node, path, add);
+    checkNotify(model, node, level, path, add);
     // AFD-273: who decides is a question only an approval asks.
     if (node.approval && node.type !== 'approval')
       add({
@@ -1633,6 +1641,69 @@ function definedGuards(nodes: (FlowNode | undefined)[], names: string[]): Set<st
 function externalVars(model: FlowModel): Set<string> {
   const ext = model.doc.flow?.external_vars;
   return new Set(ext && typeof ext === 'object' ? Object.keys(ext) : []);
+}
+
+/**
+ * AFD-292: notify links. A name a step notifies reaches a handler of its level (by key, or a topic it
+ * listens to); a handler is notified by some step, which comes before it on the hosts' way and can
+ * report a change (a step bound to a module).
+ */
+function checkNotify(
+  model: FlowModel,
+  node: FlowNode,
+  levelId: string,
+  path: Path,
+  add: (f: Finding) => void,
+): void {
+  const level = model.levels.get(levelId);
+  if (!level) return;
+  if (node.notify?.length) {
+    for (const name of unknownNotifyNames(node, level.nodes))
+      add({
+        code: 'notify-unknown',
+        severity: 'warning',
+        message: `${label(node)} notifies "${name}", which is no handler of this level: mark a step Runs When Notified, or listen to "${name}" on one`,
+        path: [...path, 'notify'],
+        node: node.id,
+        subject: name,
+      });
+    if (!reportsChange(node))
+      add({
+        code: 'notify-no-change',
+        severity: 'warning',
+        message: `${label(node)} notifies handlers but cannot say it changed something: only a step bound to a module reports a change`,
+        path: [...path, 'notify'],
+        node: node.id,
+      });
+    for (const h of handlersNotifiedBy(node, level.nodes))
+      if (h.id !== node.id && !reaches(level.edges, node.id, h.id))
+        add({
+          code: 'handler-not-after',
+          severity: 'warning',
+          message: `${label(h)} is notified by ${label(node)} but is not after it on the hosts' way: it would run before the change, or not at all`,
+          path: [...path, 'notify'],
+          node: node.id,
+          subject: h.key,
+        });
+  }
+  if (node.notified) {
+    if (node.type !== 'task')
+      add({
+        code: 'handler-not-task',
+        severity: 'warning',
+        message: `${label(node)} is not a step: only a step runs when notified`,
+        path: [...path, 'notified'],
+        node: node.id,
+      });
+    else if (!notifiersOf(node, level.nodes).length)
+      add({
+        code: 'handler-unnotified',
+        severity: 'warning',
+        message: `${label(node)} runs only when notified, and no step of this level notifies it: it never runs`,
+        path: [...path, 'notified'],
+        node: node.id,
+      });
+  }
 }
 
 /**

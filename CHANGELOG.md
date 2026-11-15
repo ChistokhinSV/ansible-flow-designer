@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Handlers (notify and listen):** a step can be marked **Runs when notified** and other steps of its level notify it, by its key or a topic it listens to; it runs at its place, once, for the hosts a notifying step changed. Notify links show dashed on the canvas and a bell marks the handler. Imported playbook handlers become such steps. See [Handlers: notify and listen](docs/guide/how-to/handlers.md).
+
 ## 0.88.0 — Curved wires, repository files in runs
 
 ### Added

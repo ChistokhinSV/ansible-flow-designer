@@ -220,6 +220,29 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       "Another step sets the input's own name (set_fact, register, an output of that name) where it runs after the from: step, or before the reader when the from: step does not set that name. The generated play passes the input as a play var, and Ansible ranks set_fact and register above play vars: the step reads the value set last, not the one from: names.",
     fix: 'Rename the input (the binding then reads the new name), or read from: the step that sets the name last. If the value set last is what the step should get, accept it with that reason.',
   },
+  'handler-not-after': {
+    meaning:
+      "A handler is notified by a step it does not come after on the hosts' way: it would run before the change, or not at all.",
+    fix: 'Move the handler after the step that notifies it (later on the same path), or notify another handler.',
+  },
+  'handler-not-task': {
+    meaning: 'Something other than a step is marked Runs When Notified.',
+    fix: 'Mark a step instead; a subflow or a decision does not run when notified.',
+  },
+  'handler-unnotified': {
+    meaning: 'A step runs only when notified, and no step of its level notifies it: it never runs.',
+    fix: 'Add it (or a topic it listens to) to the Notifies of the step whose change it follows, or clear Runs When Notified.',
+  },
+  'notify-no-change': {
+    meaning:
+      'A step notifies handlers but cannot say it changed something: only a step bound to a module reports a change.',
+    fix: 'Notify from the module step that makes the change, or bind this step to a module.',
+  },
+  'notify-unknown': {
+    meaning:
+      "A step notifies a name that is no handler's key and no topic a handler of its level listens to.",
+    fix: "Mark the step to notify Runs When Notified, add the name to a handler's topics, or fix the name.",
+  },
   'binding-file-missing': {
     meaning:
       'A step reads a repository file (a template or copy source, a script, a vars file) that is not there. Generated plays read a relative path from the repository root.',
