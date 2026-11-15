@@ -680,7 +680,7 @@ function Configure({
         target: c.expose.node,
         side: 'outputs',
         name: c.expose.output,
-        field: { type: 'dict', from: 'impl.register' },
+        field: c.expose.field ?? { type: 'dict', from: 'impl.register' },
       });
   };
   const setParam = (name: string, value: unknown) => {

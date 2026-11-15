@@ -2,7 +2,8 @@
 // `from:` references. A reference into another level is drawn from the producer to the subflow
 // that contains the consumer, on the producer's level.
 import { liftOf, resolveFrom } from '../flow/dataRefs';
-import { exprRefs, templated } from '../flow/jinja';
+import { factSetter } from '../flow/facts';
+import { exprRefs, refsIn, templated } from '../flow/jinja';
 import { modelOf, ROOT } from '../flow/model';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { isWork, listChip, title, visibleAt } from './common';
@@ -87,6 +88,47 @@ export function dataLens(doc: FlowDocument): LensView {
           out === name ? out : `${out} → ${name}`,
           `${from} → ${node.title}.${name}${by}`,
         );
+    }
+  }
+
+  // AFD-287: a step that reads a fact an earlier step sets, with no input for it: it works on one
+  // play, but the design does not show it, and runs in parts (AWX, approvals) lose it.
+  for (const { node, level } of model.nodes.values()) {
+    if (!isWork(node) || !node.impl) continue;
+    const declared = new Set(Object.keys(node.inputs ?? {}));
+    const names = refsIn([node.impl.params ?? {}, node.impl.keywords ?? {}]);
+    for (const name of names) {
+      if (declared.has(name)) continue;
+      const setter = factSetter(model, node, name);
+      if (!setter) continue;
+      const at = model.nodes.get(setter.id)?.level;
+      const to = at ? visibleAt(model, node.id, at) : undefined;
+      if (to && at === level) {
+        const id = `data:${setter.id}>${node.id}:${name}`;
+        wires.set(id, {
+          id,
+          from: setter.id,
+          to,
+          label: `${name} (not declared)`,
+          title: `${node.title} reads ${name}, which ${setter.title} sets, with no input for it`,
+          undeclared: true,
+        });
+      }
+      findings.push({
+        id: `data:undeclared:${node.id}.${name}`,
+        lens: 'data',
+        severity: 'warning',
+        title: `${node.title} reads ${name} from ${setter.title} without declaring it`,
+        detail: `${setter.title} sets ${name} with set_fact; ${node.title} reads it with no input. It works while both run in one play, but the flow does not show it, and a run in parts (AWX, approvals) loses it. Make it an output of ${setter.title} and an input here.`,
+        node: node.id,
+        nodes: [setter.id, node.id],
+        fixes: [
+          {
+            label: `Use ${name} as an Input`,
+            command: { kind: 'useFact', reader: node.id, setter: setter.id, name },
+          },
+        ],
+      });
     }
   }
 

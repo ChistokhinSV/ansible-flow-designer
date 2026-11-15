@@ -5,6 +5,7 @@
 import type { FlowCommand } from '../flow/commands';
 import { registerName } from '../flow/dataNames';
 import { enclosing, liftOf, resolveFrom, upstreamNodes } from '../flow/dataRefs';
+import { setFactNames } from '../flow/facts';
 import { refsIn } from '../flow/jinja';
 import type { FlowModel } from '../flow/model';
 import type { ContractField, ContractType, FlowNode, ImplBinding, Ulid } from '../flow/types';
@@ -308,7 +309,12 @@ export interface RefChoice {
    * AFD-106 (round 3: R7): choosing it also makes this upstream step's registered result an output
    * there. The participant typed the register name, since nothing in the list offered the result.
    */
-  expose?: { node: Ulid; output: string };
+  expose?: {
+    node: Ulid;
+    output: string;
+    /** AFD-287: the output it becomes (a fact: no `from:`); else the whole registered result. */
+    field?: ContractField;
+  };
   /**
    * AFD-108 (wave 10: Z1): set when the choice is a module step's whole result: the fields its
    * docs list, which the list offers next (`read_version_result.stdout`).
@@ -447,6 +453,23 @@ export function refChoices(model: FlowModel, node: FlowNode, fieldsOf?: FieldsOf
     }
   };
   for (const up of upstream) if (up.type === 'subflow') inside(up, up.key);
+  // AFD-287: a fact an upstream set_fact step sets that is no output there yet.
+  for (const up of upstream)
+    for (const fact of setFactNames(up.impl)) {
+      if (up.outputs?.[fact]) continue;
+      const from = `${up.key}.${fact}`;
+      if (sources.has(from)) continue;
+      sources.add(from);
+      const as = freeName(fact, taken);
+      taken.add(as);
+      out.push({
+        name: as,
+        label: from,
+        detail: `fact set by "${up.title}" · makes it an output there`,
+        field: { type: 'any', from },
+        expose: { node: up.id, output: fact, field: { type: 'any' } },
+      });
+    }
   // AFD-106: an upstream module step's registered result that is no output yet.
   for (const up of upstream) {
     if (up.impl?.kind !== 'module') continue;

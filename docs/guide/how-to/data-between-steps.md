@@ -18,6 +18,20 @@ An output is a value a step produces.
 In the binding page, click a module return under **Returns** to make it an output, or tick
 **Expose as node output** for the whole result.
 
+**A fact a `set_fact` step sets** is a value too. A later step that reads it with no input works
+while both run in one play, but the flow does not show it, and a run in parts (AWX, approvals)
+loses it. So the designer offers it wherever you look for a value:
+
+- the **@** list in a parameter ("test_message · fact set by Save var"),
+- the warning on the reading step ("Save var sets it"), with the quick fix **Use test_message as
+  an Input**,
+- the Data lens, which draws such a read as a warning-coloured wire "(not declared)" with the same
+  fix,
+- **Add from…** under the step's Inputs.
+
+Each makes the fact an output of the step that sets it and an input of the step that reads it, in
+one edit.
+
 ## Inputs
 
 An input is a value a step reads. Its `from:` says where it comes from:

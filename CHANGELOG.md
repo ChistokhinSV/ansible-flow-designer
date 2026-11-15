@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- A fact set by an earlier `set_fact` step could not be found as a value: the **@** list did not offer it, the warning on the step reading it did not say where it comes from, and the Data lens showed nothing. Now the **@** list offers it ("fact set by Save var"), the warning names the step with a quick fix **Use … as an Input**, the Data lens draws the read as "(not declared)" with the same fix, and a step's Inputs have **Add from…** with everything that reaches the step. Each makes the fact an output of the step that sets it and an input of the step that reads it. See [Data between steps](docs/guide/how-to/data-between-steps.md).
+
 ## 0.86.0 — Flows merge in git by their steps
 
 ### Added

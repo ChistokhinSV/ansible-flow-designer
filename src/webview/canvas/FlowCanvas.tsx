@@ -491,9 +491,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         targetHandle: '__data_in',
         type: 'default',
         label: w.label,
-        className: 'afd-edge afd-data-edge',
+        className: w.undeclared ? 'afd-edge afd-data-edge undeclared' : 'afd-edge afd-data-edge',
         data: { title: w.title },
-        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--afd-lens-data)' },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: w.undeclared
+            ? 'var(--vscode-editorWarning-foreground, var(--afd-unreachable))'
+            : 'var(--afd-lens-data)',
+        },
         selectable: false,
         deletable: false,
         focusable: false,

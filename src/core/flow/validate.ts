@@ -10,6 +10,7 @@ import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { canDisable, disabledBy, disabledIds } from './disabled';
 import { durationSeconds } from './duration';
+import { factSetter, setFactNames } from './facts';
 import { healPlan } from './heal';
 import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
 import { BARE_PARAMS, keywordReads } from './keywords';
@@ -703,6 +704,10 @@ function hintFor(model: FlowModel, node: FlowNode, level: string, name: string):
   const upstream = upstreamNodes(model, node.id);
   for (const up of upstream)
     if (up.outputs && name in up.outputs) return `; add input ${name} (from: ${up.key}.${name})`;
+  // AFD-287: a fact an earlier step sets with set_fact, not declared as its output yet.
+  const setter = factSetter(model, node, name);
+  if (setter)
+    return `; "${setter.title}" sets it (set_fact): use it as an input (quick fix, or the @ picker), which makes it an output there`;
   const inside = (sub: FlowNode, path: string): string | undefined => {
     for (const step of sub.subflow?.nodes ?? []) {
       if (!step?.key) continue;
@@ -1625,11 +1630,6 @@ function definedGuards(nodes: (FlowNode | undefined)[], names: string[]): Set<st
 }
 
 /** AFD-183: the facts a set_fact step sets, which its own parameters may read (accumulators). */
-function setFactNames(impl: NonNullable<FlowNode['impl']>): string[] {
-  if (impl.kind !== 'module' || !takesFreeKeys(impl.ref)) return [];
-  return Object.keys(impl.params ?? {}).filter((k) => k !== 'cacheable');
-}
-
 /** AFD-185: variables the flow says are set outside it at run time (flow.external_vars). */
 function externalVars(model: FlowModel): Set<string> {
   const ext = model.doc.flow?.external_vars;

@@ -128,6 +128,16 @@
   font-style: italic;
 }
 
+/* AFD-287: a fact read with no input for it. */
+.react-flow__edge.afd-data-edge.undeclared .react-flow__edge-path {
+  stroke: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+  stroke-dasharray: 6 4;
+}
+
+.react-flow__edge.afd-data-edge.undeclared .react-flow__edge-text {
+  fill: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+}
+
 .afd-data-handle.react-flow__handle {
   opacity: 0;
   width: 4px;

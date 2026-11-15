@@ -21,6 +21,7 @@ import {
   portAccepted,
 } from './decisions';
 import { canDisable } from './disabled';
+import { setFactNames } from './facts';
 import { ANNOTATION_ORDER, NODE_ORDER, purposeKey, requireFormat } from './format';
 import { CONTINUES_ON, healPlan, healSummary, spliceProblem } from './heal';
 import { type IdFactory, SLUG, slugify, uniqueKey } from './ids';
@@ -167,6 +168,11 @@ export type FlowCommand =
       /** New name for the field (rename keeps the definition). */
       rename?: string;
     }
+  /**
+   * AFD-287: a fact an earlier step sets (set_fact) read by `reader`: an output of that name on
+   * the setter (a fact needs no `from:`) and an input of the reader from it, in one edit.
+   */
+  | { kind: 'useFact'; reader: Ulid; setter: Ulid; name: string }
   | { kind: 'updateFlow'; patch: FlowPatch }
   /**
    * AFD-112 (round 4: Q4): a step's Timing setting given at run time, in one edit: the flow input
@@ -3404,6 +3410,43 @@ export function planCommand(
     case 'setContractField':
       setContractField(tx, cmd, notes);
       break;
+    case 'useFact': {
+      const st = state(tx);
+      const setter = nodeAt(st, cmd.setter).node;
+      const reader = nodeAt(st, cmd.reader).node;
+      if (!setFactNames(setter.impl).includes(cmd.name))
+        throw new CommandError('no-fact', `${setter.title} does not set ${cmd.name}`);
+      const from = `${setter.key}.${cmd.name}`;
+      if (!setter.outputs?.[cmd.name])
+        setContractField(
+          tx,
+          {
+            kind: 'setContractField',
+            target: cmd.setter,
+            side: 'outputs',
+            name: cmd.name,
+            field: { type: 'any' },
+          },
+          notes,
+        );
+      const inputs = reader.inputs ?? {};
+      if (!Object.values(inputs).some((f) => f?.from === from)) {
+        let name = cmd.name;
+        for (let i = 2; inputs[name] && inputs[name]?.from !== from; i++) name = `${cmd.name}_${i}`;
+        setContractField(
+          tx,
+          {
+            kind: 'setContractField',
+            target: cmd.reader,
+            side: 'inputs',
+            name,
+            field: { type: 'any', from },
+          },
+          notes,
+        );
+      }
+      break;
+    }
     case 'setBinding':
       setBinding(tx, cmd, notes);
       break;

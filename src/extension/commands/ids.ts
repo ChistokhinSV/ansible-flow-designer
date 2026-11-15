@@ -12,6 +12,7 @@ export const CMD = {
   unlinkShared: 'afd.flow.unlinkShared',
   /** The Problems panel's quick fix on a warning (AFD-51); not in the Command Palette. */
   acceptProblem: 'afd.flow.acceptProblem',
+  useFact: 'afd.flow.useFact',
   openInTextEditor: 'afd.flow.openInTextEditor',
   generateCode: 'afd.code.generate',
   tidyUp: 'afd.canvas.tidyUp',
