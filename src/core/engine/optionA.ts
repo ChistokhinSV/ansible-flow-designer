@@ -19,6 +19,7 @@ import {
 import { portAccepted } from '../flow/decisions';
 import { privilegeOf } from '../flow/inherit';
 import { conditionExpr } from '../flow/jinja';
+import { localFileOf } from '../flow/localFiles';
 import { buildModel, type FlowModel, type Level, ROOT } from '../flow/model';
 import { isFailPort, legalPorts, portsFor } from '../flow/ports';
 import { rollingObstacles } from '../flow/rolling';
@@ -1019,6 +1020,8 @@ class Generator {
     const reads =
       impl.kind === 'role' ||
       isIncludeTasks(impl.ref) ||
+      // AFD-291: a relative file the step reads is written from the root.
+      (impl.kind === 'module' && !!localFileOf(impl.ref, impl.params)) ||
       JSON.stringify([impl.params ?? null, impl.keywords ?? null]).includes('afd_repo_root');
     if (!reads) return {};
     const root = (this.opts.root ?? '../../..').replace(/\/+$/, '');

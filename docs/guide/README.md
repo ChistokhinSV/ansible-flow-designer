@@ -51,6 +51,7 @@ playbooks are generated from it.
 **Implementing**
 - [Bind a step to a module, role or playbook](how-to/binding-and-catalog.md)
 - [Data between steps](how-to/data-between-steps.md)
+- [Files, templates and variables in the repository](how-to/repository-files.md)
 - [Retries and polling](how-to/polling-and-retries.md)
 - [Generated code](how-to/code-generation.md)
 - [Code mode: design vs code](how-to/code-mode.md)

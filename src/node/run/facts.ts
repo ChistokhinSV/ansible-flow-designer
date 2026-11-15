@@ -3,6 +3,7 @@
 import { resolvePattern, targetUses } from '../../core/engine/targets';
 import { buildModel } from '../../core/flow/model';
 import type { FlowDocument } from '../../core/flow/types';
+import type { RepositoryConfig } from '../../core/run/command';
 import { type LaunchFacts, type TargetUse, targetsOf } from '../../core/run/launch';
 import { groupHosts, type InventoryTree } from '../../core/view/inventoryTree';
 import { TIMEOUTS } from '../timeouts';
@@ -127,15 +128,19 @@ export async function inventoryGroups(
  * AFD-141: the callbacks the repository's ansible.cfg enables, so they keep running next to the
  * run's own; undefined when the environment does not answer (the run's callback alone, then).
  */
-export async function repositoryCallbacks(
-  probe: RunProbe,
-): Promise<{ enabled: string[]; paths: string[] } | undefined> {
+export async function repositoryCallbacks(probe: RunProbe): Promise<RepositoryConfig | undefined> {
   return probe.client
-    .call<{ callbacks_enabled: string[]; callback_plugins: string[] }>(
-      'run_config',
-      {},
-      TIMEOUTS.probeInventory,
-    )
-    .then((c) => ({ enabled: c.callbacks_enabled ?? [], paths: c.callback_plugins ?? [] }))
+    .call<{
+      callbacks_enabled: string[];
+      callback_plugins: string[];
+      plugin_paths?: Record<string, string[]>;
+      vars_enabled?: string[];
+    }>('run_config', {}, TIMEOUTS.probeInventory)
+    .then((c) => ({
+      enabled: c.callbacks_enabled ?? [],
+      paths: c.callback_plugins ?? [],
+      // AFD-291: an older probe says nothing of these: the run leaves the paths alone then.
+      ...(c.plugin_paths ? { plugins: c.plugin_paths, varsEnabled: c.vars_enabled ?? [] } : {}),
+    }))
     .catch(() => undefined);
 }

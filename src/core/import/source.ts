@@ -6,6 +6,7 @@
 // arguments, conditions and loops; this reader works anywhere and keeps them.
 import { templated } from '../flow/jinja';
 import { isAllowedKeyword } from '../flow/keywords';
+import { LOCAL_FILES } from '../flow/localFiles';
 import { builtinFqcn, shortName } from './builtins';
 import {
   type AnsibleConfig,
@@ -499,16 +500,6 @@ function moduleOf(raw: PlainMap): { module: string; value: unknown; local: boole
 
 const INCLUDES = new Set(['include_tasks', 'import_tasks', 'include']);
 
-/** Modules that read a local file, the parameter naming it and the subfolder Ansible looks in. */
-const LOCAL_FILES: Record<string, { param: string; sub: string }> = {
-  template: { param: 'src', sub: 'templates' },
-  win_template: { param: 'src', sub: 'templates' },
-  copy: { param: 'src', sub: 'files' },
-  win_copy: { param: 'src', sub: 'files' },
-  unarchive: { param: 'src', sub: 'files' },
-  script: { param: 'cmd', sub: 'files' },
-  include_vars: { param: 'file', sub: 'vars' },
-};
 const ROLE_INCLUDES = new Set(['include_role', 'import_role']);
 // ---- the reader ----------------------------------------------------------------------------------
 

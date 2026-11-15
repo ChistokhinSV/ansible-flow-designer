@@ -8,6 +8,7 @@ All notable changes to Ansible Flow Designer.
 
 - **Curved wires:** a button among the canvas's zoom controls switches wires between stepped (right angles, as before) and curved, and keeps the choice as the setting `afd.canvas.wireStyle`. See [Canvas basics](docs/guide/how-to/canvas-basics.md).
 - **Tidy Up** has a button among the canvas's zoom controls too.
+- **Runs find the repository's files:** a relative path in a step (a template's or a copy's source, a script, a vars file) is read from the repository root; your `library/` modules with their `module_utils/`, your `filter_plugins/`, `lookup_plugins/`, `test_plugins/` and `action_plugins/`, and `group_vars/` and `host_vars/` at the repository root are found by every run, though generated playbooks are in `flows/<key>/generated/`. A step whose file is not in the repository gets a warning. See [Files, templates and variables in the repository](docs/guide/how-to/repository-files.md).
 
 ## 0.87.0 — Server changes in VS Code, facts as data, sample projects
 

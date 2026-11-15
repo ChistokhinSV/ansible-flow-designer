@@ -220,6 +220,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       "Another step sets the input's own name (set_fact, register, an output of that name) where it runs after the from: step, or before the reader when the from: step does not set that name. The generated play passes the input as a play var, and Ansible ranks set_fact and register above play vars: the step reads the value set last, not the one from: names.",
     fix: 'Rename the input (the binding then reads the new name), or read from: the step that sets the name last. If the value set last is what the step should get, accept it with that reason.',
   },
+  'binding-file-missing': {
+    meaning:
+      'A step reads a repository file (a template or copy source, a script, a vars file) that is not there. Generated plays read a relative path from the repository root.',
+    fix: 'Write the path from the repository root (templates/motd.j2), or add the file there.',
+  },
   'binding-playbook-dir': {
     meaning:
       "A binding reads playbook_dir. Generated plays run from the flow's generated/ folder, so paths next to the source playbook are not found there.",
