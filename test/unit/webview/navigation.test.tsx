@@ -231,7 +231,7 @@ describe('a level with only Start and End', () => {
     expect(details.querySelector('summary')?.textContent).toBe(
       'More details: edge-checks · version 1',
     );
-    expect(screen.getByText(/What the flow asks for when it runs/)).toBeTruthy();
+    expect(screen.getByText(/What a run asks for/)).toBeTruthy();
   });
 
   it('is not there in Code mode, nor once the level has a step', () => {

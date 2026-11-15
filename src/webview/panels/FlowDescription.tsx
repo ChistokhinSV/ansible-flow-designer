@@ -64,11 +64,11 @@ export function FlowDescription() {
           onCommit={(v) => void update({ goal: v.trim() ? v : null })}
         />
         <ContractEditor
-          title="Inputs"
+          title="Run inputs"
           target="flow"
           side="inputs"
           contract={flow.inputs}
-          hint="What the flow asks for when it runs. devices: the hosts it runs on."
+          hint="What a run asks for. Click one to change it."
         />
         <Fold
           id="flow-details"

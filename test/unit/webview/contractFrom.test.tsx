@@ -68,6 +68,7 @@ describe('Inputs: Add from… (AFD-287)', () => {
     render(
       <ContractEditor title="Inputs" target={ids.show} side="inputs" contract={{}} withFrom />,
     );
+    fireEvent.click(screen.getByRole('button', { name: /Add input/ }));
     const pick = screen.getByLabelText('Add an input from') as HTMLSelectElement;
     const option = [...pick.options].find((o) => o.value === 'save-var.test_message');
     expect(option?.textContent).toBe('save-var.test_message · fact set by "Save var"');
@@ -84,6 +85,61 @@ describe('Inputs: Add from… (AFD-287)', () => {
     render(
       <ContractEditor title="Outputs" target={ids.show} side="outputs" contract={{}} withFrom />,
     );
+    fireEvent.click(screen.getByRole('button', { name: /Add output/ }));
     expect(screen.queryByLabelText('Add an input from')).toBeNull();
+  });
+});
+
+// AFD-298: rows that open a form; everything is saved as it changes.
+describe('the inputs editor: rows with a form', () => {
+  const commands = () =>
+    (posted as { type: string; command?: Record<string, unknown> }[])
+      .filter((m) => m.type === 'command')
+      .map((m) => m.command);
+  const contract = {
+    devices: { type: 'host_list' as const, required: true, targets: true },
+    release: { type: 'string' as const, required: true },
+  };
+
+  it('a row says the type, targets and required; its form changes and removes it', () => {
+    render(<ContractEditor title="Run inputs" target="flow" side="inputs" contract={contract} />);
+    const row = screen.getByRole('button', { name: 'release: text, required' });
+    expect(
+      screen.getByRole('button', { name: 'devices: host list, required' }).textContent,
+    ).toContain('targets');
+    expect(screen.queryByLabelText('Type of release')).toBeNull();
+    fireEvent.click(row);
+    expect(row.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Type of release'), { target: { value: 'integer' } });
+    expect(commands().at(-1)).toMatchObject({
+      kind: 'setContractField',
+      name: 'release',
+      field: { type: 'integer', required: true },
+    });
+    const name = screen.getByLabelText('Name') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'target release' } });
+    fireEvent.blur(name);
+    expect(screen.getByText(/Letters, digits and _/)).toBeTruthy();
+    fireEvent.change(name, { target: { value: 'target_release' } });
+    fireEvent.blur(name);
+    expect(commands().at(-1)).toMatchObject({ name: 'release', rename: 'target_release' });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove release' }));
+    expect(commands().at(-1)).toMatchObject({ name: 'release', field: null });
+  });
+
+  it('Add opens the form with the name focused; a taken name is said', () => {
+    render(<ContractEditor title="Run inputs" target="flow" side="inputs" contract={contract} />);
+    fireEvent.click(screen.getByRole('button', { name: /Add input/ }));
+    const name = screen.getByRole('textbox', { name: 'New input name' });
+    expect(document.activeElement).toBe(name);
+    fireEvent.change(name, { target: { value: 'release' } });
+    expect(screen.getByText('There is a release already')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(name, { target: { value: 'window' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(commands().at(-1)).toMatchObject({
+      name: 'window',
+      field: { type: 'string', required: true },
+    });
   });
 });

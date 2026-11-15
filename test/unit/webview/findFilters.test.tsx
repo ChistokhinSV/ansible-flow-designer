@@ -108,11 +108,17 @@ describe("the workspace's flows in the flow panel; what a filter lists (AFD-93)"
 describe('input descriptions in the flow panel (AFD-95)', () => {
   it('an input other than the targets list takes a description; the targets list does not', () => {
     render(<FlowDescription />);
+    // AFD-298: an input's fields are in its form, opened from its row.
+    for (const row of [...document.querySelectorAll<HTMLButtonElement>('.afd-contract-row')])
+      if (row.getAttribute('aria-expanded') !== 'true') {
+        fireEvent.click(row);
+        if (document.querySelector('[data-input-description]')) break;
+      }
     const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-input-description]')];
     const names = boxes.map((b) => b.dataset.inputDescription);
     const targets = Object.entries(doc.flow.inputs ?? {}).find(([, f]) => f?.targets)?.[0];
     expect(names).not.toContain(targets);
-    expect(names.length).toBeGreaterThan(0);
+    expect(names.length).toBe(1);
     posted.length = 0;
     const box = boxes[0] as HTMLInputElement;
     fireEvent.change(box, { target: { value: 'The release to install' } });
@@ -138,6 +144,10 @@ describe('flow input defaults in the flow panel (AFD-106)', () => {
 
   it('a default is read by the type and clears required; a wrong one is refused', () => {
     render(<FlowDescription />);
+    for (const row of [...document.querySelectorAll<HTMLButtonElement>('.afd-contract-row')]) {
+      fireEvent.click(row);
+      if (document.querySelector('[data-input-default]')) break;
+    }
     const box = document.querySelector<HTMLInputElement>('[data-input-default]');
     expect(box).toBeTruthy();
     const name = box?.dataset.inputDefault as string;
@@ -158,7 +168,9 @@ describe('flow input defaults in the flow panel (AFD-106)', () => {
 
   it('a new flow input starts as required', () => {
     render(<FlowDescription />);
+    fireEvent.click(screen.getByRole('button', { name: /Add input/ }));
     const name = screen.getByRole('textbox', { name: 'New input name' });
+    expect(document.activeElement).toBe(name);
     fireEvent.change(name, { target: { value: 'archive_server' } });
     posted.length = 0;
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
