@@ -259,13 +259,39 @@ export interface RunRequest {
    * `run_config`, paths as the environment sees them). Ours is added to them instead of replacing
    * them, so an audit callback an organisation requires keeps running.
    */
-  callbacks?: { enabled: string[]; paths: string[] };
+  callbacks?: RepositoryConfig;
   /**
    * AFD-159: a folder inside runDir for events.jsonl, the only one an image's own user writes to
    * (a scenario run keeps the rest of its folder to its owner).
    */
   eventsDir?: string;
 }
+
+/**
+ * What a run keeps of the repository's Ansible config (the probe's `run_config`, paths as the
+ * environment sees them): the callbacks it enables (AFD-141) and, AFD-291, its module, module_utils
+ * and plugin paths and enabled vars plugins, which the run's own variables would replace.
+ */
+export interface RepositoryConfig {
+  enabled: string[];
+  paths: string[];
+  /** By folder name (`library`, `filter_plugins`, ...): the paths the config gives. */
+  plugins?: Record<string, string[]>;
+  varsEnabled?: string[];
+}
+
+/**
+ * AFD-291: the repository's own folders a playbook next to them would get, and the variable that
+ * sets each. Generated playbooks run from flows/<key>/generated, so a run adds them by hand.
+ */
+const REPO_FOLDERS: [folder: string, variable: string][] = [
+  ['library', 'ANSIBLE_LIBRARY'],
+  ['module_utils', 'ANSIBLE_MODULE_UTILS'],
+  ['action_plugins', 'ANSIBLE_ACTION_PLUGINS'],
+  ['filter_plugins', 'ANSIBLE_FILTER_PLUGINS'],
+  ['lookup_plugins', 'ANSIBLE_LOOKUP_PLUGINS'],
+  ['test_plugins', 'ANSIBLE_TEST_PLUGINS'],
+];
 
 /** Callback names and plugin folders that can go into a comma or colon list as they are. */
 const CALLBACK_NAME = /^[\w.]+$/;
@@ -303,6 +329,21 @@ function runEnv(
   };
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
+  // AFD-291: the repository's library/, module_utils/ and plugin folders, after the ones its config
+  // gives, and its root group_vars/host_vars through our vars plugin. Only when the config is
+  // known: these variables replace its values. Not with the empty config: plugins are code.
+  if (theirs?.plugins) {
+    const list = (paths: string[] | undefined, own: string) =>
+      [...new Set([...(paths ?? []).filter(pluginPath), own])].join(':');
+    for (const [folder, variable] of REPO_FOLDERS)
+      env[variable] = list(theirs.plugins[folder], join(root, folder));
+    env.ANSIBLE_VARS_PLUGINS = list(theirs.plugins.vars_plugins, join(probeDir, 'vars_plugins'));
+    const enabled = (theirs.varsEnabled ?? []).filter((n) => CALLBACK_NAME.test(n));
+    env.ANSIBLE_VARS_ENABLED = [
+      ...new Set([...(enabled.length ? enabled : ['host_group_vars']), 'afd_repo_vars']),
+    ].join(',');
+    env.AFD_REPO_ROOT = root;
+  }
   return env;
 }
 

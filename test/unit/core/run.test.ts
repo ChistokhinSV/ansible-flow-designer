@@ -227,6 +227,54 @@ describe('command lines', () => {
     expect(kept.env.ANSIBLE_CALLBACK_PLUGINS).toBe(
       '/repo/callback_plugins:/usr/share/ansible/plugins/callback:/ext/probe/callback_plugins',
     );
+    // AFD-291: the repository's library/, module_utils/ and plugin folders after its config's, and
+    // our vars plugin for the root's group_vars/host_vars; only when its config is known.
+    expect(kept.env.ANSIBLE_LIBRARY).toBeUndefined();
+    const withPlugins = runProcess(
+      local.ok ? local.env : (undefined as never),
+      { root: '/repo', probe: '/ext/probe' },
+      {
+        playbook: 'g/x.yml',
+        check: false,
+        runDir: '/tmp/r',
+        vault: false,
+        hasConfig: true,
+        callbacks: {
+          enabled: [],
+          paths: [],
+          plugins: { library: ['/repo/modules', '/usr/share/ansible/plugins/modules'] },
+          varsEnabled: ['host_group_vars', 'community.general.something'],
+        },
+      },
+      'n',
+    );
+    expect(withPlugins.env.ANSIBLE_LIBRARY).toBe(
+      '/repo/modules:/usr/share/ansible/plugins/modules:/repo/library',
+    );
+    expect(withPlugins.env.ANSIBLE_MODULE_UTILS).toBe('/repo/module_utils');
+    expect(withPlugins.env.ANSIBLE_FILTER_PLUGINS).toBe('/repo/filter_plugins');
+    expect(withPlugins.env.ANSIBLE_VARS_PLUGINS).toBe('/ext/probe/vars_plugins');
+    expect(withPlugins.env.ANSIBLE_VARS_ENABLED).toBe(
+      'host_group_vars,community.general.something,afd_repo_vars',
+    );
+    expect(withPlugins.env.AFD_REPO_ROOT).toBe('/repo');
+    // With the empty config no repository plugin runs: they are code.
+    const empty = runProcess(
+      local.ok ? local.env : (undefined as never),
+      { root: '/repo', probe: '/ext/probe' },
+      {
+        playbook: 'g/x.yml',
+        check: false,
+        runDir: '/tmp/r',
+        vault: false,
+        hasConfig: true,
+        emptyConfig: true,
+        callbacks: { enabled: [], paths: [], plugins: {}, varsEnabled: [] },
+      },
+      'n',
+    );
+    expect(empty.env.ANSIBLE_LIBRARY).toBeUndefined();
+    expect(empty.env.ANSIBLE_VARS_ENABLED).toBeUndefined();
     expect(splitInputs({ devices: ['a'], enable_secret: 'x', api_key: 'k', count: 2 })).toEqual({
       plain: { devices: ['a'], count: 2 },
       secret: { enable_secret: 'x', api_key: 'k' },

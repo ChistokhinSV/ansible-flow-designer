@@ -31,9 +31,25 @@ def run_config(root: str) -> dict[str, Any]:
     """
     from ansible import constants as C
 
+    def paths(name: str) -> list[str]:
+        return [str(p) for p in (getattr(C, name, None) or [])]
+
     return {
         "callbacks_enabled": [str(c) for c in (C.CALLBACKS_ENABLED or [])],
-        "callback_plugins": [str(p) for p in (C.DEFAULT_CALLBACK_PLUGIN_PATH or [])],
+        "callback_plugins": paths("DEFAULT_CALLBACK_PLUGIN_PATH"),
+        # AFD-291: a run adds the repository's library/, module_utils/ and plugin folders to these
+        # (generated playbooks are not next to them), and our vars plugin for the root's
+        # group_vars/host_vars. The variables it sets replace these values, so they are kept.
+        "plugin_paths": {
+            "library": paths("DEFAULT_MODULE_PATH"),
+            "module_utils": paths("DEFAULT_MODULE_UTILS_PATH"),
+            "action_plugins": paths("DEFAULT_ACTION_PLUGIN_PATH"),
+            "filter_plugins": paths("DEFAULT_FILTER_PLUGIN_PATH"),
+            "lookup_plugins": paths("DEFAULT_LOOKUP_PLUGIN_PATH"),
+            "test_plugins": paths("DEFAULT_TEST_PLUGIN_PATH"),
+            "vars_plugins": paths("DEFAULT_VARS_PLUGIN_PATH"),
+        },
+        "vars_enabled": [str(v) for v in (getattr(C, "VARIABLE_PLUGINS_ENABLED", None) or [])],
     }
 
 

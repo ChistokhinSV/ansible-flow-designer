@@ -12,7 +12,12 @@ import type { GenerateResult } from '../../core/engine/types';
 import { nodeDesigns } from '../../core/flow/semantic';
 import type { FlowDocument } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
-import { type ProcessSpec, runProcess, splitInputs } from '../../core/run/command';
+import {
+  type ProcessSpec,
+  type RepositoryConfig,
+  runProcess,
+  splitInputs,
+} from '../../core/run/command';
 import type { Environment } from '../../core/run/environment';
 import { createSummarizer, type RunSummary, summarizeRun } from '../../core/run/events';
 import { redactLine, redactText, secretValues } from '../../core/run/redact';
@@ -55,7 +60,7 @@ export interface RunFlowRequest {
   inputs: Record<string, unknown>;
   vaultPassword?: string;
   /** The repository's own callbacks, kept running beside the run's (`repositoryCallbacks`). */
-  callbacks?: { enabled: string[]; paths: string[] };
+  callbacks?: RepositoryConfig;
   /** AFD-244: the run is of a part of the flow; its code is in a folder of its own. */
   partial?: RunView['partial'];
   /** AFD-247: paths the SSH copy needs that Git does not list (a partial run's folder). */

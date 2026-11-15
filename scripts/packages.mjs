@@ -103,6 +103,8 @@ export const kind: HostMessage['type'] = 'snapshot';
     copy: [
       { from: 'probe/afd_probe', to: 'probe/afd_probe' },
       { from: 'probe/callback_plugins', to: 'probe/callback_plugins' },
+      // AFD-291: the root's group_vars/host_vars for runs of generated playbooks.
+      { from: 'probe/vars_plugins', to: 'probe/vars_plugins' },
       { from: 'schema', to: 'schema' },
       // AFD-280: the exchanges with Ansible Flow Server both sides replay.
       { from: 'contract', to: 'contract' },
@@ -119,6 +121,7 @@ import { contractDir, probeDir, samplesDir, schemaDir } from '${SCOPE}/assets';
 for (const file of [
   join(probeDir, 'afd_probe', 'serve.py'),
   join(probeDir, 'callback_plugins', 'afd_events.py'),
+  join(probeDir, 'vars_plugins', 'afd_repo_vars.py'),
   join(schemaDir, 'flow.schema.json'),
   join(schemaDir, 'scenarios.schema.json'),
   join(contractDir, 'server-api.json'),

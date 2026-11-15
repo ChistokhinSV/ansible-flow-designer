@@ -5,6 +5,7 @@
 import { outputVar, registerName } from '../flow/dataNames';
 import { resolveFrom } from '../flow/dataRefs';
 import { ROLE_TASK_KEYWORDS, WITH } from '../flow/keywords';
+import { rootedParams } from '../flow/localFiles';
 import type { FlowModel } from '../flow/model';
 import type { ContractType, FlowNode, ImplBinding } from '../flow/types';
 import { jinjaLiteral } from './util';
@@ -85,7 +86,8 @@ export function bindingTask(node: FlowNode, impl: ImplBinding, timeout?: number 
   const condition = until?.trim() || (retries ? `${reg} is succeeded` : undefined);
   return {
     name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
-    [impl.ref]: (impl.params ?? {}) as Out,
+    // AFD-291: a relative file the step reads is the repository's, not generated/'s.
+    [impl.ref]: rootedParams(impl.ref, impl.params ?? {}) as Out,
     ...(Object.fromEntries(keywords) as OutMap),
     register: reg,
     ignore_unreachable: true,

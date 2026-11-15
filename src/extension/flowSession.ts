@@ -50,6 +50,7 @@ import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, type LayoutDirection, layoutLevel, shownLayout } from '../node/autoLayout';
 import { checkBindings } from '../node/catalog/bindingCheck';
+import { repoFileFindings } from '../node/repoFiles';
 import { sharedFindings } from '../node/sharedRefs';
 import { TIMEOUTS } from '../node/timeouts';
 import type { CatalogService } from './catalog/catalogService';
@@ -311,6 +312,8 @@ export class FlowSession implements vscode.Disposable {
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
         // Shared subflows against their sources (AFD-60).
         ...sharedFindings(this.uri.fsPath, parsed.doc, folder?.uri.fsPath),
+        // AFD-291: files steps read from the repository.
+        ...repoFileFindings(parsed.doc, folder?.uri.fsPath),
       ];
       // Problems first, while this text is still the document's: the layout below takes a while,
       // and a later build may finish before it (AFD-38).
