@@ -16,6 +16,7 @@ import { logChannel } from './log';
 import type { RunDeps } from './run/runner';
 import type { ScenarioLive } from './run/scenarioLive';
 import type { ScenarioTests } from './run/testController';
+import { ServerWatch } from './runner/serverWatch';
 import { ShownFlows } from './shownFlows';
 
 export const VIEW_TYPE = 'afd.flowEditor';
@@ -48,6 +49,8 @@ export class Host {
   readonly savedCode = new Map<string, Promise<CodegenOutcome>>();
   /** AFD-92: what the designer last showed of each flow, per workspace. */
   readonly shown: ShownFlows;
+  /** AFD-284: the server's branch, followed for open flows. */
+  readonly server: ServerWatch;
   /** AFD-93: the workspace's flows, for the Flows view, Problems and the flow panel. */
   readonly index: FlowIndex;
   /** AFD-115: the live check of every flow's scenarios (set when the extension activates). */
@@ -71,6 +74,8 @@ export class Host {
       extensionUri: context.extensionUri,
       state: context.workspaceState,
     });
+    this.server = new ServerWatch(context.secrets);
+    context.subscriptions.push(this.server);
     this.deps = {
       extensionUri: context.extensionUri,
       diagnostics: this.diagnostics,
@@ -87,6 +92,8 @@ export class Host {
       run: (uri) => this.runDeps(uri),
       shown: this.shown,
       repo: () => this.index.state(),
+      // AFD-284: the server's branch for flows in a clone of a server project.
+      server: this.server,
       // AFD-116: the live check owns the scenarios file's changes (set when the extension starts).
       scenarios: {
         edit: (flow, doc, request) =>

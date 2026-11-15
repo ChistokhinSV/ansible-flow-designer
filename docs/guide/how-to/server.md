@@ -66,6 +66,23 @@ shows who may decide and why it waits. When the server lets you decide it, its R
 **Approve** and **Reject** with a comment; the decision goes to the server as you, and the run
 goes on. Who may decide is the server's to say ([approvals](approvals.md)).
 
+## When someone changes the flow on the server
+
+A flow open in the designer, in a clone of a server project, follows the server's branch. When
+someone pushes a change to it (through the server, or to the repository the project comes from),
+a note over the canvas says who and how much: "Mia Ortega changed this flow on the server: 3
+steps."
+
+- **Show changes** pulls the server's commits and opens the Changes lens against the version you
+  had.
+- **Update** only pulls.
+- **Dismiss** puts the note away until the branch moves again.
+
+The pull is fast-forward only. With unsaved or uncommitted changes to the flow it does nothing
+and says so: commit them first, then pull and merge (with [flow merging](merging-flows.md) set up,
+git merges flows by their steps). Work you have not pushed yet is not compared. A designer
+opened before the token was set follows the server once you set it.
+
 ## What the server checks first
 
 - That it is an Ansible Flow Server speaking the API this extension speaks (`v1`).

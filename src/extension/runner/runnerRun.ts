@@ -131,7 +131,7 @@ export async function clearRunnerToken(
  * The server's project for the repository: the one whose git address is a remote of it, else
  * afd.runner.project (`<workspace>/<project>`).
  */
-async function projectOf(
+export async function projectOf(
   client: Client,
   folder: vscode.Uri,
 ): Promise<{ id: string; workspace: string; key: string; commit?: string } | undefined> {

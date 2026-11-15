@@ -17,6 +17,7 @@ import type { ScenarioResult } from './scenario/scenarios';
 import type { RepoState } from './view/flowFacts';
 import type { PluginName } from './view/jinjaComplete';
 import type { OutsideMarks } from './view/outsideChanges';
+import type { ServerChange } from './view/serverChange';
 import type { Path } from './yaml/parse';
 
 export interface Snapshot {
@@ -283,6 +284,8 @@ export type HostMessage =
   | { type: 'outsideMarks'; marks: OutsideMarks | null }
   /** AFD-283: a merge of this flow waiting for choices (git left it to the designer); null: none. */
   | { type: 'mergeConflicts'; merge: MergeView | null }
+  /** AFD-284: the flow changed on Ansible Flow Server's branch; null clears it. */
+  | { type: 'serverChange'; change: ServerChange | null }
   /** AFD-93: the workspace's flows at a glance, for the flow panel's line. */
   | { type: 'repoState'; state: RepoState }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
@@ -352,6 +355,10 @@ export type WebviewMessage =
   | { type: 'mergeChoose'; id: string; side: MergeSide }
   /** AFD-283: the waiting merge is done: the file is taken as merged. */
   | { type: 'mergeFinish' }
+  /** AFD-284: Update (pull); with `show`, the Changes lens against the version shown before. */
+  | { type: 'serverUpdate'; show: boolean }
+  /** AFD-284: the server notice put away until the branch moves on. */
+  | { type: 'serverDismiss' }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
@@ -428,6 +435,8 @@ export interface DomSummary {
   banner: number | null;
   /** AFD-19: items the written-by-hand banner says need IDs (null: no banner). */
   idGaps: number | null;
+  /** AFD-284: the server note's words (null: no note). */
+  server?: string | null;
   /** AFD-283: conflicts the Merge note lists (null: no note). */
   merge?: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */

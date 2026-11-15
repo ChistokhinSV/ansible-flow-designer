@@ -32,6 +32,7 @@ import { QuickAdd } from './panels/QuickAdd';
 import { RunPanel, WireRunPanel } from './panels/RunPanel';
 import { ScenariosPanel } from './panels/ScenariosPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
+import { ServerNote } from './panels/ServerNote';
 import { TestedDialog } from './panels/TestedDialog';
 import { Toasts } from './panels/Toasts';
 import { TopBar } from './panels/TopBar';
@@ -79,6 +80,8 @@ function useHost() {
         ui.setOutside(m.marks);
       } else if (m.type === 'mergeConflicts') {
         ui.setMerge(m.merge);
+      } else if (m.type === 'serverChange') {
+        ui.setServerChange(m.change);
       } else if (m.type === 'repoState') {
         ui.setRepo(m.state);
       } else if (m.type === 'config') {
@@ -415,6 +418,7 @@ export function App() {
           <CanvasCaption />
           <OutsideNote />
           <MergeNote />
+          <ServerNote />
           <FlowCanvas />
           <Toasts />
         </main>

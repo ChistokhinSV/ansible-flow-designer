@@ -93,6 +93,30 @@
       }
     },
     {
+      "name": "the flows changed since a commit (AFD-284): none since the one the project is at",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/projects/${project}/changes?from=${commit}",
+        "token": "omar"
+      },
+      "response": {
+        "status": 200,
+        "body": { "from": "${commit}", "to": "${commit}", "flows": [] }
+      }
+    },
+    {
+      "name": "the flows changed since a commit the server does not have (one not pushed yet)",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/projects/${project}/changes?from=0000000000000000000000000000000000000000",
+        "token": "omar"
+      },
+      "response": {
+        "status": 409,
+        "body": { "error": "unknown_commit", "message": "$string" }
+      }
+    },
+    {
       "name": "a project's launch configurations",
       "request": {
         "method": "GET",

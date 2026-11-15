@@ -255,6 +255,8 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
       if (!scope) return;
       const error = await setRunnerToken(scope, host.context.secrets);
       if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
+      // AFD-284: designers open before the token now follow the server.
+      if (!error) host.server.retry();
     }),
     vscode.commands.registerCommand(CMD.runnerClearToken, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);

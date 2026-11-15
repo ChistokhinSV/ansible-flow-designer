@@ -16,6 +16,7 @@ import type { Forced, ScenarioResult } from '../core/scenario/scenarios';
 import { scenarioRun } from '../core/scenario/view';
 import type { RepoState } from '../core/view/flowFacts';
 import { markedAround, type OutsideMarks } from '../core/view/outsideChanges';
+import type { ServerChange } from '../core/view/serverChange';
 import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
 export interface QuickAddState {
@@ -238,6 +239,8 @@ interface UiState {
   outsideAround: Ulid[];
   /** AFD-283: a merge of this flow waiting for choices. */
   merge: MergeView | null;
+  /** AFD-284: the flow changed on Ansible Flow Server's branch. */
+  serverChange: ServerChange | null;
   /** AFD-93: the workspace's flows at a glance (the host's index). */
   repo: RepoState | null;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
@@ -329,6 +332,7 @@ interface UiState {
   setHostPick(p: HostPick | null): void;
   setOutside(marks: OutsideMarks | null): void;
   setMerge(merge: MergeView | null): void;
+  setServerChange(change: ServerChange | null): void;
   setRepo(state: RepoState | null): void;
   /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
   showScenario(name: string | null): void;
@@ -432,6 +436,7 @@ export const useUi = create<UiState>((set, get) => ({
   runBeforeScenario: null,
   outside: null,
   merge: null,
+  serverChange: null,
   outsideAround: [],
   repo: null,
   runNodes: null,
@@ -599,6 +604,9 @@ export const useUi = create<UiState>((set, get) => ({
   setRepo: (repo) => set({ repo }),
   setMerge(merge) {
     set({ merge });
+  },
+  setServerChange(serverChange) {
+    set({ serverChange });
   },
   setOutside(outside) {
     const doc = get().snapshot?.doc;

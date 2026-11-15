@@ -4,6 +4,10 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- **When someone changes the flow on the server:** a flow open in the designer, in a clone of an Ansible Flow Server project, follows the server's branch. A note over the canvas says who changed the flow there and how much, with **Show changes** (pull, then the Changes lens against the version you had), **Update** (pull) and **Dismiss**. The pull is fast-forward only and does nothing while the flow has changes you have not committed. See [Ansible Flow Server](docs/guide/how-to/server.md#when-someone-changes-the-flow-on-the-server).
+
 ### Fixed
 
 - A fact set by an earlier `set_fact` step could not be found as a value: the **@** list did not offer it, the warning on the step reading it did not say where it comes from, and the Data lens showed nothing. Now the **@** list offers it ("fact set by Save var"), the warning names the step with a quick fix **Use … as an Input**, the Data lens draws the read as "(not declared)" with the same fix, and a step's Inputs have **Add from…** with everything that reaches the step. Each makes the fact an output of the step that sets it and an input of the step that reads it. See [Data between steps](docs/guide/how-to/data-between-steps.md).

@@ -55,6 +55,8 @@ export function messageProblem(m: unknown): string | undefined {
       return isMap(m.request) ? undefined : 'scenarioEdit: bad request';
     case 'runScenarios':
       return strList(m.names) ? undefined : 'runScenarios: bad names';
+    case 'serverUpdate':
+      return typeof m.show === 'boolean' ? undefined : 'serverUpdate: bad show';
     case 'mergeChoose':
       return str(m.id, 500) && (m.side === 'ours' || m.side === 'theirs')
         ? undefined
