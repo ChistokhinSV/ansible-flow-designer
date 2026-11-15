@@ -515,19 +515,22 @@ function ApprovalFields({
   return (
     <>
       <CommitField
-        label="Approvers · users or groups who may decide (commas between); empty: whoever the runner lets approve"
+        label="Approvers"
+        help="Users or groups who may decide, commas between. Empty: whoever the runner lets approve."
         value={(fields.approvers ?? []).join(', ')}
         placeholder="change-board, dana"
         onCommit={(v) => set({ approvers: namesOf(v) })}
       />
       <CommitField
-        label="Notify · users or groups told it waits, beside the approvers"
+        label="Notify"
+        help="Users or groups told that it waits, besides the approvers."
         value={(fields.notify ?? []).join(', ')}
         placeholder="netops-oncall"
         onCommit={(v) => set({ notify: namesOf(v) })}
       />
       <CommitField
-        label="Message · what the approvers check before deciding"
+        label="Message"
+        help="What the approvers check before deciding."
         value={fields.message ?? ''}
         multiline
         placeholder="Check the change ticket and the maintenance window"
