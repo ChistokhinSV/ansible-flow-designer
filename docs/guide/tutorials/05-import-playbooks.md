@@ -82,7 +82,7 @@ Double-click **Push the baseline**, select **Configure the uplinks**, and open i
 gear).
 
 - **Binding:** the module `ansible.builtin.copy` with the task's parameters, unchanged.
-- **Inputs and outputs:** `uplinks` comes from `load-baseline-yml.uplinks`, the step that loaded it.
+- **Data:** `uplinks` comes from `load-baseline-yml.uplinks`, the step that loaded it.
 - **Execution:** **Task keywords** holds `loop: "{{ uplinks }}"`: the task keywords the flow has no
   field for, written on the generated task as they are.
 
@@ -150,7 +150,7 @@ Review it as you would a colleague's change:
   - roles become steps (a split role, a subflow);
   - handlers become steps that run when something changed;
   - variables travel through inputs and outputs.
-- **Task keywords** (`when`, `loop`, `check_mode`, …) stay on the step, on the Execution tab.
+- **Task keywords** (`when`, `loop`, `check_mode`, …) stay on the step, on the Behavior tab (How it runs).
 - **Unhandled failures stay open** on the banner, and secrets come in by name only.
 
 Next: [import playbooks and AWX templates](../how-to/import.md) for every mapping and for AWX, and

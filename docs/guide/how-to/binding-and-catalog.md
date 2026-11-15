@@ -69,13 +69,13 @@ A form from the argument spec: choices, booleans, one line per list item, YAML f
   and deprecation.
 - **Generated task** shows the task exactly as the playbook will run it.
 
-The binding is staged: while it differs from the file, a bar at the top of the Details says so,
-with **Discard** and **Save Binding**. Saving writes the binding, the inputs and outputs it added,
-and the status `implemented` in one undo step. Renaming an input later rewrites the parameters that
-read it. Leaving an unsaved binding asks whether to keep editing, discard it or save it. Leaving
-means Esc, another node, another level or mode, hiding the side panel, or the lens tab. Turning a
-lens on keeps the Details open while a binding is unsaved. Esc in a field only reverts that field. Every other field of the
-Details saves as you leave it.
+The binding saves as you go, like every other field: picking a module, role or playbook binds the
+step, and a parameter, the register name or an exposed result is written a moment after you change
+it, with the inputs and outputs it added and the status `implemented`, in one undo step (Ctrl+Z
+takes it back). Leaving the step right after a change saves it first. Switching between Module,
+Role and Playbook without picking one changes nothing. An optional parameter has × to take it away
+again. Renaming an input later rewrites the parameters that read it. Esc in a field only reverts
+that field.
 
 While the flow file has YAML errors or missing IDs, the Details are read-only; fix the text first (**Open in Text Editor**).
 
@@ -116,7 +116,7 @@ Inside `{{ }}`, `{% %}`, or a field that is a test without braces, a list opens 
 
 ## Task keywords
 
-The **Execution** tab has a fold of its own, **Task keywords**: a YAML map written on the generated
+The **Behavior** tab's **How it runs** part has a fold of its own, **Task keywords**: a YAML map written on the generated
 task as is, for what a playbook task would say. Examples: `when`, `loop` (or `with_items`),
 `ignore_errors`, `changed_when`, `failed_when`, `delegate_to`, `run_once`, `no_log`,
 `become_user`, `environment`. Imported playbooks keep their tasks' keywords here.

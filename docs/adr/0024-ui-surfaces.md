@@ -288,3 +288,20 @@ completed as a test, saving as CommitField saves (Enter, leaving; Escape takes t
 with a variable picked that is not an input yet saved in the same edit. Until's suggestions became
 completion items: the step's result with its documented fields. The Task keywords box completes
 with the node's variables and its own result.
+
+## Amendment: four tabs, a quieter header, inputs as rows, the binding saves as you go (AFD-296 to AFD-299, 2026-11-15)
+
+The pane had grown busy (product owner, 2026-11-15). A step's Details now have four tabs: **Step**
+(title, what it does, status; key and ID under More), **Binding**, **Data** (inputs and outputs)
+and **Behavior** (ports, the optional ones under More ports; failure purpose and handlers; How it
+runs: the former Execution tab). `PropTab` keeps `ports` and `execution` as ids: `execution` opens
+Behavior at How it runs, so links into a tab keep working. The header shows the type and status,
+Peek Code, Help and a ⋯ menu (Open in Text Editor, Copy, Widen, Delete); a node's problems are
+one line that opens to the list (open by itself when one is an error). Labels are short with the
+explanation as help under the field. Contracts (run inputs, a step's inputs and outputs) are
+compact rows that open a form with labelled fields and Remove; Add opens the same form.
+
+The staged binding (Discard / Save Binding, the leave dialog) is gone: the binding is written a
+moment after the last change as one `setBinding` (one undo step), leaving the step saves it first,
+and browsing another kind with nothing chosen never unbinds. The `pendingBinding` hold on
+selection, level and mode changes stays, so a change in flight is never dropped.

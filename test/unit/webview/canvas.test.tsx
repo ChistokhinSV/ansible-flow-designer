@@ -560,6 +560,8 @@ describe('notify links (AFD-292)', () => {
     const { doc, first, last } = withNotify();
     act(() => useUi.setState({ mode: 'design', level: 'root' }));
     show(snapshotOf(doc));
+    // AFD-297: handlers are on the Behavior tab.
+    act(() => useUi.setState({ detailsTab: 'ports' }));
     const { unmount } = render(<Details id={last.id} />);
     posted.length = 0;
     fireEvent.click(screen.getByLabelText(/Runs when notified/));
@@ -570,6 +572,6 @@ describe('notify links (AFD-292)', () => {
     });
     unmount();
     render(<Details id={first.id} />);
-    expect(screen.getByText(`Handlers here: ${last.key}, baseline changed`)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`Here: ${last.key}, baseline changed`))).toBeTruthy();
   });
 });

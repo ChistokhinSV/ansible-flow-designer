@@ -74,7 +74,7 @@ flow input of that name.
   the host, wins over them, and an extra var wins over both. Give inputs names that no step sets
   as a fact, so `from:` decides what the step reads.
 
-![Inputs and outputs of a step inside a subflow](../images/properties-io-light.png)
+![The Data tab of a step inside a subflow](../images/properties-io-light.png)
 
 ## Across subflow boundaries
 

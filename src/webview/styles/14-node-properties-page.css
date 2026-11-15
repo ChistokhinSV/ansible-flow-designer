@@ -820,3 +820,84 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* AFD-296: an optional parameter's name with its Remove button. */
+.afd-param-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+/* AFD-297: the step's less used actions behind one button. */
+.afd-more {
+  position: relative;
+}
+
+.afd-more-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--vscode-menu-background, var(--afd-bg));
+  color: var(--vscode-menu-foreground, inherit);
+  border: 1px solid var(--vscode-menu-border, var(--afd-border));
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.25));
+}
+
+.afd-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--afd-fs-12);
+  text-align: left;
+  cursor: pointer;
+}
+
+.afd-more-menu button:hover:not(:disabled),
+.afd-more-menu button:focus-visible {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, inherit);
+}
+
+.afd-more-menu button.danger {
+  color: var(--vscode-errorForeground, var(--afd-failed));
+}
+
+/* AFD-297: a step's problems as one line that opens to the list. */
+.afd-node-problems-box > summary {
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: var(--afd-fs-12);
+  list-style-position: inside;
+}
+
+.afd-node-problems-box > summary.error .codicon {
+  color: var(--afd-failed);
+}
+
+.afd-node-problems-box > summary.warning .codicon {
+  color: var(--afd-unreachable);
+}
+
+/* AFD-297: the Behavior tab's parts. */
+.afd-details-page > .afd-section + .afd-section {
+  margin-top: 12px;
+}
+
+/* AFD-297: a checkbox with its help under it. */
+.afd-details-page .afd-field.afd-check {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}

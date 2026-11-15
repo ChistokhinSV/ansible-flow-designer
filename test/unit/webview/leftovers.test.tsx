@@ -126,7 +126,8 @@ describe('round 2 leftovers (AFD-96)', () => {
     show(OS);
     const step = idOf(OS, 'upgrade-os');
     render(<Details id={step} />);
-    expect(document.querySelector('[data-select-hint]')).toBeTruthy();
+    // AFD-297: the hint is in Help now, not under every step.
+    expect(document.querySelector('[data-select-hint]')).toBeNull();
     const tabs = document.querySelector('[role="tablist"]') as HTMLElement;
     const panel = document.querySelector('[role="tabpanel"]') as HTMLElement;
     expect(tabs.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

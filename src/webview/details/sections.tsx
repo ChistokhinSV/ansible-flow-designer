@@ -1,7 +1,7 @@
 // The sections of a node's Details (AFD-43): General (identity, lifecycle, what the type adds, the
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
-import { useId, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { type RefChoice, refChoices, resultFields } from '../../core/catalog/draft';
 import { registerName } from '../../core/flow/dataNames';
 import { acceptedAll } from '../../core/flow/decisions';
@@ -132,17 +132,9 @@ export function GeneralSection({
         onCommit={(v) => patch({ title: v })}
         validate={(v) => (v.trim() ? undefined : 'Required')}
       />
-      <CommitField
-        label="Key"
-        value={node.key}
-        mono
-        problem={fieldProblem(problems, 'key')}
-        onCommit={(v) => patch({ key: v })}
-        validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
-      />
       {designable ? (
         <CommitField
-          label="Intent"
+          label="What it does"
           value={node.intent ?? ''}
           multiline
           onCommit={(v) => patch({ intent: v.trim() ? v : null })}
@@ -171,8 +163,25 @@ export function GeneralSection({
           </button>
         </section>
       ) : null}
-      {/* AFD-72: the ID matters to tools and hand-written YAML, not to a first flow. */}
-      <Fold id="node-details" summary="More details: the ID">
+      {/* AFD-72: the ID matters to tools and hand-written YAML, not to a first flow; AFD-297: the
+        key joins it (code reads it; a person names the step by its title). */}
+      <Fold
+        id="node-details"
+        open={!!fieldProblem(problems, 'key')}
+        summary={
+          <>
+            More: key <span className="mono">{node.key}</span> and ID
+          </>
+        }
+      >
+        <CommitField
+          label="Key"
+          value={node.key}
+          mono
+          problem={fieldProblem(problems, 'key')}
+          onCommit={(v) => patch({ key: v })}
+          validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
+        />
         <ReadOnly label="ID (fixed)" value={node.id} mono />
       </Fold>
       <LastRun id={node.id} />
@@ -384,6 +393,23 @@ export function TypeFields({
       );
     case 'approval':
       return <ApprovalFields node={node} patch={patch} />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * AFD-297: what a step does about failures and changes, on the Behavior tab: its purpose when it
+ * handles failures, and handlers (notify, runs when notified, listens to).
+ */
+export function HandlingFields({
+  node,
+  patch,
+}: {
+  node: FlowNode;
+  patch(p: Record<string, unknown>): void;
+}) {
+  switch (node.type) {
     case 'task':
     case 'subflow':
       return (
@@ -434,16 +460,12 @@ function NotifyFields({
   return (
     <>
       <CommitField
-        label="Notifies · handlers (their keys) or topics, commas between; they run on the hosts this step changed"
+        label="Notifies"
+        help={`Handlers (their keys) or topics, commas between: they run on the hosts this step changed.${names.length ? ` Here: ${names.join(', ')}.` : ''}`}
         value={(node.notify ?? []).join(', ')}
         placeholder={names.length ? names.slice(0, 3).join(', ') : 'restart-web'}
         onCommit={(v) => patch({ notify: namesOf(v) })}
       />
-      {names.length ? (
-        <p className="muted" data-notify-names>
-          Handlers here: {names.join(', ')}
-        </p>
-      ) : null}
       <div className="afd-field afd-check">
         <label>
           <input
@@ -451,12 +473,16 @@ function NotifyFields({
             checked={!!node.notified}
             onChange={(e) => patch({ notified: e.target.checked ? (node.notified ?? {}) : null })}
           />{' '}
-          Runs when notified · only for hosts a step notifying it changed
+          Runs when notified
         </label>
+        <span className="afd-help">
+          A handler: it runs only for the hosts a notifying step changed.
+        </span>
       </div>
       {node.notified ? (
         <CommitField
-          label="Listens to · topics, commas between (beside its key)"
+          label="Listens to"
+          help="Topics it answers to besides its key, commas between."
           value={(node.notified.listen ?? []).join(', ')}
           placeholder="web settings changed"
           onCommit={(v) => patch({ notified: { listen: namesOf(v) } })}
@@ -592,25 +618,33 @@ export function PortsSection({ id }: { id: string }) {
   const view = levelView(snapshot, {}, entry.level).nodes.find((n) => n.node.id === id);
   const edges = model.levels.get(entry.level)?.edges ?? [];
   const decisions = snapshot.doc.decisions ?? [];
+  const row = (p: PortView) => (
+    <PortRow
+      key={p.name}
+      model={model}
+      node={id}
+      port={p}
+      target={
+        model.nodes.get(
+          edges.find((e) => e?.from?.node === id && e.from.port === p.name)?.to.node ?? '',
+        )?.node.title ?? ''
+      }
+      reason={decisions.find((d) => d?.node === id && d.port === p.name)?.reason}
+    />
+  );
+  // AFD-297: the ports a step has; the optional ones it could have wait behind a fold.
+  const ports = view?.ports ?? [];
+  const more = ports.filter((p) => p.state === 'available');
   return (
-    <div className="afd-details-page">
-      <ul className="afd-ports">
-        {view?.ports.map((p) => (
-          <PortRow
-            key={p.name}
-            model={model}
-            node={id}
-            port={p}
-            target={
-              model.nodes.get(
-                edges.find((e) => e?.from?.node === id && e.from.port === p.name)?.to.node ?? '',
-              )?.node.title ?? ''
-            }
-            reason={decisions.find((d) => d?.node === id && d.port === p.name)?.reason}
-          />
-        ))}
-      </ul>
-    </div>
+    <section className="afd-section" data-section="ports">
+      <h3>Ports</h3>
+      <ul className="afd-ports">{ports.filter((p) => p.state !== 'available').map(row)}</ul>
+      {more.length ? (
+        <Fold id="ports-more" summary={`More ports: ${more.map((p) => p.name).join(', ')}`}>
+          <ul className="afd-ports">{more.map(row)}</ul>
+        </Fold>
+      ) : null}
+    </section>
   );
 }
 
@@ -985,5 +1019,42 @@ function TaskKeywords({ node }: { node: FlowNode }) {
         )}
       </Fold>
     </section>
+  );
+}
+
+/** AFD-297: the Behavior tab: ports, failure handling and handlers, then how the step runs. */
+export function BehaviorSection({
+  node,
+  problems = [],
+  at,
+}: {
+  node: FlowNode;
+  problems?: readonly NodeProblem[];
+  /** Opened from a link to the execution settings: scrolled there. */
+  at?: 'execution';
+}) {
+  const patch = (p: Record<string, unknown>) => void updatePatch(node.id, p);
+  const designable = node.type !== 'start' && node.type !== 'end';
+  const handled = node.type === 'task' || node.type === 'subflow';
+  useEffect(() => {
+    if (at === 'execution')
+      document.querySelector('[data-section="execution"]')?.scrollIntoView?.({ block: 'start' });
+  }, [at]);
+  return (
+    <div className="afd-details-page">
+      <PortsSection id={node.id} />
+      {handled ? (
+        <section className="afd-section" data-section="handling">
+          <h3>Failures and handlers</h3>
+          <HandlingFields node={node} patch={patch} />
+        </section>
+      ) : null}
+      {designable ? (
+        <section className="afd-section" data-section="execution">
+          <h3>How it runs</h3>
+          <ExecutionSection node={node} problems={problems} />
+        </section>
+      ) : null}
+    </div>
   );
 }

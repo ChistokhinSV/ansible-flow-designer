@@ -59,7 +59,6 @@
   font-weight: 600;
 }
 
-.afd-contract li,
 .afd-ports li {
   display: flex;
   align-items: center;
@@ -68,40 +67,108 @@
   font-size: var(--afd-fs-12);
 }
 
-.afd-contract select {
-  width: auto;
+/* AFD-298: a contract as compact rows; a row opens its form in place. */
+.afd-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.afd-contract li {
+  border-bottom: 1px solid var(--afd-border);
+}
+
+.afd-contract li.open {
+  border: 1px solid var(--vscode-focusBorder, var(--afd-accent));
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.afd-contract-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--afd-fs-12);
+  text-align: left;
+  cursor: pointer;
+}
+
+.afd-contract-row:hover {
+  background: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.1));
 }
 
 .afd-contract-name {
-  min-width: 80px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.afd-contract-from {
+.afd-contract-from,
+.afd-contract-meta {
   font-size: var(--afd-fs-11);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.afd-contract li button.icon {
+.afd-contract-meta {
   margin-left: auto;
 }
 
-/* AFD-95: an input's description, a line of its own under its row. */
-.afd-contract li {
-  flex-wrap: wrap;
+.afd-contract-row > .codicon:last-child {
+  margin-left: auto;
+  flex: none;
 }
 
-.afd-contract-description {
-  flex-basis: 100%;
+.afd-contract-meta + .codicon {
+  margin-left: 0;
+}
+
+.afd-chip.accent {
+  color: var(--vscode-textLink-foreground, var(--afd-accent));
+  border-color: currentColor;
+}
+
+.afd-contract-form {
+  padding: 6px 8px 8px;
+}
+
+.afd-contract-new {
+  border: 1px solid var(--vscode-focusBorder, var(--afd-accent));
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.afd-contract-form .afd-field {
+  margin-bottom: 6px;
+}
+
+.afd-contract-form .afd-help,
+.afd-section-head + .afd-help {
+  font-size: var(--afd-fs-11);
+  color: var(--afd-muted);
+}
+
+.afd-value {
   font-size: var(--afd-fs-12);
 }
 
-/* AFD-106: an input's default, a line of its own under its description. */
-.afd-contract-default {
-  flex-basis: 100%;
-  font-size: var(--afd-fs-12);
+.afd-form-actions {
+  display: flex;
+  gap: 6px;
 }
 
-.afd-contract li > .afd-field-error {
-  flex-basis: 100%;
+button.link.danger {
+  color: var(--vscode-errorForeground, var(--afd-failed));
 }
 
 .afd-ports li {
@@ -166,4 +233,15 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--afd-space-2);
+}
+
+.afd-contract-form .afd-field.afd-check {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.afd-contract-form .afd-check label {
+  font-size: var(--afd-fs-12);
+  color: inherit;
 }

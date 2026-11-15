@@ -5,7 +5,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { formatOf } from '../../core/flow/format';
-import type { FlowModel } from '../../core/flow/model';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems } from '../../core/view/nodeProblems';
 import { run } from '../actions';
@@ -14,28 +13,32 @@ import { StatusIcon } from '../canvas/StatusIcon';
 import { copySelection } from '../clipboard';
 import { TYPE_LABEL } from '../constants';
 import { deleteSelection, useEditable } from '../editActions';
-import { onTabListKeys, useDialogFocus } from '../focus';
+import { onTabListKeys } from '../focus';
 import type { HelpTopic } from '../helpPages';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
-import { SelectHint } from '../panels/FlowDescription';
 import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
 import { keysOf } from '../shortcuts';
 import { type Mode, type PropTab, useUi } from '../store';
-import { ExecutionSection, GeneralSection, IoSection, PortsSection } from './sections';
+import { BehaviorSection, GeneralSection, IoSection } from './sections';
 
+// AFD-297: four tabs for a step: Step, Binding, Data, Behavior. Ports and Execution are one tab
+// (`ports`); asking for `execution` opens it at that section.
 const LABEL: Record<PropTab, string> = {
   code: 'Code',
   run: 'Run',
-  general: 'General',
+  general: 'Step',
   binding: 'Binding',
-  io: 'Inputs and outputs',
-  ports: 'Ports',
-  execution: 'Execution',
+  io: 'Data',
+  ports: 'Behavior',
+  execution: 'Behavior',
 };
+
+/** The tab a request names: Execution lives in Behavior now. */
+const tabOf = (t: PropTab): PropTab => (t === 'execution' ? 'ports' : t);
 
 /** The tabs a node has in a mode: the mode's own first, then the design ones it supports. */
 export function detailsTabs(node: FlowNode, mode: Mode): PropTab[] {
@@ -45,7 +48,6 @@ export function detailsTabs(node: FlowNode, mode: Mode): PropTab[] {
   if (bindable) design.push('binding');
   if (designable) design.push('io');
   design.push('ports');
-  if (designable) design.push('execution');
   if (mode === 'code') return ['code', ...design];
   if (mode === 'run') return ['run', ...design];
   return design;
@@ -61,6 +63,9 @@ const TAB_HELP: Record<PropTab, HelpTopic> = {
   ports: 'patterns',
   execution: 'execution',
 };
+
+/** AFD-299: a binding change is saved this long after the last one. */
+const SAVE_AFTER_MS = 700;
 
 export function Details({ id, context }: { id: string; context?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
@@ -79,17 +84,17 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const [draft, setDraft] = useState(() =>
     node ? { ...draftOf(node), ...(bindKind && !node.impl ? { kind: bindKind } : {}) } : undefined,
   );
-  const [saving, setSaving] = useState(false);
   // After a save the document is the truth again: restage from the first snapshot past the save
-  // (the ack can arrive before it).
+  // (the ack can arrive before it), unless the binding was changed again meanwhile.
   const version = snapshot?.docVersion ?? 0;
   const [restageAfter, setRestageAfter] = useState<number | null>(null);
+  const savedDraft = useRef<string | null>(null);
   useEffect(() => {
     if (restageAfter !== null && version > restageAfter && node) {
-      setDraft(draftOf(node));
+      if (JSON.stringify(draft) === savedDraft.current) setDraft(draftOf(node));
       setRestageAfter(null);
     }
-  }, [restageAfter, version, node]);
+  }, [restageAfter, version, node, draft]);
   // Quick Add selects a new step on the ack, which can come before the snapshot that has it.
   useEffect(() => {
     if (node && !draft) setDraft(draftOf(node));
@@ -107,29 +112,52 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
     },
     [id],
   );
+  // AFD-299: the binding saves as it is changed, as every other field does: a moment after the
+  // last change (a value typed is one undo step, not one per key). Browsing another kind with
+  // nothing chosen is not a change to save: it never unbinds the step.
+  const latest = useRef({ node, draft });
+  latest.current = { node, draft };
+  const save = async (): Promise<boolean> => {
+    const { node: n, draft: d } = latest.current;
+    if (!n || !d) return true;
+    const before = version;
+    savedDraft.current = JSON.stringify(d);
+    const ack = await run(bindingCommand(n, d));
+    if (ack.ok) setRestageAfter(before);
+    return ack.ok;
+  };
+  const savable = dirty && !!draft?.ref.trim();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each change of the draft restarts the wait
+  useEffect(() => {
+    if (!savable) return;
+    const t = setTimeout(() => void save(), SAVE_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [savable, draft]);
+  // Leaving the step (another selection, level or mode): what is left is saved first.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per leave asked
+  useEffect(() => {
+    if (!leave || !dirty) return;
+    if (!savable) {
+      if (node) setDraft(draftOf(node));
+      useUi.getState().resolveLeave('go');
+      return;
+    }
+    void save().then((ok) => useUi.getState().resolveLeave(ok ? 'go' : 'stay'));
+  }, [leave]);
 
   if (!snapshot?.doc || !model || !entry || !node || !draft) return null;
   const tabs = detailsTabs(node, mode);
-  const tab = tabs.includes(wanted) ? wanted : (tabs[0] as PropTab);
+  const tab = tabs.includes(tabOf(wanted)) ? tabOf(wanted) : (tabs[0] as PropTab);
   const play = snapshot.plays?.[id];
   // AFD-44: the node's problems at the top, each opening its tab; fields show theirs inline.
   const problems = nodeProblems(snapshot.findings, id, entry.path);
   // Accepting a problem is a format 2 decision (AFD-51); open ports have their own (Accept with
   // Reason… on the port).
   const canAccept = editable && !!snapshot.doc && formatOf(snapshot.doc) >= 2;
-  const tabsWithProblems = new Set<string>(problems.map((p) => p.tab));
+  const tabsWithProblems = new Set<string>(problems.map((p) => tabOf(p.tab)));
+  const errors = problems.filter((p) => p.finding.severity === 'error').length;
   // Design edits everything; Code mode only the binding (AFD-45); Run mode reads.
   const readOnly = !editable || mode === 'run' || (mode === 'code' && tab !== 'binding');
-
-  const save = async (): Promise<boolean> => {
-    setSaving(true);
-    const before = version;
-    const ack = await run(bindingCommand(node, draft));
-    setSaving(false);
-    if (ack.ok) setRestageAfter(before);
-    return ack.ok;
-  };
-  const discard = () => setDraft(draftOf(node));
 
   return (
     <div className="afd-details" data-details={id} data-inspector={id}>
@@ -152,7 +180,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             {TYPE_LABEL[node.type]} · {node.status ?? 'draft'}
           </span>
           <div className="afd-details-actions">
-            <HelpLink topic={TAB_HELP[tab]} about={`the ${LABEL[tab]} tab`} />
             {play ? (
               <button
                 type="button"
@@ -164,108 +191,98 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
                 <span className="codicon codicon-code" aria-hidden="true" />
               </button>
             ) : null}
-            <button
-              type="button"
-              className="icon"
-              title="Open in Text Editor"
-              aria-label="Open in Text Editor"
-              onClick={() => send({ type: 'openText', path: entry.path })}
-            >
-              <span className="codicon codicon-go-to-file" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="icon"
-              title={`Copy (${keysOf('copy')}): paste on a flow (${keysOf('paste')}) or in a text file`}
-              aria-label="Copy node"
-              onClick={() => copySelection()}
-            >
-              <span className="codicon codicon-copy" aria-hidden="true" />
-            </button>
-            {mode !== 'run' ? (
-              <button
-                type="button"
-                className="icon"
-                title="Delete node"
-                aria-label="Delete node"
-                disabled={!editable}
-                onClick={() => void deleteSelection([id])}
-              >
-                <span className="codicon codicon-trash" aria-hidden="true" />
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="icon"
-              title={expanded ? 'Narrow the panel again' : 'Widen the panel (for the catalog docs)'}
-              aria-label={expanded ? 'Collapse the panel' : 'Expand the panel'}
-              aria-pressed={expanded}
-              onClick={() => useUi.getState().setExpanded(!expanded)}
-            >
-              <span
-                className={`codicon codicon-${expanded ? 'screen-normal' : 'screen-full'}`}
-                aria-hidden="true"
-              />
-            </button>
+            <HelpLink topic={TAB_HELP[tab]} about={`the ${LABEL[tab]} tab`} />
+            <MoreActions
+              items={[
+                {
+                  label: 'Open in Text Editor',
+                  icon: 'go-to-file',
+                  run: () => send({ type: 'openText', path: entry.path }),
+                },
+                {
+                  label: 'Copy node',
+                  text: `Copy (${keysOf('copy')})`,
+                  icon: 'copy',
+                  run: () => copySelection(),
+                },
+                {
+                  label: expanded ? 'Collapse the panel' : 'Expand the panel',
+                  text: expanded ? 'Narrow the panel' : 'Widen the panel',
+                  icon: expanded ? 'screen-normal' : 'screen-full',
+                  run: () => useUi.getState().setExpanded(!expanded),
+                },
+                ...(mode !== 'run'
+                  ? [
+                      {
+                        label: 'Delete node',
+                        text: 'Delete',
+                        icon: 'trash',
+                        danger: true,
+                        disabled: !editable,
+                        run: () => void deleteSelection([id]),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </div>
         </div>
       </header>
-      {dirty ? (
-        <div className="afd-pending" role="status" data-pending-binding={id}>
-          <span>The binding is not saved.</span>
-          <button type="button" className="secondary" onClick={discard}>
-            Discard
-          </button>
-          <button type="button" disabled={saving} onClick={() => void save()} data-save-binding>
-            Save Binding
-          </button>
-        </div>
-      ) : null}
       {problems.length > 0 ? (
-        <ul
-          className="afd-node-problems"
-          aria-label="Problems of this node"
-          data-node-problems={id}
-        >
-          {problems.map((p) => (
-            <li key={`${p.finding.code}|${p.finding.path.join('.')}|${p.finding.port ?? ''}`}>
-              <button
-                type="button"
-                className="link"
-                onClick={() => tabs.includes(p.tab) && setTab(p.tab)}
-              >
-                <span
-                  className={`codicon codicon-${p.finding.severity === 'error' ? 'error' : 'warning'}`}
-                  role="img"
-                  aria-label={p.finding.severity}
-                />{' '}
-                {p.finding.message}
-              </button>
-              {canAccept &&
-              p.finding.severity === 'warning' &&
-              p.finding.code !== 'open-fail-port' ? (
+        // AFD-297: one line that says how many, open by itself only when one is an error.
+        <details className="afd-node-problems-box" open={errors > 0}>
+          <summary className={errors ? 'error' : 'warning'}>
+            <span
+              className={`codicon codicon-${errors ? 'error' : 'warning'}`}
+              aria-hidden="true"
+            />{' '}
+            {problems.length === 1 ? '1 thing to look at' : `${problems.length} things to look at`}
+          </summary>
+          <ul
+            className="afd-node-problems"
+            aria-label="Problems of this node"
+            data-node-problems={id}
+          >
+            {problems.map((p) => (
+              <li key={`${p.finding.code}|${p.finding.path.join('.')}|${p.finding.port ?? ''}`}>
                 <button
                   type="button"
-                  className="link afd-accept-problem"
-                  title="Keep it as it is, with a reason"
-                  onClick={() =>
-                    useUi.getState().setAccept({
-                      id: `${p.finding.code}|${p.finding.subject ?? ''}`,
-                      node: id,
-                      title: p.finding.message,
-                      check: {
-                        code: p.finding.code,
-                        ...(p.finding.subject ? { subject: p.finding.subject } : {}),
-                      },
-                    })
-                  }
+                  className="link"
+                  onClick={() => tabs.includes(tabOf(p.tab)) && setTab(p.tab)}
                 >
-                  Accept…
+                  <span
+                    className={`codicon codicon-${p.finding.severity === 'error' ? 'error' : 'warning'}`}
+                    role="img"
+                    aria-label={p.finding.severity}
+                  />{' '}
+                  {p.finding.message}
                 </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+                {canAccept &&
+                p.finding.severity === 'warning' &&
+                p.finding.code !== 'open-fail-port' ? (
+                  <button
+                    type="button"
+                    className="link afd-accept-problem"
+                    title="Keep it as it is, with a reason"
+                    onClick={() =>
+                      useUi.getState().setAccept({
+                        id: `${p.finding.code}|${p.finding.subject ?? ''}`,
+                        node: id,
+                        title: p.finding.message,
+                        check: {
+                          code: p.finding.code,
+                          ...(p.finding.subject ? { subject: p.finding.subject } : {}),
+                        },
+                      })
+                    }
+                  >
+                    Accept…
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
       <div className="afd-props-tabs" role="tablist" aria-label="Details" onKeyDown={onTabListKeys}>
         {tabs.map((t) => (
@@ -282,7 +299,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             onClick={() => setTab(t)}
           >
             {LABEL[t]}
-            {t === 'binding' && dirty ? <span className="afd-dirty" title="Not saved" /> : null}
             {tabsWithProblems.has(t) ? (
               <span className="afd-tab-problem" title="Has problems" />
             ) : null}
@@ -309,94 +325,88 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             ) : tab === 'io' ? (
               <IoSection node={node} />
             ) : tab === 'ports' ? (
-              <PortsSection id={id} />
-            ) : tab === 'execution' ? (
-              <ExecutionSection node={node} problems={problems} />
+              <BehaviorSection
+                node={node}
+                problems={problems}
+                at={wanted === 'execution' ? 'execution' : undefined}
+              />
             ) : (
               <GeneralSection node={node} context={context} problems={problems} />
             )}
           </fieldset>
         )}
       </div>
-      {/* AFD-96 (X3): how to pick more steps, said where one is picked (AFD-88 said it only
-        with nothing selected). */}
-      {mode === 'design' && model && stepsBeside(model, id) >= 3 ? (
-        // Round 3 (R13): with the page's own gutter, like the text above it.
-        <div className="afd-details-page afd-details-hint">
-          <SelectHint />
-        </div>
-      ) : null}
-      {leave && dirty ? (
-        <LeaveDialog title={node.title} saving={saving} save={save} discard={discard} />
-      ) : null}
     </div>
   );
 }
 
-/** The steps on a node's level, itself included (start and end nodes are not steps). */
-function stepsBeside(model: FlowModel, id: string): number {
-  const level = model.nodes.get(id)?.level;
-  return [...model.nodes.values()].filter(
-    (e) => e.level === level && e.node.type !== 'start' && e.node.type !== 'end',
-  ).length;
+interface MoreItem {
+  /** The accessible name (what tests and screen readers say). */
+  label: string;
+  /** What the menu shows, when shorter than the label. */
+  text?: string;
+  icon: string;
+  danger?: boolean;
+  disabled?: boolean;
+  run(): void;
 }
 
-/** Leaving with a staged binding asks first (AFD-43); the safe choice has the focus. */
-function LeaveDialog(props: {
-  title: string;
-  saving: boolean;
-  save(): Promise<boolean>;
-  discard(): void;
-}) {
+/** AFD-297: the step's less used actions behind one button, so the header stays quiet. */
+function MoreActions({ items }: { items: MoreItem[] }) {
+  const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const trap = useDialogFocus(box);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
   return (
-    <div className="afd-modal-backdrop">
-      <div
-        ref={box}
-        className="afd-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="afd-leave-title"
-        data-leave-binding
-        onKeyDown={trap}
+    <div className="afd-more" ref={box}>
+      <button
+        type="button"
+        className="icon"
+        title="More actions"
+        aria-label="More actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
       >
-        <h2 id="afd-leave-title">Discard the binding change?</h2>
-        <p className="muted">
-          The binding of "{props.title}" has a change that is not saved yet. Leaving now drops it.
-        </p>
-        <div className="afd-modal-actions">
-          <button
-            type="button"
-            className="secondary"
-            // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
-            autoFocus
-            onClick={() => useUi.getState().resolveLeave('stay')}
-          >
-            Keep Editing
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            data-leave-discard
-            onClick={() => {
-              props.discard();
-              useUi.getState().resolveLeave('go');
-            }}
-          >
-            Discard
-          </button>
-          <button
-            type="button"
-            disabled={props.saving}
-            onClick={() =>
-              void props.save().then((ok) => ok && useUi.getState().resolveLeave('go'))
+        <span className="codicon codicon-ellipsis" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          className="afd-more-menu"
+          role="menu"
+          aria-label="More actions"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setOpen(false);
             }
-          >
-            Save Binding
-          </button>
+          }}
+        >
+          {items.map((i) => (
+            <button
+              key={i.label}
+              type="button"
+              role="menuitem"
+              aria-label={i.label}
+              className={i.danger ? 'danger' : undefined}
+              disabled={i.disabled}
+              onClick={() => {
+                setOpen(false);
+                i.run();
+              }}
+            >
+              <span className={`codicon codicon-${i.icon}`} aria-hidden="true" />{' '}
+              {i.text ?? i.label}
+            </button>
+          ))}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

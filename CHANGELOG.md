@@ -2,6 +2,18 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Changed
+
+- **A calmer Details pane:** a step has four tabs, Step, Binding, Data and Behavior (ports, failures and handlers, and how it runs); the header keeps the type and status, Peek Code and Help, with Open in Text Editor, Copy, Widen and Delete in a ⋯ menu; a step's problems are one line that opens to the list; labels are short with their explanation under the field; optional ports the step has not enabled are folded away.
+- **Inputs as rows:** run inputs and a step's inputs and outputs are one row each (name, type, targets, where it comes from, required or its default); a row opens a small form with labelled fields (Name, Type, Required, Asked as, Default) and Remove, and **Add input** opens the same form with the name ready to type.
+- **The binding saves as you go,** like every other field: a change is written a moment after the last one, as one undo step, and leaving the step saves it first. No more Save Binding and Discard.
+
+### Fixed
+
+- An optional parameter added on the Binding tab can be taken away again (×).
+
 ## 0.89.0 — Handlers, roles as subflows, the server's library
 
 ### Added

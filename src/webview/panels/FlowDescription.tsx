@@ -64,16 +64,16 @@ export function FlowDescription() {
           onCommit={(v) => void update({ goal: v.trim() ? v : null })}
         />
         <ContractEditor
-          title="Inputs"
+          title="Run inputs"
           target="flow"
           side="inputs"
           contract={flow.inputs}
-          hint="What the flow asks for when it runs. devices: the hosts it runs on."
+          hint="What a run asks for. Click one to change it."
         />
         <Fold
           id="flow-details"
           open={!SLUG.test(flow.key ?? '')}
-          summary={`More details: ${flow.key} · version ${flow.version}${flow.owner ? ` · owner ${flow.owner}` : ''}`}
+          summary={`More: ${flow.key} · version ${flow.version}${flow.owner ? ` · owner ${flow.owner}` : ''}`}
         >
           <CommitField
             label="Key"
@@ -159,11 +159,8 @@ export function FlowDescription() {
               </button>
             </li>
           </ul>
-          {/* AFD-88: how to pick several steps, which nothing said (round 1: P20). */}
-          {ready.total >= 2 ? <SelectHint /> : null}
-          {/* AFD-89: the way to the other flows and their health (round 1: P16, T7 given up); with
-            the Readiness counts, so a new flow's first screen keeps its 35 controls. */}
-          <RepoLine repo={repo} hook="data-flows-link" />
+          {/* AFD-297: how to pick several steps is in Help (the shortcuts), and the other flows
+            are named at the top only when one needs a look. */}
         </section>
       ) : null}
     </div>

@@ -2,8 +2,8 @@
 // step starts at Find: a module, role or playbook from the environment's catalog. Once something
 // is chosen, Configure comes first (its parameters with input chips), then two folds: Change
 // Module (Find again, open by itself while another one is being chosen or the bound one is a
-// problem) and About (its docs). Everything here edits the staged draft; Save Binding writes it as
-// one command.
+// problem) and About (its docs). Everything here edits the draft, which Details saves as one
+// command a moment after the last change (AFD-299).
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import {
   type BindingDraft,
@@ -63,6 +63,8 @@ export interface DraftProps {
 interface ExtraParams {
   extra: string[];
   addParam(name: string): void;
+  /** AFD-296: an added parameter taken away again. */
+  removeParam(name: string): void;
 }
 
 export function Implementation(props: DraftProps) {
@@ -79,6 +81,7 @@ export function Implementation(props: DraftProps) {
         ?.focus(),
     );
   };
+  const removeParam = (name: string) => setExtra(extra.filter((n) => n !== name));
   const doc = useCatalog(
     draft.kind === 'module' && draft.ref ? { op: 'doc', fqcn: draft.ref } : null,
     `doc:${draft.kind}:${draft.ref}`,
@@ -122,6 +125,7 @@ export function Implementation(props: DraftProps) {
           playbook={playbook}
           extra={extra}
           addParam={addParam}
+          removeParam={removeParam}
         />
       </section>
       <section className="afd-impl-find" aria-label={`Change ${what}`}>
@@ -156,6 +160,7 @@ export function Implementation(props: DraftProps) {
               error={doc.error}
               extra={extra}
               addParam={addParam}
+              removeParam={removeParam}
             />
           ) : draft.kind === 'role' ? (
             <RoleDoc {...props} role={role} />
@@ -647,6 +652,7 @@ function Configure({
   playbook,
   extra,
   addParam,
+  removeParam,
 }: DraftProps &
   ExtraParams & {
     doc: CatalogDoc | null;
@@ -711,7 +717,7 @@ function Configure({
   if (draft.kind === 'module' && !doc && docLoading)
     return <p className="muted">Reading the docs…</p>;
   const fieldProps = { choices, onAddInput: addInput };
-  const fields = (list: FormField[]) =>
+  const fields = (list: FormField[], removable = false) =>
     list.map((f) => (
       <ParamField
         key={f.name}
@@ -719,6 +725,14 @@ function Configure({
         bare={draft.kind === 'module' && isBareParam(draft.ref, f.name)}
         value={draft.params[f.name]}
         onChange={(v) => setParam(f.name, v)}
+        {...(removable
+          ? {
+              onRemove: () => {
+                setParam(f.name, undefined);
+                removeParam(f.name);
+              },
+            }
+          : {})}
         {...fieldProps}
       />
     ));
@@ -733,7 +747,7 @@ function Configure({
       {optional.length > 0 ? (
         <div className="afd-param-group" data-param-group="optional">
           <h4>Optional</h4>
-          {fields(optional)}
+          {fields(optional, true)}
         </div>
       ) : null}
       {groups.rest.length > 0 ? <ParamPicker fields={groups.rest} onPick={addParam} /> : null}
@@ -830,6 +844,7 @@ function ParamField({
   bare,
   value,
   onChange,
+  onRemove,
   choices,
   onAddInput,
 }: FieldChoices & {
@@ -838,14 +853,29 @@ function ParamField({
   bare?: boolean;
   value: unknown;
   onChange(v: unknown): void;
+  /** AFD-296: an optional parameter goes back to Add a parameter. */
+  onRemove?: () => void;
 }) {
   const id = useId();
   const o = field.option;
   const label = (
-    <label htmlFor={id}>
-      <span className="mono">{field.name}</span>
-      {field.required ? <abbr title="required"> *</abbr> : null}
-    </label>
+    <div className="afd-param-head">
+      <label htmlFor={id}>
+        <span className="mono">{field.name}</span>
+        {field.required ? <abbr title="required"> *</abbr> : null}
+      </label>
+      {onRemove ? (
+        <button
+          type="button"
+          className="icon"
+          aria-label={`Remove ${field.name}`}
+          title={`Remove ${field.name}`}
+          onClick={onRemove}
+        >
+          <span className="codicon codicon-close" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   );
   const help = <span className="afd-help">{o.description.split('\n')[0]}</span>;
   const chipProps = { choices, onAddInput, mode: bare ? ('expr' as const) : undefined };

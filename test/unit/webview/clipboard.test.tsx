@@ -113,7 +113,8 @@ describe('copy', () => {
   it('the Copy buttons send the text to the host, which writes the clipboard', () => {
     act(() => useUi.getState().select({ node: id('validate') }));
     render(<Details id={id('validate')} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Copy node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy node' }));
     cleanup();
     render(<SelectionPanel ids={[id('precheck'), id('validate')]} />);
     act(() => useUi.getState().select({ nodes: [id('precheck'), id('validate')] }));

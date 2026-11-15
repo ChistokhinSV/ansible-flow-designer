@@ -1,5 +1,8 @@
-// Editor for a contract (flow inputs, node inputs or outputs): one row per field.
-import { useState } from 'react';
+// Editor for a contract (flow inputs, node inputs or outputs). AFD-298: one compact row per field
+// (name, type, where it comes from, required or its default); a row opens a small form with
+// labelled fields and Remove. "Add input" opens the same form, empty, with the name focused.
+// Everything is saved as it is changed, as the other fields of the pane are.
+import { type InputHTMLAttributes, useEffect, useId, useRef, useState } from 'react';
 import { refChoices } from '../../core/catalog/draft';
 import { modelOf } from '../../core/flow/model';
 import type { Contract, ContractField, ContractType, Ulid } from '../../core/flow/types';
@@ -10,117 +13,93 @@ import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
 
-/**
- * AFD-95: what a flow input is for, in words, committed when the box is left (round 1: W9). The
- * launch dialog, the run prompts and the AWX survey show it.
- */
-function Description({
-  name,
+/** What each type is called on screen; the file keeps Ansible's names. */
+const TYPE_WORDS: Record<ContractType, string> = {
+  string: 'text',
+  integer: 'number',
+  boolean: 'yes/no',
+  list: 'list',
+  dict: 'map',
+  host_list: 'host list',
+  any: 'any',
+};
+
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const NAME_HELP = 'Letters, digits and _, starting with a letter or _';
+
+/** A text box that saves when it is left or Enter is pressed (and follows the flow when it changes). */
+function CommitBox({
   value,
   onCommit,
+  validate,
+  ...rest
 }: {
-  name: string;
   value: string;
   onCommit(text: string): void;
-}) {
+  validate?(text: string): string | undefined;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const [text, setText] = useState(value);
   const [was, setWas] = useState(value);
+  const [problem, setProblem] = useState<string>();
   // The flow changed under the box (undo, an agent): show what it says now.
   if (value !== was) {
     setWas(value);
     setText(value);
   }
-  const commit = () => text.trim() !== value && onCommit(text.trim());
-  return (
-    <input
-      className="afd-input afd-contract-description"
-      aria-label={`What ${name} is for`}
-      placeholder="What it is for (shown when a run asks)"
-      value={text}
-      data-input-description={name}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
-    />
-  );
-}
-/**
- * AFD-106 (round 3: R6, Y5): a flow input's default, read by its type. A default feeds a run that
- * gives no value, so setting one clears required; the launch dialog and the prompts pre-fill it.
- */
-function DefaultBox({
-  name,
-  type,
-  value,
-  onCommit,
-}: {
-  name: string;
-  type: ContractType;
-  value: unknown;
-  onCommit(value: unknown): void;
-}) {
-  const shown = defaultText(value);
-  const [text, setText] = useState(shown);
-  const [was, setWas] = useState(shown);
-  const [problem, setProblem] = useState<string>();
-  // The flow changed under the box (undo, an agent): show what it says now.
-  if (shown !== was) {
-    setWas(shown);
-    setText(shown);
-  }
   const commit = () => {
-    if (text.trim() === shown) return setProblem(undefined);
-    const read = defaultValue(type, text);
-    setProblem(read.problem);
-    if (!read.problem) onCommit(read.value);
+    if (text.trim() === value) return setProblem(undefined);
+    const why = validate?.(text);
+    setProblem(why);
+    if (!why) onCommit(text.trim());
   };
   return (
     <>
       <input
-        className={`afd-input mono afd-contract-default${problem ? ' invalid' : ''}`}
-        aria-label={`Default for ${name}`}
+        {...rest}
+        className={`afd-input ${rest.className ?? ''}${problem ? ' invalid' : ''}`}
         aria-invalid={!!problem}
-        placeholder="Default (when a run gives none)"
         value={text}
-        data-input-default={name}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
-        onKeyDown={(e) => e.key === 'Enter' && commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            setText(value);
+            setProblem(undefined);
+          }
+        }}
       />
       {problem ? <span className="afd-field-error">{problem}</span> : null}
     </>
   );
 }
 
-const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
 interface Props {
   title: string;
   target: 'flow' | Ulid;
   side: 'inputs' | 'outputs';
   contract: Contract | undefined;
-  /** Show the `from:` column (node contracts). */
+  /** Show where each value comes from (node contracts). */
   withFrom?: boolean;
   /** What the contract is for, under its title (AFD-72). */
   hint?: string;
 }
 
 export function ContractEditor({ title, target, side, contract, withFrom, hint }: Props) {
-  const [adding, setAdding] = useState('');
+  const [open, setOpen] = useState<string>();
+  const [adding, setAdding] = useState(false);
   const doc = useUi((s) => s.snapshot?.doc);
+  const model = doc ? modelOf(doc) : undefined;
+  const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
   // AFD-72: `from:` in words; the raw reference stays in the tooltip.
-  const fromWords = (s: 'inputs' | 'outputs', from: string) => {
-    const model = doc ? modelOf(doc) : undefined;
-    const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
-    return model && node ? fromText(model, node, s, from) : from;
-  };
+  const fromWords = (from: string) => (model && node ? fromText(model, node, side, from) : from);
   const entries = Object.entries(contract ?? {});
+  const one = side === 'inputs' ? 'input' : 'output';
+  const flowInputs = target === 'flow' && side === 'inputs';
   const set = (name: string, field: ContractField | null, rename?: string) =>
     run({ kind: 'setContractField', target, side, name, field, rename });
   // AFD-287: a step's new input from what reaches it: flow inputs, earlier steps' outputs, their
   // results and facts (as the @ list offers them; a result or fact becomes an output there too).
-  const model = doc ? modelOf(doc) : undefined;
-  const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
   const sources =
     withFrom && side === 'inputs' && model && node
       ? refChoices(model, node).filter((c) => c.field?.from)
@@ -142,128 +121,357 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
       });
     await set(c.name, c.field);
   };
-  const add = () => {
-    const name = adding.trim();
-    if (!NAME.test(name) || name in (contract ?? {})) return;
-    // AFD-106 (round 3: R6): a run must give a new flow input until it has a default.
-    const field: ContractField =
-      target === 'flow' && side === 'inputs'
-        ? { type: 'string', required: true }
-        : { type: 'string' };
-    void set(name, field).then((a) => a.ok && setAdding(''));
-  };
   return (
-    <section className="afd-section">
-      <h3>{title}</h3>
-      {hint ? <p className="muted">{hint}</p> : null}
-      {entries.length === 0 ? <p className="muted">None yet.</p> : null}
+    <section className="afd-section afd-contract-section">
+      <div className="afd-section-head">
+        <h3>{title}</h3>
+        {!adding ? (
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setAdding(true);
+              setOpen(undefined);
+            }}
+          >
+            <span className="codicon codicon-add" aria-hidden="true" /> Add {one}
+          </button>
+        ) : null}
+      </div>
+      {hint ? <p className="muted afd-help">{hint}</p> : null}
+      {entries.length === 0 && !adding ? <p className="muted">None yet.</p> : null}
       <ul className="afd-contract">
-        {entries.map(([name, field]) => (
-          <li key={name}>
-            <span className="mono afd-contract-name">{name}</span>
-            <select
-              aria-label={`Type of ${name}`}
-              value={field?.type ?? 'any'}
-              onChange={(e) => void set(name, { ...field, type: e.target.value as ContractType })}
-            >
-              {TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            {side === 'inputs' ? (
-              <label className="afd-check" title="Required">
-                <input
-                  type="checkbox"
-                  checked={!!field?.required}
-                  onChange={(e) =>
-                    void set(name, { ...field, required: e.target.checked || undefined })
-                  }
-                />
-                required
-              </label>
-            ) : null}
-            {withFrom && field?.from ? (
-              <span
-                className="muted afd-contract-from"
-                title={`Source of the value: ${field.from}`}
+        {entries.map(([name, field]) => {
+          const isOpen = open === name;
+          const meta =
+            side === 'outputs'
+              ? undefined
+              : field?.default !== undefined
+                ? `= ${defaultText(field.default)}`
+                : field?.required
+                  ? 'required'
+                  : 'optional';
+          return (
+            <li key={name} className={isOpen ? 'open' : undefined} data-contract-field={name}>
+              <button
+                type="button"
+                className="afd-contract-row"
+                aria-expanded={isOpen}
+                aria-label={`${name}: ${TYPE_WORDS[field?.type ?? 'any']}${meta ? `, ${meta}` : ''}`}
+                onClick={() => setOpen(isOpen ? undefined : name)}
               >
-                ← {fromWords(side, field.from)}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              className="icon"
-              aria-label={`Remove ${name}`}
-              onClick={() => void set(name, null)}
-            >
-              <span className="codicon codicon-trash" aria-hidden="true" />
-            </button>
-            {/* The targets list says what it is (the hosts the flow runs on): a new flow, which
-              has only that input, keeps its 35 controls. */}
-            {target === 'flow' && side === 'inputs' && !field?.targets ? (
-              <>
-                <Description
-                  name={name}
-                  value={field?.description ?? ''}
-                  onCommit={(text) =>
-                    void set(name, { ...field, description: text || undefined } as ContractField)
-                  }
+                <span className="mono afd-contract-name">{name}</span>
+                <span className="afd-chip">{TYPE_WORDS[field?.type ?? 'any']}</span>
+                {field?.targets ? (
+                  <span className="afd-chip accent" title="The hosts the run starts on">
+                    targets
+                  </span>
+                ) : null}
+                {withFrom && field?.from ? (
+                  <span className="muted afd-contract-from" title={`Comes from ${field.from}`}>
+                    ← {fromWords(field.from)}
+                  </span>
+                ) : null}
+                {meta ? <span className="muted afd-contract-meta">{meta}</span> : null}
+                <span
+                  className={`codicon codicon-chevron-${isOpen ? 'up' : 'down'}`}
+                  aria-hidden="true"
                 />
-                <DefaultBox
+              </button>
+              {isOpen ? (
+                <FieldForm
                   name={name}
-                  type={field?.type ?? 'any'}
-                  value={field?.default}
-                  onCommit={(value) => {
-                    const next = { ...field } as ContractField;
-                    if (value === undefined) delete next.default;
-                    else {
-                      next.default = value;
-                      delete next.required;
-                    }
-                    void set(name, next);
+                  field={field}
+                  side={side}
+                  flowInputs={flowInputs}
+                  taken={(n) => n !== name && n in (contract ?? {})}
+                  from={withFrom && field?.from ? fromWords(field.from) : undefined}
+                  onChange={(next, rename) => {
+                    void set(name, next, rename).then((a) => {
+                      if (a.ok && rename) setOpen(rename);
+                    });
+                  }}
+                  onRemove={() => {
+                    setOpen(undefined);
+                    void set(name, null);
                   }}
                 />
-              </>
-            ) : null}
-          </li>
-        ))}
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
+      {adding ? (
+        <NewField
+          one={one}
+          taken={(n) => n in (contract ?? {})}
+          onAdd={async (name, type) => {
+            // AFD-106 (round 3: R6): a run must give a new flow input until it has a default.
+            const field: ContractField = flowInputs ? { type, required: true } : { type };
+            const a = await set(name, field);
+            if (a.ok) {
+              setAdding(false);
+              setOpen(name);
+            }
+          }}
+          onCancel={() => setAdding(false)}
+          sources={sources.map((c) => ({ label: c.label, detail: c.detail }))}
+          onAddFrom={(label) => {
+            setAdding(false);
+            void addFrom(label);
+          }}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+/** One field's form: its name, type, whether a run must give it, what it is asked as, its default. */
+function FieldForm({
+  name,
+  field,
+  side,
+  flowInputs,
+  taken,
+  from,
+  onChange,
+  onRemove,
+}: {
+  name: string;
+  field: ContractField | undefined;
+  side: 'inputs' | 'outputs';
+  flowInputs: boolean;
+  taken(name: string): boolean;
+  from?: string;
+  onChange(field: ContractField, rename?: string): void;
+  onRemove(): void;
+}) {
+  const id = useId();
+  const current = (field ?? { type: 'any' }) as ContractField;
+  return (
+    <div className="afd-contract-form">
+      <div className="afd-field">
+        <label htmlFor={`${id}-name`}>Name</label>
+        <CommitBox
+          id={`${id}-name`}
+          className="mono"
+          value={name}
+          validate={(t) =>
+            !NAME.test(t.trim())
+              ? NAME_HELP
+              : taken(t.trim())
+                ? `There is a ${t.trim()} already`
+                : undefined
+          }
+          onCommit={(t) => onChange(current, t)}
+        />
+      </div>
+      <div className="afd-field">
+        <label htmlFor={`${id}-type`}>Type</label>
+        <select
+          id={`${id}-type`}
+          aria-label={`Type of ${name}`}
+          value={current.type ?? 'any'}
+          onChange={(e) => onChange({ ...current, type: e.target.value as ContractType })}
+        >
+          {TYPES.map((t) => (
+            <option key={t} value={t}>
+              {TYPE_WORDS[t]}
+            </option>
+          ))}
+        </select>
+      </div>
+      {from ? (
+        <div className="afd-field">
+          <span className="afd-label">Comes from</span>
+          <span className="afd-value">{from}</span>
+        </div>
+      ) : null}
+      {side === 'inputs' ? (
+        <div className="afd-field afd-check">
+          <label>
+            <input
+              type="checkbox"
+              checked={!!current.required}
+              onChange={(e) => onChange({ ...current, required: e.target.checked || undefined })}
+            />{' '}
+            Required
+          </label>
+          <span className="afd-help">
+            {flowInputs
+              ? 'A run must give it (a default makes it optional).'
+              : 'The step fails when nothing gives it.'}
+          </span>
+        </div>
+      ) : null}
+      {/* The targets list says what it is: the hosts the run starts on. */}
+      {flowInputs && !current.targets ? (
+        <>
+          <div className="afd-field">
+            <label htmlFor={`${id}-asked`}>Asked as</label>
+            <CommitBox
+              id={`${id}-asked`}
+              aria-label={`What ${name} is for`}
+              data-input-description={name}
+              placeholder="Folder for the configuration backups"
+              value={current.description ?? ''}
+              onCommit={(t) => onChange({ ...current, description: t || undefined })}
+            />
+            <span className="afd-help">
+              Shown when a run asks for it: in the launch dialog, the prompts and the AWX survey.
+            </span>
+          </div>
+          <DefaultField name={name} field={current} onChange={onChange} />
+        </>
+      ) : null}
+      {flowInputs && current.targets ? (
+        <p className="muted afd-help">The hosts the run starts on: the start node's targets.</p>
+      ) : null}
+      <button
+        type="button"
+        className="link danger"
+        aria-label={`Remove ${name}`}
+        onClick={onRemove}
+      >
+        <span className="codicon codicon-trash" aria-hidden="true" /> Remove
+      </button>
+    </div>
+  );
+}
+
+/**
+ * AFD-106 (round 3: R6, Y5): a flow input's default, read by its type. A default feeds a run that
+ * gives no value, so setting one clears required; the launch dialog and the prompts pre-fill it.
+ */
+function DefaultField({
+  name,
+  field,
+  onChange,
+}: {
+  name: string;
+  field: ContractField;
+  onChange(field: ContractField): void;
+}) {
+  const id = useId();
+  const type = field.type ?? 'any';
+  return (
+    <div className="afd-field">
+      <label htmlFor={id}>Default</label>
+      <CommitBox
+        id={id}
+        className="mono"
+        aria-label={`Default for ${name}`}
+        data-input-default={name}
+        value={defaultText(field.default)}
+        validate={(t) => defaultValue(type, t).problem}
+        onCommit={(t) => {
+          const next = { ...field } as ContractField;
+          const read = defaultValue(type, t);
+          if (read.value === undefined) delete next.default;
+          else {
+            next.default = read.value;
+            delete next.required;
+          }
+          onChange(next);
+        }}
+      />
+      <span className="afd-help">Used when a run gives none.</span>
+    </div>
+  );
+}
+
+/** A new field: its name (focused) and type; or, for a step's input, one of what reaches it. */
+function NewField({
+  one,
+  taken,
+  onAdd,
+  onCancel,
+  sources,
+  onAddFrom,
+}: {
+  one: string;
+  taken(name: string): boolean;
+  onAdd(name: string, type: ContractType): Promise<void>;
+  onCancel(): void;
+  sources: { label: string; detail: string }[];
+  onAddFrom(label: string): void;
+}) {
+  const id = useId();
+  const [name, setName] = useState('');
+  const [type, setType] = useState<ContractType>('string');
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => box.current?.focus(), []);
+  const n = name.trim();
+  const why = !n
+    ? undefined
+    : !NAME.test(n)
+      ? NAME_HELP
+      : taken(n)
+        ? `There is a ${n} already`
+        : undefined;
+  const add = () => {
+    if (n && !why) void onAdd(n, type);
+  };
+  return (
+    <div className="afd-contract-form afd-contract-new">
       {sources.length ? (
-        <div className="afd-inline-add">
+        <div className="afd-field">
+          <label htmlFor={`${id}-from`}>Take one that reaches this step</label>
           <select
+            id={`${id}-from`}
             aria-label="Add an input from"
             value=""
-            onChange={(e) => void addFrom(e.target.value)}
+            onChange={(e) => onAddFrom(e.target.value)}
           >
-            <option value="">Add from…</option>
+            <option value="">Pick…</option>
             {sources.map((c) => (
               <option key={c.label} value={c.label} title={c.detail}>
                 {c.label} · {c.detail.split(' · ')[0]}
               </option>
             ))}
           </select>
+          <span className="afd-help">Or name a new one:</span>
         </div>
       ) : null}
-      <div className="afd-inline-add">
+      <div className="afd-field">
+        <label htmlFor={`${id}-name`}>Name</label>
         <input
-          className={`afd-input mono${adding && !NAME.test(adding.trim()) ? ' invalid' : ''}`}
-          placeholder="new_name"
-          aria-label={`New ${side.slice(0, -1)} name`}
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && add()}
+          ref={box}
+          id={`${id}-name`}
+          className={`afd-input mono${why ? ' invalid' : ''}`}
+          aria-label={`New ${one} name`}
+          placeholder="backup_dir"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add();
+            if (e.key === 'Escape') onCancel();
+          }}
         />
-        <button
-          type="button"
-          className="secondary"
-          onClick={add}
-          disabled={!NAME.test(adding.trim())}
+        <span className={why ? 'afd-field-error' : 'afd-help'}>{why ?? NAME_HELP}</span>
+      </div>
+      <div className="afd-field">
+        <label htmlFor={`${id}-type`}>Type</label>
+        <select
+          id={`${id}-type`}
+          value={type}
+          onChange={(e) => setType(e.target.value as ContractType)}
         >
+          {TYPES.map((t) => (
+            <option key={t} value={t}>
+              {TYPE_WORDS[t]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="afd-form-actions">
+        <button type="button" onClick={add} disabled={!n || !!why}>
           Add
         </button>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
-    </section>
+    </div>
   );
 }
