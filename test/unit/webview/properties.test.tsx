@@ -737,10 +737,56 @@ describe('Configure: set_fact (AFD-222)', () => {
     expect(
       configure.querySelector('[data-param="_ts"] [contenteditable="true"]')?.textContent,
     ).toBe("{{ now(utc=true).strftime('%Y%m%d') }}");
+    // AFD-286: a short list is one line, in YAML's flow syntax.
     expect(
-      (configure.querySelector('[data-param="_dirs"] textarea') as HTMLTextAreaElement).value,
-    ).toBe('- a\n- b');
+      configure.querySelector('[data-param="_dirs"] [contenteditable="true"]')?.textContent,
+    ).toBe('[a, b]');
     expect(configure.textContent).toContain('Required parameters set');
+  });
+
+  it('a fact typed as [mc, python3] is a list; quoted, it is the text (AFD-286)', async () => {
+    const copy = JSON.parse(JSON.stringify(doc)) as FlowDocument;
+    const walk = (nodes: FlowNode[] = []) => {
+      for (const n of nodes) {
+        if (n.key === 'set-boot-variable')
+          n.impl = {
+            kind: 'module',
+            ref: 'ansible.builtin.set_fact',
+            params: { packages: '', label: '' },
+          };
+        walk(n.subflow?.nodes);
+      }
+    };
+    walk(copy.nodes);
+    const setFact = (r: CatalogRequest): unknown =>
+      r.op === 'doc' && /set_fact$/.test(r.fqcn)
+        ? {
+            fqcn: 'ansible.builtin.set_fact',
+            name: 'set_fact',
+            type: 'module',
+            collection: 'ansible.builtin',
+            collection_version: '2.19.14',
+            short_description: 'Set host variable(s) and fact(s).',
+            description: 'Sets facts.',
+            options: { key_value: { type: 'str', required: true, description: 'Facts.' } },
+          }
+        : catalog(r);
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(copy), docVersion: 5 }));
+    const id = open('set-boot-variable');
+    await answer(setFact);
+    const configure = screen.getByRole('region', { name: 'Configure' });
+    const field = (name: string) =>
+      configure.querySelector(`[data-param="${name}"] [contenteditable="true"]`) as HTMLElement;
+    typeInto(field('packages'), '[mc, python3]');
+    typeInto(field('label'), '"[not a list]"');
+    // What was typed stays as typed.
+    expect(field('packages').textContent).toBe('[mc, python3]');
+    fireEvent.click(screen.getByText('Save Binding'));
+    expect(commands()[0]).toMatchObject({
+      kind: 'setBinding',
+      id,
+      impl: { params: { packages: ['mc', 'python3'], label: '[not a list]' } },
+    });
   });
 });
 

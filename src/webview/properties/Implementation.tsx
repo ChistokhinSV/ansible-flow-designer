@@ -26,6 +26,7 @@ import { registerName } from '../../core/flow/dataNames';
 import { isBareParam } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
 import type { ContractField, FlowNode } from '../../core/flow/types';
+import { sameValue, textOfValue, valueOfText } from '../../core/flow/valueText';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { run } from '../actions';
 import { catalogRequest, type Loaded, useCatalog, useResultFields } from '../catalog';
@@ -906,7 +907,17 @@ function ParamField({
       control = <YamlField id={id} value={value} onChange={onChange} />;
       break;
     default:
-      control = (
+      // AFD-286: an option of no set type (raw) takes a list or map typed in YAML flow syntax.
+      control = untyped(o) ? (
+        <ValueText
+          id={id}
+          label={field.name}
+          value={value}
+          placeholder={o.default !== undefined ? `default ${String(o.default)}` : undefined}
+          onChange={onChange}
+          {...chipProps}
+        />
+      ) : (
         <ChipField
           id={id}
           label={field.name}
@@ -931,6 +942,58 @@ function ParamField({
       {control}
       {help}
     </div>
+  );
+}
+
+/** AFD-286: an option whose docs give no type, or `raw`: any YAML value. */
+const untyped = (o: CatalogOption) => o.type === undefined || o.type === 'raw' || o.type === 'any';
+
+/** A text, or a list or map short enough for one line: edited in a one-line field. */
+const oneLine = (v: unknown) =>
+  typeof v === 'string' ||
+  ((Array.isArray(v) || (typeof v === 'object' && v !== null)) && textOfValue(v) !== undefined);
+
+/**
+ * AFD-286: a one-line value read the way YAML reads it: `[mc, python3]` is a list, `{k: v}` a
+ * map, `"[mc, python3]"` the text inside the quotes, `{{ x }}` a template. What was typed stays in
+ * the field while it means the stored value, so the caret never jumps.
+ */
+function ValueText({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  choices,
+  onAddInput,
+  mode,
+}: FieldChoices & {
+  id: string;
+  label: string;
+  value: unknown;
+  onChange(v: unknown): void;
+  placeholder?: string;
+  mode?: 'template' | 'expr';
+}) {
+  const [typed, setTyped] = useState<string>();
+  const shown =
+    typed !== undefined && sameValue(typed === '' ? undefined : valueOfText(typed), value)
+      ? typed
+      : (textOfValue(value) ?? '');
+  return (
+    <ChipField
+      id={id}
+      label={label}
+      value={shown}
+      placeholder={placeholder}
+      onChange={(v) => {
+        setTyped(v);
+        onChange(v === '' ? undefined : valueOfText(v));
+      }}
+      choices={choices}
+      onAddInput={onAddInput}
+      mode={mode}
+    />
   );
 }
 
@@ -1020,12 +1083,12 @@ function FreeVars({
       {names.map((n) => (
         <div key={n} className="afd-list-row" data-param={n}>
           <span className="mono afd-freevar-name">{n}</span>
-          {typeof params[n] === 'string' ? (
-            <ChipField
+          {oneLine(params[n]) ? (
+            <ValueText
               id={`afd-var-${n}`}
               label={n}
-              value={params[n] as string}
-              onChange={(v) => onChange(n, v)}
+              value={params[n]}
+              onChange={(v) => onChange(n, v === undefined ? '' : v)}
               choices={choices}
               onAddInput={onAddInput}
             />

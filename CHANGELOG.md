@@ -11,6 +11,10 @@ All notable changes to Ansible Flow Designer.
   - Opening the flow shows a **Merge** note with **Mine** and **Theirs** for each conflict; the canvas follows each choice at once, and **Finish merge** marks the file as merged.
   - A file that is not a readable flow is merged as text, as git would.
 
+### Fixed
+
+- A fact, a role's or playbook's variable, or a parameter with no documented type typed as `[mc, python3]` was saved as the text `"[mc, python3]"`. It is now a list (and `{k: v}` a map), as YAML reads it; quote it, `"[mc, python3]"`, to keep it as text. A short list or map already in a flow shows on one line in the same way.
+
 ## 0.85.0 — Run on Ansible Flow Server, npm packages
 
 ### Added
