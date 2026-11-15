@@ -55,6 +55,10 @@ export function messageProblem(m: unknown): string | undefined {
       return isMap(m.request) ? undefined : 'scenarioEdit: bad request';
     case 'runScenarios':
       return strList(m.names) ? undefined : 'runScenarios: bad names';
+    case 'mergeChoose':
+      return str(m.id, 500) && (m.side === 'ours' || m.side === 'theirs')
+        ? undefined
+        : 'mergeChoose: bad choice';
     case 'lens':
       return m.lens === null || str(m.lens, 64) ? undefined : 'lens: bad lens';
     default:

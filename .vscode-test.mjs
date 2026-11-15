@@ -154,8 +154,11 @@ export default defineConfig([
       'out/test/integration/diagnostics.test.js',
       'out/test/integration/hostAi.test.js',
       'out/test/integration/inventoryView.test.js',
+      'out/test/integration/merge.test.js',
     ],
   },
+  // AFD-283: flows merge in git by their steps.
+  { ...common, label: 'merge', files: 'out/test/integration/merge.test.js' },
   // AFD-172: the AI integration diagnostics report, kept in out/diagnostics/ per editor.
   { ...common, label: 'diag', files: 'out/test/integration/diagnostics.test.js' },
   // AFD-174: the agent built into the editor, into a temporary home.

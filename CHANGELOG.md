@@ -2,6 +2,15 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Flows merge in git by their steps:** **Set Up Flow Merging in Repository** installs a git merge driver (`.afd/afd-merge.js` and two lines in `.gitattributes`; other clones run one `git config` line). Changes the two sides made in different places come together on their own, even on neighbouring lines or when one side moved a step into a subflow, and the file keeps your comments. See [Merging flows in git](docs/guide/how-to/merging-flows.md).
+  - A conflict (the same field changed twice, a step removed on one side and changed on the other, two wires on one output port) leaves a flow without `<<<<<<<` markers, with your version at each conflict.
+  - Opening the flow shows a **Merge** note with **Mine** and **Theirs** for each conflict; the canvas follows each choice at once, and **Finish merge** marks the file as merged.
+  - A file that is not a readable flow is merged as text, as git would.
+
 ## 0.85.0 — Run on Ansible Flow Server, npm packages
 
 ### Added

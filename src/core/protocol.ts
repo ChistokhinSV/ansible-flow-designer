@@ -3,6 +3,7 @@
 import type { CatalogOption, CatalogPlugin, PluginType, SearchHit } from './catalog/types';
 import type { CodeScan, DriftAction } from './drift/types';
 import type { FlowCommand } from './flow/commands';
+import type { MergeConflict, MergeSide } from './flow/merge';
 import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
@@ -280,6 +281,8 @@ export type HostMessage =
   | { type: 'scenarioCheck'; check: ScenarioCheck; undo: number }
   /** AFD-85: what changed outside the designer since it opened; null when cleared. */
   | { type: 'outsideMarks'; marks: OutsideMarks | null }
+  /** AFD-283: a merge of this flow waiting for choices (git left it to the designer); null: none. */
+  | { type: 'mergeConflicts'; merge: MergeView | null }
   /** AFD-93: the workspace's flows at a glance, for the flow panel's line. */
   | { type: 'repoState'; state: RepoState }
   /** Code sync (M6): the last scan of the working tree, or where a re-sync stands. */
@@ -345,6 +348,10 @@ export type WebviewMessage =
     }
   /** AFD-85: Clear on the outside-edit note. */
   | { type: 'clearOutside' }
+  /** AFD-283: a side chosen for one conflict of the waiting merge. */
+  | { type: 'mergeChoose'; id: string; side: MergeSide }
+  /** AFD-283: the waiting merge is done: the file is taken as merged. */
+  | { type: 'mergeFinish' }
   /** AFD-65: a link in an annotation; the host opens web links this flow's annotations hold. */
   | { type: 'openLink'; url: string }
   /** Opens the node's generated play (a subflow: its level file) in a text editor (D-22). */
@@ -421,6 +428,8 @@ export interface DomSummary {
   banner: number | null;
   /** AFD-19: items the written-by-hand banner says need IDs (null: no banner). */
   idGaps: number | null;
+  /** AFD-283: conflicts the Merge note lists (null: no note). */
+  merge?: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
   frame: { ports: string[]; wires: number } | null;
   /** Run mode (M7): each node's run state and each wire's label as drawn. */
@@ -434,4 +443,13 @@ export interface DomSummary {
     highlighted: string[];
     card: string[];
   };
+}
+
+/** AFD-283: a merge git left to the designer: its conflicts with what is chosen for each. */
+export interface MergeView {
+  /** The file's path in the repository. */
+  file: string;
+  conflicts: (MergeConflict & { chosen: MergeSide })[];
+  /** Rules the merged flow breaks that neither side broke. */
+  broken: string[];
 }

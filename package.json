@@ -251,6 +251,11 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.flow.setupMerging",
+        "title": "Set Up Flow Merging in Repository",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.flow.check",
         "title": "Check Flow",
         "category": "Ansible Flow"

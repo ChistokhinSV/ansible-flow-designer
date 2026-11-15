@@ -9,6 +9,7 @@ import { CommandError, type FlowCommand, planCommand } from '../core/flow/comman
 import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow, parseFlow } from '../core/flow/document';
 import { type IdFactory, isFileId, isFileKey, slugify } from '../core/flow/ids';
+import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
@@ -22,6 +23,7 @@ import type {
   CatalogStatus,
   DomSummary,
   HostMessage,
+  MergeView,
   Notice,
   RunView,
   Snapshot,
@@ -55,6 +57,7 @@ import { CMD } from './commands/ids';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
 import { showEnvironmentError } from './env/setupEnvironment';
+import { choose, finish, mergeView, type WaitingMerge, waitingMerge } from './flowMerge';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { logChannel } from './log';
@@ -167,6 +170,8 @@ export class FlowSession implements vscode.Disposable {
    */
   private outsideBase?: OutsideBase;
   private marks?: OutsideMarks;
+  /** AFD-283: a merge of this flow git left to the designer. */
+  private merge?: WaitingMerge;
   /**
    * AFD-171: the designer is opening again and comparing with the flow it last showed. Editors that
    * keep the document loaded after the designer closed (Antigravity IDE) reload a change made on
@@ -661,6 +666,8 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'run', run: this.lastRun });
         void this.sendRuns(panel).catch(() => undefined);
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
+        // AFD-283: a merge waiting for choices (not awaited: git answers when it answers).
+        void this.showMerge(panel).catch(() => undefined);
         // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
         void this.deps.repo?.().then((state) => {
           if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
@@ -856,6 +863,12 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'clearOutside':
         await this.clearOutside();
+        break;
+      case 'mergeChoose':
+        await this.chooseMerge(m.id, m.side);
+        break;
+      case 'mergeFinish':
+        await this.finishMerge();
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
@@ -1424,6 +1437,67 @@ export class FlowSession implements vscode.Disposable {
     return (await vscode.workspace.applyEdit(edit))
       ? { ok: true }
       : { ok: false, error: 'VS Code did not apply the edit' };
+  }
+
+  /** AFD-283: the merge git left for this flow, read again (test API and panels). */
+  async mergeState(): Promise<MergeView | undefined> {
+    await this.showMerge();
+    return this.merge ? mergeView(this.merge, this.document.getText()).view : undefined;
+  }
+
+  /** AFD-283: Mine or Theirs for one conflict; the file follows. */
+  async chooseMerge(id: string, side: MergeSide): Promise<void> {
+    if (!this.merge) return;
+    choose(this.merge, id, side);
+    await this.applyMerge();
+  }
+
+  /** AFD-283: Finish merge: saved, the waiting state gone, the file added to git's index. */
+  async finishMerge(): Promise<boolean> {
+    if (!this.merge) return false;
+    const w = this.merge;
+    this.merge = undefined;
+    if (this.document.isDirty) await this.document.save();
+    this.broadcast({ type: 'mergeConflicts', merge: null });
+    try {
+      await finish(w);
+    } catch (e) {
+      void vscode.window.showErrorMessage(`git add failed: ${(e as Error).message}`);
+      return false;
+    }
+    void vscode.window.showInformationMessage(
+      `${w.file} is merged (git add); commit to finish the merge.`,
+    );
+    return true;
+  }
+
+  /** AFD-283: tells a panel (or every panel) about the merge git left for this flow, if any. */
+  private async showMerge(panel?: vscode.WebviewPanel): Promise<void> {
+    if (this.uri.scheme !== 'file') return;
+    this.merge = await waitingMerge(this.uri.fsPath);
+    if (!this.merge) return;
+    const { view } = mergeView(this.merge, this.document.getText());
+    if (panel) this.post(panel, { type: 'mergeConflicts', merge: view });
+    else this.broadcast({ type: 'mergeConflicts', merge: view });
+  }
+
+  /** AFD-283: the file says what the merge's choices say, in one edit (one undo step). */
+  private async applyMerge(): Promise<void> {
+    if (!this.merge) return;
+    const text = this.document.getText();
+    const { view, text: next } = mergeView(this.merge, text);
+    this.broadcast({ type: 'mergeConflicts', merge: view });
+    if (next === undefined || next === text) return;
+    const edit = new vscode.WorkspaceEdit();
+    this.ownText = next;
+    for (const e of diffEdits(text, next))
+      edit.replace(
+        this.uri,
+        new vscode.Range(this.document.positionAt(e.start), this.document.positionAt(e.end)),
+        e.newText,
+      );
+    if (!(await vscode.workspace.applyEdit(edit)))
+      void vscode.window.showErrorMessage('VS Code did not apply the merge choice');
   }
 
   /** Test mode: resolves once an open panel has rendered `version` or later. */

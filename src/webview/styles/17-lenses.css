@@ -434,3 +434,57 @@
   margin: 0 0 8px;
   font-size: var(--afd-fs-12);
 }
+
+/* AFD-283: a merge git left to the designer: one line per conflict, mine or theirs. */
+.afd-merge-note {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--afd-border);
+  border-left: 3px solid var(--vscode-gitDecoration-conflictingResourceForeground, #e4676b);
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  font-size: var(--afd-fs-12);
+}
+
+.afd-merge-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.afd-merge-list li {
+  margin: 2px 0;
+}
+
+.afd-merge-list button.link {
+  text-align: left;
+}
+
+.afd-merge-pick {
+  margin: 0 2px;
+  padding: 0 6px;
+  border: 1px solid var(--afd-border);
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  max-width: 28em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.afd-merge-pick.chosen {
+  border-color: var(--vscode-focusBorder, var(--afd-accent));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  font-weight: 600;
+}
+
+.afd-merge-value {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.afd-merge-broken {
+  margin: 2px 0 0;
+  color: var(--vscode-errorForeground, #f14c4c);
+}

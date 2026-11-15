@@ -81,6 +81,8 @@ const hostOptions = {
     mcp: 'src/mcp/main.ts',
     // Scenario tests for CI (AFD-58): one file, the routing callback inside.
     'afd-scenarios': 'src/cli/scenarios.ts',
+    // AFD-283: the git merge driver for flow files, copied into a repository.
+    'afd-merge': 'src/cli/merge.ts',
     // AFD-247: starts a run's ssh with the run's secrets on its input (plain Node, a few KB).
     'afd-ssh-run': 'src/node/ssh/sshRun.ts',
   },

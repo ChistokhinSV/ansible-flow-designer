@@ -4,6 +4,7 @@
 !dist/elk.js
 !dist/mcp.js
 !dist/afd-scenarios.js
+!dist/afd-merge.js
 !dist/afd-ssh-run.js
 !skills/**
 !instructions/**

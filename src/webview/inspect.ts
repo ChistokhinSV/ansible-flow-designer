@@ -32,6 +32,10 @@ export function domSummary(docVersion: number): DomSummary {
     annotations: document.querySelectorAll('[data-annotation-id]').length,
     banner: banner ? Number(banner.dataset.bannerCount) : null,
     idGaps: gaps ? Number(gaps.dataset.idGaps) : null,
+    merge: (() => {
+      const note = document.querySelector<HTMLElement>('[data-merge-conflicts]');
+      return note ? Number(note.dataset.mergeConflicts) : null;
+    })(),
     frame: frame
       ? {
           ports: [...frame.querySelectorAll<HTMLElement>('[data-frame-port]')]
