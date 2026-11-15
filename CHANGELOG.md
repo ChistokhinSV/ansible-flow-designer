@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.89.0 — Handlers, roles as subflows, the server's library
 
 ### Added
 
