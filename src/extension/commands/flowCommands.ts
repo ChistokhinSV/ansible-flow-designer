@@ -1,8 +1,10 @@
 // Commands on a flow (AFD-37): Generate Code, New Flow, Tidy Up, Complete IDs, Copy and Paste
 // Nodes, Open in Text Editor (Check Flow is with the run commands, AFD-41). Each works on the flow the user means (Host.resolveTargetFlow).
 import * as vscode from 'vscode';
+import { factSetter } from '../../core/flow/facts';
 import { slugify } from '../../core/flow/ids';
 import { CURRENT_FORMAT } from '../../core/flow/migrate';
+import { buildModel } from '../../core/flow/model';
 import { newFlowText } from '../../core/flow/template';
 import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
@@ -10,6 +12,7 @@ import { codegenNotice, writeCode } from '../documents';
 import { askForFolder } from '../help';
 import type { Host } from '../host';
 import { insertShared, SharedSubflowActions, unlinkShared, updateShared } from '../sharedSubflows';
+import { UseFactActions } from '../useFactAction';
 import { CMD } from './ids';
 
 export function registerFlowCommands(host: Host): vscode.Disposable[] {
@@ -57,6 +60,39 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       new AcceptProblemActions(),
       { providedCodeActionKinds: AcceptProblemActions.kinds },
     ),
+    // AFD-287: a fact an earlier step sets, used as an input.
+    vscode.languages.registerCodeActionsProvider(
+      { pattern: '**/*.flow.yaml' },
+      new UseFactActions(),
+      { providedCodeActionKinds: UseFactActions.kinds },
+    ),
+    vscode.commands.registerCommand(CMD.useFact, async (uri: vscode.Uri, message: string) => {
+      const doc = await host.resolveTargetFlow(uri);
+      if (!doc) return undefined;
+      const session = host.sessionFor(doc);
+      const snap = await session.snapshot();
+      const found = snap.findings.find(
+        (f) => f.code === 'binding-unknown-var' && f.message === message,
+      );
+      const reader =
+        found?.node && snap.doc ? buildModel(snap.doc).nodes.get(found.node) : undefined;
+      const setter =
+        reader && found?.subject && snap.doc
+          ? factSetter(buildModel(snap.doc), reader.node, found.subject)
+          : undefined;
+      if (!reader || !setter || !found?.subject) {
+        void vscode.window.showErrorMessage('That problem is no longer in the flow');
+        return undefined;
+      }
+      const outcome = await session.runCommand({
+        kind: 'useFact',
+        reader: reader.node.id,
+        setter: setter.id,
+        name: found.subject,
+      });
+      if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Not changed');
+      return outcome;
+    }),
     // Shared subflows (AFD-60).
     vscode.languages.registerCodeActionsProvider(
       { pattern: '**/*.flow.yaml' },

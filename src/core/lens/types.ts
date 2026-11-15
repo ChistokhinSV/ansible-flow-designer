@@ -93,6 +93,8 @@ export interface DataWire {
   to: Ulid;
   label: string;
   title: string;
+  /** AFD-287: a value read without an input (a fact an earlier step sets): drawn as a warning. */
+  undeclared?: boolean;
 }
 
 /** A node of the compared version that is gone (AFD-57): drawn as a ghost on its level. */

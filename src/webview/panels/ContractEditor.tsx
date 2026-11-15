@@ -1,5 +1,6 @@
 // Editor for a contract (flow inputs, node inputs or outputs): one row per field.
 import { useState } from 'react';
+import { refChoices } from '../../core/catalog/draft';
 import { modelOf } from '../../core/flow/model';
 import type { Contract, ContractField, ContractType, Ulid } from '../../core/flow/types';
 import { fromText } from '../../core/view/fromText';
@@ -116,6 +117,31 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   const entries = Object.entries(contract ?? {});
   const set = (name: string, field: ContractField | null, rename?: string) =>
     run({ kind: 'setContractField', target, side, name, field, rename });
+  // AFD-287: a step's new input from what reaches it: flow inputs, earlier steps' outputs, their
+  // results and facts (as the @ list offers them; a result or fact becomes an output there too).
+  const model = doc ? modelOf(doc) : undefined;
+  const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
+  const sources =
+    withFrom && side === 'inputs' && model && node
+      ? refChoices(model, node).filter((c) => c.field?.from)
+      : [];
+  const addFrom = async (label: string) => {
+    const c = sources.find((x) => x.label === label);
+    if (!c?.field) return;
+    if (c.expose && !c.expose.field?.from && c.expose.field) {
+      await run({ kind: 'useFact', reader: target, setter: c.expose.node, name: c.expose.output });
+      return;
+    }
+    if (c.expose)
+      await run({
+        kind: 'setContractField',
+        target: c.expose.node,
+        side: 'outputs',
+        name: c.expose.output,
+        field: c.expose.field ?? { type: 'dict', from: 'impl.register' },
+      });
+    await set(c.name, c.field);
+  };
   const add = () => {
     const name = adding.trim();
     if (!NAME.test(name) || name in (contract ?? {})) return;
@@ -204,6 +230,22 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
           </li>
         ))}
       </ul>
+      {sources.length ? (
+        <div className="afd-inline-add">
+          <select
+            aria-label="Add an input from"
+            value=""
+            onChange={(e) => void addFrom(e.target.value)}
+          >
+            <option value="">Add from…</option>
+            {sources.map((c) => (
+              <option key={c.label} value={c.label} title={c.detail}>
+                {c.label} · {c.detail.split(' · ')[0]}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="afd-inline-add">
         <input
           className={`afd-input mono${adding && !NAME.test(adding.trim()) ? ' invalid' : ''}`}
