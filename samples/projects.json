@@ -1,0 +1,34 @@
+{
+  "$comment": "Sample projects (AFD-290): what a new project gets when it starts from a sample, in a project's layout. `from` is a file or folder under samples/, `to` the path in the project (empty: the project's root). Ansible Flow Server reads this from @ansible-flow/assets.",
+  "projects": [
+    {
+      "key": "hello",
+      "name": "Hello, Ansible",
+      "description": "The smallest useful flow: reach each host, read a few facts and say hello. Runs on localhost.",
+      "files": [
+        { "from": "hello.flow.yaml", "to": "flows/hello/hello.flow.yaml" },
+        { "from": "hello.scenarios.yaml", "to": "flows/hello/hello.scenarios.yaml" },
+        { "from": "inventory.ini", "to": "inventory.ini" }
+      ]
+    },
+    {
+      "key": "edge-baseline",
+      "name": "Edge baseline",
+      "description": "NTP, AAA and syslog baseline for edge switches with a backup first and rollback, and the playbooks and roles it binds (fictional switches, simulated locally).",
+      "files": [
+        { "from": "edge-baseline.flow.yaml", "to": "flows/edge-baseline/edge-baseline.flow.yaml" },
+        { "from": "edge-baseline.scenarios.yaml", "to": "flows/edge-baseline/edge-baseline.scenarios.yaml" },
+        { "from": "playbooks/edge-baseline", "to": "" }
+      ]
+    },
+    {
+      "key": "firewall-upgrade",
+      "name": "Firewall firmware upgrade",
+      "description": "Pre-checks, a backup, an approval, polling until the device is back, post-checks and rollback. Steps are drafts: runs as a skeleton on localhost.",
+      "files": [
+        { "from": "firewall-upgrade.flow.yaml", "to": "flows/firewall-upgrade/firewall-upgrade.flow.yaml" },
+        { "from": "inventory.ini", "to": "inventory.ini" }
+      ]
+    }
+  ]
+}

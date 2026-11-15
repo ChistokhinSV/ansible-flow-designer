@@ -7,6 +7,7 @@ All notable changes to Ansible Flow Designer.
 ### Added
 
 - **When someone changes the flow on the server:** a flow open in the designer, in a clone of an Ansible Flow Server project, follows the server's branch. A note over the canvas says who changed the flow there and how much, with **Show changes** (pull, then the Changes lens against the version you had), **Update** (pull) and **Dismiss**. The pull is fast-forward only and does nothing while the flow has changes you have not committed. See [Ansible Flow Server](docs/guide/how-to/server.md#when-someone-changes-the-flow-on-the-server).
+- `@ansible-flow/assets` has the sample flows and sample projects (`samplesDir`, `samples/projects.json`): Hello, Edge baseline and Firewall upgrade laid out as projects, which Ansible Flow Server offers as a start for a new project.
 
 ### Fixed
 
