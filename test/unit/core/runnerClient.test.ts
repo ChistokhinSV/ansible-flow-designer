@@ -142,6 +142,20 @@ describe('the server client, against the contract', () => {
     expect(await omar().view(run.id)).toBeUndefined();
   });
 
+  it("lists the server's library and reads one of its subflows to copy (AFD-295)", async () => {
+    const { subflows } = await omar().library();
+    expect(subflows).toEqual([
+      expect.objectContaining({ from: 'afs://net/edge/flows/shared.flow.yaml#backup', version: 1 }),
+    ]);
+    const one = await omar().librarySubflow(subflows[0]?.from as string);
+    expect(one.node).toMatchObject({ key: 'backup', type: 'subflow' });
+    expect(one.commit).toBe(subflows[0]?.commit);
+    const gone = await omar()
+      .librarySubflow('afs://net/edge/flows/shared.flow.yaml#gone')
+      .catch((x: unknown) => x);
+    expect(gone).toMatchObject({ status: 404 });
+  });
+
   it("a read-only token is refused, and the refusal is the server's", async () => {
     const e = await new RunnerClient(base, TOKENS['omar-read'] as string)
       .launch(captured.config as string, {})

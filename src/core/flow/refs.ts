@@ -6,6 +6,25 @@ import { modelOf } from './model';
 import { canonical, withoutAnnotations } from './semantic';
 import type { Edge, FlowDocument, FlowNode, SubflowBody, SubflowRef, Ulid } from './types';
 
+/** AFD-295: the scheme of a subflow from an Ansible Flow Server library. */
+export const LIBRARY_SCHEME = 'afs://';
+
+/** `afs://<workspace>/<project>/<file>#<key path>`: a subflow of a server library. */
+export const isLibraryRef = (from: string | undefined): boolean =>
+  typeof from === 'string' && from.startsWith(LIBRARY_SCHEME);
+
+/** The parts of a library source, or undefined when it is not one. */
+export function parseLibraryRef(
+  from: string,
+): { workspace: string; project: string; file: string; key: string } | undefined {
+  if (!isLibraryRef(from)) return undefined;
+  const ref = parseRefFrom(from.slice(LIBRARY_SCHEME.length));
+  if (!ref) return undefined;
+  const [workspace, project, ...file] = ref.path.split('/');
+  if (!workspace || !project || !file.length) return undefined;
+  return { workspace, project, file: file.join('/'), key: ref.key };
+}
+
 /** `../shared/backup.flow.yaml#backup` → the file (relative to this flow's folder) and key path. */
 export function parseRefFrom(from: string): { path: string; key: string } | undefined {
   const at = from.lastIndexOf('#');
@@ -131,6 +150,7 @@ export function refFor(
   from: string,
   version: number,
   copy: Parameters<typeof refDesign>[0],
+  commit?: string,
 ): SubflowRef {
-  return { from, version, design: refDesign(copy) };
+  return { from, version, design: refDesign(copy), ...(commit ? { commit } : {}) };
 }

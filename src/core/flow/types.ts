@@ -92,6 +92,8 @@ export interface SubflowRef {
   from: string;
   version: number;
   design: string;
+  /** AFD-295: a copy from an Ansible Flow Server library: the library's commit it was taken at. */
+  commit?: string;
 }
 
 /**

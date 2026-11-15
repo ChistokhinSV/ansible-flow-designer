@@ -249,9 +249,11 @@ export type FlowCommand =
       version: number;
       source: FlowNode;
       position?: Position;
+      /** AFD-295: a library copy: the library's commit. */
+      commit?: string;
     }
   /** AFD-60: the copy again from a newer version of its source (steps inside start untested). */
-  | { kind: 'updateReference'; id: Ulid; version: number; source: FlowNode }
+  | { kind: 'updateReference'; id: Ulid; version: number; source: FlowNode; commit?: string }
   /** AFD-60: the copy becomes this flow's own subflow, to edit here. */
   | { kind: 'unlinkReference'; id: Ulid }
   /**
@@ -2779,14 +2781,23 @@ function writeCopy(
   from: string,
   version: number,
   source: FlowNode,
+  commit?: string,
 ): void {
+  if (commit !== undefined && !/^[0-9a-f]{40}$/.test(commit))
+    throw new CommandError('bad-ref', `"${commit}" is not a commit`);
   if (source.type !== 'subflow' || !source.subflow?.nodes?.length)
     throw new CommandError('bad-type', `${source.title} is not a subflow with steps`);
   const copy = copySubflow(source, ctx.newId);
   const { path } = nodeAt(state(tx), id);
   for (const k of ['intent', 'purpose', 'ports', 'inputs', 'outputs', 'settings'] as const)
     setField(tx, path, k, (copy[k] ?? null) as YamlValue, NODE_ORDER);
-  setField(tx, path, 'ref', refFor(from, version, copy) as unknown as YamlValue, NODE_ORDER);
+  setField(
+    tx,
+    path,
+    'ref',
+    refFor(from, version, copy, commit) as unknown as YamlValue,
+    NODE_ORDER,
+  );
   setField(tx, path, 'subflow', copy.subflow as unknown as YamlValue, NODE_ORDER);
 }
 
@@ -2804,7 +2815,7 @@ function addReference(
     title: cmd.source.title,
     key: cmd.source.key,
   });
-  writeCopy(tx, ctx, id, cmd.from, cmd.version, cmd.source);
+  writeCopy(tx, ctx, id, cmd.from, cmd.version, cmd.source, cmd.commit);
   if (cmd.position) setPositions(tx, { [id]: cmd.position });
   return id;
 }
@@ -2816,7 +2827,7 @@ function updateReference(
 ): void {
   const { node } = nodeAt(state(tx), cmd.id);
   if (!node.ref) throw new CommandError('not-shared', `${node.title} is not a shared subflow`);
-  writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source);
+  writeCopy(tx, ctx, cmd.id, node.ref.from, cmd.version, cmd.source, cmd.commit);
 }
 
 // ---- roles expanded into subflows (AFD-293) ---------------------------------------------------

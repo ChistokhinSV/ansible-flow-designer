@@ -153,6 +153,28 @@ here, pinned to that flow's version (format 2):
 The flows of a folder such as `flows/shared/` become a pattern library: real flows, tested like any
 other, whose subflows the others reuse.
 
+### From the server's library
+
+On [Ansible Flow Server](server.md), a project can be a **library**: its flows' subflows are
+offered to every project on the server, to people who may read the library's workspace. With a
+server set for the folder (`afd.runner.url` and its token), **Insert Shared Subflow…** lists them
+under **Server library**, beside the workspace's own. A copy from the library names it with an
+`afs://` source and keeps the library's commit:
+
+```yaml
+ref:
+  from: afs://platform/library/flows/maintenance.flow.yaml#backup
+  version: 4
+  design: 2b7d90c1
+  commit: 9f2c1e7ab3d45c60e8a1f2b3c4d5e6f708192a3b
+```
+
+The copy stays in the flow, as any shared subflow: nothing is read from the server when the flow
+runs. The designer lists the library again at most once a minute; a newer version shows the
+problem with **Update Shared Subflow**, which reads the subflow from the server. A subflow the
+library no longer offers (or that you may no longer read) is a warning, and the copy runs as it is.
+Without a server, or while it does not answer, library copies are not checked.
+
 ## Generated code
 
 Each subflow level is its own playbook, `generated/<flow key>.<subflow key>.yml`, imported where

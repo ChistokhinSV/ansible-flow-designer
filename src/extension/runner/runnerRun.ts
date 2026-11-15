@@ -49,6 +49,10 @@ function settings(scope: vscode.Uri) {
   };
 }
 
+/** AFD-295: the address of the folder's Ansible Flow Server, when one is set. */
+export const runnerUrl = (scope: vscode.Uri): string | undefined =>
+  settings(scope).url || undefined;
+
 /** Whether an Ansible Flow Server is set up for this folder: the run menu offers it then. */
 export const runnerConfigured = (scope: vscode.Uri) => !!settings(scope).url;
 

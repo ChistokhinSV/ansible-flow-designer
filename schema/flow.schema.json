@@ -780,7 +780,7 @@
             "from": {
               "type": "string",
               "pattern": "^.+#.+$",
-              "description": "<flow file, relative to this flow's folder>#<subflow key path in it>"
+              "description": "<flow file, relative to this flow's folder>#<subflow key path in it>, or afs://<workspace>/<project>/<flow file>#<subflow key path> for a subflow of an Ansible Flow Server library"
             },
             "version": {
               "type": "integer",
@@ -790,6 +790,11 @@
             "design": {
               "type": "string",
               "description": "Fingerprint of the copy as it was made: a different one means it was changed here."
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "description": "A copy from an Ansible Flow Server library: the library's commit it was taken at."
             }
           }
         },

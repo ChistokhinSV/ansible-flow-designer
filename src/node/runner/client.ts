@@ -2,8 +2,11 @@
 // the designer's contract with the server names them (contract/server-api.json, AFD-280).
 // node:http(s) rather than fetch so TLS verification can be turned off for a lab server, as the
 // AWX client does; the token travels only in the Authorization header, to the configured server.
+
 import * as http from 'node:http';
 import * as https from 'node:https';
+import type { LibrarySubflow } from '../../core/flow/library';
+import type { FlowNode } from '../../core/flow/types';
 import { cleartextTo } from '../awx/client';
 import { TIMEOUTS } from '../timeouts';
 
@@ -319,6 +322,14 @@ export class RunnerClient {
   }
 
   meta = () => this.request<RunnerMeta>('GET', '/api/v1/meta');
+  /** AFD-295: the subflows of the server's library this token may read. */
+  library = () => this.request<{ subflows: LibrarySubflow[] }>('GET', '/api/v1/library/subflows');
+  /** AFD-295: one library subflow as it is now, to copy. */
+  librarySubflow = (from: string) =>
+    this.request<LibrarySubflow & { node: FlowNode }>(
+      'GET',
+      `/api/v1/library/subflow?from=${encodeURIComponent(from)}`,
+    );
   me = () => this.request<{ login: string; name: string }>('GET', '/api/v1/session');
   projects = (workspace: string) =>
     this.request<RunnerProject[]>('GET', `/api/v1/workspaces/${enc(workspace)}/projects`);
