@@ -43,6 +43,7 @@ import {
   type OutsideMarks,
   outsideChanges,
 } from '../core/view/outsideChanges';
+import type { ServerChange } from '../core/view/serverChange';
 import { undoSummary } from '../core/view/undoSummary';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
@@ -67,6 +68,7 @@ import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
 import { runnerConfigured } from './runner/runnerRun';
+import type { ServerWatch, WatchedFlow } from './runner/serverWatch';
 import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
 import { SyncController } from './session/syncController';
@@ -131,6 +133,8 @@ export interface SessionDeps {
     edit(flow: vscode.Uri, doc: FlowDocument, request: ScenarioRequest): Promise<CommandOutcome>;
     undo(flow: vscode.Uri): Promise<CommandOutcome>;
   };
+  /** AFD-284: the server's branch, for a flow in a clone of an Ansible Flow Server project. */
+  server?: ServerWatch;
 }
 
 export interface PerfEvent {
@@ -172,6 +176,10 @@ export class FlowSession implements vscode.Disposable {
   private marks?: OutsideMarks;
   /** AFD-283: a merge of this flow git left to the designer. */
   private merge?: WaitingMerge;
+  /** AFD-284: what changed on the server's branch, as the designer shows it. */
+  private serverChange: ServerChange | null = null;
+  /** AFD-284: this session as the server watch sees it. */
+  private readonly watched: WatchedFlow;
   /**
    * AFD-171: the designer is opening again and comparing with the flow it last showed. Editors that
    * keep the document loaded after the designer closed (Antigravity IDE) reload a change made on
@@ -210,6 +218,20 @@ export class FlowSession implements vscode.Disposable {
     this.code = new SyncController(document.uri, deps, broadcast, snapshot, (c, extra) =>
       this.runCommand(c, extra),
     );
+    this.watched = {
+      uri: this.document.uri,
+      text: () => this.document.getText(),
+      isDirty: () => this.document.isDirty,
+      save: async () => this.document.save(),
+      setServerChange: (change) => {
+        this.serverChange = change;
+        this.broadcast({ type: 'serverChange', change });
+      },
+      compareWith: async (ref) => {
+        await this.lens.compareWith(ref);
+        this.setLens('changes');
+      },
+    };
   }
 
   /** Lens facts gathered for this flow, as the panels have them. */
@@ -518,6 +540,8 @@ export class FlowSession implements vscode.Disposable {
       this.readyPanels.delete(panel);
       this.drawn.delete(panel);
       if (this.panels.size === 0) {
+        this.deps.server?.forget(this.watched);
+        this.serverChange = null;
         // AFD-171: the marks end with the designer, as they do in VS Code, where the document and
         // this session close with it; editors that keep the document loaded keep the session.
         this.marks = undefined;
@@ -668,6 +692,10 @@ export class FlowSession implements vscode.Disposable {
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
         // AFD-283: a merge waiting for choices (not awaited: git answers when it answers).
         void this.showMerge(panel).catch(() => undefined);
+        // AFD-284: the server's branch, when this clone is a server project's.
+        if (this.serverChange)
+          this.post(panel, { type: 'serverChange', change: this.serverChange });
+        void this.deps.server?.follow(this.watched).catch(() => undefined);
         // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
         void this.deps.repo?.().then((state) => {
           if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
@@ -863,6 +891,12 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'clearOutside':
         await this.clearOutside();
+        break;
+      case 'serverUpdate':
+        await this.serverUpdate(m.show);
+        break;
+      case 'serverDismiss':
+        this.deps.server?.dismiss(this.watched);
         break;
       case 'mergeChoose':
         await this.chooseMerge(m.id, m.side);
@@ -1439,6 +1473,11 @@ export class FlowSession implements vscode.Disposable {
       : { ok: false, error: 'VS Code did not apply the edit' };
   }
 
+  /** AFD-284: Update (pull) from the server note; with `show`, the Changes lens after. */
+  async serverUpdate(show: boolean): Promise<void> {
+    await this.deps.server?.update(this.watched, show);
+  }
+
   /** AFD-283: the merge git left for this flow, read again (test API and panels). */
   async mergeState(): Promise<MergeView | undefined> {
     await this.showMerge();
@@ -1507,6 +1546,7 @@ export class FlowSession implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.deps.server?.forget(this.watched);
     clearTimeout(this.changeTimer);
     this.deps.diagnostics.delete(this.uri);
     for (const p of this.panels) p.dispose();

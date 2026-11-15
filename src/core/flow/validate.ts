@@ -1,6 +1,5 @@
 // Semantic checks on a flow document. Findings carry YAML paths; the host maps them to ranges.
 
-import { takesFreeKeys } from '../catalog/freeKeys';
 import type { Path } from '../yaml/parse';
 import { successors } from './adjacency';
 import { fedByBubbling, levelTaken, untaken } from './bubbling';

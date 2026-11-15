@@ -9,7 +9,7 @@ import type { FlowNode } from './types';
 
 /** The facts a set_fact step sets: its parameters' keys (`cacheable` is an option). */
 export function setFactNames(impl: FlowNode['impl']): string[] {
-  if (!impl || impl.kind !== 'module' || !takesFreeKeys(impl.ref)) return [];
+  if (impl?.kind !== 'module' || !takesFreeKeys(impl.ref)) return [];
   return Object.keys(impl.params ?? {}).filter(
     (k) => k !== 'cacheable' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k),
   );

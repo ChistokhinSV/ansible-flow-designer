@@ -7,6 +7,9 @@
 // check run followed to its end with the hosts on the canvas, at the commit the workspace has.
 import * as assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { RunView } from '../../src/core/protocol';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
@@ -16,6 +19,7 @@ const token = process.env.AFD_RUNNER_TOKEN;
 const workspace = process.env.AFD_RUNNER_WORKSPACE;
 const FLOW = flowUri('hello');
 const FILE = 'flows/hello/hello.flow.yaml';
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const api = async (method: string, path: string, body?: unknown) => {
   const res = await fetch(`${url}${path}`, {
@@ -32,12 +36,13 @@ const api = async (method: string, path: string, body?: unknown) => {
 describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
   this.timeout(600_000);
   let head = '';
+  let key = '';
 
   before(async function () {
     if (!url || !token || !workspace) this.skip();
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
     const ws = workspace;
-    const key = `vscode-${Date.now()}`;
+    key = `vscode-${Date.now()}`;
     const made = await api('POST', `/api/v1/workspaces/${ws}/projects`, { key, name: key });
     assert.equal(made.status, 201, JSON.stringify(made.json));
     const id = (made.json as { id: string }).id;
@@ -100,6 +105,74 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
       steps.every((n) => n.ok_hosts?.includes('localhost')),
       JSON.stringify(steps),
     );
+  });
+
+  it('AFD-284: a change pushed to the server shows over the canvas; Show changes pulls it', async () => {
+    const t = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    const remote = `${url}/git/${workspace}/${key}.git`;
+    const header = `http.extraHeader=Authorization: Bearer ${token}`;
+    const run = (cwd: string, ...args: string[]) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 60_000 }).trim();
+    // The test workspace pulls from the server: its token for this remote only, in this
+    // throwaway repository's config.
+    run(root, 'config', `http.${remote}.extraHeader`, `Authorization: Bearer ${token}`);
+    run(root, '-c', header, 'fetch', '--quiet', 'afs');
+    run(root, 'branch', '--set-upstream-to=afs/main');
+    // Someone else changes the flow and pushes it to the server.
+    const other = mkdtempSync(join(tmpdir(), 'afd-284-'));
+    try {
+      run(other, '-c', header, 'clone', '--quiet', remote, '.');
+      const path = join(other, FILE);
+      writeFileSync(
+        path,
+        readFileSync(path, 'utf8').replace('title: Say hello', 'title: Say hello to everyone'),
+      );
+      run(
+        other,
+        '-c',
+        'user.name=Mia Ortega',
+        '-c',
+        'user.email=mia@example.net',
+        'commit',
+        '-qam',
+        'Friendlier',
+      );
+      run(other, '-c', header, 'push', '--quiet', 'origin', 'HEAD:main');
+    } finally {
+      // git's object files are read-only: on Windows they may refuse to go; a temp folder.
+      try {
+        rmSync(other, { recursive: true, force: true, maxRetries: 5 });
+      } catch {
+        // left in the temp folder
+      }
+    }
+    // The designer says who changed it and how much.
+    const until = Date.now() + 60_000;
+    let note = (await t.inspect(FLOW)).server;
+    while (!note) {
+      assert.ok(Date.now() < until, 'the server note shows');
+      await pause(500);
+      note = (await t.inspect(FLOW)).server;
+    }
+    assert.match(note, /Mia Ortega changed this flow on the server: 1 step\./);
+    // Show changes: pulled, and the Changes lens compares with the version shown before.
+    await t.serverUpdate(FLOW, true);
+    assert.equal(run(root, 'rev-parse', 'HEAD'), run(root, 'rev-parse', 'afs/main'));
+    const doc = await vscode.workspace.openTextDocument(FLOW);
+    const loaded = Date.now() + 15_000;
+    while (!doc.getText().includes('title: Say hello to everyone')) {
+      assert.ok(Date.now() < loaded, 'the pulled flow is shown');
+      await pause(200);
+    }
+    const compared = Date.now() + 15_000;
+    while (t.lensFacts(FLOW).compare?.state !== 'ready') {
+      assert.ok(Date.now() < compared, JSON.stringify(t.lensFacts(FLOW).compare));
+      await pause(200);
+    }
+    assert.equal(t.lensFacts(FLOW).compare?.ref, head);
+    assert.equal((await t.inspect(FLOW)).server, null);
+    t.setLens(FLOW, null);
   });
 
   it('AFD-282: checks uncommitted work on the server as a dev run', async () => {

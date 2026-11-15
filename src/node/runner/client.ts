@@ -102,6 +102,24 @@ export function incompatible(meta: RunnerMeta, format: number): string | undefin
   return undefined;
 }
 
+/** AFD-284: what happened to which flows between two commits, and who did it. */
+export interface RunnerChanges {
+  from: string;
+  to: string;
+  flows: {
+    file: string;
+    change: 'added' | 'changed' | 'removed';
+    authors: string[];
+    at?: string;
+    commit?: string;
+  }[];
+}
+
+/** AFD-284: where the project's branch is (`commit`), and each time it moves (`moved`). */
+export type ProjectEvent =
+  | { type: 'commit'; commit: string | null }
+  | { type: 'moved'; from?: string; to: string };
+
 export interface RunnerOptions {
   verifyTls?: boolean;
   /** Send the token over plain http to another machine (a lab only). */
@@ -130,6 +148,87 @@ export class RunnerClient {
     return `${this.base}/runs/${enc(id)}`;
   }
 
+  /** Refuses a URL the token must not go to: another origin, or plain http without consent. */
+  private guard(url: URL): RunnerError | undefined {
+    if (url.origin !== this.origin)
+      return new RunnerError(`Not sending the token to ${url.origin}`);
+    if (cleartextTo(url) && !this.options.allowHttp)
+      return new RunnerError(
+        `Not sending the token unencrypted to ${url.origin}: use an https address, or turn on afd.runner.allowHttp in your user settings (a lab server only)`,
+      );
+    return undefined;
+  }
+
+  /**
+   * AFD-284: follows a project's event stream (server-sent events) until `stop` is called, going
+   * back after a dropped connection (5 s, then up to a minute between tries). `commit` comes at
+   * once and after each reconnect, so a move missed while away is noticed.
+   */
+  follow(project: string, onEvent: (e: ProjectEvent) => void): () => void {
+    let stopped = false;
+    let req: http.ClientRequest | undefined;
+    let retry: NodeJS.Timeout | undefined;
+    let wait = 5_000;
+    const url = new URL(`${this.base}/api/v1/projects/${enc(project)}/events`);
+    const problem = this.guard(url);
+    const again = () => {
+      if (stopped) return;
+      retry = setTimeout(connect, wait);
+      wait = Math.min(wait * 2, 60_000);
+    };
+    const connect = () => {
+      if (stopped || problem) return;
+      const lib = url.protocol === 'https:' ? https : http;
+      req = lib.request(
+        url,
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${this.token}`, Accept: 'text/event-stream' },
+          ...(url.protocol === 'https:'
+            ? { rejectUnauthorized: this.options.verifyTls !== false }
+            : {}),
+        },
+        (res) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            // A token the server refuses, or a project gone: trying again changes nothing.
+            if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 404) return;
+            again();
+            return;
+          }
+          wait = 5_000;
+          res.setEncoding('utf8');
+          let buffer = '';
+          res.on('data', (chunk: string) => {
+            buffer += chunk;
+            for (let at = buffer.indexOf('\n\n'); at >= 0; at = buffer.indexOf('\n\n')) {
+              const block = buffer.slice(0, at);
+              buffer = buffer.slice(at + 2);
+              const type = /^event: (.*)$/m.exec(block)?.[1];
+              const data = /^data: (.*)$/m.exec(block)?.[1];
+              if (!data || (type !== 'commit' && type !== 'moved')) continue;
+              try {
+                onEvent({ type, ...JSON.parse(data) } as ProjectEvent);
+              } catch {
+                // A line it cannot read: the next event says where the branch is.
+              }
+            }
+          });
+          res.on('end', again);
+          res.on('error', again);
+        },
+      );
+      req.on('error', again);
+      req.end();
+    };
+    connect();
+    return () => {
+      stopped = true;
+      clearTimeout(retry);
+      req?.destroy();
+    };
+  }
+
   /** The answer's body as text, and its status. */
   private send(
     method: string,
@@ -139,14 +238,8 @@ export class RunnerClient {
     raw?: { bytes: Buffer; type: string },
   ): Promise<{ status: number; text: string }> {
     const url = new URL(`${this.base}${path}`);
-    if (url.origin !== this.origin)
-      return Promise.reject(new RunnerError(`Not sending the token to ${url.origin}`));
-    if (cleartextTo(url) && !this.options.allowHttp)
-      return Promise.reject(
-        new RunnerError(
-          `Not sending the token unencrypted to ${url.origin}: use an https address, or turn on afd.runner.allowHttp in your user settings (a lab server only)`,
-        ),
-      );
+    const refused = this.guard(url);
+    if (refused) return Promise.reject(refused);
     const lib = url.protocol === 'https:' ? https : http;
     const data = raw?.bytes ?? (body === undefined ? undefined : JSON.stringify(body));
     const type = raw?.type ?? 'application/json';
@@ -266,6 +359,18 @@ export class RunnerClient {
       `/api/v1/projects/${enc(project)}/dev-bundles`,
       undefined,
       { bytes, type: 'application/x-git-bundle' },
+    );
+  /** AFD-284: the flows changed between `from` and the project's commit (or `to`). */
+  changes = (project: string, from: string, to?: string) =>
+    this.request<RunnerChanges>(
+      'GET',
+      `/api/v1/projects/${enc(project)}/changes?from=${enc(from)}${to ? `&to=${enc(to)}` : ''}`,
+    );
+  /** AFD-284: one flow as the server reads it at a commit (its document in `snapshot.doc`). */
+  flowAt = (project: string, path: string, commit: string) =>
+    this.request<{ commit: string; file: string; snapshot: { doc?: unknown } }>(
+      'GET',
+      `/api/v1/projects/${enc(project)}/flows/view?path=${enc(path)}&commit=${enc(commit)}`,
     );
   /** What one host did in one step of the run. */
   hostOutput = (id: string, node: string, host: string) =>

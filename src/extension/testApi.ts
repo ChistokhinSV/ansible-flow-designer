@@ -93,6 +93,8 @@ export interface AfdTestApi {
   merge(uri: vscode.Uri): Promise<MergeView | undefined>;
   mergeChoose(uri: vscode.Uri, id: string, side: MergeSide): Promise<void>;
   mergeFinish(uri: vscode.Uri): Promise<boolean>;
+  /** AFD-284: the server note's Update (`show`: Show changes). */
+  serverUpdate(uri: vscode.Uri, show: boolean): Promise<void>;
   /** The designer of a flow takes the keyboard focus, so a test's Undo reaches it. */
   focusDesigner(uri: vscode.Uri): void;
   /** AFD-93: the workspace index's facts for a flow, read and published now. */
@@ -253,6 +255,7 @@ export function createTestApi(
     merge: (uri) => get(uri).mergeState(),
     mergeChoose: (uri, id, side) => get(uri).chooseMerge(id, side),
     mergeFinish: (uri) => get(uri).finishMerge(),
+    serverUpdate: (uri, show) => get(uri).serverUpdate(show),
     focusDesigner: (uri) => host.sessions.get(uri.toString())?.focusPanel(),
     indexed: async (uri) => {
       await host.index.republish(uri);
@@ -301,7 +304,11 @@ export function createTestApi(
         inputs,
         yes: true,
       }),
-    runnerToken: (uri, token) => setRunnerToken(uri, host.context.secrets, token),
+    runnerToken: async (uri, token) => {
+      const error = await setRunnerToken(uri, host.context.secrets, token);
+      if (!error) host.server.retry();
+      return error;
+    },
     runnerLaunch: async (uri, options) =>
       launchOnServer(await vscode.workspace.openTextDocument(uri), host.awxDeps(uri), {
         ...options,

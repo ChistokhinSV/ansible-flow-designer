@@ -498,3 +498,12 @@
   margin: 2px 0 0;
   color: var(--vscode-errorForeground, #f14c4c);
 }
+
+/* AFD-284: the flow changed on Ansible Flow Server's branch. */
+.afd-server-note {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--afd-border);
+  border-left: 3px solid var(--vscode-focusBorder, var(--afd-accent));
+  background: var(--vscode-editorWidget-background, var(--afd-panel));
+  font-size: var(--afd-fs-12);
+}
