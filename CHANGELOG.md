@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.86.0 — Flows merge in git by their steps
 
 ### Added
 
