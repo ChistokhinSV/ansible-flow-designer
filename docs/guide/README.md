@@ -46,6 +46,7 @@ playbooks are generated from it.
 - [Notes, sections and text](how-to/annotations.md)
 - [Hand-written YAML and Complete IDs](how-to/hand-written-yaml.md)
 - [Export as draw.io or an image](how-to/export.md)
+- [Merging flows in git](how-to/merging-flows.md)
 
 **Implementing**
 - [Bind a step to a module, role or playbook](how-to/binding-and-catalog.md)

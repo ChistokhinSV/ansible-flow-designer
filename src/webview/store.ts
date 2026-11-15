@@ -7,7 +7,7 @@ import { modelOf, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
-import type { CatalogStatus, RunView, Snapshot } from '../core/protocol';
+import type { CatalogStatus, MergeView, RunView, Snapshot } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import type { PastRun } from '../core/run/pastRuns';
 import { type NodeRun, runStates } from '../core/run/view';
@@ -236,6 +236,8 @@ interface UiState {
   /** AFD-85: what changed outside the designer since it opened, and the subflows around it. */
   outside: OutsideMarks | null;
   outsideAround: Ulid[];
+  /** AFD-283: a merge of this flow waiting for choices. */
+  merge: MergeView | null;
   /** AFD-93: the workspace's flows at a glance (the host's index). */
   repo: RepoState | null;
   /** Run mode read-out per node for the current document and run (computed, never stored). */
@@ -326,6 +328,7 @@ interface UiState {
   editScenario(name: string | null): void;
   setHostPick(p: HostPick | null): void;
   setOutside(marks: OutsideMarks | null): void;
+  setMerge(merge: MergeView | null): void;
   setRepo(state: RepoState | null): void;
   /** Shows a scenario on the canvas in Run mode; null goes back to the last run. */
   showScenario(name: string | null): void;
@@ -428,6 +431,7 @@ export const useUi = create<UiState>((set, get) => ({
   scenarioShown: null,
   runBeforeScenario: null,
   outside: null,
+  merge: null,
   outsideAround: [],
   repo: null,
   runNodes: null,
@@ -593,6 +597,9 @@ export const useUi = create<UiState>((set, get) => ({
   setRunAsked: (runAsked) => set({ runAsked }),
   setPastRuns: (pastRuns) => set({ pastRuns }),
   setRepo: (repo) => set({ repo }),
+  setMerge(merge) {
+    set({ merge });
+  },
   setOutside(outside) {
     const doc = get().snapshot?.doc;
     set({ outside, outsideAround: outside && doc ? markedAround(outside, doc) : [] });

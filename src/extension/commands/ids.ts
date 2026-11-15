@@ -28,6 +28,7 @@ export const CMD = {
   stopRun: 'afd.run.stop',
   runScenarios: 'afd.run.scenarios',
   copyScenarioRunner: 'afd.run.copyScenarioRunner',
+  setupFlowMerging: 'afd.flow.setupMerging',
   showAudit: 'afd.run.showAudit',
   importPlaybooks: 'afd.import.playbooks',
   reimport: 'afd.import.reimport',

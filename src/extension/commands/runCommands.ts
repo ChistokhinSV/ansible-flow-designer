@@ -7,6 +7,7 @@ import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun'
 import { copyFileToHost, setUpEnvironment } from '../env/setupEnvironment';
 import { switchEnvironment } from '../env/switchEnvironment';
 import { isCancelled, showOutcomeError } from '../errors';
+import { setupFlowMerging } from '../flowMergeSetup';
 import type { Host } from '../host';
 import { auditUri } from '../run/audit';
 import { takeLaunch } from '../run/launch';
@@ -72,6 +73,10 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     ),
     vscode.commands.registerCommand(CMD.copyScenarioRunner, (uri?: vscode.Uri) =>
       copyScenarioRunner(host, uri),
+    ),
+    // AFD-283: flows merge by their steps in git.
+    vscode.commands.registerCommand(CMD.setupFlowMerging, (uri?: vscode.Uri) =>
+      setupFlowMerging(host.context.extensionUri, uri),
     ),
     vscode.commands.registerCommand(CMD.runReal, (uri?: vscode.Uri) => run('real', uri)),
     // AFD-82: the designer's Run (top bar, Ctrl+F5) opens its launch dialog; a flow with no

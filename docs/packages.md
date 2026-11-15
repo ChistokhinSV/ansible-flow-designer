@@ -52,6 +52,12 @@ if (parsed.doc) {
 }
 ```
 
+**Merging two versions of a flow** (three-way, by the steps' IDs): `mergeFlows(base, ours,
+theirs, choices)` in `@ansible-flow/core/flow/merge` gives the merged document and its conflicts
+(each with a stable `id`; `choices` maps ids to `'ours'` or `'theirs'`, ours by default), and
+`writeMergedFlow(oursText, doc)` in `@ansible-flow/core/flow/mergeText` writes it over ours's text
+keeping its comments. See [Merging flows in git](guide/how-to/merging-flows.md).
+
 **One copy of the core.** A flow's model is cached per document (`modelOf`), and objects are
 compared by identity. Install one version of `@ansible-flow/core`, and do not copy its modules
 into a bundle that also imports the package.
@@ -90,6 +96,7 @@ it by name, so a host that uses both has one copy of the core.
 | `awx/client`, `awx/awxWorkflow`       | `AwxClient`; the workflow follower                                                 |
 | `catalog/catalogIndex`                | the module catalog index (`node:sqlite`)                                           |
 | `ssh/remote`, `ssh/sync`, `ssh/exec`  | runs and the probe on a remote Linux host                                          |
+| `flowMerge`                           | `mergeFlowTexts` (three texts merged into ours's), the waiting-merge state         |
 
 Two modules are programs, not libraries: they do their work when loaded. `catalog/catalogWorker`
 is started as a worker thread and `ssh/sshRun` as a process; find their files with

@@ -21,6 +21,7 @@ import { FlowDescription } from './panels/FlowDescription';
 import { HostPickDialog } from './panels/HostPickDialog';
 import { LaunchDialog } from './panels/LaunchDialog';
 import { AcceptDialog, LensBrowser, LensPanel } from './panels/LensPanel';
+import { MergeNote } from './panels/MergeNote';
 import { NotAFlow } from './panels/NotAFlow';
 import { OutsideNote } from './panels/OutsideNote';
 import { Palette } from './panels/Palette';
@@ -76,6 +77,8 @@ function useHost() {
         ui.setScenarioCheck(m.check, m.undo);
       } else if (m.type === 'outsideMarks') {
         ui.setOutside(m.marks);
+      } else if (m.type === 'mergeConflicts') {
+        ui.setMerge(m.merge);
       } else if (m.type === 'repoState') {
         ui.setRepo(m.state);
       } else if (m.type === 'config') {
@@ -411,6 +414,7 @@ export function App() {
           <PickBar />
           <CanvasCaption />
           <OutsideNote />
+          <MergeNote />
           <FlowCanvas />
           <Toasts />
         </main>

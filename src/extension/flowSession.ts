@@ -55,6 +55,7 @@ import { CMD } from './commands/ids';
 import { parseErrorDiagnostic, toDiagnostics } from './diagnostics';
 import type { ProbeManager } from './env/environment';
 import { showEnvironmentError } from './env/setupEnvironment';
+import { choose, finish, mergeView, type WaitingMerge, waitingMerge } from './flowMerge';
 import { authorName } from './gitHead';
 import { webviewHtml } from './html';
 import { logChannel } from './log';
@@ -167,6 +168,8 @@ export class FlowSession implements vscode.Disposable {
    */
   private outsideBase?: OutsideBase;
   private marks?: OutsideMarks;
+  /** AFD-283: a merge of this flow git left to the designer. */
+  private merge?: WaitingMerge;
   /**
    * AFD-171: the designer is opening again and comparing with the flow it last showed. Editors that
    * keep the document loaded after the designer closed (Antigravity IDE) reload a change made on
@@ -661,6 +664,8 @@ export class FlowSession implements vscode.Disposable {
         this.post(panel, { type: 'run', run: this.lastRun });
         void this.sendRuns(panel).catch(() => undefined);
         if (this.marks) this.post(panel, { type: 'outsideMarks', marks: this.marks });
+        // AFD-283: a merge waiting for choices (not awaited: git answers when it answers).
+        void this.showMerge(panel).catch(() => undefined);
         // AFD-93: not awaited, so 'ready' posts the rest at once; a panel closed by then gets nothing.
         void this.deps.repo?.().then((state) => {
           if (this.readyPanels.has(panel)) this.post(panel, { type: 'repoState', state });
@@ -856,6 +861,28 @@ export class FlowSession implements vscode.Disposable {
         break;
       case 'clearOutside':
         await this.clearOutside();
+        break;
+      case 'mergeChoose':
+        if (this.merge) {
+          choose(this.merge, m.id, m.side);
+          await this.applyMerge();
+        }
+        break;
+      case 'mergeFinish':
+        if (this.merge) {
+          const w = this.merge;
+          this.merge = undefined;
+          if (this.document.isDirty) await this.document.save();
+          try {
+            await finish(w);
+            void vscode.window.showInformationMessage(
+              `${w.file} is merged (git add); commit to finish the merge.`,
+            );
+          } catch (e) {
+            void vscode.window.showErrorMessage(`git add failed: ${(e as Error).message}`);
+          }
+          this.broadcast({ type: 'mergeConflicts', merge: null });
+        }
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
@@ -1424,6 +1451,35 @@ export class FlowSession implements vscode.Disposable {
     return (await vscode.workspace.applyEdit(edit))
       ? { ok: true }
       : { ok: false, error: 'VS Code did not apply the edit' };
+  }
+
+  /** AFD-283: tells a panel (or every panel) about the merge git left for this flow, if any. */
+  private async showMerge(panel?: vscode.WebviewPanel): Promise<void> {
+    if (this.uri.scheme !== 'file') return;
+    this.merge = await waitingMerge(this.uri.fsPath);
+    if (!this.merge) return;
+    const { view } = mergeView(this.merge, this.document.getText());
+    if (panel) this.post(panel, { type: 'mergeConflicts', merge: view });
+    else this.broadcast({ type: 'mergeConflicts', merge: view });
+  }
+
+  /** AFD-283: the file says what the merge's choices say, in one edit (one undo step). */
+  private async applyMerge(): Promise<void> {
+    if (!this.merge) return;
+    const text = this.document.getText();
+    const { view, text: next } = mergeView(this.merge, text);
+    this.broadcast({ type: 'mergeConflicts', merge: view });
+    if (next === undefined || next === text) return;
+    const edit = new vscode.WorkspaceEdit();
+    this.ownText = next;
+    for (const e of diffEdits(text, next))
+      edit.replace(
+        this.uri,
+        new vscode.Range(this.document.positionAt(e.start), this.document.positionAt(e.end)),
+        e.newText,
+      );
+    if (!(await vscode.workspace.applyEdit(edit)))
+      void vscode.window.showErrorMessage('VS Code did not apply the merge choice');
   }
 
   /** Test mode: resolves once an open panel has rendered `version` or later. */
