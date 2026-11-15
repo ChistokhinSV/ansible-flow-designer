@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.90.0 — A calmer Details pane
 
 ### Changed
 
