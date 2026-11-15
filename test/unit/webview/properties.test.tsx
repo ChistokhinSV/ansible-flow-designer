@@ -160,8 +160,8 @@ describe('Details: Binding (AFD-43)', () => {
     expect(configure.querySelector('[data-binding-preview]')?.textContent).toContain(
       'save_when: modified',
     );
-    // Nothing changed yet: nothing to save, no pending bar.
-    expect(screen.queryByText('Save Binding')).toBeNull();
+    // Nothing changed yet: nothing saved.
+    expect(commands()).toEqual([]);
     // AFD-44: "+" on a docs row adds that parameter to Configure.
     const add = understand.querySelector<HTMLButtonElement>('[data-add-param]:not([disabled])');
     const name = add?.dataset.addParam as string;
@@ -171,7 +171,7 @@ describe('Details: Binding (AFD-43)', () => {
     expect(add?.disabled).toBe(true);
   });
 
-  it('stages edits and saves them as one setBinding command', async () => {
+  it('saves edits made together as one setBinding command (AFD-299)', async () => {
     const id = open('set-boot-variable');
     await answer(catalog);
     const configure = screen.getByRole('region', { name: 'Configure' });
@@ -180,7 +180,8 @@ describe('Details: Binding (AFD-43)', () => {
     }) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'always' } });
     fireEvent.click(within(await unfold('About')).getByRole('button', { name: 'backup_path' }));
-    fireEvent.click(screen.getByText('Save Binding'));
+    // AFD-299: saved a moment after the last change.
+    await act(() => new Promise((r) => setTimeout(r, 800)));
     const sent = commands();
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({
@@ -194,6 +195,16 @@ describe('Details: Binding (AFD-43)', () => {
       },
       outputs: { backup_path: { type: 'string', from: 'impl.register.backup_path' } },
     });
+  });
+
+  it('browsing another kind with nothing chosen does not unbind the step (AFD-299)', async () => {
+    open('set-boot-variable');
+    await answer(catalog);
+    fireEvent.click(
+      await unfold('Change module').then((r) => within(r).getByRole('button', { name: 'Role' })),
+    );
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect(commands()).toEqual([]);
   });
 
   it('finds a module from the intent and binds an unbound node, with @ adding a flow input', async () => {
@@ -225,7 +236,8 @@ describe('Details: Binding (AFD-43)', () => {
     );
     fireEvent.mouseDown(within(configure).getByRole('option', { name: /flow.target_image/ }));
     expect(within(configure).getByText('Required parameters set')).toBeTruthy();
-    fireEvent.click(screen.getByText('Save Binding'));
+    // AFD-299: saved a moment after the last change.
+    await act(() => new Promise((r) => setTimeout(r, 800)));
     expect(commands()[0]).toMatchObject({
       kind: 'setBinding',
       id,
@@ -792,7 +804,8 @@ describe('Configure: set_fact (AFD-222)', () => {
     typeInto(field('label'), '"[not a list]"');
     // What was typed stays as typed.
     expect(field('packages').textContent).toBe('[mc, python3]');
-    fireEvent.click(screen.getByText('Save Binding'));
+    // AFD-299: saved a moment after the last change.
+    await act(() => new Promise((r) => setTimeout(r, 800)));
     expect(commands()[0]).toMatchObject({
       kind: 'setBinding',
       id,

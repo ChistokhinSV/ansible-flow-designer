@@ -2,8 +2,8 @@
 // step starts at Find: a module, role or playbook from the environment's catalog. Once something
 // is chosen, Configure comes first (its parameters with input chips), then two folds: Change
 // Module (Find again, open by itself while another one is being chosen or the bound one is a
-// problem) and About (its docs). Everything here edits the staged draft; Save Binding writes it as
-// one command.
+// problem) and About (its docs). Everything here edits the draft, which Details saves as one
+// command a moment after the last change (AFD-299).
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import {
   type BindingDraft,

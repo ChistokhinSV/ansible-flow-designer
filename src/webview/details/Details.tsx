@@ -14,7 +14,7 @@ import { StatusIcon } from '../canvas/StatusIcon';
 import { copySelection } from '../clipboard';
 import { TYPE_LABEL } from '../constants';
 import { deleteSelection, useEditable } from '../editActions';
-import { onTabListKeys, useDialogFocus } from '../focus';
+import { onTabListKeys } from '../focus';
 import type { HelpTopic } from '../helpPages';
 import { useModel, useNode } from '../hooks';
 import { NodeCodePanel } from '../panels/DriftPanel';
@@ -62,6 +62,9 @@ const TAB_HELP: Record<PropTab, HelpTopic> = {
   execution: 'execution',
 };
 
+/** AFD-299: a binding change is saved this long after the last one. */
+const SAVE_AFTER_MS = 700;
+
 export function Details({ id, context }: { id: string; context?: boolean }) {
   const snapshot = useUi((s) => s.snapshot);
   const mode = useUi((s) => s.mode);
@@ -79,17 +82,17 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const [draft, setDraft] = useState(() =>
     node ? { ...draftOf(node), ...(bindKind && !node.impl ? { kind: bindKind } : {}) } : undefined,
   );
-  const [saving, setSaving] = useState(false);
   // After a save the document is the truth again: restage from the first snapshot past the save
-  // (the ack can arrive before it).
+  // (the ack can arrive before it), unless the binding was changed again meanwhile.
   const version = snapshot?.docVersion ?? 0;
   const [restageAfter, setRestageAfter] = useState<number | null>(null);
+  const savedDraft = useRef<string | null>(null);
   useEffect(() => {
     if (restageAfter !== null && version > restageAfter && node) {
-      setDraft(draftOf(node));
+      if (JSON.stringify(draft) === savedDraft.current) setDraft(draftOf(node));
       setRestageAfter(null);
     }
-  }, [restageAfter, version, node]);
+  }, [restageAfter, version, node, draft]);
   // Quick Add selects a new step on the ack, which can come before the snapshot that has it.
   useEffect(() => {
     if (node && !draft) setDraft(draftOf(node));
@@ -107,6 +110,38 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
     },
     [id],
   );
+  // AFD-299: the binding saves as it is changed, as every other field does: a moment after the
+  // last change (a value typed is one undo step, not one per key). Browsing another kind with
+  // nothing chosen is not a change to save: it never unbinds the step.
+  const latest = useRef({ node, draft });
+  latest.current = { node, draft };
+  const save = async (): Promise<boolean> => {
+    const { node: n, draft: d } = latest.current;
+    if (!n || !d) return true;
+    const before = version;
+    savedDraft.current = JSON.stringify(d);
+    const ack = await run(bindingCommand(n, d));
+    if (ack.ok) setRestageAfter(before);
+    return ack.ok;
+  };
+  const savable = dirty && !!draft?.ref.trim();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each change of the draft restarts the wait
+  useEffect(() => {
+    if (!savable) return;
+    const t = setTimeout(() => void save(), SAVE_AFTER_MS);
+    return () => clearTimeout(t);
+  }, [savable, draft]);
+  // Leaving the step (another selection, level or mode): what is left is saved first.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per leave asked
+  useEffect(() => {
+    if (!leave || !dirty) return;
+    if (!savable) {
+      if (node) setDraft(draftOf(node));
+      useUi.getState().resolveLeave('go');
+      return;
+    }
+    void save().then((ok) => useUi.getState().resolveLeave(ok ? 'go' : 'stay'));
+  }, [leave]);
 
   if (!snapshot?.doc || !model || !entry || !node || !draft) return null;
   const tabs = detailsTabs(node, mode);
@@ -120,16 +155,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const tabsWithProblems = new Set<string>(problems.map((p) => p.tab));
   // Design edits everything; Code mode only the binding (AFD-45); Run mode reads.
   const readOnly = !editable || mode === 'run' || (mode === 'code' && tab !== 'binding');
-
-  const save = async (): Promise<boolean> => {
-    setSaving(true);
-    const before = version;
-    const ack = await run(bindingCommand(node, draft));
-    setSaving(false);
-    if (ack.ok) setRestageAfter(before);
-    return ack.ok;
-  };
-  const discard = () => setDraft(draftOf(node));
 
   return (
     <div className="afd-details" data-details={id} data-inspector={id}>
@@ -210,17 +235,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           </div>
         </div>
       </header>
-      {dirty ? (
-        <div className="afd-pending" role="status" data-pending-binding={id}>
-          <span>The binding is not saved.</span>
-          <button type="button" className="secondary" onClick={discard}>
-            Discard
-          </button>
-          <button type="button" disabled={saving} onClick={() => void save()} data-save-binding>
-            Save Binding
-          </button>
-        </div>
-      ) : null}
       {problems.length > 0 ? (
         <ul
           className="afd-node-problems"
@@ -282,7 +296,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             onClick={() => setTab(t)}
           >
             {LABEL[t]}
-            {t === 'binding' && dirty ? <span className="afd-dirty" title="Not saved" /> : null}
             {tabsWithProblems.has(t) ? (
               <span className="afd-tab-problem" title="Has problems" />
             ) : null}
@@ -326,9 +339,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           <SelectHint />
         </div>
       ) : null}
-      {leave && dirty ? (
-        <LeaveDialog title={node.title} saving={saving} save={save} discard={discard} />
-      ) : null}
     </div>
   );
 }
@@ -339,64 +349,4 @@ function stepsBeside(model: FlowModel, id: string): number {
   return [...model.nodes.values()].filter(
     (e) => e.level === level && e.node.type !== 'start' && e.node.type !== 'end',
   ).length;
-}
-
-/** Leaving with a staged binding asks first (AFD-43); the safe choice has the focus. */
-function LeaveDialog(props: {
-  title: string;
-  saving: boolean;
-  save(): Promise<boolean>;
-  discard(): void;
-}) {
-  const box = useRef<HTMLDivElement>(null);
-  const trap = useDialogFocus(box);
-  return (
-    <div className="afd-modal-backdrop">
-      <div
-        ref={box}
-        className="afd-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="afd-leave-title"
-        data-leave-binding
-        onKeyDown={trap}
-      >
-        <h2 id="afd-leave-title">Discard the binding change?</h2>
-        <p className="muted">
-          The binding of "{props.title}" has a change that is not saved yet. Leaving now drops it.
-        </p>
-        <div className="afd-modal-actions">
-          <button
-            type="button"
-            className="secondary"
-            // biome-ignore lint/a11y/noAutofocus: the safe choice takes the focus in this alert
-            autoFocus
-            onClick={() => useUi.getState().resolveLeave('stay')}
-          >
-            Keep Editing
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            data-leave-discard
-            onClick={() => {
-              props.discard();
-              useUi.getState().resolveLeave('go');
-            }}
-          >
-            Discard
-          </button>
-          <button
-            type="button"
-            disabled={props.saving}
-            onClick={() =>
-              void props.save().then((ok) => ok && useUi.getState().resolveLeave('go'))
-            }
-          >
-            Save Binding
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }

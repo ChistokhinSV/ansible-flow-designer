@@ -96,7 +96,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('a staged binding is never dropped silently (AFD-30, AFD-43)', () => {
+describe('a binding change is never dropped (AFD-30, AFD-43, AFD-299)', () => {
   let offKeyboard: () => void = () => undefined;
   beforeEach(() => {
     offKeyboard = installKeyboard();
@@ -104,50 +104,49 @@ describe('a staged binding is never dropped silently (AFD-30, AFD-43)', () => {
   afterEach(() => offKeyboard());
   const other = () => useUi.getState().snapshot?.doc?.nodes.find((n) => n.id !== task.id && n.id);
 
-  it('Escape and another node ask first; Keep Editing and Discard do what they say', async () => {
+  /** Answers the last command the panel sent, as the host does. */
+  const ack = () => {
+    const m = (posted as { type: string; reqId?: number }[])
+      .filter((x) => x.type === 'command')
+      .at(-1);
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', { data: { type: 'ack', reqId: m?.reqId, ok: true } }),
+      );
+    });
+  };
+
+  // AFD-299: a binding change saves a moment after the last one, as every other field does.
+  it('a binding change is saved after a moment, in one command', async () => {
     act(() => useUi.getState().openDetails(task.id, 'binding'));
     render(<Details id={task.id} />);
-    // Stage a change on the Binding tab, once the module's docs arrived: a register name.
     await answerCatalog();
     const register = screen.getByLabelText(/Register result as/) as HTMLInputElement;
+    fireEvent.change(register, { target: { value: 'changed_res' } });
     fireEvent.change(register, { target: { value: 'changed_result' } });
-    expect(screen.getByText('The binding is not saved.')).toBeTruthy();
-    expect(useUi.getState().pendingBinding).toBe(task.id);
-
-    // Escape would clear the selection: it asks instead.
-    fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.getByRole('alertdialog', { name: 'Discard the binding change?' })).toBeTruthy();
-    expect(useUi.getState().selection).toEqual({ node: task.id });
-    // Escape again (or Keep Editing) goes back to the panel, with the change kept.
-    fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect((screen.getByLabelText(/Register result as/) as HTMLInputElement).value).toBe(
-      'changed_result',
-    );
-    // Another node asks too; Discard then selects it.
-    const next = other()?.id as string;
-    act(() => useUi.getState().select({ node: next }));
-    expect(useUi.getState().selection).toEqual({ node: task.id });
-    const dialog = screen.getByRole('alertdialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }));
-    expect(useUi.getState().selection).toEqual({ node: next });
-    expect(useUi.getState().pendingBinding).toBeNull();
     expect(commands()).toEqual([]);
+    expect(screen.queryByText(/not saved/)).toBeNull();
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect(commands()).toHaveLength(1);
+    expect(commands()[0]).toMatchObject({ kind: 'setBinding', id: task.id });
   });
 
-  it('another level and another mode ask first as well', async () => {
+  it('leaving with a change not saved yet saves it first, then goes', async () => {
     act(() => useUi.getState().openDetails(task.id, 'binding'));
     render(<Details id={task.id} />);
     await answerCatalog();
     fireEvent.change(screen.getByLabelText(/Register result as/), {
       target: { value: 'changed_result' },
     });
-    act(() => useUi.getState().setMode('run'));
-    expect(useUi.getState().mode).toBe('design');
-    expect(useUi.getState().leave).toEqual({ kind: 'mode', mode: 'run' });
-    fireEvent.click(screen.getByRole('button', { name: 'Keep Editing' }));
-    act(() => useUi.getState().setLevel(task.id));
-    expect(useUi.getState().leave).toEqual({ kind: 'level', level: task.id });
+    expect(useUi.getState().pendingBinding).toBe(task.id);
+    const next = other()?.id as string;
+    act(() => useUi.getState().select({ node: next }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await act(async () => {});
+    expect(commands()).toHaveLength(1);
+    ack();
+    await act(async () => {});
+    expect(useUi.getState().selection).toEqual({ node: next });
   });
 
   it('without a staged binding, Escape clears the selection at once', () => {
