@@ -1,5 +1,6 @@
 // One session per open flow document: parse/validate cache, diagnostics, attached editor panels,
 // and the command path webview → planned TextEdits → WorkspaceEdit (ADR-0001).
+
 import * as vscode from 'vscode';
 import { scanPaths } from '../core/drift/drift';
 import type { CodeScan, DriftAction } from '../core/drift/types';
@@ -9,6 +10,7 @@ import { CommandError, type FlowCommand, planCommand } from '../core/flow/comman
 import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow, parseFlow } from '../core/flow/document';
 import { type IdFactory, isFileId, isFileKey, slugify } from '../core/flow/ids';
+import { libraryFindings, usesLibrary } from '../core/flow/library';
 import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
@@ -70,6 +72,7 @@ import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
 import { showRunTerminal } from './run/terminal';
 import { runnerConfigured } from './runner/runnerRun';
+import type { ServerLibrary } from './runner/serverLibrary';
 import type { ServerWatch, WatchedFlow } from './runner/serverWatch';
 import { LensController, type OutsideBase } from './session/lensController';
 import { RequestTracker } from './session/requests';
@@ -137,6 +140,8 @@ export interface SessionDeps {
   };
   /** AFD-284: the server's branch, for a flow in a clone of an Ansible Flow Server project. */
   server?: ServerWatch;
+  /** AFD-295: the server's library, for the flow's copies of its subflows. */
+  library?: ServerLibrary;
 }
 
 export interface PerfEvent {
@@ -315,6 +320,8 @@ export class FlowSession implements vscode.Disposable {
         ...sharedFindings(this.uri.fsPath, parsed.doc, folder?.uri.fsPath),
         // AFD-293: roles expanded into subflows against the role's files.
         ...roleFindings(parsed.doc, folder?.uri.fsPath),
+        // AFD-295: library copies against the server's library, as listed last.
+        ...libraryFindings(parsed.doc, this.libraryFor(parsed.doc)),
         // AFD-291: files steps read from the repository.
         ...repoFileFindings(parsed.doc, folder?.uri.fsPath),
       ];
@@ -390,6 +397,21 @@ export class FlowSession implements vscode.Disposable {
   wireStyleChanged(): void {
     const style = wireStyleOf(this.document.uri);
     for (const p of this.readyPanels) this.post(p, { type: 'wireStyle', style });
+  }
+
+  /**
+   * AFD-295: the library listing for a flow with library copies; a stale one is listed again in
+   * the background, and the flow is checked again when what the library offers changed.
+   */
+  private libraryFor(doc: FlowDocument) {
+    const library = this.deps.library;
+    if (!library || !usesLibrary(doc)) return undefined;
+    if (library.stale(this.uri))
+      void library
+        .refresh(this.uri)
+        .then((changed) => (changed ? this.recheck() : undefined))
+        .catch(() => undefined);
+    return library.cached(this.uri);
   }
 
   async recheck(): Promise<void> {

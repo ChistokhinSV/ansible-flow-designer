@@ -6,6 +6,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Added
 
+- **Shared subflows from the server's library:** with Ansible Flow Server set for the folder, Insert Shared Subflow… also lists the subflows of the server's library projects; a copy from the library is pinned to the library flow's version and commit, a newer version offers Update Shared Subflow, and a subflow the library no longer offers is a warning. See [Shared subflows](docs/guide/how-to/subflows.md#from-the-servers-library).
 - **Handlers (notify and listen):** a step can be marked **Runs when notified** and other steps of its level notify it, by its key or a topic it listens to; it runs at its place, once, for the hosts a notifying step changed. Notify links show dashed on the canvas and a bell marks the handler. Imported playbook handlers become such steps. See [Handlers: notify and listen](docs/guide/how-to/handlers.md).
 - **Expand a role into a subflow:** a step bound to a role becomes a subflow of the role's work in its place: a step per task file for a role split into files, else a copy of each task with the role's handlers as notify links and its defaults and vars as the subflow's inputs. **Collapse to Role Step** turns it back while it is unchanged, and a role that changed since offers **Update Expanded Role**. Agents use the `expand_role` and `collapse_role` ops. See [Roles in a flow](docs/guide/how-to/roles.md).
 

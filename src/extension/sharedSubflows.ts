@@ -6,7 +6,7 @@ import { dirname, relative } from 'node:path';
 import * as vscode from 'vscode';
 import { parseFlow } from '../core/flow/document';
 import { formatOf } from '../core/flow/format';
-import { subflowsOf } from '../core/flow/refs';
+import { isLibraryRef, subflowsOf } from '../core/flow/refs';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { sharedSource } from '../node/sharedRefs';
 import { CMD } from './commands/ids';
@@ -84,6 +84,21 @@ function findNode(doc: FlowDocument, id: Ulid) {
 export async function updateShared(host: Host, uri: vscode.Uri | undefined, target: Target) {
   const copy = await copyOf(host, uri, target);
   if (!copy?.node.ref) return undefined;
+  // AFD-295: a library copy is read from the server's library.
+  if (isLibraryRef(copy.node.ref.from)) {
+    const got = await host.library.subflow(copy.doc.uri, copy.node.ref.from);
+    if (!got.node || got.version === undefined) {
+      void vscode.window.showErrorMessage(got.error ?? 'The library does not have it now');
+      return undefined;
+    }
+    return copy.session.runCommand({
+      kind: 'updateReference',
+      id: copy.id,
+      version: got.version,
+      source: got.node,
+      ...(got.commit ? { commit: got.commit } : {}),
+    });
+  }
   const src = sharedSource(
     copy.doc.uri.fsPath,
     copy.node.ref.from,
@@ -108,8 +123,9 @@ export async function unlinkShared(host: Host, uri: vscode.Uri | undefined, targ
 }
 
 /**
- * Insert Shared Subflow…: every subflow of the other flows in the workspace, by file and key path;
- * the copy goes on `level` (the top level by default) at `position`.
+ * Insert Shared Subflow…: every subflow of the other flows in the workspace, by file and key path,
+ * and (AFD-295) of the library of the folder's Ansible Flow Server; the copy goes on `level` (the
+ * top level by default) at `position`.
  */
 export async function insertShared(
   host: Host,
@@ -130,7 +146,12 @@ export async function insertShared(
     return undefined;
   }
   const files = await vscode.workspace.findFiles('**/*.flow.yaml', '**/node_modules/**', 500);
-  const items: (vscode.QuickPickItem & { from: string; file: string; path: string })[] = [];
+  const items: (vscode.QuickPickItem & {
+    from: string;
+    file?: string;
+    path: string;
+    library?: boolean;
+  })[] = [];
   for (const f of files) {
     if (f.fsPath === doc.uri.fsPath) continue;
     let other: FlowDocument | undefined;
@@ -151,9 +172,29 @@ export async function insertShared(
         path: s.path,
       });
   }
-  if (items.length === 0) {
+  const library = await host.library.list(doc.uri);
+  if (library.subflows?.length) {
+    items.push({
+      label: 'Server library',
+      kind: vscode.QuickPickItemKind.Separator,
+      from: '',
+      path: '',
+    });
+    for (const s of library.subflows)
+      items.push({
+        label: s.title,
+        description: `${s.workspace}/${s.project}/${s.file}#${s.path}`,
+        detail: `Library · ${s.flow}, version ${s.version}${s.intent ? ` · ${s.intent}` : ''}`,
+        from: s.from,
+        path: s.path,
+        library: true,
+      });
+  }
+  if (!items.some((i) => i.from)) {
     void vscode.window.showInformationMessage(
-      'No other flow in the workspace has a subflow with steps to share.',
+      library.error
+        ? `No other flow in the workspace has a subflow with steps to share, and the server's library cannot be read now (${library.error}).`
+        : "No other flow in the workspace (or the server's library) has a subflow with steps to share.",
     );
     return undefined;
   }
@@ -165,7 +206,25 @@ export async function insertShared(
         matchOnDescription: true,
         matchOnDetail: true,
       });
-  if (!chosen) return undefined;
+  if (!chosen?.from) return undefined;
+  if (chosen.library) {
+    const got = await host.library.subflow(doc.uri, chosen.from);
+    if (!got.node || got.version === undefined) {
+      void vscode.window.showErrorMessage(got.error ?? 'The library does not have it now');
+      return undefined;
+    }
+    const outcome = await host.sessionFor(doc).runCommand({
+      kind: 'addReference',
+      ...(where.level && where.level !== 'root' ? { parent: where.level } : {}),
+      from: chosen.from,
+      version: got.version,
+      source: got.node,
+      ...(got.commit ? { commit: got.commit } : {}),
+      ...(where.position ? { position: where.position } : {}),
+    });
+    if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Not inserted');
+    return outcome;
+  }
   const src = sharedSource(
     doc.uri.fsPath,
     chosen.from,

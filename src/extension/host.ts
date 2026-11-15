@@ -1,6 +1,7 @@
 // What the extension's parts share (AFD-37): the services built at activation, the open flow
 // sessions, and the one answer to "which flow does the user mean". Commands live in their area's
 // module and get this object; activate() only composes.
+
 import * as vscode from 'vscode';
 import { createIdFactory } from '../core/flow/ids';
 import { createSchemaValidator } from '../core/flow/schema';
@@ -16,6 +17,7 @@ import { logChannel } from './log';
 import type { RunDeps } from './run/runner';
 import type { ScenarioLive } from './run/scenarioLive';
 import type { ScenarioTests } from './run/testController';
+import { ServerLibrary } from './runner/serverLibrary';
 import { ServerWatch } from './runner/serverWatch';
 import { ShownFlows } from './shownFlows';
 
@@ -51,6 +53,8 @@ export class Host {
   readonly shown: ShownFlows;
   /** AFD-284: the server's branch, followed for open flows. */
   readonly server: ServerWatch;
+  /** AFD-295: the server's library, for shared subflows from it. */
+  readonly library: ServerLibrary;
   /** AFD-93: the workspace's flows, for the Flows view, Problems and the flow panel. */
   readonly index: FlowIndex;
   /** AFD-115: the live check of every flow's scenarios (set when the extension activates). */
@@ -75,6 +79,7 @@ export class Host {
       state: context.workspaceState,
     });
     this.server = new ServerWatch(context.secrets);
+    this.library = new ServerLibrary(context.secrets);
     context.subscriptions.push(this.server);
     this.deps = {
       extensionUri: context.extensionUri,
@@ -94,6 +99,7 @@ export class Host {
       repo: () => this.index.state(),
       // AFD-284: the server's branch for flows in a clone of a server project.
       server: this.server,
+      library: this.library,
       // AFD-116: the live check owns the scenarios file's changes (set when the extension starts).
       scenarios: {
         edit: (flow, doc, request) =>

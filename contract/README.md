@@ -11,8 +11,8 @@ Shipped in `@ansible-flow/assets` (`contractDir`).
 
 - `world`: what the server holds before the first exchange: people (`users`), access tokens
   (`tokens`, by name: owner, `readOnly`), one workspace, the owner's grants on it (`grants`), one
-  project whose repository is the folder `repo/` committed on `branch`, and its launch
-  configurations.
+  project whose repository is the folder `repo/` committed on `branch` (`library`: its subflows
+  are offered to every project, AFD-295), and its launch configurations.
 - `exchanges`, in order. Each has a `request` (`method`, `path`, `token`: a name from
   `tokens`, none for no sign-in; `body`), the `response` it gets (`status`, `body` pattern) and
   `capture`: values of the response body kept by name for later paths and patterns
@@ -36,5 +36,6 @@ The `version` at the top changes when a pattern's meaning changes.
 
 ## `repo/`
 
-The project's files: a flow (`hello`), an inventory, and a flow in a format newer than any server
-reads, which the server must refuse to run.
+The project's files: a flow (`hello`), a flow with a subflow the library offers (`shared`), an
+inventory, and a flow in a format newer than any server reads, which the server must refuse to
+run.

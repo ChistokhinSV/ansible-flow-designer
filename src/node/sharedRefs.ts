@@ -10,7 +10,7 @@ import { parseFlow } from '../core/flow/document';
 import { formatOf } from '../core/flow/format';
 import { createIdFactory } from '../core/flow/ids';
 import { modelOf } from '../core/flow/model';
-import { parseRefFrom, subflowsOf } from '../core/flow/refs';
+import { isLibraryRef, parseRefFrom, subflowsOf } from '../core/flow/refs';
 import type { FlowDocument, FlowNode } from '../core/flow/types';
 import type { Finding } from '../core/flow/validate';
 
@@ -124,7 +124,8 @@ export function sharedSource(flowFile: string, from: string, root?: string): Sha
 export function sharedFindings(flowFile: string, doc: FlowDocument, root?: string): Finding[] {
   const out: Finding[] = [];
   for (const { node, path } of modelOf(doc).nodes.values()) {
-    if (!node.ref) continue;
+    // AFD-295: a library copy is checked against the server's library (core/flow/library).
+    if (!node.ref || isLibraryRef(node.ref.from)) continue;
     const label = `"${node.title}"`;
     const src = sharedSource(flowFile, node.ref.from, root);
     if (src.error)

@@ -1,0 +1,61 @@
+# Steps several flows share: a library project offers its subflows to every project (AFD-295).
+schema_version: 2
+flow:
+  id: 01M7KT0R3V9Q2N6XW1B8HC5D4E
+  key: shared
+  name: Shared steps
+  version: 1
+  goal: "Steps other flows copy from the library: a backup of the configuration."
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01M7KT0R3V9Q2N6XW1B8HC5D4F
+    key: start
+    type: start
+    title: Start
+  - id: 01M7KT0R3V9Q2N6XW1B8HC5D4G
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01M7KT0R3V9Q2N6XW1B8HC5D4H
+    key: backup
+    type: subflow
+    title: Back up the configuration
+    intent: Read the running configuration and keep it on the controller.
+    subflow:
+      nodes:
+        - id: 01M7KT0R3V9Q2N6XW1B8HC5D4J
+          key: read-config
+          type: task
+          title: Read the configuration
+          status: implemented
+          impl:
+            kind: module
+            ref: ansible.builtin.debug
+            params:
+              msg: Reading the configuration of {{ inventory_hostname }}
+      boundary:
+        in: 01M7KT0R3V9Q2N6XW1B8HC5D4J
+        outputs:
+          ok_hosts:
+            - node: 01M7KT0R3V9Q2N6XW1B8HC5D4J
+              port: ok_hosts
+edges:
+  - id: 01M7KT0R3V9Q2N6XW1B8HC5D4K
+    from:
+      node: 01M7KT0R3V9Q2N6XW1B8HC5D4F
+      port: ok_hosts
+    to:
+      node: 01M7KT0R3V9Q2N6XW1B8HC5D4H
+      port: in
+  - id: 01M7KT0R3V9Q2N6XW1B8HC5D4M
+    from:
+      node: 01M7KT0R3V9Q2N6XW1B8HC5D4H
+      port: ok_hosts
+    to:
+      node: 01M7KT0R3V9Q2N6XW1B8HC5D4G
+      port: in
