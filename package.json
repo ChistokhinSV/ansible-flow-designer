@@ -793,6 +793,19 @@
           ],
           "markdownDescription": "Direction of the automatic layout: where nodes without a stored position appear, and how **Tidy Up** lays out a level. A setting of yours, never written to the flow file."
         },
+        "afd.canvas.wireStyle": {
+          "type": "string",
+          "enum": [
+            "stepped",
+            "curved"
+          ],
+          "default": "stepped",
+          "enumDescriptions": [
+            "Right angles with small round corners",
+            "Round curves from port to port; round bends where a wire goes round a node"
+          ],
+          "markdownDescription": "How the canvas draws wires. The canvas's own button switches it too. Exports (SVG, draw.io) keep stepped wires. A setting of yours, never written to the flow file."
+        },
         "afd.environment.kind": {
           "type": "string",
           "enum": [

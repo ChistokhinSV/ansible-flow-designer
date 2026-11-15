@@ -488,3 +488,40 @@ describe('subflows (M4)', () => {
     });
   });
 });
+
+describe('canvas controls (AFD-294)', () => {
+  it('Tidy Up asks for the level to be laid out; the wire button switches to curved and back', () => {
+    act(() => useUi.setState({ mode: 'design', level: 'root', wireStyle: 'stepped' }));
+    render(
+      <ReactFlowProvider>
+        <FlowCanvas cull={false} />
+      </ReactFlowProvider>,
+    );
+    show(snapshotOf(example('edge-baseline.flow.yaml')));
+    posted.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Tidy Up' }));
+    expect(posted).toEqual([{ type: 'tidyUp', level: 'root' }]);
+
+    const steppedPath = document.querySelector('.react-flow__edge-path')?.getAttribute('d') ?? '';
+    expect(steppedPath).not.toContain('C');
+    fireEvent.click(screen.getByRole('button', { name: 'Curved Wires' }));
+    expect(posted.at(-1)).toEqual({ type: 'setWireStyle', style: 'curved' });
+    expect(useUi.getState().wireStyle).toBe('curved');
+    expect(screen.getByRole('button', { name: 'Stepped Wires' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Stepped Wires' }));
+    expect(useUi.getState().wireStyle).toBe('stepped');
+  });
+
+  it('no Tidy Up where the level cannot change (Run mode)', () => {
+    act(() => useUi.setState({ mode: 'run', level: 'root' }));
+    render(
+      <ReactFlowProvider>
+        <FlowCanvas cull={false} />
+      </ReactFlowProvider>,
+    );
+    show(snapshotOf(example('edge-baseline.flow.yaml')));
+    expect(screen.queryByRole('button', { name: 'Tidy Up' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Wires$/ })).toBeTruthy();
+    act(() => useUi.setState({ mode: 'design' }));
+  });
+});

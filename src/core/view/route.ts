@@ -3,8 +3,9 @@
 // step, or one back up the flow), it takes an orthogonal route round the boxes instead: short, few
 // turns, clear of the boxes, drawn with the same stubs and rounded corners. The canvas edge, the
 // export scenes and the layout check all route here, so every picture of a level shows the same
-// wires.
-import { getSmoothStepPath, Position as Side } from '@xyflow/system';
+// wires. AFD-294: the canvas may draw them curved instead: a bezier from port to port where that
+// clears every node, else the same route round the boxes with wide round bends.
+import { getBezierPath, getSmoothStepPath, Position as Side } from '@xyflow/system';
 import type { Position } from '../flow/types';
 
 export interface Box {
@@ -26,6 +27,10 @@ export interface Route {
 /** getSmoothStepPath's defaults: the stub out of a port and the corner radius. */
 const OFFSET = 20;
 const RADIUS = 5;
+/** AFD-294: how a wire is drawn: stepped (right angles, small round corners) or curved. */
+export type WireStyle = 'stepped' | 'curved';
+/** A curved route's bends: as round as the stretches either side allow, up to this. */
+const CURVE_RADIUS = 40;
 /** A wire that only grazes a box edge is not through it: boxes shrink by this much first. */
 export const INSET = 2;
 /** Routes keep as far from a box as a stub keeps from its node (handle face 5 + stub 20)... */
@@ -131,7 +136,27 @@ export function routeWire(
   to: Side,
   boxes: readonly Box[],
   label?: string,
+  style: WireStyle = 'stepped',
 ): Route {
+  if (style === 'curved') {
+    const [curve, cx, cy] = getBezierPath({
+      sourceX: a.x,
+      sourceY: a.y,
+      sourcePosition: from,
+      targetX: b.x,
+      targetY: b.y,
+      targetPosition: to,
+    });
+    if (!runsThrough(bezierPoints(curve), boxes)) return { path: curve, label: { x: cx, y: cy } };
+    const around = roundBoxes(a, DIR_OF[from], b, DIR_OF[to], boxes);
+    // Boxed in: the curve, as a stepped wire would keep its smooth step.
+    if (!around) return { path: curve, label: { x: cx, y: cy } };
+    return {
+      path: pathOf(around, CURVE_RADIUS),
+      label: labelOn(around, boxes, label),
+      bends: around.slice(1, -1),
+    };
+  }
   const [path, x, y] = getSmoothStepPath({
     sourceX: a.x,
     sourceY: a.y,
@@ -399,21 +424,45 @@ function corners(points: Position[]): Position[] {
 }
 
 /** The route as getSmoothStepPath draws its own points: rounded corners of radius RADIUS. */
-function pathOf(points: Position[]): string {
+function pathOf(points: Position[], radius = RADIUS): string {
   const first = points[0] as Position;
   const last = points.at(-1) as Position;
   let path = `M${first.x} ${first.y}`;
   for (let i = 1; i < points.length - 1; i++)
-    path += bendAt(points[i - 1] as Position, points[i] as Position, points[i + 1] as Position);
+    path += bendAt(
+      points[i - 1] as Position,
+      points[i] as Position,
+      points[i + 1] as Position,
+      radius,
+    );
   return `${path}L${last.x} ${last.y}`;
 }
 
+/**
+ * AFD-294: points along a bezier wire (`M x,y C c1 c2 end`), close enough to tell whether it
+ * crosses a node box.
+ */
+function bezierPoints(path: string): Position[] {
+  const [p0, c1, c2, p1] = pointsOf(path);
+  if (!p0 || !c1 || !c2 || !p1) return pointsOf(path);
+  const out: Position[] = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24;
+    const u = 1 - t;
+    out.push({
+      x: u * u * u * p0.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p1.x,
+      y: u * u * u * p0.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p1.y,
+    });
+  }
+  return out;
+}
+
 /** @xyflow/system's getBend (not exported), so a route's corners match a smooth step's. */
-function bendAt(a: Position, b: Position, c: Position): string {
+function bendAt(a: Position, b: Position, c: Position, radius = RADIUS): string {
   const size = Math.min(
     Math.hypot(a.x - b.x, a.y - b.y) / 2,
     Math.hypot(b.x - c.x, b.y - c.y) / 2,
-    RADIUS,
+    radius,
   );
   const { x, y } = b;
   if ((a.x === x && x === c.x) || (a.y === y && y === c.y)) return `L${x} ${y}`;

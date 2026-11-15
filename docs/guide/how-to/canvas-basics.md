@@ -134,8 +134,9 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
   - **Put a step into a wire:** drag a step that stands free of any path over a wire; the wire
     lights, and on release the step sits on it. A step already wired just moves.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
-  **Tidy Up** lays out the whole level. Nodes without a position (a new flow, or steps an AI agent
-  added) are placed next to their neighbours until you move them.
+  **Tidy Up** lays out the whole level: the button among the zoom controls (bottom right), the "…"
+  menu, or Shift+Alt+F. Nodes without a position (a new flow, or steps an AI agent added) are placed
+  next to their neighbours until you move them.
   - While you drag a step, a dashed guide line shows when it shares an edge or a centre with
     another step; release near the line and it snaps there. "even gaps" shows when it sits halfway
     between its neighbours.
@@ -269,6 +270,12 @@ Details on the right. Pause on a subflow or a bound node for a preview of what i
 
 New nodes without a position, and **Tidy Up**, follow the setting `afd.canvas.direction`: top to
 bottom (`TB`, the default) or left to right (`LR`). It is yours, not the flow's.
+
+Wires are drawn stepped (right angles with small round corners) or curved: the wire button among
+the zoom controls switches them, and keeps the choice as the setting `afd.canvas.wireStyle` (every
+open designer follows). Curved wires go from port to port in one curve where that clears every
+node, and round a node in the way with wide round bends. Exports (SVG, draw.io) keep stepped
+wires.
 
 ## Text and the designer
 

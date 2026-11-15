@@ -252,7 +252,11 @@ export type HostMessage =
       viewer?: boolean;
       /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
       runner?: boolean;
+      /** AFD-294 (`afd.canvas.wireStyle`): how the canvas draws wires. */
+      wireStyle?: 'stepped' | 'curved';
     }
+  /** AFD-294: the wire style setting changed. */
+  | { type: 'wireStyle'; style: 'stepped' | 'curved' }
   /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
   | { type: 'firstFlow'; hidden: boolean; done: string[] }
   /** Test mode: asks the webview for a summary of its DOM. */
@@ -319,6 +323,8 @@ export type WebviewMessage =
   /** AFD-73: the first-flow checklist hidden for good, or shown again. */
   | { type: 'firstFlow'; hidden: boolean }
   | { type: 'tidyUp'; level?: string }
+  /** AFD-294: the canvas's wire toggle: keep this style as the user's setting. */
+  | { type: 'setWireStyle'; style: 'stepped' | 'curved' }
   | { type: 'run'; mode: 'check' | 'real' }
   /** AFD-244: a skeleton run from a top-level step on, or of that step alone. */
   | { type: 'runPartial'; node: Ulid; only: boolean }
