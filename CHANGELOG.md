@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.88.0 — Curved wires, repository files in runs
 
 ### Added
 
