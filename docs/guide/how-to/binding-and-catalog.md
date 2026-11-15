@@ -57,8 +57,12 @@ A form from the argument spec: choices, booleans, one line per list item, YAML f
   its module documents; `.` typed right after a result's chip offers them too.
 - **Jinja is coloured and completed** as the editor colours and completes it, in every field that
   takes Jinja (see below).
-- **set_fact** shows the facts it sets under **Facts**, one row each (a list or a dict as YAML);
-  its doc's `key_value` stands for them, so it is neither asked for nor a problem.
+- **set_fact** shows the facts it sets under **Facts**, one row each; its doc's `key_value`
+  stands for them, so it is neither asked for nor a problem.
+- **A list or a map in one line**, as YAML reads it: in a fact, a role's or playbook's variable, or
+  a parameter the module documents with no type, `[mc, python3]` is a list and `{port: 22}` a map.
+  Quoted, `"[mc, python3]"` is that text. `{{ ... }}` is always a template. A longer list or map
+  is edited as YAML over several lines.
 - **Register result as** names the variable the module result is registered in (default
   `<key>_result`). **Expose as node output** makes the whole result an output.
 - **The checklist** shows required parameters, where each variable comes from, check mode support
