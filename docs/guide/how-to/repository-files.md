@@ -6,8 +6,7 @@ or import them. This page says where to put them so a flow's runs find them.
 
 Generated playbooks are in `flows/<key>/generated/`, not next to your files, so a run adds the
 repository's folders to what Ansible looks at, wherever the run is: on this machine, in a
-container, in WSL or over SSH. (Ansible Flow Server reads a step's paths from the root too; its runs
-do not add your modules, plugins and root `group_vars` yet.)
+container, in WSL, over SSH, and on Ansible Flow Server (from its version with designer 0.88).
 
 ## Where things go
 
