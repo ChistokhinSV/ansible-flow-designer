@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.87.0 — Server changes in VS Code, facts as data, sample projects
 
 ### Added
 
