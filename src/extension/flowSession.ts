@@ -9,6 +9,7 @@ import { CommandError, type FlowCommand, planCommand } from '../core/flow/comman
 import { completeIds } from '../core/flow/completeIds';
 import { elementRangeOf, flowFromFile, type ParsedFlow, parseFlow } from '../core/flow/document';
 import { type IdFactory, isFileId, isFileKey, slugify } from '../core/flow/ids';
+import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import type { SchemaValidator } from '../core/flow/schema';
@@ -22,6 +23,7 @@ import type {
   CatalogStatus,
   DomSummary,
   HostMessage,
+  MergeView,
   Notice,
   RunView,
   Snapshot,
@@ -863,26 +865,10 @@ export class FlowSession implements vscode.Disposable {
         await this.clearOutside();
         break;
       case 'mergeChoose':
-        if (this.merge) {
-          choose(this.merge, m.id, m.side);
-          await this.applyMerge();
-        }
+        await this.chooseMerge(m.id, m.side);
         break;
       case 'mergeFinish':
-        if (this.merge) {
-          const w = this.merge;
-          this.merge = undefined;
-          if (this.document.isDirty) await this.document.save();
-          try {
-            await finish(w);
-            void vscode.window.showInformationMessage(
-              `${w.file} is merged (git add); commit to finish the merge.`,
-            );
-          } catch (e) {
-            void vscode.window.showErrorMessage(`git add failed: ${(e as Error).message}`);
-          }
-          this.broadcast({ type: 'mergeConflicts', merge: null });
-        }
+        await this.finishMerge();
         break;
       case 'launchAwx':
         await vscode.commands.executeCommand(CMD.awxLaunch, this.uri);
@@ -1451,6 +1437,38 @@ export class FlowSession implements vscode.Disposable {
     return (await vscode.workspace.applyEdit(edit))
       ? { ok: true }
       : { ok: false, error: 'VS Code did not apply the edit' };
+  }
+
+  /** AFD-283: the merge git left for this flow, read again (test API and panels). */
+  async mergeState(): Promise<MergeView | undefined> {
+    await this.showMerge();
+    return this.merge ? mergeView(this.merge, this.document.getText()).view : undefined;
+  }
+
+  /** AFD-283: Mine or Theirs for one conflict; the file follows. */
+  async chooseMerge(id: string, side: MergeSide): Promise<void> {
+    if (!this.merge) return;
+    choose(this.merge, id, side);
+    await this.applyMerge();
+  }
+
+  /** AFD-283: Finish merge: saved, the waiting state gone, the file added to git's index. */
+  async finishMerge(): Promise<boolean> {
+    if (!this.merge) return false;
+    const w = this.merge;
+    this.merge = undefined;
+    if (this.document.isDirty) await this.document.save();
+    this.broadcast({ type: 'mergeConflicts', merge: null });
+    try {
+      await finish(w);
+    } catch (e) {
+      void vscode.window.showErrorMessage(`git add failed: ${(e as Error).message}`);
+      return false;
+    }
+    void vscode.window.showInformationMessage(
+      `${w.file} is merged (git add); commit to finish the merge.`,
+    );
+    return true;
   }
 
   /** AFD-283: tells a panel (or every panel) about the merge git left for this flow, if any. */

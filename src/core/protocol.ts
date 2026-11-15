@@ -428,6 +428,8 @@ export interface DomSummary {
   banner: number | null;
   /** AFD-19: items the written-by-hand banner says need IDs (null: no banner). */
   idGaps: number | null;
+  /** AFD-283: conflicts the Merge note lists (null: no note). */
+  merge?: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
   frame: { ports: string[]; wires: number } | null;
   /** Run mode (M7): each node's run state and each wire's label as drawn. */

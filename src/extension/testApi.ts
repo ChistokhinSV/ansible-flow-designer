@@ -9,8 +9,15 @@ import type { CodeScan, DriftAction } from '../core/drift/types';
 import type { FeedbackState } from '../core/feedback/feedback';
 import type { FlowCommand } from '../core/flow/commands';
 import { parseFlow } from '../core/flow/document';
+import type { MergeSide } from '../core/flow/merge';
 import type { LensFacts, LensId } from '../core/lens/types';
-import type { CatalogRequest, CatalogStatus, DomSummary, RunView } from '../core/protocol';
+import type {
+  CatalogRequest,
+  CatalogStatus,
+  DomSummary,
+  MergeView,
+  RunView,
+} from '../core/protocol';
 import type { OutputEntry } from '../core/run/events';
 import type { ScenarioRequest } from '../core/scenario/edit';
 import type { ScenarioCheck } from '../core/scenario/live';
@@ -82,6 +89,10 @@ export interface AfdTestApi {
   forgetShown(): Promise<void>;
   /** AFD-92: Clear on the outside note. */
   clearOutside(uri: vscode.Uri): Promise<void>;
+  /** AFD-283: the merge git left for a flow (read again), a choice, and Finish merge. */
+  merge(uri: vscode.Uri): Promise<MergeView | undefined>;
+  mergeChoose(uri: vscode.Uri, id: string, side: MergeSide): Promise<void>;
+  mergeFinish(uri: vscode.Uri): Promise<boolean>;
   /** The designer of a flow takes the keyboard focus, so a test's Undo reaches it. */
   focusDesigner(uri: vscode.Uri): void;
   /** AFD-93: the workspace index's facts for a flow, read and published now. */
@@ -239,6 +250,9 @@ export function createTestApi(
     clearOutside: async (uri) => {
       await host.sessions.get(uri.toString())?.clearOutside();
     },
+    merge: (uri) => get(uri).mergeState(),
+    mergeChoose: (uri, id, side) => get(uri).chooseMerge(id, side),
+    mergeFinish: (uri) => get(uri).finishMerge(),
     focusDesigner: (uri) => host.sessions.get(uri.toString())?.focusPanel(),
     indexed: async (uri) => {
       await host.index.republish(uri);
