@@ -43,6 +43,11 @@ jobs:
       - name: Unit and component tests
         run: npx --no-install vitest run
 
+      # AFD-288: the production bundles, with their size budgets (scripts/build.mjs), as
+      # `just package` and the Publish workflow build them; a bundle over its budget fails here.
+      - name: Bundle budgets
+        run: node scripts/build.mjs --production
+
       # ADR-0036: the npm packages other hosts use build, pack and load outside this repository's
       # bundles (as `just packages`).
       - name: Packages
