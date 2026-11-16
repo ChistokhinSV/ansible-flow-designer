@@ -15,6 +15,7 @@ import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
+import { serverCommands, showServerState } from '../runner/connect';
 import {
   clearRunnerToken,
   decideOnServer,
@@ -261,7 +262,10 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand(CMD.runnerClearToken, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);
       if (scope) await clearRunnerToken(scope, host.context.secrets);
+      void showServerState(scope, host.context.secrets);
     }),
+    // AFD-301: connecting the folder to Ansible Flow Server from the Flows pane.
+    ...serverCommands(host),
     vscode.commands.registerCommand(
       CMD.runnerDecide,
       (

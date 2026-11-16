@@ -45,6 +45,14 @@ import { type RunOptions, runFlow } from './run/runner';
 import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { runTerminalName } from './run/terminal';
 import type { ScenarioOutcome, ScenarioRunKind } from './run/testController';
+import {
+  type ConnectAnswers,
+  connectServer,
+  disconnectServer,
+  flowsPaneDescription,
+  serverState,
+  showServerState,
+} from './runner/connect';
 import { launchOnServer, setRunnerToken } from './runner/runnerRun';
 import { tourReached } from './tour';
 
@@ -132,6 +140,12 @@ export interface AfdTestApi {
   awxLaunch(uri: vscode.Uri, inputs: Record<string, unknown>): Promise<RunView>;
   /** AFD-276: Ansible Flow Server (the address from afd.runner.url). */
   runnerToken(uri: vscode.Uri, token: string): Promise<string | undefined>;
+  /** AFD-301: Connect and Disconnect with their answers given; what the Flows pane says. */
+  runnerConnect(uri: vscode.Uri, answers: ConnectAnswers): Promise<string | undefined>;
+  runnerDisconnect(uri: vscode.Uri): Promise<string | undefined>;
+  serverState(
+    uri: vscode.Uri,
+  ): Promise<{ url?: string; project?: string; connected: boolean; pane?: string }>;
   runnerLaunch(
     uri: vscode.Uri,
     options: {
@@ -308,6 +322,24 @@ export function createTestApi(
       const error = await setRunnerToken(uri, host.context.secrets, token);
       if (!error) host.server.retry();
       return error;
+    },
+    runnerConnect: async (uri, answers) => {
+      const scope = host.scopeUri(uri) as vscode.Uri;
+      const error = await connectServer(scope, host.context.secrets, answers);
+      await showServerState(scope, host.context.secrets);
+      return error;
+    },
+    runnerDisconnect: async (uri) => {
+      const scope = host.scopeUri(uri) as vscode.Uri;
+      const error = await disconnectServer(scope, host.context.secrets, true);
+      await showServerState(scope, host.context.secrets);
+      return error;
+    },
+    serverState: async (uri) => {
+      const scope = host.scopeUri(uri);
+      await showServerState(scope, host.context.secrets);
+      const pane = flowsPaneDescription();
+      return { ...(await serverState(scope, host.context.secrets)), ...(pane ? { pane } : {}) };
     },
     runnerLaunch: async (uri, options) =>
       launchOnServer(await vscode.workspace.openTextDocument(uri), host.awxDeps(uri), {

@@ -16,6 +16,7 @@ import {
 import { generatedDir } from './codegen';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
+import { attachFlowsPane } from './runner/connect';
 
 type Item =
   | { kind: 'root'; folder: vscode.WorkspaceFolder }
@@ -115,9 +116,12 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
   const openOn = async (uri: vscode.Uri) => {
     if (!host.sessions.get(uri.toString())?.hasPanels) await host.openDesigner(uri);
   };
+  const view = vscode.window.createTreeView('afd.flows', { treeDataProvider: provider });
+  // AFD-301: the pane says which Ansible Flow Server the folder is connected to.
+  attachFlowsPane(view as vscode.TreeView<unknown>);
   return [
     changed,
-    vscode.window.createTreeView('afd.flows', { treeDataProvider: provider }),
+    view,
     // The index watches the flows and their code, and says once per burst.
     host.index.onDidChange(() => changed.fire()),
     vscode.commands.registerCommand('afd.flows.refresh', () => {

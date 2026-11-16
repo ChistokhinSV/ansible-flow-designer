@@ -131,16 +131,9 @@ export async function clearRunnerToken(
   if (url) await secrets.delete(tokenKey(url));
 }
 
-/**
- * The server's project for the repository: the one whose git address is a remote of it, else
- * afd.runner.project (`<workspace>/<project>`).
- */
-export async function projectOf(
-  client: Client,
-  folder: vscode.Uri,
-): Promise<{ id: string; workspace: string; key: string; commit?: string } | undefined> {
-  const host = new URL(client.base).host;
-  let named = settings(folder).project;
+/** `<workspace>/<project>` of the server at `base` that is a git remote of the folder, if any. */
+export async function remoteProject(base: string, folder: vscode.Uri): Promise<string | undefined> {
+  const host = new URL(base).host;
   for (const remote of await remoteUrls(folder)) {
     let u: URL;
     try {
@@ -149,11 +142,20 @@ export async function projectOf(
       continue;
     }
     const m = /\/git\/([^/]+)\/([^/]+?)(\.git)?\/?$/.exec(u.pathname);
-    if (u.host === host && m) {
-      named = `${m[1]}/${m[2]}`;
-      break;
-    }
+    if (u.host === host && m) return `${m[1]}/${m[2]}`;
   }
+  return undefined;
+}
+
+/**
+ * The server's project for the repository: the one whose git address is a remote of it, else
+ * afd.runner.project (`<workspace>/<project>`).
+ */
+export async function projectOf(
+  client: Client,
+  folder: vscode.Uri,
+): Promise<{ id: string; workspace: string; key: string; commit?: string } | undefined> {
+  const named = (await remoteProject(client.base, folder)) ?? settings(folder).project;
   const [workspace, key] = named.split('/');
   if (!workspace || !key) return undefined;
   const project = (await client.projects(workspace)).find((p) => p.key === key);

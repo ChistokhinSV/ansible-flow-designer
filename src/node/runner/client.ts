@@ -331,6 +331,9 @@ export class RunnerClient {
       `/api/v1/library/subflow?from=${encodeURIComponent(from)}`,
     );
   me = () => this.request<{ login: string; name: string }>('GET', '/api/v1/session');
+  /** AFD-301: the workspaces this token reaches, to pick the folder's project when connecting. */
+  workspaces = () =>
+    this.request<{ id: string; key: string; name: string }[]>('GET', '/api/v1/workspaces');
   projects = (workspace: string) =>
     this.request<RunnerProject[]>('GET', `/api/v1/workspaces/${enc(workspace)}/projects`);
   project = (id: string) => this.request<RunnerProject>('GET', `/api/v1/projects/${enc(id)}`);

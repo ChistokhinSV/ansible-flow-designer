@@ -7,6 +7,22 @@ page is about running one from VS Code.
 
 ## Connect
 
+**Connect to Ansible Flow Server** is a button of the **Flows** pane: in its title, and among the
+first buttons of a folder without flows. It asks three things and keeps them for the folder:
+
+1. **The address**, as in the browser (`https://flows.example.net:8443`). It is checked against the
+   server first. A lab server with a self-signed certificate offers to turn verification off.
+2. **An access token** (**My account → Access tokens** on the server). It is checked and kept in VS
+   Code's SecretStorage only; a token already kept for that address is used again.
+3. **The project** this folder is a copy of: found from the git remote when the folder was cloned
+   from the server, else picked from the server's workspaces (or **No project now**).
+
+Once connected, the pane names the server and the project, and its title has a server button with
+**Open in Browser**, **Change Project**, **Connect to a Different Server** and **Disconnect**
+(which forgets the token and the folder's settings; flows and runs stay).
+
+The same by hand:
+
 - `afd.runner.url`: the server's address, e.g. `https://flows.example.net:8443`.
 - **Ansible Flow: Set Server Token**: a personal access token (**My account** on the server). It is
   checked against the server and kept in VS Code's SecretStorage only. **Clear Server Token**

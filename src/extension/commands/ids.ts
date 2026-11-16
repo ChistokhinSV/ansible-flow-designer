@@ -46,6 +46,11 @@ export const CMD = {
   runnerLaunch: 'afd.runner.launch',
   runnerSetToken: 'afd.runner.setToken',
   runnerClearToken: 'afd.runner.clearToken',
+  /** AFD-301: connect the folder to Ansible Flow Server, the server button's menu, disconnect. */
+  runnerConnect: 'afd.runner.connect',
+  runnerServer: 'afd.runner.server',
+  runnerDisconnect: 'afd.runner.disconnect',
+  runnerChangeProject: 'afd.runner.changeProject',
   /** Internal: a designer's approval decision, and a host's output, for a run on the server. */
   runnerDecide: 'afd.runner.decide',
   runnerHostOutput: 'afd.runner.hostOutput',

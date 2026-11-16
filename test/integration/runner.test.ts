@@ -8,6 +8,8 @@
 import * as assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -17,21 +19,49 @@ import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 const url = process.env.AFD_RUNNER_URL?.replace(/\/+$/, '');
 const token = process.env.AFD_RUNNER_TOKEN;
 const workspace = process.env.AFD_RUNNER_WORKSPACE;
+// AFD-301: a lab server with a self-signed certificate (the server's e2e stack): git and the
+// test's own requests do not check it, and Connect turns verification off as its warning offers.
+const lab = process.env.AFD_RUNNER_LAB === '1';
+if (lab) process.env.GIT_SSL_NO_VERIFY = '1';
 const FLOW = flowUri('hello');
 const FILE = 'flows/hello/hello.flow.yaml';
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const api = async (method: string, path: string, body?: unknown) => {
-  const res = await fetch(`${url}${path}`, {
-    method,
-    headers: {
-      authorization: `Bearer ${token}`,
-      ...(body ? { 'content-type': 'application/json' } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+const api = (method: string, path: string, body?: unknown) =>
+  new Promise<{ status: number; json: unknown; text: string }>((resolve, reject) => {
+    const target = new URL(`${url}${path}`);
+    const data = body === undefined ? undefined : JSON.stringify(body);
+    const req = (target.protocol === 'https:' ? https : http).request(
+      target,
+      {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(data ? { 'content-type': 'application/json' } : {}),
+        },
+        ...(target.protocol === 'https:' ? { rejectUnauthorized: !lab } : {}),
+      },
+      (res) => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (c) => {
+          text += c;
+        });
+        res.on('end', () => {
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            json = undefined;
+          }
+          resolve({ status: res.statusCode ?? 0, json, text });
+        });
+      },
+    );
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
   });
-  return { status: res.status, json: (await res.json().catch(() => undefined)) as unknown };
-};
 
 describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
   this.timeout(600_000);
@@ -76,6 +106,36 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
   after(async () => {
     await vscode.commands.executeCommand('afd.runner.clearToken', FLOW);
     await closeAll();
+  });
+
+  it('AFD-301: Disconnect forgets the server; Connect finds the project from the git remote', async () => {
+    const t = await testApi();
+    assert.equal(await t.runnerDisconnect(FLOW), undefined);
+    assert.deepEqual(await t.serverState(FLOW), { connected: false });
+    // A token the server does not take is refused, and nothing is kept.
+    assert.match(
+      (await t.runnerConnect(FLOW, {
+        url: url as string,
+        token: 'afs_not-a-real-token',
+        labCertificate: lab,
+      })) ?? '',
+      /not accepted/,
+    );
+    assert.equal((await t.serverState(FLOW)).connected, false);
+    assert.equal(
+      await t.runnerConnect(FLOW, {
+        url: url as string,
+        token: token as string,
+        labCertificate: lab,
+      }),
+      undefined,
+    );
+    const state = await t.serverState(FLOW);
+    assert.equal(state.connected, true);
+    assert.equal(state.url, url);
+    // The test workspace's remote `afs` is the server's git address of the project.
+    assert.equal(state.project, `${workspace}/${key}`);
+    assert.equal(state.pane, `${new URL(url as string).host} · ${workspace}/${key}`);
   });
 
   it('a token is checked before it is stored', async () => {
@@ -193,11 +253,7 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
       assert.equal(run.mode, 'check');
       assert.equal(run.runner?.dev, true);
       assert.notEqual(run.runner?.commit, head);
-      const output = await (
-        await fetch(`${url}/api/v1/runs/${run.runner?.runId}/output`, {
-          headers: { authorization: `Bearer ${token}` },
-        })
-      ).text();
+      const output = (await api('GET', `/api/v1/runs/${run.runner?.runId}/output`)).text;
       assert.match(output, /Say hello, from my work/);
     } finally {
       await vscode.workspace.fs.writeFile(file, new TextEncoder().encode(before));
