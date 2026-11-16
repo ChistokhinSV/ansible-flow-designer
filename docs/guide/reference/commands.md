@@ -97,6 +97,7 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 | `afd.runner.connect` · Connect to Ansible Flow Server…        | asks for the address, an access token and the folder's project, and keeps them for the folder            |
 | `afd.runner.server` · Ansible Flow Server…                    | the server button of the Flows pane: Open in Browser, Change Project, a different server, Disconnect     |
 | `afd.runner.changeProject` · Change Server Project…           | picks another project of the server for the folder                                                       |
+| `afd.runner.getFlows` · Get the Project's Flows               | makes the folder a git copy of its server project, with the project's flows in it                        |
 | `afd.runner.disconnect` · Disconnect from Ansible Flow Server | forgets the token and the folder's server settings                                                       |
 | `afd.runner.setToken` · Set Server Token                      | stores a personal access token for `afd.runner.url` in SecretStorage                                     |
 | `afd.runner.clearToken` · Clear Server Token                  | removes it                                                                                               |

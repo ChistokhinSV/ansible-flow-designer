@@ -5,7 +5,13 @@
 // pane's title shows a connect button, or the server's with its menu, by the context key
 // `afd.serverConnected`; the pane's description names the server and the project.
 import * as vscode from 'vscode';
-import { RunnerClient } from '../../node/runner/client';
+import { RunnerClient, type RunnerProject } from '../../node/runner/client';
+import {
+  type GitAuth,
+  getProjectFlows,
+  repositoryOf,
+  sendFolder,
+} from '../../node/runner/projectGit';
 import { CMD } from '../commands/ids';
 import { CANCELLED, isCancelled } from '../errors';
 import type { Host } from '../host';
@@ -168,10 +174,21 @@ export async function connectServer(
   }
   const client = new RunnerClient(url, token as string, { verifyTls, allowHttp });
 
-  // The project: the repository's remote on this server says it; else it is picked.
+  // The project: the repository's remote on this server says it; else it is picked. AFD-302: a
+  // folder without flows may get the picked project's flows; a folder with its own flows may be
+  // sent to a new project instead.
   let project = given?.project ?? (await remoteProject(url, scope));
+  const auth: GitAuth = { token: token as string, verifyTls };
+  let got = '';
   if (!project && !given) {
+    const hasFlows = await folderHasFlows(scope);
     const items: (vscode.QuickPickItem & { value?: string })[] = [];
+    if (hasFlows)
+      items.push({
+        label: '$(cloud-upload) New Project from This Folder…',
+        description: 'Make a project on the server and send this folder to it',
+        value: NEW,
+      });
     try {
       for (const ws of await client.workspaces())
         for (const p of await client.projects(ws.key))
@@ -190,11 +207,25 @@ export async function connectServer(
     });
     const pick = await vscode.window.showQuickPick(items, {
       title: 'Connect to Ansible Flow Server (3/3): the project of this folder',
-      placeHolder: items.length > 1 ? 'The server project this folder is a copy of' : undefined,
+      placeHolder: hasFlows
+        ? 'This folder has flows: send them to a new project, or pick the project it is a copy of'
+        : 'The project whose flows this folder gets',
       ignoreFocusOut: true,
     });
     if (!pick) return CANCELLED;
-    project = pick.value;
+    if (pick.value === NEW) {
+      const made = await sendToNewProject(scope, client, url, auth);
+      if (typeof made === 'string') return made;
+      project = made.project;
+      got = made.note;
+    } else {
+      project = pick.value;
+      if (project && !hasFlows) {
+        const error = await getFlowsInto(scope, client, url, project, auth, true);
+        if (error && !isCancelled(error)) return error;
+        if (!error) got = "; the project's flows are in this folder";
+      }
+    }
   }
 
   // Kept: the token for the address, the address and project for the folder. A token of the
@@ -204,9 +235,179 @@ export async function connectServer(
   await before.c.update('runner.url', url, target());
   await before.c.update('runner.project', project || undefined, target());
   void vscode.window.showInformationMessage(
-    `Connected to ${url} as ${me.login}${project ? `, project ${project}` : ''}.`,
+    `Connected to ${url} as ${me.login}${project ? `, project ${project}` : ''}${got}.`,
   );
   return undefined;
+}
+
+const NEW = '__new_project__';
+
+/** True when the folder has a flow file of its own. */
+async function folderHasFlows(scope: vscode.Uri): Promise<boolean> {
+  const found = await vscode.workspace.findFiles(
+    new vscode.RelativePattern(scope, '**/*.flow.yaml'),
+    '**/{node_modules,.git,generated}/**',
+    1,
+  );
+  return found.length > 0;
+}
+
+/** The project `<workspace>/<key>` as the server has it. */
+async function projectNamed(client: RunnerClient, named: string): Promise<RunnerProject | string> {
+  const [ws, key] = named.split('/');
+  if (!ws || !key) return `"${named}" is not <workspace>/<project>`;
+  try {
+    return (
+      (await client.projects(ws)).find((p) => p.key === key) ??
+      `The server has no project ${named} that this token reaches`
+    );
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
+/**
+ * AFD-302: the project's flows into the folder (it becomes a git copy of the project). Asked first
+ * when `ask`; answers an error, CANCELLED, or undefined once they are there.
+ */
+async function getFlowsInto(
+  scope: vscode.Uri,
+  client: RunnerClient,
+  url: string,
+  named: string,
+  auth: GitAuth,
+  ask: boolean,
+): Promise<string | undefined> {
+  const project = await projectNamed(client, named);
+  if (typeof project === 'string') return project;
+  if (ask) {
+    const yes = "Get the Project's Flows";
+    const pick = await vscode.window.showInformationMessage(
+      `Get the flows of ${named} into this folder?`,
+      {
+        modal: true,
+        detail: `The folder becomes a git copy of the project (branch ${project.gitRef}): change the flows here, and push to send them back. git asks for a password when it pulls or pushes: an access token.`,
+      },
+      yes,
+    );
+    if (pick !== yes) return CANCELLED;
+  }
+  try {
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Getting the flows of ${named}…` },
+      () => getProjectFlows(scope.fsPath, `${url}${project.gitPath}`, project.gitRef, auth),
+    );
+  } catch (e) {
+    return (e as Error).message;
+  }
+  return undefined;
+}
+
+/**
+ * AFD-302: a hosted project made on the server from this folder: its workspace, key and name are
+ * asked, then the folder's history is pushed to it (a folder that is not a git repository is made
+ * one, asked first).
+ */
+async function sendToNewProject(
+  scope: vscode.Uri,
+  client: RunnerClient,
+  url: string,
+  auth: GitAuth,
+): Promise<{ project: string; note: string } | string> {
+  const repo = await repositoryOf(scope.fsPath);
+  if (typeof repo === 'object')
+    return `This folder is inside the git repository ${repo.above}: open that folder to send it`;
+  let spaces: { key: string; name: string }[];
+  try {
+    spaces = await client.workspaces();
+  } catch (e) {
+    return (e as Error).message;
+  }
+  if (!spaces.length) return 'This token reaches no workspace of the server';
+  const space =
+    spaces.length === 1
+      ? spaces[0]
+      : await vscode.window
+          .showQuickPick(
+            spaces.map((w) => ({ label: w.key, description: w.name, w })),
+            { title: 'New project: its workspace', ignoreFocusOut: true },
+          )
+          .then((p) => p?.w);
+  if (!space) return CANCELLED;
+  const folderName = scope.path.split('/').filter(Boolean).at(-1) ?? 'flows';
+  const slug =
+    folderName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 63) || 'flows';
+  const key = await vscode.window.showInputBox({
+    title: `New project in ${space.key}: its key`,
+    prompt: 'Lower case letters, digits and dashes; part of its git address',
+    value: slug,
+    ignoreFocusOut: true,
+    validateInput: (v) =>
+      /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(v.trim())
+        ? undefined
+        : 'Lower case letters, digits and dashes, not starting or ending with a dash',
+  });
+  if (!key) return CANCELLED;
+  const name = await vscode.window.showInputBox({
+    title: `New project ${space.key}/${key.trim()}: its name`,
+    value: folderName,
+    ignoreFocusOut: true,
+    validateInput: (v) => (v.trim() ? undefined : 'A name'),
+  });
+  if (!name) return CANCELLED;
+  let commitAll = false;
+  if (repo === 'none') {
+    const yes = 'Make It a Repository and Send';
+    const pick = await vscode.window.showWarningMessage(
+      'This folder is not a git repository.',
+      {
+        modal: true,
+        detail:
+          'The server keeps a project as git history. The folder is made a repository with all its files in a first commit ("Flows from VS Code"), which is then sent.',
+      },
+      yes,
+    );
+    if (pick !== yes) return CANCELLED;
+    commitAll = true;
+  }
+  let project: RunnerProject;
+  try {
+    project = await client.createProject(space.key, key.trim(), name.trim());
+  } catch (e) {
+    return (e as Error).message;
+  }
+  try {
+    const sent = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Sending this folder to ${space.key}/${project.key}…`,
+      },
+      () => sendFolder(scope.fsPath, `${url}${project.gitPath}`, project.gitRef, auth, commitAll),
+    );
+    return {
+      project: `${space.key}/${project.key}`,
+      note: `; this folder was sent to it (remote ${sent.remoteName})`,
+    };
+  } catch (e) {
+    return `The project ${space.key}/${project.key} was made, but sending the folder failed: ${(e as Error).message}`;
+  }
+}
+
+/** Get the Project's Flows (the pane's welcome while connected): into this folder. */
+export async function getProjectFlowsHere(
+  scope: vscode.Uri,
+  secrets: vscode.SecretStorage,
+): Promise<string | undefined> {
+  const { url, project, verifyTls, allowHttp } = config(scope);
+  const token = url ? await secrets.get(tokenKey(url)) : undefined;
+  if (!url || !token) return 'Connect to Ansible Flow Server first';
+  if (!project) return "Pick the folder's project first: Change Server Project";
+  const client = new RunnerClient(url, token, { verifyTls, allowHttp });
+  return getFlowsInto(scope, client, url, project, { token, verifyTls }, false);
 }
 
 /** Forgets the folder's server: its token, address and project. */
@@ -308,6 +509,8 @@ export function serverCommands(host: Host): vscode.Disposable[] {
     // Open designers follow the server now (AFD-284), and the pane says which one.
     if (!error) host.server.retry();
     show();
+    // AFD-302: flows that came from the server show in the pane at once.
+    if (!error) void vscode.commands.executeCommand('afd.flows.refresh');
   };
   const scoped =
     (act: (scope: vscode.Uri, s: vscode.SecretStorage) => Promise<string | undefined>) =>
@@ -327,6 +530,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand(CMD.runnerConnect, scoped(connectServer)),
     vscode.commands.registerCommand(CMD.runnerDisconnect, scoped(disconnectServer)),
     vscode.commands.registerCommand(CMD.runnerChangeProject, scoped(changeProject)),
+    vscode.commands.registerCommand(CMD.runnerGetFlows, scoped(getProjectFlowsHere)),
     vscode.commands.registerCommand(CMD.runnerServer, async (uri?: vscode.Uri) => {
       const scope = host.scopeUri(uri);
       if (!scope) return;

@@ -334,6 +334,12 @@ export class RunnerClient {
   /** AFD-301: the workspaces this token reaches, to pick the folder's project when connecting. */
   workspaces = () =>
     this.request<{ id: string; key: string; name: string }[]>('GET', '/api/v1/workspaces');
+  /** AFD-302: a hosted project (no source of its own: its history is pushed to the server). */
+  createProject = (workspace: string, key: string, name: string) =>
+    this.request<RunnerProject>('POST', `/api/v1/workspaces/${enc(workspace)}/projects`, {
+      key,
+      name,
+    });
   projects = (workspace: string) =>
     this.request<RunnerProject[]>('GET', `/api/v1/workspaces/${enc(workspace)}/projects`);
   project = (id: string) => this.request<RunnerProject>('GET', `/api/v1/projects/${enc(id)}`);

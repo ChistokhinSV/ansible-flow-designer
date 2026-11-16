@@ -7,13 +7,14 @@
 // check run followed to its end with the hosts on the canvas, at the commit the workspace has.
 import * as assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { RunView } from '../../src/core/protocol';
+import { folderIsEmpty, getProjectFlows, sendFolder } from '../../src/node/runner/projectGit';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 
 const url = process.env.AFD_RUNNER_URL?.replace(/\/+$/, '');
@@ -136,6 +137,80 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     // The test workspace's remote `afs` is the server's git address of the project.
     assert.equal(state.project, `${workspace}/${key}`);
     assert.equal(state.pane, `${new URL(url as string).host} · ${workspace}/${key}`);
+  });
+
+  it("AFD-302: a folder sent to a new project, and another folder gets that project's flows", async () => {
+    const auth = { token: token as string, verifyTls: !lab };
+    // A folder with a flow of its own, not a repository: made one, committed, sent.
+    const own = mkdtempSync(join(tmpdir(), 'afd-302-own-'));
+    const copy = mkdtempSync(join(tmpdir(), 'afd-302-copy-'));
+    const repo = mkdtempSync(join(tmpdir(), 'afd-302-repo-'));
+    const ident = {
+      GIT_AUTHOR_NAME: 'AFD Test',
+      GIT_AUTHOR_EMAIL: 'afd-test@example.net',
+      GIT_COMMITTER_NAME: 'AFD Test',
+      GIT_COMMITTER_EMAIL: 'afd-test@example.net',
+    };
+    Object.assign(process.env, ident);
+    try {
+      const flow = readFileSync(
+        join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string, FILE),
+        'utf8',
+      );
+      mkdirSync(join(own, 'flows'), { recursive: true });
+      writeFileSync(join(own, 'flows', 'mine.flow.yaml'), flow);
+      const sentKey = `sent-${Date.now()}`;
+      const made = await api('POST', `/api/v1/workspaces/${workspace}/projects`, {
+        key: sentKey,
+        name: sentKey,
+      });
+      assert.equal(made.status, 201, JSON.stringify(made.json));
+      const project = made.json as { id: string; gitPath: string; gitRef: string };
+      const remote = `${url}${project.gitPath}`;
+      // Not a repository and not allowed to make one: refused, nothing made.
+      await assert.rejects(sendFolder(own, remote, project.gitRef, auth, false), /not a git/);
+      const sent = await sendFolder(own, remote, project.gitRef, auth, true);
+      assert.deepEqual(sent, { remoteName: 'origin', committed: true });
+      const there = (await api('GET', `/api/v1/projects/${project.id}`)).json as {
+        commit?: string;
+      };
+      assert.match(there.commit ?? '', /^[0-9a-f]{40}$/);
+
+      // An empty folder (only VS Code's settings) gets the project's flows; its settings stay.
+      mkdirSync(join(copy, '.vscode'));
+      writeFileSync(join(copy, '.vscode', 'settings.json'), '{}\n');
+      assert.equal(folderIsEmpty(copy), true);
+      await getProjectFlows(copy, remote, project.gitRef, auth);
+      // As git checks it out here (core.autocrlf may turn LF into CRLF).
+      const lf = (t: string) => t.split('\r\n').join('\n');
+      assert.equal(lf(readFileSync(join(copy, 'flows', 'mine.flow.yaml'), 'utf8')), lf(flow));
+      assert.equal(readFileSync(join(copy, '.vscode', 'settings.json'), 'utf8'), '{}\n');
+      const origin = execFileSync('git', ['remote', 'get-url', 'origin'], {
+        cwd: copy,
+        encoding: 'utf8',
+      }).trim();
+      assert.equal(origin, remote);
+      // The token is in no file of the copy.
+      assert.equal(
+        readFileSync(join(copy, '.git', 'config'), 'utf8').includes(token as string),
+        false,
+      );
+      // A folder that is a repository already is refused, and left as it was.
+      execFileSync('git', ['init', '-q'], { cwd: repo });
+      await assert.rejects(
+        getProjectFlows(repo, remote, project.gitRef, auth),
+        /already a git repository/,
+      );
+    } finally {
+      for (const name of Object.keys(ident)) delete process.env[name];
+      // Windows may still hold a file of a fresh repository (VS Code's git watches new ones).
+      for (const dir of [own, copy, repo])
+        try {
+          rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+        } catch {
+          // Left in the temporary folder.
+        }
+    }
   });
 
   it('a token is checked before it is stored', async () => {
