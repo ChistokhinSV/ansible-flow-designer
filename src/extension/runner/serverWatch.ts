@@ -10,7 +10,9 @@ import { parseFlow } from '../../core/flow/document';
 import type { FlowDocument } from '../../core/flow/types';
 import { type ServerChange, serverChangeOf } from '../../core/view/serverChange';
 import { RunnerError } from '../../node/runner/client';
+import { fastForward, upstreamOf } from '../../node/runner/projectGit';
 import { logChannel } from '../log';
+import { gitAuthFor, offerGitSetup } from './connect';
 import { projectOf, runnerClient, runnerConfigured } from './runnerRun';
 
 /** What the watcher needs of a designer session. */
@@ -185,7 +187,9 @@ export class ServerWatch implements vscode.Disposable {
         return;
       }
       const before = await git(place.root, ['log', '-1', '--format=%H', 'HEAD', '--', place.file]);
-      await git(place.root, ['pull', '--ff-only'], 120_000);
+      // AFD-305: the server's token and certificate setting, as Pull in the Flows pane.
+      const up = await upstreamOf(place.root);
+      await fastForward(place.root, await gitAuthFor(flow.uri, up.url, this.secrets));
       this.dismissed.delete(flow);
       this.shown.delete(flow);
       flow.setServerChange(null);
@@ -193,11 +197,12 @@ export class ServerWatch implements vscode.Disposable {
       if (compare && before) await flow.compareWith(before);
     } catch (e) {
       const why = (e as Error).message;
-      void vscode.window.showErrorMessage(
-        /fast-forward|diverg/i.test(why)
-          ? 'Your branch and the server’s have both moved: pull and merge them (Set Up Flow Merging merges flows by their steps).'
-          : `git pull failed: ${why.split('\n')[0]}`,
-      );
+      if (/fast-forward|diverg/i.test(why))
+        void vscode.window.showErrorMessage(
+          'Your branch and the server’s have both moved: pull and merge them (Set Up Flow Merging merges flows by their steps).',
+        );
+      // AFD-305: a certificate git does not trust comes with Set Up Git for the Server.
+      else offerGitSetup(`git pull failed: ${why.split('\n')[0]}`);
     }
   }
 

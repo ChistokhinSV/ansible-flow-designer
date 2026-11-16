@@ -21,7 +21,7 @@ export class ProjectGitError extends Error {
   }
 }
 
-function git(
+export function git(
   cwd: string,
   args: string[],
   auth?: GitAuth,
@@ -287,5 +287,15 @@ export async function pullBranch(folder: string, auth?: GitAuth): Promise<string
       );
     },
   );
+  return `${up.remote}/${up.branch}`;
+}
+
+/**
+ * AFD-305: the branch's new commits from its remote when this folder has none of its own (fast
+ * forward only), as Update in the designer does. Answers the remote branch.
+ */
+export async function fastForward(folder: string, auth?: GitAuth): Promise<string> {
+  const up = await upstreamOf(folder);
+  await git(folder, ['pull', '-q', '--ff-only', up.remote, up.branch], auth);
   return `${up.remote}/${up.branch}`;
 }

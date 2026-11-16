@@ -92,21 +92,22 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 
 ## Ansible Flow Server
 
-| Command                                                       | Does                                                                                                       |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `afd.runner.connect` · Connect to Ansible Flow Server…        | asks for the address, an access token and the folder's project, and keeps them for the folder              |
-| `afd.runner.server` · Ansible Flow Server…                    | the server button of the Flows pane: Open in Browser, Change Project, a different server, Disconnect       |
-| `afd.runner.changeProject` · Change Server Project…           | picks another project of the server for the folder                                                         |
-| `afd.runner.getFlows` · Get the Project's Flows               | makes the folder a git copy of its server project, with the project's flows in it                          |
-| `afd.git.commitPush` · Commit & Push…                         | commits the folder's changes with a message and pushes the branch (the server's token for its git address) |
-| `afd.git.pull` · Pull                                         | pulls the branch, the folder's own commits on top (rebase), changes not committed kept                     |
-| `afd.flows.commitPush` · Commit & Push This Flow…             | the same for one flow, its generated playbook and scenarios (right-click in the Flows pane)                |
-| `afd.flows.duplicate` · Duplicate Flow…                       | a copy beside it with its own id and key (right-click)                                                     |
-| `afd.flows.delete` · Delete Flow                              | the flow, its generated playbook and scenarios to the trash (right-click)                                  |
-| `afd.runner.disconnect` · Disconnect from Ansible Flow Server | forgets the token and the folder's server settings                                                         |
-| `afd.runner.setToken` · Set Server Token                      | stores a personal access token for `afd.runner.url` in SecretStorage                                       |
-| `afd.runner.clearToken` · Clear Server Token                  | removes it                                                                                                 |
-| `afd.runner.launch` · Run on Server                           | runs the flow's launch configuration on the server, at the server's commit, and follows it on the canvas   |
+| Command                                                       | Does                                                                                                                 |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `afd.runner.connect` · Connect to Ansible Flow Server…        | asks for the address, an access token and the folder's project, and keeps them for the folder                        |
+| `afd.runner.server` · Ansible Flow Server…                    | the server button of the Flows pane: Open in Browser, Change Project, a different server, Disconnect                 |
+| `afd.runner.changeProject` · Change Server Project…           | picks another project of the server for the folder                                                                   |
+| `afd.runner.getFlows` · Get the Project's Flows               | makes the folder a git copy of its server project, with the project's flows in it                                    |
+| `afd.runner.setUpGit` · Set Up Git for the Server…            | git in the folder trusts the server's certificate (for its address only) and, if you agree, signs in with your token |
+| `afd.git.commitPush` · Commit & Push…                         | commits the folder's changes with a message and pushes the branch (the server's token for its git address)           |
+| `afd.git.pull` · Pull                                         | pulls the branch, the folder's own commits on top (rebase), changes not committed kept                               |
+| `afd.flows.commitPush` · Commit & Push This Flow…             | the same for one flow, its generated playbook and scenarios (right-click in the Flows pane)                          |
+| `afd.flows.duplicate` · Duplicate Flow…                       | a copy beside it with its own id and key (right-click)                                                               |
+| `afd.flows.delete` · Delete Flow                              | the flow, its generated playbook and scenarios to the trash (right-click)                                            |
+| `afd.runner.disconnect` · Disconnect from Ansible Flow Server | forgets the token and the folder's server settings                                                                   |
+| `afd.runner.setToken` · Set Server Token                      | stores a personal access token for `afd.runner.url` in SecretStorage                                                 |
+| `afd.runner.clearToken` · Clear Server Token                  | removes it                                                                                                           |
+| `afd.runner.launch` · Run on Server                           | runs the flow's launch configuration on the server, at the server's commit, and follows it on the canvas             |
 
 ## AI assistants
 

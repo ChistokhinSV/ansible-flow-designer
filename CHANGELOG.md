@@ -2,6 +2,16 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Set Up Git for the Server…:** git in the folder trusts the connected server's certificate (shown with its fingerprint first; for the server's address only), and can sign in with your token through git's credential helper, so Source Control and the terminal pull and push from a lab server with a self-signed certificate. Offered on a git error about an untrusted certificate. See [Ansible Flow Server](docs/guide/how-to/server.md#git-outside-the-designer-set-up-git-for-the-server).
+
+### Fixed
+
+- **Update and Show changes** on the canvas pull with the server's token and certificate setting, as Pull in the Flows pane does, instead of failing on a self-signed certificate.
+
 ## 0.94.0 — Commit, push and pull from the Flows pane
 
 ### Added

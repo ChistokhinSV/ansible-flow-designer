@@ -53,6 +53,7 @@ export const CMD = {
   runnerChangeProject: 'afd.runner.changeProject',
   /** AFD-302: the folder gets the project's flows (a git copy of the project). */
   runnerGetFlows: 'afd.runner.getFlows',
+  runnerSetUpGit: 'afd.runner.setUpGit',
   /** Internal: a designer's approval decision, and a host's output, for a run on the server. */
   runnerDecide: 'afd.runner.decide',
   runnerHostOutput: 'afd.runner.hostOutput',

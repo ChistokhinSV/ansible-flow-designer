@@ -393,6 +393,11 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.runner.setUpGit",
+        "title": "Set Up Git for the Server…",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.runner.getFlows",
         "title": "Get the Project's Flows",
         "category": "Ansible Flow",
@@ -788,6 +793,10 @@
         },
         {
           "command": "afd.runner.getFlows",
+          "when": "afd.serverConnected"
+        },
+        {
+          "command": "afd.runner.setUpGit",
           "when": "afd.serverConnected"
         },
         {
