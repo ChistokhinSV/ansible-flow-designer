@@ -110,3 +110,82 @@ describe('facts as data (AFD-287)', () => {
     ).toBe(plan.text);
   });
 });
+
+// AFD-308: the fact set inside an earlier subflow (a library copy, say), exported or not.
+const SUB = '01M7EBXZ53GR37Y183S60BEQW9';
+const inSubflow = (outputs: string) => `schema_version: 2
+flow:
+  id: 01M7EBXJE1AAPH3JC9N9DFQNZQ
+  key: var-test
+  name: Var test
+  version: 2
+  inputs:
+    devices: {type: host_list, required: true, targets: true}
+nodes:
+- {id: 01M7EBXJE1AAPH3JC9N9DFQNZR, key: start, type: start, title: Start}
+- {id: 01M7EBXJE1AAPH3JC9N9DFQNZS, key: done, type: end, title: Done, outcome: success}
+- id: ${SUB}
+  key: two-facts
+  type: subflow
+  title: 2 facts
+${outputs}  subflow:
+    nodes:
+    - {id: 01M7EBXJE1AAPH3JC9N9DFQNZA, key: start, type: start, title: Start}
+    - {id: 01M7EBXJE1AAPH3JC9N9DFQNZB, key: done, type: end, title: Done, outcome: success}
+    - id: ${SAVE}
+      key: save-var
+      type: task
+      title: Save var
+      impl:
+        kind: module
+        ref: ansible.builtin.set_fact
+        params:
+          test_message: hello
+${outputs ? `      outputs:\n        test_message: {type: any}\n` : ''}    edges:
+    - {id: 01M7EBXJE1AAPH3JC9N9DFQNZC, from: {node: 01M7EBXJE1AAPH3JC9N9DFQNZA, port: ok_hosts}, to: {node: ${SAVE}, port: in}}
+    - {id: 01M7EBXJE1AAPH3JC9N9DFQNZD, from: {node: ${SAVE}, port: ok_hosts}, to: {node: 01M7EBXJE1AAPH3JC9N9DFQNZB, port: in}}
+- id: ${SHOW}
+  key: debug
+  type: task
+  title: Show var
+  impl:
+    kind: module
+    ref: ansible.builtin.debug
+    params:
+      msg: '{{ test_message }}'
+edges:
+- {id: 01M7EBXJE1AAPH3JC9N9DFQNZT, from: {node: 01M7EBXJE1AAPH3JC9N9DFQNZR, port: ok_hosts}, to: {node: ${SUB}, port: in}}
+- {id: 01M7EBXZ553ZN9RA76XVVPPT6T, from: {node: ${SUB}, port: ok_hosts}, to: {node: ${SHOW}, port: in}}
+- {id: 01M7EBY77EDCYNY64BM5V1SKSN, from: {node: ${SHOW}, port: ok_hosts}, to: {node: 01M7EBXJE1AAPH3JC9N9DFQNZS, port: in}}
+`;
+
+describe('a fact from an earlier subflow in the Data lens (AFD-308)', () => {
+  it('an output of the subflow: the read is drawn from it, and the fix adds the input', () => {
+    const text = inSubflow(
+      '  outputs:\n    test_message: {type: any, from: save-var.test_message}\n',
+    );
+    const lens = dataLens(doc(text));
+    expect(lens.dataWires).toEqual([
+      expect.objectContaining({ from: SUB, to: SHOW, undeclared: true }),
+    ]);
+    const fix = lens.findings.find((f) => f.id === `data:undeclared:${SHOW}.test_message`)
+      ?.fixes[0];
+    expect(fix?.label).toBe('Use test_message as an Input');
+    const command = (fix as { command: Parameters<typeof planCommand>[1] }).command;
+    const after = doc(planCommand(text, command, { newId: createIdFactory() }).text);
+    expect(after.nodes.find((n) => n.id === SHOW)?.inputs).toEqual({
+      test_message: { type: 'any', from: 'two-facts.test_message' },
+    });
+    expect(dataLens(after).findings.some((f) => f.id.startsWith('data:undeclared:'))).toBe(false);
+  });
+
+  it('set inside the subflow and not exported: still drawn, and said where it is set', () => {
+    const lens = dataLens(doc(inSubflow('')));
+    expect(lens.dataWires).toEqual([
+      expect.objectContaining({ from: SUB, to: SHOW, undeclared: true }),
+    ]);
+    expect(
+      lens.findings.find((f) => f.id === `data:undeclared:${SHOW}.test_message`)?.detail,
+    ).toContain('Save var, inside 2 facts, sets test_message');
+  });
+});

@@ -101,14 +101,17 @@ export async function runPortItem(item: PortMenuItem, ref: PortRef): Promise<voi
   }
 }
 
-/** Insert Node on This Wire, from the wire's + (AFD-231) or its menu. */
-export function insertOnWire(edge: Ulid): void {
+/**
+ * Insert Node on This Wire, from the wire's + (AFD-231) or its menu, or a step dropped on the wire
+ * from the palette (AFD-306: the same, so the steps after it make room as they do for the +).
+ */
+export function insertOnWire(edge: Ulid, type: NodeType = 'task'): void {
   const ui = useUi.getState();
   const source = ui.snapshot?.doc ? modelOf(ui.snapshot.doc).edges.get(edge)?.edge.from.node : '';
   // On a level laid out automatically the new step gets no position: the layout puts it in line.
   const auto = !!source && source in (ui.snapshot?.autoPositions ?? {});
   ui.openQuickAdd({
-    type: 'task',
+    type,
     insertOn: edge,
     ...(auto ? {} : { position: insertPosition(edge) }),
   });

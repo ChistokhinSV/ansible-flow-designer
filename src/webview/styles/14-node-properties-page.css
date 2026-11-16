@@ -368,6 +368,7 @@
 }
 
 .afd-chipfield-input {
+  position: relative;
   flex: 1;
   min-height: 24px;
   white-space: pre-wrap;
@@ -380,9 +381,17 @@
   font-family: var(--afd-mono);
 }
 
+/* AFD-307: out of the text's flow, where it would stand, so the caret of an empty field is at the
+   start and not after the placeholder. */
 .afd-chipfield-input:empty::before {
   content: attr(data-placeholder);
   color: var(--afd-muted);
+  position: absolute;
+  pointer-events: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .afd-chipfield-at {
