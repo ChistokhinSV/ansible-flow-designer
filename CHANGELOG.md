@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.95.0 — Git and the server's certificate
 
 ### Added
 
