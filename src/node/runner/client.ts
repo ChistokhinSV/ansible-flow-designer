@@ -386,6 +386,17 @@ export class RunnerClient {
       'GET',
       `/api/v1/projects/${enc(project)}/changes?from=${enc(from)}${to ? `&to=${enc(to)}` : ''}`,
     );
+  /** AFD-303: the project's flows at its commit (those this token may see). */
+  flows = (project: string) =>
+    this.request<{ commit?: string; flows: { file: string }[] }>(
+      'GET',
+      `/api/v1/projects/${enc(project)}/flows`,
+    );
+  /** AFD-303: a file of the project as it is at a commit, as text. */
+  fileText = (project: string, path: string, commit: string) =>
+    this.text(
+      `/api/v1/projects/${enc(project)}/files/content?path=${enc(path)}&commit=${enc(commit)}`,
+    );
   /** AFD-284: one flow as the server reads it at a commit (its document in `snapshot.doc`). */
   flowAt = (project: string, path: string, commit: string) =>
     this.request<{ commit: string; file: string; snapshot: { doc?: unknown } }>(

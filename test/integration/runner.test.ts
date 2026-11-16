@@ -139,6 +139,35 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     assert.equal(state.pane, `${new URL(url as string).host} · ${workspace}/${key}`);
   });
 
+  it("AFD-303: the Flows pane says which flows are the server project's", async () => {
+    const t = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    const first = await t.serverFlows(FLOW);
+    assert.ok(first, 'no server state');
+    assert.equal(first.repo, true);
+    assert.equal(first.behind, false);
+    assert.equal(first.states[FILE], 'same');
+    assert.deepEqual(first.missing, []);
+    const path = join(root, FILE);
+    const before = readFileSync(path, 'utf8');
+    const mine = join(root, 'flows', 'mine.flow.yaml');
+    try {
+      writeFileSync(path, `${before}# changed here\n`);
+      writeFileSync(mine, before);
+      // The pane's list of flows follows the file watcher: asked again until it has the new one.
+      let now = await t.serverFlows(FLOW);
+      for (let i = 0; i < 20 && !now?.states['flows/mine.flow.yaml']; i++) {
+        await pause(250);
+        now = await t.serverFlows(FLOW);
+      }
+      assert.equal(now?.states[FILE], 'changed');
+      assert.equal(now?.states['flows/mine.flow.yaml'], 'local');
+    } finally {
+      writeFileSync(path, before);
+      rmSync(mine, { force: true });
+    }
+  });
+
   it("AFD-302: a folder sent to a new project, and another folder gets that project's flows", async () => {
     const auth = { token: token as string, verifyTls: !lab };
     // A folder with a flow of its own, not a repository: made one, committed, sent.
