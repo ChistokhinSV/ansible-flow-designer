@@ -13,20 +13,35 @@ import {
   factsLine,
   flowTree,
 } from '../core/view/flowFacts';
+import { SERVER_STATE_WORDS } from '../core/view/serverFlows';
 import { generatedDir } from './codegen';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
 import { attachFlowsPane } from './runner/connect';
+import { ServerFlowsState } from './runner/serverFlows';
 
 type Item =
   | { kind: 'root'; folder: vscode.WorkspaceFolder }
   | { kind: 'folder'; folder: FlowFolder; base: vscode.Uri }
-  | { kind: 'flow'; uri: vscode.Uri };
+  | { kind: 'flow'; uri: vscode.Uri }
+  // AFD-303: the server project's flows this folder does not have.
+  | { kind: 'server'; folder: vscode.WorkspaceFolder }
+  | { kind: 'serverFlow'; folder: vscode.WorkspaceFolder; path: string };
+
+/** AFD-303: the Flows pane's server state (the test API). */
+let current: ServerFlowsState | undefined;
+export const flowsServerState = () => current;
 
 export function registerFlowsView(host: Host): vscode.Disposable[] {
   const changed = new vscode.EventEmitter<void>();
   // AFD-93: the workspace index reads and keeps the facts; the view only shows them.
   const factsOf = (uri: vscode.Uri) => host.index.facts(uri);
+  // AFD-303: which flows are the connected server project's.
+  const server = new ServerFlowsState(host.context.secrets, async (folder) =>
+    (await host.index.list())
+      .filter((f) => f.folder.uri.toString() === folder.uri.toString())
+      .map((f) => f.rel),
+  );
   /** The flows of one workspace folder, by their folders. */
   const treeOf = async (folder: vscode.WorkspaceFolder): Promise<Item[]> => {
     const rel = (await host.index.list())
@@ -37,11 +52,35 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
     return [
       ...tree.folders.map((f): Item => ({ kind: 'folder', folder: f, base })),
       ...tree.flows.map((p): Item => ({ kind: 'flow', uri: vscode.Uri.joinPath(base, p) })),
+      ...(server.folder(folder)?.flows.missing.length ? [{ kind: 'server', folder } as Item] : []),
     ];
   };
   const provider: vscode.TreeDataProvider<Item> = {
     onDidChangeTreeData: changed.event,
     async getTreeItem(item) {
+      if (item.kind === 'server') {
+        const n = server.folder(item.folder)?.flows.missing.length ?? 0;
+        const t = new vscode.TreeItem(
+          'On the server, not here',
+          vscode.TreeItemCollapsibleState.Collapsed,
+        );
+        t.description = `${n}`;
+        t.iconPath = new vscode.ThemeIcon('cloud');
+        t.tooltip = `${n} flow(s) of ${server.folder(item.folder)?.project ?? 'the project'} that this folder does not have.`;
+        t.contextValue = 'afd-server-missing';
+        return t;
+      }
+      if (item.kind === 'serverFlow') {
+        const name = item.path.split('/').pop() ?? item.path;
+        const t = new vscode.TreeItem(name.replace(/\.flow\.yaml$/, ''));
+        t.description = item.path.includes('/') ? item.path.slice(0, -name.length - 1) : '';
+        t.iconPath = new vscode.ThemeIcon('cloud');
+        t.tooltip = server.folder(item.folder)?.repo
+          ? `${item.path}: on the server only. Pull (Source Control) to get it here.`
+          : `${item.path}: on the server only. Get the Project's Flows into an empty folder to have it here.`;
+        t.contextValue = 'afd-server-flow';
+        return t;
+      }
       if (item.kind === 'root') {
         const t = new vscode.TreeItem(item.folder.name, vscode.TreeItemCollapsibleState.Expanded);
         t.iconPath = new vscode.ThemeIcon('root-folder');
@@ -67,6 +106,11 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
       const t = new vscode.TreeItem(f?.name || fallback);
       t.resourceUri = uri;
       t.description = f ? factsLine(f) : '';
+      const onServer = server.stateOf(uri);
+      if (onServer)
+        t.description = [t.description, SERVER_STATE_WORDS[onServer].short]
+          .filter(Boolean)
+          .join(' · ');
       const tip = new vscode.MarkdownString();
       tip.appendMarkdown(
         `**${f?.name || fallback}** · \`${vscode.workspace.asRelativePath(uri)}\`\n\n`,
@@ -79,6 +123,7 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
         tip.appendMarkdown(`**Code:** ${CODE_MEANING[f.code]}`);
         if (f.kept.length) tip.appendMarkdown(` Edited by hand: ${f.kept.join(', ')}.`);
       }
+      if (onServer) tip.appendMarkdown(`\n\n**Server:** ${SERVER_STATE_WORDS[onServer].long}`);
       t.tooltip = tip;
       t.iconPath = new vscode.ThemeIcon(
         f?.broken || f?.errors
@@ -96,7 +141,11 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
       return t;
     },
     async getChildren(parent) {
-      if (parent?.kind === 'flow') return [];
+      if (parent?.kind === 'flow' || parent?.kind === 'serverFlow') return [];
+      if (parent?.kind === 'server')
+        return (server.folder(parent.folder)?.flows.missing ?? []).map(
+          (path): Item => ({ kind: 'serverFlow', folder: parent.folder, path }),
+        );
       if (parent?.kind === 'root') return treeOf(parent.folder);
       if (parent?.kind === 'folder')
         return [
@@ -119,14 +168,37 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
   const view = vscode.window.createTreeView('afd.flows', { treeDataProvider: provider });
   // AFD-301: the pane says which Ansible Flow Server the folder is connected to.
   attachFlowsPane(view as vscode.TreeView<unknown>);
+  current = server;
+  // AFD-303: what the server has that this folder does not, above the flows.
+  server.onDidChange(() => {
+    const behind = (vscode.workspace.workspaceFolders ?? []).some((f) => server.folder(f)?.behind);
+    view.message = behind
+      ? 'The server has newer commits of this project: pull to get them.'
+      : undefined;
+    changed.fire();
+  });
+  const reread = () => server.soon();
+  setTimeout(reread, 0);
   return [
     changed,
     view,
+    server,
+    host.index.onDidChange(reread),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('afd.runner')) reread();
+    }),
+    host.context.secrets.onDidChange((e) => {
+      if (e.key.startsWith('afd.runner.token:')) reread();
+    }),
+    vscode.window.onDidChangeWindowState((w) => {
+      if (w.focused) reread();
+    }),
     // The index watches the flows and their code, and says once per burst.
     host.index.onDidChange(() => changed.fire()),
     vscode.commands.registerCommand('afd.flows.refresh', () => {
       host.index.clear();
       changed.fire();
+      reread();
       void host.index.warm();
     }),
     vscode.commands.registerCommand('afd.flows.run', async (item?: Item) => {

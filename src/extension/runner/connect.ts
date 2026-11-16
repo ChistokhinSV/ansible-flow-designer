@@ -17,7 +17,7 @@ import { CANCELLED, isCancelled } from '../errors';
 import type { Host } from '../host';
 import { remoteProject } from './runnerRun';
 
-const tokenKey = (url: string) => `afd.runner.token:${url}`;
+export const tokenKey = (url: string) => `afd.runner.token:${url}`;
 const CONTEXT = 'afd.serverConnected';
 
 /** The flows pane, to say which server it is connected to. */
@@ -28,7 +28,7 @@ export function attachFlowsPane(view: vscode.TreeView<unknown>): void {
 /** What the pane says of its server (the test API). */
 export const flowsPaneDescription = (): string | undefined => pane?.description;
 
-function config(scope: vscode.Uri) {
+export function config(scope: vscode.Uri) {
   const c = vscode.workspace.getConfiguration('afd', scope);
   return {
     c,
@@ -213,13 +213,30 @@ export async function connectServer(
       ignoreFocusOut: true,
     });
     if (!pick) return CANCELLED;
-    if (pick.value === NEW) {
+    // AFD-303: a folder with flows of its own linked to another project mixes the two: said first.
+    let choice = pick.value;
+    if (choice && choice !== NEW && hasFlows) {
+      const send = 'New Project from This Folder…';
+      const link = 'Link Anyway';
+      const answer = await vscode.window.showWarningMessage(
+        `This folder has flows of its own, and ${choice} is a project on the server.`,
+        {
+          modal: true,
+          detail: `Linking copies nothing: this folder's flows stay here and ${choice}'s stay on the server; Run on Server runs only flows the project has. The Flows pane marks each flow (on server, changed here, only here) and lists the project's flows this folder does not have. To work on ${choice}'s flows, get them into an empty folder; to put this folder on the server, make a new project from it.`,
+        },
+        send,
+        link,
+      );
+      if (!answer) return CANCELLED;
+      if (answer === send) choice = NEW;
+    }
+    if (choice === NEW) {
       const made = await sendToNewProject(scope, client, url, auth);
       if (typeof made === 'string') return made;
       project = made.project;
       got = made.note;
     } else {
-      project = pick.value;
+      project = choice;
       if (project && !hasFlows) {
         const error = await getFlowsInto(scope, client, url, project, auth, true);
         if (error && !isCancelled(error)) return error;

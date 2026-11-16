@@ -6,6 +6,7 @@
 import { execFile } from 'node:child_process';
 import { readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { porcelainPaths } from '../../core/view/serverFlows';
 
 export interface GitAuth {
   token: string;
@@ -20,7 +21,14 @@ export class ProjectGitError extends Error {
   }
 }
 
-function git(cwd: string, args: string[], auth?: GitAuth, timeoutMs = 120_000): Promise<string> {
+function git(
+  cwd: string,
+  args: string[],
+  auth?: GitAuth,
+  timeoutMs = 120_000,
+  /** As git wrote it: `-z` output starts with a status that may be a space. */
+  raw = false,
+): Promise<string> {
   const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
   if (auth) {
     env.GIT_CONFIG_COUNT = '1';
@@ -34,7 +42,7 @@ function git(cwd: string, args: string[], auth?: GitAuth, timeoutMs = 120_000): 
       args,
       { cwd, env, timeout: timeoutMs, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
       (error, stdout, stderr) => {
-        if (!error) return done(stdout.trim());
+        if (!error) return done(raw ? stdout : stdout.trim());
         let said = `${stderr || error.message}`.trim();
         if (auth) said = said.split(auth.token).join('***');
         fail(new ProjectGitError(said.split('\n').slice(-3).join(' ')));
@@ -139,4 +147,44 @@ export async function sendFolder(
   else await git(folder, ['remote', 'set-url', remoteName, remote]);
   await git(folder, ['push', '-q', remoteName, `HEAD:refs/heads/${branch}`], auth);
   return { remoteName, committed };
+}
+
+/**
+ * AFD-303: the paths of the folder (its own repository) that differ from the server's commit: the
+ * working tree, the index, untracked files, and commits made since that commit. `behind`: the
+ * server has a commit this repository does not (pull to get it); then only the working tree and
+ * the index are compared.
+ */
+export async function changedSince(
+  folder: string,
+  serverCommit: string | undefined,
+): Promise<{ changed: Set<string>; behind: boolean } | undefined> {
+  if ((await repositoryOf(folder)) !== 'self') return undefined;
+  const status = await git(
+    folder,
+    ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+    undefined,
+    60_000,
+    true,
+  );
+  const changed = new Set(porcelainPaths(status));
+  let behind = false;
+  if (serverCommit) {
+    const known = await git(folder, ['cat-file', '-e', `${serverCommit}^{commit}`]).then(
+      () => true,
+      () => false,
+    );
+    if (!known) behind = true;
+    else {
+      for (const p of (await git(folder, ['diff', '--name-only', serverCommit, 'HEAD']))
+        .split('\n')
+        .filter(Boolean))
+        changed.add(p);
+      behind = !(await git(folder, ['merge-base', '--is-ancestor', serverCommit, 'HEAD']).then(
+        () => true,
+        () => false,
+      ));
+    }
+  }
+  return { changed, behind };
 }

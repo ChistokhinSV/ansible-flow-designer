@@ -25,6 +25,25 @@ first buttons of a folder without flows. It asks three things and keeps them for
      folder that is not a git repository is made one first, with all its files in one commit
      (asked first). Making a project needs `rw` on the workspace.
 
+Picking an existing project for a folder that has flows of its own warns first: linking copies
+nothing either way, so it offers **New Project from This Folder…** instead, or **Link Anyway**.
+
+### Which flows are the server's
+
+Once connected, each flow in the **Flows** pane says how it stands with the server project (at the
+project's commit):
+
+| Mark            | Means                                                    |
+| --------------- | -------------------------------------------------------- |
+| on server       | the server has it as it is here                          |
+| changed here    | changed in this folder and not sent yet: commit and push |
+| newer on server | the server has a newer version: pull                     |
+| only here       | the project does not have it: commit and push to add it  |
+
+Flows of the project that the folder does not have are listed under **On the server, not here**,
+and a note above the flows says when the server has commits this folder has not pulled. The marks
+are read again when flows change, when VS Code gets the focus back, and on **Refresh**.
+
 Once connected, the pane names the server and the project, and its title has a server button with
 **Open in Browser**, **Change Project**, **Connect to a Different Server** and **Disconnect**
 (which forgets the token and the folder's settings; flows and runs stay).

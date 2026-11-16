@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **The Flows pane says which flows are the server's:** once connected to Ansible Flow Server, each flow is marked on server, changed here, newer on server or only here, and the project's flows this folder does not have are listed under **On the server, not here**; a note says when the server has commits to pull. Linking a folder that has flows of its own to an existing project warns that nothing is copied, and offers to make a new project from the folder instead. See [Which flows are the server's](docs/guide/how-to/server.md#which-flows-are-the-servers).
+
 ## 0.92.0 — Connecting brings the flows
 
 ### Added

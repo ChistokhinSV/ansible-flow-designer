@@ -33,6 +33,7 @@ import { type AwxPicks, launchInAwx, setToken, setupTemplate } from './awx/awxRu
 import type { CodegenOutcome } from './codegen';
 import type { Feedback } from './feedback';
 import type { CommandOutcome, PerfEvent } from './flowSession';
+import { flowsServerState } from './flowsView';
 import type { Host } from './host';
 import {
   importPlaybooks,
@@ -143,6 +144,13 @@ export interface AfdTestApi {
   /** AFD-301: Connect and Disconnect with their answers given; what the Flows pane says. */
   runnerConnect(uri: vscode.Uri, answers: ConnectAnswers): Promise<string | undefined>;
   runnerDisconnect(uri: vscode.Uri): Promise<string | undefined>;
+  /** AFD-303: the Flows pane's server state of the folder, read again first. */
+  serverFlows(
+    uri: vscode.Uri,
+  ): Promise<
+    | { states: Record<string, string>; missing: string[]; behind: boolean; repo: boolean }
+    | undefined
+  >;
   serverState(
     uri: vscode.Uri,
   ): Promise<{ url?: string; project?: string; connected: boolean; pane?: string }>;
@@ -334,6 +342,21 @@ export function createTestApi(
       const error = await disconnectServer(scope, host.context.secrets, true);
       await showServerState(scope, host.context.secrets);
       return error;
+    },
+    serverFlows: async (uri) => {
+      const state = flowsServerState();
+      const folder = vscode.workspace.getWorkspaceFolder(uri);
+      if (!state || !folder) return undefined;
+      await state.refresh();
+      const s = state.folder(folder);
+      return s
+        ? {
+            states: Object.fromEntries(s.flows.states),
+            missing: s.flows.missing,
+            behind: s.behind,
+            repo: s.repo,
+          }
+        : undefined;
     },
     serverState: async (uri) => {
       const scope = host.scopeUri(uri);
