@@ -6,6 +6,7 @@
 // `afd.serverConnected`; the pane's description names the server and the project.
 import * as vscode from 'vscode';
 import { RunnerClient, type RunnerProject } from '../../node/runner/client';
+import { untrustedCertificate } from '../../node/runner/gitTrust';
 import {
   type GitAuth,
   getProjectFlows,
@@ -18,6 +19,43 @@ import type { Host } from '../host';
 import { remoteProject } from './runnerRun';
 
 export const tokenKey = (url: string) => `afd.runner.token:${url}`;
+
+/** The connection's token and certificate setting when the remote is the server's git address. */
+export async function gitAuthFor(
+  scope: vscode.Uri,
+  remoteUrl: string,
+  secrets: vscode.SecretStorage,
+): Promise<GitAuth | undefined> {
+  const { url, verifyTls } = config(scope);
+  if (!url) return undefined;
+  try {
+    if (new URL(remoteUrl).host !== new URL(url).host) return undefined;
+  } catch {
+    return undefined;
+  }
+  const token = await secrets.get(tokenKey(url));
+  return token ? { token, verifyTls } : undefined;
+}
+
+/**
+ * AFD-305: an error from git; one that does not trust the server's certificate comes with Set Up
+ * Git for the Server.
+ */
+export function offerGitSetup(message: string): void {
+  if (!untrustedCertificate(message)) {
+    void vscode.window.showErrorMessage(message);
+    return;
+  }
+  const setUp = 'Set Up Git for the Server…';
+  void vscode.window
+    .showErrorMessage(
+      `${message} Git does not trust the server's certificate: Set Up Git for the Server trusts it for this folder.`,
+      setUp,
+    )
+    .then((pick) => {
+      if (pick === setUp) void vscode.commands.executeCommand(CMD.runnerSetUpGit);
+    });
+}
 const CONTEXT = 'afd.serverConnected';
 
 /** The flows pane, to say which server it is connected to. */
@@ -469,14 +507,21 @@ export async function disconnectServer(
 export async function serverMenu(
   scope: vscode.Uri,
   secrets: vscode.SecretStorage,
-): Promise<'connect' | 'disconnect' | 'project' | 'open' | undefined> {
+): Promise<'connect' | 'disconnect' | 'project' | 'open' | 'git' | undefined> {
   const s = await serverState(scope, secrets);
-  const items: (vscode.QuickPickItem & { id: 'connect' | 'disconnect' | 'project' | 'open' })[] = [
+  const items: (vscode.QuickPickItem & {
+    id: 'connect' | 'disconnect' | 'project' | 'open' | 'git';
+  })[] = [
     { id: 'open', label: '$(link-external) Open in Browser', description: s.url },
     {
       id: 'project',
       label: '$(repo) Change Project',
       description: s.project ?? 'none set',
+    },
+    {
+      id: 'git',
+      label: '$(source-control) Set Up Git for the Server…',
+      description: 'trust its certificate, sign in with the token',
     },
     { id: 'connect', label: '$(plug) Connect to a Different Server…' },
     { id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
@@ -555,6 +600,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
       if (picked === 'connect') done(await connectServer(scope, secrets));
       else if (picked === 'disconnect') done(await disconnectServer(scope, secrets));
       else if (picked === 'project') done(await changeProject(scope, secrets));
+      else if (picked === 'git') void vscode.commands.executeCommand(CMD.runnerSetUpGit, scope);
       else if (picked === 'open') {
         const { url } = config(scope);
         if (url) void vscode.env.openExternal(vscode.Uri.parse(url));

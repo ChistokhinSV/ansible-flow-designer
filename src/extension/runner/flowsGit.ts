@@ -6,33 +6,17 @@
 import * as vscode from 'vscode';
 import { createIdFactory, SLUG } from '../../core/flow/ids';
 import { copiedFlowText } from '../../core/flow/template';
-import { commitAndPush, type GitAuth, pullBranch, upstreamOf } from '../../node/runner/projectGit';
+import { commitAndPush, pullBranch, upstreamOf } from '../../node/runner/projectGit';
 import { generatedDir } from '../codegen';
 import { isCancelled } from '../errors';
 import type { Host } from '../host';
-import { config, tokenKey } from './connect';
+import { gitAuthFor as authFor, offerGitSetup } from './connect';
+import { setUpGit } from './gitSetup';
 
 /** The flows pane's flow item (flowsView's `{ kind: 'flow', uri }`). */
 type FlowItem = { kind?: string; uri?: vscode.Uri } | vscode.Uri | undefined;
 const uriOf = (item: FlowItem): vscode.Uri | undefined =>
   item instanceof vscode.Uri ? item : item?.uri;
-
-/** The connection's token and certificate setting when the remote is the server's git address. */
-async function authFor(
-  scope: vscode.Uri,
-  remoteUrl: string,
-  secrets: vscode.SecretStorage,
-): Promise<GitAuth | undefined> {
-  const { url, verifyTls } = config(scope);
-  if (!url) return undefined;
-  try {
-    if (new URL(remoteUrl).host !== new URL(url).host) return undefined;
-  } catch {
-    return undefined;
-  }
-  const token = await secrets.get(tokenKey(url));
-  return token ? { token, verifyTls } : undefined;
-}
 
 /** A flow's own files: the flow, its generated playbook and its scenarios, relative to the folder. */
 async function flowFiles(folder: vscode.WorkspaceFolder, flow: vscode.Uri): Promise<string[]> {
@@ -58,7 +42,8 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
   };
   const fail = (e: unknown) => {
     const message = (e as Error).message ?? String(e);
-    if (!isCancelled(message)) void vscode.window.showErrorMessage(message);
+    // AFD-305: git that does not trust the server's certificate is offered the setup.
+    if (!isCancelled(message)) offerGitSetup(message);
   };
   const refresh = () => void vscode.commands.executeCommand('afd.flows.refresh');
 
@@ -204,6 +189,16 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand('afd.flows.commitPush', (item?: FlowItem) => commitPush(item)),
     vscode.commands.registerCommand('afd.flows.duplicate', (item?: FlowItem) => duplicate(item)),
     vscode.commands.registerCommand('afd.flows.delete', (item?: FlowItem) => remove(item)),
+    vscode.commands.registerCommand('afd.runner.setUpGit', async (uri?: vscode.Uri) => {
+      const scope = host.scopeUri(uri);
+      if (!scope) return;
+      try {
+        const error = await setUpGit(scope, secrets);
+        if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Git was not set up: ${(e as Error).message}`);
+      }
+    }),
   ];
 }
 

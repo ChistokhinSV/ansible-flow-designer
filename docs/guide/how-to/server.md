@@ -56,10 +56,29 @@ playbook and its scenarios only), **Duplicate Flow…** (a copy beside it with i
 When the remote is the connected server's git address, git gets the connection's token and its
 certificate setting for that call only: nothing is written to the repository, and a lab server
 with a self-signed certificate works without changing git's settings. Another remote uses git's own
-sign-in.
+sign-in. **Update** and **Show changes** on the canvas pull the same way.
+
+### Git outside the designer: Set Up Git for the Server
+
+Source Control and git in the terminal do not get the designer's settings, so against a server with
+a self-signed certificate they fail with "certificate … not trusted" (`SEC_E_UNTRUSTED_ROOT` on
+Windows). **Set Up Git for the Server…** (the server button's menu, the Command Palette, or the
+button on such an error) fixes that for the folder's repository:
+
+1. It shows the server's certificate (subject, issuer, expiry, SHA-256). Compare the fingerprint
+   with the server's **Server certificate** page, then choose **Trust for Git**.
+2. The certificate is kept in the repository's `.git` folder and git trusts it for the server's
+   address only (`http.<address>/.sslCAInfo`; on Windows also `.sslBackend openssl`, since
+   Windows' own certificate check reads no file). Other remotes and repositories are not changed.
+3. With a credential helper (on Windows, the Credential Manager), **Let Git Sign In** gives git your
+   token as the password for the server's address, so pulls and pushes do not ask. Remove it there
+   to take it back.
+
+When the server gets a new certificate, run it again.
 
 Once connected, the pane names the server and the project, and its title has a server button with
-**Open in Browser**, **Change Project**, **Connect to a Different Server** and **Disconnect**
+**Open in Browser**, **Change Project**, **Set Up Git for the Server…**, **Connect to a Different
+Server** and **Disconnect**
 (which forgets the token and the folder's settings; flows and runs stay).
 
 The same by hand:
