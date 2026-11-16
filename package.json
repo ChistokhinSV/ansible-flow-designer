@@ -366,6 +366,12 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.runner.getFlows",
+        "title": "Get the Project's Flows",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "afd.ai.setup",
         "title": "Set Up AI Assistants…",
         "category": "Ansible Flow"
@@ -470,7 +476,12 @@
       {
         "view": "afd.flows",
         "contents": "No flows in this folder yet.\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\n[Connect to Ansible Flow Server](command:afd.runner.connect)\nAlready have playbooks? [Import Ansible Playbooks](command:afd.import.playbooks)\nNew here? [Get Started](command:afd.help.getStarted) · [User Guide](command:afd.help.openGuide)",
-        "when": "workbenchState != empty"
+        "when": "workbenchState != empty && !afd.serverConnected"
+      },
+      {
+        "view": "afd.flows",
+        "contents": "No flows in this folder yet. It is connected to Ansible Flow Server: get the flows of its project here, or start one.\n[Get the Project's Flows](command:afd.runner.getFlows)\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\nAnother server or project: the server button above.",
+        "when": "workbenchState != empty && afd.serverConnected"
       }
     ],
     "menus": {
@@ -721,6 +732,10 @@
         },
         {
           "command": "afd.runner.changeProject",
+          "when": "afd.serverConnected"
+        },
+        {
+          "command": "afd.runner.getFlows",
           "when": "afd.serverConnected"
         },
         {

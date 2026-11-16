@@ -227,9 +227,11 @@ describe('Ansible Flows view (AFD-73)', () => {
       contents: string;
       when: string;
     }[];
+    // AFD-302: a folder connected to Ansible Flow Server has a welcome of its own.
     expect(welcome.map((w) => w.when)).toEqual([
       'workbenchState == empty',
-      'workbenchState != empty',
+      'workbenchState != empty && !afd.serverConnected',
+      'workbenchState != empty && afd.serverConnected',
     ]);
     for (const w of welcome)
       for (const [, id] of w.contents.matchAll(/\]\(command:([\w.]+)/g))

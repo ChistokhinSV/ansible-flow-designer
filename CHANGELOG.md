@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Connecting to Ansible Flow Server brings the flows:** a folder without flows offers to get the flows of the project you pick (the folder becomes a git copy of the project); a connected folder without flows has **Get the Project's Flows** in the Flows pane. A folder with flows of its own can become a **new project on the server** instead (workspace, key and name, then the folder's history is sent; a folder that is not a git repository is made one first, asked). Once connected, the pane no longer offers Connect. See [Ansible Flow Server](docs/guide/how-to/server.md#connect).
+
 ## 0.91.0 — Connect to Ansible Flow Server, save launch configurations
 
 ### Added

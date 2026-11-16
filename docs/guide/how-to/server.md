@@ -16,6 +16,14 @@ first buttons of a folder without flows. It asks three things and keeps them for
    Code's SecretStorage only; a token already kept for that address is used again.
 3. **The project** this folder is a copy of: found from the git remote when the folder was cloned
    from the server, else picked from the server's workspaces (or **No project now**).
+   - **A folder without flows** then offers to **get the project's flows**: the folder becomes a
+     git copy of the project (its branch checked out, the server's git address as `origin`). Change
+     the flows here and push to send them back; git asks for a password when it pulls or pushes:
+     an access token. A connected folder without flows has **Get the Project's Flows** in the pane.
+   - **A folder with flows of its own** also offers **New Project from This Folder…**: a workspace,
+     a key and a name, then a project made on the server and the folder's history sent to it. A
+     folder that is not a git repository is made one first, with all its files in one commit
+     (asked first). Making a project needs `rw` on the workspace.
 
 Once connected, the pane names the server and the project, and its title has a server button with
 **Open in Browser**, **Change Project**, **Connect to a Different Server** and **Disconnect**
