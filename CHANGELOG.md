@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.96.0 — Drop on a wire, the Data lens and subflows
 
 ### Fixed
 
