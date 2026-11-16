@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.92.0 — Connecting brings the flows
 
 ### Added
 
