@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Commit, push and pull from the Flows pane:** Commit & Push… (a message, every change of the folder, the branch pushed) and Pull (the folder's own commits on top, changes not committed kept) in the pane's title; right-click a flow for Commit & Push This Flow… (with its generated playbook and scenarios), Duplicate Flow… (a copy with its own id and key) and Delete Flow (to the trash). To the connected Ansible Flow Server's git address, git gets the connection's token and certificate setting for that call only, so a lab server with a self-signed certificate works too. See [Commit, push and pull](docs/guide/how-to/server.md#commit-push-and-pull-from-the-flows-pane).
+
 ## 0.93.0 — Which flows are the server's
 
 ### Added
