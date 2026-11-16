@@ -13,6 +13,8 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'launchCheck',
   'launchRun',
   'launchCancel',
+  // AFD-300: the launch dialog's inputs kept as a launch configuration, where the host offers it.
+  'launchSave',
   'stopRun',
   'showRun',
   'runOutput',

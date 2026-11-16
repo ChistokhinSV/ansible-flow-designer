@@ -114,6 +114,26 @@ describe('launch dialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('Save as Launch Configuration only where the host offers it; no secrets, the dialog stays (AFD-300)', () => {
+    expect(within(open()).queryByRole('button', { name: /Save as Launch/ })).toBeNull();
+    cleanup();
+    const dialog = open({ ...plan, canSave: true });
+    const type = (label: RegExp, value: string) =>
+      fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
+    type(/devices/, 'lab, core');
+    type(/enable_secret/, 'S3cr3t!');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save as Launch Configuration…' }));
+    expect(sent('launchSave')).toEqual([
+      {
+        type: 'launchSave',
+        token: 't-1',
+        inputs: { devices: ['lab', 'core'], change_ticket: 'CHG-0000' },
+      },
+    ]);
+    expect(JSON.stringify(sent('launchSave'))).not.toMatch(/S3cr3t!/);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
   it('Escape cancels, and the host drops the token; no facts, no Run', () => {
     const dialog = open({
       ...plan,

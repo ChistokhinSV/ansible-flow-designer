@@ -344,6 +344,28 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.runner.connect",
+        "title": "Connect to Ansible Flow Server…",
+        "category": "Ansible Flow",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "afd.runner.server",
+        "title": "Ansible Flow Server…",
+        "category": "Ansible Flow",
+        "icon": "$(cloud)"
+      },
+      {
+        "command": "afd.runner.disconnect",
+        "title": "Disconnect from Ansible Flow Server",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.runner.changeProject",
+        "title": "Change Server Project…",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.ai.setup",
         "title": "Set Up AI Assistants…",
         "category": "Ansible Flow"
@@ -447,7 +469,7 @@
       },
       {
         "view": "afd.flows",
-        "contents": "No flows in this folder yet.\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\nAlready have playbooks? [Import Ansible Playbooks](command:afd.import.playbooks)\nNew here? [Get Started](command:afd.help.getStarted) · [User Guide](command:afd.help.openGuide)",
+        "contents": "No flows in this folder yet.\n[New Flow](command:afd.flow.new)\n[Open Sample Flow](command:afd.help.openSample)\n[Connect to Ansible Flow Server](command:afd.runner.connect)\nAlready have playbooks? [Import Ansible Playbooks](command:afd.import.playbooks)\nNew here? [Get Started](command:afd.help.getStarted) · [User Guide](command:afd.help.openGuide)",
         "when": "workbenchState != empty"
       }
     ],
@@ -462,6 +484,16 @@
           "command": "afd.flows.refresh",
           "when": "view == afd.flows",
           "group": "navigation@2"
+        },
+        {
+          "command": "afd.runner.connect",
+          "when": "view == afd.flows && workbenchState != empty && !afd.serverConnected",
+          "group": "navigation@3"
+        },
+        {
+          "command": "afd.runner.server",
+          "when": "view == afd.flows && afd.serverConnected",
+          "group": "navigation@3"
         },
         {
           "command": "afd.environment.switch",
@@ -674,6 +706,22 @@
         {
           "command": "afd.runner.clearToken",
           "when": "config.afd.runner.url"
+        },
+        {
+          "command": "afd.runner.connect",
+          "when": "workbenchState != empty"
+        },
+        {
+          "command": "afd.runner.server",
+          "when": "afd.serverConnected"
+        },
+        {
+          "command": "afd.runner.disconnect",
+          "when": "config.afd.runner.url"
+        },
+        {
+          "command": "afd.runner.changeProject",
+          "when": "afd.serverConnected"
         },
         {
           "command": "afd.ai.remove",

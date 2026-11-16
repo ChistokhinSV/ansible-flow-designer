@@ -182,6 +182,8 @@ export interface LaunchPlan {
   environment: string;
   /** AFD-257: the inventory the run reads: the setting, or what ansible.cfg names. */
   inventory?: string;
+  /** AFD-300: the host keeps these inputs as a launch configuration (Ansible Flow Server). */
+  canSave?: boolean;
 }
 
 /** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */

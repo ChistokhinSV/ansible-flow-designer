@@ -2,6 +2,13 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Connect to Ansible Flow Server from the Flows pane:** a folder without flows offers it beside New Flow and Open Sample Flow, and the pane's title has a button for it. It asks for the address (checked first; a lab server with a self-signed certificate can turn verification off), an access token (checked, kept in SecretStorage) and the folder's project (found from the git remote when the folder came from the server, else picked from the server's workspaces). Once connected, the pane names the server and the project, and its server button opens Open in Browser, Change Project, Connect to a Different Server and Disconnect. See [Ansible Flow Server](docs/guide/how-to/server.md#connect).
+- **Save as Launch Configuration** in the launch dialog, where the host offers it (Ansible Flow Server): the dialog's inputs, secret ones left out, kept as a new launch configuration on the server. The dialog stays open.
+
 ## 0.90.0 — A calmer Details pane
 
 ### Changed

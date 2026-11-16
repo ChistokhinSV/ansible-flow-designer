@@ -423,6 +423,7 @@ async function onMessage(m: WebviewMessage) {
     }
     case 'launchCancel':
     case 'launchSwitch':
+    case 'launchSave':
       break;
     case 'launchRun': {
       // No Ansible in a browser: fake a happy-path run so the run UI can be looked at.
