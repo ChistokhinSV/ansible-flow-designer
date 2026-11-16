@@ -101,6 +101,17 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     setVault('');
     useUi.getState().setLaunch(null);
   };
+  // AFD-300: the inputs as typed, kept by the host as a launch configuration; secrets never are.
+  const save = () => {
+    const shown = plan.fields.filter((f) => !f.secret && (texts[f.name] ?? '').trim() !== '');
+    const r = readFields(shown, texts);
+    if ('error' in r) {
+      setProblem({ field: r.field, text: r.error });
+      document.getElementById(`afd-launch-${r.field}`)?.focus();
+      return;
+    }
+    send({ type: 'launchSave', token: plan.token, inputs: r.inputs });
+  };
   const runLabel = real ? 'Run for Real' : 'Run as Skeleton';
   return (
     <div className="afd-modal-backdrop">
@@ -192,6 +203,11 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
           ) : null}
           <Facts plan={plan} />
           <div className="afd-modal-actions">
+            {plan.canSave ? (
+              <button type="button" className="secondary" onClick={save} data-launch-save>
+                Save as Launch Configuration…
+              </button>
+            ) : null}
             <button type="button" className="secondary" onClick={close}>
               Cancel
             </button>

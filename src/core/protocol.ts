@@ -346,6 +346,11 @@ export type WebviewMessage =
     }
   | { type: 'launchCancel'; token: string }
   /**
+   * AFD-300: Save as Launch Configuration in the launch dialog (only when the plan's `canSave`):
+   * the inputs as typed, secret ones left out. The dialog stays open.
+   */
+  | { type: 'launchSave'; token: string; inputs: Record<string, unknown> }
+  /**
    * AFD-257: Change beside the environment or the inventory in the launch dialog. The host opens
    * that switch, then the dialog again with what the new one answers.
    */

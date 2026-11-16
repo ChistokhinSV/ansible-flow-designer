@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Added
+
+- **Save as Launch Configuration** in the launch dialog, where the host offers it (Ansible Flow Server): the dialog's inputs, secret ones left out, kept as a new launch configuration on the server. The dialog stays open.
+
 ## 0.90.0 — A calmer Details pane
 
 ### Changed

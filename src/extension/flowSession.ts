@@ -918,6 +918,9 @@ export class FlowSession implements vscode.Disposable {
       case 'launchCancel':
         dropLaunch(m.token);
         break;
+      case 'launchSave':
+        // AFD-300: offered by Ansible Flow Server only; VS Code's plans never have canSave.
+        break;
       case 'launchSwitch':
         // AFD-257: the plan was made for the old environment or inventory: a new one after.
         dropLaunch(m.token);
