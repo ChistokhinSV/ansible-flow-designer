@@ -437,6 +437,7 @@ const FLOW_ORDER = [
   'imported_from',
   'maintenance_window',
   'inputs',
+  'outputs',
   'external_vars',
 ];
 const SUBFLOW_ORDER = ['nodes', 'edges', 'annotations', 'layout', 'boundary'];
@@ -1298,6 +1299,16 @@ function renameKey(tx: YamlTransaction, id: Ulid, newKey: string): void {
       }
     }
   }
+  // AFD-309: a flow output reads a top-level step by key.
+  if (level === ROOT)
+    for (const [name, field] of Object.entries(st.doc.flow.outputs ?? {})) {
+      const from = field?.from;
+      if (from?.startsWith(`${oldKey}.`))
+        rewrites.push({
+          path: ['flow', 'outputs', name, 'from'],
+          value: newKey + from.slice(oldKey.length),
+        });
+    }
   tx.applyAll([
     (f) => setIn(f, [...path, 'key'], newKey),
     ...rewrites.map((r) => (f: YamlFile) => setIn(f, r.path, r.value)),
@@ -1796,6 +1807,16 @@ function outputRefRewrites(
       }
     }
   }
+  // AFD-309: the flow's outputs read top-level steps.
+  if (nodeAt(st, id).level === ROOT)
+    for (const [name, field] of Object.entries(st.doc.flow.outputs ?? {})) {
+      const ref = field?.from;
+      if (ref === head || ref?.startsWith(`${head}.`))
+        out.push({
+          path: ['flow', 'outputs', name, 'from'],
+          value: `${node.key}.${to}${ref.slice(head.length)}`,
+        });
+    }
   return out;
 }
 
@@ -1926,9 +1947,9 @@ function setContractField(
   let base: Path;
   let current: Record<string, ContractField> | undefined;
   if (cmd.target === 'flow') {
-    if (cmd.side !== 'inputs') throw new CommandError('bad-side', 'Flows have inputs only');
+    // AFD-309: a flow's outputs too, what a run gives back.
     base = ['flow'];
-    current = st.doc.flow.inputs;
+    current = st.doc.flow[cmd.side];
   } else {
     const { node, path } = nodeAt(st, cmd.target);
     base = path;

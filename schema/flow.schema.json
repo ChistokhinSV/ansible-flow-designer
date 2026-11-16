@@ -115,6 +115,10 @@
           "$ref": "#/$defs/contract",
           "description": "Inputs a run asks for. A host_list input with targets: true seeds the hosts entering the start node."
         },
+        "outputs": {
+          "$ref": "#/$defs/contract",
+          "description": "What a run gives back to whoever launched it (Ansible Flow Server, a calling flow): name -> a top-level step's output, from: <step_key>.<output>[.path]. Each host that has the value at the end of the run gives it; values from before an approval are not carried past it."
+        },
         "external_vars": {
           "type": "object",
           "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
@@ -126,7 +130,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "The flow itself: identity, version, goal and the inputs a run asks for."
+      "description": "The flow itself: identity, version, goal, the inputs a run asks for and the outputs it gives back."
     },
     "nodes": {
       "type": "array",

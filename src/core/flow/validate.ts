@@ -10,6 +10,7 @@ import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { canDisable, disabledBy, disabledIds } from './disabled';
 import { durationSeconds } from './duration';
 import { factSetter, setFactNames } from './facts';
+import { resolveFlowOutput } from './flowOutputs';
 import { healPlan } from './heal';
 import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
 import { BARE_PARAMS, keywordReads } from './keywords';
@@ -150,6 +151,7 @@ export function validateFlow(
   checkTargets(model, add);
   checkAnnotations(model, add);
   checkVarNames(model, add);
+  checkFlowOutputs(model, add);
 
   for (const open of openFailPorts(model)) {
     const entry = model.nodes.get(open.node);
@@ -394,6 +396,36 @@ function checkEdges(model: FlowModel, add: (f: Finding) => void): void {
 }
 
 /**
+ * AFD-309: a flow output reads a top-level step's output. A run with approvals carries only host
+ * sets past each approval, so an output of a step before one has no value at the end.
+ */
+function checkFlowOutputs(model: FlowModel, add: (f: Finding) => void): void {
+  const root = model.levels.get(ROOT);
+  const gates = (root?.nodes ?? []).filter((n): n is FlowNode => n?.type === 'approval');
+  for (const [name, field] of Object.entries(model.doc.flow?.outputs ?? {})) {
+    const src = resolveFlowOutput(model, field?.from);
+    if ('problem' in src) {
+      add({
+        code: 'flow-output-unresolved',
+        severity: 'error',
+        message: `Flow output ${name} ${src.problem}`,
+        path: ['flow', 'outputs', name, 'from'],
+      });
+      continue;
+    }
+    const before = gates.find((g) => upstreamNodes(model, g.id).some((u) => u.id === src.node.id));
+    if (before)
+      add({
+        code: 'flow-output-before-approval',
+        severity: 'warning',
+        message: `Flow output ${name} reads ${src.node.title}, which runs before the approval ${before.title}: a run carries only hosts past an approval, so the output has no value at the end. Take it from a step after the approval.`,
+        path: ['flow', 'outputs', name, 'from'],
+        node: src.node.id,
+      });
+  }
+}
+
+/**
  * AFD-160: inputs, outputs and registers become Ansible variables. Only the commands checked
  * their names, so a hand- or AI-written `retry-count` reached a play's vars and Ansible refused the
  * playbook; a host_list named `web-servers` read as `web - servers` in the start pattern.
@@ -405,6 +437,8 @@ function checkVarNames(model: FlowModel, add: (f: Finding) => void): void {
   };
   for (const name of Object.keys(model.doc.flow?.inputs ?? {}))
     check(name, ['flow', 'inputs', name]);
+  for (const name of Object.keys(model.doc.flow?.outputs ?? {}))
+    check(name, ['flow', 'outputs', name]);
   for (const { node, path } of model.nodes.values()) {
     for (const side of ['inputs', 'outputs'] as const)
       for (const name of Object.keys(node[side] ?? {})) check(name, [...path, side, name], node.id);

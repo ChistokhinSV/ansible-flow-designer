@@ -344,9 +344,9 @@ export const OP_SPECS: OpSpec[] = [
   {
     op: 'set_io',
     summary:
-      'Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"). from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.',
+      'Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"): the flow\'s outputs are what a run gives back to whoever launched it, per host, from: a top-level step\'s output (<step>.<output>), not one taken before an approval. from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.',
     properties: {
-      node: { ...NODE, description: `${NODE.description} "flow" for the flow inputs.` },
+      node: { ...NODE, description: `${NODE.description} "flow" for the flow inputs and outputs.` },
       side: { enum: ['inputs', 'outputs'], description: 'inputs or outputs.' },
       name: { type: 'string', description: 'Field name (snake_case).' },
       field: {

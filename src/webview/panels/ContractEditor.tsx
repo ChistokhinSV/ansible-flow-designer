@@ -4,8 +4,8 @@
 // Everything is saved as it is changed, as the other fields of the pane are.
 import { type InputHTMLAttributes, useEffect, useId, useRef, useState } from 'react';
 import { refChoices } from '../../core/catalog/draft';
-import { modelOf } from '../../core/flow/model';
-import type { Contract, ContractField, ContractType, Ulid } from '../../core/flow/types';
+import { modelOf, ROOT } from '../../core/flow/model';
+import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../../core/flow/types';
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
@@ -91,8 +91,16 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   const doc = useUi((s) => s.snapshot?.doc);
   const model = doc ? modelOf(doc) : undefined;
   const node = target === 'flow' ? undefined : model?.nodes.get(target)?.node;
+  // AFD-309: a flow's outputs read what reaches its end, as a step there would read it.
+  const flowOutputs = target === 'flow' && side === 'outputs';
+  const end = flowOutputs ? endOf(model) : undefined;
   // AFD-72: `from:` in words; the raw reference stays in the tooltip.
-  const fromWords = (from: string) => (model && node ? fromText(model, node, side, from) : from);
+  const fromWords = (from: string) =>
+    model && node
+      ? fromText(model, node, side, from)
+      : model && end
+        ? fromText(model, end, 'inputs', from)
+        : from;
   const entries = Object.entries(contract ?? {});
   const one = side === 'inputs' ? 'input' : 'output';
   const flowInputs = target === 'flow' && side === 'inputs';
@@ -103,10 +111,29 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   const sources =
     withFrom && side === 'inputs' && model && node
       ? refChoices(model, node).filter((c) => c.field?.from)
-      : [];
+      : model && end
+        ? // A top-level step's output, result or fact: not a flow input, not inside a subflow.
+          refChoices(model, end).filter((c) => {
+            const head = c.field?.from?.split('.')[0] ?? '';
+            return !!c.field?.from && head !== 'flow' && !head.includes('/');
+          })
+        : [];
   const addFrom = async (label: string) => {
     const c = sources.find((x) => x.label === label);
     if (!c?.field) return;
+    if (flowOutputs) {
+      // The step gives it as an output first (a result or a fact it sets), then the flow does.
+      if (c.expose)
+        await run({
+          kind: 'setContractField',
+          target: c.expose.node,
+          side: 'outputs',
+          name: c.expose.output,
+          field: c.expose.field ?? { type: 'any' },
+        });
+      await set(c.name, { type: c.field.type ?? 'any', from: c.field.from });
+      return;
+    }
     if (c.expose && !c.expose.field?.from && c.expose.field) {
       await run({ kind: 'useFact', reader: target, setter: c.expose.node, name: c.expose.output });
       return;
@@ -216,6 +243,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
           }}
           onCancel={() => setAdding(false)}
           sources={sources.map((c) => ({ label: c.label, detail: c.detail }))}
+          fromLabel={flowOutputs ? "Take a step's output" : 'Take one that reaches this step'}
           onAddFrom={(label) => {
             setAdding(false);
             void addFrom(label);
@@ -388,6 +416,7 @@ function NewField({
   onCancel,
   sources,
   onAddFrom,
+  fromLabel,
 }: {
   one: string;
   taken(name: string): boolean;
@@ -395,6 +424,8 @@ function NewField({
   onCancel(): void;
   sources: { label: string; detail: string }[];
   onAddFrom(label: string): void;
+  /** What the picker of sources is called. */
+  fromLabel: string;
 }) {
   const id = useId();
   const [name, setName] = useState('');
@@ -416,10 +447,10 @@ function NewField({
     <div className="afd-contract-form afd-contract-new">
       {sources.length ? (
         <div className="afd-field">
-          <label htmlFor={`${id}-from`}>Take one that reaches this step</label>
+          <label htmlFor={`${id}-from`}>{fromLabel}</label>
           <select
             id={`${id}-from`}
-            aria-label="Add an input from"
+            aria-label={`Add an ${one} from`}
             value=""
             onChange={(e) => onAddFrom(e.target.value)}
           >
@@ -474,4 +505,12 @@ function NewField({
       </div>
     </div>
   );
+}
+
+/** AFD-309: the flow's success end on the top level (else any end): where flow outputs are read. */
+function endOf(model: ReturnType<typeof modelOf> | undefined): FlowNode | undefined {
+  const ends = (model?.levels.get(ROOT)?.nodes ?? []).filter(
+    (n): n is FlowNode => n?.type === 'end',
+  );
+  return ends.find((n) => n.outcome !== 'failed') ?? ends[0];
 }

@@ -229,6 +229,14 @@ export function describeFlow(
             .join(', ')}`,
         ]
       : []),
+    // AFD-309: what a run gives back.
+    ...(f?.outputs && Object.keys(f.outputs).length
+      ? [
+          `Outputs (what a run gives back, per host): ${Object.entries(f.outputs)
+            .map(([k, v]) => `${k} (from ${v?.from ?? 'nothing'})`)
+            .join(', ')}`,
+        ]
+      : []),
     // AFD-185: what steps may read without an input.
     ...(f?.external_vars && Object.keys(f.external_vars).length
       ? [

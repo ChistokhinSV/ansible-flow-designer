@@ -184,9 +184,9 @@ Handle an output with a ready-made pattern: adds the handler node and its wires 
 
 ### set_io
 
-Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"). from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.
+Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: "flow"): the flow's outputs are what a run gives back to whoever launched it, per host, from: a top-level step's output (<step>.<output>), not one taken before an approval. from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.
 
-- `node` (string, required): A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). "flow" for the flow inputs.
+- `node` (string, required): A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). "flow" for the flow inputs and outputs.
 - `side` (inputs | outputs, required): inputs or outputs.
 - `name` (string, required): Field name (snake_case).
 - `field` (object | null, required): The field; null removes it.
@@ -457,6 +457,8 @@ Lay out a level again with the auto-layout and store every position (positions o
 | layout-orphan | A position for a node that does not exist. | Harmless; tidy_up or a move rewrites positions. |
 | status-overclaim | A status claims more than the node has (e.g. implemented without impl). | Lower the status, or add what it needs (contract for specified, impl for implemented). |
 | setting-on-flow | Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow. | Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask. |
+| flow-output-unresolved | A flow output (what a run gives back) reads nothing: its from: names no top-level step, or the step has no such output. | Point from: at a top-level step's output (<step>.<output>), or give the step that output first (set_io). |
+| flow-output-before-approval | A flow output reads a step that runs before an approval. A run with approvals carries only hosts past each approval, so the output has no value at the end of the run. | Take the output from a step after the approval (one that reads the value as an input, if need be). |
 | bad-name | An input, output or register name Ansible cannot use as a variable: not a letter or _ then letters, digits and _, or a Python or Jinja keyword (in, not, true, none, class). | Rename it, e.g. retry_count for retry-count; the readers of an output follow a rename made in the designer. |
 | keyword-is-setting | Format 2: a task keyword the flow now models as a setting (become_user). | Set it in Execution › Privilege instead; on a subflow it applies to the steps inside. |
 | renamed-field | Format 2: a node keeps a format 1 field name (handler, now purpose: it is not an Ansible handler). | Rename the key to purpose, or pick the purpose again in Details › General. |

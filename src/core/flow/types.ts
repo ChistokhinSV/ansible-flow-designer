@@ -295,6 +295,11 @@ export interface FlowHeader {
   /** Longest time the flow may take (`4h`, `2h30m`), checked by the Timing lens (M8). */
   maintenance_window?: string;
   inputs?: Contract;
+  /**
+   * AFD-309: what a run gives back to whoever launched it: name -> a top-level step's output
+   * (`from: <key>.<output>[.path]`), recorded per host at the end of the run.
+   */
+  outputs?: Contract;
   /** AFD-185: variables set outside the flow at run time (AWX/Kestra extra vars): name -> where. */
   external_vars?: Record<string, string>;
 }

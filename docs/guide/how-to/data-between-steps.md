@@ -76,6 +76,30 @@ flow input of that name.
 
 ![The Data tab of a step inside a subflow](../images/properties-io-light.png)
 
+## What a run gives back (flow outputs)
+
+A flow's outputs are what a run gives back to whoever launched it: Ansible Flow Server records
+them with the run, and a flow that launched this one with the collection
+`chistokhinsv.ansible_flow` gets them (`run` with `wait: true`, or `run_info`), per host. Add them
+under **Run outputs** in the Flow panel (nothing selected): **Take a step's output** offers what
+reaches the end of the flow (a step's output, its result, a fact it sets, which becomes its output).
+
+```yaml
+flow:
+  outputs:
+    backup_file:
+      type: string
+      from: backup-config.backup_ref
+```
+
+- Each host that has the value at the end of the run gives it; a host without one is left out.
+- `from:` names a top-level step's output (`<step>.<output>[.path]`); it follows a renamed step or
+  output.
+- A run with approvals carries only hosts past each approval, so an output of a step before one
+  has no value at the end (warning `flow-output-before-approval`).
+- The values are kept with the run (at most 256 KB of them): do not give back secrets.
+- The run's panel lists them per host under **Outputs**.
+
 ## Across subflow boundaries
 
 ```

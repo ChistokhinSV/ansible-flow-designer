@@ -118,6 +118,16 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       'Format 2: credential or execution_environment on a node; the AWX template has one set, on the flow.',
     fix: 'Set them on the flow (runtime.credentials, runtime.execution_environment), or let Set Up AWX Template ask.',
   },
+  'flow-output-unresolved': {
+    meaning:
+      'A flow output (what a run gives back) reads nothing: its from: names no top-level step, or the step has no such output.',
+    fix: "Point from: at a top-level step's output (<step>.<output>), or give the step that output first (set_io).",
+  },
+  'flow-output-before-approval': {
+    meaning:
+      'A flow output reads a step that runs before an approval. A run with approvals carries only hosts past each approval, so the output has no value at the end of the run.',
+    fix: 'Take the output from a step after the approval (one that reads the value as an input, if need be).',
+  },
   'bad-name': {
     meaning:
       'An input, output or register name Ansible cannot use as a variable: not a letter or _ then letters, digits and _, or a Python or Jinja keyword (in, not, true, none, class).',
