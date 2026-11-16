@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.94.0 — Commit, push and pull from the Flows pane
 
 ### Added
 
