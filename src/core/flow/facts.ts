@@ -20,3 +20,36 @@ export function factSetter(model: FlowModel, reader: FlowNode, name: string): Fl
   // upstreamNodes lists the nearest first.
   return upstreamNodes(model, reader.id).find((up) => setFactNames(up.impl).includes(name));
 }
+
+/**
+ * AFD-308: where a name a step reads without an input for it comes from, nearest first: an earlier
+ * step's declared output (a subflow's too, a library copy's among them), a fact an earlier step sets
+ * with set_fact, or a fact a step inside an earlier subflow sets (at any depth).
+ */
+export type FactSource =
+  | { how: 'output'; node: FlowNode }
+  | { how: 'set_fact'; node: FlowNode }
+  | { how: 'inside'; node: FlowNode; inner: FlowNode };
+
+export function factSource(
+  model: FlowModel,
+  reader: FlowNode,
+  name: string,
+): FactSource | undefined {
+  const inside = (sub: FlowNode): FlowNode | undefined => {
+    for (const step of sub.subflow?.nodes ?? []) {
+      if (!step) continue;
+      if (setFactNames(step.impl).includes(name) || step.outputs?.[name]) return step;
+      const deeper = step.subflow ? inside(step) : undefined;
+      if (deeper) return deeper;
+    }
+    return undefined;
+  };
+  for (const up of upstreamNodes(model, reader.id)) {
+    if (up.outputs?.[name]) return { how: 'output', node: up };
+    if (setFactNames(up.impl).includes(name)) return { how: 'set_fact', node: up };
+    const inner = up.type === 'subflow' ? inside(up) : undefined;
+    if (inner) return { how: 'inside', node: up, inner };
+  }
+  return undefined;
+}

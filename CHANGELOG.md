@@ -2,6 +2,14 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- **Dropping a step on a wire** puts it there as the wire's + does: on a level laid out automatically, the steps after it make room.
+- **An empty parameter field** gets the caret at its start, not after its placeholder.
+- **The Data lens** shows a step that reads, with no input for it, a value an earlier subflow gives (a shared library subflow too) or a fact a step inside it sets, with a fix that adds the input where the subflow gives it.
+
 ## 0.95.0 — Git and the server's certificate
 
 ### Added

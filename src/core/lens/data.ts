@@ -2,7 +2,7 @@
 // `from:` references. A reference into another level is drawn from the producer to the subflow
 // that contains the consumer, on the producer's level.
 import { liftOf, resolveFrom } from '../flow/dataRefs';
-import { factSetter } from '../flow/facts';
+import { factSource } from '../flow/facts';
 import { exprRefs, refsIn, templated } from '../flow/jinja';
 import { modelOf, ROOT } from '../flow/model';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
@@ -92,17 +92,26 @@ export function dataLens(doc: FlowDocument): LensView {
   }
 
   // AFD-287: a step that reads a fact an earlier step sets, with no input for it: it works on one
-  // play, but the design does not show it, and runs in parts (AWX, approvals) lose it.
+  // play, but the design does not show it, and runs in parts (AWX, approvals) lose it. AFD-308: an
+  // earlier step's declared output (a subflow's, a library copy's) and a fact set inside an earlier
+  // subflow count too.
   for (const { node, level } of model.nodes.values()) {
     if (!isWork(node) || !node.impl) continue;
     const declared = new Set(Object.keys(node.inputs ?? {}));
     const names = refsIn([node.impl.params ?? {}, node.impl.keywords ?? {}]);
     for (const name of names) {
       if (declared.has(name)) continue;
-      const setter = factSetter(model, node, name);
-      if (!setter) continue;
+      const source = factSource(model, node, name);
+      if (!source) continue;
+      const setter = source.node;
       const at = model.nodes.get(setter.id)?.level;
       const to = at ? visibleAt(model, node.id, at) : undefined;
+      const how =
+        source.how === 'output'
+          ? `${setter.title} has ${name} as an output`
+          : source.how === 'set_fact'
+            ? `${setter.title} sets ${name} with set_fact`
+            : `${source.inner.title}, inside ${setter.title}, sets ${name}`;
       if (to && at === level) {
         const id = `data:${setter.id}>${node.id}:${name}`;
         wires.set(id, {
@@ -110,24 +119,46 @@ export function dataLens(doc: FlowDocument): LensView {
           from: setter.id,
           to,
           label: `${name} (not declared)`,
-          title: `${node.title} reads ${name}, which ${setter.title} sets, with no input for it`,
+          title: `${node.title} reads ${name} with no input for it: ${how}`,
           undeclared: true,
         });
       }
+      const fixes: LensFinding['fixes'] =
+        source.how === 'output'
+          ? [
+              {
+                label: `Use ${name} as an Input`,
+                command: {
+                  kind: 'setContractField',
+                  target: node.id,
+                  side: 'inputs',
+                  name,
+                  field: { type: 'any', from: `${setter.key}.${name}` },
+                },
+              },
+            ]
+          : source.how === 'set_fact'
+            ? [
+                {
+                  label: `Use ${name} as an Input`,
+                  command: { kind: 'useFact', reader: node.id, setter: setter.id, name },
+                },
+              ]
+            : [{ label: 'Open Details', properties: node.id }];
       findings.push({
         id: `data:undeclared:${node.id}.${name}`,
         lens: 'data',
         severity: 'warning',
         title: `${node.title} reads ${name} from ${setter.title} without declaring it`,
-        detail: `${setter.title} sets ${name} with set_fact; ${node.title} reads it with no input. It works while both run in one play, but the flow does not show it, and a run in parts (AWX, approvals) loses it. Make it an output of ${setter.title} and an input here.`,
+        detail:
+          source.how === 'output'
+            ? `${how}; ${node.title} reads it with no input. It works while both run in one play, but the flow does not show it, and a run in parts (AWX, approvals) loses it. Add an input from ${setter.key}.${name}.`
+            : source.how === 'set_fact'
+              ? `${how}; ${node.title} reads it with no input. It works while both run in one play, but the flow does not show it, and a run in parts (AWX, approvals) loses it. Make it an output of ${setter.title} and an input here.`
+              : `${how}; ${node.title} reads it with no input. It works while both run in one play, but the flow does not show it. Make it an output of ${setter.title} (lift it) and an input here.`,
         node: node.id,
         nodes: [setter.id, node.id],
-        fixes: [
-          {
-            label: `Use ${name} as an Input`,
-            command: { kind: 'useFact', reader: node.id, setter: setter.id, name },
-          },
-        ],
+        fixes,
       });
     }
   }

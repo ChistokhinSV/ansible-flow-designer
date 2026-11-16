@@ -65,7 +65,7 @@ import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
 import { FirstFlow, useFirstFlowShown } from '../panels/FirstFlow';
 import { INSERTABLE } from '../panels/QuickAdd';
-import { completePick, dropPattern, dropWireEnd } from '../portActions';
+import { completePick, dropPattern, dropWireEnd, insertOnWire } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
 import { type BoundaryEdgeView, boundaryView, levelView, type NodeView } from '../viewModel';
@@ -901,13 +901,13 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       setDropTarget(null);
       if (!type) return;
       e.preventDefault();
-      // AFD-88: a step dropped on a wire goes into it (round 1: P1, W1).
-      const into = wire && INSERTABLE.includes(type) ? { insertOn: wire } : {};
-      openQuickAdd({
-        type,
-        position: screenToFlowPosition({ x: e.clientX, y: e.clientY }),
-        ...into,
-      });
+      // AFD-88: a step dropped on a wire goes into it (round 1: P1, W1); AFD-306: as the wire's +
+      // puts it there, so the steps after it make room.
+      if (wire && INSERTABLE.includes(type)) {
+        insertOnWire(wire, type);
+        return;
+      }
+      openQuickAdd({ type, position: screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
     },
     [openQuickAdd, screenToFlowPosition, setError],
   );
