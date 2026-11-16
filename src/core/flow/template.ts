@@ -34,3 +34,29 @@ export function newFlowText(name: string, key: string, newId: IdFactory): string
   );
   return `${[...header, ...body, ...rest].join('\n')}\n`;
 }
+
+/**
+ * AFD-304: a flow's text as a copy of it: its own id, key and name, version 1. Only the `flow:`
+ * header changes; the nodes keep their ids (they are the flow's own).
+ */
+export function copiedFlowText(text: string, name: string, key: string, newId: IdFactory): string {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^flow:\s*$/.test(l.replace(/\r$/, '')));
+  if (start < 0) throw new Error('This file has no flow header');
+  let end = start + 1;
+  while (end < lines.length && /^(\s|\r?$)/.test(lines[end] ?? '')) end++;
+  const set = (field: string, value: string) => {
+    for (let i = start + 1; i < end; i++) {
+      const line = lines[i] ?? '';
+      if (line.startsWith(`  ${field}:`)) {
+        lines[i] = `  ${field}: ${value}${line.endsWith('\r') ? '\r' : ''}`;
+        return;
+      }
+    }
+  };
+  set('id', newId());
+  set('key', key);
+  set('name', renderScalar(name));
+  set('version', '1');
+  return lines.join('\n');
+}

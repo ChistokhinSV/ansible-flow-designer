@@ -188,3 +188,104 @@ export async function changedSince(
   }
   return { changed, behind };
 }
+
+/** AFD-304: the branch here, the remote it goes to, and that remote's address. */
+export interface Upstream {
+  branch: string;
+  remote: string;
+  url: string;
+  /** The branch has an upstream already (else the first push sets it). */
+  tracked: boolean;
+}
+
+export async function upstreamOf(folder: string): Promise<Upstream> {
+  if ((await repositoryOf(folder)) === 'none')
+    throw new ProjectGitError('This folder is not a git repository');
+  const branch = await git(folder, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch === 'HEAD')
+    throw new ProjectGitError(
+      'No branch is checked out (a detached HEAD): check out a branch first',
+    );
+  const upstream = await git(folder, [
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{u}',
+  ]).catch(() => '');
+  const remotes = (await git(folder, ['remote'])).split('\n').filter(Boolean);
+  const remote = upstream
+    ? (upstream.split('/')[0] as string)
+    : remotes.includes('origin')
+      ? 'origin'
+      : (remotes[0] ?? '');
+  if (!remote) throw new ProjectGitError('The repository has no remote to push to or pull from');
+  const url = await git(folder, ['remote', 'get-url', remote]);
+  return { branch, remote, url, tracked: !!upstream };
+}
+
+/**
+ * AFD-304: commits what changed (all of the folder's changes, or only these paths) with the
+ * message, then pushes the branch. `auth` for the connected server's address; another remote uses
+ * git's own sign-in. Answers whether there was anything to commit, and where it went.
+ */
+export async function commitAndPush(
+  folder: string,
+  message: string,
+  options: { paths?: string[]; auth?: GitAuth } = {},
+): Promise<{ committed: boolean; pushed: string }> {
+  const up = await upstreamOf(folder);
+  let paths = options.paths;
+  if (paths) {
+    // Only paths git knows here or that exist: a pathspec that matches nothing stops git.
+    const known: string[] = [];
+    for (const p of paths)
+      if (await git(folder, ['ls-files', '-c', '-o', '--exclude-standard', '--', p])) known.push(p);
+    paths = known;
+  }
+  if (paths && paths.length === 0) throw new ProjectGitError('Nothing of this flow is in git here');
+  await git(folder, ['add', '-A', '--', ...(paths ?? ['.'])]);
+  const staged = await git(folder, ['diff', '--cached', '--quiet', '--', ...(paths ?? ['.'])]).then(
+    () => false,
+    () => true,
+  );
+  if (staged)
+    await git(folder, ['commit', '-q', '-m', message, '--', ...(paths ?? ['.'])]).catch(
+      (e: Error) => {
+        throw new ProjectGitError(
+          /user\.(name|email)|Author identity/i.test(e.message)
+            ? 'git does not know who you are: set user.name and user.email (git config --global), then try again'
+            : e.message,
+        );
+      },
+    );
+  await git(
+    folder,
+    ['push', '-q', ...(up.tracked ? [] : ['-u']), up.remote, `HEAD:refs/heads/${up.branch}`],
+    options.auth,
+  ).catch((e: Error) => {
+    throw new ProjectGitError(
+      /rejected|non-fast-forward|fetch first/i.test(e.message)
+        ? `The server has changes this folder has not: Pull first, then push again (${e.message})`
+        : e.message,
+    );
+  });
+  return { committed: staged, pushed: `${up.remote}/${up.branch}` };
+}
+
+/**
+ * AFD-304: the branch's new commits from its remote, with this folder's own commits put on top
+ * (rebase) and changes not committed kept (autostash). A conflict is left for Source Control.
+ */
+export async function pullBranch(folder: string, auth?: GitAuth): Promise<string> {
+  const up = await upstreamOf(folder);
+  await git(folder, ['pull', '-q', '--rebase', '--autostash', up.remote, up.branch], auth).catch(
+    (e: Error) => {
+      throw new ProjectGitError(
+        /conflict/i.test(e.message)
+          ? `Pulling stopped at a conflict: resolve it in Source Control (${e.message})`
+          : e.message,
+      );
+    },
+  );
+  return `${up.remote}/${up.branch}`;
+}

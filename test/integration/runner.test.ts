@@ -14,7 +14,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { RunView } from '../../src/core/protocol';
-import { folderIsEmpty, getProjectFlows, sendFolder } from '../../src/node/runner/projectGit';
+import {
+  commitAndPush,
+  folderIsEmpty,
+  getProjectFlows,
+  pullBranch,
+  sendFolder,
+} from '../../src/node/runner/projectGit';
 import { closeAll, flowUri, openDesigner, testApi } from './helpers';
 
 const url = process.env.AFD_RUNNER_URL?.replace(/\/+$/, '');
@@ -165,6 +171,62 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     } finally {
       writeFileSync(path, before);
       rmSync(mine, { force: true });
+    }
+  });
+
+  it('AFD-304: Commit & Push from one copy of a project, Pull into another, the token only in the call', async () => {
+    const auth = { token: token as string, verifyTls: !lab };
+    const ident = {
+      GIT_AUTHOR_NAME: 'AFD Test',
+      GIT_AUTHOR_EMAIL: 'afd-test@example.net',
+      GIT_COMMITTER_NAME: 'AFD Test',
+      GIT_COMMITTER_EMAIL: 'afd-test@example.net',
+    };
+    Object.assign(process.env, ident);
+    const one = mkdtempSync(join(tmpdir(), 'afd-304-one-'));
+    const two = mkdtempSync(join(tmpdir(), 'afd-304-two-'));
+    try {
+      const made = await api('POST', `/api/v1/workspaces/${workspace}/projects`, {
+        key: `sync-${Date.now()}`,
+        name: 'sync',
+      });
+      assert.equal(made.status, 201, JSON.stringify(made.json));
+      const project = made.json as { id: string; gitPath: string; gitRef: string };
+      const remote = `${url}${project.gitPath}`;
+      // One copy sends a first flow; the other gets it.
+      writeFileSync(join(one, 'a.flow.yaml'), 'schema_version: 2\n');
+      await sendFolder(one, remote, project.gitRef, auth, true);
+      await getProjectFlows(two, remote, project.gitRef, auth);
+      // A change in one copy, committed and pushed (one flow only: the other file stays out).
+      writeFileSync(join(one, 'a.flow.yaml'), 'schema_version: 2\n# changed\n');
+      writeFileSync(join(one, 'notes.txt'), 'not sent\n');
+      const pushed = await commitAndPush(one, 'Change a', { paths: ['a.flow.yaml'], auth });
+      assert.deepEqual(pushed, { committed: true, pushed: `origin/${project.gitRef}` });
+      const status = execFileSync('git', ['status', '--porcelain'], { cwd: one, encoding: 'utf8' });
+      assert.match(status, /\?\? notes\.txt/);
+      // Nothing new to commit still pushes (nothing to send is fine).
+      assert.equal(
+        (await commitAndPush(one, 'x', { paths: ['a.flow.yaml'], auth })).committed,
+        false,
+      );
+      // The other copy pulls it, with a change of its own kept.
+      writeFileSync(join(two, 'mine.txt'), 'local\n');
+      assert.equal(await pullBranch(two, auth), `origin/${project.gitRef}`);
+      assert.match(readFileSync(join(two, 'a.flow.yaml'), 'utf8'), /# changed/);
+      assert.equal(readFileSync(join(two, 'mine.txt'), 'utf8'), 'local\n');
+      // Without the token the server refuses: the call above carried it, nothing stored it.
+      assert.equal(
+        readFileSync(join(two, '.git', 'config'), 'utf8').includes(token as string),
+        false,
+      );
+    } finally {
+      for (const name of Object.keys(ident)) delete process.env[name];
+      for (const dir of [one, two])
+        try {
+          rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+        } catch {
+          // Left in the temporary folder.
+        }
     }
   });
 

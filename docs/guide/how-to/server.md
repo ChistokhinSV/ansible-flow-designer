@@ -44,6 +44,20 @@ Flows of the project that the folder does not have are listed under **On the ser
 and a note above the flows says when the server has commits this folder has not pulled. The marks
 are read again when flows change, when VS Code gets the focus back, and on **Refresh**.
 
+### Commit, push and pull from the Flows pane
+
+The **Flows** pane's title has **Pull** and **Commit & Push…** (in a git repository). Commit & Push
+saves open flows, asks for a message, commits every change of the folder and pushes the branch;
+Pull brings the branch's new commits, puts this folder's own commits on top and keeps changes that
+are not committed. Right-click a flow for **Commit & Push This Flow…** (the flow, its generated
+playbook and its scenarios only), **Duplicate Flow…** (a copy beside it with its own id and key) and
+**Delete Flow** (those files to the trash).
+
+When the remote is the connected server's git address, git gets the connection's token and its
+certificate setting for that call only: nothing is written to the repository, and a lab server
+with a self-signed certificate works without changing git's settings. Another remote uses git's own
+sign-in.
+
 Once connected, the pane names the server and the project, and its title has a server button with
 **Open in Browser**, **Change Project**, **Connect to a Different Server** and **Disconnect**
 (which forgets the token and the folder's settings; flows and runs stay).

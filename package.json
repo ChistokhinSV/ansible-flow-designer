@@ -366,6 +366,33 @@
         "category": "Ansible Flow"
       },
       {
+        "command": "afd.git.commitPush",
+        "title": "Commit & Push…",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "afd.git.pull",
+        "title": "Pull",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "afd.flows.commitPush",
+        "title": "Commit & Push This Flow…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flows.duplicate",
+        "title": "Duplicate Flow…",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flows.delete",
+        "title": "Delete Flow",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.runner.getFlows",
         "title": "Get the Project's Flows",
         "category": "Ansible Flow",
@@ -497,6 +524,16 @@
           "group": "navigation@2"
         },
         {
+          "command": "afd.git.pull",
+          "when": "view == afd.flows && gitOpenRepositoryCount != 0",
+          "group": "navigation@4"
+        },
+        {
+          "command": "afd.git.commitPush",
+          "when": "view == afd.flows && gitOpenRepositoryCount != 0",
+          "group": "navigation@5"
+        },
+        {
           "command": "afd.runner.connect",
           "when": "view == afd.flows && workbenchState != empty && !afd.serverConnected",
           "group": "navigation@3"
@@ -547,6 +584,21 @@
           "command": "afd.flows.peekCode",
           "when": "view == afd.flows && viewItem == flow",
           "group": "inline@2"
+        },
+        {
+          "command": "afd.flows.commitPush",
+          "when": "view == afd.flows && viewItem == flow && gitOpenRepositoryCount != 0",
+          "group": "1_git@1"
+        },
+        {
+          "command": "afd.flows.duplicate",
+          "when": "view == afd.flows && viewItem == flow",
+          "group": "2_file@1"
+        },
+        {
+          "command": "afd.flows.delete",
+          "when": "view == afd.flows && viewItem == flow",
+          "group": "2_file@2"
         },
         {
           "command": "afd.inventory.runOn",
@@ -797,6 +849,26 @@
         {
           "command": "afd.flows.peekCode",
           "when": "false"
+        },
+        {
+          "command": "afd.flows.commitPush",
+          "when": "false"
+        },
+        {
+          "command": "afd.flows.duplicate",
+          "when": "false"
+        },
+        {
+          "command": "afd.flows.delete",
+          "when": "false"
+        },
+        {
+          "command": "afd.git.commitPush",
+          "when": "gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "afd.git.pull",
+          "when": "gitOpenRepositoryCount != 0"
         },
         {
           "command": "afd.inventory.refresh",

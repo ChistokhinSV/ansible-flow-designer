@@ -16,6 +16,7 @@ import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 import { serverCommands, showServerState } from '../runner/connect';
+import { flowsGitCommands } from '../runner/flowsGit';
 import {
   clearRunnerToken,
   decideOnServer,
@@ -266,6 +267,8 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     }),
     // AFD-301: connecting the folder to Ansible Flow Server from the Flows pane.
     ...serverCommands(host),
+    // AFD-304: commit & push, pull, duplicate and delete from the Flows pane.
+    ...flowsGitCommands(host),
     vscode.commands.registerCommand(
       CMD.runnerDecide,
       (
