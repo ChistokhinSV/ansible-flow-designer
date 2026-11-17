@@ -56,12 +56,12 @@ Once a candidate passed, from the same commits:
 `just try` replaces the installed extension in VS Code and Antigravity IDE (each one found;
 `--editors code` for one), whatever version is installed:
 
-| Command               | Installs                                                                         |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `just try 1.0.1-rc.2` | the candidate's VSIX from its GitHub pre-release                                 |
-| `just try local`      | a VSIX built from this checkout (`just package`), for a fix before its candidate |
-| `just try out/x.vsix` | a VSIX file                                                                      |
-| `just try release`    | back to the released version from the Marketplace / Open VSX                     |
+| Command                 | Installs                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `just try 1.0.1-rc.2`   | the candidate's VSIX from its GitHub pre-release                                 |
+| `just try` (or `local`) | a VSIX built from this checkout (`just package`), for a fix before its candidate |
+| `just try out/x.vsix`   | a VSIX file                                                                      |
+| `just try release`      | back to the released version from the Marketplace / Open VSX                     |
 
 Reload the open windows afterwards. A candidate's version is newer than the last release, so the
 editors do not update it away; the release that follows it (`1.0.1` after `1.0.1-rc.2`) does.

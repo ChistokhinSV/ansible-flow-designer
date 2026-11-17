@@ -174,6 +174,63 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     }
   });
 
+  it("AFD-318: Change Project in a project's git copy gets the other project into a new folder", async () => {
+    const t = await testApi();
+    const auth = { token: token as string, verifyTls: !lab };
+    const mine = `${workspace}/${key}`;
+    const src = mkdtempSync(join(tmpdir(), 'afd-318-src-'));
+    const place = mkdtempSync(join(tmpdir(), 'afd-318-place-'));
+    const ident = {
+      GIT_AUTHOR_NAME: 'AFD Test',
+      GIT_AUTHOR_EMAIL: 'afd-test@example.net',
+      GIT_COMMITTER_NAME: 'AFD Test',
+      GIT_COMMITTER_EMAIL: 'afd-test@example.net',
+    };
+    Object.assign(process.env, ident);
+    const settings = vscode.workspace.getConfiguration('afd', FLOW);
+    try {
+      const otherKey = `other-${Date.now()}`;
+      const made = await api('POST', `/api/v1/workspaces/${workspace}/projects`, {
+        key: otherKey,
+        name: 'other',
+      });
+      assert.equal(made.status, 201, JSON.stringify(made.json));
+      const project = made.json as { gitPath: string; gitRef: string };
+      writeFileSync(join(src, 'b.flow.yaml'), 'schema_version: 2\n');
+      await sendFolder(src, `${url}${project.gitPath}`, project.gitRef, auth, true);
+      const other = `${workspace}/${otherKey}`;
+      // The setting naming another project does not move the folder: its remote decides.
+      await settings.update('runner.project', other, vscode.ConfigurationTarget.Workspace);
+      assert.equal((await t.serverState(FLOW)).project, mine);
+      assert.equal((await t.serverFlows(FLOW))?.behind, false);
+      await settings.update('runner.project', mine, vscode.ConfigurationTarget.Workspace);
+      // Change Project: the other one into <place>/<key>, set for the server; this folder stays.
+      assert.equal(await t.runnerChangeProject(FLOW, { project: other, into: place }), undefined);
+      const copy = join(place, otherKey);
+      // git's core.autocrlf may check it out with CRLF.
+      assert.equal(
+        readFileSync(join(copy, 'b.flow.yaml'), 'utf8').replace(/\r\n/g, '\n'),
+        'schema_version: 2\n',
+      );
+      assert.deepEqual(JSON.parse(readFileSync(join(copy, '.vscode', 'settings.json'), 'utf8')), {
+        'afd.runner.url': url,
+        'afd.runner.project': other,
+      });
+      assert.equal((await t.serverState(FLOW)).project, mine);
+      assert.equal(settings.get('runner.project'), mine);
+      // Picking the project the folder is a copy of only sets it.
+      assert.equal(await t.runnerChangeProject(FLOW, { project: mine }), undefined);
+    } finally {
+      for (const name of Object.keys(ident)) delete process.env[name];
+      for (const dir of [src, place])
+        try {
+          rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+        } catch {
+          // Left in the temporary folder.
+        }
+    }
+  });
+
   it('AFD-304: Commit & Push from one copy of a project, Pull into another, the token only in the call', async () => {
     const auth = { token: token as string, verifyTls: !lab };
     const ident = {

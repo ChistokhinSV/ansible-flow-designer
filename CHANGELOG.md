@@ -10,6 +10,11 @@ All notable changes to Ansible Flow Designer.
 - **Add Node** says "Adding…" while the new step is on its way, and is not sent twice.
 - An edit that waits more than 5 seconds is written to the **Ansible Flow** output with what it waits for, so a "Saving…" that stays can be traced.
 
+### Fixed
+
+- **Connect to Server** from an open flow no longer fails with `spawn …rg.exe ENOENT` when the folder's git remote is not yet a server project.
+- In a folder that is the git copy of a server project, **Change Project** no longer leaves the Flows pane comparing with the other project and asking for a pull that changes nothing. The folder stays its project's; the project picked can be got into a new folder, opened in a new window.
+
 ## 1.0.0 — First stable release
 
 The designer's first stable version, released with Ansible Flow Server 1.0: flows written by 1.x open and run in any 1.x designer and server.

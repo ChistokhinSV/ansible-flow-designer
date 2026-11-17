@@ -4,10 +4,13 @@
 // and writes afd.runner.url and afd.runner.project for the folder. Disconnect forgets them. The
 // pane's title shows a connect button, or the server's with its menu, by the context key
 // `afd.serverConnected`; the pane's description names the server and the project.
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { RunnerClient, type RunnerProject } from '../../node/runner/client';
 import { untrustedCertificate } from '../../node/runner/gitTrust';
 import {
+  folderIsEmpty,
   type GitAuth,
   getProjectFlows,
   repositoryOf,
@@ -78,6 +81,16 @@ export function config(scope: vscode.Uri) {
   };
 }
 
+/**
+ * AFD-318: the folder's project as runs use it (runnerRun's `projectOf`): the server project its
+ * git remote is, else afd.runner.project. A git copy of one project with the setting naming another
+ * pulled the first and was compared with the second, so the pane asked for a pull that never came.
+ */
+export async function folderProject(scope: vscode.Uri): Promise<string> {
+  const { url, project } = config(scope);
+  return (url ? await remoteProject(url, scope).catch(() => undefined) : undefined) ?? project;
+}
+
 /** Where the folder's settings are written: the folder itself in a multi-root workspace. */
 const target = () =>
   (vscode.workspace.workspaceFolders?.length ?? 0) > 1
@@ -90,8 +103,9 @@ export async function serverState(
   secrets: vscode.SecretStorage,
 ): Promise<{ url?: string; project?: string; connected: boolean }> {
   if (!scope) return { connected: false };
-  const { url, project } = config(scope);
+  const { url } = config(scope);
   if (!url) return { connected: false };
+  const project = await folderProject(scope);
   const token = await secrets.get(tokenKey(url));
   return { url, ...(project ? { project } : {}), connected: !!token };
 }
@@ -532,15 +546,36 @@ export async function serverMenu(
   return pick?.id;
 }
 
-/** Picks another project of the connected server for the folder. */
+/** What Change Project would ask, given instead (the test API). */
+export interface ChangeProjectAnswers {
+  project: string;
+  /** For a folder that is a git copy of another project: where its new folder is made. */
+  into?: string;
+}
+
+/**
+ * Picks another project of the connected server for the folder. A folder that is a git copy of a
+ * server project stays that project's (AFD-318): the one picked is put into a new folder instead,
+ * which is opened in a new window.
+ */
 export async function changeProject(
   scope: vscode.Uri,
   secrets: vscode.SecretStorage,
+  given?: ChangeProjectAnswers,
 ): Promise<string | undefined> {
-  const { c, url, verifyTls, allowHttp, project } = config(scope);
+  const { c, url, verifyTls, allowHttp } = config(scope);
   const token = url ? await secrets.get(tokenKey(url)) : undefined;
   if (!url || !token) return 'Connect to Ansible Flow Server first';
+  const project = await folderProject(scope);
   const client = new RunnerClient(url, token, { verifyTls, allowHttp });
+  const copyOf = await remoteProject(url, scope).catch(() => undefined);
+  const set = async (value: string) => {
+    if (copyOf && value !== copyOf)
+      return copyElsewhere(scope, client, url, copyOf, value, { token, verifyTls }, given);
+    await c.update('runner.project', value, target());
+    return undefined;
+  };
+  if (given) return set(given.project);
   const items: (vscode.QuickPickItem & { value?: string })[] = [];
   try {
     for (const ws of await client.workspaces())
@@ -558,14 +593,77 @@ export async function changeProject(
     ignoreFocusOut: true,
   });
   if (!pick?.value) return CANCELLED;
-  await c.update('runner.project', pick.value, target());
+  return set(pick.value);
+}
+
+/**
+ * AFD-318: the project `named` into a new folder `<place>/<project key>` (a git copy, with the
+ * server and project in its .vscode/settings.json), opened in a new window. This folder is the git
+ * copy of `copyOf` and stays as it is: its remote, branch and files are that project's.
+ */
+async function copyElsewhere(
+  scope: vscode.Uri,
+  client: RunnerClient,
+  url: string,
+  copyOf: string,
+  named: string,
+  auth: GitAuth,
+  given?: ChangeProjectAnswers,
+): Promise<string | undefined> {
+  const project = await projectNamed(client, named);
+  if (typeof project === 'string') return project;
+  let place: string | undefined = given?.into;
+  if (!given) {
+    const yes = 'Get It into a New Folder…';
+    const pick = await vscode.window.showInformationMessage(
+      `This folder is the git copy of ${copyOf}.`,
+      {
+        modal: true,
+        detail: `Its pulls, pushes and runs go to ${copyOf}, so it stays that project's. ${named} can be got into a new folder, opened in a new window.`,
+      },
+      yes,
+    );
+    if (pick !== yes) return CANCELLED;
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      defaultUri: vscode.Uri.joinPath(scope, '..'),
+      openLabel: 'Make the Folder Here',
+      title: `Where to make the folder ${project.key} for ${named}`,
+    });
+    place = picked?.[0]?.fsPath;
+  }
+  if (!place) return CANCELLED;
+  const folder = join(place, project.key);
+  if (existsSync(folder) && !folderIsEmpty(folder))
+    return `${folder} is there already and not empty: pick another place`;
+  mkdirSync(folder, { recursive: true });
+  try {
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Getting the flows of ${named}…` },
+      () => getProjectFlows(folder, `${url}${project.gitPath}`, project.gitRef, auth),
+    );
+  } catch (e) {
+    return (e as Error).message;
+  }
+  // The new folder's server and project; its token is the one kept for the address.
+  mkdirSync(join(folder, '.vscode'), { recursive: true });
+  writeFileSync(
+    join(folder, '.vscode', 'settings.json'),
+    `${JSON.stringify({ 'afd.runner.url': url, 'afd.runner.project': named }, null, 4)}\n`,
+  );
+  if (!given)
+    void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folder), {
+      forceNewWindow: true,
+    });
   return undefined;
 }
 
 /** The commands, and the pane's title kept in step with the settings and the kept tokens. */
 export function serverCommands(host: Host): vscode.Disposable[] {
   const secrets = host.context.secrets;
-  const show = () => void showServerState(host.scopeUri(), secrets);
+  const show = () => void showServerState(host.folderUri(), secrets);
   const done = (error: string | undefined) => {
     if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
     // Open designers follow the server now (AFD-284), and the pane says which one.
@@ -577,7 +675,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
   const scoped =
     (act: (scope: vscode.Uri, s: vscode.SecretStorage) => Promise<string | undefined>) =>
     async (uri?: vscode.Uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       if (!scope) {
         void vscode.window.showInformationMessage(
           'Open a folder first: the server is set for a folder of flows.',
@@ -594,7 +692,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand(CMD.runnerChangeProject, scoped(changeProject)),
     vscode.commands.registerCommand(CMD.runnerGetFlows, scoped(getProjectFlowsHere)),
     vscode.commands.registerCommand(CMD.runnerServer, async (uri?: vscode.Uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       if (!scope) return;
       const picked = await serverMenu(scope, secrets);
       if (picked === 'connect') done(await connectServer(scope, secrets));
