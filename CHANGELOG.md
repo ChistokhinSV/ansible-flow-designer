@@ -8,6 +8,10 @@ All notable changes to Ansible Flow Designer.
 
 - **Flow outputs:** what a run gives back to whoever launched it (Ansible Flow Server, a flow that launched this one), per host. Add them under **Run outputs** in the Flow panel from a step's output, its result or a fact it sets; a run records them at its end, and its panel lists them under **Outputs**. They follow a renamed step or output; one taken before an approval is a warning, since a run carries only hosts past an approval. See [Data between steps](docs/guide/how-to/data-between-steps.md#what-a-run-gives-back-flow-outputs).
 
+### Fixed
+
+- **The side panel** starts at its top when another step is selected; it was left scrolled past the end of shorter Details and looked empty.
+
 ## 0.96.0 — Drop on a wire, the Data lens and subflows
 
 ### Fixed
