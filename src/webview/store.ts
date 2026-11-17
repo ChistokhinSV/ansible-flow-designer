@@ -7,7 +7,7 @@ import { modelOf, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
-import type { CatalogStatus, MergeView, RunView, Snapshot } from '../core/protocol';
+import type { CatalogStatus, MergeView, RunView, Snapshot, ViewerEmbed } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import type { PastRun } from '../core/run/pastRuns';
 import { type NodeRun, runStates } from '../core/run/view';
@@ -170,6 +170,8 @@ interface UiState {
   viewer: boolean;
   /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
   runner: boolean;
+  /** AFD-314: what the page around a viewer shows and allows. */
+  embed: Required<ViewerEmbed>;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
   expandSubflows: boolean;
   /** AFD-294 (`afd.canvas.wireStyle`): wires stepped (right angles) or curved. */
@@ -292,6 +294,7 @@ interface UiState {
   setSnapshot(s: Snapshot): void;
   setTestMode(on: boolean): void;
   setRunner(on: boolean): void;
+  setEmbed(embed: ViewerEmbed | undefined): void;
   /** AFD-270: turns the viewer on; there is no way back. */
   setViewer(): void;
   setExpandSubflows(on: boolean): void;
@@ -401,6 +404,7 @@ export const useUi = create<UiState>((set, get) => ({
   testMode: false,
   viewer: false,
   runner: false,
+  embed: { runShown: false, mayRun: true, mayStop: true },
   expandSubflows: false,
   wireStyle: 'stepped',
   expandedSubflows: [],
@@ -522,6 +526,14 @@ export const useUi = create<UiState>((set, get) => ({
   },
   setTestMode: (testMode) => set({ testMode }),
   setRunner: (runner) => set({ runner }),
+  setEmbed: (embed) =>
+    set({
+      embed: {
+        runShown: embed?.runShown === true,
+        mayRun: embed?.mayRun !== false,
+        mayStop: embed?.mayStop !== false,
+      },
+    }),
   setViewer() {
     if (get().viewer) return;
     get().setMode('run');

@@ -4,6 +4,10 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- **The designer in a web page** (`@ansible-flow/designer`): a page that shows the run itself, or knows the person may not launch or stop runs, says so with `embed` in `config`, and the canvas leaves out its run status, run buttons and run summary accordingly. See [Packages](docs/packages.md#a-viewer-show-and-run-change-nothing).
+
 ### Fixed
 
 - **Read-only parameters:** where the Details cannot be changed (a run's view, a read-only flow), parameters that take inputs could still be typed into; they no longer take text.

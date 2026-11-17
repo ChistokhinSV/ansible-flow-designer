@@ -224,6 +224,19 @@ export interface Notice {
   text: string;
 }
 
+/** AFD-314: what the page around a viewer shows and allows (each part defaults to the canvas's own). */
+export interface ViewerEmbed {
+  /**
+   * The page shows the run itself (its state, hosts, outputs, approvals, Stop and Run again): the
+   * canvas has no run status, run buttons or run summary; a step still shows its hosts.
+   */
+  runShown?: boolean;
+  /** Whether the person may launch the flow (default true). */
+  mayRun?: boolean;
+  /** Whether the person may stop a run (default true). */
+  mayStop?: boolean;
+}
+
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'run'; run: RunView | null }
@@ -250,6 +263,11 @@ export type HostMessage =
       testMode: boolean;
       expandSubflows?: boolean;
       viewer?: boolean;
+      /**
+       * AFD-314: a page that holds the viewer says what it shows itself and what the person may
+       * do, so the canvas does not repeat the page or offer what the host would refuse.
+       */
+      embed?: ViewerEmbed;
       /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
       runner?: boolean;
       /** AFD-294 (`afd.canvas.wireStyle`): how the canvas draws wires. */

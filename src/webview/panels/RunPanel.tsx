@@ -281,6 +281,15 @@ export function RunPanel() {
   const run = useUi((s) => s.run);
   const doc = useUi((s) => s.snapshot?.doc);
   const viewer = useUi((s) => s.viewer);
+  const runShown = useUi((s) => s.embed.runShown);
+  // AFD-314: the page shows the run's hosts, outputs and approvals; a step shows its own here.
+  if (viewer && runShown)
+    return (
+      <div className="afd-panel-body" data-run-panel="page">
+        <h2 className="afd-panel-title">Run</h2>
+        <p className="muted">Select a step to see what each host did there and its output.</p>
+      </div>
+    );
   if (!run && viewer)
     return (
       <div className="afd-panel-body" data-run-panel="none">

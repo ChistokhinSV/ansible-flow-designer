@@ -108,3 +108,29 @@ describe('AFD-270: the designer as a viewer', () => {
     expect(useUi.getState().viewer).toBe(true);
   });
 });
+
+describe('AFD-314: a viewer embedded in a page', () => {
+  it('leaves the run to a page that shows it, and offers only what the person may do', async () => {
+    const host = fakeHost();
+    setTransport(host.transport);
+    render(<App />);
+    await act(async () => {
+      host.say({ type: 'config', testMode: false, viewer: true, embed: { mayRun: false } });
+      host.say({ type: 'snapshot', snapshot: snapshotOf() });
+    });
+    // A flow's page for someone who may not launch it: no run button.
+    expect(screen.queryByRole('button', { name: /Run as Skeleton/ })).toBeNull();
+
+    // A run's page: the page has the run's state, Stop and Run again; the canvas repeats none.
+    await act(async () =>
+      host.say({ type: 'config', testMode: false, viewer: true, embed: { runShown: true } }),
+    );
+    expect(screen.queryByRole('button', { name: /Run as Skeleton/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Stop/ })).toBeNull();
+    expect(document.querySelector('[data-run-panel="page"]')).toBeTruthy();
+
+    // A host that says nothing of it: the canvas's own run controls.
+    await act(async () => host.say({ type: 'config', testMode: false, viewer: true }));
+    expect(screen.getByRole('button', { name: /Run as Skeleton/ })).toBeTruthy();
+  });
+});

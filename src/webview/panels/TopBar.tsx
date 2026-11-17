@@ -36,6 +36,7 @@ export function TopBar() {
   const mode = useUi((s) => s.mode);
   // AFD-270: a viewer shows the flow and runs it; what changes the flow or its files is not there.
   const viewer = useUi((s) => s.viewer);
+  const embed = useUi((s) => s.embed);
   const lens = useUi((s) => s.lens);
   const setLens = useUi((s) => s.setLens);
   const pickLens = (id: (typeof LENSES)[number]['id'] | null) => {
@@ -117,8 +118,11 @@ export function TopBar() {
         <LensPick lens={lens} pick={pickLens} />
       ) : null}
       <div className="afd-actions">
-        <RunStatus run={run} />
-        <RunActions running={running} viewer={viewer} />
+        {/* AFD-314: the page around the viewer shows the run, with its own Stop and Run again. */}
+        {embed.runShown ? null : <RunStatus run={run} />}
+        {embed.runShown || (running ? !embed.mayStop : !embed.mayRun) ? null : (
+          <RunActions running={running} viewer={viewer} />
+        )}
         {viewer ? null : (
           <ActionButton
             icon="file-code"
