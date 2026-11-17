@@ -404,14 +404,23 @@ async function sendToNewProject(
           .then((p) => p?.w);
   if (!space) return CANCELLED;
   const folderName = scope.path.split('/').filter(Boolean).at(-1) ?? 'flows';
+  // AFD-325: the name first; the key is made from it (lower case, other characters as dashes),
+  // as the server's own Add project does, and can be changed.
+  const name = await vscode.window.showInputBox({
+    title: `New project in ${space.key}: its name`,
+    value: folderName,
+    ignoreFocusOut: true,
+    validateInput: (v) => (v.trim() ? undefined : 'A name'),
+  });
+  if (!name) return CANCELLED;
   const slug =
-    folderName
+    name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 63) || 'flows';
+      .slice(0, 63)
+      .replace(/^-+|-+$/g, '') || 'flows';
   const key = await vscode.window.showInputBox({
-    title: `New project in ${space.key}: its key`,
+    title: `New project "${name.trim()}" in ${space.key}: its key`,
     prompt: 'Lower case letters, digits and dashes; part of its git address',
     value: slug,
     ignoreFocusOut: true,
@@ -421,13 +430,6 @@ async function sendToNewProject(
         : 'Lower case letters, digits and dashes, not starting or ending with a dash',
   });
   if (!key) return CANCELLED;
-  const name = await vscode.window.showInputBox({
-    title: `New project ${space.key}/${key.trim()}: its name`,
-    value: folderName,
-    ignoreFocusOut: true,
-    validateInput: (v) => (v.trim() ? undefined : 'A name'),
-  });
-  if (!name) return CANCELLED;
   let commitAll = false;
   if (repo === 'none') {
     const yes = 'Make It a Repository and Send';
