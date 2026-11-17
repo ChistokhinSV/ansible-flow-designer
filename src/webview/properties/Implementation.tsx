@@ -440,7 +440,8 @@ function ModuleDoc({
   return (
     <div className="afd-doc" data-doc={doc.fqcn}>
       {url ? (
-        <a href={url} className="afd-docs-link">
+        // AFD-311: a new tab, not this frame: docs sites refuse to be framed (a server's pages).
+        <a href={url} className="afd-docs-link" target="_blank" rel="noopener noreferrer">
           Full Docs ↗
         </a>
       ) : null}
