@@ -41,7 +41,7 @@ import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
 import { PANEL_WIDTH, useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
-import { enterViewer } from './viewer';
+import { enterPast, enterViewer } from './viewer';
 
 /** Theme tokens follow VS Code's theme class on <body>. */
 function useThemeTokens() {
@@ -89,7 +89,8 @@ function useHost() {
         ui.setRunner(m.runner === true);
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.wireStyle) ui.setWireStyle(m.wireStyle);
-        if (m.viewer) enterViewer();
+        if (m.past) enterPast(m.past);
+        else if (m.viewer) enterViewer();
         ui.setEmbed(m.embed);
       } else if (m.type === 'wireStyle') {
         ui.setWireStyle(m.style);

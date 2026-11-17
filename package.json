@@ -478,6 +478,45 @@
         "command": "afd.export.image",
         "title": "Export as Image (SVG, PNG)…",
         "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.flow.history",
+        "title": "History…",
+        "category": "Ansible Flow",
+        "icon": "$(history)"
+      },
+      {
+        "command": "afd.history.filter",
+        "title": "Filter…",
+        "category": "Ansible Flow History",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "afd.history.clearFilter",
+        "title": "Clear Filter",
+        "category": "Ansible Flow History",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "afd.history.refresh",
+        "title": "Refresh",
+        "category": "Ansible Flow History",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "afd.history.more",
+        "title": "Show More",
+        "category": "Ansible Flow History"
+      },
+      {
+        "command": "afd.history.openFile",
+        "title": "Open as This Commit Left It",
+        "category": "Ansible Flow History"
+      },
+      {
+        "command": "afd.history.copyHash",
+        "title": "Copy Commit Hash",
+        "category": "Ansible Flow History"
       }
     ],
     "viewsContainers": {
@@ -494,6 +533,10 @@
         {
           "id": "afd.flows",
           "name": "Flows"
+        },
+        {
+          "id": "afd.history",
+          "name": "History"
         },
         {
           "id": "afd.inventory",
@@ -579,6 +622,21 @@
           "command": "afd.inventory.new",
           "when": "view == afd.inventory",
           "group": "2_file"
+        },
+        {
+          "command": "afd.history.filter",
+          "when": "view == afd.history",
+          "group": "navigation@1"
+        },
+        {
+          "command": "afd.history.clearFilter",
+          "when": "view == afd.history && afd.historyFiltered",
+          "group": "navigation@2"
+        },
+        {
+          "command": "afd.history.refresh",
+          "when": "view == afd.history",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -666,6 +724,16 @@
           "command": "afd.inventory.remove",
           "when": "view == afd.inventory && viewItem =~ /^afd-(group|host|var)$/",
           "group": "3_remove@1"
+        },
+        {
+          "command": "afd.history.copyHash",
+          "when": "view == afd.history && viewItem == commit",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "afd.flow.history",
+          "when": "view == afd.flows && viewItem == flow",
+          "group": "1_git@3"
         }
       ],
       "editor/title": [
@@ -888,6 +956,26 @@
         {
           "command": "afd.run.scenarios",
           "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.(flow|scenarios)\\.yaml$/)"
+        },
+        {
+          "command": "afd.history.more",
+          "when": "false"
+        },
+        {
+          "command": "afd.history.openFile",
+          "when": "false"
+        },
+        {
+          "command": "afd.history.copyHash",
+          "when": "false"
+        },
+        {
+          "command": "afd.history.clearFilter",
+          "when": "afd.historyFiltered"
+        },
+        {
+          "command": "afd.flow.history",
+          "when": "workbenchState != empty"
         }
       ],
       "explorer/context": [

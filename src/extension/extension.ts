@@ -16,6 +16,8 @@ import { registerExport } from './export';
 import { Feedback, registerFeedback } from './feedback';
 import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
+import { registerHistoryView } from './history/historyView';
+import { registerPastDocuments } from './history/pastDocs';
 import { Host, isFlow, VIEW_TYPE } from './host';
 import { registerInventoryView } from './inventoryView';
 import { logChannel } from './log';
@@ -186,6 +188,9 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
       for (const s of host.sessions.values()) s.repoState(state);
     }),
     ...registerFlowsView(host),
+    // AFD-320: History, and the files of a commit as read-only documents.
+    registerPastDocuments(),
+    ...registerHistoryView(host),
     ...registerInventoryView(host),
   );
   for (const doc of vscode.workspace.textDocuments)

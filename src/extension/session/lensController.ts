@@ -12,6 +12,7 @@ import type { HostMessage, RunView, Snapshot } from '../../core/protocol';
 import { whenText } from '../../core/view/outsideChanges';
 import type { SessionDeps } from '../flowSession';
 import { fileVersions, textAt } from '../gitHead';
+import { type PastRef, pastOf, textBefore } from '../history/pastDocs';
 import { readCode, readInventory, rememberedTargets, rememberTargets } from '../lens/lensFacts';
 import { readHistory, recordRun } from '../run/history';
 
@@ -103,6 +104,8 @@ export class LensController {
 
   /** The compared version of the flow, from Git (AFD-57); nothing is cached across picks. */
   private async readBase(): Promise<void> {
+    const past = pastOf(this.uri);
+    if (past) return this.readPastBase(past);
     const outside = this.outsideBase();
     const git = await fileVersions(this.uri);
     // AFD-165: the ref comes from the designer; only a version this list offers goes to git
@@ -146,6 +149,33 @@ export class LensController {
               : text === undefined
                 ? `${label} has no version of this flow`
                 : `${label}: the flow file does not parse`,
+        };
+    this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
+  }
+
+  /**
+   * AFD-320: a past version (History) is compared with the version before its commit, the one
+   * base it offers.
+   */
+  private async readPastBase(past: PastRef): Promise<void> {
+    const ref = `${past.hash}^`;
+    const label = `the version before ${past.hash.slice(0, 7)}`;
+    const refs = [{ ref, label }];
+    this.facts.compare = { state: 'loading', ref, label, refs };
+    this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
+    const text = await textBefore(past);
+    const base = text === undefined ? undefined : parseFlow(text).doc;
+    this.facts.compare = base
+      ? { state: 'ready', ref, label, refs, base }
+      : {
+          state: 'error',
+          ref,
+          label,
+          refs,
+          error:
+            text === undefined
+              ? 'This commit added the flow: there is no version before it'
+              : `${label}: the flow file does not parse`,
         };
     this.broadcast({ type: 'lensFacts', facts: { compare: this.facts.compare } });
   }

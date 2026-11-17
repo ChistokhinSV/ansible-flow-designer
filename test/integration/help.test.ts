@@ -101,6 +101,29 @@ describe('AFD-22 acceptance: user help', () => {
     }
   });
 
+  it('AFD-321: a sample brings the roles its steps run, keeping what the folder has', async () => {
+    const api = await testApi();
+    const place = mkdtempSync(join(tmpdir(), 'afd-321-'));
+    try {
+      const mine = '[defaults]\n# mine\n';
+      writeFileSync(join(place, 'ansible.cfg'), mine);
+      const folder = vscode.Uri.file(place);
+      const first = await api.copySampleFiles('edge-baseline', folder);
+      assert.deepEqual(first.kept, ['ansible.cfg']);
+      assert.ok(first.copied.includes('roles'), first.copied.join(', '));
+      assert.equal(readFileSync(join(place, 'ansible.cfg'), 'utf8'), mine);
+      for (const f of ['roles/push_baseline/tasks/main.yml', 'roles/netops_backup/tasks/main.yml'])
+        assert.ok(existsSync(join(place, f)), f);
+      // A folder with roles/ of its own still gets the sample's roles inside it.
+      rmSync(join(place, 'roles', 'push_baseline'), { recursive: true });
+      const again = await api.copySampleFiles('edge-baseline', folder);
+      assert.deepEqual(again.copied, ['roles/push_baseline']);
+      assert.ok(existsSync(join(place, 'roles/push_baseline/tasks/main.yml')));
+    } finally {
+      rmSync(place, { recursive: true, force: true });
+    }
+  });
+
   it('Open User Guide shows a guide page in the Markdown preview, never a file outside it', async () => {
     await vscode.commands.executeCommand('afd.help.openGuide', 'how-to/subflows.md');
     await until(() => /Subflows/i.test(activeTab()?.label ?? ''), 'subflows preview');

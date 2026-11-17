@@ -17,7 +17,8 @@ export function CanvasCaption() {
   const level = useUi((s) => s.level);
   const targets = useUi((s) => s.lensFacts.inventory?.targets);
   // AFD-270: a viewer has one mode and no lens, so nothing to explain.
-  const viewer = useUi((s) => s.viewer);
+  // AFD-320: a past version (History) shows the Changes lens, which says what it compares.
+  const viewer = useUi((s) => s.viewer && !s.past);
   if (!doc || viewer || (mode === 'design' && !lens)) return null;
   const m = MODES.find((x) => x.id === mode);
   const nodes = (modelOf(doc).levels.get(level)?.nodes ?? []).map((n) => ({

@@ -104,6 +104,7 @@ describe('top bar', () => {
     expect(items()).toEqual([
       'Tidy Up',
       'Open in Text Editor',
+      'History…',
       'Check Flow',
       'Find Node…',
       'Export as draw.io Diagram…',

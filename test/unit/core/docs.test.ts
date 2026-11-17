@@ -285,8 +285,24 @@ describe('samples', () => {
       { kind: 'upgradeFormat' },
       { newId: createIdFactory() },
     ).text;
-    expect(readFileSync(join(ROOT, 'samples', 'edge-baseline.flow.yaml'), 'utf8')).toBe(upgraded);
-    expect(formatOf(parse(upgraded))).toBe(CURRENT_FORMAT);
+    // AFD-321: the same steps, wires and places; its steps run the roles the sample project brings
+    // (samples/playbooks/edge-baseline), so a run of the sample works.
+    const example = parse(upgraded) as FlowDocument;
+    const sample = parse(
+      readFileSync(join(ROOT, 'samples', 'edge-baseline.flow.yaml'), 'utf8'),
+    ) as FlowDocument;
+    expect(formatOf(sample)).toBe(CURRENT_FORMAT);
+    expect(sample.nodes.map((n) => [n.id, n.key])).toEqual(example.nodes.map((n) => [n.id, n.key]));
+    expect(sample.edges).toEqual(example.edges);
+    expect(sample.layout).toEqual(example.layout);
+    const step = (key: string) => sample.nodes.find((n) => n.key === key);
+    expect(step('push-baseline')?.type).toBe('task');
+    expect(step('push-baseline')?.impl?.ref).toBe('push_baseline');
+    expect(step('backup-config')?.impl?.ref).toBe('netops_backup');
+    for (const role of ['push_baseline', 'netops_backup'])
+      expect(existsSync(join(ROOT, 'samples', 'playbooks', 'edge-baseline', 'roles', role))).toBe(
+        true,
+      );
   });
 });
 

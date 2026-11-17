@@ -14,7 +14,7 @@
     {
       "key": "edge-baseline",
       "name": "Edge baseline",
-      "description": "NTP, AAA and syslog baseline for edge switches with a backup first and rollback, and the playbooks and roles it binds (fictional switches, simulated locally).",
+      "description": "NTP and AAA baseline for edge switches with a backup first and rollback, and the roles it binds (fictional switches, simulated with files under /tmp/edge-baseline).",
       "files": [
         { "from": "edge-baseline.flow.yaml", "to": "flows/edge-baseline/edge-baseline.flow.yaml" },
         { "from": "edge-baseline.scenarios.yaml", "to": "flows/edge-baseline/edge-baseline.scenarios.yaml" },

@@ -4,7 +4,7 @@ import type { DriftAction } from '../core/drift/types';
 import type { FlowCommand } from '../core/flow/commands';
 import type { HostMessage, WebviewMessage } from '../core/protocol';
 import type { ScenarioRequest } from '../core/scenario/edit';
-import { VIEWER_REFUSAL, viewerAllows } from '../core/viewer';
+import { pastAllows, VIEWER_REFUSAL, viewerAllows } from '../core/viewer';
 import { type DesignerTransport, inVsCode, vscodeTransport } from './transport';
 
 export interface Ack {
@@ -58,6 +58,8 @@ function host(): DesignerTransport {
 }
 
 let viewer = false;
+let past = false;
+const allowed = (type: string) => (past ? pastAllows(type) : viewerAllows(type));
 
 /**
  * AFD-270: from now on only a viewer's messages leave the designer (core/viewer.ts). The screen
@@ -67,8 +69,14 @@ export function restrictToViewer(): void {
   viewer = true;
 }
 
+/** AFD-320: a past version of the flow (History) reads only: no edits and no runs leave it. */
+export function restrictToPast(): void {
+  viewer = true;
+  past = true;
+}
+
 export function send(message: WebviewMessage): void {
-  if (viewer && !viewerAllows(message.type)) return;
+  if (viewer && !allowed(message.type)) return;
   host().post(message);
 }
 
@@ -86,7 +94,7 @@ export const REQUEST_TIMEOUT_MS = 120_000;
 function request(make: (reqId: number) => WebviewMessage): Promise<Ack> {
   const reqId = nextReq++;
   // A viewer's request is answered here: the host never sees it.
-  if (viewer && !viewerAllows(make(reqId).type))
+  if (viewer && !allowed(make(reqId).type))
     return Promise.resolve({ ok: false, error: VIEWER_REFUSAL });
   return new Promise((resolve) => {
     const timer = setTimeout(() => {

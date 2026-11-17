@@ -145,6 +145,7 @@ export default defineConfig([
       'out/test/integration/catalog.test.js',
       'out/test/integration/drift.test.js',
       'out/test/integration/lens.test.js',
+      'out/test/integration/history.test.js',
       'out/test/integration/awxImport.test.js',
       'out/test/integration/playbookImport.test.js',
       'out/test/integration/extract.test.js',
@@ -181,6 +182,8 @@ export default defineConfig([
     files: ['out/test/integration/awx.test.js', 'out/test/integration/awxWorkflow.test.js'],
   },
   { ...common, label: 'm8', files: 'out/test/integration/lens.test.js' },
+  // AFD-320: History (a repository made by the test, in the temporary folder).
+  { ...common, label: 'history', files: 'out/test/integration/history.test.js' },
   // AFD-276: Run on Server against an Ansible Flow Server (skipped without AFD_RUNNER_*).
   { ...common, label: 'runner', files: 'out/test/integration/runner.test.js' },
   // M9: import from the export fixture; the skeleton run needs AFD_TEST_IMAGE, the API import the lab AWX.

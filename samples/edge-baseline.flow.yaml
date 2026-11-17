@@ -5,7 +5,7 @@ flow:
   key: edge-baseline
   name: Edge baseline
   version: 3
-  goal: All edge switches at a site get the NTP, AAA and syslog baseline, with a backup taken first and automatic
+  goal: All edge switches at a site get the NTP and AAA baseline, with a backup taken first and automatic
     rollback if validation fails.
   owner: netops
   runtime:
@@ -29,48 +29,54 @@ nodes:
   key: precheck
   type: task
   title: Pre-checks
-  status: specified
-  intent: Verify reachability and current OS version
+  status: implemented
+  intent: Make each switch's report folder (the sample's switches are simulated with files)
   inputs:
     devices:
       type: host_list
       from: flow.devices
-  outputs:
-    precheck_report:
-      type: dict
-  impl: null
+  impl:
+    kind: module
+    ref: ansible.builtin.file
+    params:
+      path: /tmp/edge-baseline/{{ inventory_hostname }}
+      state: directory
+      mode: '0755'
+    keywords:
+      check_mode: false
 - id: 01JBNPZX45HY43KWJRP1XPA7Z3
   key: backup-config
   type: task
   title: Backup config
-  status: specified
-  intent: Save running config to Git
+  status: implemented
+  intent: Save the running config (the sample's netops_backup role)
   inputs:
     devices:
       type: host_list
       from: flow.devices
-  outputs:
-    backup_ref:
-      type: string
-  impl: null
+  impl:
+    kind: role
+    ref: netops_backup
+    params:
+      out_dir: /tmp/edge-baseline
 - id: 01JBDJ8FSSZ5AWSH8VHTPRE95B
   key: push-baseline
-  type: subflow
+  type: task
   title: Push baseline
   status: implemented
-  intent: Apply NTP, AAA and syslog baseline
+  intent: Apply the NTP and AAA baseline (the sample's push_baseline role)
   inputs:
     devices:
       type: host_list
-    backup_ref:
-      type: string
-      from: backup-config.backup_ref
-  outputs:
-    change_report:
-      type: dict
+      from: flow.devices
   impl:
     kind: role
-    ref: netops.baseline.push_ntp_aaa
+    ref: push_baseline
+    params:
+      out_dir: /tmp/edge-baseline
+      ntp_servers:
+      - 192.0.2.10
+      - 192.0.2.11
 - id: 01JB9EE0ZBGJ09TQM83XSSSS6Y
   key: validate
   type: task
@@ -80,20 +86,14 @@ nodes:
   inputs:
     devices:
       type: host_list
-    change_report:
-      type: dict
-      from: push-baseline.change_report
+      from: flow.devices
   impl: null
 - id: 01JBS3C4DWA7N36096Q14DR9GP
   key: rollback
   type: task
   title: Rollback
-  status: specified
+  status: draft
   intent: Restore backup on failed hosts
-  inputs:
-    backup_ref:
-      type: string
-      from: backup-config.backup_ref
   impl: null
 - id: 01JBQY77ZXYYK596NGYA1DQ91K
   key: done

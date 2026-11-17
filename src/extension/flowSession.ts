@@ -47,6 +47,7 @@ import {
 } from '../core/view/outsideChanges';
 import type { ServerChange } from '../core/view/serverChange';
 import { undoSummary } from '../core/view/undoSummary';
+import { pastAllows, VIEWER_REFUSAL } from '../core/viewer';
 import { diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
@@ -64,6 +65,7 @@ import type { ProbeManager } from './env/environment';
 import { showEnvironmentError } from './env/setupEnvironment';
 import { choose, finish, mergeView, type WaitingMerge, waitingMerge } from './flowMerge';
 import { authorName } from './gitHead';
+import { pastOf } from './history/pastDocs';
 import { webviewHtml } from './html';
 import { logChannel } from './log';
 import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
@@ -705,6 +707,9 @@ export class FlowSession implements vscode.Disposable {
   }
 
   private async onMessage(panel: vscode.WebviewPanel, m: WebviewMessage): Promise<void> {
+    // AFD-320: a past version (History) reads only; the designer hides the rest, this refuses it.
+    const past = pastOf(this.document.uri);
+    if (past && !pastAllows(m.type)) throw new Error(VIEWER_REFUSAL);
     switch (m.type) {
       case 'ready':
         this.readyPanels.add(panel);
@@ -719,6 +724,18 @@ export class FlowSession implements vscode.Disposable {
           // AFD-276: Run on Server is offered once a server is set up.
           runner: runnerConfigured(this.document.uri),
           wireStyle: wireStyleOf(this.document.uri),
+          ...(past
+            ? {
+                viewer: true,
+                past: {
+                  hash: past.hash,
+                  author: past.author,
+                  date: past.date,
+                  subject: past.subject,
+                  path: past.path,
+                },
+              }
+            : {}),
         });
         this.post(panel, { type: 'firstFlow', ...firstFlowState() });
         this.post(panel, { type: 'snapshot', snapshot: await this.snapshot() });
@@ -749,6 +766,11 @@ export class FlowSession implements vscode.Disposable {
         if (this.lastScan) this.post(panel, { type: 'sync', state: 'done', scan: this.lastScan });
         if (Object.keys(this.lensFacts).length > 0)
           this.post(panel, { type: 'lensFacts', facts: this.lensFacts });
+        // AFD-320: a past version opens on what its commit changed.
+        if (past) {
+          this.post(panel, { type: 'setLens', lens: 'changes' });
+          await this.openLens('changes');
+        }
         break;
       case 'lens':
         await this.openLens(m.lens, m.refresh);
@@ -819,6 +841,9 @@ export class FlowSession implements vscode.Disposable {
       }
       case 'openText':
         await this.openText(m.path);
+        break;
+      case 'flowHistory':
+        await vscode.commands.executeCommand(CMD.flowHistory, this.document.uri);
         break;
       case 'showFlows':
         await vscode.commands.executeCommand('afd.flows.focus');
@@ -1239,6 +1264,8 @@ export class FlowSession implements vscode.Disposable {
     /** Adds file operations to the same WorkspaceEdit (M6 stubs): one undo step with the design. */
     extra?: (edit: vscode.WorkspaceEdit) => void,
   ): Promise<CommandOutcome> {
+    // AFD-320: a past version (History) is the file as a commit left it: nothing changes it.
+    if (pastOf(this.document.uri)) return Promise.resolve({ ok: false, error: VIEWER_REFUSAL });
     // AFD-316: a command that waits long says what it waited for, in the Ansible Flow log: the
     // canvas showed "Saving…" for minutes after a step dropped on a wire, and nothing told why.
     const asked = Date.now();

@@ -226,7 +226,9 @@ export class Host {
    * ripgrep in a file as its directory, and Node reported it as `spawn …rg.exe ENOENT`.
    */
   folderUri(arg?: vscode.Uri): vscode.Uri | undefined {
-    const scope = this.scopeUri(arg);
+    // AFD-319: a view's title button passes its own argument, not a URI; getWorkspaceFolder
+    // threw on it ("An unknown error occurred" from the server button).
+    const scope = this.scopeUri(arg instanceof vscode.Uri ? arg : undefined);
     if (!scope) return undefined;
     return (
       vscode.workspace.getWorkspaceFolder(scope)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri

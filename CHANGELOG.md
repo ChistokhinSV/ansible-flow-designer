@@ -4,6 +4,10 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- **History**: the folder's commits in the **Ansible Flows** sidebar (who, when, the message, the files), with a filter; **…** › **History…** lists the commits of one flow. A flow opens as a commit left it, read-only, with what that commit changed in the **Changes** lens.
+
 ### Changed
 
 - The README and the extension's description introduce [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), which runs the same flows for a team.
@@ -13,6 +17,8 @@ All notable changes to Ansible Flow Designer.
 ### Fixed
 
 - **Connect to Server** from an open flow no longer fails with `spawn …rg.exe ENOENT` when the folder's git remote is not yet a server project.
+- The **Edge baseline** sample runs: its steps use the roles the sample brings (Push baseline was an empty subflow bound to a role that did not exist). **Open Sample Flow…** now also copies the sample's roles, inventory and settings, never over files the folder already has.
+- The server button in the **Flows** pane opens its menu again instead of "An unknown error occurred".
 - In a folder that is the git copy of a server project, **Change Project** no longer leaves the Flows pane comparing with the other project and asking for a pull that changes nothing. The folder stays its project's; the project picked can be got into a new folder, opened in a new window.
 
 ## 1.0.0 — First stable release
