@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- **Read-only parameters:** where the Details cannot be changed (a run's view, a read-only flow), parameters that take inputs could still be typed into; they no longer take text.
+
 ## 0.97.2 — Full Docs on Galaxy
 
 ### Fixed

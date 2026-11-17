@@ -239,3 +239,41 @@ describe('ChipField: a field of a result (AFD-108)', () => {
     expect(onChange).toHaveBeenLastCalledWith('{{ read_version_result.stdout }}');
   });
 });
+
+describe('ChipField in a disabled fieldset (AFD-313)', () => {
+  it('takes no text: not editable, read-only, a paste changes nothing', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <fieldset disabled>
+        <ChipField
+          id="w"
+          label="workspace"
+          value="lab"
+          onChange={onChange}
+          choices={[]}
+          onAddInput={() => {}}
+        />
+      </fieldset>,
+    );
+    const el = screen.getByRole('textbox', { name: 'workspace' });
+    expect(el.getAttribute('contenteditable')).toBe('false');
+    expect(el.getAttribute('aria-readonly')).toBe('true');
+    paste(el, 'other');
+    expect(onChange).not.toHaveBeenCalled();
+    // The flow becomes editable (out of the run's view): the field takes text again.
+    rerender(
+      <fieldset>
+        <ChipField
+          id="w"
+          label="workspace"
+          value="lab"
+          onChange={onChange}
+          choices={[]}
+          onAddInput={() => {}}
+        />
+      </fieldset>,
+    );
+    expect(el.getAttribute('contenteditable')).toBe('true');
+    expect(el.hasAttribute('aria-readonly')).toBe(false);
+  });
+});
