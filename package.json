@@ -523,6 +523,24 @@
         "title": "Open Repositories as Workspace Folders…",
         "category": "Ansible Flow",
         "icon": "$(root-folder)"
+      },
+      {
+        "command": "afd.flows.newFlowHere",
+        "title": "New Flow Here…",
+        "category": "Ansible Flow",
+        "icon": "$(add)"
+      },
+      {
+        "command": "afd.flows.commitPushFolder",
+        "title": "Commit & Push This Folder…",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "afd.flows.pullFolder",
+        "title": "Pull",
+        "category": "Ansible Flow",
+        "icon": "$(cloud-download)"
       }
     ],
     "viewsContainers": {
@@ -745,6 +763,26 @@
           "command": "afd.flow.history",
           "when": "view == afd.flows && viewItem == flow",
           "group": "1_git@3"
+        },
+        {
+          "command": "afd.flows.newFlowHere",
+          "when": "view == afd.flows && (viewItem == afd-flow-folder || viewItem == afd-flow-root)",
+          "group": "inline@1"
+        },
+        {
+          "command": "afd.flows.newFlowHere",
+          "when": "view == afd.flows && (viewItem == afd-flow-folder || viewItem == afd-flow-root)",
+          "group": "0_new@1"
+        },
+        {
+          "command": "afd.flows.commitPushFolder",
+          "when": "view == afd.flows && (viewItem == afd-flow-folder || viewItem == afd-flow-root)",
+          "group": "1_git@1"
+        },
+        {
+          "command": "afd.flows.pullFolder",
+          "when": "view == afd.flows && (viewItem == afd-flow-folder || viewItem == afd-flow-root)",
+          "group": "1_git@2"
         }
       ],
       "editor/title": [
@@ -991,6 +1029,18 @@
         {
           "command": "afd.flows.openNested",
           "when": "afd.hasNested"
+        },
+        {
+          "command": "afd.flows.newFlowHere",
+          "when": "false"
+        },
+        {
+          "command": "afd.flows.commitPushFolder",
+          "when": "false"
+        },
+        {
+          "command": "afd.flows.pullFolder",
+          "when": "false"
         }
       ],
       "explorer/context": [

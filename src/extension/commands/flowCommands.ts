@@ -1,17 +1,20 @@
 // Commands on a flow (AFD-37): Generate Code, New Flow, Tidy Up, Complete IDs, Copy and Paste
 // Nodes, Open in Text Editor (Check Flow is with the run commands, AFD-41). Each works on the flow the user means (Host.resolveTargetFlow).
+import { readdirSync } from 'node:fs';
 import * as vscode from 'vscode';
 import { factSetter } from '../../core/flow/facts';
 import { slugify } from '../../core/flow/ids';
 import { CURRENT_FORMAT } from '../../core/flow/migrate';
 import { buildModel } from '../../core/flow/model';
 import { newFlowText } from '../../core/flow/template';
+import { nestedRepos } from '../../node/runner/nestedRepos';
 import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
 import { codegenNotice, writeCode } from '../documents';
 import { ExpandedRoleActions, expandRole } from '../expandRole';
 import { askForFolder } from '../help';
 import type { Host } from '../host';
+import { dirOf } from '../runner/flowsGit';
 import { insertShared, SharedSubflowActions, unlinkShared, updateShared } from '../sharedSubflows';
 import { UseFactActions } from '../useFactAction';
 import { CMD } from './ids';
@@ -27,7 +30,13 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
         return codegenNotice(await writeCode(doc, host.deps, true, opts?.quiet));
       },
     ),
-    vscode.commands.registerCommand(CMD.newFlow, () => newFlow(host)),
+    vscode.commands.registerCommand(CMD.newFlow, (at?: unknown) =>
+      newFlow(host, at instanceof vscode.Uri ? at : undefined),
+    ),
+    // AFD-326: New Flow Here on a folder of the Flows pane.
+    vscode.commands.registerCommand('afd.flows.newFlowHere', (item?: unknown) =>
+      newFlow(host, dirOf(item as Parameters<typeof dirOf>[0])),
+    ),
     // Upgrade Flow Format (AFD-49): the flow to the current format, as one undo step.
     vscode.commands.registerCommand(CMD.upgradeFormat, async (uri?: vscode.Uri) => {
       const doc = await host.resolveTargetFlow(uri);
@@ -171,14 +180,54 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
   ];
 }
 
-async function newFlow(host: Host): Promise<void> {
+/**
+ * AFD-326: where a new flow's folder goes: `at` itself when it is in a `flows` folder (the flow
+ * goes beside the others there), else `at/flows`. Without `at`: the workspace folders and, for one
+ * that is not a repository, the repositories of flows inside it; asked when there are several.
+ */
+export async function flowsDirFor(at?: vscode.Uri): Promise<vscode.Uri | undefined> {
+  const under = (dir: vscode.Uri): vscode.Uri => {
+    // A flow's own folder (flows/<key>/ with <key>.flow.yaml): the new one goes beside it.
+    const own = (() => {
+      try {
+        return readdirSync(dir.fsPath).some((n) => n.endsWith('.flow.yaml'));
+      } catch {
+        return false;
+      }
+    })();
+    if (own) return vscode.Uri.joinPath(dir, '..');
+    return /(^|\/)flows(\/|$)/.test(dir.path) ? dir : vscode.Uri.joinPath(dir, 'flows');
+  };
+  if (at) return under(at);
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const places: { label: string; description: string; uri: vscode.Uri }[] = [];
+  for (const f of folders) {
+    const nested = f.uri.scheme === 'file' ? nestedRepos(f.uri.fsPath) : [];
+    for (const n of nested)
+      places.push({
+        label: n.name,
+        description: n.project ?? n.path,
+        uri: vscode.Uri.file(n.path),
+      });
+    places.push({
+      label: f.name,
+      description: nested.length ? 'the folder itself (not a repository)' : f.uri.fsPath,
+      uri: f.uri,
+    });
+  }
+  if (places.length <= 1) return places[0] && under(places[0].uri);
+  const pick = await vscode.window.showQuickPick(places, {
+    title: 'New Flow: where?',
+    placeHolder: 'The repository the flow belongs to',
+  });
+  return pick && under(pick.uri);
+}
+
+async function newFlow(host: Host, at?: vscode.Uri): Promise<void> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) return askForFolder('A flow is a file in it.');
-  const folder =
-    folders.length > 1
-      ? await vscode.window.showWorkspaceFolderPick({ placeHolder: 'Repository for the new flow' })
-      : folders[0];
-  if (!folder) return;
+  const dir = await flowsDirFor(at);
+  if (!dir) return;
   const name = await vscode.window.showInputBox({
     title: 'New Flow',
     prompt: 'Name the flow after what it does',
@@ -187,7 +236,7 @@ async function newFlow(host: Host): Promise<void> {
   });
   if (!name) return;
   const key = slugify(name, 'flow');
-  const uri = vscode.Uri.joinPath(folder.uri, 'flows', key, `${key}.flow.yaml`);
+  const uri = vscode.Uri.joinPath(dir, key, `${key}.flow.yaml`);
   try {
     await vscode.workspace.fs.stat(uri);
     void vscode.window.showErrorMessage(`${vscode.workspace.asRelativePath(uri)} already exists.`);

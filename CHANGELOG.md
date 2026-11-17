@@ -6,6 +6,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Added
 
+- A folder in the **Flows** pane has **New Flow Here…** (also its **+** button), **Commit & Push This Folder…** and **Pull**, in the repository that holds it. **New Flow** asks where the flow goes when there are several places, such as repositories inside the open folder; before, it always used the open folder's `flows/`.
 - The sample projects name a launch configuration each (in `@ansible-flow/assets`), so a server project started from a sample runs at once.
 - A folder opened above its repositories (two clones in a downloads folder) is noticed: the **Flows** pane names the repositories of flows in it, and **Open Repositories as Workspace Folders…** opens them, each with its server, pull and push.
 - In a folder opened above its repositories, **Commit & Push**, **Pull** and **Set Up Git for the Server** work in the repository that holds the flow (from the pane's title they ask which), with that repository's own server; **History** lists each repository. Before, they said the folder is not a git repository.
