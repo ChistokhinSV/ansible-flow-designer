@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- **Full Docs** in a step's Binding opens in a new tab: on Ansible Flow Server's pages it opened inside the page and was blocked.
+
 ## 0.97.0 — Flow outputs
 
 ### Added
