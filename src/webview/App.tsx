@@ -90,6 +90,7 @@ function useHost() {
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.wireStyle) ui.setWireStyle(m.wireStyle);
         if (m.viewer) enterViewer();
+        ui.setEmbed(m.embed);
       } else if (m.type === 'wireStyle') {
         ui.setWireStyle(m.style);
       } else if (m.type === 'firstFlow') {

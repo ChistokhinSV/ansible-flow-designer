@@ -248,6 +248,15 @@ message, or in `mount(element, { transport, viewer: true })`. Once on, it stays 
 - **The host must refuse the rest as well**, with `viewerAllows(message.type)` from the same
   module: a page can be changed by whoever opens it.
 
+A page that holds the viewer says what it shows itself and what the person may do with `embed`
+(`ViewerEmbed`) in `config`; each part defaults to the canvas's own controls:
+
+- `runShown: true`: the page shows the run (its state, hosts, outputs, approvals, Stop and Run
+  again). The bar has no run status or run buttons, and the Run panel only points to the steps; a
+  step still shows what each host did there.
+- `mayRun: false`: no Run as Skeleton or Run for Real. `mayStop: false`: no Stop while a run goes.
+  The host still refuses what the person may not do; this only keeps the buttons away.
+
 A run's `approvals` (`RunApproval` per approval node) show on the canvas and in a step's Run tab;
 one with `mayDecide: true` gets Approve and Reject with a comment, which send `approve`. Set it
 only where the person looking may decide.
