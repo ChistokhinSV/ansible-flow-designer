@@ -207,7 +207,11 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
       // Change Project: the other one into <place>/<key>, set for the server; this folder stays.
       assert.equal(await t.runnerChangeProject(FLOW, { project: other, into: place }), undefined);
       const copy = join(place, otherKey);
-      assert.equal(readFileSync(join(copy, 'b.flow.yaml'), 'utf8'), 'schema_version: 2\n');
+      // git's core.autocrlf may check it out with CRLF.
+      assert.equal(
+        readFileSync(join(copy, 'b.flow.yaml'), 'utf8').replace(/\r\n/g, '\n'),
+        'schema_version: 2\n',
+      );
       assert.deepEqual(JSON.parse(readFileSync(join(copy, '.vscode', 'settings.json'), 'utf8')), {
         'afd.runner.url': url,
         'afd.runner.project': other,
