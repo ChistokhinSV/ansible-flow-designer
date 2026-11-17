@@ -60,6 +60,8 @@ host, and the simulation says at once where that host now ends.
 
 ## For a team: Ansible Flow Server
 
+<img src="https://raw.githubusercontent.com/ChistokhinSV/ansible-flow-server/main/media/icons/png/afs-icon-128.png" alt="" width="72" align="right" />
+
 When a flow should run for more people than you, there is
 [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server): a small self-hosted
 server (docker compose, or a Linux service) that runs the same flows, read and run by this
