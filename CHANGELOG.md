@@ -6,6 +6,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Added
 
+- The sample projects name a launch configuration each (in `@ansible-flow/assets`), so a server project started from a sample runs at once.
 - **History**: the folder's commits in the **Ansible Flows** sidebar (who, when, the message, the files), with a filter; **…** › **History…** lists the commits of one flow. A flow opens as a commit left it, read-only, with what that commit changed in the **Changes** lens.
 
 ### Changed

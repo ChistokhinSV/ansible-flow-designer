@@ -1,5 +1,5 @@
 {
-  "$comment": "Sample projects (AFD-290): what a new project gets when it starts from a sample, in a project's layout. `from` is a file or folder under samples/, `to` the path in the project (empty: the project's root). Ansible Flow Server reads this from @ansible-flow/assets.",
+  "$comment": "Sample projects (AFD-290): what a new project gets when it starts from a sample, in a project's layout. `from` is a file or folder under samples/, `to` the path in the project (empty: the project's root). `launchConfigs` (AFD-322): the launch configurations Ansible Flow Server makes with the project, so its flow runs at once (check mode unless `mode` says real; inputs are never secrets). Ansible Flow Server reads this from @ansible-flow/assets.",
   "projects": [
     {
       "key": "hello",
@@ -9,6 +9,15 @@
         { "from": "hello.flow.yaml", "to": "flows/hello/hello.flow.yaml" },
         { "from": "hello.scenarios.yaml", "to": "flows/hello/hello.scenarios.yaml" },
         { "from": "inventory.ini", "to": "inventory.ini" }
+      ],
+      "launchConfigs": [
+        {
+          "name": "Hello on localhost",
+          "description": "Says hello from the machine the run is on (the local connection).",
+          "flowFile": "flows/hello/hello.flow.yaml",
+          "inventory": "inventory.ini",
+          "inputs": { "devices": ["localhost"] }
+        }
       ]
     },
     {
@@ -19,6 +28,15 @@
         { "from": "edge-baseline.flow.yaml", "to": "flows/edge-baseline/edge-baseline.flow.yaml" },
         { "from": "edge-baseline.scenarios.yaml", "to": "flows/edge-baseline/edge-baseline.scenarios.yaml" },
         { "from": "playbooks/edge-baseline", "to": "" }
+      ],
+      "launchConfigs": [
+        {
+          "name": "Edge switches (simulated)",
+          "description": "The four fictional switches of inventory.ini; a run writes files under /tmp/edge-baseline instead of configuring devices.",
+          "flowFile": "flows/edge-baseline/edge-baseline.flow.yaml",
+          "inventory": "inventory.ini",
+          "inputs": { "devices": ["edge"], "site": "lab" }
+        }
       ]
     },
     {
@@ -28,6 +46,15 @@
       "files": [
         { "from": "firewall-upgrade.flow.yaml", "to": "flows/firewall-upgrade/firewall-upgrade.flow.yaml" },
         { "from": "inventory.ini", "to": "inventory.ini" }
+      ],
+      "launchConfigs": [
+        {
+          "name": "Skeleton on localhost",
+          "description": "The drafts as a skeleton on localhost: a check run passes the change approval by itself; a real run waits for a decision.",
+          "flowFile": "flows/firewall-upgrade/firewall-upgrade.flow.yaml",
+          "inventory": "inventory.ini",
+          "inputs": { "devices": ["localhost"], "target_version": "7.4.3" }
+        }
       ]
     }
   ]
