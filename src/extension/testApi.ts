@@ -34,6 +34,7 @@ import type { CodegenOutcome } from './codegen';
 import type { Feedback } from './feedback';
 import type { CommandOutcome, PerfEvent } from './flowSession';
 import { flowsServerState } from './flowsView';
+import { copySampleFiles } from './help';
 import { flowHistoryItems } from './history/historyView';
 import { type PastRef, pastUri } from './history/pastDocs';
 import type { Host } from './host';
@@ -152,6 +153,8 @@ export interface AfdTestApi {
   runnerChangeProject(uri: vscode.Uri, answers: ChangeProjectAnswers): Promise<string | undefined>;
   /** AFD-320: the read-only document of a file at a commit, and a flow's history (not picked). */
   pastUri(ref: PastRef): vscode.Uri;
+  /** AFD-321: what a sample brings besides its flow, into a folder (Open Sample Flow…). */
+  copySampleFiles(key: string, folder: vscode.Uri): Promise<{ copied: string[]; kept: string[] }>;
   flowHistory(uri: vscode.Uri): Promise<{ label: string; hash: string }[]>;
   /** AFD-303: the Flows pane's server state of the folder, read again first. */
   serverFlows(
@@ -347,6 +350,7 @@ export function createTestApi(
       return error;
     },
     pastUri: (ref) => pastUri(ref),
+    copySampleFiles: (key, folder) => copySampleFiles(context.extensionUri, key, folder),
     flowHistory: async (uri) => {
       const items = await flowHistoryItems(uri);
       return typeof items === 'string'

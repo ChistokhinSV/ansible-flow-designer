@@ -150,6 +150,61 @@ async function samples(root: vscode.Uri): Promise<Sample[]> {
   );
 }
 
+/**
+ * AFD-321: the files of a sample project besides its flow and scenarios (`samples/projects.json`,
+ * the list Ansible Flow Server makes sample projects from), into the folder. A file or folder the
+ * folder already has is kept and named in `kept`.
+ */
+export async function copySampleFiles(
+  root: vscode.Uri,
+  key: string,
+  folder: vscode.Uri,
+): Promise<{ copied: string[]; kept: string[] }> {
+  const out = { copied: [] as string[], kept: [] as string[] };
+  let files: { from: string; to: string }[] = [];
+  try {
+    const list = JSON.parse(
+      new TextDecoder().decode(
+        await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, 'samples', 'projects.json')),
+      ),
+    ) as { projects?: { key: string; files?: { from: string; to: string }[] }[] };
+    files = list.projects?.find((p) => p.key === key)?.files ?? [];
+  } catch {
+    return out;
+  }
+  // A folder the workspace has already is entered, so a repository with its own roles/ still gets
+  // the sample's roles; a file there already is never replaced.
+  const bring = async (src: vscode.Uri, to: string, dir: boolean): Promise<void> => {
+    const dst = vscode.Uri.joinPath(folder, to);
+    const there = await vscode.workspace.fs.stat(dst).then(
+      (s) => s,
+      () => undefined,
+    );
+    if (!there) {
+      await vscode.workspace.fs.copy(src, dst);
+      out.copied.push(to || '.');
+    } else if (dir && there.type === vscode.FileType.Directory) {
+      for (const [n, type] of await vscode.workspace.fs.readDirectory(src))
+        await bring(
+          vscode.Uri.joinPath(src, n),
+          to ? `${to}/${n}` : n,
+          type === vscode.FileType.Directory,
+        );
+    } else out.kept.push(to);
+  };
+  for (const f of files) {
+    if (f.from.endsWith('.flow.yaml') || f.from.endsWith('.scenarios.yaml')) continue;
+    const from = vscode.Uri.joinPath(root, 'samples', f.from);
+    const stat = await vscode.workspace.fs.stat(from).then(
+      (s) => s,
+      () => undefined,
+    );
+    if (!stat) continue;
+    await bring(from, f.to, stat.type === vscode.FileType.Directory);
+  }
+  return out;
+}
+
 /** No folder is open: say why one is needed and offer to open one (AFD-71). */
 export async function askForFolder(why: string): Promise<void> {
   const pick = await vscode.window.showInformationMessage(
@@ -228,6 +283,20 @@ async function openSample(
         vscode.Uri.joinPath(target, '..', scenariosFileName(name)),
       );
     } catch {}
+    // AFD-321: and what its steps run (roles, inventory, ansible.cfg), as a server project from
+    // the sample gets them (samples/projects.json).
+    const brought = await copySampleFiles(root, name, folder.uri);
+    if (brought.copied.length || brought.kept.length)
+      void vscode.window.showInformationMessage(
+        [
+          brought.copied.length ? `The sample also brought ${brought.copied.join(', ')}.` : '',
+          brought.kept.length
+            ? `Kept your ${brought.kept.join(', ')}: the sample's own were not copied over them.`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
   } else
     void vscode.window.showInformationMessage(
       `${vscode.workspace.asRelativePath(target)} is already in the workspace: opened it as it is.`,
