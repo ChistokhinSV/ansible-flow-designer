@@ -3,9 +3,12 @@
 // Delete of one flow. A remote that is the connected Ansible Flow Server's git address gets the
 // token and the certificate setting of the connection, for that git call only (a self-signed lab
 // server works as the designer's own requests do); any other remote uses git's own sign-in.
+import { basename, dirname, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import { createIdFactory, SLUG } from '../../core/flow/ids';
 import { copiedFlowText } from '../../core/flow/template';
+import { repositoryRoot } from '../../node/history/gitLog';
+import { nestedRepos } from '../../node/runner/nestedRepos';
 import { commitAndPush, pullBranch, upstreamOf } from '../../node/runner/projectGit';
 import { generatedDir } from '../codegen';
 import { isCancelled } from '../errors';
@@ -18,9 +21,9 @@ type FlowItem = { kind?: string; uri?: vscode.Uri } | vscode.Uri | undefined;
 const uriOf = (item: FlowItem): vscode.Uri | undefined =>
   item instanceof vscode.Uri ? item : item?.uri;
 
-/** A flow's own files: the flow, its generated playbook and its scenarios, relative to the folder. */
-async function flowFiles(folder: vscode.WorkspaceFolder, flow: vscode.Uri): Promise<string[]> {
-  const rel = (u: vscode.Uri) => vscode.workspace.asRelativePath(u, false).replaceAll('\\', '/');
+/** A flow's own files: the flow, its generated playbook and its scenarios, relative to `root`. */
+async function flowFiles(root: string, flow: vscode.Uri): Promise<string[]> {
+  const rel = (u: vscode.Uri) => relative(root, u.fsPath).split(sep).join('/');
   const key = flow.path
     .split('/')
     .pop()
@@ -30,8 +33,41 @@ async function flowFiles(folder: vscode.WorkspaceFolder, flow: vscode.Uri): Prom
     out.push(rel(vscode.Uri.joinPath(generatedDir(flow), `${key}.yml`)));
     out.push(rel(vscode.Uri.joinPath(flow, '..', `${key}.scenarios.yaml`)));
   }
-  void folder;
   return out;
+}
+
+/**
+ * AFD-324: the git repository a command works in: the flow's own (a repository inside the
+ * workspace folder too), else the workspace folder's; a folder that is not one but holds
+ * repositories of flows asks which. Undefined: none (said), or the question was dismissed.
+ */
+async function repositoryFor(
+  flow: vscode.Uri | undefined,
+  folder: vscode.WorkspaceFolder | undefined,
+): Promise<{ root: string; scope: vscode.Uri } | undefined> {
+  const of = (root: string) => ({ root, scope: vscode.Uri.file(root) });
+  const start = flow ? dirname(flow.fsPath) : folder?.uri.fsPath;
+  if (!start) return undefined;
+  const root = await repositoryRoot(start);
+  if (root) return of(root);
+  const nested = folder ? nestedRepos(folder.uri.fsPath) : [];
+  if (!nested.length) {
+    void vscode.window.showErrorMessage(
+      `${flow ? basename(flow.fsPath) : (folder?.name ?? 'This folder')} is not in a git repository`,
+    );
+    return undefined;
+  }
+  if (nested.length === 1) return of((nested[0] as { path: string }).path);
+  const pick = await vscode.window.showQuickPick(
+    nested.map((n) => ({
+      label: n.name,
+      description: n.project ?? n.server ?? '',
+      detail: n.path,
+      path: n.path,
+    })),
+    { title: 'Which repository?', placeHolder: `${folder?.name} holds several` },
+  );
+  return pick ? of(pick.path) : undefined;
 }
 
 export function flowsGitCommands(host: Host): vscode.Disposable[] {
@@ -40,22 +76,22 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     const scope = host.scopeUri(uri);
     return scope ? vscode.workspace.getWorkspaceFolder(scope) : undefined;
   };
-  const fail = (e: unknown) => {
+  const fail = (e: unknown, repo?: vscode.Uri) => {
     const message = (e as Error).message ?? String(e);
     // AFD-305: git that does not trust the server's certificate is offered the setup.
-    if (!isCancelled(message)) offerGitSetup(message);
+    if (!isCancelled(message)) offerGitSetup(message, repo);
   };
   const refresh = () => void vscode.commands.executeCommand('afd.flows.refresh');
 
   async function commitPush(item?: FlowItem) {
     const flow = uriOf(item);
-    const folder = folderOf(flow);
-    if (!folder) return;
+    const repo = await repositoryFor(flow, folderOf(flow));
+    if (!repo) return;
     try {
       // Unsaved flows are part of what is sent.
       await vscode.workspace.saveAll(false);
-      const up = await upstreamOf(folder.uri.fsPath);
-      const paths = flow ? await flowFiles(folder, flow) : undefined;
+      const up = await upstreamOf(repo.root);
+      const paths = flow ? await flowFiles(repo.root, flow) : undefined;
       const name = flow
         ? (flow.path
             .split('/')
@@ -63,21 +99,21 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
             ?.replace(/\.flow\.yaml$/, '') ?? 'the flow')
         : 'flows';
       const message = await vscode.window.showInputBox({
-        title: flow ? `Commit & Push ${name}` : 'Commit & Push the folder',
+        title: flow ? `Commit & Push ${name}` : `Commit & Push ${basename(repo.root)}`,
         prompt: `The commit's message; then it goes to ${up.remote}/${up.branch}`,
         value: flow ? `Change ${name}` : 'Change flows',
         ignoreFocusOut: true,
         validateInput: (v) => (v.trim() ? undefined : 'A message'),
       });
       if (!message) return;
-      const auth = await authFor(folder.uri, up.url, secrets);
+      const auth = await authFor(repo.scope, up.url, secrets);
       const done = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: `Committing and pushing to ${up.remote}/${up.branch}…`,
         },
         () =>
-          commitAndPush(folder.uri.fsPath, message.trim(), {
+          commitAndPush(repo.root, message.trim(), {
             ...(paths ? { paths } : {}),
             ...(auth ? { auth } : {}),
           }),
@@ -89,28 +125,29 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
       );
       refresh();
     } catch (e) {
-      fail(e);
+      fail(e, repo.scope);
     }
   }
 
   async function pull(item?: FlowItem) {
-    const folder = folderOf(uriOf(item));
-    if (!folder) return;
+    const flow = uriOf(item);
+    const repo = await repositoryFor(flow, folderOf(flow));
+    if (!repo) return;
     try {
       await vscode.workspace.saveAll(false);
-      const up = await upstreamOf(folder.uri.fsPath);
-      const auth = await authFor(folder.uri, up.url, secrets);
+      const up = await upstreamOf(repo.root);
+      const auth = await authFor(repo.scope, up.url, secrets);
       const from = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
           title: `Pulling ${up.remote}/${up.branch}…`,
         },
-        () => pullBranch(folder.uri.fsPath, auth),
+        () => pullBranch(repo.root, auth),
       );
       void vscode.window.showInformationMessage(`Up to date with ${from}.`);
       refresh();
     } catch (e) {
-      fail(e);
+      fail(e, repo.scope);
     }
   }
 
@@ -157,7 +194,7 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     if (!flow || !folder) return;
     try {
       const files: vscode.Uri[] = [];
-      for (const rel of await flowFiles(folder, flow)) {
+      for (const rel of await flowFiles(folder.uri.fsPath, flow)) {
         const uri = vscode.Uri.joinPath(folder.uri, rel);
         try {
           await vscode.workspace.fs.stat(uri);
@@ -190,7 +227,9 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand('afd.flows.duplicate', (item?: FlowItem) => duplicate(item)),
     vscode.commands.registerCommand('afd.flows.delete', (item?: FlowItem) => remove(item)),
     vscode.commands.registerCommand('afd.runner.setUpGit', async (uri?: vscode.Uri) => {
-      const scope = host.folderUri(uri);
+      // AFD-324: a repository inside the workspace folder is its own scope.
+      const given = uri instanceof vscode.Uri ? uri : undefined;
+      const scope = given ?? host.scopeUri() ?? host.folderUri();
       if (!scope) return;
       try {
         const error = await setUpGit(scope, secrets);

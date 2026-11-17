@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { RunnerClient, type RunnerProject } from '../../node/runner/client';
 import { untrustedCertificate } from '../../node/runner/gitTrust';
+import { nestedRepoOf, serverOf } from '../../node/runner/nestedRepos';
 import {
   folderIsEmpty,
   type GitAuth,
@@ -19,6 +20,7 @@ import {
 import { CMD } from '../commands/ids';
 import { CANCELLED, isCancelled } from '../errors';
 import type { Host } from '../host';
+import { offerGitTrust } from './gitSetup';
 import { remoteProject } from './runnerRun';
 
 export const tokenKey = (url: string) => `afd.runner.token:${url}`;
@@ -44,7 +46,7 @@ export async function gitAuthFor(
  * AFD-305: an error from git; one that does not trust the server's certificate comes with Set Up
  * Git for the Server.
  */
-export function offerGitSetup(message: string): void {
+export function offerGitSetup(message: string, repo?: vscode.Uri): void {
   if (!untrustedCertificate(message)) {
     void vscode.window.showErrorMessage(message);
     return;
@@ -56,7 +58,8 @@ export function offerGitSetup(message: string): void {
       setUp,
     )
     .then((pick) => {
-      if (pick === setUp) void vscode.commands.executeCommand(CMD.runnerSetUpGit);
+      // AFD-324: the repository the failure was in (one inside the workspace folder too).
+      if (pick === setUp) void vscode.commands.executeCommand(CMD.runnerSetUpGit, repo);
     });
 }
 const CONTEXT = 'afd.serverConnected';
@@ -71,10 +74,13 @@ export const flowsPaneDescription = (): string | undefined => pane?.description;
 
 export function config(scope: vscode.Uri) {
   const c = vscode.workspace.getConfiguration('afd', scope);
+  // AFD-324: a repository inside the workspace folder (not a workspace folder itself) keeps its
+  // server in its own .vscode/settings.json, which VS Code does not read: read here.
+  const nested = nestedServer(scope);
   return {
     c,
-    url: (c.get<string>('runner.url', '') ?? '').trim().replace(/\/+$/, ''),
-    project: (c.get<string>('runner.project', '') ?? '').trim(),
+    url: (nested?.server ?? c.get<string>('runner.url', '') ?? '').trim().replace(/\/+$/, ''),
+    project: (nested?.project ?? c.get<string>('runner.project', '') ?? '').trim(),
     // Like runnerRun's: a workspace cannot turn verification off, only the user.
     verifyTls: c.inspect<boolean>('runner.verifyTls')?.globalValue ?? true,
     allowHttp: c.inspect<boolean>('runner.allowHttp')?.globalValue ?? false,
@@ -89,6 +95,16 @@ export function config(scope: vscode.Uri) {
 export async function folderProject(scope: vscode.Uri): Promise<string> {
   const { url, project } = config(scope);
   return (url ? await remoteProject(url, scope).catch(() => undefined) : undefined) ?? project;
+}
+
+/** AFD-324: the server settings of the repository holding `scope`, when it is a nested one. */
+function nestedServer(scope: vscode.Uri): { server?: string; project?: string } | undefined {
+  if (scope.scheme !== 'file') return undefined;
+  const top = vscode.workspace.getWorkspaceFolder(scope)?.uri.fsPath;
+  if (!top) return undefined;
+  const repo = nestedRepoOf(scope.fsPath, top);
+  const found = repo ? serverOf(repo) : undefined;
+  return found?.server ? found : undefined;
 }
 
 /** Where the folder's settings are written: the folder itself in a multi-root workspace. */
@@ -306,6 +322,8 @@ export async function connectServer(
   void vscode.window.showInformationMessage(
     `Connected to ${url} as ${me.login}${project ? `, project ${project}` : ''}${got}.`,
   );
+  // AFD-323: git in the folder may still refuse the server's certificate (Source Control's push).
+  if (!given) await offerGitTrust(scope.fsPath, url, secrets);
   return undefined;
 }
 
@@ -476,7 +494,10 @@ export async function getProjectFlowsHere(
   if (!url || !token) return 'Connect to Ansible Flow Server first';
   if (!project) return "Pick the folder's project first: Change Server Project";
   const client = new RunnerClient(url, token, { verifyTls, allowHttp });
-  return getFlowsInto(scope, client, url, project, { token, verifyTls }, false);
+  const error = await getFlowsInto(scope, client, url, project, { token, verifyTls }, false);
+  // AFD-323: the new copy's git and the server's certificate.
+  if (!error) await offerGitTrust(scope.fsPath, url, secrets);
+  return error;
 }
 
 /** Forgets the folder's server: its token, address and project. */
@@ -571,7 +592,7 @@ export async function changeProject(
   const copyOf = await remoteProject(url, scope).catch(() => undefined);
   const set = async (value: string) => {
     if (copyOf && value !== copyOf)
-      return copyElsewhere(scope, client, url, copyOf, value, { token, verifyTls }, given);
+      return copyElsewhere(scope, client, url, copyOf, value, { token, verifyTls }, secrets, given);
     await c.update('runner.project', value, target());
     return undefined;
   };
@@ -608,6 +629,7 @@ async function copyElsewhere(
   copyOf: string,
   named: string,
   auth: GitAuth,
+  secrets: vscode.SecretStorage,
   given?: ChangeProjectAnswers,
 ): Promise<string | undefined> {
   const project = await projectNamed(client, named);
@@ -653,6 +675,8 @@ async function copyElsewhere(
     join(folder, '.vscode', 'settings.json'),
     `${JSON.stringify({ 'afd.runner.url': url, 'afd.runner.project': named }, null, 4)}\n`,
   );
+  // AFD-323: before its window opens, git there trusts the server as this folder's does.
+  if (!given) await offerGitTrust(folder, url, secrets);
   if (!given)
     void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folder), {
       forceNewWindow: true,

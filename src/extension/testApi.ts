@@ -53,12 +53,14 @@ import {
   type ChangeProjectAnswers,
   type ConnectAnswers,
   changeProject,
+  config,
   connectServer,
   disconnectServer,
   flowsPaneDescription,
   serverState,
   showServerState,
 } from './runner/connect';
+import { gitRefusesServer } from './runner/gitSetup';
 import { launchOnServer, setRunnerToken } from './runner/runnerRun';
 import { tourReached } from './tour';
 
@@ -153,6 +155,8 @@ export interface AfdTestApi {
   runnerChangeProject(uri: vscode.Uri, answers: ChangeProjectAnswers): Promise<string | undefined>;
   /** AFD-320: the read-only document of a file at a commit, and a flow's history (not picked). */
   pastUri(ref: PastRef): vscode.Uri;
+  /** AFD-323: whether git in the folder refuses the connected server's certificate. */
+  gitRefusesServer(uri: vscode.Uri): Promise<boolean | undefined>;
   /** AFD-321: what a sample brings besides its flow, into a folder (Open Sample Flow…). */
   copySampleFiles(key: string, folder: vscode.Uri): Promise<{ copied: string[]; kept: string[] }>;
   flowHistory(uri: vscode.Uri): Promise<{ label: string; hash: string }[]>;
@@ -350,6 +354,11 @@ export function createTestApi(
       return error;
     },
     pastUri: (ref) => pastUri(ref),
+    gitRefusesServer: async (uri) => {
+      const folder = host.folderUri(uri) as vscode.Uri;
+      const { url } = config(folder);
+      return url ? gitRefusesServer(folder.fsPath, url, host.context.secrets) : undefined;
+    },
     copySampleFiles: (key, folder) => copySampleFiles(context.extensionUri, key, folder),
     flowHistory: async (uri) => {
       const items = await flowHistoryItems(uri);

@@ -7,6 +7,9 @@ All notable changes to Ansible Flow Designer.
 ### Added
 
 - The sample projects name a launch configuration each (in `@ansible-flow/assets`), so a server project started from a sample runs at once.
+- A folder opened above its repositories (two clones in a downloads folder) is noticed: the **Flows** pane names the repositories of flows in it, and **Open Repositories as Workspace Folders…** opens them, each with its server, pull and push.
+- In a folder opened above its repositories, **Commit & Push**, **Pull** and **Set Up Git for the Server** work in the repository that holds the flow (from the pane's title they ask which), with that repository's own server; **History** lists each repository. Before, they said the folder is not a git repository.
+- After **Connect**, **Get the Project's Flows** and the new folder of **Change Project**, git is checked against the server's certificate; when it refuses it, **Set Up Git for the Server** is offered at once, so Source Control can push too.
 - **History**: the folder's commits in the **Ansible Flows** sidebar (who, when, the message, the files), with a filter; **…** › **History…** lists the commits of one flow. A flow opens as a commit left it, read-only, with what that commit changed in the **Changes** lens.
 
 ### Changed
