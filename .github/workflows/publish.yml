@@ -21,6 +21,10 @@
 # and no OIDC token, so an install script of a dependency can publish nothing. "publish" gets the
 # token and the secrets, installs with --ignore-scripts and publishes the VSIX that "build" made.
 # "npm" installs nothing: it publishes the tarballs that "build" made.
+#
+# A release candidate (v1.1.0-rc.1, RELEASING.md): the npm packages go to the `next` dist-tag
+# (`latest` stays), the VSIX only to a GitHub pre-release (not the Marketplace or Open VSX), its
+# notes the CHANGELOG's Unreleased section.
 name: Publish
 
 on:
@@ -45,6 +49,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,6 +71,8 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in *-*) PRE=true ;; *) PRE=false ;; esac
+          echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
 
       # The same gates as CI (ci.yml): nothing is published that does not pass them.
       - name: Check and test
@@ -131,11 +138,12 @@ jobs:
           path: out
 
       - name: Visual Studio Marketplace
+        if: needs.build.outputs.prerelease != 'true'
         run: npx --no-install vsce publish --oidc --packagePath "$VSIX" --skip-duplicate
 
       # Switching to Open VSX Trusted Publishing: remove the secret and this step's token condition.
       - name: Open VSX
-        if: env.HAS_OVSX == 'true'
+        if: env.HAS_OVSX == 'true' && needs.build.outputs.prerelease != 'true'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx --yes ovsx@1.3.0 publish --packagePath "$VSIX" --skip-duplicate
@@ -145,12 +153,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          awk -v v="$VERSION" '/^## /{if(f)exit; if($2==v)f=1; next} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          PRE=()
+          if [ "${{ needs.build.outputs.prerelease }}" = true ]; then
+            PRE=(--prerelease)
+            awk '/^## /{if(f)exit; if($2=="Unreleased")f=1; next} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          else
+            awk -v v="$VERSION" '/^## /{if(f)exit; if($2==v)f=1; next} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          fi
           # An existing release keeps its VSIX: a rebuild differs in bytes (zip timestamps), and
           # a release's notes may quote the attached file's SHA-256.
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" "$VSIX" --target "$GITHUB_SHA" \
-              --title "Ansible Flow Designer $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+              --title "Ansible Flow Designer $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${PRE[@]}"
           elif gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qxF "${VSIX##*/}"; then
             echo "::notice::Release $TAG already has ${VSIX##*/}; left as is"
           else
@@ -193,5 +207,9 @@ jobs:
               echo "::notice::$spec is already on npm; left as is"
               continue
             fi
-            npm publish "out/npm/$tarball" --access public </dev/null
+            # A release candidate goes to `next`: `npm install` keeps getting the release.
+            case "${spec##*@}" in
+              *-*) npm publish "out/npm/$tarball" --access public --tag next </dev/null ;;
+              *) npm publish "out/npm/$tarball" --access public </dev/null ;;
+            esac
           done < out/npm/order.txt
