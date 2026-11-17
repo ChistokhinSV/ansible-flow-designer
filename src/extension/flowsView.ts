@@ -18,6 +18,7 @@ import { generatedDir } from './codegen';
 import type { Host } from './host';
 import { VIEW_TYPE } from './host';
 import { attachFlowsPane } from './runner/connect';
+import { nestedNote, registerNestedFolders } from './runner/nestedFolders';
 import { ServerFlowsState } from './runner/serverFlows';
 
 type Item =
@@ -169,12 +170,27 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
   // AFD-301: the pane says which Ansible Flow Server the folder is connected to.
   attachFlowsPane(view as vscode.TreeView<unknown>);
   current = server;
-  // AFD-303: what the server has that this folder does not, above the flows.
-  server.onDidChange(() => {
+  // AFD-303: what the server has that this folder does not, above the flows. AFD-323: and
+  // repositories of flows inside a folder that is not one.
+  let nested: string | undefined;
+  const render = () => {
     const behind = (vscode.workspace.workspaceFolders ?? []).some((f) => server.folder(f)?.behind);
-    view.message = behind
-      ? 'The server has newer commits of this project: pull to get them.'
-      : undefined;
+    view.message =
+      [
+        behind ? 'The server has newer commits of this project: pull to get them.' : '',
+        nested ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined;
+  };
+  const readNested = () => {
+    nested = nestedNote();
+    void vscode.commands.executeCommand('setContext', 'afd.hasNested', !!nested);
+    render();
+  };
+  readNested();
+  server.onDidChange(() => {
+    render();
     changed.fire();
   });
   const reread = () => server.soon();
@@ -183,6 +199,7 @@ export function registerFlowsView(host: Host): vscode.Disposable[] {
     changed,
     view,
     server,
+    ...registerNestedFolders(host.context, readNested),
     host.index.onDidChange(reread),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('afd.runner')) reread();

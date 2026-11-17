@@ -517,6 +517,12 @@
         "command": "afd.history.copyHash",
         "title": "Copy Commit Hash",
         "category": "Ansible Flow History"
+      },
+      {
+        "command": "afd.flows.openNested",
+        "title": "Open Repositories as Workspace Folders…",
+        "category": "Ansible Flow",
+        "icon": "$(root-folder)"
       }
     ],
     "viewsContainers": {
@@ -637,6 +643,11 @@
           "command": "afd.history.refresh",
           "when": "view == afd.history",
           "group": "navigation@3"
+        },
+        {
+          "command": "afd.flows.openNested",
+          "when": "view == afd.flows && afd.hasNested",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
@@ -976,6 +987,10 @@
         {
           "command": "afd.flow.history",
           "when": "workbenchState != empty"
+        },
+        {
+          "command": "afd.flows.openNested",
+          "when": "afd.hasNested"
         }
       ],
       "explorer/context": [

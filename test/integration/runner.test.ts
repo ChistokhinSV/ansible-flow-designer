@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { RunView } from '../../src/core/protocol';
+import { gitOrigin, serverCertificate, trustForGit } from '../../src/node/runner/gitTrust';
 import {
   commitAndPush,
   folderIsEmpty,
@@ -171,6 +172,29 @@ describe('AFD-276: Run on Server (Ansible Flow Server)', function () {
     } finally {
       writeFileSync(path, before);
       rmSync(mine, { force: true });
+    }
+  });
+
+  it("AFD-323: git that refuses the server's certificate is found; trusted, it reaches the server", async function () {
+    // A lab server's self-signed certificate is what git refuses; a public one it trusts.
+    if (!lab) this.skip();
+    const t = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath as string;
+    // The suite's GIT_SSL_NO_VERIFY does not count: the check asks git with its own settings.
+    assert.equal(await t.gitRefusesServer(FLOW), true);
+    const cert = await serverCertificate(url as string);
+    const file = await trustForGit(root, url as string, cert.pem);
+    try {
+      assert.equal(await t.gitRefusesServer(FLOW), false);
+    } finally {
+      const at = `http.${gitOrigin(url as string)}`;
+      for (const key of ['sslCAInfo', 'sslBackend'])
+        try {
+          execFileSync('git', ['config', '--local', '--unset', `${at}.${key}`], { cwd: root });
+        } catch {
+          // Not set on this platform.
+        }
+      rmSync(file, { force: true });
     }
   });
 

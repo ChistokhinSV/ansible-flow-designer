@@ -19,6 +19,7 @@ import {
 import { CMD } from '../commands/ids';
 import { CANCELLED, isCancelled } from '../errors';
 import type { Host } from '../host';
+import { offerGitTrust } from './gitSetup';
 import { remoteProject } from './runnerRun';
 
 export const tokenKey = (url: string) => `afd.runner.token:${url}`;
@@ -306,6 +307,8 @@ export async function connectServer(
   void vscode.window.showInformationMessage(
     `Connected to ${url} as ${me.login}${project ? `, project ${project}` : ''}${got}.`,
   );
+  // AFD-323: git in the folder may still refuse the server's certificate (Source Control's push).
+  if (!given) await offerGitTrust(scope.fsPath, url, secrets);
   return undefined;
 }
 
@@ -476,7 +479,10 @@ export async function getProjectFlowsHere(
   if (!url || !token) return 'Connect to Ansible Flow Server first';
   if (!project) return "Pick the folder's project first: Change Server Project";
   const client = new RunnerClient(url, token, { verifyTls, allowHttp });
-  return getFlowsInto(scope, client, url, project, { token, verifyTls }, false);
+  const error = await getFlowsInto(scope, client, url, project, { token, verifyTls }, false);
+  // AFD-323: the new copy's git and the server's certificate.
+  if (!error) await offerGitTrust(scope.fsPath, url, secrets);
+  return error;
 }
 
 /** Forgets the folder's server: its token, address and project. */
@@ -571,7 +577,7 @@ export async function changeProject(
   const copyOf = await remoteProject(url, scope).catch(() => undefined);
   const set = async (value: string) => {
     if (copyOf && value !== copyOf)
-      return copyElsewhere(scope, client, url, copyOf, value, { token, verifyTls }, given);
+      return copyElsewhere(scope, client, url, copyOf, value, { token, verifyTls }, secrets, given);
     await c.update('runner.project', value, target());
     return undefined;
   };
@@ -608,6 +614,7 @@ async function copyElsewhere(
   copyOf: string,
   named: string,
   auth: GitAuth,
+  secrets: vscode.SecretStorage,
   given?: ChangeProjectAnswers,
 ): Promise<string | undefined> {
   const project = await projectNamed(client, named);
@@ -653,6 +660,8 @@ async function copyElsewhere(
     join(folder, '.vscode', 'settings.json'),
     `${JSON.stringify({ 'afd.runner.url': url, 'afd.runner.project': named }, null, 4)}\n`,
   );
+  // AFD-323: before its window opens, git there trusts the server as this folder's does.
+  if (!given) await offerGitTrust(folder, url, secrets);
   if (!given)
     void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folder), {
       forceNewWindow: true,

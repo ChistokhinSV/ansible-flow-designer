@@ -35,6 +35,8 @@ export function git(
     env.GIT_CONFIG_KEY_0 = 'http.extraHeader';
     env.GIT_CONFIG_VALUE_0 = `Authorization: Bearer ${auth.token}`;
     if (!auth.verifyTls) env.GIT_SSL_NO_VERIFY = '1';
+    // AFD-323: a check asks git with its own settings, whatever the environment says.
+    else delete env.GIT_SSL_NO_VERIFY;
   }
   return new Promise((done, fail) => {
     execFile(

@@ -76,6 +76,20 @@ button on such an error) fixes that for the folder's repository:
 
 When the server gets a new certificate, run it again.
 
+You are asked this yourself when it matters: after **Connect**, after **Get the Project's Flows**,
+and for the new folder of **Change Project**, the designer checks whether git in the repository
+trusts the server; if it refuses the certificate, the same question comes at once.
+
+### A folder that holds several projects
+
+The server, **Pull**, **Commit & Push** and git's trust work per workspace folder, and a folder's
+server settings are in its own `.vscode/settings.json`. A folder opened above its repositories (two
+clones in one downloads folder) is not a repository itself, so none of that works there. The
+**Flows** pane says which repositories of flows it holds, and **Open Repositories as Workspace
+Folders…** (the folder button on the pane, or the Command Palette) puts them in the workspace in its
+place: each then has its server, pull and push, as in any multi-root workspace. VS Code makes an
+untitled workspace of them; **File › Save Workspace As…** keeps it.
+
 Once connected, the pane names the server and the project, and its title has a server button with
 **Open in Browser**, **Change Project**, **Set Up Git for the Server…**, **Connect to a Different
 Server** and **Disconnect**
