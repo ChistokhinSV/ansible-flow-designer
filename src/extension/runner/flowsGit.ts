@@ -190,7 +190,7 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand('afd.flows.duplicate', (item?: FlowItem) => duplicate(item)),
     vscode.commands.registerCommand('afd.flows.delete', (item?: FlowItem) => remove(item)),
     vscode.commands.registerCommand('afd.runner.setUpGit', async (uri?: vscode.Uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       if (!scope) return;
       try {
         const error = await setUpGit(scope, secrets);

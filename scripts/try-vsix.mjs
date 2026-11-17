@@ -2,7 +2,7 @@
 // test (RELEASING.md, docs/testing/release-test-plan.md):
 //
 //   node scripts/try-vsix.mjs 1.0.1-rc.2   the candidate's VSIX from its GitHub pre-release
-//   node scripts/try-vsix.mjs local        a VSIX built from this checkout (just package)
+//   node scripts/try-vsix.mjs [local]      a VSIX built from this checkout (just package); the default
 //   node scripts/try-vsix.mjs out/x.vsix   a VSIX file
 //   node scripts/try-vsix.mjs release      back to the released version (Marketplace / Open VSX)
 //
@@ -42,9 +42,8 @@ function fail(message) {
 const args = process.argv.slice(2);
 const at = args.indexOf('--editors');
 const only = at >= 0 ? args.splice(at, 2)[1]?.split(',') : undefined;
-const what = args[0];
-if (!what)
-  fail('say what to install: a candidate version (1.0.1-rc.2), local, a .vsix file, or release');
+// Without an argument: a build of this checkout, the common case while fixing something.
+const what = args[0] ?? 'local';
 
 function run(cli, argv, env) {
   const merged = { ...process.env };

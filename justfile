@@ -191,10 +191,11 @@ package:
     npx --no-install vsce package --no-dependencies --no-rewrite-relative-links --readme-path out/vsix/README.md --out out/
 
 # Put a build to test into VS Code and Antigravity IDE in place of the installed one (RELEASING.md):
-# a candidate's version (1.0.1-rc.2, from its GitHub pre-release), `local` (built from here), a
-# .vsix file, or `release` (back to the Marketplace / Open VSX version). `--editors code` for one.
-try what *args:
-    node --no-deprecation scripts/try-vsix.mjs {{ what }} {{ args }}
+# nothing or `local` (built from this checkout), a candidate's version (1.0.1-rc.2, from its GitHub
+# pre-release), a .vsix file, or `release` (back to the Marketplace / Open VSX version).
+# `--editors code` for one.
+try *args:
+    node --no-deprecation scripts/try-vsix.mjs {{ args }}
 
 # Remove build outputs
 [windows]

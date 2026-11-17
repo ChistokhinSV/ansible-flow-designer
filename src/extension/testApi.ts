@@ -332,13 +332,13 @@ export function createTestApi(
       return error;
     },
     runnerConnect: async (uri, answers) => {
-      const scope = host.scopeUri(uri) as vscode.Uri;
+      const scope = host.folderUri(uri) as vscode.Uri;
       const error = await connectServer(scope, host.context.secrets, answers);
       await showServerState(scope, host.context.secrets);
       return error;
     },
     runnerDisconnect: async (uri) => {
-      const scope = host.scopeUri(uri) as vscode.Uri;
+      const scope = host.folderUri(uri) as vscode.Uri;
       const error = await disconnectServer(scope, host.context.secrets, true);
       await showServerState(scope, host.context.secrets);
       return error;
@@ -359,7 +359,7 @@ export function createTestApi(
         : undefined;
     },
     serverState: async (uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       await showServerState(scope, host.context.secrets);
       const pane = flowsPaneDescription();
       return { ...(await serverState(scope, host.context.secrets)), ...(pane ? { pane } : {}) };

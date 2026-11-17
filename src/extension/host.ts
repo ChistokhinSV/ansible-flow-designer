@@ -220,6 +220,19 @@ export class Host {
     return this.targetUri(arg) ?? vscode.workspace.workspaceFolders?.[0]?.uri;
   }
 
+  /**
+   * AFD-317: the workspace folder of `scopeUri` (the folder a server is set for). Work in that
+   * folder (git, a file search) needs the folder: with the flow file's own URI a search spawned
+   * ripgrep in a file as its directory, and Node reported it as `spawn …rg.exe ENOENT`.
+   */
+  folderUri(arg?: vscode.Uri): vscode.Uri | undefined {
+    const scope = this.scopeUri(arg);
+    if (!scope) return undefined;
+    return (
+      vscode.workspace.getWorkspaceFolder(scope)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri
+    );
+  }
+
   openDesigner(uri: vscode.Uri): Thenable<unknown> {
     return vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { preview: false });
   }

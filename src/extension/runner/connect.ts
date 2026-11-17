@@ -565,7 +565,7 @@ export async function changeProject(
 /** The commands, and the pane's title kept in step with the settings and the kept tokens. */
 export function serverCommands(host: Host): vscode.Disposable[] {
   const secrets = host.context.secrets;
-  const show = () => void showServerState(host.scopeUri(), secrets);
+  const show = () => void showServerState(host.folderUri(), secrets);
   const done = (error: string | undefined) => {
     if (error && !isCancelled(error)) void vscode.window.showErrorMessage(error);
     // Open designers follow the server now (AFD-284), and the pane says which one.
@@ -577,7 +577,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
   const scoped =
     (act: (scope: vscode.Uri, s: vscode.SecretStorage) => Promise<string | undefined>) =>
     async (uri?: vscode.Uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       if (!scope) {
         void vscode.window.showInformationMessage(
           'Open a folder first: the server is set for a folder of flows.',
@@ -594,7 +594,7 @@ export function serverCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand(CMD.runnerChangeProject, scoped(changeProject)),
     vscode.commands.registerCommand(CMD.runnerGetFlows, scoped(getProjectFlowsHere)),
     vscode.commands.registerCommand(CMD.runnerServer, async (uri?: vscode.Uri) => {
-      const scope = host.scopeUri(uri);
+      const scope = host.folderUri(uri);
       if (!scope) return;
       const picked = await serverMenu(scope, secrets);
       if (picked === 'connect') done(await connectServer(scope, secrets));
