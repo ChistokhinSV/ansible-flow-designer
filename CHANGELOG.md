@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Changed
+
+- The README and the extension's description introduce [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), which runs the same flows for a team.
+
 ## 1.0.0 — First stable release
 
 The designer's first stable version, released with Ansible Flow Server 1.0: flows written by 1.x open and run in any 1.x designer and server.

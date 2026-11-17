@@ -1,13 +1,13 @@
 {
   "name": "ansible-flow-designer",
   "displayName": "Ansible Flow Designer",
-  "description": "Design Ansible automation as a diagram: draw the steps, handle every failure, and get the playbook generated, run locally or in AWX.",
+  "description": "Design Ansible automation as a diagram: draw the steps, handle every failure, and get the playbook generated, run locally, in AWX or on Ansible Flow Server for your team.",
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#14B8A6",
     "theme": "dark"
   },
-  "version": "1.0.0",
+  "version": "1.0.1-rc.1",
   "publisher": "chistokhinsv",
   "license": "MIT",
   "repository": {
@@ -54,7 +54,9 @@
     "automation",
     "flow",
     "designer",
-    "awx"
+    "awx",
+    "playbook",
+    "ansible-flow-server"
   ],
   "extensionKind": [
     "workspace"

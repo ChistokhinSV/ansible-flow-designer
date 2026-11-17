@@ -58,6 +58,21 @@ host, and the simulation says at once where that host now ends.
 | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | ![Binding with the catalog](docs/guide/images/properties-binding-light.png) | ![Drift between flow and code](docs/guide/images/implementation-light.png) |
 
+## For a team: Ansible Flow Server
+
+When a flow should run for more people than you, there is
+[Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server): a small self-hosted
+server (docker compose, or a Linux service) that runs the same flows, read and run by this
+extension's own code. It adds shared projects from git, who may run, change or approve what,
+approval steps that wait for a person, schedules, execution environments, notifications, an audit
+log, a REST API and an MCP endpoint. Its pages show each run on the same canvas, and from VS Code
+**Run on Server** launches a flow there and follows it here.
+
+It is free and MIT licensed, like the extension; you can try it in a few minutes with its
+[quick start](https://github.com/ChistokhinSV/ansible-flow-server#quick-start).
+
+![A run on Ansible Flow Server waiting for an approval, on the flow's canvas](https://raw.githubusercontent.com/ChistokhinSV/ansible-flow-server/main/docs/guide/images/run-waiting.png)
+
 ## Get started
 
 1. Install the extension. Designing needs nothing else; runs need ansible-core 2.19 or later in
