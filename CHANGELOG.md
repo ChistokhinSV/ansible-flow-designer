@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- **Full Docs** of a module outside ansible.builtin opens its page on Ansible Galaxy, which every published collection has; docs.ansible.com has only the collections of the Ansible package and showed "not found" for the others.
+
 ## 0.97.1 — Full Docs in a new tab
 
 ### Fixed

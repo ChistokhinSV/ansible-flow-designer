@@ -4,7 +4,9 @@
 // Module (Find again, open by itself while another one is being chosen or the bound one is a
 // problem) and About (its docs). Everything here edits the draft, which Details saves as one
 // command a moment after the last change (AFD-299).
+
 import { type ReactNode, useEffect, useId, useState } from 'react';
+import { moduleDocsUrl } from '../../core/catalog/docsLink';
 import {
   type BindingDraft,
   type BindKind,
@@ -390,12 +392,6 @@ function CatalogError({ message }: { message: string }) {
 
 const PARAMS_SHOWN = 6;
 
-function docsUrl(fqcn: string): string | undefined {
-  const [ns, coll, name] = fqcn.split('.');
-  if (!ns || !coll || !name) return undefined;
-  return `https://docs.ansible.com/ansible/latest/collections/${ns}/${coll}/${name}_module.html`;
-}
-
 function ModuleDoc({
   draft,
   setDraft,
@@ -426,7 +422,7 @@ function ModuleDoc({
     ...formFields(doc.options, draft.params).shown.map((f) => f.name),
     ...extra,
   ]);
-  const url = docsUrl(doc.fqcn);
+  const url = moduleDocsUrl(doc.fqcn);
   const outputs = stagedNode(node, draft).outputs ?? {};
   const toggleReturn = (name: string, type: ContractField['type']) => {
     const from = `impl.register.${name}`;
