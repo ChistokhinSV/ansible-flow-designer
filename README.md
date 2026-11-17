@@ -1,9 +1,9 @@
-<p align="center"><img src="media/icon.png" width="96" alt="Ansible Flow Designer icon"></p>
+# Ansible Flow Designer
 
-<h1 align="center">Ansible Flow Designer</h1>
+<img src="media/icon.png" alt="" width="96" align="right" />
 
-<p align="center">Design Ansible automation as a diagram in VS Code. Draw the steps and decide what
-happens when each one fails; the extension writes the playbook and runs it.</p>
+Design Ansible automation as a diagram in VS Code. Draw the steps and decide what happens when each
+one fails; the extension writes the playbook and runs it.
 
 ![A step inserted from a port, a rollback for its failure in one click, the play it makes, and a skeleton run that shows where each host went](media/readme/hero.gif)
 
