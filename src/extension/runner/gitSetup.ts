@@ -12,6 +12,7 @@ import {
   trustForGit,
   untrustedCertificate,
 } from '../../node/runner/gitTrust';
+import { nestedRepoOf } from '../../node/runner/nestedRepos';
 import { repositoryOf, upstreamOf } from '../../node/runner/projectGit';
 import { CANCELLED, isCancelled } from '../errors';
 import { config, tokenKey } from './connect';
@@ -23,8 +24,10 @@ export async function setUpGit(
   const { url } = config(scope);
   if (!url) return 'Connect to Ansible Flow Server first';
   if (new URL(url).protocol !== 'https:') return `${url} is not https: git needs no certificate`;
-  const folder = vscode.workspace.getWorkspaceFolder(scope)?.uri.fsPath;
-  if (!folder) return 'Open the folder of flows first';
+  const top = vscode.workspace.getWorkspaceFolder(scope)?.uri.fsPath;
+  if (!top) return 'Open the folder of flows first';
+  // AFD-324: a repository inside the workspace folder is set up, not the folder above it.
+  const folder = (scope.scheme === 'file' && nestedRepoOf(scope.fsPath, top)) || top;
   if ((await repositoryOf(folder)) === 'none')
     return 'This folder is not a git repository: get the flows from the server first';
   return setUpGitIn(folder, url, secrets);

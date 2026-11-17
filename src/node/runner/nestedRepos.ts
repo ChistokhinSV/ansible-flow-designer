@@ -2,7 +2,7 @@
 // projects, such as a downloads folder holding two clones). The designer's server, pull, push and
 // git trust work per workspace folder, so such repositories are offered as workspace folders.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 export interface NestedRepo {
   path: string;
@@ -16,7 +16,7 @@ export interface NestedRepo {
 const SKIP = new Set(['node_modules', '.git', '.venv', 'venv', '__pycache__', 'generated', 'out']);
 
 /** The repository's server settings, from its own .vscode/settings.json (JSON with comments). */
-function serverOf(dir: string): { server?: string; project?: string } {
+export function serverOf(dir: string): { server?: string; project?: string } {
   try {
     const text = readFileSync(join(dir, '.vscode', 'settings.json'), 'utf8')
       .replace(/^\s*\/\/.*$/gm, '')
@@ -29,6 +29,23 @@ function serverOf(dir: string): { server?: string; project?: string } {
   } catch {
     return {};
   }
+}
+
+/**
+ * AFD-324: the repository holding `path` (a file or folder) below `top` (the workspace folder,
+ * whose own settings VS Code reads), or undefined when `path` is in `top`'s repository or none.
+ */
+export function nestedRepoOf(path: string, top: string): string | undefined {
+  const norm = (p: string) => resolve(p).toLowerCase();
+  const stop = norm(top);
+  let dir = statSync(path, { throwIfNoEntry: false })?.isDirectory() ? path : dirname(path);
+  while (norm(dir).startsWith(stop) && norm(dir) !== stop) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return undefined;
 }
 
 /** True when the folder has a flow file within two levels (flows/<key>/<key>.flow.yaml). */

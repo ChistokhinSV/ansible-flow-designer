@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { nestedRepos } from '../../../src/node/runner/nestedRepos';
+import { nestedRepoOf, nestedRepos } from '../../../src/node/runner/nestedRepos';
 
 describe('nestedRepos', () => {
   let root = '';
@@ -36,6 +36,14 @@ describe('nestedRepos', () => {
       ['afdtest', undefined, undefined],
       ['test-sample', 'https://flows.example.net:9443', 'network/edge'],
     ]);
+  });
+
+  it("AFD-324: a file's repository below the workspace folder, not the folder's own", () => {
+    expect(nestedRepoOf(at('afdtest/flows/fw/fw.flow.yaml'), root)).toBe(at('afdtest'));
+    expect(nestedRepoOf(at('newfolder/test-sample'), root)).toBe(at('newfolder/test-sample'));
+    expect(nestedRepoOf(at('loose.flow.yaml'), root)).toBeUndefined();
+    // Inside a repository that is the workspace folder: that one is VS Code's to read.
+    expect(nestedRepoOf(at('afdtest/flows/fw/fw.flow.yaml'), at('afdtest'))).toBeUndefined();
   });
 
   it('answers nothing for a repository, and stops at the depth', () => {

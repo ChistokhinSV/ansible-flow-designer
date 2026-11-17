@@ -12,6 +12,7 @@ import {
   readLog,
   repositoryRoot,
 } from '../../node/history/gitLog';
+import { nestedRepos } from '../../node/runner/nestedRepos';
 import { CMD } from '../commands/ids';
 import { onHeadMoved } from '../gitHead';
 import type { Host } from '../host';
@@ -22,11 +23,26 @@ const PAGE = 100;
 const FILTER_SCAN = 2000;
 
 type Item =
-  | { kind: 'folder'; folder: vscode.WorkspaceFolder }
+  | { kind: 'folder'; folder: Place }
   | { kind: 'commit'; root: string; commit: Commit }
   | { kind: 'file'; root: string; commit: Commit; file: ChangedFile }
-  | { kind: 'more'; folder: vscode.WorkspaceFolder }
+  | { kind: 'more'; folder: Place }
   | { kind: 'note'; text: string };
+
+/**
+ * A folder whose history is shown: a workspace folder, or (AFD-324) a repository inside one that is
+ * not a repository itself.
+ */
+interface Place {
+  path: string;
+  name: string;
+  nested?: boolean;
+}
+
+const placeOf = (folder: vscode.WorkspaceFolder): Place => ({
+  path: folder.uri.fsPath,
+  name: folder.name,
+});
 
 interface FolderLog {
   root?: string;
@@ -105,8 +121,8 @@ export class HistoryView implements vscode.TreeDataProvider<Item> {
   }
 
   /** The next page of the folder's commits. */
-  async more(folder: vscode.WorkspaceFolder): Promise<void> {
-    const log = this.logs.get(folder.uri.toString());
+  async more(folder: Place): Promise<void> {
+    const log = this.logs.get(folder.path);
     if (!log?.root) return;
     const next = await readLog(log.root, { skip: log.commits.length, max: PAGE });
     log.commits.push(...next);
@@ -115,11 +131,11 @@ export class HistoryView implements vscode.TreeDataProvider<Item> {
   }
 
   /** The folder's commits as shown: a page, or the matches of the filter. */
-  async logOf(folder: vscode.WorkspaceFolder): Promise<FolderLog> {
-    const key = folder.uri.toString();
+  async logOf(folder: Place): Promise<FolderLog> {
+    const key = folder.path;
     const kept = this.logs.get(key);
     if (kept) return kept;
-    const root = await repositoryRoot(folder.uri.fsPath);
+    const root = await repositoryRoot(folder.path);
     let log: FolderLog;
     if (!root) log = { commits: [], more: false };
     else
@@ -141,8 +157,8 @@ export class HistoryView implements vscode.TreeDataProvider<Item> {
   async getChildren(item?: Item): Promise<Item[]> {
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!item) {
-      if (folders.length === 1 && folders[0]) return this.folderChildren(folders[0]);
-      return folders.map((folder) => ({ kind: 'folder', folder }));
+      if (folders.length === 1 && folders[0]) return this.folderChildren(placeOf(folders[0]));
+      return folders.map((folder) => ({ kind: 'folder', folder: placeOf(folder) }));
     }
     if (item.kind === 'folder') return this.folderChildren(item.folder);
     if (item.kind === 'commit')
@@ -155,10 +171,19 @@ export class HistoryView implements vscode.TreeDataProvider<Item> {
     return [];
   }
 
-  private async folderChildren(folder: vscode.WorkspaceFolder): Promise<Item[]> {
+  private async folderChildren(folder: Place): Promise<Item[]> {
     const log = await this.logOf(folder);
     if (log.error) return [{ kind: 'note', text: `git: ${log.error}` }];
-    if (!log.root) return [{ kind: 'note', text: 'This folder is not a git repository' }];
+    if (!log.root) {
+      // AFD-324: a folder above its repositories shows each of them, with its own history.
+      const nested = folder.nested ? [] : nestedRepos(folder.path);
+      if (nested.length)
+        return nested.map((n) => ({
+          kind: 'folder',
+          folder: { path: n.path, name: n.name, nested: true },
+        }));
+      return [{ kind: 'note', text: 'This folder is not a git repository' }];
+    }
     if (!log.commits.length)
       return [
         {
@@ -175,8 +200,14 @@ export class HistoryView implements vscode.TreeDataProvider<Item> {
   getTreeItem(item: Item): vscode.TreeItem {
     switch (item.kind) {
       case 'folder': {
-        const t = new vscode.TreeItem(item.folder.name, vscode.TreeItemCollapsibleState.Expanded);
-        t.iconPath = new vscode.ThemeIcon('root-folder');
+        const t = new vscode.TreeItem(
+          item.folder.name,
+          item.folder.nested
+            ? vscode.TreeItemCollapsibleState.Collapsed
+            : vscode.TreeItemCollapsibleState.Expanded,
+        );
+        t.iconPath = new vscode.ThemeIcon(item.folder.nested ? 'repo' : 'root-folder');
+        if (item.folder.nested) t.description = item.folder.path;
         return t;
       }
       case 'note': {
@@ -322,9 +353,7 @@ export function registerHistoryView(host: Host): vscode.Disposable[] {
       if (text !== undefined) provider.setFilter(text);
     }),
     vscode.commands.registerCommand(CMD.historyClearFilter, () => provider.setFilter('')),
-    vscode.commands.registerCommand(CMD.historyMore, (folder: vscode.WorkspaceFolder) =>
-      provider.more(folder),
-    ),
+    vscode.commands.registerCommand(CMD.historyMore, (folder: Place) => provider.more(folder)),
     vscode.commands.registerCommand(CMD.historyOpenFile, (item?: Item) =>
       item?.kind === 'file' ? openCommitFile(item.root, item.commit, item.file) : undefined,
     ),

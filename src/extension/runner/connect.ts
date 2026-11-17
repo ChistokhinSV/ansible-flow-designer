@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { RunnerClient, type RunnerProject } from '../../node/runner/client';
 import { untrustedCertificate } from '../../node/runner/gitTrust';
+import { nestedRepoOf, serverOf } from '../../node/runner/nestedRepos';
 import {
   folderIsEmpty,
   type GitAuth,
@@ -45,7 +46,7 @@ export async function gitAuthFor(
  * AFD-305: an error from git; one that does not trust the server's certificate comes with Set Up
  * Git for the Server.
  */
-export function offerGitSetup(message: string): void {
+export function offerGitSetup(message: string, repo?: vscode.Uri): void {
   if (!untrustedCertificate(message)) {
     void vscode.window.showErrorMessage(message);
     return;
@@ -57,7 +58,8 @@ export function offerGitSetup(message: string): void {
       setUp,
     )
     .then((pick) => {
-      if (pick === setUp) void vscode.commands.executeCommand(CMD.runnerSetUpGit);
+      // AFD-324: the repository the failure was in (one inside the workspace folder too).
+      if (pick === setUp) void vscode.commands.executeCommand(CMD.runnerSetUpGit, repo);
     });
 }
 const CONTEXT = 'afd.serverConnected';
@@ -72,10 +74,13 @@ export const flowsPaneDescription = (): string | undefined => pane?.description;
 
 export function config(scope: vscode.Uri) {
   const c = vscode.workspace.getConfiguration('afd', scope);
+  // AFD-324: a repository inside the workspace folder (not a workspace folder itself) keeps its
+  // server in its own .vscode/settings.json, which VS Code does not read: read here.
+  const nested = nestedServer(scope);
   return {
     c,
-    url: (c.get<string>('runner.url', '') ?? '').trim().replace(/\/+$/, ''),
-    project: (c.get<string>('runner.project', '') ?? '').trim(),
+    url: (nested?.server ?? c.get<string>('runner.url', '') ?? '').trim().replace(/\/+$/, ''),
+    project: (nested?.project ?? c.get<string>('runner.project', '') ?? '').trim(),
     // Like runnerRun's: a workspace cannot turn verification off, only the user.
     verifyTls: c.inspect<boolean>('runner.verifyTls')?.globalValue ?? true,
     allowHttp: c.inspect<boolean>('runner.allowHttp')?.globalValue ?? false,
@@ -90,6 +95,16 @@ export function config(scope: vscode.Uri) {
 export async function folderProject(scope: vscode.Uri): Promise<string> {
   const { url, project } = config(scope);
   return (url ? await remoteProject(url, scope).catch(() => undefined) : undefined) ?? project;
+}
+
+/** AFD-324: the server settings of the repository holding `scope`, when it is a nested one. */
+function nestedServer(scope: vscode.Uri): { server?: string; project?: string } | undefined {
+  if (scope.scheme !== 'file') return undefined;
+  const top = vscode.workspace.getWorkspaceFolder(scope)?.uri.fsPath;
+  if (!top) return undefined;
+  const repo = nestedRepoOf(scope.fsPath, top);
+  const found = repo ? serverOf(repo) : undefined;
+  return found?.server ? found : undefined;
 }
 
 /** Where the folder's settings are written: the folder itself in a multi-root workspace. */
