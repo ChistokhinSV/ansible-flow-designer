@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.97.2 — Full Docs on Galaxy
 
 ### Fixed
 
