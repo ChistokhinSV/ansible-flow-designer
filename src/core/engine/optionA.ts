@@ -17,6 +17,7 @@ import {
   registerName,
 } from '../flow/dataNames';
 import { portAccepted } from '../flow/decisions';
+import { flowOutputExpr } from '../flow/flowOutputs';
 import { privilegeOf } from '../flow/inherit';
 import { conditionExpr } from '../flow/jinja';
 import { localFileOf } from '../flow/localFiles';
@@ -1295,8 +1296,47 @@ class Generator {
 
   // ---- outcome and files -------------------------------------------------------------------------
 
+  /**
+   * AFD-309: the flow's outputs, per host, as set_stats data the run records (afd_outputs). It
+   * runs before the outcome play fails hosts, on every host the run targeted that is still there;
+   * a host without a value gives none.
+   */
+  private outputsPlay(): string[] {
+    const outputs = Object.entries(this.doc.flow.outputs ?? {})
+      .map(([name, field]) => [name, flowOutputExpr(this.model, field?.from)] as const)
+      .filter((o): o is readonly [string, string] => !!o[1]);
+    const start = this.startPattern();
+    if (outputs.length === 0 || !start) return [];
+    // One expression: Ansible templates values, not keys, so the host's name is a key inside it.
+    const values = `dict(${JSON.stringify(outputs.map(([n]) => n))} | zip([${outputs
+      .map(([, expr]) => `(${expr}) | default(none)`)
+      .join(', ')}])) | dict2items | rejectattr('value', 'none') | items2dict`;
+    const value = `{{ { inventory_hostname: (${values}) } }}`;
+    const play: OutMap = {
+      name: `[${this.doc.flow.key}] Outputs`,
+      hosts: start,
+      gather_facts: false,
+      tags: flow([`flow_${this.doc.flow.id}`]),
+      tasks: [
+        {
+          name: "record the flow's outputs of each host",
+          'ansible.builtin.set_stats': {
+            data: { afd_outputs: value },
+            per_host: false,
+            aggregate: true,
+          },
+        },
+      ],
+    };
+    return [
+      "# The flow's outputs: what the run gives back, per host (AFD-309).",
+      ...writeBlock([play], 0),
+    ];
+  }
+
   private outcomePlay(): string[] | undefined {
-    if (this.outcome.length === 0) return undefined;
+    const outputs = this.outputsPlay();
+    if (this.outcome.length === 0) return outputs.length ? outputs : undefined;
     const entries = [...this.outcome].sort((a, b) => a.order - b.order);
     const groups = [...new Set(entries.flatMap((e) => e.groups))];
     const play: OutMap = {
@@ -1313,6 +1353,7 @@ class Generator {
       })),
     };
     return [
+      ...outputs,
       '# Hosts left on open ports or failed end nodes fail here, after every branch ran (ADR-0009).',
       ...writeBlock([play], 0),
     ];

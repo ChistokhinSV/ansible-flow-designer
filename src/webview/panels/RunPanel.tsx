@@ -418,6 +418,7 @@ export function RunPanel() {
           ) : null}
         </section>
       ) : null}
+      {s?.outputs || s?.outputsTooLarge ? <RunOutputs summary={s} /> : null}
       <Proposal run={run} />
     </div>
   );
@@ -768,5 +769,37 @@ function HostOutputRow({ node, host }: { node: Ulid; host: string }) {
         )}
       </td>
     </tr>
+  );
+}
+
+/** AFD-309: what the run gave back (the flow's outputs), per host. */
+function RunOutputs({ summary }: { summary: NonNullable<RunView['summary']> }) {
+  const hosts = Object.entries(summary.outputs ?? {});
+  const text = (v: unknown) => {
+    const t = typeof v === 'string' ? v : JSON.stringify(v);
+    return t.length > 120 ? `${t.slice(0, 120)}…` : t;
+  };
+  return (
+    <section className="afd-section" data-run-outputs={hosts.length}>
+      <h3>Outputs</h3>
+      {summary.outputsTooLarge ? (
+        <p className="muted">The outputs were too large to keep.</p>
+      ) : hosts.length === 0 ? (
+        <p className="muted">No host gave a value.</p>
+      ) : (
+        <ul className="afd-run-hosts">
+          {hosts.map(([host, values]) => (
+            <li key={host}>
+              <span className="mono">{host}</span>
+              {Object.entries(values).map(([name, value]) => (
+                <div key={name} className="muted">
+                  <span className="mono">{name}</span> = <span className="mono">{text(value)}</span>
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

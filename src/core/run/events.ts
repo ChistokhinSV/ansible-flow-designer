@@ -29,7 +29,14 @@ export interface RunSummary {
   problems?: Record<Ulid, Record<string, RunProblem>>;
   /** A partial summary (AFD-81): the node whose play is running. */
   running?: Ulid;
+  /** AFD-309: the flow's outputs, per host, as the run ended (hosts without values left out). */
+  outputs?: Record<string, Record<string, unknown>>;
+  /** AFD-309: the outputs were larger than a run keeps (OUTPUTS_MAX), and are left out. */
+  outputsTooLarge?: boolean;
 }
+
+/** AFD-309: how large the flow's outputs of one run may be, as JSON. */
+export const OUTPUTS_MAX = 256 * 1024;
 
 export interface RunProblem {
   task: string;
@@ -50,6 +57,8 @@ interface Event {
   ignored?: boolean;
   hosts?: Record<string, unknown>;
   ts?: number;
+  /** set_stats data (per_host: false) of the run, on the stats event. */
+  custom?: { afd_outputs?: unknown };
 }
 
 /** Summarizes a whole events.jsonl (a finished run). */
@@ -89,6 +98,8 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
   const problems: Record<Ulid, Record<string, RunProblem>> = {};
   let playNode: string | null = null;
   let finished = false;
+  let outputs: RunSummary['outputs'];
+  let outputsTooLarge = false;
   const clock = (ts: number | undefined) => {
     if (!playNode || typeof ts !== 'number') return;
     const t = timings[playNode];
@@ -116,7 +127,16 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     } catch {
       return;
     }
-    if (e.event === 'stats') finished = true;
+    if (e.event === 'stats') {
+      finished = true;
+      // AFD-309: the flow's outputs (set_stats afd_outputs); a segment that carries hosts has none.
+      const recorded = e.custom?.afd_outputs;
+      if (recorded && typeof recorded === 'object') {
+        const text = JSON.stringify(recorded);
+        if (text.length > OUTPUTS_MAX) outputsTooLarge = true;
+        else outputs = JSON.parse(text) as RunSummary['outputs'];
+      }
+    }
     if (e.event === 'play') {
       settle();
       playNode = e.node ?? null;
@@ -178,6 +198,8 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
         Object.entries(problems).map(([k, byHost]) => [k, { ...byHost }]),
       ),
       ...(partial && playNode && !finished && !outcomePlay ? { running: playNode } : {}),
+      ...(outputs ? { outputs } : {}),
+      ...(outputsTooLarge ? { outputsTooLarge: true } : {}),
     };
   };
   return { push, summary };

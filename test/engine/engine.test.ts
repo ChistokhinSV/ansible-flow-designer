@@ -426,6 +426,38 @@ const SCENARIOS: Scenario[] = [
     ),
   },
   {
+    // AFD-309: the flow's outputs, per host, in the run's stats (set_stats afd_outputs).
+    name: 'flow outputs: each host gives the values the run records',
+    flow: DATA,
+    transform: (text) =>
+      text.replace(
+        '    greeting:\n      type: string\n      required: true\nnodes:',
+        '    greeting:\n      type: string\n      required: true\n  outputs:\n    line:\n      type: string\n      from: produce.line\n    marker:\n      type: string\n      from: stub.marker\n    missing:\n      type: string\n      from: produce.line.nothing_here\nnodes:',
+      ),
+    root: '../../content',
+    vars: { devices: ['h01', 'h02'], greeting: 'hello' },
+    rc: 0,
+    expect: Object.fromEntries(
+      ['h01', 'h02'].map((h) => [
+        h,
+        { ports: ['produce.ok_hosts', 'stub.ok_hosts', 'report.ok_hosts', 'consume.ok_hosts'] },
+      ]),
+    ),
+    also: (run) => {
+      const stats = run.events.find((e) => e.event === 'stats') as
+        | { custom?: { afd_outputs?: Record<string, Record<string, unknown>> } }
+        | undefined;
+      const outputs = stats?.custom?.afd_outputs ?? {};
+      expect(Object.keys(outputs).sort()).toEqual(['h01', 'h02']);
+      for (const h of ['h01', 'h02']) {
+        expect(String(outputs[h]?.line)).toContain('hello');
+        expect(outputs[h]).toHaveProperty('marker');
+        // A value the host does not have is left out, not given as null.
+        expect(outputs[h]).not.toHaveProperty('missing');
+      }
+    },
+  },
+  {
     name: 'extracted with lifted outputs: the data still reaches its readers',
     flow: DATA,
     transform: extracted(['produce', 'stub'], 'Make data'),

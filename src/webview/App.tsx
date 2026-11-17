@@ -372,10 +372,12 @@ export function App() {
   const scenariosTab = useUi((s) => s.scenariosOpen && s.scenariosTab);
   // AFD-87: the lens tab keeps its place while a step's Details are checked (round 1: W14).
   const right = useRef<HTMLElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new selection is what moves it.
   useLayoutEffect(() => {
-    // The step's Details start at their top.
+    // The step's Details start at their top, for each step selected (AFD-310: another step's
+    // shorter Details were left scrolled past their end, the panel looking empty).
     if (right.current) right.current.scrollTop = lensTab ? useUi.getState().lensScroll : 0;
-  }, [lensTab]);
+  }, [lensTab, selected, wire]);
   const expanded = useUi((s) => s.expanded);
   const panelCollapsed = useUi((s) => s.panelCollapsed);
   const paletteCollapsed = useUi((s) => s.paletteCollapsed);

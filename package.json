@@ -2571,14 +2571,14 @@
                   },
                   {
                     "type": "object",
-                    "description": "Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: \"flow\"). from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.",
+                    "description": "Add, change, rename or remove (field: null) one input or output of a node, or of the flow (node: \"flow\"): the flow's outputs are what a run gives back to whoever launched it, per host, from: a top-level step's output (<step>.<output>), not one taken before an approval. from: may name a step inside another subflow (precheck/normalize-facts.fos_version): each subflow on the way gets an output that lifts it, and the field reads precheck.fos_version.",
                     "properties": {
                       "op": {
                         "const": "set_io"
                       },
                       "node": {
                         "type": "string",
-                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). \"flow\" for the flow inputs."
+                        "description": "A node by key (check-ntp), or subflow/step for a step inside a subflow (fix-ntp/push-config). \"flow\" for the flow inputs and outputs."
                       },
                       "side": {
                         "enum": [

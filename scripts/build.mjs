@@ -30,8 +30,9 @@ const MCP_BUDGET = 1216 * 1024;
 // AFD-276 (Run on Server) left 0.7 KB of it: the product owner raised it to 1,120 KB. AFD-287
 // (set_fact facts as data) crossed it at 1,121 KB: the product owner raised it to 1,184 KB, room for
 // AFD-284 and AFD-285 (the server's change notice and live sessions in VS Code). CI checks the
-// budgets on every push since (AFD-288).
-const EXTENSION_BUDGET = 1184 * 1024;
+// budgets on every push since (AFD-288). AFD-309 (flow outputs) crossed it at 1,188 KB: the product
+// owner raised it to 1,248 KB.
+const EXTENSION_BUDGET = 1248 * 1024;
 const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */

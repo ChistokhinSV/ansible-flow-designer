@@ -70,6 +70,14 @@ export function FlowDescription() {
           contract={flow.inputs}
           hint="What a run asks for. Click one to change it."
         />
+        <ContractEditor
+          title="Run outputs"
+          target="flow"
+          side="outputs"
+          contract={flow.outputs}
+          withFrom
+          hint="What a run gives back to whoever launched it (Ansible Flow Server, another flow): a step's output, per host."
+        />
         <Fold
           id="flow-details"
           open={!SLUG.test(flow.key ?? '')}

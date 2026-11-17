@@ -11,7 +11,7 @@ A flow is one YAML file named `<key>.flow.yaml`. The top level has one start nod
 ### Top level
 
 - `schema_version` (1 | 2, required): Format version of this file: 2 for new flows; a 1 stays readable, and Upgrade Flow Format (or the upgrade_format op) moves it to 2 in one undo step.
-- `flow` (object, required): The flow itself: identity, version, goal and the inputs a run asks for.
+- `flow` (object, required): The flow itself: identity, version, goal, the inputs a run asks for and the outputs it gives back.
 - `nodes` (list of node, required): Nodes of the top level, in any order. Subflow nodes hold their own inner level under subflow.
 - `edges` (list of edge, required): Wires of the top level: an output port of one node to an input port of another node on the same level. One wire per output port.
 - `annotations` (list of annotation): Format 2: Notes, Sections and Text on the top level. They explain the flow and never run: editing them changes no version.
@@ -20,7 +20,7 @@ A flow is one YAML file named `<key>.flow.yaml`. The top level has one start nod
 
 ### flow
 
-The flow itself: identity, version, goal and the inputs a run asks for.
+The flow itself: identity, version, goal, the inputs a run asks for and the outputs it gives back.
 
 - `id` (ulid): Fixed ID of the flow (ULID). Leave it out when writing by hand: Complete IDs adds it. Never change it.
 - `key` (slug, required): Short name of the flow: lowercase letters, digits and dashes. Names the generated playbook.
@@ -32,6 +32,7 @@ The flow itself: identity, version, goal and the inputs a run asks for.
 - `imported_from` (object): Where an imported flow came from, for reference only: a one-time copy
 - `maintenance_window` (string): Longest time the flow may take, e.g. 4h or 2h30m (Timing lens)
 - `inputs` (contract): Inputs a run asks for. A host_list input with targets: true seeds the hosts entering the start node.
+- `outputs` (contract): What a run gives back to whoever launched it (Ansible Flow Server, a calling flow): name -> a top-level step's output, from: <step_key>.<output>[.path]. Each host that has the value at the end of the run gives it; values from before an approval are not carried past it.
 - `external_vars` (map of string): Variables the flow reads that something outside it sets at run time (AWX or Kestra extra vars, inventory variables, the vars a caller passes): name -> where it comes from. Steps may read them without an input; they are not run inputs and get no survey question.
 
 ### Node (nodes[], subflow.nodes[])
