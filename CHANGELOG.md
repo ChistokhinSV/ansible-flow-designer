@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 0.98.0 — The designer in a page
 
 ### Added
 
