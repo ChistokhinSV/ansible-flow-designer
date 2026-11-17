@@ -198,8 +198,11 @@ describe('walkthroughs', () => {
     expect(readme).toContain(
       '(https://github.com/ChistokhinSV/ansible-flow-designer/blob/main/docs/guide/tutorials/01-first-flow.md)',
     );
-    // Every image it names is in the repository, so the page shows it once main is pushed.
-    for (const t of targets.filter((x) => x.startsWith('https://raw.githubusercontent.com/')))
+    // Every image it names from this repository is in it, so the page shows it once main is
+    // pushed (the server's screenshot is the server repository's).
+    for (const t of targets.filter((x) =>
+      x.startsWith('https://raw.githubusercontent.com/ChistokhinSV/ansible-flow-designer/'),
+    ))
       expect(
         existsSync(
           join(ROOT, t.replace(/^https:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/main\//, '')),
