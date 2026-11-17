@@ -16,10 +16,30 @@ import type { Host } from '../host';
 import { gitAuthFor as authFor, offerGitSetup } from './connect';
 import { setUpGit } from './gitSetup';
 
-/** The flows pane's flow item (flowsView's `{ kind: 'flow', uri }`). */
-type FlowItem = { kind?: string; uri?: vscode.Uri } | vscode.Uri | undefined;
+/**
+ * The flows pane's item: a flow (`{ kind: 'flow', uri }`), or (AFD-326) a folder of flows
+ * (`{ kind: 'folder', folder: {path}, base }`) or a workspace folder's root (`{ kind: 'root' }`).
+ */
+type FlowItem =
+  | {
+      kind?: string;
+      uri?: vscode.Uri;
+      folder?: { path?: string; uri?: vscode.Uri };
+      base?: vscode.Uri;
+    }
+  | vscode.Uri
+  | undefined;
 const uriOf = (item: FlowItem): vscode.Uri | undefined =>
-  item instanceof vscode.Uri ? item : item?.uri;
+  item instanceof vscode.Uri ? item : item?.kind === 'flow' ? item.uri : undefined;
+
+/** AFD-326: the folder of a folder item (or a workspace folder's root item). */
+export const dirOf = (item: FlowItem): vscode.Uri | undefined => {
+  if (!item || item instanceof vscode.Uri) return undefined;
+  if (item.kind === 'root') return item.folder?.uri;
+  if (item.kind === 'folder' && item.base)
+    return item.folder?.path ? vscode.Uri.joinPath(item.base, item.folder.path) : item.base;
+  return undefined;
+};
 
 /** A flow's own files: the flow, its generated playbook and its scenarios, relative to `root`. */
 async function flowFiles(root: string, flow: vscode.Uri): Promise<string[]> {
@@ -44,9 +64,10 @@ async function flowFiles(root: string, flow: vscode.Uri): Promise<string[]> {
 async function repositoryFor(
   flow: vscode.Uri | undefined,
   folder: vscode.WorkspaceFolder | undefined,
+  dir?: vscode.Uri,
 ): Promise<{ root: string; scope: vscode.Uri } | undefined> {
   const of = (root: string) => ({ root, scope: vscode.Uri.file(root) });
-  const start = flow ? dirname(flow.fsPath) : folder?.uri.fsPath;
+  const start = dir ? dir.fsPath : flow ? dirname(flow.fsPath) : folder?.uri.fsPath;
   if (!start) return undefined;
   const root = await repositoryRoot(start);
   if (root) return of(root);
@@ -85,21 +106,26 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
 
   async function commitPush(item?: FlowItem) {
     const flow = uriOf(item);
-    const repo = await repositoryFor(flow, folderOf(flow));
+    const dir = dirOf(item);
+    const repo = await repositoryFor(flow, folderOf(flow ?? dir), dir);
     if (!repo) return;
     try {
       // Unsaved flows are part of what is sent.
       await vscode.workspace.saveAll(false);
       const up = await upstreamOf(repo.root);
-      const paths = flow ? await flowFiles(repo.root, flow) : undefined;
+      // AFD-326: a folder sends what changed in it; the repository's top sends everything.
+      const inside = dir ? relative(repo.root, dir.fsPath).split(sep).join('/') : '';
+      const paths = flow ? await flowFiles(repo.root, flow) : inside ? [inside] : undefined;
       const name = flow
         ? (flow.path
             .split('/')
             .pop()
             ?.replace(/\.flow\.yaml$/, '') ?? 'the flow')
-        : 'flows';
+        : inside || 'flows';
       const message = await vscode.window.showInputBox({
-        title: flow ? `Commit & Push ${name}` : `Commit & Push ${basename(repo.root)}`,
+        title: flow
+          ? `Commit & Push ${name}`
+          : `Commit & Push ${inside ? `${inside} in ` : ''}${basename(repo.root)}`,
         prompt: `The commit's message; then it goes to ${up.remote}/${up.branch}`,
         value: flow ? `Change ${name}` : 'Change flows',
         ignoreFocusOut: true,
@@ -131,7 +157,8 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
 
   async function pull(item?: FlowItem) {
     const flow = uriOf(item);
-    const repo = await repositoryFor(flow, folderOf(flow));
+    const dir = dirOf(item);
+    const repo = await repositoryFor(flow, folderOf(flow ?? dir), dir);
     if (!repo) return;
     try {
       await vscode.workspace.saveAll(false);
@@ -224,6 +251,11 @@ export function flowsGitCommands(host: Host): vscode.Disposable[] {
     vscode.commands.registerCommand('afd.git.commitPush', () => commitPush()),
     vscode.commands.registerCommand('afd.git.pull', () => pull()),
     vscode.commands.registerCommand('afd.flows.commitPush', (item?: FlowItem) => commitPush(item)),
+    // AFD-326: a folder of the Flows pane: what changed in it, and its repository's pull.
+    vscode.commands.registerCommand('afd.flows.commitPushFolder', (item?: FlowItem) =>
+      commitPush(item),
+    ),
+    vscode.commands.registerCommand('afd.flows.pullFolder', (item?: FlowItem) => pull(item)),
     vscode.commands.registerCommand('afd.flows.duplicate', (item?: FlowItem) => duplicate(item)),
     vscode.commands.registerCommand('afd.flows.delete', (item?: FlowItem) => remove(item)),
     vscode.commands.registerCommand('afd.runner.setUpGit', async (uri?: vscode.Uri) => {

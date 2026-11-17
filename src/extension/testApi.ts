@@ -31,6 +31,7 @@ import type { AiSetup, SetupPicks } from './ai/setup';
 import { type ImportOutcome, type ImportRequest, importAwxWorkflow } from './awx/awxImport';
 import { type AwxPicks, launchInAwx, setToken, setupTemplate } from './awx/awxRun';
 import type { CodegenOutcome } from './codegen';
+import { flowsDirFor } from './commands/flowCommands';
 import type { Feedback } from './feedback';
 import type { CommandOutcome, PerfEvent } from './flowSession';
 import { flowsServerState } from './flowsView';
@@ -155,6 +156,8 @@ export interface AfdTestApi {
   runnerChangeProject(uri: vscode.Uri, answers: ChangeProjectAnswers): Promise<string | undefined>;
   /** AFD-320: the read-only document of a file at a commit, and a flow's history (not picked). */
   pastUri(ref: PastRef): vscode.Uri;
+  /** AFD-326: where New Flow (Here) puts a new flow's folder. */
+  newFlowDir(at?: vscode.Uri): Promise<vscode.Uri | undefined>;
   /** AFD-323: whether git in the folder refuses the connected server's certificate. */
   gitRefusesServer(uri: vscode.Uri): Promise<boolean | undefined>;
   /** AFD-321: what a sample brings besides its flow, into a folder (Open Sample Flow…). */
@@ -354,6 +357,7 @@ export function createTestApi(
       return error;
     },
     pastUri: (ref) => pastUri(ref),
+    newFlowDir: (at) => flowsDirFor(at),
     gitRefusesServer: async (uri) => {
       const folder = host.folderUri(uri) as vscode.Uri;
       const { url } = config(folder);

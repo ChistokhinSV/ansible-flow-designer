@@ -5,7 +5,7 @@
 // designer showing a flow with steps counts a day of use. AFD-263: an uninstall is asked about in a
 // notice, and the form opens only from its button.
 import * as assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -99,6 +99,27 @@ describe('AFD-22 acceptance: user help', () => {
     } finally {
       await vscode.workspace.fs.delete(practice, { recursive: true });
     }
+  });
+
+  it('AFD-326: New Flow Here puts the flow beside the others, in the folder chosen', async () => {
+    const api = await testApi();
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri as vscode.Uri;
+    const at = (...p: string[]) => vscode.Uri.joinPath(root, ...p).path;
+    const dir = async (u?: vscode.Uri) => (await api.newFlowDir(u))?.path;
+    // The repository's top, and a folder outside flows/: their flows/ folder.
+    assert.equal(await dir(root), at('flows'));
+    const other = vscode.Uri.joinPath(root, 'practice-326');
+    mkdirSync(other.fsPath, { recursive: true });
+    try {
+      assert.equal(await dir(other), at('practice-326', 'flows'));
+    } finally {
+      rmSync(other.fsPath, { recursive: true, force: true });
+    }
+    // flows/ itself, and a flow's own folder: beside the other flows.
+    assert.equal(await dir(vscode.Uri.joinPath(root, 'flows')), at('flows'));
+    assert.equal(await dir(vscode.Uri.joinPath(root, 'flows', 'edge-baseline')), at('flows'));
+    // Without a folder, in a one-folder workspace that is a repository: its flows/.
+    assert.equal(await dir(), at('flows'));
   });
 
   it('AFD-321: a sample brings the roles its steps run, keeping what the folder has', async () => {
