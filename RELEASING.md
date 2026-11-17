@@ -33,7 +33,9 @@ by its exact version (`1.1.0-rc.1`).
 3. `npm version X.Y.Z-rc.N --no-git-tag-version`; commit "Release candidate X.Y.Z-rc.N"; tag
    `vX.Y.Z-rc.N`; push the commit and the tag. Publish puts the packages on `next` and the VSIX
    on a GitHub pre-release (its notes: the Unreleased section).
-4. Install the VSIX from the pre-release (**Extensions: Install from VSIX…**) and test with the
+4. Put the candidate into the editors in place of the installed version: `just try X.Y.Z-rc.N`
+   (VS Code and Antigravity IDE; it downloads the pre-release's VSIX, installs it with `--force`
+   and says which version each editor now has), then **Developer: Reload Window**. Test with the
    [release test plan](docs/testing/release-test-plan.md): its core part, and a check for each
    Unreleased line. With the server: its candidate on staging (the server's RELEASING.md).
 5. A failure is a ticket; its fix goes to `main`, then the next candidate `rc.N+1`.
@@ -48,3 +50,18 @@ Once a candidate passed, from the same commits:
    on npm's `latest` (Trusted Publishing; see the workflow's header).
 3. The server takes the packages (`X.Y.Z`) and is released after it (the server's RELEASING.md).
 4. Close the tickets; update the knowledge base's feature map.
+
+## Builds to test in the editors
+
+`just try` replaces the installed extension in VS Code and Antigravity IDE (each one found;
+`--editors code` for one), whatever version is installed:
+
+| Command               | Installs                                                                         |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `just try 1.0.1-rc.2` | the candidate's VSIX from its GitHub pre-release                                 |
+| `just try local`      | a VSIX built from this checkout (`just package`), for a fix before its candidate |
+| `just try out/x.vsix` | a VSIX file                                                                      |
+| `just try release`    | back to the released version from the Marketplace / Open VSX                     |
+
+Reload the open windows afterwards. A candidate's version is newer than the last release, so the
+editors do not update it away; the release that follows it (`1.0.1` after `1.0.1-rc.2`) does.
