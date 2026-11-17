@@ -47,7 +47,9 @@ import { type SyntaxOutcome, syntaxCheck } from './run/syntaxCheck';
 import { runTerminalName } from './run/terminal';
 import type { ScenarioOutcome, ScenarioRunKind } from './run/testController';
 import {
+  type ChangeProjectAnswers,
   type ConnectAnswers,
+  changeProject,
   connectServer,
   disconnectServer,
   flowsPaneDescription,
@@ -144,6 +146,8 @@ export interface AfdTestApi {
   /** AFD-301: Connect and Disconnect with their answers given; what the Flows pane says. */
   runnerConnect(uri: vscode.Uri, answers: ConnectAnswers): Promise<string | undefined>;
   runnerDisconnect(uri: vscode.Uri): Promise<string | undefined>;
+  /** AFD-318: Change Project with its answers given (no new window is opened). */
+  runnerChangeProject(uri: vscode.Uri, answers: ChangeProjectAnswers): Promise<string | undefined>;
   /** AFD-303: the Flows pane's server state of the folder, read again first. */
   serverFlows(
     uri: vscode.Uri,
@@ -334,6 +338,12 @@ export function createTestApi(
     runnerConnect: async (uri, answers) => {
       const scope = host.folderUri(uri) as vscode.Uri;
       const error = await connectServer(scope, host.context.secrets, answers);
+      await showServerState(scope, host.context.secrets);
+      return error;
+    },
+    runnerChangeProject: async (uri, answers) => {
+      const scope = host.folderUri(uri) as vscode.Uri;
+      const error = await changeProject(scope, host.context.secrets, answers);
       await showServerState(scope, host.context.secrets);
       return error;
     },

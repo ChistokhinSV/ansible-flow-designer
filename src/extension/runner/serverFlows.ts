@@ -12,7 +12,7 @@ import {
 } from '../../core/view/serverFlows';
 import { RunnerClient } from '../../node/runner/client';
 import { changedSince } from '../../node/runner/projectGit';
-import { config, tokenKey } from './connect';
+import { config, folderProject, tokenKey } from './connect';
 
 export interface FolderServerFlows {
   project: string;
@@ -111,8 +111,10 @@ export class ServerFlowsState implements vscode.Disposable {
   }
 
   private async readFolder(folder: vscode.WorkspaceFolder): Promise<FolderServerFlows | undefined> {
-    const { url, project, verifyTls, allowHttp } = config(folder.uri);
+    const { url, verifyTls, allowHttp } = config(folder.uri);
     const token = url ? await this.secrets.get(tokenKey(url)) : undefined;
+    // AFD-318: the project the folder's git remote is, as runs and pulls use it.
+    const project = url ? await folderProject(folder.uri) : '';
     if (!url || !token || !project) return undefined;
     const client = new RunnerClient(url, token, { verifyTls, allowHttp });
     const [ws, key] = project.split('/');
