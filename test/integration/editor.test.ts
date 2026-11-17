@@ -306,6 +306,33 @@ describe('M2 acceptance: port menus, patterns, open on purpose', () => {
     await undoOnce(doc, original);
   });
 
+  it('a module-bound step inserted on a wire of a flow with no layout is answered (AFD-316)', async () => {
+    const LAB = flowUri('lab-routing');
+    const doc = await openDesigner(LAB);
+    const original = doc.getText();
+    const edge = docOf(original).edges.find(
+      (e) => e.from.node === nodeId(original, 'reach') && e.from.port === 'ok_hosts',
+    );
+    assert.ok(edge);
+    await withTimeout(
+      runAndRender(LAB, {
+        kind: 'addNode',
+        type: 'task',
+        title: 'Ping',
+        inputs: {},
+        impl: { kind: 'module', ref: 'ansible.builtin.ping' },
+        insertOn: edge.id,
+      }),
+      20_000,
+      'add on a wire',
+    );
+    assert.equal(
+      docOf(doc.getText()).nodes.find((n) => n.key === 'ping')?.impl?.ref,
+      'ansible.builtin.ping',
+    );
+    await undoOnce(doc, original);
+  });
+
   it('insert on a wire and rewire keep edge IDs; each is one undo step', async () => {
     const doc = await openDesigner(EDGE);
     const original = doc.getText();

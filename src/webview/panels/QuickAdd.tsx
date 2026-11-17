@@ -51,6 +51,8 @@ function QuickAddDialog() {
   const select = useUi((s) => s.select);
   const [type, setType] = useState<NodeType>('task');
   const [title, setTitle] = useState('');
+  // AFD-316: the add is on its way; the button says so and is not pressed twice.
+  const [adding, setAdding] = useState(false);
   const [intent, setIntent] = useState('');
   const [ports, setPorts] = useState<string[]>([]);
   const [inputs, setInputs] = useState<string[]>([]);
@@ -152,7 +154,7 @@ function QuickAddDialog() {
 
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || adding) return;
     const chosen: Record<string, ContractField> = {};
     for (const name of inputs) {
       const out = source?.outputs?.[name];
@@ -164,6 +166,7 @@ function QuickAddDialog() {
       snap?.doc && quick.position
         ? unplacedPositions(levelView(snap, useUi.getState().optimistic, levelId), snap.doc.layout)
         : undefined;
+    setAdding(true);
     const ack = await run({
       kind: 'addNode',
       parent: levelId === ROOT ? undefined : levelId,
@@ -179,6 +182,7 @@ function QuickAddDialog() {
       freeze,
       wireFailedTo: canFail && wireRollback && rollback ? rollback.id : undefined,
     });
+    setAdding(false);
     if (ack.ok) {
       close(null);
       if (ack.created) select({ node: ack.created });
@@ -371,8 +375,8 @@ function QuickAddDialog() {
           <button type="button" className="secondary" onClick={() => close(null)}>
             Cancel
           </button>
-          <button type="submit" disabled={!title.trim()}>
-            Add {TYPE_LABEL[type]}
+          <button type="submit" disabled={!title.trim() || adding} aria-busy={adding}>
+            {adding ? 'Adding…' : `Add ${TYPE_LABEL[type]}`}
           </button>
         </div>
       </form>

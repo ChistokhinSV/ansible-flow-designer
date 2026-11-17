@@ -10,7 +10,8 @@ Every release candidate is tested by hand before it is released ([RELEASING.md](
 The designer with Ansible Flow Server (Run on Server, the server's pages, which carry the
 designer's canvas) is in the server's plan, section 12 and sections 4 to 6.
 
-Setup: VS Code (stable) with the candidate's VSIX from its GitHub pre-release, a clean profile
+Setup: VS Code (stable) with the candidate (`just try X.Y.Z-rc.N` in the designer's checkout puts
+it into VS Code and Antigravity IDE; **Developer: Reload Window**), a clean profile
 (**Profiles: New Profile**), Docker or WSL with Ansible for runs, the GNS3 lab for real hosts, the
 lab's AWX for section 9. Fictional names only in anything kept.
 

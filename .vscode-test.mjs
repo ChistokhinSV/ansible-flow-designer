@@ -39,6 +39,12 @@ copyFileSync(
   join('samples', 'hello.flow.yaml'),
   join(workspace, 'flows', 'hello', 'hello.flow.yaml'),
 );
+// AFD-316: a flow with no layout block, as a server's lab project has it.
+mkdirSync(join(workspace, 'flows', 'lab-routing'), { recursive: true });
+copyFileSync(
+  join('test', 'fixtures', 'editor', 'lab-routing.flow.yaml'),
+  join(workspace, 'flows', 'lab-routing', 'lab-routing.flow.yaml'),
+);
 // M3: an Ansible repository around the flows (fictional inventory, stub roles), and the Docker
 // image for runs when AFD_TEST_IMAGE is set (run tests are skipped without it).
 cpSync('test/fixtures/engine/content', workspace, { recursive: true });

@@ -1239,9 +1239,16 @@ export class FlowSession implements vscode.Disposable {
     /** Adds file operations to the same WorkspaceEdit (M6 stubs): one undo step with the design. */
     extra?: (edit: vscode.WorkspaceEdit) => void,
   ): Promise<CommandOutcome> {
-    const next = this.commands.then(() => this.runOneCommand(input, extra));
+    // AFD-316: a command that waits long says what it waited for, in the Ansible Flow log: the
+    // canvas showed "Saving…" for minutes after a step dropped on a wire, and nothing told why.
+    const asked = Date.now();
+    const watch = new CommandWatch(input.kind, asked);
+    const next = this.commands.then(() => {
+      watch.phase('started', Date.now() - asked);
+      return this.runOneCommand(input, extra, watch);
+    });
     this.commands = next.catch(() => undefined);
-    return next;
+    return next.finally(() => watch.done());
   }
 
   private commands: Promise<unknown> = Promise.resolve();
@@ -1249,6 +1256,7 @@ export class FlowSession implements vscode.Disposable {
   private async runOneCommand(
     input: FlowCommand,
     extra?: (edit: vscode.WorkspaceEdit) => void,
+    watch?: CommandWatch,
   ): Promise<CommandOutcome> {
     // The webview never names the author of a decision; the host does (decision 13).
     const named =
@@ -1265,6 +1273,7 @@ export class FlowSession implements vscode.Disposable {
       named.kind === 'markTested' && !named.at
         ? { ...named, at: new Date().toISOString().slice(0, 10) }
         : named;
+    watch?.phase('reading the flow (snapshot)');
     const snapshot = await this.snapshot();
     if (snapshot.stale)
       return {
@@ -1292,6 +1301,7 @@ export class FlowSession implements vscode.Disposable {
     const edit = new vscode.WorkspaceEdit();
     extra?.(edit);
     // AFD-115: renamed or moved steps are renamed in the scenarios file too, in the same edit.
+    watch?.phase('the scenarios file');
     const follow = await followScenarios(
       this.uri,
       snapshot.doc,
@@ -1306,6 +1316,7 @@ export class FlowSession implements vscode.Disposable {
       );
     }
     this.pendingParse = result.file;
+    watch?.phase('VS Code applying the edit');
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) {
       // AFD-153: the text it describes never came; the next change is not this command's.
@@ -1618,4 +1629,42 @@ export function wireStyleOf(uri?: vscode.Uri): 'stepped' | 'curved' {
   return vscode.workspace.getConfiguration('afd', uri).get<string>('canvas.wireStyle') === 'curved'
     ? 'curved'
     : 'stepped';
+}
+
+/**
+ * AFD-316: what a command is waiting for, logged when it waits longer than `SLOW_MS` (then every
+ * 30 s, and once more when it ends), so a "Saving…" that stays can be traced.
+ */
+class CommandWatch {
+  static readonly SLOW_MS = 5_000;
+  private at = 'waiting behind the commands before it';
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private told = false;
+
+  constructor(
+    private readonly kind: string,
+    private readonly asked: number,
+  ) {
+    this.timer = setTimeout(() => this.tell(), CommandWatch.SLOW_MS);
+  }
+
+  phase(at: string, queuedMs?: number): void {
+    this.at = at;
+    if (queuedMs !== undefined && queuedMs > CommandWatch.SLOW_MS)
+      logChannel().warn(`command ${this.kind} waited ${queuedMs} ms behind the commands before it`);
+  }
+
+  private tell(): void {
+    this.told = true;
+    logChannel().warn(
+      `command ${this.kind} has waited ${Date.now() - this.asked} ms, now at: ${this.at}`,
+    );
+    this.timer = setTimeout(() => this.tell(), 30_000);
+  }
+
+  done(): void {
+    clearTimeout(this.timer);
+    if (this.told)
+      logChannel().warn(`command ${this.kind} ended after ${Date.now() - this.asked} ms`);
+  }
 }
