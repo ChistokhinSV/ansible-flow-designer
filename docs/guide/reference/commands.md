@@ -90,6 +90,20 @@ Both are also in the Explorer's right-click menu on a `*.flow.yaml` and in the d
 | `afd.awx.setupTemplate` · Set Up AWX Template | creates or updates the job template (or approval workflow) for the flow |
 | `afd.awx.launch` · Launch in AWX              | launches it and follows the job on the canvas                           |
 
+## History
+
+See [History](../how-to/history.md).
+
+| Command                                              | Does                                                                                                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `afd.flow.history` · History…                        | the commits that changed a flow or its scenarios: pick one to see the flow as it left it (the designer's **…** menu, right-click in the Flows pane) |
+| `afd.history.filter` · Filter…                       | the **History** view shows only commits whose message, author, hash or file paths have all the words                                                |
+| `afd.history.clearFilter` · Clear Filter             | shows every commit again                                                                                                                            |
+| `afd.history.refresh` · Refresh                      | reads the history again (it follows commits, pulls and checkouts by itself)                                                                         |
+| `afd.history.more` · Show More                       | the next 100 commits (the last item of the view)                                                                                                    |
+| `afd.history.openFile` · Open as This Commit Left It | a flow in the designer, read-only, in the Changes lens; any other file as a diff (a click on a file of a commit)                                    |
+| `afd.history.copyHash` · Copy Commit Hash            | right-click on a commit                                                                                                                             |
+
 ## Ansible Flow Server
 
 | Command                                                       | Does                                                                                                                 |

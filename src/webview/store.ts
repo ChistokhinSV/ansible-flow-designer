@@ -7,7 +7,14 @@ import { modelOf, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
-import type { CatalogStatus, MergeView, RunView, Snapshot, ViewerEmbed } from '../core/protocol';
+import type {
+  CatalogStatus,
+  MergeView,
+  PastVersion,
+  RunView,
+  Snapshot,
+  ViewerEmbed,
+} from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import type { PastRun } from '../core/run/pastRuns';
 import { type NodeRun, runStates } from '../core/run/view';
@@ -168,6 +175,8 @@ interface UiState {
   testMode: boolean;
   /** AFD-270: the designer only shows and runs the flow; it stays in Run mode. */
   viewer: boolean;
+  /** AFD-320: the flow as a commit left it (History): a viewer in Design mode, with no runs. */
+  past: PastVersion | null;
   /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
   runner: boolean;
   /** AFD-314: what the page around a viewer shows and allows. */
@@ -297,6 +306,8 @@ interface UiState {
   setEmbed(embed: ViewerEmbed | undefined): void;
   /** AFD-270: turns the viewer on; there is no way back. */
   setViewer(): void;
+  /** AFD-320: turns the past version on; there is no way back. */
+  setPast(past: PastVersion): void;
   setExpandSubflows(on: boolean): void;
   toggleExpanded(subflow: Ulid): void;
   setFirstFlow(state: { hidden: boolean; done: string[] }): void;
@@ -403,6 +414,7 @@ export const useUi = create<UiState>((set, get) => ({
   snapshot: null,
   testMode: false,
   viewer: false,
+  past: null,
   runner: false,
   embed: { runShown: false, mayRun: true, mayStop: true },
   expandSubflows: false,
@@ -539,6 +551,18 @@ export const useUi = create<UiState>((set, get) => ({
     get().setMode('run');
     // setMode asks first while a binding is half made; a viewer has no such question to wait for.
     set({ viewer: true, mode: 'run', detailsTab: 'run', leave: null });
+  },
+  setPast(past) {
+    if (get().viewer) return;
+    // Design mode, where the Changes lens shows its chips and ghosts; the viewer flag hides every
+    // edit, and the run is nobody's to start from here.
+    set({
+      viewer: true,
+      past,
+      mode: 'design',
+      leave: null,
+      embed: { runShown: true, mayRun: false, mayStop: false },
+    });
   },
   setWireStyle: (wireStyle) => set({ wireStyle }),
   setExpandSubflows: (expandSubflows) =>

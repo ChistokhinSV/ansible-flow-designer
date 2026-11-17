@@ -224,6 +224,20 @@ export interface Notice {
   text: string;
 }
 
+/**
+ * AFD-320: a flow as one commit left it, shown read-only in the Changes lens against the version
+ * before that commit (History).
+ */
+export interface PastVersion {
+  hash: string;
+  author: string;
+  /** ISO 8601 author date. */
+  date: string;
+  subject: string;
+  /** The flow file's path in the repository. */
+  path: string;
+}
+
 /** AFD-314: what the page around a viewer shows and allows (each part defaults to the canvas's own). */
 export interface ViewerEmbed {
   /**
@@ -268,6 +282,8 @@ export type HostMessage =
        * do, so the canvas does not repeat the page or offer what the host would refuse.
        */
       embed?: ViewerEmbed;
+      /** AFD-320: the flow at a commit, read-only, in the Changes lens (a viewer without runs). */
+      past?: PastVersion;
       /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
       runner?: boolean;
       /** AFD-294 (`afd.canvas.wireStyle`): how the canvas draws wires. */
@@ -327,6 +343,8 @@ export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'command'; reqId: number; command: FlowCommand }
   | { type: 'openText'; path?: Path }
+  /** AFD-320: the commits that changed this flow (History), to open one. */
+  | { type: 'flowHistory' }
   /** AFD-16: fill an empty file with the New Flow template. */
   | { type: 'initFlow' }
   /** AFD-19: real IDs for a flow written by hand, in one edit. */
@@ -468,6 +486,8 @@ export interface DomSummary {
   idGaps: number | null;
   /** AFD-284: the server note's words (null: no note). */
   server?: string | null;
+  /** AFD-320: the past version's banner (History; null: none). */
+  past?: string | null;
   /** AFD-283: conflicts the Merge note lists (null: no note). */
   merge?: number | null;
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */

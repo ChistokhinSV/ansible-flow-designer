@@ -19,6 +19,7 @@ interface GitRepository {
     indexChanges: GitChange[];
     untrackedChanges?: GitChange[];
     remotes?: { name: string; fetchUrl?: string; pushUrl?: string }[];
+    onDidChange?: vscode.Event<void>;
   };
   show(ref: string, path: string): Promise<string>;
   getConfig(key: string): Promise<string>;
@@ -54,6 +55,25 @@ async function gitApi(): Promise<GitApi | undefined> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * AFD-320: calls `changed` when the HEAD commit of the repository holding `uri` moves (a commit, a
+ * pull, a checkout). Nothing happens outside a repository or without the Git extension.
+ */
+export async function onHeadMoved(
+  uri: vscode.Uri,
+  changed: () => void,
+): Promise<vscode.Disposable | undefined> {
+  const repo = (await gitApi())?.getRepository(uri);
+  if (!repo?.state.onDidChange) return undefined;
+  let head = repo.state.HEAD?.commit;
+  return repo.state.onDidChange(() => {
+    const now = repo.state.HEAD?.commit;
+    if (now === head) return;
+    head = now;
+    changed();
+  });
 }
 
 /** HEAD's text of the file, or undefined when it is not in a repository or not committed yet. */

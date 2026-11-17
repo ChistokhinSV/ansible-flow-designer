@@ -32,6 +32,28 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'perf',
 ]);
 
+/**
+ * AFD-320: what a past version of a flow sends (History): it reads, and its Changes lens is asked
+ * again; it never runs.
+ */
+export const PAST_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
+  'ready',
+  'lens',
+  'compareWith',
+  'catalog',
+  'copyText',
+  'openLink',
+  'inspectResult',
+  'pngRendered',
+  'cspViolation',
+  'perf',
+]);
+
+/** True when a past version may send a message of this type. */
+export function pastAllows(type: string): boolean {
+  return (PAST_MESSAGES as ReadonlySet<string>).has(type);
+}
+
 /** True when a viewer may send a message of this type. */
 export function viewerAllows(type: string): boolean {
   return (VIEWER_MESSAGES as ReadonlySet<string>).has(type);

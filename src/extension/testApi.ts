@@ -34,6 +34,8 @@ import type { CodegenOutcome } from './codegen';
 import type { Feedback } from './feedback';
 import type { CommandOutcome, PerfEvent } from './flowSession';
 import { flowsServerState } from './flowsView';
+import { flowHistoryItems } from './history/historyView';
+import { type PastRef, pastUri } from './history/pastDocs';
 import type { Host } from './host';
 import {
   importPlaybooks,
@@ -148,6 +150,9 @@ export interface AfdTestApi {
   runnerDisconnect(uri: vscode.Uri): Promise<string | undefined>;
   /** AFD-318: Change Project with its answers given (no new window is opened). */
   runnerChangeProject(uri: vscode.Uri, answers: ChangeProjectAnswers): Promise<string | undefined>;
+  /** AFD-320: the read-only document of a file at a commit, and a flow's history (not picked). */
+  pastUri(ref: PastRef): vscode.Uri;
+  flowHistory(uri: vscode.Uri): Promise<{ label: string; hash: string }[]>;
   /** AFD-303: the Flows pane's server state of the folder, read again first. */
   serverFlows(
     uri: vscode.Uri,
@@ -340,6 +345,13 @@ export function createTestApi(
       const error = await connectServer(scope, host.context.secrets, answers);
       await showServerState(scope, host.context.secrets);
       return error;
+    },
+    pastUri: (ref) => pastUri(ref),
+    flowHistory: async (uri) => {
+      const items = await flowHistoryItems(uri);
+      return typeof items === 'string'
+        ? []
+        : items.map((i) => ({ label: i.label, hash: i.commit.hash }));
     },
     runnerChangeProject: async (uri, answers) => {
       const scope = host.folderUri(uri) as vscode.Uri;

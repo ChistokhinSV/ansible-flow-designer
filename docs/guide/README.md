@@ -58,6 +58,7 @@ playbooks are generated from it.
 - [Generated code](how-to/code-generation.md)
 - [Code mode: design vs code](how-to/code-mode.md)
 - [Lenses](how-to/lenses.md)
+- [History](how-to/history.md)
 
 **Running**
 - [Runs and environments](how-to/runs-and-environments.md)

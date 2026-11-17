@@ -297,6 +297,13 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
     },
     {
       type: 'item',
+      label: 'History…',
+      icon: 'history',
+      title: 'The commits that changed this flow: who changed what, and when',
+      onSelect: () => send({ type: 'flowHistory' }),
+    },
+    {
+      type: 'item',
       label: 'Check Flow',
       icon: 'check-all',
       title: 'Check the design, then the generated code in the Ansible environment',

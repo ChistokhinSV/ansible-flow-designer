@@ -4,6 +4,10 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- **History**: the folder's commits in the **Ansible Flows** sidebar (who, when, the message, the files), with a filter; **…** › **History…** lists the commits of one flow. A flow opens as a commit left it, read-only, with what that commit changed in the **Changes** lens.
+
 ### Changed
 
 - The README and the extension's description introduce [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), which runs the same flows for a team.

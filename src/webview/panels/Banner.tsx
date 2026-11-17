@@ -27,7 +27,20 @@ export function Banner() {
   const dismiss = useUi((s) => s.dismissBanner);
   const reveal = useUi((s) => s.reveal);
   const viewer = useUi((s) => s.viewer);
+  const past = useUi((s) => s.past);
   if (!snapshot) return null;
+  // AFD-320: a past version says whose commit it is; the Changes lens shows what it changed.
+  if (past)
+    return (
+      <div className="afd-banner info" role="status" data-past-banner>
+        <span className="codicon codicon-history" aria-hidden="true" />
+        <span>
+          <strong>{past.hash.slice(0, 7)}</strong> by {past.author}, {past.date.slice(0, 10)}:{' '}
+          {past.subject}. The flow as this commit left it, read-only; the Changes lens compares it
+          with the version before.
+        </span>
+      </div>
+    );
   // AFD-270: a viewer cannot fix the file or answer a design question; it is told what it sees.
   if (viewer)
     return snapshot.stale ? (
