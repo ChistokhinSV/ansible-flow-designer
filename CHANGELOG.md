@@ -2,6 +2,14 @@
 
 All notable changes to Ansible Flow Designer.
 
+## 1.0.0 — First stable release
+
+The designer's first stable version, released with Ansible Flow Server 1.0: flows written by 1.x open and run in any 1.x designer and server.
+
+### Changed
+
+- **Release candidates:** from now on each version is tested by hand as a release candidate before it is released. A candidate's VSIX is on a GitHub pre-release, and its npm packages are on the `next` tag (`npm install @ansible-flow/core@next`); the Marketplace, Open VSX and npm's `latest` get only releases. See [RELEASING.md](RELEASING.md).
+
 ## 0.98.0 — The designer in a page
 
 ### Added
