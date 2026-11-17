@@ -231,6 +231,13 @@ export function ChipField({
   const popup = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const hover = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // AFD-313: a disabled fieldset (a run's view, a read-only flow) disables inputs, not an element
+  // that is contentEditable: the field reads its fieldset on every render and stops taking text.
+  const [locked, setLocked] = useState(false);
+  useLayoutEffect(() => {
+    const now = !!ref.current?.closest('fieldset:disabled');
+    if (now !== locked) setLocked(now);
+  });
   const listId = useId();
   const ctx = useJinjaContext(choices);
   const optsOf = (v: string) => ({ mode: exprMode(v, mode === 'expr') });
@@ -417,6 +424,7 @@ export function ChipField({
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     setTip(null);
+    if (locked) return;
     if (
       !menu &&
       listKey(e, assist ? { count: assist.c.items.length, active: assist.active } : null, {
@@ -574,11 +582,12 @@ export function ChipField({
         ref={ref}
         id={id}
         className={`afd-input afd-chipfield-input${mode === 'expr' ? ' mono' : ''}`}
-        contentEditable
+        contentEditable={!locked}
         suppressContentEditableWarning
         role="textbox"
         tabIndex={0}
         aria-label={label}
+        aria-readonly={locked || undefined}
         aria-autocomplete="list"
         spellCheck={false}
         aria-controls={assist ? listId : undefined}
@@ -605,6 +614,7 @@ export function ChipField({
         onPaste={(e) => {
           // Plain text only: pasted markup would carry its own elements.
           e.preventDefault();
+          if (locked) return;
           const text = e.clipboardData.getData('text/plain').replaceAll('\r', '');
           if (!text) return;
           insertText(e.currentTarget, text);
