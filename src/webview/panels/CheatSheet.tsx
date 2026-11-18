@@ -1,6 +1,7 @@
 // The keyboard shortcuts (AFD-18), opened with `?` or from the top bar's "…" menu. The table is
 // the one the menus show their hints from.
 import { useRef } from 'react';
+import { checkButton } from '../../core/run/words';
 import { useDialogFocus } from '../focus';
 import { SHORTCUTS } from '../shortcuts';
 import { useUi } from '../store';
@@ -14,6 +15,7 @@ export function CheatSheet() {
 
 function Sheet() {
   const show = useUi((s) => s.showCheatSheet);
+  const words = useUi((s) => s.embed.words);
   const box = useRef<HTMLDivElement>(null);
   const trap = useDialogFocus(box);
   return (
@@ -54,7 +56,7 @@ function Sheet() {
                   <dt>
                     <kbd>{s.keys}</kbd>
                   </dt>
-                  <dd>{s.label}</dd>
+                  <dd>{s.id === 'runSkeleton' ? checkButton(words) : s.label}</dd>
                 </div>
               ))}
             </dl>

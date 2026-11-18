@@ -2,6 +2,7 @@
 // hosts it will touch and Run, in one place over the canvas, instead of an input box per input and
 // a modal (round 1: P4, P8; walkthrough W6, W9, W10). Secret inputs and the vault password live in
 // this component's state only: never in the store, the saved state or what `inspect` reports.
+
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   checkInputs,
@@ -12,6 +13,7 @@ import {
   realRunLines,
   realRunQuestion,
 } from '../../core/run/launch';
+import { checkButton } from '../../core/run/words';
 import { send } from '../bus';
 import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
@@ -112,7 +114,8 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     }
     send({ type: 'launchSave', token: plan.token, inputs: r.inputs });
   };
-  const runLabel = real ? 'Run for Real' : 'Run as Skeleton';
+  const words = useUi((s) => s.embed.words);
+  const runLabel = real ? 'Run for Real' : checkButton(words);
   return (
     <div className="afd-modal-backdrop">
       <div

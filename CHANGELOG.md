@@ -28,6 +28,9 @@ All notable changes to Ansible Flow Designer.
 - While a dialog is open (**Run as Skeleton**, **Add Node** and the others), the page behind it is hidden from screen readers, so the dialog is what they read.
 - An edit that waits more than 5 seconds is written to the **Ansible Flow** output with what it waits for, so a "Saving…" that stays can be traced.
 - Embedded in a host that runs only saved flows (Ansible Flow Server's flow editor), the Run tab says runs use the saved flow, not AWX or the local environment.
+- On a page of Ansible Flow Server the canvas tells a run in the server's words: **Run a Check** (not **Run as Skeleton**), "check run", "went well", "failed" and "stopped", no exit code, and the time of each earlier run with its time zone. VS Code keeps its own words.
+- A stopped run's status in the Run tab is "stopped"; who stopped it, and where, is its **Why**.
+- Host counts say "1 host" and "4 hosts" (the run status chip, the real-run question, the run notice), not "1 hosts" or "host(s)".
 
 ### Fixed
 

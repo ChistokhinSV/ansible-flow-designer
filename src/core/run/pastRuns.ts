@@ -2,6 +2,7 @@
 // whole beside its events (run.json: the summary the canvas showed, no input values), so an
 // earlier run can be shown again on the canvas as it was.
 import type { RunView } from '../protocol';
+import { checkWord, hostsWord, type RunWords } from './words';
 
 export interface PastRun {
   /** The run id: its start time, sortable. */
@@ -44,8 +45,12 @@ export function pastRunOf(run: RunView): PastRun | undefined {
   };
 }
 
-/** "12 Nov 14:02 · skeleton · 12 hosts, 1 failed": one line of the list. */
-export function pastRunLabel(run: PastRun, locale?: string): string {
+/**
+ * "12 Nov 14:02 · skeleton · 12 hosts, 1 failed": one line of the list. AFS-153: in a server's
+ * words, "18 Nov, 15:48 CET · check · 4 hosts, went well": the time with its zone.
+ */
+export function pastRunLabel(run: PastRun, locale?: string, words: RunWords = 'designer'): string {
+  const server = words === 'server';
   const when = new Date(run.startedAt);
   const at = Number.isNaN(when.getTime())
     ? run.id
@@ -54,15 +59,22 @@ export function pastRunLabel(run: PastRun, locale?: string): string {
         month: 'short',
         hour: '2-digit',
         minute: '2-digit',
+        ...(server ? { timeZoneName: 'short' as const } : {}),
       });
-  const kind = run.partial ? 'part of the flow' : run.mode === 'check' ? 'skeleton' : 'real run';
-  const hosts = `${run.hosts} host${run.hosts === 1 ? '' : 's'}`;
+  const kind = run.partial
+    ? 'part of the flow'
+    : run.mode === 'check'
+      ? checkWord(words)
+      : 'real run';
+  const hosts = hostsWord(run.hosts);
   // AFS-139: a run still going has no result yet, and its hosts are not counted until it goes.
   if (run.running) return `${at} · ${kind} · running`;
   const result = !run.ok
-    ? (run.ended ?? 'did not finish')
+    ? (run.ended ?? (server ? 'failed' : 'did not finish'))
     : run.failed
       ? `${run.failed} failed`
-      : 'all passed';
+      : server
+        ? 'went well'
+        : 'all passed';
   return `${at} · ${kind} · ${hosts}, ${result}`;
 }

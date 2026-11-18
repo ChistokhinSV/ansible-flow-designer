@@ -172,14 +172,14 @@ describe('readFields', () => {
 describe('the real-run confirmation', () => {
   it('says what 0.52.0 said in its modal, line for line', () => {
     expect(realRunQuestion('NTP rollout', facts)).toBe(
-      'Run "NTP rollout" for real on 10 host(s) and 1 inventory_target host(s)?',
+      'Run "NTP rollout" for real on 10 hosts and 1 inventory_target host?',
     );
     expect(realRunLines(facts)).toEqual([
       'This is not check mode: bound nodes change the devices.',
       'Inventory: inventory/lab.ini',
       'Hosts: 10 (lab-sw-01, lab-sw-02, lab-sw-03, lab-sw-04, lab-sw-05, lab-sw-06, lab-sw-07, lab-sw-08, …)',
       'Not in the inventory: lab-sw-99',
-      'Also on inventory_target jump: 1 host(s) ([copy-image])',
+      'Also on inventory_target jump: 1 host ([copy-image])',
       'Production-looking: prod_core',
       'Environment: docker: afd-ee:2.19',
     ]);

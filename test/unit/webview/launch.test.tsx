@@ -76,7 +76,7 @@ describe('launch dialog', () => {
     });
     expect(JSON.stringify(sent('launchCheck'))).not.toContain('enable_secret');
     // A real run's confirmation, in the dialog.
-    expect(within(dialog).getByText('Run "NTP rollout" for real on 4 host(s)?')).toBeTruthy();
+    expect(within(dialog).getByText('Run "NTP rollout" for real on 4 hosts?')).toBeTruthy();
     expect(
       within(dialog).getByText('Hosts: 4 (lab-sw-01, lab-sw-02, lab-sw-03, lab-sw-04)'),
     ).toBeTruthy();

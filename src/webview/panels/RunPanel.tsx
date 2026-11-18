@@ -17,6 +17,7 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
+import { hostsWord, type RunWords } from '../../core/run/words';
 import {
   endRows,
   endWords,
@@ -42,6 +43,7 @@ import { HelpLink } from './HelpLink';
  */
 function PastRuns({ run }: { run: RunView | null }) {
   const runs = useUi((s) => s.pastRuns);
+  const words = useUi((s) => s.embed.words);
   const version = useUi((s) => s.snapshot?.doc?.flow.version);
   if (runs.length === 0 || (runs.length === 1 && runs[0]?.id === run?.id)) return null;
   const shown = runs.some((r) => r.id === run?.id) ? run?.id : '';
@@ -62,7 +64,7 @@ function PastRuns({ run }: { run: RunView | null }) {
         {shown ? null : <option value="">The run shown is not among the kept runs</option>}
         {runs.map((r) => (
           <option key={r.id} value={r.id} title={r.partial}>
-            {pastRunLabel(r)}
+            {pastRunLabel(r, undefined, words)}
           </option>
         ))}
       </select>
@@ -77,7 +79,7 @@ function PastRuns({ run }: { run: RunView | null }) {
   );
 }
 
-function describe(run: RunView): string {
+function describe(run: RunView, words: RunWords): string {
   if (run.scenario) return `Scenario: ${run.scenario.name} (stubs, local connection)`;
   // AFD-244: what a partial run ran, and what it left out.
   if (run.partial) return `Local skeleton run of part of the flow. ${run.partial.line}`;
@@ -85,7 +87,8 @@ function describe(run: RunView): string {
     return `AWX ${run.awx.workflow ? 'workflow' : 'job'} #${run.awx.jobId} · ${run.awx.template}`;
   // AFS-139: a run on Ansible Flow Server is not a local run.
   if (run.source === 'runner') {
-    const kind = run.mode === 'check' ? 'Skeleton run' : 'Real run';
+    const check = words === 'server' ? 'Check run' : 'Skeleton run';
+    const kind = run.mode === 'check' ? check : 'Real run';
     const number = run.runner?.number ? ` #${run.runner.number}` : '';
     const config = run.runner?.config ? ` · ${run.runner.config}` : '';
     return `${kind}${number} on Ansible Flow Server${config}`;
@@ -93,7 +96,10 @@ function describe(run: RunView): string {
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
 }
 
-function statusOf(run: RunView): { label: string; tone: 'ok' | 'warn' | 'neutral' } {
+function statusOf(
+  run: RunView,
+  words: RunWords,
+): { label: string; tone: 'ok' | 'warn' | 'neutral'; why?: string } {
   if (run.state === 'running')
     return {
       label: run.awx
@@ -108,10 +114,29 @@ function statusOf(run: RunView): { label: string; tone: 'ok' | 'warn' | 'neutral
       ? { label: 'passed: every host ended where expected', tone: 'ok' }
       : {
           label:
-            run.scenario.error ?? `${scenarioMisses(run.scenario).length} host(s) ended elsewhere`,
+            run.scenario.error ??
+            `${hostsWord(scenarioMisses(run.scenario).length)} ended elsewhere`,
           tone: 'warn',
         };
-  if (run.state === 'error') return { label: run.error ?? 'failed', tone: 'warn' };
+  // AFS-153: a stopped run's status is the one word; who stopped it, and where, is its why.
+  if (run.state === 'error' && run.errorCode === 'cancelled')
+    return {
+      label: 'stopped',
+      tone: 'warn',
+      ...(run.error && run.error !== 'Stopped by the user' ? { why: run.error } : {}),
+    };
+  if (run.state === 'error')
+    return words === 'server'
+      ? { label: 'failed', tone: 'warn', ...(run.error ? { why: run.error } : {}) }
+      : { label: run.error ?? 'failed', tone: 'warn' };
+  // AFS-153: a server's pages say went well or failed, not Ansible's exit code.
+  if (words === 'server') {
+    const { ok, failed } = runVerdict(run);
+    if (ok) return { label: 'went well', tone: 'ok' };
+    if (run.summary?.stoppedEarly) return { label: 'stopped early', tone: 'warn' };
+    const of = hostsWord(run.summary?.hosts.length ?? 0);
+    return { label: failed ? `failed · ${failed} of ${of}` : 'failed', tone: 'warn' };
+  }
   if (runPassed(run)) return { label: `passed · exit ${run.rc}`, tone: 'ok' };
   const { ok, failed } = runVerdict(run);
   const hosts = failed ? ` · ${failed} failed` : '';
@@ -292,6 +317,7 @@ export function RunPanel() {
   const mayRun = useUi((s) => s.embed.mayRun);
   // AFD-335: a flow with no run is not told to open one of its runs.
   const noRuns = useUi((s) => s.pastRunsKnown && s.pastRuns.length === 0);
+  const words = useUi((s) => s.embed.words);
   // AFD-314: the page shows the run's hosts, outputs and approvals; a step shows its own here.
   if (viewer && runShown)
     return (
@@ -339,7 +365,7 @@ export function RunPanel() {
         <Scenarios />
       </div>
     );
-  const st = statusOf(run);
+  const st = statusOf(run, words);
   const s = run.summary;
   const outcome = Object.entries(s?.outcome ?? {});
   return (
@@ -351,11 +377,17 @@ export function RunPanel() {
       <PastRuns run={run} />
       <dl className="afd-run-facts">
         <dt>Run</dt>
-        <dd>{describe(run)}</dd>
+        <dd>{describe(run, words)}</dd>
         <dt>Status</dt>
         <dd className={`tone-${st.tone}`} data-run-status={run.awx?.status ?? run.state}>
           {st.label}
         </dd>
+        {st.why ? (
+          <>
+            <dt>Why</dt>
+            <dd data-run-why>{st.why}</dd>
+          </>
+        ) : null}
         <dt>When</dt>
         <dd title={run.finishedAt ?? run.startedAt}>{ago(run.finishedAt ?? run.startedAt)}</dd>
         {run.environment ? (
@@ -412,7 +444,7 @@ export function RunPanel() {
         <section className="afd-section">
           <h3>Hosts</h3>
           <p>
-            {s.hosts.length} host{s.hosts.length === 1 ? '' : 's'}
+            {hostsWord(s.hosts.length)}
             {s.stoppedEarly ? ' · stopped early' : ''}
           </p>
           {outcome.length > 0 ? (

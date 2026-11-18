@@ -1,10 +1,12 @@
 // The launch dialog (AFD-82, wave 8 group B): a run's inputs, targets and confirmation in one
 // place in the designer, instead of an input box per input and a modal. Pure: the host gathers the
 // facts and runs, the webview shows the fields, and both use these to read and say the same thing.
+
 import { parse as parseYaml } from 'yaml';
 import type { ContractField, FlowDocument } from '../flow/types';
 import { SECRET } from '../import/secrets';
 import { inputSuggestion } from './prompt';
+import { hostsWord } from './words';
 
 /** A flow input as the dialog shows it. */
 export interface LaunchField {
@@ -218,7 +220,7 @@ export function targetLines(uses: TargetUse[]): string[] {
         ? 'resolved at run time'
         : u.count === 0
           ? 'matches no host, so those nodes fail every arriving host'
-          : `${u.count} host(s)`;
+          : hostsWord(u.count);
     return `Also on inventory_target ${u.pattern ?? u.declared}: ${hosts} (${where})`;
   });
 }
@@ -229,7 +231,7 @@ export const extraHosts = (f: LaunchFacts) => f.uses.reduce((n, u) => n + (u.cou
 /** The real-run question: the same words in the modal and the dialog. */
 export function realRunQuestion(flowName: string, f: LaunchFacts): string {
   const extra = extraHosts(f);
-  return `Run "${flowName}" for real on ${f.count} host(s)${extra ? ` and ${extra} inventory_target host(s)` : ''}?`;
+  return `Run "${flowName}" for real on ${hostsWord(f.count)}${extra ? ` and ${extra} inventory_target ${extra === 1 ? 'host' : 'hosts'}` : ''}?`;
 }
 
 /** The real-run confirmation's lines (the modal's detail, the dialog's facts). */

@@ -1,6 +1,7 @@
 // The sections of a node's Details (AFD-43): General (identity, lifecycle, what the type adds, the
 // last run), Inputs and outputs, Ports with their resolutions, Execution with task keywords. Fields
 // save as you go, each one command (one undo step); only the binding is staged (Details.tsx).
+
 import { useEffect, useId, useMemo, useRef } from 'react';
 import { type RefChoice, refChoices, resultFields } from '../../core/catalog/draft';
 import { registerName } from '../../core/flow/dataNames';
@@ -16,6 +17,7 @@ import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
 import { becomeStandsOut } from '../../core/lens/access';
 import { fieldLabel } from '../../core/lens/changes';
+import { checkRun } from '../../core/run/words';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
@@ -216,12 +218,13 @@ export function IoSection({ node }: { node: FlowNode }) {
 /** Hosts the last run sent through each port of this node (M3; Run mode in M7). */
 function LastRun({ id }: { id: string }) {
   const run = useUi((s) => s.run);
+  const words = useUi((s) => s.embed.words);
   const ports = run?.summary?.nodes[id];
   const failures = run?.summary?.failures.filter((f) => f.node === id) ?? [];
   if (run?.state !== 'done' || (!ports && failures.length === 0)) return null;
   return (
     <section className="afd-section" data-last-run={id}>
-      <h3>Last {run.mode === 'check' ? 'skeleton run' : 'run'}</h3>
+      <h3>Last {run.mode === 'check' ? checkRun(words) : 'run'}</h3>
       <ul className="afd-run-ports">
         {Object.entries(ports ?? {}).map(([port, hosts]) => (
           <li key={port} title={hosts.join(', ')}>

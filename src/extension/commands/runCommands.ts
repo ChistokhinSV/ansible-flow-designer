@@ -1,8 +1,10 @@
 // Run commands (AFD-37): skeleton and real runs, the syntax check, the audit log, the module
 // catalog, and AWX (launch, template, token). Errors carry the command that fixes them.
+
 import * as vscode from 'vscode';
 import type { Notice, NoticeLevel, RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
+import { hostsWord } from '../../core/run/words';
 import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun';
 import { copyFileToHost, setUpEnvironment } from '../env/setupEnvironment';
 import { switchEnvironment } from '../env/switchEnvironment';
@@ -300,7 +302,7 @@ async function announceRun(run: RunView): Promise<void> {
         : 'Run';
   const text = s?.stoppedEarly
     ? `${what} stopped early (exit ${run.rc}): see the ${run.awx || run.runner ? 'job output' : 'terminal'}`
-    : `${what} finished (exit ${run.rc}): ${s?.hosts.length ?? 0} host(s), ${failed} failed`;
+    : `${what} finished (exit ${run.rc}): ${hostsWord(s?.hosts.length ?? 0)}, ${failed} failed`;
   const show = run.awx ? 'Open in AWX' : run.runner ? 'Open on Server' : 'Show Terminal';
   const pick = await (ok
     ? vscode.window.showInformationMessage(text, show)
