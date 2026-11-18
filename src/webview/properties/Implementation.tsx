@@ -437,7 +437,14 @@ function ModuleDoc({
     <div className="afd-doc" data-doc={doc.fqcn}>
       {url ? (
         // AFD-311: a new tab, not this frame: docs sites refuse to be framed (a server's pages).
-        <a href={url} className="afd-docs-link" target="_blank" rel="noopener noreferrer">
+        <a
+          href={url}
+          className="afd-docs-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          // AFD-334 (AFS-156): named for readers that drop the arrow or read the link out of place.
+          aria-label={`Full docs of ${doc.fqcn} (new tab)`}
+        >
           Full Docs ↗
         </a>
       ) : null}

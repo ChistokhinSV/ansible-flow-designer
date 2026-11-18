@@ -65,6 +65,7 @@ import {
 import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import type { Box } from '../../core/view/route';
+import { gapWords, hasGap, type StatusGap, shownStatus } from '../../core/view/statusGap';
 import { addAnnotation, editAnnotation } from '../annotationActions';
 import { command, loadState, saveState, send } from '../bus';
 import { setPastePlace } from '../clipboard';
@@ -75,6 +76,7 @@ import { EmptyLevel, useEmptyLevel } from '../panels/EmptyLevel';
 import { FindBar } from '../panels/FindBar';
 import { FirstFlow, useFirstFlowShown } from '../panels/FirstFlow';
 import { INSERTABLE } from '../panels/QuickAdd';
+import { useLevelGaps } from '../paramGaps';
 import { completePick, dropPattern, dropWireEnd, insertOnWire } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
@@ -215,9 +217,17 @@ function useWheelZoom(wrapper: { current: HTMLDivElement | null }): boolean {
   return !embedded || active;
 }
 
-/** What a screen reader says for a node (AFD-47): type, title, status and open fail ports. */
-function nodeName({ node, ports }: NodeView): string {
-  const status = node.type === 'start' || node.type === 'end' ? '' : `, ${node.status ?? 'draft'}`;
+/**
+ * What a screen reader says for a node (AFD-47): type, title, status and open fail ports. AFD-334:
+ * a step that would not run as it is (`gap`) is specified, with what it lacks.
+ */
+export function nodeName(
+  { node, ports }: Pick<NodeView, 'node' | 'ports'>,
+  gap?: StatusGap,
+): string {
+  const shown = shownStatus(node.status ?? 'draft', gap);
+  const lacks = hasGap(gap) && gap ? ` (${gapWords(gap).toLowerCase()})` : '';
+  const status = node.type === 'start' || node.type === 'end' ? '' : `, ${shown}${lacks}`;
   const open = ports.filter((p) => p.state === 'open-fail').length;
   const ports_ = open ? `, ${open} open fail port${open === 1 ? '' : 's'}` : '';
   return `${TYPE_LABEL[node.type]} ${node.title}${status}${ports_}`;
@@ -244,7 +254,12 @@ function ghostNodes(ghosts: GhostNode[], nodes: NodeView[]): GhostRFNode[] {
   }));
 }
 
-function toRfNode(view: NodeView, selected: boolean, role?: 'inner' | 'frame'): FlowRFNode {
+function toRfNode(
+  view: NodeView,
+  selected: boolean,
+  role?: 'inner' | 'frame',
+  gap?: StatusGap,
+): FlowRFNode {
   return {
     id: view.node.id,
     type: 'flow',
@@ -252,7 +267,7 @@ function toRfNode(view: NodeView, selected: boolean, role?: 'inner' | 'frame'): 
     width: view.width,
     height: view.height,
     data: { view, ...(role ? { role } : {}) },
-    ariaLabel: nodeName(view),
+    ariaLabel: nodeName(view, gap),
     selected,
     deletable: !role,
     // AFD-243: a subflow expanded in place stays where it is, and its inner steps are placed by
@@ -431,6 +446,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
 
   // Structural sharing: keep the previous node object when its content did not change.
   const cache = useRef(new Map<string, { key: string; node: FlowRFNode }>());
+  const gaps = useLevelGaps(useMemo(() => view.nodes.map((v) => v.node), [view.nodes]));
   const annotationCache = useRef(new Map<string, { key: string; node: AnnotationRFNode }>());
   const derived = useMemo(() => {
     const next = new Map<string, { key: string; node: FlowRFNode }>();
@@ -442,9 +458,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         : expansion.frames.has(v.node.id)
           ? ('frame' as const)
           : undefined;
-      const key = JSON.stringify([v, sel, role]);
+      const gap = gaps[v.node.id];
+      const key = JSON.stringify([v, sel, role, gap]);
       const hit = cache.current.get(v.node.id);
-      const entry = hit && hit.key === key ? hit : { key, node: toRfNode(v, sel, role) };
+      const entry = hit && hit.key === key ? hit : { key, node: toRfNode(v, sel, role, gap) };
       next.set(v.node.id, entry);
       return entry.node;
     });
@@ -469,6 +486,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     return ghosts.length > 0 ? [...all, ...ghostNodes(ghosts, view.nodes)] : all;
   }, [
     view.nodes,
+    gaps,
     expansion,
     selection.node,
     selection.nodes,

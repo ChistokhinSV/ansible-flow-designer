@@ -69,6 +69,47 @@ export function useReturnFocus(enabled = true): void {
 }
 
 /**
+ * AFD-334 (AFS-156): while a modal dialog is open, the page around it is inert: screen readers and
+ * accessibility snapshots read the dialog, not the canvas before it (the Run dialog came last,
+ * after every node and port, and was missed). The toasts stay. Returns the undo.
+ */
+export function hideAround(box: HTMLElement | null): (() => void) | undefined {
+  if (!box) return undefined;
+  const made: Element[] = [];
+  // The toasts: what happens while the dialog is open is still said.
+  const LIVE = '[aria-live]';
+  const hide = (el: Element) => {
+    if (
+      el.hasAttribute('inert') ||
+      el.getAttribute('aria-hidden') === 'true' ||
+      /^(SCRIPT|STYLE|TEMPLATE)$/.test(el.tagName)
+    )
+      return;
+    if (el.matches(LIVE)) return;
+    // A live region inside stays readable: its neighbours are hidden instead.
+    if (el.querySelector(LIVE)) {
+      for (const child of el.children) hide(child);
+      return;
+    }
+    // Inert keeps the focus out; aria-hidden for readers that do not know inert.
+    el.setAttribute('inert', '');
+    el.setAttribute('aria-hidden', 'true');
+    made.push(el);
+  };
+  for (let el: Element = box; el.parentElement && el !== el.ownerDocument.body; ) {
+    const parent: Element = el.parentElement;
+    for (const sibling of parent.children) if (sibling !== el) hide(sibling);
+    el = parent;
+  }
+  return () => {
+    for (const el of made) {
+      el.removeAttribute('inert');
+      el.removeAttribute('aria-hidden');
+    }
+  };
+}
+
+/**
  * A modal dialog's focus: in on open (the dialog's own choice, else its first control), Tab and
  * Shift+Tab wrap inside it, and back where it was on close. Returns the dialog's key handler.
  */
@@ -76,6 +117,7 @@ export function useDialogFocus(
   ref: RefObject<HTMLElement | null>,
 ): (e: ReactKeyboardEvent<HTMLElement>) => void {
   useReturnFocus();
+  useLayoutEffect(() => hideAround(ref.current), [ref]);
   // After the dialog's own effects (a field focused in a timeout), unless one already took it.
   useLayoutEffect(() => {
     const t = setTimeout(() => {

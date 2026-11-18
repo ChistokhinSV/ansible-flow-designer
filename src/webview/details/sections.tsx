@@ -34,13 +34,14 @@ import {
   timingChoices,
   timingText,
 } from '../../core/view/settings';
+import { gapWords, hasGap, shownStatus } from '../../core/view/statusGap';
 import { run } from '../actions';
 import { useCatalog } from '../catalog';
 import { STATE_LABEL, TYPE_LABEL } from '../constants';
 import { ContractEditor } from '../panels/ContractEditor';
 import { Fold } from '../panels/Fold';
 import { CommitField, ReadOnly } from '../panels/fields';
-import { missingWords, useMissingParams } from '../paramGaps';
+import { useStatusGap } from '../paramGaps';
 import { runPortItem } from '../portActions';
 import { YamlField, type YamlFieldHandle } from '../properties/YamlField';
 import { useUi } from '../store';
@@ -264,11 +265,12 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
   const viewer = useUi((s) => s.viewer);
   const v2 = !!doc && formatOf(doc) >= 2;
   const status = node.status ?? 'draft';
-  const current = STATUS_ORDER.indexOf(status);
+  // AFD-328, AFD-334: implemented by its binding, but the module lacks a required parameter or the
+  // role is not in the project: the stepper stands at specified, and says why.
+  const lack = useStatusGap(node);
+  const current = STATUS_ORDER.indexOf(shownStatus(status, lack));
   const next = v2 && doc ? nextStep(doc, node) : nextRequirement(node);
-  // AFD-328: implemented by its binding, but the module lacks a required parameter.
-  const missing = useMissingParams(node);
-  const gap = missing.length > 0 && (status === 'implemented' || status === 'tested');
+  const gap = hasGap(lack) && (status === 'implemented' || status === 'tested');
   return (
     <section className="afd-section" data-lifecycle={v2 ? 'derived' : 'manual'}>
       <h3>Lifecycle</h3>
@@ -296,9 +298,17 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
         </p>
       ) : null}
       {gap ? (
-        <p className="afd-lifecycle-gap" data-params-missing={missing.join(',')}>
-          <span className="codicon codicon-warning" aria-hidden="true" /> {missingWords(missing)}:
-          the step does not run until they are set on the Binding tab.
+        <p
+          className="afd-lifecycle-gap"
+          data-params-missing={lack.params.join(',') || undefined}
+          data-role-missing={lack.role}
+        >
+          <span className="codicon codicon-warning" aria-hidden="true" /> {gapWords(lack)}: the step
+          does not run until{' '}
+          {lack.params.length
+            ? 'they are set on the Binding tab'
+            : 'the role is added to the project, or another is bound'}
+          .
         </p>
       ) : null}
       {next && !viewer && !gap ? <p className="muted">Next: {next}</p> : null}

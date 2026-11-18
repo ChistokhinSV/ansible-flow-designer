@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 import { buildModel } from '../../../src/core/flow/model';
 import type { FlowDocument, NodeType } from '../../../src/core/flow/types';
 import {
+  defaultPick,
   exactMatch,
   suggestSteps,
   titleAfterPick,
@@ -103,5 +104,20 @@ describe('Quick Add suggestions (AFD-232)', () => {
     const used = usedBindings(buildModel(doc));
     expect(new Set(used.map((u) => `${u.kind}:${u.ref}`)).size).toBe(used.length);
     for (const u of used) expect(['module', 'role']).toContain(u.kind);
+  });
+});
+
+describe('the row Enter picks (AFD-334)', () => {
+  const rows = suggestSteps({
+    ...base,
+    query: 'dec',
+    modules: [{ fqcn: 'cisco.ios.ios_config', short_description: '', dimmed: false }],
+  });
+  it('the exact name, else the first module or role; a step type only by the arrows', () => {
+    expect(rows[0]).toMatchObject({ kind: 'type', type: 'decision' });
+    expect(defaultPick(rows, 'dec')).toBe(1);
+    expect(defaultPick(rows, 'ios_config')).toBe(1);
+    expect(defaultPick(rows, '')).toBe(-1);
+    expect(defaultPick(rows.slice(0, 1), 'dec')).toBe(-1);
   });
 });

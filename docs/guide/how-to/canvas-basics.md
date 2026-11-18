@@ -117,12 +117,18 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
   - double-click empty canvas, or right-click it → **Add Node Here…**;
   - or a port's **Insert Node on This Wire**, or drop a palette type onto a wire (it lights while
     you drag over it).
-  - **Find what the step runs while you name it.** Quick Add's **Title** is a name first: type one
-    and press Enter, and the step is added. As you type, a list under the field shows what else
-    the text matches: a step type by the start of its name (`dec` → Decision), modules from the
-    catalog, roles. While the field is empty it lists what this flow already runs. ↓ and Enter
-    pick a row: a type switches the dialog to it; a module or role makes the step bound to it,
-    with a title made from its name (selected, so typing replaces it). Enter again adds the step.
+  - **Find what the step runs while you name it.** As you type in Quick Add's **Title**, a list
+    under the field shows what the text matches: a step type by the start of its name (`dec` →
+    Decision), modules from the catalog, roles. While the field is empty it lists what this flow
+    already runs. When modules or roles are listed, the first one (or the one named exactly as
+    typed) is highlighted and Enter picks it: the step is bound to it, and a title typed as a name
+    stays (a search gives way to a title made from the module's name). ↓ and ↑ move; ↑ from the
+    first row leaves the list, and Enter then adds the step as typed, without a binding. With
+    nothing listed, Enter adds the step at once. Enter again adds a bound step. Change the title
+    after a pick and the list searches again, with **Keep …** (what the step runs now) first.
+  - **Wire failed_hosts to Rollback** is ticked when the step is added after or between steps
+    on a level with a Rollback; a step added on its own (palette, nothing selected) is not wired
+    unless you tick it.
 
     ![Quick Add lists the modules that match](../images/quick-add-find-light.png)
 
