@@ -567,6 +567,13 @@ function RunStatus({ run }: { run: RunView | null }) {
         Scenario: {run.scenario.name} · {run.scenario.passed ? 'passed' : 'failed'}
       </span>
     );
+  // AFS-147: a run someone stopped says so in a word, not "interrupted".
+  if (run.state === 'error' && run.errorCode === 'cancelled')
+    return (
+      <span className="afd-run-status warn" title={run.error} data-run-state="stopped">
+        <span className="codicon codicon-debug-stop" aria-hidden="true" /> Stopped
+      </span>
+    );
   if (run.state === 'error')
     return (
       <span className="afd-run-status error" title={run.error} data-run-state="error">

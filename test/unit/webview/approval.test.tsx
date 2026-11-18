@@ -215,4 +215,33 @@ describe('approvals a host decides', () => {
     expect(section?.textContent).toMatch(/timed out by the server/);
     expect(screen.getByText('Nobody decided in 30m')).toBeTruthy();
   });
+
+  it('a run stopped while it waited: the approval reads stopped, the top bar one word (AFS-147)', () => {
+    act(() =>
+      useUi.getState().setRun({
+        ...served({}),
+        state: 'error',
+        errorCode: 'cancelled',
+        error: 'Stopped by Dana Whitfield before it went on',
+        stoppedAt: id('gate'),
+      }),
+    );
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 2400, height: 600 }}>
+          <FlowCanvas cull={false} />
+        </div>
+      </ReactFlowProvider>,
+    );
+    const line = document.querySelector<HTMLElement>(
+      `[data-node-id="${id('gate')}"] .afd-node-run`,
+    );
+    expect(line?.dataset.runState).toBe('stopped');
+    expect(line?.textContent).toBe('stopped · 2 hosts');
+    // Nothing reads "waiting" on a run that ended.
+    expect(document.body.textContent).not.toMatch(/waiting/);
+    cleanup();
+    render(<TopBar />);
+    expect(screen.getByText('Stopped')).toBeTruthy();
+  });
 });

@@ -62,4 +62,11 @@ describe('kept runs (AFD-245)', () => {
       pastRunLabel({ ...going, ok: false, hosts: 0, failed: 0, running: true }, 'en-GB'),
     ).toMatch(/· skeleton · running$/);
   });
+
+  it('a run of the server that ended early says how, when the server knows (AFS-147)', () => {
+    const ended = { id: 'r6', mode: 'real' as const, startedAt: '2026-11-12T14:02:00.000Z' };
+    expect(
+      pastRunLabel({ ...ended, ok: false, hosts: 2, failed: 0, ended: 'stopped' }, 'en-GB'),
+    ).toMatch(/· real run · 2 hosts, stopped$/);
+  });
 });
