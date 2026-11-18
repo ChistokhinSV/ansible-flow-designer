@@ -233,6 +233,8 @@ interface UiState {
   run: RunView | null;
   /** AFD-245: the runs kept of this flow, the newest first. */
   pastRuns: PastRun[];
+  /** AFD-335: the host said which runs there are (an empty list then means none yet). */
+  pastRunsKnown: boolean;
   /** The designer asked for a run (AFD-81): when it starts, the canvas switches to Run mode. */
   runAsked: boolean;
   /**
@@ -458,6 +460,7 @@ export const useUi = create<UiState>((set, get) => ({
   run: null,
   runAsked: false,
   pastRuns: [],
+  pastRunsKnown: false,
   launch: null,
   scenarios: null,
   scenarioCheck: null,
@@ -659,7 +662,7 @@ export const useUi = create<UiState>((set, get) => ({
     if (asked && run?.state === 'running') get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
-  setPastRuns: (pastRuns) => set({ pastRuns }),
+  setPastRuns: (pastRuns) => set({ pastRuns, pastRunsKnown: true }),
   setRepo: (repo) => set({ repo }),
   setMerge(merge) {
     set({ merge });
