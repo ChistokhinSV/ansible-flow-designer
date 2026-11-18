@@ -55,4 +55,11 @@ describe('kept runs (AFD-245)', () => {
     const stopped = pastRunOf(run({ state: 'error' }));
     expect(stopped && pastRunLabel(stopped, 'en-GB')).toMatch(/did not finish$/);
   });
+
+  it('a run of the server still going says so, not "did not finish" (AFS-139)', () => {
+    const going = { id: 'r5', mode: 'check' as const, startedAt: '2026-11-12T14:02:00.000Z' };
+    expect(
+      pastRunLabel({ ...going, ok: false, hosts: 0, failed: 0, running: true }, 'en-GB'),
+    ).toMatch(/· skeleton · running$/);
+  });
 });

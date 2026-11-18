@@ -29,6 +29,7 @@ All notable changes to Ansible Flow Designer.
 - A step bound to a module that lacks a required parameter shows a warning instead of the implemented check, and its **Lifecycle** names the parameter.
 - A Note added on a step goes beside it, clear of its fail ports and their wires; the **+** of an open output sits past the port's label; a wire's label is no longer covered by another wire; the preview card opens past a step's port labels and stays inside the canvas.
 - Wires are read out by the steps and ports they join, not by IDs, show a focus ring, and no longer come before the steps when tabbing.
+- The Run panel names a run on Ansible Flow Server as one ("Skeleton run #5 on Ansible Flow Server"), not as a local run. A server run that is still going is listed under **Earlier runs** as running, not "did not finish".
 - A step that ran for no host reads "not reached" on the canvas, not a green "0 hosts".
 - On a run that waits for an approval on Ansible Flow Server or AWX, the approval shows how many hosts wait there, not "0 hosts".
 - In a page that only shows a flow (Ansible Flow Server), **Open in Text Editor** works when the page supports it, and the Run panel no longer says "No run of this flow yet" beside the flow's runs, nor tells someone who may not run the flow to run it.
