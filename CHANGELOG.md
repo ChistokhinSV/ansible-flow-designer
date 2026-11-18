@@ -25,7 +25,7 @@ All notable changes to Ansible Flow Designer.
 - Embedded in a host that runs only saved flows (Ansible Flow Server's flow editor), the Run tab says runs use the saved flow, not AWX or the local environment.
 - On a page of Ansible Flow Server the canvas tells a run in the server's words: **Run a Check** (not **Run as Skeleton**), "check run", "went well", "failed" and "stopped", no exit code, and the time of each earlier run with its time zone. VS Code keeps its own words.
 - A stopped run's status in the Run tab is "stopped"; who stopped it, and where, is its **Why**.
-- The run status chip says "1 host", not "1 hosts".
+- Host counts say "1 host" and "4 hosts" (the run status chip, the real-run question, the run notice), not "1 hosts" or "host(s)".
 
 ### Fixed
 
