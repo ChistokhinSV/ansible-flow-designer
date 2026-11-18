@@ -131,6 +131,28 @@ describe('Run mode', () => {
     expect(document.querySelector('[data-tested-proposal]')).toBeNull();
   });
 
+  it('a run on Ansible Flow Server says so, with its number, not "Local" (AFS-139)', () => {
+    act(() =>
+      useUi.getState().setRun({
+        ...job,
+        mode: 'check',
+        source: 'runner',
+        awx: undefined,
+        runner: {
+          runId: 'r5',
+          number: 5,
+          url: '/runs/r5',
+          state: 'succeeded',
+          commit: 'a'.repeat(40),
+          config: 'Edge switches',
+        },
+      }),
+    );
+    render(<RunPanel />);
+    expect(screen.getByText('Skeleton run #5 on Ansible Flow Server · Edge switches')).toBeTruthy();
+    expect(screen.queryByText(/^Local/)).toBeNull();
+  });
+
   it('a passing run proposes the implemented nodes it ran as tested, in one command', () => {
     act(() =>
       useUi.getState().setRun({

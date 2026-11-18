@@ -16,6 +16,8 @@ export interface PastRun {
   flowVersion?: number;
   /** AFD-244: what a partial run ran. */
   partial?: string;
+  /** AFS-139: a run of a host (Ansible Flow Server) that has not ended yet. */
+  running?: boolean;
 }
 
 /** What the list shows of a stored run; undefined for one that never got going. */
@@ -50,6 +52,8 @@ export function pastRunLabel(run: PastRun, locale?: string): string {
       });
   const kind = run.partial ? 'part of the flow' : run.mode === 'check' ? 'skeleton' : 'real run';
   const hosts = `${run.hosts} host${run.hosts === 1 ? '' : 's'}`;
+  // AFS-139: a run still going has no result yet, and its hosts are not counted until it goes.
+  if (run.running) return `${at} · ${kind} · running`;
   const result = !run.ok ? 'did not finish' : run.failed ? `${run.failed} failed` : 'all passed';
   return `${at} · ${kind} · ${hosts}, ${result}`;
 }

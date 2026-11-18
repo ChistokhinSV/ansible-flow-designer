@@ -22,6 +22,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- The Run panel names a run on Ansible Flow Server as one ("Skeleton run #5 on Ansible Flow Server"), not as a local run. A server run that is still going is listed under **Earlier runs** as running, not "did not finish".
 - A step that ran for no host reads "not reached" on the canvas, not a green "0 hosts".
 - On a run that waits for an approval on Ansible Flow Server or AWX, the approval shows how many hosts wait there, not "0 hosts".
 - In a page that only shows a flow (Ansible Flow Server), **Open in Text Editor** works when the page supports it, and the Run panel no longer says "No run of this flow yet" beside the flow's runs, nor tells someone who may not run the flow to run it.

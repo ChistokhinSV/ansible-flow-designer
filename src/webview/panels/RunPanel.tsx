@@ -83,6 +83,13 @@ function describe(run: RunView): string {
   if (run.partial) return `Local skeleton run of part of the flow. ${run.partial.line}`;
   if (run.source === 'awx' && run.awx)
     return `AWX ${run.awx.workflow ? 'workflow' : 'job'} #${run.awx.jobId} · ${run.awx.template}`;
+  // AFS-139: a run on Ansible Flow Server is not a local run.
+  if (run.source === 'runner') {
+    const kind = run.mode === 'check' ? 'Skeleton run' : 'Real run';
+    const number = run.runner?.number ? ` #${run.runner.number}` : '';
+    const config = run.runner?.config ? ` · ${run.runner.config}` : '';
+    return `${kind}${number} on Ansible Flow Server${config}`;
+  }
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
 }
 
