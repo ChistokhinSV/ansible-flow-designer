@@ -114,7 +114,8 @@ function statusOf(
       ? { label: 'passed: every host ended where expected', tone: 'ok' }
       : {
           label:
-            run.scenario.error ?? `${scenarioMisses(run.scenario).length} host(s) ended elsewhere`,
+            run.scenario.error ??
+            `${hostsWord(scenarioMisses(run.scenario).length)} ended elsewhere`,
           tone: 'warn',
         };
   // AFS-153: a stopped run's status is the one word; who stopped it, and where, is its why.
