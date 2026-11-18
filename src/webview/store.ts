@@ -428,7 +428,7 @@ export const useUi = create<UiState>((set, get) => ({
   viewer: false,
   past: null,
   runner: false,
-  embed: { runShown: false, mayRun: true, mayStop: true },
+  embed: { runShown: false, mayRun: true, mayStop: true, words: 'designer' },
   expandSubflows: false,
   wireStyle: 'stepped',
   expandedSubflows: [],
@@ -558,6 +558,7 @@ export const useUi = create<UiState>((set, get) => ({
         runShown: embed?.runShown === true,
         mayRun: embed?.mayRun !== false,
         mayStop: embed?.mayStop !== false,
+        words: embed?.words === 'server' ? 'server' : 'designer',
       },
     }),
   setViewer() {
@@ -575,7 +576,7 @@ export const useUi = create<UiState>((set, get) => ({
       past,
       mode: 'design',
       leave: null,
-      embed: { runShown: true, mayRun: false, mayStop: false },
+      embed: { runShown: true, mayRun: false, mayStop: false, words: get().embed.words },
     });
   },
   setWireStyle: (wireStyle) => set({ wireStyle }),

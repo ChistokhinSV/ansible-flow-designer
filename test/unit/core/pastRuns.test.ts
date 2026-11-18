@@ -69,4 +69,15 @@ describe('kept runs (AFD-245)', () => {
       pastRunLabel({ ...ended, ok: false, hosts: 2, failed: 0, ended: 'stopped' }, 'en-GB'),
     ).toMatch(/· real run · 2 hosts, stopped$/);
   });
+
+  it("in a server's words: check, went well, failed, and the time with its zone (AFS-153)", () => {
+    const base = { id: 'r7', mode: 'check' as const, startedAt: '2026-11-18T14:48:00.000Z' };
+    const well = pastRunLabel({ ...base, ok: true, hosts: 4, failed: 0 }, 'en-GB', 'server');
+    expect(well).toMatch(/· check · 4 hosts, went well$/);
+    expect(well).toMatch(/[A-Z]{2,5}|GMT|UTC/);
+    expect(well).not.toBe(pastRunLabel({ ...base, ok: true, hosts: 4, failed: 0 }, 'en-GB'));
+    expect(pastRunLabel({ ...base, ok: false, hosts: 1, failed: 0 }, 'en-GB', 'server')).toMatch(
+      /· check · 1 host, failed$/,
+    );
+  });
 });

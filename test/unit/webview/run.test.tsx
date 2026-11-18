@@ -187,6 +187,86 @@ describe('Run mode', () => {
     expect(screen.queryByText(/^Local/)).toBeNull();
   });
 
+  it("a server's page tells the run in its own words: check run, went well, stopped (AFS-153)", () => {
+    const server = {
+      ...job,
+      mode: 'check' as const,
+      rc: 0,
+      source: 'runner' as const,
+      awx: undefined,
+      summary: {
+        hosts: ['sw1'],
+        nodes: {},
+        outcome: {},
+        failures: [],
+        unreachable: [],
+        stoppedEarly: false,
+      },
+      runner: {
+        runId: 'r5',
+        number: 5,
+        url: '/runs/r5',
+        state: 'succeeded',
+        commit: 'a'.repeat(40),
+        config: 'Edge switches',
+      },
+    } as RunView;
+    act(() => {
+      useUi.getState().setEmbed({ words: 'server' });
+      useUi.getState().setRun(server);
+    });
+    const { unmount } = render(
+      <>
+        <TopBar />
+        <RunPanel />
+      </>,
+    );
+    expect(screen.getByText('Check run #5 on Ansible Flow Server · Edge switches')).toBeTruthy();
+    expect(document.querySelector('[data-run-status]')?.textContent).toBe('went well');
+    const chip = document.querySelector<HTMLElement>('.afd-run-status')?.textContent ?? '';
+    expect(chip).toContain('1 host · went well');
+    expect(document.body.textContent).not.toMatch(/exit 0|Skeleton|1 hosts/);
+    act(() =>
+      useUi.getState().setRun({
+        ...server,
+        state: 'error',
+        errorCode: 'cancelled',
+        error: 'Stopped by Dana Whitfield before it went on',
+      }),
+    );
+    expect(document.querySelector('[data-run-status]')?.textContent).toBe('stopped');
+    expect(document.querySelector('[data-run-why]')?.textContent).toBe(
+      'Stopped by Dana Whitfield before it went on',
+    );
+    expect(document.body.textContent).not.toMatch(/Run interrupted/);
+    unmount();
+    act(() => useUi.getState().setEmbed(undefined));
+  });
+
+  it('VS Code keeps its words: a skeleton run and its exit code, "1 host" (AFS-153)', () => {
+    act(() =>
+      useUi.getState().setRun({
+        ...job,
+        mode: 'check',
+        rc: 0,
+        source: 'local',
+        awx: undefined,
+        summary: {
+          hosts: ['sw1'],
+          nodes: {},
+          outcome: {},
+          failures: [],
+          unreachable: [],
+          stoppedEarly: false,
+        },
+      } as RunView),
+    );
+    render(<TopBar />);
+    const chip = document.querySelector<HTMLElement>('.afd-run-status')?.textContent ?? '';
+    expect(chip).toContain('1 host · 0 failed · exit 0');
+    expect(screen.getByText('Run as Skeleton')).toBeTruthy();
+  });
+
   it('a host that runs only saved flows names neither AWX nor the local environment (AFD-332)', () => {
     act(() => {
       useUi.getState().setRun(null);

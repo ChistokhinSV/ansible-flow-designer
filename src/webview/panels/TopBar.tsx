@@ -9,6 +9,7 @@ import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
+import { checkButton, hostsWord } from '../../core/run/words';
 import { scenarioChip } from '../../core/scenario/authoring';
 import { chooseMode } from '../actions';
 import { send } from '../bus';
@@ -425,6 +426,7 @@ function ActionButton({
  */
 function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) {
   const runner = useUi((s) => s.runner);
+  const words = useUi((s) => s.embed.words);
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <div className="afd-split">
@@ -443,7 +445,7 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
           className={`codicon ${running ? 'codicon-debug-stop' : 'codicon-play'}`}
           aria-hidden="true"
         />{' '}
-        {running ? 'Stop' : 'Run as Skeleton'}
+        {running ? 'Stop' : checkButton(words)}
       </button>
       <MenuButton
         label="More run options"
@@ -537,6 +539,7 @@ function LiveRun({ run }: { run: RunView }) {
 
 /** Outcome of the last run: exit code, hosts, failures; a click shows the terminal or the AWX job. */
 function RunStatus({ run }: { run: RunView | null }) {
+  const server = useUi((s) => s.embed.words) === 'server';
   if (run?.state === 'running' && run.awx)
     return (
       <button
@@ -578,23 +581,32 @@ function RunStatus({ run }: { run: RunView | null }) {
     return (
       <span className="afd-run-status error" title={run.error} data-run-state="error">
         <span className="codicon codicon-error" aria-hidden="true" />{' '}
-        {run.awx || run.summary ? 'Run interrupted' : 'Run not started'}
+        {/* AFS-153: a server's run that broke off failed, in the words of its pages. */}
+        {server ? 'Failed' : run.awx || run.summary ? 'Run interrupted' : 'Run not started'}
       </span>
     );
   const s = run.summary;
   // The same verdict as the run panel (AFD-30).
   const { ok, failed } = runVerdict(run);
   const where = run.awx ? `AWX #${run.awx.jobId} · ` : '';
-  const label = s?.stoppedEarly
-    ? `${where}Stopped early · exit ${run.rc}`
-    : `${where}${s?.hosts.length ?? 0} hosts · ${failed} failed · exit ${run.rc}`;
+  const hosts = hostsWord(s?.hosts.length ?? 0);
+  // AFS-153: a server's pages say how a run went, not Ansible's exit code.
+  const label = server
+    ? s?.stoppedEarly
+      ? 'Stopped early'
+      : ok
+        ? `${hosts} · went well`
+        : `${hosts} · ${failed} failed`
+    : s?.stoppedEarly
+      ? `${where}Stopped early · exit ${run.rc}`
+      : `${where}${hosts} · ${failed} failed · exit ${run.rc}`;
   return (
     <button
       type="button"
       className={`afd-run-status ${ok ? 'ok' : 'warn'}`}
       data-run-state={run.state}
       onClick={() => send({ type: 'showRunOutput' })}
-      title={`${run.mode === 'check' ? 'Skeleton run (check mode)' : 'Real run'} at ${run.finishedAt ?? run.startedAt} in ${run.environment ?? 'the environment'}. ${run.awx ? 'Open the job in AWX.' : 'Show the terminal.'}`}
+      title={`${run.mode === 'check' ? (server ? 'Check run' : 'Skeleton run (check mode)') : 'Real run'} at ${run.finishedAt ?? run.startedAt} in ${run.environment ?? 'the environment'}. ${run.awx ? 'Open the job in AWX.' : 'Show the terminal.'}`}
     >
       <span className={`codicon ${ok ? 'codicon-pass' : 'codicon-warning'}`} aria-hidden="true" />{' '}
       {label}

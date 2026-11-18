@@ -260,6 +260,12 @@ export interface ViewerEmbed {
   mayRun?: boolean;
   /** Whether the person may stop a run (default true). */
   mayStop?: boolean;
+  /**
+   * AFS-153: whose words the canvas tells a run in. `server`: check run, went well, failed,
+   * stopped and times with their zone, as the host's pages say; default: the designer's own
+   * (skeleton run, exit codes), as in VS Code.
+   */
+  words?: 'designer' | 'server';
 }
 
 export type HostMessage =
