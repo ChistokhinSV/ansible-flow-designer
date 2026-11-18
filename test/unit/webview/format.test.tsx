@@ -88,6 +88,19 @@ describe('the lifecycle in format 2 (AFD-50)', () => {
     expect(set).toEqual(['tested']);
   });
 
+  it('a viewer shows where the step stands, with no next step or Mark Tested (AFD-327)', () => {
+    show(v2);
+    useUi.setState({ viewer: true });
+    try {
+      render(<Lifecycle node={push} onSet={() => undefined} />);
+      expect(document.querySelector('[data-lifecycle]')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Mark Tested/ })).toBeNull();
+      expect(screen.queryByText(/^Next:/)).toBeNull();
+    } finally {
+      useUi.setState({ viewer: false });
+    }
+  });
+
   it('a tested node shows its record and Clear Tested goes back to what the content gives', () => {
     const tested: FlowNode = {
       ...push,
