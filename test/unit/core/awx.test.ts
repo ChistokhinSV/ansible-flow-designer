@@ -92,6 +92,12 @@ describe('Run mode read-outs (04 §10) and tested proposals (decision 15)', () =
     expect(nodeRun(summary, id('exclude'))).toMatchObject({ state: 'ok', hosts: 1, failed: 0 });
     // No play of its own: nodeRun sees nothing; runStates counts what start sent and ends received.
     expect(nodeRun(summary, id('failed')).state).toBe('idle');
+    // AFD-327: a play that ran for no host is not reached either, though it took a moment.
+    const timed = { ...summary, timings: { [id('exclude')]: { start: 1, end: 1.2 } } };
+    expect(nodeRun({ ...timed, nodes: {} }, id('exclude'))).toMatchObject({
+      state: 'idle',
+      hosts: 0,
+    });
     const states = runStates(doc, summary);
     expect(states[id('start')]).toMatchObject({ state: 'ok', hosts: 3 });
     expect(states[id('done')]).toMatchObject({ state: 'ok', hosts: 1 });

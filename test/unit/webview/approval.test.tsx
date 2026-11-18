@@ -82,7 +82,8 @@ describe('AWX approvals in Run mode', () => {
       `[data-node-id="${id('gate')}"] .afd-node-run`,
     );
     expect(line?.dataset.approval).toBe('waiting');
-    expect(line?.textContent).toBe('waiting for approval');
+    // AFD-327: with the hosts that arrived there, waiting for the decision.
+    expect(line?.textContent).toBe('waiting for approval · 2 hosts');
     cleanup();
     render(<TopBar />);
     expect(screen.getByText(/AWX workflow #40 · waiting for approval/)).toBeTruthy();

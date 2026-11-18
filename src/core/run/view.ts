@@ -51,7 +51,9 @@ export function nodeRun(s: RunSummary, node: Ulid): NodeRun {
   const rows = nodeHosts(s, node);
   const t = s.timings?.[node];
   const seconds = t ? t.end - t.start : undefined;
-  if (rows.length === 0) return { state: t ? 'ok' : 'idle', hosts: 0, failed: 0, seconds };
+  // AFD-327: a play that ran for no host (the hosts went elsewhere, or the run failed before)
+  // did nothing: not reached, not a green "0 hosts".
+  if (rows.length === 0) return { state: 'idle', hosts: 0, failed: 0, seconds };
   const unrouted = s.failures.some((f) => f.node === node);
   const failed = rows.filter((r) => r.ports.length === 0 || r.ports.some(isFailPort)).length;
   const state: NodeRunState = unrouted ? 'failed' : failed > 0 ? 'warn' : 'ok';
@@ -90,6 +92,11 @@ export function runStates(doc: FlowDocument, s: RunSummary): Record<Ulid, NodeRu
       const n = arrivals(model, s, node.id).length;
       const failed = node.outcome === 'failed' ? n : 0;
       out[node.id] = { state: n === 0 ? 'idle' : failed ? 'failed' : 'ok', hosts: n, failed };
+    } else if (node.type === 'approval' && nodeHosts(s, node.id).length === 0) {
+      // AFD-327: an approval has no play of its own on a server that splits the run there: the
+      // hosts it decides for are those that arrived (the segments before it ran them there).
+      const n = arrivals(model, s, node.id).length;
+      out[node.id] = { state: n === 0 ? 'idle' : 'ok', hosts: n, failed: 0 };
     } else out[node.id] = nodeRun(s, node.id);
   }
   // A live run (AFD-81): the running step and every subflow around it.

@@ -282,6 +282,7 @@ export function RunPanel() {
   const doc = useUi((s) => s.snapshot?.doc);
   const viewer = useUi((s) => s.viewer);
   const runShown = useUi((s) => s.embed.runShown);
+  const mayRun = useUi((s) => s.embed.mayRun);
   // AFD-314: the page shows the run's hosts, outputs and approvals; a step shows its own here.
   if (viewer && runShown)
     return (
@@ -294,9 +295,12 @@ export function RunPanel() {
     return (
       <div className="afd-panel-body" data-run-panel="none">
         <h2 className="afd-panel-title">Run</h2>
-        <p className="muted">
-          No run of this flow yet. Run it from the bar above; nodes and wires then show what each
-          host did.
+        {/* AFD-327: the host knows the runs; this view only knows none is shown. Who may not run
+            the flow is not told to. */}
+        <p className="muted" data-run-none={mayRun ? 'may-run' : 'read-only'}>
+          {mayRun
+            ? 'No run shown here. Run it from the bar above, or open one of its runs; nodes and wires then show what each host did.'
+            : 'No run shown here. Open one of its runs to see what each host did.'}
         </p>
         <PastRuns run={null} />
       </div>
