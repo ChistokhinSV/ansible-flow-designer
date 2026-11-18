@@ -474,7 +474,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
           }))
         : nodeHosts(s, id);
   // AFD-329: hosts waiting at an approval have not left it: the host says which they are.
-  const rows =
+  const rows: typeof played =
     played.length === 0 && approval?.status === 'waiting' && approval.hosts?.length
       ? approval.hosts.map((host) => ({ host, ports: [] as string[], waits: true }))
       : played;
