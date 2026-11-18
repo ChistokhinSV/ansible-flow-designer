@@ -323,3 +323,141 @@ describe('wave 2 on the canvas (AFD-236, 237, 238, 241)', () => {
     expect(useUi.getState().zoomNonce).toBe(before + 1);
   });
 });
+
+describe('Add Node and status, round 2 (AFD-334)', () => {
+  const answer = (hits: { fqcn: string; short_description: string }[]) => {
+    const asked = (posted as Posted[]).filter((m) => m.type === 'catalog').at(-1);
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'catalogReply',
+            reqId: asked?.reqId,
+            ok: true,
+            result: hits.map((h) => ({
+              ...h,
+              type: 'module',
+              collection: h.fqcn.split('.').slice(0, 2).join('.'),
+              score: 1,
+              match: '',
+              badges: [],
+              dimmed: false,
+            })),
+          },
+        }),
+      );
+    });
+  };
+  const search = async (
+    title: HTMLInputElement,
+    value: string,
+    hits: Parameters<typeof answer>[0],
+  ) => {
+    fireEvent.change(title, { target: { value } });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 250));
+    });
+    answer(hits);
+    await act(async () => {});
+  };
+  const PING = { fqcn: 'ansible.builtin.ping', short_description: 'Try to connect' };
+  const BANNER = { fqcn: 'cisco.ios.ios_banner', short_description: 'Banner of IOS' };
+
+  it('Enter picks the first module listed, even when the text is not its name', async () => {
+    canvas();
+    act(() => useUi.getState().openQuickAdd({ type: 'task' }));
+    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    await search(title, 'a2 ping', [PING]);
+    expect(
+      screen.getByRole('option', { name: /ansible\.builtin\.ping/ }).getAttribute('aria-selected'),
+    ).toBe('true');
+    fireEvent.keyDown(title, { key: 'Enter' });
+    expect(document.querySelector('[data-bound]')?.getAttribute('data-bound')).toBe(
+      'ansible.builtin.ping',
+    );
+    // A title typed as a name stays.
+    expect(title.value).toBe('a2 ping');
+  });
+
+  it('Up from the first row leaves the list: Enter adds the step as typed', async () => {
+    canvas();
+    act(() => useUi.getState().openQuickAdd({ type: 'task' }));
+    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    await search(title, 'a2 ping', [PING]);
+    fireEvent.keyDown(title, { key: 'ArrowUp' });
+    expect(title.getAttribute('aria-activedescendant')).toBeNull();
+    fireEvent.keyDown(title, { key: 'Enter' });
+    expect(document.querySelector('[data-bound]')).toBeNull();
+  });
+
+  it('a title changed after a pick searches again, with the pick kept as the first row', async () => {
+    canvas();
+    act(() => useUi.getState().openQuickAdd({ type: 'task' }));
+    const title = screen.getByLabelText('Title') as HTMLInputElement;
+    await search(title, 'ping', [PING]);
+    fireEvent.keyDown(title, { key: 'Enter' });
+    expect(document.querySelector('[data-bound]')?.getAttribute('data-bound')).toBe(
+      'ansible.builtin.ping',
+    );
+    await search(title, 'ios_banner', [BANNER, PING]);
+    const rows = screen.getAllByRole('option');
+    expect(rows[0]?.textContent).toContain('Keep ansible.builtin.ping');
+    // The exact name is what Enter takes.
+    fireEvent.keyDown(title, { key: 'Enter' });
+    expect(document.querySelector('[data-bound]')?.getAttribute('data-bound')).toBe(
+      'cisco.ios.ios_banner',
+    );
+  });
+
+  it('a step added on its own is not wired to Rollback unasked; one after a step is', () => {
+    canvas();
+    act(() => useUi.getState().openQuickAdd({ type: 'task' }));
+    const lone = screen.getByRole('checkbox', { name: /Wire failed_hosts of the new step/ });
+    expect((lone as HTMLInputElement).checked).toBe(false);
+    act(() => useUi.getState().openQuickAdd(null));
+    act(() =>
+      useUi
+        .getState()
+        .openQuickAdd({ type: 'task', connectFrom: { node: id('precheck'), port: 'ok_hosts' } }),
+    );
+    const after = screen.getByRole('checkbox', { name: /Wire failed_hosts of the new step/ });
+    expect((after as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('a step bound to a role the project lacks is named specified, not implemented', () => {
+    const doc = structuredClone(EDGE);
+    const node = doc.nodes.find((n) => n.key === 'backup-config');
+    if (!node) throw new Error('no backup-config');
+    node.impl = { kind: 'role', ref: 'netops_backup' };
+    node.status = 'implemented';
+    act(() =>
+      useUi.getState().setSnapshot({
+        docVersion: Date.now(),
+        doc,
+        stale: false,
+        findings: [
+          {
+            code: 'role-missing',
+            severity: 'warning',
+            message: 'no role',
+            path: [],
+            node: node.id,
+            subject: 'netops_backup',
+          },
+        ],
+        openPorts: openFailPorts(buildModel(doc)),
+        autoPositions: {},
+      }),
+    );
+    canvas();
+    const wrapper = document.querySelector(`[data-id="${node.id}"]`);
+    expect(wrapper?.getAttribute('aria-label')).toBe(
+      'Task Backup config, specified (role netops_backup is not in this project)',
+    );
+    const view = document.querySelector(`[data-node-id="${node.id}"]`);
+    expect(view?.className).toContain('status-specified');
+    expect(view?.querySelector('[data-role-missing]')?.getAttribute('data-role-missing')).toBe(
+      'netops_backup',
+    );
+  });
+});

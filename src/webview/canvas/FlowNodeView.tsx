@@ -39,9 +39,10 @@ import { subLine } from '../../core/view/nodeFace';
 import { changeWords } from '../../core/view/outsideChanges';
 import { portHint } from '../../core/view/portHints';
 import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges';
+import { gapWords, hasGap, type StatusGap, shownStatus } from '../../core/view/statusGap';
 import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
-import { missingWords, useMissingParams } from '../paramGaps';
+import { useStatusGap } from '../paramGaps';
 import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
 import { approvalOf } from '../runApproval';
@@ -487,24 +488,26 @@ function SummaryRows({
  */
 function StatusMark({
   status,
-  missing,
+  gap,
   hurt = false,
 }: {
   status: NodeStatus;
-  missing: readonly string[];
+  gap: StatusGap;
   /** AFS-147: the run shown failed hosts here: the status mark is not a green check beside it. */
   hurt?: boolean;
 }) {
-  if (missing.length === 0 || (status !== 'implemented' && status !== 'tested'))
+  if (!hasGap(gap) || (status !== 'implemented' && status !== 'tested'))
     return <StatusIcon status={status} hurt={hurt} />;
-  const words = `${missingWords(missing)}: the step does not run until they are set`;
+  const words = `${gapWords(gap)}: the step does not run until this is fixed`;
   return (
     <span
       className="afd-status-icon codicon codicon-warning afd-params-missing"
       role="img"
-      aria-label={`Status: ${status}, ${missingWords(missing).toLowerCase()}`}
+      // AFD-334: not "implemented" while it would not run.
+      aria-label={`Status: ${shownStatus(status, gap)}, ${gapWords(gap).toLowerCase()}`}
       title={words}
-      data-params-missing={missing.join(',')}
+      data-params-missing={gap.params.join(',') || undefined}
+      data-role-missing={gap.role}
     />
   );
 }
@@ -512,11 +515,11 @@ function StatusMark({
 const NodeBody = memo(function NodeBody({
   node,
   near,
-  missing,
+  gap,
 }: {
   node: FlowNode;
   near: boolean;
-  missing: readonly string[];
+  gap: StatusGap;
 }) {
   const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
@@ -543,7 +546,7 @@ const NodeBody = memo(function NodeBody({
     return (
       <>
         <div className="afd-node-head">
-          <StatusMark status={status} missing={missing} hurt={hurt} />
+          <StatusMark status={status} gap={gap} hurt={hurt} />
           <Title node={node} />
         </div>
         <LensChips id={node.id} />
@@ -554,7 +557,7 @@ const NodeBody = memo(function NodeBody({
     );
   const head = (
     <div className="afd-node-head">
-      {unreached ? null : <StatusMark status={status} missing={missing} hurt={hurt} />}
+      {unreached ? null : <StatusMark status={status} gap={gap} hurt={hurt} />}
       <Title node={node} />
     </div>
   );
@@ -605,7 +608,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const { node, ports } = data.view;
   const role = data.role;
   const canExpand = useUi((s) => s.expandSubflows) && node.type === 'subflow' && role !== 'inner';
-  const missing = useMissingParams(node);
+  const gap = useStatusGap(node);
   const dataLens = useUi((s) => s.lens === 'data');
   // Handles added or removed after mount must be measured again before wires can attach. Only on a
   // toggle: re-measuring every node on mount upsets the initial fit of the view.
@@ -675,14 +678,15 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     runState ? `run-${runState}` : '',
     'afd-node',
     `type-${node.type}`,
-    `status-${node.status ?? 'draft'}`,
+    // AFD-334: coloured as specified while it would not run.
+    `status-${shownStatus(node.status ?? 'draft', gap)}`,
     purposeOf(node) ? 'handler' : '',
     node.type === 'end' && node.outcome === 'failed' ? 'outcome-failed' : '',
     selected ? 'selected' : '',
     active ? 'active' : '',
     pickAt ? 'afd-pick-at' : '',
     badge ? `has-problem problem-${badge.severity}` : '',
-    missing.length ? 'params-missing' : '',
+    hasGap(gap) ? 'params-missing' : '',
     node.disabled ? 'disabled' : '',
     role === 'frame' ? 'expanded' : '',
     role === 'inner' ? 'inner' : '',
@@ -794,7 +798,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           />
         </>
       ) : null}
-      {far ? <Title node={node} /> : <NodeBody node={node} near={near} missing={missing} />}
+      {far ? <Title node={node} /> : <NodeBody node={node} near={near} gap={gap} />}
     </div>
   );
 });

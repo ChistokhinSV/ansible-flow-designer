@@ -22,11 +22,17 @@ All notable changes to Ansible Flow Designer.
 - Sending a folder to a new server project asks its name first and makes the key from it (lower case, other characters as dashes), as the server's **Add project** does.
 - The README and the extension's description introduce [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), which runs the same flows for a team.
 - **Add Node** says "Adding…" while the new step is on its way, and is not sent twice.
+- **Add Node**: when modules or roles are listed under the title, the first one is highlighted and Enter picks it, whatever the text; ↑ from the first row adds the step as typed. Changing the title after a pick lists matches again, with **Keep …** first, instead of keeping the old module silently.
+- **Add Node** from the palette with nothing selected no longer ticks **Wire failed_hosts to Rollback**; the box names the new step's port.
+- A step whose module lacks a required parameter, or whose role the project does not have (Ansible Flow Server says so), reads **specified** in Lifecycle, on the canvas and to screen readers, with what is missing, instead of implemented.
+- While a dialog is open (**Run as Skeleton**, **Add Node** and the others), the page behind it is hidden from screen readers, so the dialog is what they read.
 - An edit that waits more than 5 seconds is written to the **Ansible Flow** output with what it waits for, so a "Saving…" that stays can be traced.
 - Embedded in a host that runs only saved flows (Ansible Flow Server's flow editor), the Run tab says runs use the saved flow, not AWX or the local environment.
 
 ### Fixed
 
+- A canvas step reached with Tab shows a focus ring.
+- The checkboxes of **Add Node** and the Flow panel's **Key** and **Owner** fields are named for screen readers.
 - In a web page the canvas opens with the whole level in view down to 30% (notes on steps included), and a narrow designer opens with its side panel folded until a step is selected. A flow put in place of the one shown (a sample opened) is fitted again, and a new note is brought into view. The designer no longer scrolls as a whole when its folded palette is taller than the window.
 - In a web page a click on a step no longer turns the mouse wheel into zoom: only a click on the empty canvas does, so a run's page scrolls after a step is selected.
 - The open fail port question shows the step's name in full and wraps on a narrow canvas instead of ending in "…".

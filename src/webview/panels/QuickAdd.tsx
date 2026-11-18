@@ -20,7 +20,7 @@ import { offeredPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { portHint } from '../../core/view/portHints';
 import {
-  exactMatch,
+  defaultPick,
   type Suggestion,
   suggestSteps,
   titleAfterPick,
@@ -68,6 +68,8 @@ function QuickAddDialog() {
   // AFD-232: what the step runs, picked from the list under the title; the row the arrows are on.
   const [bound, setBound] = useState<{ kind: 'module' | 'role'; ref: string } | null>(null);
   const [typed, setTyped] = useState(false);
+  // AFD-334: the title was changed after a pick: the list searches again, the pick kept first.
+  const [retitled, setRetitled] = useState(false);
   // The row the arrows are on; null until they move it (Enter then takes an exact match).
   const [active, setActive] = useState<number | null>(null);
   const listId = useId();
@@ -82,9 +84,12 @@ function QuickAddDialog() {
     setIntent('');
     setPorts([]);
     setInputs([]);
-    setWireRollback(true);
+    // AFD-334: wired to Rollback only when the step is added after or between steps; a step added
+    // on its own (palette, nothing selected) is not wired unasked.
+    setWireRollback(!!(quick.connectFrom || quick.insertOn));
     setBound(null);
     setTyped(false);
+    setRetitled(false);
     setActive(null);
     setTimeout(() => titleRef.current?.focus(), 0);
   }, [quick]);
@@ -92,8 +97,9 @@ function QuickAddDialog() {
   const model = useMemo(() => (snapshot?.doc ? modelOf(snapshot.doc) : undefined), [snapshot]);
   const levelId = useUi((s) => s.level);
   // A prefilled title (Cleanup Task) is a name, not a search: the list waits for typing.
-  const query = typed && !bound ? title.trim() : '';
-  const finds = type === 'task' && !bound;
+  const searching = !bound || retitled;
+  const query = typed && searching ? title.trim() : '';
+  const finds = type === 'task' && searching;
   const hits = useCatalog(
     finds && query.length >= 2 ? { op: 'search', query, types: ['module'] } : null,
     `quick-add:${finds ? query : ''}`,
@@ -119,30 +125,55 @@ function QuickAddDialog() {
   const allowed = NODE_TYPES.filter((t) =>
     quick.insertOn ? INSERTABLE.includes(t) : !quick.connectFrom || t !== 'start',
   );
-  const suggestions: Suggestion[] = bound
-    ? []
-    : suggestSteps({
+  const found: Suggestion[] = searching
+    ? suggestSteps({
         query: typed ? title.trim() : '',
         type,
         types: allowed.map((t) => ({ type: t, label: TYPE_LABEL[t] })),
         modules: hits.data ?? [],
         roles: (roles.data ?? []).map((r) => r.name),
         used,
-      });
-  // AFD-328: typing a module's own name ("ping") highlights it, and Enter picks it.
+      })
+    : [];
+  const keep: Suggestion[] =
+    bound && retitled && type === 'task'
+      ? [
+          {
+            kind: bound.kind,
+            ref: bound.ref,
+            label: `Keep ${bound.ref}`,
+            hint: 'what the step runs now',
+          },
+        ]
+      : [];
+  const suggestions: Suggestion[] = [
+    ...keep,
+    ...found.filter(
+      (s) =>
+        !keep.some(
+          (k) => s.kind !== 'type' && k.kind !== 'type' && s.kind === k.kind && s.ref === k.ref,
+        ),
+    ),
+  ];
+  // AFD-328, AFD-334: the exact match, else the first module or role, is highlighted and Enter
+  // picks it; the arrows move off it (up from the first row: the step as typed).
   const at =
     active === null
-      ? exactMatch(suggestions, typed ? title : '')
+      ? defaultPick(suggestions, typed ? title : '')
       : active < suggestions.length
         ? active
         : -1;
   const choose = (s: Suggestion) => {
     setActive(null);
+    setRetitled(false);
     if (s.kind === 'type') {
       setType(s.type);
       setPorts([]);
+      setBound(null);
       setTitle('');
       setTyped(false);
+    } else if (bound && s.kind === bound.kind && s.ref === bound.ref) {
+      // Kept: the title stays as now typed.
     } else {
       setType('task');
       setPorts([]);
@@ -278,6 +309,7 @@ function QuickAddDialog() {
               setTitle(e.target.value);
               setTyped(true);
               setActive(null);
+              if (bound) setRetitled(true);
             }}
             onKeyDown={onTitleKey}
           />
@@ -292,6 +324,7 @@ function QuickAddDialog() {
                 title="Add the step without a binding"
                 onClick={() => {
                   setBound(null);
+                  setRetitled(false);
                   titleRef.current?.focus();
                 }}
               >
@@ -321,6 +354,13 @@ function QuickAddDialog() {
               ))}
             </div>
           ) : null}
+          {suggestions.length > 0 && typed && title.trim() ? (
+            <div className="muted afd-qa-keys" data-qa-keys>
+              {at >= 0
+                ? 'Enter picks the highlighted row; Up from the first row adds the step as typed.'
+                : 'Enter adds the step as typed; Down picks from the list.'}
+            </div>
+          ) : null}
           <div
             className="muted mono afd-key-preview"
             title="The step's name in the file and in the generated code; its ID is made when you add it"
@@ -348,6 +388,7 @@ function QuickAddDialog() {
               <label key={name} className="afd-check">
                 <input
                   type="checkbox"
+                  aria-label={`Input ${name} from ${source?.title ?? 'the step before'}`}
                   checked={inputs.includes(name)}
                   onChange={(e) =>
                     setInputs((xs) =>
@@ -371,6 +412,8 @@ function QuickAddDialog() {
               <label key={p} className="afd-check">
                 <input
                   type="checkbox"
+                  aria-label={`Port ${p}`}
+                  aria-description={portHint(p, type)}
                   checked={ports.includes(p)}
                   onChange={(e) =>
                     setPorts((xs) => (e.target.checked ? [...xs, p] : xs.filter((x) => x !== p)))
@@ -385,10 +428,12 @@ function QuickAddDialog() {
           <label className="afd-check">
             <input
               type="checkbox"
+              aria-label={`Wire failed_hosts of the new step to ${rollback.title}`}
               checked={wireRollback}
               onChange={(e) => setWireRollback(e.target.checked)}
             />
-            Wire <span className="mono">failed_hosts</span> to <strong>{rollback.title}</strong>
+            Wire the new step's <span className="mono">failed_hosts</span> to{' '}
+            <strong>{rollback.title}</strong>
           </label>
         ) : null}
         <div className="afd-modal-actions">

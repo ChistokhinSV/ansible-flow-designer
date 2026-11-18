@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { missingRequired } from '../core/catalog/draft';
 import type { FlowNode } from '../core/flow/types';
 import type { CatalogDoc } from '../core/protocol';
+import { missingRole, type StatusGap } from '../core/view/statusGap';
 import { onHostMessage } from './bus';
 import { catalogRequest } from './catalog';
 import { useUi } from './store';
@@ -48,6 +49,49 @@ export function useMissingParams(node: FlowNode | undefined): readonly string[] 
   return useMemo(() => missing, [key]);
 }
 
-/** What a node with missing parameters says, on the canvas and in its Lifecycle. */
-export const missingWords = (missing: readonly string[]): string =>
-  `Required parameter${missing.length === 1 ? '' : 's'} missing: ${missing.join(', ')}`;
+/** AFD-334: what a node lacks to run as it is: required parameters, and a role not in the project. */
+export function useStatusGap(node: FlowNode | undefined): StatusGap {
+  const params = useMissingParams(node);
+  const role = useUi((s) => (node ? missingRole(s.snapshot?.findings, node.id) : undefined));
+  return useMemo(() => ({ params, ...(role ? { role } : {}) }), [params, role]);
+}
+
+/**
+ * AFD-334: the gaps of a level's steps at once, for the canvas's accessible names (they are built
+ * outside the node components). Docs come from the same cache as `useMissingParams`.
+ */
+export function useLevelGaps(nodes: readonly FlowNode[]): Record<string, StatusGap> {
+  const ready = useUi((s) => s.catalog.state === 'ready');
+  const findings = useUi((s) => s.snapshot?.findings);
+  const refs = [
+    ...new Set(
+      nodes.flatMap((n) =>
+        n.type === 'task' && n.impl?.kind === 'module' && n.impl.ref ? [n.impl.ref] : [],
+      ),
+    ),
+  ].sort();
+  const refKey = refs.join('|');
+  const [read, setRead] = useState<Record<string, CatalogDoc | null>>({});
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `refKey` stands for the refs.
+  useEffect(() => {
+    if (!ready || refs.length === 0) return;
+    let live = true;
+    void Promise.all(refs.map(async (r) => [r, await docOf(r)] as const)).then((pairs) => {
+      if (live) setRead(Object.fromEntries(pairs));
+    });
+    return () => {
+      live = false;
+    };
+  }, [ready, refKey]);
+  return useMemo(() => {
+    const out: Record<string, StatusGap> = {};
+    for (const n of nodes) {
+      const impl = n.type === 'task' && n.impl?.kind === 'module' ? n.impl : undefined;
+      const doc = impl?.ref ? read[impl.ref] : undefined;
+      const params = impl && doc ? missingRequired(impl, doc) : [];
+      const role = missingRole(findings, n.id);
+      if (params.length || role) out[n.id] = { params, ...(role ? { role } : {}) };
+    }
+    return out;
+  }, [nodes, read, findings]);
+}

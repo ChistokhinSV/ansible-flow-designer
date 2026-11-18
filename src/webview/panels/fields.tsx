@@ -77,6 +77,9 @@ export function CommitField({
     className: `afd-input${mono ? ' mono' : ''}${error ? ' invalid' : ''}`,
     onBlur: commit,
     onKeyDown,
+    // AFD-334 (AFS-156): named by its label for every reader, also one that takes a placeholder
+    // or the value before a label's for= (Key and Owner were read as their values).
+    'aria-label': label,
     'aria-invalid': !!error,
     'aria-describedby': error ? `${id}-error` : undefined,
   };

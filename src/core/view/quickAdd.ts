@@ -101,6 +101,18 @@ export function exactMatch(suggestions: readonly Suggestion[], query: string): n
 }
 
 /**
+ * AFD-334: the row Enter picks while the arrows have not moved: the exact match, else the first
+ * module or role listed (a step type only by the arrows: picking one clears the title). -1 when
+ * nothing is typed or nothing is listed: Enter then adds the step as typed.
+ */
+export function defaultPick(suggestions: readonly Suggestion[], query: string): number {
+  if (!query.trim()) return -1;
+  const exact = exactMatch(suggestions, query);
+  if (exact >= 0) return exact;
+  return suggestions.findIndex((s) => s.kind !== 'type');
+}
+
+/**
  * AFD-328: the title a step gets when a module or role is picked for it. A title typed as a name
  * stays; text that only searched for the pick (its words are in the reference) gives way to a title
  * made from it.
