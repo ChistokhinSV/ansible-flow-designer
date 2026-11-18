@@ -100,13 +100,15 @@ describe('wires on the canvas (AFS-142 a9.10, a10.20)', () => {
 });
 
 describe('the open fail port question (AFS-137 a2.13)', () => {
-  it('is one line: the question in full in its title, quick answers that can fold away', () => {
+  it('names the step, the question in full in its title, quick answers that can fold away', () => {
     act(() => useUi.getState().setSnapshot(snapshotOf(example('edge-baseline.flow.yaml'))));
     render(<Banner />);
     const banner = screen.getByRole('status');
     expect(banner.classList.contains('afd-open-ports')).toBe(true);
     const question = banner.querySelector('.afd-open-ports-question');
     expect(question?.getAttribute('title')).toMatch(/^What should happen when ".+"/);
+    // AFS-148 a2.n3: the step's name is in the text, not only in the title.
+    expect(question?.textContent).toMatch(/What should happen when "Pre-checks" fails\?/);
     expect(banner.querySelectorAll('.afd-open-ports-quick').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Other Choices' })).toBeTruthy();
   });
@@ -210,6 +212,45 @@ describe('a narrow designer (AFS-137 a9.3)', () => {
       act(() => useUi.getState().setPanelWidth(400));
       expect(kept.at(-1)).toMatchObject({ panelWidth: 400, paletteCollapsed: false });
     } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    }
+  });
+});
+
+describe('a narrow designer in a web page (AFS-148 a9.n1, a2.n1)', () => {
+  it('opens with the side panel folded, and unfolds it when a step is selected', async () => {
+    const width = window.innerWidth;
+    const g = globalThis as { acquireVsCodeApi?: unknown };
+    const vscode = g.acquireVsCodeApi;
+    delete g.acquireVsCodeApi;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 700 });
+    const kept: unknown[] = [];
+    const listeners = new Set<(m: HostMessage) => void>();
+    setTransport({
+      post: () => undefined,
+      subscribe(l) {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      },
+      getState: () => undefined,
+      setState: (s) => kept.push(s),
+    });
+    useUi.setState({ paletteCollapsed: false, panelCollapsed: false, panelWidth: 340 });
+    try {
+      render(<App />);
+      const doc = example('edge-baseline.flow.yaml');
+      await act(async () => {
+        for (const l of listeners) l({ type: 'config', testMode: false });
+        for (const l of listeners) l({ type: 'snapshot', snapshot: snapshotOf(doc) });
+      });
+      expect(useUi.getState().panelCollapsed).toBe(true);
+      expect(screen.getByRole('button', { name: 'Show Side Panel' })).toBeTruthy();
+      act(() => useUi.getState().select({ node: doc.nodes[1]?.id }));
+      expect(useUi.getState().panelCollapsed).toBe(false);
+      // Folded for the width, not by the user: not kept as the user's choice.
+      expect(kept.every((k) => !(k as { panelCollapsed?: boolean }).panelCollapsed)).toBe(true);
+    } finally {
+      g.acquireVsCodeApi = vscode;
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
     }
   });

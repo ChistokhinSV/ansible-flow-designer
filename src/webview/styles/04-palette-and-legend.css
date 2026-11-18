@@ -13,6 +13,8 @@
 .afd-palette button {
   width: 100%;
   justify-content: flex-start;
+  /* AFS-148: a name on two lines (Notify On-Call and Stop) starts at the left, as the others. */
+  text-align: left;
   background: transparent;
   color: var(--afd-fg);
   border: 1px dashed var(--afd-border);

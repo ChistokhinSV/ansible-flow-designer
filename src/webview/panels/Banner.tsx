@@ -115,8 +115,8 @@ function OpenPortsBanner({
   ];
   // The rest of the choices: the port's own menu, beside the port once it is on screen.
   const others = () => ref && openPortMenuSoon(ref);
-  // AFD-328: one line at any width. The question gives way (it ends in "…", its title in full);
-  // on a narrow canvas the quick answers fold into Other Choices, the port's own menu.
+  // AFD-328: on a narrow canvas the quick answers fold into Other Choices, the port's own menu.
+  // AFS-148: the question is read whole; it wraps rather than hide the step's name.
   return (
     <div className="afd-banner warning afd-open-ports" role="status" data-banner-count={count}>
       <span className="codicon codicon-warning" aria-hidden="true" />

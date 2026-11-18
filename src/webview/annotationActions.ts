@@ -67,6 +67,8 @@ export async function addAnnotation(
     ...(Object.keys(freeze).length ? { freeze } : {}),
   });
   if (!ack.ok || !ack.created) return;
+  // AFS-148: the canvas pans to it when it is out of view (under the side panel, off an edge).
+  useUi.setState({ bringIntoView: ack.created });
   useUi.getState().select({ annotations: [ack.created] });
   useUi.getState().editAnnotation(ack.created);
 }

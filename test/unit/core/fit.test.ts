@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FIT_MARGIN,
   minimapCorner,
+  PAGE_FIT_ZOOM,
   panInto,
   READABLE_PX,
   READABLE_ZOOM,
@@ -46,6 +47,23 @@ describe('readableViewport (AFD-42)', () => {
     expect(v.x).toBe(400 - 1200 * READABLE_ZOOM);
     // The top node far left: the view starts at the level's left edge, not past it.
     expect(readableViewport(bounds, PANE, 0).x).toBe(FIT_MARGIN);
+  });
+
+  it('in a web page a level opens whole down to the page zoom (AFS-148 a9.16)', () => {
+    // A laptop's canvas: the flow fits at about 0.5, below the readable zoom.
+    const bounds = { x: 0, y: 0, width: 1400, height: 1000 };
+    const page = readableViewport(bounds, PANE, 700, PAGE_FIT_ZOOM);
+    expect(page.zoom).toBeCloseTo((800 - 2 * FIT_MARGIN) / 1400);
+    expect(page.zoom).toBeLessThan(READABLE_ZOOM);
+    // All of it inside the pane.
+    expect(page.x).toBeGreaterThanOrEqual(0);
+    expect(page.x + bounds.width * page.zoom).toBeLessThanOrEqual(PANE.width);
+    expect(page.y + bounds.height * page.zoom).toBeLessThanOrEqual(PANE.height);
+    // VS Code keeps the readable view; and a level too large even for the page zoom too.
+    expect(readableViewport(bounds, PANE, 700).zoom).toBe(READABLE_ZOOM);
+    expect(
+      readableViewport({ x: 0, y: 0, width: 6000, height: 4000 }, PANE, 0, PAGE_FIT_ZOOM).zoom,
+    ).toBe(READABLE_ZOOM);
   });
 });
 

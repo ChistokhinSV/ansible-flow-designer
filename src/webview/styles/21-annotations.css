@@ -185,9 +185,9 @@
   --afd-ink: var(--afd-note-gray-ink);
 }
 
-/* Under a lens or a run the flow speaks: annotations step back. */
+/* Under a lens or a run the flow speaks: annotations step back (AFS-148: still readable). */
 .afd-dim-annotations .react-flow__node-annotation {
-  opacity: 0.45;
+  opacity: 0.65;
 }
 
 /* Changes lens (AFD-66): added and changed annotations are outlined, and do not fade. */

@@ -3,7 +3,9 @@
 .afd-shell {
   display: grid;
   grid-template-columns: var(--afd-left-width) 1fr var(--afd-right-width);
-  grid-template-rows: auto 1fr;
+  /* AFS-148: the row never grows past the window: the folded palette's icons (taller than a
+     laptop's frame) made the whole designer scroll, and the canvas's bottom with it. */
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "top top top"
     "left center right";

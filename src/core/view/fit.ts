@@ -8,6 +8,12 @@ export const TITLE_PX = 14;
 export const READABLE_PX = 11;
 /** The zoom at which titles reach READABLE_PX, rounded up. */
 export const READABLE_ZOOM = 0.8;
+/**
+ * AFS-148: in a web page a level opens whole down to this zoom (the page shows the flow as a
+ * picture beside its runs and hosts; a step is a click away), and readable only below it. In VS
+ * Code a level opens readable (READABLE_ZOOM).
+ */
+export const PAGE_FIT_ZOOM = 0.3;
 /** A fit never zooms in past 100%: small levels open at their real size. */
 export const MAX_FIT_ZOOM = 1;
 /** Room around the level, in screen px. */
@@ -44,6 +50,8 @@ export function readableViewport(
   bounds: Rect,
   pane: { width: number; height: number },
   anchorX = bounds.x + bounds.width / 2,
+  /** The smallest zoom that still shows the whole level. */
+  wholeFrom = READABLE_ZOOM,
 ): Viewport {
   const room = {
     width: Math.max(1, pane.width - 2 * FIT_MARGIN),
@@ -52,7 +60,7 @@ export function readableViewport(
   const w = Math.max(1, bounds.width);
   const h = Math.max(1, bounds.height);
   const full = Math.min(room.width / w, room.height / h, MAX_FIT_ZOOM);
-  if (full >= READABLE_ZOOM) {
+  if (full >= Math.min(wholeFrom, READABLE_ZOOM)) {
     return {
       zoom: full,
       x: (pane.width - w * full) / 2 - bounds.x * full,

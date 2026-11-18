@@ -272,8 +272,10 @@ A level opens readable. When it fits at a zoom where titles are at least 11 px, 
 left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
 whole level, clear of the zoom controls; until you pan or zoom, the view fits again when the canvas
 changes size (the side panel, a message above the canvas). In a web page (Ansible Flow Server)
-each page opens fitted, and a page that only shows the flow lets the mouse wheel scroll the page
-until you click the canvas; Ctrl+wheel zooms at any time. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for its
+each page opens with the whole level in view, notes included, down to 30% (a larger level opens
+readable, as above); a narrow page opens with the side panel folded until you select a step. A
+page that only shows the flow lets the mouse wheel scroll the page until you click the empty
+canvas (a click on a step leaves the wheel to the page); Ctrl+wheel zooms at any time. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for its
 Details on the right. Pause on a subflow or a bound node for a preview of what is inside.
 
 New nodes without a position, and **Tidy Up**, follow the setting `afd.canvas.direction`: top to

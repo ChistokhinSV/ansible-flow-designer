@@ -35,18 +35,18 @@
   white-space: nowrap;
 }
 
-/* AFD-328: the open fail port question is one line at any width: the question gives way, and on a
-   narrow canvas the quick answers fold into Other Choices (the port's menu holds them all). */
+/* AFD-328: on a narrow canvas the quick answers fold into Other Choices (the port's menu holds
+   them all). AFS-148: the question is read whole, step name included: it takes the room first and
+   wraps on a narrow canvas; the answers go to the next line when the row has no room for them. */
 .afd-banner.afd-open-ports {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 .afd-open-ports-question {
-  flex: 1 1 auto;
+  flex: 1 1 16em;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .afd-open-ports > button {
