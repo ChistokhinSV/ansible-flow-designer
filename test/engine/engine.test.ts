@@ -673,7 +673,7 @@ const SCENARIOS: Scenario[] = [
         run.events.some(
           (e) => e.event === 'result' && e.status === 'failed' && String(e.task).includes(text),
         );
-      expect(failed('no host reached')).toBe(true);
+      expect(failed('end the segment when no host waits')).toBe(true);
       expect(failed('only after an approval')).toBe(false);
     },
   },

@@ -150,6 +150,12 @@ export interface RunApproval {
   url?: string;
   /** The person looking may decide it here: the host takes an `approve` message. */
   mayDecide?: boolean;
+  /** AFD-329: who may decide it, by name (people and groups), as the host knows them. */
+  deciders?: string[];
+  /** AFD-329: the hosts waiting at it, while it waits (they have not left it yet). */
+  hosts?: string[];
+  /** AFD-329: the step each decision sends the waiting hosts to, by its title. */
+  next?: { approved?: string; rejected?: string; timeout?: string };
 }
 
 export interface AwxApproval {

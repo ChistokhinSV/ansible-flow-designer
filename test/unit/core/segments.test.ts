@@ -124,7 +124,7 @@ describe('segment playbooks', () => {
     ]);
     expect(plays[1]?.tasks).toEqual([
       {
-        name: '[gate] wait for approval in AWX',
+        name: '[gate] wait for a decision',
         'ansible.builtin.group_by': { key: 'flow_gate_waiting' },
       },
     ]);
