@@ -290,6 +290,8 @@ export function RunPanel() {
   const viewer = useUi((s) => s.viewer);
   const runShown = useUi((s) => s.embed.runShown);
   const mayRun = useUi((s) => s.embed.mayRun);
+  // AFD-335: a flow with no run is not told to open one of its runs.
+  const noRuns = useUi((s) => s.pastRunsKnown && s.pastRuns.length === 0);
   // AFD-314: the page shows the run's hosts, outputs and approvals; a step shows its own here.
   if (viewer && runShown)
     return (
@@ -304,10 +306,18 @@ export function RunPanel() {
         <h2 className="afd-panel-title">Run</h2>
         {/* AFD-327: the host knows the runs; this view only knows none is shown. Who may not run
             the flow is not told to. */}
-        <p className="muted" data-run-none={mayRun ? 'may-run' : 'read-only'}>
-          {mayRun
-            ? 'No run shown here. Run it from the bar above, or open one of its runs; nodes and wires then show what each host did.'
-            : 'No run shown here. Open one of its runs to see what each host did.'}
+        <p
+          className="muted"
+          data-run-none={mayRun ? 'may-run' : 'read-only'}
+          {...(noRuns ? { 'data-no-runs': '' } : {})}
+        >
+          {noRuns
+            ? mayRun
+              ? 'No run of this flow yet. Run it from the bar above; nodes and wires then show what each host did.'
+              : 'No run of this flow yet.'
+            : mayRun
+              ? 'No run shown here. Run it from the bar above, or open one of its runs; nodes and wires then show what each host did.'
+              : 'No run shown here. Open one of its runs to see what each host did.'}
         </p>
         <PastRuns run={null} />
       </div>

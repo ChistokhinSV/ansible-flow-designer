@@ -15,6 +15,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Changed
 
+- On a page of Ansible Flow Server, the Run tab of a flow that has no run yet says so, and only who may run it is told how, instead of being told to open one of its runs.
 - An approval's **Approve…** and **Reject…** in the Run tab ask once more, keep your comment in sight and name the step the hosts go to; **Reject** needs a comment. Where the server says so, the tab names who may decide and lists the hosts waiting there.
 - A decided approval's Run tab says the decision (rejected, timed out) for its hosts, not that they failed.
 - Generated segment playbooks name the approval's task "wait for a decision" (not "in AWX"), and the check that ends a segment when nobody waits no longer reads "no host reached" while hosts wait.

@@ -200,6 +200,27 @@ describe('Run mode', () => {
     act(() => useUi.getState().setEmbed(undefined));
   });
 
+  it('a viewer of a flow with no run says so, not to open one of its runs (AFD-335)', () => {
+    act(() => {
+      useUi.getState().setRun(null);
+      useUi.setState({ viewer: true, pastRuns: [], pastRunsKnown: false });
+      useUi.getState().setEmbed({ mayRun: false });
+    });
+    const { unmount } = render(<RunPanel />);
+    // Before the host said which runs there are, it does not claim there are none.
+    expect(document.querySelector('[data-run-none]')?.textContent).toMatch(/open one of its runs/i);
+    act(() => useUi.getState().setPastRuns([]));
+    const none = document.querySelector('[data-run-none]') as HTMLElement;
+    expect(none.textContent).toBe('No run of this flow yet.');
+    act(() => useUi.getState().setEmbed({ mayRun: true }));
+    expect(none.textContent).toMatch(/^No run of this flow yet\. Run it from the bar above/);
+    unmount();
+    act(() => {
+      useUi.setState({ viewer: false, pastRunsKnown: false });
+      useUi.getState().setEmbed(undefined);
+    });
+  });
+
   it('a passing run proposes the implemented nodes it ran as tested, in one command', () => {
     act(() =>
       useUi.getState().setRun({
