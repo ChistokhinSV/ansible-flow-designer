@@ -2,7 +2,8 @@
 // upstream node's outputs, preset optional ports, and "wire failed_hosts to the existing Rollback".
 // AFD-232: the Title field also finds what the step runs. As you type it lists the step types,
 // modules and roles that match (and, while it is empty, what this flow already uses); Enter alone
-// still adds a step with the title typed, a pick from the list makes the step bound to it.
+// still adds a step with the title typed, a pick from the list makes the step bound to it. AFD-328:
+// typed as a module's or role's own name ("ping"), Enter picks that module or role.
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -18,7 +19,14 @@ import { findRollback } from '../../core/flow/patterns';
 import { offeredPortNames, portsFor } from '../../core/flow/ports';
 import { type ContractField, NODE_TYPES, type NodeType } from '../../core/flow/types';
 import { portHint } from '../../core/view/portHints';
-import { type Suggestion, suggestSteps, titleFor, usedBindings } from '../../core/view/quickAdd';
+import {
+  exactMatch,
+  type Suggestion,
+  suggestSteps,
+  titleAfterPick,
+  titleFor,
+  usedBindings,
+} from '../../core/view/quickAdd';
 import { run } from '../actions';
 import { useCatalog } from '../catalog';
 import { TYPE_LABEL } from '../constants';
@@ -60,7 +68,8 @@ function QuickAddDialog() {
   // AFD-232: what the step runs, picked from the list under the title; the row the arrows are on.
   const [bound, setBound] = useState<{ kind: 'module' | 'role'; ref: string } | null>(null);
   const [typed, setTyped] = useState(false);
-  const [active, setActive] = useState(-1);
+  // The row the arrows are on; null until they move it (Enter then takes an exact match).
+  const [active, setActive] = useState<number | null>(null);
   const listId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLFormElement>(null);
@@ -76,7 +85,7 @@ function QuickAddDialog() {
     setWireRollback(true);
     setBound(null);
     setTyped(false);
-    setActive(-1);
+    setActive(null);
     setTimeout(() => titleRef.current?.focus(), 0);
   }, [quick]);
 
@@ -120,9 +129,15 @@ function QuickAddDialog() {
         roles: (roles.data ?? []).map((r) => r.name),
         used,
       });
-  const at = active < suggestions.length ? active : -1;
+  // AFD-328: typing a module's own name ("ping") highlights it, and Enter picks it.
+  const at =
+    active === null
+      ? exactMatch(suggestions, typed ? title : '')
+      : active < suggestions.length
+        ? active
+        : -1;
   const choose = (s: Suggestion) => {
-    setActive(-1);
+    setActive(null);
     if (s.kind === 'type') {
       setType(s.type);
       setPorts([]);
@@ -132,8 +147,9 @@ function QuickAddDialog() {
       setType('task');
       setPorts([]);
       setBound({ kind: s.kind, ref: s.ref });
-      setTitle(titleFor(s.ref));
-      // The made-up title is selected: typing replaces it, Enter keeps it.
+      // AFD-328: a title typed as a name stays; a search gives way to one made from the pick.
+      setTitle(typed ? titleAfterPick(title, s.ref) : titleFor(s.ref));
+      // The title is selected: typing replaces it, Enter keeps it.
       setTimeout(() => titleRef.current?.select(), 0);
     }
     titleRef.current?.focus();
@@ -185,7 +201,11 @@ function QuickAddDialog() {
     setAdding(false);
     if (ack.ok) {
       close(null);
-      if (ack.created) select({ node: ack.created });
+      if (ack.created) {
+        select({ node: ack.created });
+        // AFD-328: never left off view or under the zoom controls.
+        useUi.setState({ bringIntoView: ack.created });
+      }
     }
   };
 
@@ -257,7 +277,7 @@ function QuickAddDialog() {
             onChange={(e) => {
               setTitle(e.target.value);
               setTyped(true);
-              setActive(-1);
+              setActive(null);
             }}
             onKeyDown={onTitleKey}
           />

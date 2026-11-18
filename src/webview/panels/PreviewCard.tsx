@@ -6,6 +6,36 @@ import { previewOf } from '../preview';
 import { useUi } from '../store';
 
 const MARGIN = 8;
+/** Room right of a node for its fail ports' labels (`failed_hosts`, `unreachable`). */
+const PORT_LABELS = 100;
+
+type Area = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * AFD-328: where the card opens: right of the node past its port labels, else left of it, else
+ * under it; inside the canvas, so it covers neither the side panel nor the page around the frame.
+ */
+export function cardPlace(
+  node: { right: number; left: number; top: number; bottom?: number },
+  card: { width: number; height: number },
+  area: Area,
+): { left: number; top: number } {
+  const fits = (left: number) =>
+    left >= area.left + MARGIN && left + card.width <= area.right - MARGIN;
+  const right = node.right + PORT_LABELS;
+  const leftOf = node.left - card.width - MARGIN;
+  let left: number;
+  let top = node.top;
+  if (fits(right)) left = right;
+  else if (fits(leftOf)) left = leftOf;
+  else {
+    left = node.left;
+    top = (node.bottom ?? node.top) + MARGIN;
+  }
+  left = Math.max(area.left + MARGIN, Math.min(left, area.right - card.width - MARGIN));
+  top = Math.max(area.top + MARGIN, Math.min(top, area.bottom - card.height - MARGIN));
+  return { left, top };
+}
 
 export function PreviewCard() {
   const preview = useUi((s) => s.preview);
@@ -26,10 +56,18 @@ export function PreviewCard() {
       return;
     }
     const { width, height } = box.current.getBoundingClientRect();
-    const left =
-      preview.x + width + MARGIN > window.innerWidth ? preview.left - width - MARGIN : preview.x;
-    const top = Math.min(preview.y, window.innerHeight - height - MARGIN);
-    setPos({ left: Math.max(MARGIN, left), top: Math.max(MARGIN, top) });
+    const pane = document.querySelector('.afd-center .react-flow')?.getBoundingClientRect();
+    const area =
+      pane && pane.width > 0
+        ? pane
+        : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    setPos(
+      cardPlace(
+        { right: preview.x - 12, left: preview.left, top: preview.y, bottom: preview.bottom },
+        { width, height },
+        area,
+      ),
+    );
   }, [preview]);
 
   if (!preview || !content) return null;

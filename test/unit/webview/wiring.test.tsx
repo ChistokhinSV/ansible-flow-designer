@@ -238,7 +238,7 @@ describe('Quick Add finds what the step runs (AFD-232)', () => {
     ]);
     await act(async () => {});
     fireEvent.click(screen.getByRole('option', { name: /cisco\.ios\.ios_config/ }));
-    expect(title.value).toBe('Ios config');
+    expect(title.value).toBe('IOS config');
     expect(document.querySelector('[data-bound]')?.getAttribute('data-bound')).toBe(
       'cisco.ios.ios_config',
     );
@@ -248,7 +248,7 @@ describe('Quick Add finds what the step runs (AFD-232)', () => {
     expect(commands().at(-1)).toMatchObject({
       kind: 'addNode',
       type: 'task',
-      title: 'Ios config',
+      title: 'IOS config',
       impl: { kind: 'module', ref: 'cisco.ios.ios_config' },
     });
   });

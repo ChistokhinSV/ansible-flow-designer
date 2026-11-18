@@ -286,7 +286,7 @@ function moreActions(mode: Mode, level: string): UiMenuEntry[] {
       icon: 'layout',
       title: 'Lay out the whole level again',
       disabled: readOnlyReason(mode),
-      onSelect: () => send({ type: 'tidyUp', level }),
+      onSelect: () => useUi.getState().tidyUp(level),
     },
     {
       type: 'item',

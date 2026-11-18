@@ -35,6 +35,30 @@
   white-space: nowrap;
 }
 
+/* AFD-328: the open fail port question is one line at any width: the question gives way, and on a
+   narrow canvas the quick answers fold into Other Choices (the port's menu holds them all). */
+.afd-banner.afd-open-ports {
+  flex-wrap: nowrap;
+}
+
+.afd-open-ports-question {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.afd-open-ports > button {
+  flex: none;
+}
+
+@container afd-center (max-width: 900px) {
+  .afd-open-ports-quick {
+    display: none;
+  }
+}
+
 /* Messages stack at the bottom centre of the canvas, whatever the side panels' widths (AFD-46). */
 .afd-toasts {
   position: absolute;

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FIT_MARGIN,
   minimapCorner,
+  panInto,
   READABLE_PX,
   READABLE_ZOOM,
   readableViewport,
@@ -60,5 +61,22 @@ describe('minimap corner (AFD-72)', () => {
     expect(minimapCorner([{ x: 200, y: 520, width: 120, height: 60 }], pane)).toBe('bottom-left');
     // The first-flow checklist holds the bottom left (AFD-73).
     expect(minimapCorner([], pane, true)).toBe('top-left');
+  });
+});
+
+describe('panInto (AFD-328)', () => {
+  const vp = { x: 0, y: 0, zoom: 1 };
+  it('leaves a node in view where it is', () => {
+    expect(panInto({ x: 100, y: 100, width: 136, height: 60 }, vp, PANE)).toBeUndefined();
+  });
+
+  it('moves the least it can to bring a node off the right or bottom into view', () => {
+    const to = panInto({ x: 760, y: 680, width: 136, height: 60 }, vp, PANE);
+    expect(to).toEqual({ x: 800 - FIT_MARGIN - 896, y: 700 - FIT_MARGIN - 740, zoom: 1 });
+  });
+
+  it('brings a node off the left or top in, at the zoom it is at', () => {
+    const to = panInto({ x: -50, y: -20, width: 100, height: 40 }, { x: 0, y: 0, zoom: 0.5 }, PANE);
+    expect(to).toEqual({ x: FIT_MARGIN + 25, y: FIT_MARGIN + 10, zoom: 0.5 });
   });
 });

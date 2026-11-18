@@ -15,6 +15,7 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react';
 import {
+  type CSSProperties,
   Fragment,
   type KeyboardEvent,
   type MouseEvent,
@@ -28,7 +29,7 @@ import { purposeOf } from '../../core/flow/format';
 import { modelOf } from '../../core/flow/model';
 import { mainOutputs, type PortSide } from '../../core/flow/ports';
 import { sharedAround } from '../../core/flow/refs';
-import type { FlowNode, NodeType, Ulid } from '../../core/flow/types';
+import type { FlowNode, NodeStatus, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import type { Snapshot } from '../../core/protocol';
 import { formatSeconds } from '../../core/run/view';
@@ -40,6 +41,7 @@ import { portHint } from '../../core/view/portHints';
 import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges';
 import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
+import { missingWords, useMissingParams } from '../paramGaps';
 import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
 import { approvalOf } from '../runApproval';
@@ -155,7 +157,12 @@ function PortHandle({
           .closest('.react-flow__node')
           ?.getBoundingClientRect();
         if (preview && box)
-          ui.hoverNode(nodeId, { left: box.left, right: box.right, top: box.top });
+          ui.hoverNode(nodeId, {
+            left: box.left,
+            right: box.right,
+            top: box.top,
+            bottom: box.bottom,
+          });
       }}
     >
       <span className="afd-port-label" aria-hidden="true">
@@ -184,7 +191,12 @@ function PortPlus({
     <button
       type="button"
       className={`afd-plus afd-port-plus side-${port.side} nodrag nopan`}
-      style={port.side === 'bottom' ? { left: along } : { top: along }}
+      style={
+        port.side === 'bottom'
+          ? { left: along }
+          : // AFD-328: the stem reaches past the port's label (6 px a letter, as labelBox counts).
+            ({ top: along, '--afd-stem': `${[...port.name].length * 6 + 18}px` } as CSSProperties)
+      }
       title={`Add Next Node from ${port.name}`}
       aria-label={`Add Next Node from ${port.name}`}
       data-port-plus={port.name}
@@ -461,7 +473,34 @@ function SummaryRows({
   );
 }
 
-const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: boolean }) {
+/**
+ * AFD-328: the status mark, or, on an implemented step whose module lacks a required parameter, a
+ * warning that says which: the step would not run as it is.
+ */
+function StatusMark({ status, missing }: { status: NodeStatus; missing: readonly string[] }) {
+  if (missing.length === 0 || (status !== 'implemented' && status !== 'tested'))
+    return <StatusIcon status={status} />;
+  const words = `${missingWords(missing)}: the step does not run until they are set`;
+  return (
+    <span
+      className="afd-status-icon codicon codicon-warning afd-params-missing"
+      role="img"
+      aria-label={`Status: ${status}, ${missingWords(missing).toLowerCase()}`}
+      title={words}
+      data-params-missing={missing.join(',')}
+    />
+  );
+}
+
+const NodeBody = memo(function NodeBody({
+  node,
+  near,
+  missing,
+}: {
+  node: FlowNode;
+  near: boolean;
+  missing: readonly string[];
+}) {
   const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
   const lens = useUi((s) => s.lens);
@@ -479,7 +518,7 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
     return (
       <>
         <div className="afd-node-head">
-          <StatusIcon status={status} />
+          <StatusMark status={status} missing={missing} />
           <Title node={node} />
         </div>
         <LensChips id={node.id} />
@@ -490,7 +529,7 @@ const NodeBody = memo(function NodeBody({ node, near }: { node: FlowNode; near: 
     );
   const head = (
     <div className="afd-node-head">
-      <StatusIcon status={status} />
+      <StatusMark status={status} missing={missing} />
       <Title node={node} />
     </div>
   );
@@ -541,6 +580,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const { node, ports } = data.view;
   const role = data.role;
   const canExpand = useUi((s) => s.expandSubflows) && node.type === 'subflow' && role !== 'inner';
+  const missing = useMissingParams(node);
   const dataLens = useUi((s) => s.lens === 'data');
   // Handles added or removed after mount must be measured again before wires can attach. Only on a
   // toggle: re-measuring every node on mount upsets the initial fit of the view.
@@ -617,6 +657,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     active ? 'active' : '',
     pickAt ? 'afd-pick-at' : '',
     badge ? `has-problem problem-${badge.severity}` : '',
+    missing.length ? 'params-missing' : '',
     node.disabled ? 'disabled' : '',
     role === 'frame' ? 'expanded' : '',
     role === 'inner' ? 'inner' : '',
@@ -728,7 +769,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           />
         </>
       ) : null}
-      {far ? <Title node={node} /> : <NodeBody node={node} near={near} />}
+      {far ? <Title node={node} /> : <NodeBody node={node} near={near} missing={missing} />}
     </div>
   );
 });

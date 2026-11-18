@@ -315,3 +315,9 @@
   background: transparent;
   pointer-events: none;
 }
+
+/* AFD-328: bound, but a required parameter of the module is not set: it would not run. */
+.afd-node.params-missing,
+.afd-status-icon.afd-params-missing {
+  --afd-status-color: var(--afd-unreachable);
+}

@@ -226,6 +226,21 @@ export interface CheckItem {
   text: string;
 }
 
+/**
+ * The required parameters of a module binding that are not set (none has a default; an alias
+ * counts). AFD-328: also what keeps a bound step from reading as finished on the canvas.
+ */
+export function missingRequired(
+  impl: Pick<NonNullable<FlowNode['impl']>, 'ref' | 'params'>,
+  plugin: Pick<CatalogPlugin, 'options'>,
+): string[] {
+  const given = new Set(Object.keys(impl.params ?? {}));
+  return Object.entries(documentedOptions(impl.ref, plugin.options) ?? {})
+    .filter(([name, o]) => o.required && o.default === undefined && !given.has(name))
+    .filter(([, o]) => !(o.aliases ?? []).some((a) => given.has(a)))
+    .map(([name]) => name);
+}
+
 /** What the binding still needs and what to know about it (mockup 11 checklist). */
 export function checklist(
   model: FlowModel,
@@ -237,12 +252,7 @@ export function checklist(
   const items: CheckItem[] = [];
   const plugin = doc.plugin;
   if (impl.kind === 'module' && plugin) {
-    const params = impl.params ?? {};
-    const given = new Set(Object.keys(params));
-    const missing = Object.entries(documentedOptions(impl.ref, plugin.options) ?? {})
-      .filter(([name, o]) => o.required && o.default === undefined && !given.has(name))
-      .filter(([, o]) => !(o.aliases ?? []).some((a) => given.has(a)))
-      .map(([name]) => name);
+    const missing = missingRequired(impl, plugin);
     items.push(
       missing.length > 0
         ? { state: 'missing', text: `Required parameters missing: ${missing.join(', ')}` }

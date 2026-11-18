@@ -12,8 +12,16 @@ export const READABLE_ZOOM = 0.8;
 export const MAX_FIT_ZOOM = 1;
 /** Room around the level, in screen px. */
 export const FIT_MARGIN = 32;
+/**
+ * AFD-328: the zoom controls' column at the bottom right (React Flow's 15 px margin, 26 px buttons
+ * and a gap): a fitted level keeps clear of it, so no node ends under the buttons.
+ */
+export const CONTROLS_ROOM = 48;
 /** Fit View, the zoom controls' fit, and the first view where the pane has no size yet. */
-export const FULL_FIT = { padding: 0.15, maxZoom: MAX_FIT_ZOOM };
+export const FULL_FIT = {
+  padding: { x: '7%', y: '7%', right: `${CONTROLS_ROOM + 16}px` },
+  maxZoom: MAX_FIT_ZOOM,
+} as const;
 
 export interface Rect {
   x: number;
@@ -114,4 +122,27 @@ export function minimapCorner(
   if (!bottomTaken && clear(corner(pane.height - size.margin - size.height))) return 'bottom-left';
   if (clear(corner(size.margin))) return 'top-left';
   return null;
+}
+
+/**
+ * AFD-328: the viewport that brings `box` (flow units) fully into a pane of this size, moving as
+ * little as it can at the same zoom, `margin` screen px inside its edges; undefined when it is in
+ * view already. A box larger than the pane shows its top left.
+ */
+export function panInto(
+  box: Rect,
+  viewport: Viewport,
+  pane: { width: number; height: number },
+  margin = FIT_MARGIN,
+): Viewport | undefined {
+  const axis = (start: number, size: number, offset: number, room: number): number => {
+    const lo = start * viewport.zoom + offset;
+    const hi = lo + size * viewport.zoom;
+    if (lo < margin || hi - lo > room - 2 * margin) return offset + (margin - lo);
+    if (hi > room - margin) return offset - (hi - (room - margin));
+    return offset;
+  };
+  const x = axis(box.x, box.width, viewport.x, pane.width);
+  const y = axis(box.y, box.height, viewport.y, pane.height);
+  return x === viewport.x && y === viewport.y ? undefined : { x, y, zoom: viewport.zoom };
 }

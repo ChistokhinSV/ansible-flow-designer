@@ -220,7 +220,7 @@ export function runCanvasAction(
       selectAll();
       return;
     case 'tidyUp':
-      send({ type: 'tidyUp', level: ui.level });
+      ui.tidyUp(ui.level);
       return;
     case 'fitView':
       fitView();

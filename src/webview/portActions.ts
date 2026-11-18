@@ -30,7 +30,10 @@ export async function applyPatternAt(pattern: PatternId, from: PortRef): Promise
     position: besidePort(ctx.view, from.node, from.port),
     freeze: ctx.freeze,
   });
-  if (ack.ok && ack.created) useUi.getState().select({ node: ack.created });
+  if (ack.ok && ack.created) {
+    useUi.getState().select({ node: ack.created });
+    useUi.setState({ bringIntoView: ack.created });
+  }
 }
 
 /** Palette click or drop on a node: the pattern goes to the node's first open port it fits. */

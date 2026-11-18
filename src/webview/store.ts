@@ -24,6 +24,7 @@ import { scenarioRun } from '../core/scenario/view';
 import type { RepoState } from '../core/view/flowFacts';
 import { markedAround, type OutsideMarks } from '../core/view/outsideChanges';
 import type { ServerChange } from '../core/view/serverChange';
+import { send } from './bus';
 import { closing, HOLDS_POINTER, isOpen } from './overlays';
 
 export interface QuickAddState {
@@ -86,6 +87,8 @@ export interface PreviewState {
   y: number;
   /** Left edge of the node, for opening the card on the other side. */
   left: number;
+  /** AFD-328: bottom edge of the node, for opening the card under it. */
+  bottom?: number;
 }
 
 /** D-22: about 400 ms of pause on a node before its card opens. */
@@ -199,6 +202,10 @@ interface UiState {
   renaming: Ulid | null;
   /** AFD-238: a count that asks the canvas to bring the selection into view. */
   zoomNonce: number;
+  /** AFD-328: a count that asks the canvas to show all of the level once Tidy Up has laid it out. */
+  tidyNonce: number;
+  /** AFD-328: a node just added, which the canvas brings into view once it is drawn. */
+  bringIntoView: Ulid | null;
   /** The keyboard shortcuts sheet (`?`). */
   cheatSheet: boolean;
   /** The find bar (AFD-48): what is typed in it, and a count that moves the focus back into it. */
@@ -320,6 +327,8 @@ interface UiState {
   requestFocus(field: FocusRequest['field']): void;
   setRenaming(node: Ulid | null): void;
   zoomToSelection(): void;
+  /** AFD-328: Tidy Up of the level, then all of it in view. */
+  tidyUp(level: string): void;
   showCheatSheet(on: boolean): void;
   setPick(p: PickState | null): void;
   setPickAt(id: Ulid | null): void;
@@ -364,7 +373,10 @@ interface UiState {
   /** AFD-96: the pointer entered or left a port: no step card over its label. */
   portHover(on: boolean): void;
   /** Pointer entered a node with a card (with its box) or left it (null). */
-  hoverNode(node: Ulid | null, box?: { left: number; right: number; top: number }): void;
+  hoverNode(
+    node: Ulid | null,
+    box?: { left: number; right: number; top: number; bottom?: number },
+  ): void;
   /** Pointer on the card keeps it open. */
   holdPreview(on: boolean): void;
   /** Selects a node and shows a tab of its Details. */
@@ -428,6 +440,8 @@ export const useUi = create<UiState>((set, get) => ({
   focusRequest: null,
   renaming: null,
   zoomNonce: 0,
+  tidyNonce: 0,
+  bringIntoView: null,
   cheatSheet: false,
   find: false,
   findQuery: '',
@@ -601,6 +615,10 @@ export const useUi = create<UiState>((set, get) => ({
   requestFocus: (field) => set({ focusRequest: { field, nonce: Date.now() } }),
   setRenaming: (renaming) => set({ renaming }),
   zoomToSelection: () => set({ zoomNonce: get().zoomNonce + 1 }),
+  tidyUp(level) {
+    send({ type: 'tidyUp', level });
+    set({ tidyNonce: get().tidyNonce + 1 });
+  },
   showCheatSheet: (cheatSheet) => set({ cheatSheet, ...closing('cheatSheet') }),
   setPick: (pick) => set({ pick, pickAt: null, ...closing('pick') }),
   setPickAt: (pickAt) => set({ pickAt }),
@@ -768,7 +786,9 @@ export const useUi = create<UiState>((set, get) => ({
       // Menus, picks and dialogs own the pointer; no card on top of them.
       if (HOLDS_POINTER.some((o) => isOpen(s, o))) return;
       if (overPort) return;
-      set({ preview: { node, x: box.right + 12, y: box.top, left: box.left } });
+      set({
+        preview: { node, x: box.right + 12, y: box.top, left: box.left, bottom: box.bottom },
+      });
     }, PREVIEW_DELAY);
   },
   portHover(on) {

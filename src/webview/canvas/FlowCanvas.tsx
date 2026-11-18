@@ -51,7 +51,15 @@ import type { GhostNode } from '../../core/lens/types';
 import type { RunSummary } from '../../core/run/events';
 import { wireHosts } from '../../core/run/view';
 import { type Expansion, expandLevel } from '../../core/view/expandView';
-import { belowNodes, FULL_FIT, minimapCorner, readableViewport, union } from '../../core/view/fit';
+import {
+  belowNodes,
+  CONTROLS_ROOM,
+  FULL_FIT,
+  minimapCorner,
+  panInto,
+  readableViewport,
+  union,
+} from '../../core/view/fit';
 import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
 import type { Box } from '../../core/view/route';
@@ -68,6 +76,7 @@ import { INSERTABLE } from '../panels/QuickAdd';
 import { completePick, dropPattern, dropWireEnd, insertOnWire } from '../portActions';
 import { hasPreview } from '../preview';
 import { useUi } from '../store';
+import { inVsCode } from '../transport';
 import { type BoundaryEdgeView, boundaryView, levelView, type NodeView } from '../viewModel';
 import { AnnotationNodeView, type AnnotationRFNode, annotationName } from './AnnotationNode';
 import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
@@ -140,6 +149,62 @@ interface SavedState {
   viewport?: Viewport;
   /** Viewport per level (M4). */
   viewports?: Record<string, Viewport>;
+}
+
+/**
+ * AFD-328: the view each level was left at. VS Code keeps it while the designer is hidden, so a
+ * flow opens where it was. In a web page it lasts while the page is open (levels opened and left):
+ * each page opens fitted, and a zoom on one run's page does not carry over to the next run or to
+ * the flow after Save, as the page's stored state did.
+ */
+const pageViewports: Record<string, Viewport> = {};
+
+function keptViewport(level: string): Viewport | undefined {
+  if (!inVsCode()) return pageViewports[level];
+  const saved = loadState<SavedState>();
+  return saved.viewports?.[level] ?? (level === ROOT ? saved.viewport : undefined);
+}
+
+function keepViewport(level: string, viewport: Viewport): void {
+  if (!inVsCode()) {
+    pageViewports[level] = viewport;
+    return;
+  }
+  const state = loadState<SavedState>();
+  saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
+}
+
+/**
+ * AFD-328: whether the wheel zooms the canvas. A viewer in a web page sits among the page's own
+ * content (a run's hosts and output below it): there the wheel scrolls the page until the canvas
+ * is clicked or takes the focus, and does again once a click or the focus goes elsewhere. Ctrl+wheel
+ * and a pinch zoom at any time. In VS Code and in the editor the wheel always zooms.
+ */
+function useWheelZoom(wrapper: { current: HTMLDivElement | null }): boolean {
+  const embedded = useUi((s) => s.viewer) && !inVsCode();
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const el = wrapper.current;
+    if (!embedded || !el) return;
+    const on = () => setActive(true);
+    const away = (e: Event) => {
+      if (!(e.target instanceof Node) || !el.contains(e.target)) setActive(false);
+    };
+    const off = () => setActive(false);
+    el.addEventListener('pointerdown', on);
+    el.addEventListener('focusin', on);
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('focusin', away);
+    window.addEventListener('blur', off);
+    return () => {
+      el.removeEventListener('pointerdown', on);
+      el.removeEventListener('focusin', on);
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('focusin', away);
+      window.removeEventListener('blur', off);
+    };
+  }, [embedded, wrapper]);
+  return !embedded || active;
 }
 
 /** What a screen reader says for a node (AFD-47): type, title, status and open fail ports. */
@@ -438,52 +503,70 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     return (s: RunSummary, e: { source: string; sourcePort: string }) =>
       starts.has(e.source) ? s.hosts : wireHosts(s, e.source, e.sourcePort);
   }, [view.nodes]);
-  const edges = useMemo<Edge[]>(
-    () =>
-      view.edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        sourceHandle: e.sourcePort,
-        target: e.target,
-        targetHandle: e.targetPort,
-        type: 'routed',
-        label: ran
-          ? hostCount(hostsOn(ran, e).length)
-          : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
-        className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
-          ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
-        }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}${
-          dropTarget === e.id ? ' drop-target' : ''
-        }`,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
-        },
-        selected: selection.edge === e.id,
-        deletable: !readOnly && !e.inner,
-        reconnectable: editable && !e.inner,
-        data: { plus: editable && !e.inner && (hoverEdge === e.id || selection.edge === e.id) },
-        // AFD-243: the wires of a subflow expanded in place are drawn over its frame, and read.
-        ...(e.inner ? { selectable: false, focusable: false, zIndex: Z.innerWire } : {}),
-      })),
-    [
-      view.edges,
-      selection.edge,
-      ran,
-      readOnly,
-      editable,
-      hoverEdge,
-      hostsOn,
-      lensWires,
-      dataLens,
-      shows,
-      outsideEdges,
-      dropTarget,
-    ],
-  );
+  // AFD-328: a wire is read out by the steps and ports it joins, never by IDs.
+  const titled = useMemo(() => {
+    const titles = new Map(view.nodes.map((v) => [v.node.id, v.node.title] as const));
+    return (source: string, port: string, target: string, into?: string) =>
+      `Wire from ${titles.get(source) ?? 'the subflow'} ${port} to ${titles.get(target) ?? 'the subflow'}${
+        into && into !== 'in' ? ` ${into}` : ''
+      }`;
+  }, [view.nodes]);
+  const edges = useMemo<Edge[]>(() => {
+    const all: Edge[] = view.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourcePort,
+      target: e.target,
+      targetHandle: e.targetPort,
+      type: 'routed',
+      label: ran
+        ? hostCount(hostsOn(ran, e).length)
+        : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
+      className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
+        ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
+      }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}${
+        dropTarget === e.id ? ' drop-target' : ''
+      }`,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
+      },
+      selected: selection.edge === e.id,
+      deletable: !readOnly && !e.inner,
+      reconnectable: editable && !e.inner,
+      data: { plus: editable && !e.inner && (hoverEdge === e.id || selection.edge === e.id) },
+      ariaLabel: titled(e.source, e.sourcePort, e.target, e.targetPort),
+      // AFD-328: Tab walks the steps, not the wires React Flow draws before them: only the wires
+      // of the selected step (Shift+Tab from it) and the selected wire take the focus.
+      focusable:
+        selection.edge === e.id || selection.node === e.source || selection.node === e.target,
+      // AFD-243: the wires of a subflow expanded in place are drawn over its frame, and read.
+      ...(e.inner ? { selectable: false, focusable: false, zIndex: Z.innerWire } : {}),
+    }));
+    // AFD-328: a wire that shows its port's name is drawn after those that do not, so another wire
+    // running beside it never covers its label.
+    return [...all.filter((e) => !e.label), ...all.filter((e) => e.label)];
+  }, [
+    view.edges,
+    selection.edge,
+    selection.node,
+    titled,
+    ran,
+    readOnly,
+    editable,
+    hoverEdge,
+    hostsOn,
+    lensWires,
+    dataLens,
+    shows,
+    outsideEdges,
+    dropTarget,
+  ]);
   const dataEdges = useMemo<Edge[]>(() => {
     if (!dataLens || !dataWires) return [];
     const here = new Set(view.nodes.map((v) => v.node.id));
+    const named = new Map(view.nodes.map((v) => [v.node.id, v.node.title] as const));
+    const titles = (id: string) => named.get(id) ?? id;
     return dataWires
       .filter((w) => here.has(w.from) && here.has(w.to))
       .map((w) => ({
@@ -495,6 +578,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         type: 'default',
         label: w.label,
         className: w.undeclared ? 'afd-edge afd-data-edge undeclared' : 'afd-edge afd-data-edge',
+        ariaLabel: `Data ${w.label} from ${titles(w.from)} to ${titles(w.to)}`,
         data: { title: w.title },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -520,6 +604,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         targetHandle: '__notify_in',
         type: 'default',
         label: 'notifies',
+        ariaLabel: `${n.title} notifies ${h.title}`,
         className: 'afd-edge afd-notify-edge',
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--afd-notify)' },
         selectable: false,
@@ -546,6 +631,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           targetHandle: entry ? e.targetPort : innerHandle(e.targetPort),
           type: 'routed',
           className: `afd-edge afd-boundary-edge afd-inline-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
+          ariaLabel: titled(
+            entry ? sub : e.source,
+            e.sourcePort,
+            entry ? e.target : sub,
+            e.targetPort,
+          ),
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
@@ -559,7 +650,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       }
     }
     return out;
-  }, [snapshot, expansion.frames, _optimistic]);
+  }, [snapshot, expansion.frames, _optimistic, titled]);
   const allEdges = useMemo<Edge[]>(
     () => [
       ...edges,
@@ -582,9 +673,22 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         selected: selection.edge === e.id,
         deletable: true,
         reconnectable: false,
+        ariaLabel: titled(e.source, e.sourcePort, e.target, e.targetPort),
+        focusable:
+          selection.edge === e.id || selection.node === e.source || selection.node === e.target,
       })),
     ],
-    [edges, dataEdges, notifyEdges, inlineEdges, boundary, selection.edge, shows],
+    [
+      edges,
+      dataEdges,
+      notifyEdges,
+      inlineEdges,
+      boundary,
+      selection.edge,
+      selection.node,
+      shows,
+      titled,
+    ],
   );
 
   // Selection follows the user's select changes only. React Flow reports onSelectionChange one
@@ -931,15 +1035,29 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     return () => setPastePlace(() => undefined);
   }, [screenToFlowPosition]);
 
-  const saved = useMemo(() => loadState<SavedState>(), []);
-  const savedViewport = saved.viewports?.[level] ?? (level === ROOT ? saved.viewport : undefined);
+  // The level's provider is keyed by level, so this is read once per level shown.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read once, when the level opens
+  const savedViewport = useMemo(() => keptViewport(level), []);
 
-  // AFD-42: a level opens readable (core/view/fit), once, when its nodes and the measured pane are
-  // known; a viewport the user left there wins. Fit View and the zoom controls still show all.
-  const opened = useRef(!!savedViewport);
+  // AFD-42: a level opens readable (core/view/fit) when its nodes and the measured pane are known;
+  // a viewport the user left there wins. Fit View and the zoom controls still show all.
+  // AFD-328: until the user moves the view, it is fitted again whenever the pane changes size (the
+  // side panel's width read back, a banner shown or closed, a run's panel coming in), so the level
+  // is never left half under a panel; Fit View hands the view back to this.
+  const touched = useRef(!!savedViewport);
+  const fitted = useRef('');
+  /** Fit View (Shift+1, the menus): all of the level, and fitted again as the pane changes. */
+  const refit = useCallback(() => {
+    touched.current = false;
+    fitted.current = `${paneWidth}x${paneHeight}`;
+    void fitView(FULL_FIT);
+  }, [fitView, paneWidth, paneHeight]);
+  const wrapper = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (opened.current || nodes.length === 0 || paneWidth <= 0 || paneHeight <= 0) return;
-    opened.current = true;
+    if (touched.current || nodes.length === 0 || paneWidth <= 0 || paneHeight <= 0) return;
+    const key = `${paneWidth}x${paneHeight}`;
+    if (fitted.current === key) return;
+    fitted.current = key;
     const flowNodes = nodes.filter((n) => n.type === 'flow');
     const top = flowNodes.reduce<CanvasNode | undefined>(
       (a, n) => (!a || n.position.y < a.position.y ? n : a),
@@ -949,11 +1067,50 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       readableViewport(
         // An empty level opens with its card in view too (AFD-48).
         cardAt ? union(getNodesBounds(nodes), cardAt) : getNodesBounds(nodes),
-        { width: paneWidth, height: paneHeight },
+        // AFD-328: clear of the zoom controls at the right.
+        { width: Math.max(1, paneWidth - CONTROLS_ROOM), height: paneHeight },
         top ? top.position.x + (top.width ?? 0) / 2 : undefined,
       ),
     );
   }, [nodes, paneWidth, paneHeight, setViewport, cardAt]);
+
+  // AFD-328: Tidy Up lays the level out again; the view then shows all of it.
+  const tidied = useUi((s) => s.tidyNonce);
+  const tidiedSeen = useRef(tidied);
+  // The level's bounds when Tidy Up was asked for: the new layout arrives as other bounds.
+  const tidyFrom = useRef<string | null>(null);
+  const tidyBounds = contentBounds ? JSON.stringify(contentBounds) : '';
+  useEffect(() => {
+    if (tidiedSeen.current === tidied) return;
+    tidiedSeen.current = tidied;
+    tidyFrom.current = tidyBounds;
+  }, [tidied, tidyBounds]);
+  useEffect(() => {
+    if (tidyFrom.current === null || tidyFrom.current === tidyBounds) return;
+    // After React Flow has the new positions (its nodes follow ours one render later).
+    const t = setTimeout(() => {
+      tidyFrom.current = null;
+      refit();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [tidyBounds, refit]);
+
+  // AFD-328: a node just added comes into view, clear of the zoom controls, at the zoom it is at.
+  const shown = useUi((s) => s.bringIntoView);
+  useEffect(() => {
+    const v = shown ? view.nodes.find((n) => n.node.id === shown) : undefined;
+    if (!v || paneWidth <= 0 || paneHeight <= 0) return;
+    useUi.setState({ bringIntoView: null });
+    const vp = getViewport();
+    const to = panInto({ x: v.position.x, y: v.position.y, width: v.width, height: v.height }, vp, {
+      width: paneWidth - CONTROLS_ROOM,
+      height: paneHeight,
+    });
+    if (to) {
+      touched.current = true;
+      void setViewport(to, { duration: 200 });
+    }
+  }, [shown, view.nodes, paneWidth, paneHeight, getViewport, setViewport]);
 
   // A node shown from elsewhere (find, the failed steps, the banner's Show; AFD-48) comes to the
   // middle once its level is drawn, after the opening fit, at 100% or closer.
@@ -964,6 +1121,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       view.annotations.find((a) => a.annotation.id === centerOn);
     if (!v) return;
     useUi.setState({ centerOn: null });
+    touched.current = true;
     void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, {
       zoom: Math.max(getViewport().zoom, 1),
     });
@@ -1005,7 +1163,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           );
       } else if (e.shiftKey && e.code === 'Digit1') {
         e.preventDefault();
-        void fitView(FULL_FIT);
+        refit();
       } else if (e.shiftKey && e.code === 'Digit2') {
         e.preventDefault();
         useUi.getState().zoomToSelection();
@@ -1013,7 +1171,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view.nodes, setLevel, fitView, editable]);
+  }, [view.nodes, setLevel, refit, editable]);
 
   // AFD-238: Zoom to Selection (Shift+2, the menus): the selected steps and annotations fill the
   // view, no closer than 150%.
@@ -1025,6 +1183,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     const sel = useUi.getState().selection;
     const ids = [...(sel.nodes ?? (sel.node ? [sel.node] : [])), ...(sel.annotations ?? [])];
     if (ids.length === 0) return;
+    touched.current = true;
     void fitView({ nodes: ids.map((id) => ({ id })), padding: 0.25, maxZoom: 1.5, duration: 200 });
   }, [zoomNonce, fitView]);
 
@@ -1081,11 +1240,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       top + v.height * zoom <= paneHeight
     )
       return;
+    touched.current = true;
     void setCenter(v.position.x + v.width / 2, v.position.y + v.height / 2, { zoom });
   }, [pickAt, view.nodes, paneWidth, paneHeight, getViewport, setCenter]);
 
+  const wheelZooms = useWheelZoom(wrapper);
   const canvas = (
     <ReactFlow<CanvasNode>
+      ref={wrapper}
       nodes={nodes}
       edges={allEdges}
       nodeTypes={nodeTypes}
@@ -1147,7 +1309,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       onNodeMouseEnter={(e, n) => {
         if (n.type !== 'flow' || !hasPreview(n.data.view.node)) return;
         const r = (e.currentTarget as Element).getBoundingClientRect();
-        useUi.getState().hoverNode(n.id, { left: r.left, right: r.right, top: r.top });
+        useUi
+          .getState()
+          .hoverNode(n.id, { left: r.left, right: r.right, top: r.top, bottom: r.bottom });
       }}
       onNodeMouseLeave={() => useUi.getState().hoverNode(null)}
       onNodeDoubleClick={(e, n) => {
@@ -1235,7 +1399,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         } else followWire(e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 'up' : 'down');
       }}
       onKeyDown={onNudge}
-      onMoveStart={() => {
+      onMoveStart={(e) => {
+        // A pan or zoom of the user's own (code moves have no event): the view is theirs now.
+        if (e) touched.current = true;
         openPortMenu(null);
         useUi.getState().openContextMenu(null);
         useUi.getState().setPreview(null);
@@ -1273,10 +1439,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       onMouseLeave={() => {
         pointer.current = null;
       }}
-      onMoveEnd={(_e, viewport) => {
-        const state = loadState<SavedState>();
-        saveState<SavedState>({ ...state, viewports: { ...state.viewports, [level]: viewport } });
-      }}
+      onMoveEnd={(_e, viewport) => keepViewport(level, viewport)}
       isValidConnection={(c) => c.source !== c.target}
       nodesConnectable={!readOnly && !handWritten}
       nodesDraggable={!readOnly && !handWritten}
@@ -1284,6 +1447,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       deleteKeyCode={null}
       onlyRenderVisibleElements={cull && !testMode}
       defaultViewport={savedViewport}
+      // AFD-328: in a viewer inside a web page the wheel scrolls the page, as the page's own
+      // content does, until the canvas is clicked or focused; Ctrl+wheel (and a pinch) zooms.
+      zoomOnScroll={wheelZooms}
+      preventScrolling={wheelZooms}
       fitViewOptions={FULL_FIT}
       minZoom={0.2}
       maxZoom={2}
@@ -1307,11 +1474,19 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
           <DragGuides guide={guide} />
         </ViewportPortal>
       ) : null}
-      <Controls showInteractive={false} position="bottom-right">
+      <Controls
+        showInteractive={false}
+        position="bottom-right"
+        fitViewOptions={FULL_FIT}
+        onFitView={() => {
+          touched.current = false;
+          fitted.current = `${paneWidth}x${paneHeight}`;
+        }}
+      >
         {/* AFD-294: Tidy Up at hand, where the level can be changed. */}
         {editable ? (
           <ControlButton
-            onClick={() => send({ type: 'tidyUp', level })}
+            onClick={() => useUi.getState().tidyUp(level)}
             aria-label="Tidy Up"
             title="Tidy Up: lay out the whole level again"
           >

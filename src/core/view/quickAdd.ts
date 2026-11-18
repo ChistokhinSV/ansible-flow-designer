@@ -67,10 +67,53 @@ export function suggestSteps(input: SuggestInput): Suggestion[] {
   return [...types, ...used, ...modules, ...roles];
 }
 
-/** A title for a step bound from the list: `cisco.ios.ios_config` reads "Ios config". */
+/**
+ * A title for a step bound from the list: `ansible.builtin.ping` reads "Ping". AFD-328: a module
+ * named after its collection's platform keeps the platform's capitals: `cisco.ios.ios_config`
+ * reads "IOS config", `arista.eos.eos_banner` "EOS banner".
+ */
 export function titleFor(ref: string): string {
-  const name = (ref.split(/[./]/).pop() ?? ref).replace(/[_-]+/g, ' ').trim();
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : ref;
+  const parts = ref.split(/[./]/);
+  const name = (parts.pop() ?? ref).replace(/[_-]+/g, ' ').trim();
+  if (!name) return ref;
+  const [first = '', ...rest] = name.split(' ');
+  const platform = parts.length >= 2 && first === parts[parts.length - 1] && rest.length > 0;
+  if (platform) return [first.toUpperCase(), ...rest].join(' ');
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * AFD-328: the suggestion Enter picks while nothing is highlighted by the arrows: a module or role
+ * whose own name is what was typed (`ping` finds ansible.builtin.ping), or -1 (Enter adds a step
+ * with the title as typed).
+ */
+export function exactMatch(suggestions: readonly Suggestion[], query: string): number {
+  const q = query
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (!q) return -1;
+  return suggestions.findIndex(
+    (s) =>
+      s.kind !== 'type' &&
+      (s.ref.toLowerCase() === q || s.ref.toLowerCase().split(/[./]/).pop() === q),
+  );
+}
+
+/**
+ * AFD-328: the title a step gets when a module or role is picked for it. A title typed as a name
+ * stays; text that only searched for the pick (its words are in the reference) gives way to a title
+ * made from it.
+ */
+export function titleAfterPick(typed: string, ref: string): string {
+  const words = typed
+    .trim()
+    .toLowerCase()
+    .split(/[\s._/-]+/)
+    .filter(Boolean);
+  const name = ref.toLowerCase();
+  const search = words.length === 0 || words.every((w) => name.includes(w));
+  return search ? titleFor(ref) : typed.trim();
 }
 
 /** The modules and roles the flow's steps are bound to, the latest step's first. */

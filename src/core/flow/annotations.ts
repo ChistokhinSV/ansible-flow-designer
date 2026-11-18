@@ -85,6 +85,34 @@ const overlaps = (a: Box, b: Box, gap: number) =>
   a.position.y < b.position.y + b.height + gap &&
   b.position.y < a.position.y + a.height + gap;
 
+/** Room a node's right-hand port labels take (`failed_hosts`, `unreachable`), past its edge. */
+const PORT_LABELS = 110;
+
+/**
+ * AFD-328: where a new Note tied to `node` goes, as its offset from the node. Not on the right edge,
+ * where the fail ports, their labels and their wires leave: left of the node first, then right of
+ * the port labels, above, below; the first of those clear of `taken` (the level's other boxes).
+ */
+export function tieSpot(
+  node: Box,
+  size: { width: number; height: number },
+  taken: readonly Box[],
+  gap = 16,
+): Position {
+  const offsets: Position[] = [
+    { x: -size.width - 32, y: 0 },
+    { x: node.width + PORT_LABELS, y: 0 },
+    { x: 0, y: -size.height - 40 },
+    { x: 0, y: node.height + 56 },
+  ];
+  const others = taken.filter((t) => t !== node);
+  for (const d of offsets) {
+    const position = { x: node.position.x + d.x, y: node.position.y + d.y };
+    if (!others.some((t) => overlaps({ position, ...size }, t, gap))) return d;
+  }
+  return offsets[0] as Position;
+}
+
 /**
  * AFD-68: where a new annotation goes when only a rough spot is known (a palette click): centred
  * on `at`, or the nearest place around it that covers none of `taken`, so a Section's title bar
