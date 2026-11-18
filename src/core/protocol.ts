@@ -93,6 +93,11 @@ export interface RunView {
   partial?: { node: Ulid; only: boolean; line: string; stubbed: Ulid[] };
   /** AFD-245: an earlier run shown again from the kept runs. */
   past?: boolean;
+  /**
+   * AFS-147: a run someone stopped: the step it was in when it was stopped (an approval it waited
+   * at, too). The canvas marks that step stopped.
+   */
+  stoppedAt?: Ulid;
   /** AFD-84: a scenario's result shown like a run: its verdict and each host's expected end. */
   scenario?: {
     name: string;

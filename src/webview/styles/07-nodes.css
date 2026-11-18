@@ -60,6 +60,11 @@
   color: var(--afd-status-color, var(--afd-neutral));
 }
 
+/* AFS-147: hosts failed at this step in the run shown: its status mark is not a green check. */
+.afd-status-icon.run-hurt {
+  --afd-status-color: var(--afd-neutral);
+}
+
 /* Type shapes. */
 .afd-node.type-subflow {
   border-style: double;

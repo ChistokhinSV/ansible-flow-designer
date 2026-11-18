@@ -381,6 +381,14 @@ function RunLine({ node }: { node: FlowNode }) {
   const running = useUi((s) => s.run?.state === 'running');
   // An approval (AFD-11, AFD-273): its decision, and how many hosts it decided for.
   const shown = useUi((s) => s.run);
+  // AFS-147: the step a run was stopped in (an approval it waited at too): stopped, whatever it
+  // had done; the steps after it read "not reached".
+  if (shown && shown.state !== 'running' && shown.stoppedAt === node.id)
+    return (
+      <div className="afd-node-run tone-warn" data-run-state="stopped">
+        {r && r.hosts > 0 ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}` : 'stopped'}
+      </div>
+    );
   const approval = approvalOf(shown, node.id);
   if (approval) {
     const hosts = r && r.state !== 'idle' ? ` · ${r.hosts} host${r.hosts === 1 ? '' : 's'}` : '';
@@ -477,9 +485,18 @@ function SummaryRows({
  * AFD-328: the status mark, or, on an implemented step whose module lacks a required parameter, a
  * warning that says which: the step would not run as it is.
  */
-function StatusMark({ status, missing }: { status: NodeStatus; missing: readonly string[] }) {
+function StatusMark({
+  status,
+  missing,
+  hurt = false,
+}: {
+  status: NodeStatus;
+  missing: readonly string[];
+  /** AFS-147: the run shown failed hosts here: the status mark is not a green check beside it. */
+  hurt?: boolean;
+}) {
   if (missing.length === 0 || (status !== 'implemented' && status !== 'tested'))
-    return <StatusIcon status={status} />;
+    return <StatusIcon status={status} hurt={hurt} />;
   const words = `${missingWords(missing)}: the step does not run until they are set`;
   return (
     <span
@@ -504,6 +521,8 @@ const NodeBody = memo(function NodeBody({
   const implementation = useUi((s) => s.mode === 'code');
   const runMode = useUi((s) => s.mode === 'run');
   const lens = useUi((s) => s.lens);
+  const ranState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
+  const hurt = ranState === 'warn' || ranState === 'failed';
   if (node.type === 'start' || node.type === 'end' || BAR.has(node.type)) {
     return (
       <>
@@ -518,7 +537,7 @@ const NodeBody = memo(function NodeBody({
     return (
       <>
         <div className="afd-node-head">
-          <StatusMark status={status} missing={missing} />
+          <StatusMark status={status} missing={missing} hurt={hurt} />
           <Title node={node} />
         </div>
         <LensChips id={node.id} />
@@ -529,7 +548,7 @@ const NodeBody = memo(function NodeBody({
     );
   const head = (
     <div className="afd-node-head">
-      <StatusMark status={status} missing={missing} />
+      <StatusMark status={status} missing={missing} hurt={hurt} />
       <Title node={node} />
     </div>
   );

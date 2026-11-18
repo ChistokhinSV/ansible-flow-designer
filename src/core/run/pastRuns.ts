@@ -18,6 +18,11 @@ export interface PastRun {
   partial?: string;
   /** AFS-139: a run of a host (Ansible Flow Server) that has not ended yet. */
   running?: boolean;
+  /**
+   * AFS-147: how a run that did not finish ended, in a word, when its host knows it (stopped,
+   * failed, lost); without it the list says "did not finish".
+   */
+  ended?: string;
 }
 
 /** What the list shows of a stored run; undefined for one that never got going. */
@@ -54,6 +59,10 @@ export function pastRunLabel(run: PastRun, locale?: string): string {
   const hosts = `${run.hosts} host${run.hosts === 1 ? '' : 's'}`;
   // AFS-139: a run still going has no result yet, and its hosts are not counted until it goes.
   if (run.running) return `${at} · ${kind} · running`;
-  const result = !run.ok ? 'did not finish' : run.failed ? `${run.failed} failed` : 'all passed';
+  const result = !run.ok
+    ? (run.ended ?? 'did not finish')
+    : run.failed
+      ? `${run.failed} failed`
+      : 'all passed';
   return `${at} · ${kind} · ${hosts}, ${result}`;
 }

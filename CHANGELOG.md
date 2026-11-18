@@ -22,6 +22,8 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- A run stopped on Ansible Flow Server marks the step it was stopped in (an approval it waited at too) as stopped, and the top bar says **Stopped** instead of "Run interrupted". The Run panel's list says how a server run that did not finish ended (stopped, failed, lost).
+- In Run mode, a step where hosts failed no longer shows a green check as its status mark beside "1 failed".
 - The canvas shows the whole level when it opens and after **Tidy Up**, and fits again when the canvas changes size (the side panel, a message above it) until you move the view; nodes no longer open under the zoom controls, and a new step is brought into view.
 - In Ansible Flow Server's pages each page opens fitted: a zoom on one run's page no longer carries over to the next run or to the flow after Save. A page that only shows the flow lets the mouse wheel scroll the page until you click the canvas; Ctrl+wheel zooms.
 - The open fail port question is one line; on a narrow canvas its quick answers fold into **Other Choices**. A narrow designer opens with the palette folded, the side panel takes at most 40% of the width, and a run shown by its page keeps the side panel folded until a step is selected.

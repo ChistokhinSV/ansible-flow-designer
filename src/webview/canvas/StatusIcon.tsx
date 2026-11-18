@@ -9,11 +9,20 @@ const ICON: Record<NodeStatus, string> = {
 };
 
 /** `label` false: the status is written next to it, so the icon stays out of the accessible name. */
-export function StatusIcon({ status, label = true }: { status: NodeStatus; label?: boolean }) {
-  const name = `Status: ${status}`;
+export function StatusIcon({
+  status,
+  label = true,
+  hurt = false,
+}: {
+  status: NodeStatus;
+  label?: boolean;
+  /** AFS-147: the run shown failed hosts at this step: the mark is not green beside "1 failed". */
+  hurt?: boolean;
+}) {
+  const name = `Status: ${status}${hurt ? '. Hosts failed here in this run' : ''}`;
   return (
     <span
-      className={`afd-status-icon codicon codicon-${ICON[status]} status-${status}`}
+      className={`afd-status-icon codicon codicon-${ICON[status]} status-${status}${hurt ? ' run-hurt' : ''}`}
       {...(label ? { role: 'img', 'aria-label': name, title: name } : { 'aria-hidden': true })}
     />
   );
