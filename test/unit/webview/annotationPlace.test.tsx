@@ -106,3 +106,22 @@ describe('annotations after first use (AFD-68)', () => {
       ).toBe(false);
   });
 });
+
+describe('a new note (AFS-148 a2.n4, a2.12)', () => {
+  it('is brought into view once the host has added it', async () => {
+    useUi.setState({ bringIntoView: null });
+    const done = addAnnotation('note', undefined, nodeId('validate'));
+    const [cmd] = posted.filter((m) => (m as { type: string }).type === 'command') as {
+      reqId: number;
+    }[];
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'ack', reqId: cmd?.reqId, ok: true, created: 'NEWNOTE' },
+        }),
+      );
+      await done;
+    });
+    expect(useUi.getState().bringIntoView).toBe('NEWNOTE');
+  });
+});

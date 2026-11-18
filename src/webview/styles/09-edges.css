@@ -50,6 +50,18 @@
   fill: currentColor;
 }
 
+/* AFS-148: a zoom control under the pointer is shaded like the other icon buttons, not filled
+   with the primary button's blue (on a phone a tapped one stayed blue, as if pressed). */
+.react-flow__controls-button:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+@media (hover: none) {
+  .react-flow__controls-button:hover:not(:disabled) {
+    background: var(--xy-controls-button-background-color);
+  }
+}
+
 /* ---------- AFD-231: + on an open output and on a wire ---------- */
 
 .afd-plus {

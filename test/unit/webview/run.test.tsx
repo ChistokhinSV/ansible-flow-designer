@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
+import { type Edge, ReactFlowProvider, useStore } from '@xyflow/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { awxEventsToLines, playNodes } from '../../../src/core/awx/events';
@@ -53,6 +53,12 @@ const job: RunView = {
   },
   summary,
 };
+// jsdom draws no wires: what the canvas hands React Flow is read instead.
+let edges: Edge[] = [];
+function EdgeProbe() {
+  edges = useStore((s) => s.edges);
+  return null;
+}
 const commands = () =>
   posted
     .filter((m) => (m as { type: string }).type === 'command')
@@ -100,6 +106,34 @@ describe('Run mode', () => {
     );
     // Run mode is read-only: no wiring from ports.
     expect(document.querySelector('.react-flow__nodes .connectable')).toBeNull();
+  });
+
+  it('a step not reached has no status mark, a wire no host took no label (AFS-148 a4.13)', () => {
+    // The fixture's run reached every step: one is marked not reached here.
+    const runNodes = useUi.getState().runNodes ?? {};
+    const work = runNodes[id('work')];
+    if (!work) throw new Error('no run line for work');
+    act(() =>
+      useUi.setState({ runNodes: { ...runNodes, [id('work')]: { ...work, state: 'idle' } } }),
+    );
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1600, height: 600 }}>
+          <FlowCanvas cull={false} />
+        </div>
+        <EdgeProbe />
+      </ReactFlowProvider>,
+    );
+    const node = (key: string) => document.querySelector(`[data-node-id="${id(key)}"]`);
+    expect(node('work')?.querySelector('.afd-node-run')?.textContent).toBe('not reached');
+    expect(node('work')?.querySelector('.afd-status-icon')).toBeNull();
+    expect(node('exclude')?.querySelector('.afd-status-icon')).not.toBeNull();
+    const idle = edges.filter((e) => String(e.className).includes('run-idle'));
+    expect(idle.length).toBeGreaterThan(0);
+    for (const e of idle) expect(e.label).toBeUndefined();
+    expect(edges.some((e) => typeof e.label === 'string' && /^\d+ hosts?$/.test(e.label))).toBe(
+      true,
+    );
   });
 
   it('a node lists its hosts, the port each took and why it failed', () => {

@@ -41,6 +41,7 @@ import { svgToPng } from './rasterize';
 import { type RightPanel, rightPanelFor, rightPanelLabel } from './rightPanel';
 import { PANEL_WIDTH, useUi } from './store';
 import { applyTheme, themeKindOf } from './theme/tokens';
+import { inVsCode } from './transport';
 import { enterPast, enterViewer } from './viewer';
 
 /** Theme tokens follow VS Code's theme class on <body>. */
@@ -211,6 +212,8 @@ interface PanelState {
  * AFD-328: below this width (a page at 1024 px holds the designer in about 700) the palette opens
  * folded, and a run shown by its page opens with the side panel folded until a step is selected,
  * so the canvas keeps most of the room. Neither is remembered as the user's choice.
+ * AFS-148: in a web page the side panel opens folded so on the flow's page and in its editor too:
+ * beside the canvas it left a laptop's flow too narrow to see whole.
  */
 export const NARROW_PX = 1000;
 
@@ -233,7 +236,13 @@ function usePanelState() {
       ui.setPaletteCollapsed(true);
     }
     const foldForRun = (s: ReturnType<typeof useUi.getState>) => {
-      if (!narrow || panelFolded || s.panelCollapsed || !s.embed.runShown || s.selection.node)
+      if (
+        !narrow ||
+        panelFolded ||
+        s.panelCollapsed ||
+        (!s.embed.runShown && inVsCode()) ||
+        s.selection.node
+      )
         return;
       panelFolded = true;
       s.setPanelCollapsed(true);

@@ -56,7 +56,9 @@ import {
   CONTROLS_ROOM,
   FULL_FIT,
   minimapCorner,
+  PAGE_FIT_ZOOM,
   panInto,
+  READABLE_ZOOM,
   readableViewport,
   union,
 } from '../../core/view/fit';
@@ -186,7 +188,13 @@ function useWheelZoom(wrapper: { current: HTMLDivElement | null }): boolean {
   useEffect(() => {
     const el = wrapper.current;
     if (!embedded || !el) return;
-    const on = () => setActive(true);
+    // AFS-148: only a click on the empty canvas (or the focus on the canvas itself) hands it the
+    // wheel. Selecting a step, a wire or a note, or a zoom button, leaves the wheel to the page: a
+    // run's page stayed stuck, zooming, after a step was clicked to see its hosts.
+    const on = (e: Event) => {
+      const t = e.target instanceof Element ? e.target : null;
+      setActive(!!t && (t === el || t.classList.contains('react-flow__pane')));
+    };
     const away = (e: Event) => {
       if (!(e.target instanceof Node) || !el.contains(e.target)) setActive(false);
     };
@@ -318,7 +326,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const handWritten = useUi((s) => !!s.snapshot?.idGaps);
   const ran = useUi((s) => (s.mode === 'run' ? s.run?.summary : undefined));
   // Under a lens or in Run mode the flow speaks; annotations step back (AFD-65).
-  const dimNotes = useUi((s) => s.lens !== null || s.mode === 'run');
+  // AFS-148: notes step back only while a run is shown: a flow's page with no run read them dim.
+  const dimNotes = useUi((s) => s.lens !== null || (s.mode === 'run' && !!s.run));
   // Lenses (M8): Inventory labels wires with last-run host counts, Data adds derived data wires.
   const lensWires = useUi((s) => s.lensView?.wires);
   const dataWires = useUi((s) => s.lensView?.dataWires);
@@ -519,8 +528,12 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       target: e.target,
       targetHandle: e.targetPort,
       type: 'routed',
+      // AFS-148: a wire no host took has no label (its dim dashes say so): "0 hosts" sat on the
+      // dashed fail wires and on the ports they lead to.
       label: ran
-        ? hostCount(hostsOn(ran, e).length)
+        ? hostsOn(ran, e).length > 0
+          ? hostCount(hostsOn(ran, e).length)
+          : undefined
         : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
       className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
         ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
@@ -1053,26 +1066,43 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     void fitView(FULL_FIT);
   }, [fitView, paneWidth, paneHeight]);
   const wrapper = useRef<HTMLDivElement>(null);
+  // AFS-148: the steps the view was fitted to. Another flow in their place (a sample opened, a
+  // template started from) is fitted again, as a flow just opened.
+  const fittedSteps = useRef<ReadonlySet<string>>(new Set());
   useEffect(() => {
-    if (touched.current || nodes.length === 0 || paneWidth <= 0 || paneHeight <= 0) return;
+    if (nodes.length === 0 || paneWidth <= 0 || paneHeight <= 0) return;
+    const flowNodes = nodes.filter((n) => n.type === 'flow');
+    const steps = new Set(flowNodes.map((n) => n.id));
+    const kept = fittedSteps.current;
+    const another = kept.size > 0 && ![...steps].some((id) => kept.has(id));
+    fittedSteps.current = steps;
+    if (another) {
+      touched.current = false;
+      fitted.current = '';
+    }
+    if (touched.current) return;
     const key = `${paneWidth}x${paneHeight}`;
     if (fitted.current === key) return;
     fitted.current = key;
-    const flowNodes = nodes.filter((n) => n.type === 'flow');
     const top = flowNodes.reduce<CanvasNode | undefined>(
       (a, n) => (!a || n.position.y < a.position.y ? n : a),
       undefined,
     );
+    // AFS-148: a Note on a step is placed relative to it: React Flow's bounds of the nodes as given
+    // would put it near the origin. The level's own bounds have every annotation where it shows.
+    const loose = getNodesBounds(nodes.filter((n) => !n.parentId));
+    const bounds = contentBounds ? union(loose, contentBounds) : loose;
     void setViewport(
       readableViewport(
         // An empty level opens with its card in view too (AFD-48).
-        cardAt ? union(getNodesBounds(nodes), cardAt) : getNodesBounds(nodes),
+        cardAt ? union(bounds, cardAt) : bounds,
         // AFD-328: clear of the zoom controls at the right.
         { width: Math.max(1, paneWidth - CONTROLS_ROOM), height: paneHeight },
         top ? top.position.x + (top.width ?? 0) / 2 : undefined,
+        inVsCode() ? READABLE_ZOOM : PAGE_FIT_ZOOM,
       ),
     );
-  }, [nodes, paneWidth, paneHeight, setViewport, cardAt]);
+  }, [nodes, paneWidth, paneHeight, setViewport, cardAt, contentBounds]);
 
   // AFD-328: Tidy Up lays the level out again; the view then shows all of it.
   const tidied = useUi((s) => s.tidyNonce);
@@ -1098,7 +1128,11 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   // AFD-328: a node just added comes into view, clear of the zoom controls, at the zoom it is at.
   const shown = useUi((s) => s.bringIntoView);
   useEffect(() => {
-    const v = shown ? view.nodes.find((n) => n.node.id === shown) : undefined;
+    // AFS-148: a Note just added too (it was left under the side panel).
+    const v = shown
+      ? (view.nodes.find((n) => n.node.id === shown) ??
+        view.annotations.find((a) => a.annotation.id === shown))
+      : undefined;
     if (!v || paneWidth <= 0 || paneHeight <= 0) return;
     useUi.setState({ bringIntoView: null });
     const vp = getViewport();
@@ -1110,7 +1144,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       touched.current = true;
       void setViewport(to, { duration: 200 });
     }
-  }, [shown, view.nodes, paneWidth, paneHeight, getViewport, setViewport]);
+  }, [shown, view.nodes, view.annotations, paneWidth, paneHeight, getViewport, setViewport]);
 
   // A node shown from elsewhere (find, the failed steps, the banner's Show; AFD-48) comes to the
   // middle once its level is drawn, after the opening fit, at 100% or closer.

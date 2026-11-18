@@ -523,6 +523,12 @@ const NodeBody = memo(function NodeBody({
   const lens = useUi((s) => s.lens);
   const ranState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
   const hurt = ranState === 'warn' || ranState === 'failed';
+  // AFS-148: a step the run did not reach shows no status mark: a check beside "not reached" read
+  // as a step that went well.
+  const unreached = useUi(
+    (s) =>
+      s.mode === 'run' && s.run?.state !== 'running' && s.runNodes?.[node.id]?.state === 'idle',
+  );
   if (node.type === 'start' || node.type === 'end' || BAR.has(node.type)) {
     return (
       <>
@@ -548,7 +554,7 @@ const NodeBody = memo(function NodeBody({
     );
   const head = (
     <div className="afd-node-head">
-      <StatusMark status={status} missing={missing} hurt={hurt} />
+      {unreached ? null : <StatusMark status={status} missing={missing} hurt={hurt} />}
       <Title node={node} />
     </div>
   );
