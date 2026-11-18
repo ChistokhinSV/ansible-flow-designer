@@ -9,7 +9,7 @@ import { enclosing, liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { acceptedAll, acceptedOf, checkWhat } from './decisions';
 import { canDisable, disabledBy, disabledIds } from './disabled';
 import { durationSeconds } from './duration';
-import { factSetter, setFactNames } from './facts';
+import { factSetter, factSource, setFactNames } from './facts';
 import { resolveFlowOutput } from './flowOutputs';
 import { healPlan } from './heal';
 import { conditionHasBraces, exprRefs, refsIn, singleRef, templated } from './jinja';
@@ -48,6 +48,8 @@ export interface Finding {
   /** What the finding is about when a node can have several (a variable name): with the code and
    * the node, what an accepted problem names (AFD-51). */
   subject?: string;
+  /** AFD-336: what the node's own Details show: without its name, short, then what to do. */
+  brief?: string;
 }
 
 export function pointerToPath(pointer: string): Path {
@@ -766,6 +768,26 @@ function hintFor(model: FlowModel, node: FlowNode, level: string, name: string):
 }
 
 /**
+ * AFD-336: an unknown variable in the step's own words. A one-click fix (Add as input) goes with
+ * it where the source is in reach; a fact set inside an earlier subflow is lifted with the picker.
+ */
+function unknownBrief(
+  model: FlowModel,
+  node: FlowNode,
+  name: string,
+  flow: boolean,
+  optional: boolean,
+): string {
+  if (flow)
+    return `Uses flow input ${name} directly. Add it as an input to show where it comes from.`;
+  if (optional) return `Uses ${name} only with a fallback, which is fine when nothing sets it.`;
+  const source = factSource(model, node, name);
+  if (source?.how === 'inside')
+    return `Uses ${name}, which is not an input. "${source.inner.title}" inside "${source.node.title}" sets it: add the input with @.`;
+  return `Uses ${name}, which is not an input.`;
+}
+
+/**
  * Binding parameters read node inputs (chips, D-26). A read of anything else works only by luck
  * (a flow extra var, another node's fact), and the design does not show the data dependency.
  * Bare expressions (assert `that`) are read too (AFD-21).
@@ -811,6 +833,7 @@ function checkBindingVars(
       add({
         code: 'binding-unknown-var',
         severity: flow || optional ? 'info' : 'warning',
+        brief: unknownBrief(model, node, name, flow, optional),
         message: flow
           ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
           : optional
@@ -945,6 +968,7 @@ function checkTimingInputs(
       add({
         code: 'setting-unknown-var',
         severity: flow ? 'info' : 'warning',
+        brief: `${key}: ${unknownBrief(model, node, name, flow, false)}`,
         message: flow
           ? `${label(node)} ${key} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
           : `${label(node)} ${key} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
@@ -980,11 +1004,15 @@ function checkUnfed(
   path: Path,
   name: string,
   flowInputs: Set<string>,
+  external: Set<string>,
   add: (f: Finding) => void,
 ): void {
   if (node.type !== 'task' && node.type !== 'approval') return;
   const field = node.inputs?.[name];
   if (!field || field.default !== undefined || field.optional || field.type === 'host_list') return;
+  // AFD-336: a name set outside the flow (flow.external_vars) feeds an input without a from: the
+  // generated task reads the host's own variable of that name.
+  if (external.has(name)) return;
   const flow = flowInputs.has(name);
   const registers = upstreamNodes(model, node.id).find(
     (up) => up.impl?.kind === 'module' && registerName(up) === name,
@@ -997,6 +1025,7 @@ function checkUnfed(
   add({
     code: 'input-unfed',
     severity: flow ? 'info' : 'warning',
+    brief: `Input ${name} gets no value. ${flow ? `Set its source to flow.${name}.` : registers ? `Make ${name} an output of "${registers.title ?? registers.key}" and pick it with @.` : 'Pick its source with @, or give it a default.'}`,
     message: `${label(node)} inputs.${name}: nothing gives it a value (no from, no default)${hint}`,
     path: [...path, 'inputs', name],
     node: node.id,
@@ -1031,7 +1060,8 @@ function checkReferences(model: FlowModel, add: (f: Finding) => void): void {
       for (const [name, field] of Object.entries(node[side] ?? {})) {
         const from = field?.from;
         if (typeof from !== 'string' || !from) {
-          if (side === 'inputs') checkUnfed(model, node, level, path, name, flowInputs, add);
+          if (side === 'inputs')
+            checkUnfed(model, node, level, path, name, flowInputs, external, add);
           continue;
         }
         const src = resolveFrom(model, node, level, side, from);
@@ -1324,7 +1354,8 @@ const variablesOf = new WeakMap<FlowModel, Map<string, Set<Ulid>>>();
 /**
  * `from: a.result` reads a host variable (AFD-31). Outputs other than registers are captured into
  * the step's own variable (AFD-53); a register is named by the flow, so another step registering the
- * same name, or a flow input (an extra var) of that name, changes what the reader gets: an error.
+ * same name between the producer and the reader, or a flow input (an extra var) of that name,
+ * changes what the reader gets: an error.
  */
 function checkCollision(
   model: FlowModel,
@@ -1343,16 +1374,22 @@ function checkCollision(
     vars = hostVariables(model);
     variablesOf.set(model, vars);
   }
-  const others = [...(vars.get(root) ?? [])]
-    .filter((id) => id !== producer.id)
-    .map((id) => label(model.nodes.get(id)?.node));
   const flowInput = root in (model.doc.flow?.inputs ?? {});
+  // AFD-336: steps that register the same name before the producer, after the reader or on
+  // another branch are how playbooks reuse a register; only one that can run between the two
+  // changes what the reader gets. Where the input has the register's own name, input-shadowed
+  // already says so.
+  const between = settersBetween(model, reader, producer, vars.get(root) ?? new Set());
+  const others = (input === root && !flowInput ? [] : between).map(label);
   if (others.length === 0 && !flowInput) return;
   const who = [...(flowInput ? [`the flow input ${root}`] : []), ...others].join(', ');
   add({
     code: 'register-collision',
     severity: 'error',
-    message: `${label(reader)} inputs.${input}: "${from}" reads the register ${root}, which ${who} also set${others.length + (flowInput ? 1 : 0) > 1 ? '' : 's'}: it reads ${flowInput ? 'the flow input' : 'whichever ran last'}`,
+    brief: flowInput
+      ? `Input ${input} reads the register ${root}, but the flow input ${root} always wins. Rename the register (Binding) or the flow input.`
+      : `Input ${input} reads the register ${root}, which ${others.join(', ')} set${others.length > 1 ? '' : 's'} again before this step. Give one of them its own register name (Binding).`,
+    message: `${label(reader)} inputs.${input}: "${from}" reads the register ${root}, which ${who} also set${others.length + (flowInput ? 1 : 0) > 1 ? '' : 's'}${flowInput ? '' : ' before this step'}: it reads ${flowInput ? 'the flow input' : 'the value set last'}`,
     path,
     node: reader.id,
   });
@@ -1381,6 +1418,34 @@ function reachable(
 }
 
 type ModelLevel = NonNullable<ReturnType<FlowModel['levels']['get']>>;
+
+/**
+ * AFD-336: the steps of `setters` that can run after the producer and before the reader: on the
+ * producer's level, past its success ports and with a path on to the reader (a setter inside a
+ * subflow counts as that subflow). Every other setter, the whole list, when the two are not placed
+ * on one level.
+ */
+function settersBetween(
+  model: FlowModel,
+  reader: FlowNode,
+  producer: FlowNode,
+  setters: Set<Ulid>,
+): FlowNode[] {
+  const others = [...setters].filter((id) => id !== producer.id);
+  const place = producerPlace(model, reader, producer);
+  if (!place) return others.flatMap((id) => model.nodes.get(id)?.node ?? []);
+  const { level, target } = place;
+  const after = reachable(level.edges, okTargets(level, producer.id));
+  const found: FlowNode[] = [];
+  for (const id of others) {
+    let at = model.nodes.get(id);
+    while (at && at.level !== level.id) at = model.nodes.get(at.level);
+    if (!at || at.node.id === producer.id || at.node.id === target) continue;
+    if (after.has(at.node.id) && reachable(level.edges, okTargets(level, at.node.id)).has(target))
+      found.push(model.nodes.get(id)?.node ?? at.node);
+  }
+  return found;
+}
 
 /** Where a `from:` is checked: the producer's level, the reader (or the subflow around it) on it. */
 function producerPlace(
@@ -1488,6 +1553,7 @@ function checkProducerRuns(
     add({
       code: 'ref-may-be-undefined',
       severity: 'warning',
+      brief: `Input ${input} may be missing for some hosts: it ${why}. Read it where every path has run it, or give the input a default.`,
       message: `${label(reader)} inputs.${input}: "${from}" ${why}: those hosts arrive without the value`,
       path,
       node: reader.id,
@@ -1552,6 +1618,7 @@ function checkShadowed(
   add({
     code: 'input-shadowed',
     severity: 'warning',
+    brief: `Input ${input} gets the value ${names} set${later.length > 1 ? '' : 's'}, not "${from}". Rename the input, or read it from the step that sets it last.`,
     message: `${label(reader)} inputs.${input}: "${from}" is not what the step reads after ${names}: ${later.length > 1 ? 'they set' : 'it sets'} ${input} too, and a set_fact or register wins over the input, so the step reads the value set last`,
     path,
     node: reader.id,

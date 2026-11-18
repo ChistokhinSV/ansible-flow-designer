@@ -176,6 +176,11 @@ export type FlowCommand =
    * the setter (a fact needs no `from:`) and an input of the reader from it, in one edit.
    */
   | { kind: 'useFact'; reader: Ulid; setter: Ulid; name: string }
+  /**
+   * AFD-336: a name a step reads that nothing in the flow sets: an input of the step without a
+   * from (the task reads the host's own variable) and the name set outside the flow, in one edit.
+   */
+  | { kind: 'addOutsideInput'; node: Ulid; name: string }
   | { kind: 'updateFlow'; patch: FlowPatch }
   /**
    * AFD-112 (round 4: Q4): a step's Timing setting given at run time, in one edit: the flow input
@@ -3572,6 +3577,24 @@ export function planCommand(
           notes,
         );
       }
+      break;
+    }
+    case 'addOutsideInput': {
+      const node = nodeAt(state(tx), cmd.node).node;
+      if (!node.inputs?.[cmd.name])
+        setContractField(
+          tx,
+          {
+            kind: 'setContractField',
+            target: cmd.node,
+            side: 'inputs',
+            name: cmd.name,
+            field: { type: 'any' },
+          },
+          notes,
+        );
+      if (!state(tx).doc.flow?.external_vars?.[cmd.name])
+        updateFlow(tx, { external_vars: { [cmd.name]: 'set outside the flow' } });
       break;
     }
     case 'setBinding':

@@ -57,7 +57,8 @@ there.
 - nodes: "3 hosts · 1 failed · 2.1 s", coloured ok, warn (some hosts took a fail port), failed (a
   failure was not routed), or dimmed when not reached;
 - wires: how many hosts took them;
-- select a node for each host and the port it left by; select a wire for its hosts;
+- select a node for each host and where it went (the port it left by, or that it stopped there
+  when no wire leads on); select a wire for its hosts;
 - with nothing selected, the run panel shows the job, status, commit, flow version, failed hosts
   and **Open in AWX**.
 

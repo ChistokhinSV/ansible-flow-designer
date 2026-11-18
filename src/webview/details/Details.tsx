@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
 import { formatOf } from '../../core/flow/format';
 import type { FlowNode } from '../../core/flow/types';
-import { nodeProblems } from '../../core/view/nodeProblems';
+import { nodeProblems, ownWords, problemFix } from '../../core/view/nodeProblems';
 import { run } from '../actions';
 import { send } from '../bus';
 import { StatusIcon } from '../canvas/StatusIcon';
@@ -243,44 +243,59 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
             aria-label="Problems of this node"
             data-node-problems={id}
           >
-            {problems.map((p) => (
-              <li key={`${p.finding.code}|${p.finding.path.join('.')}|${p.finding.port ?? ''}`}>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => tabs.includes(tabOf(p.tab)) && setTab(p.tab)}
-                >
-                  <span
-                    className={`codicon codicon-${p.finding.severity === 'error' ? 'error' : 'warning'}`}
-                    role="img"
-                    aria-label={p.finding.severity}
-                  />{' '}
-                  {p.finding.message}
-                </button>
-                {canAccept &&
-                p.finding.severity === 'warning' &&
-                p.finding.code !== 'open-fail-port' ? (
+            {problems.map((p) => {
+              // AFD-336: in the step's own words, with a one-click fix where one exists.
+              const fix = editable && mode === 'design' ? problemFix(model, p.finding) : undefined;
+              return (
+                <li key={`${p.finding.code}|${p.finding.path.join('.')}|${p.finding.port ?? ''}`}>
                   <button
                     type="button"
-                    className="link afd-accept-problem"
-                    title="Keep it as it is, with a reason"
-                    onClick={() =>
-                      useUi.getState().setAccept({
-                        id: `${p.finding.code}|${p.finding.subject ?? ''}`,
-                        node: id,
-                        title: p.finding.message,
-                        check: {
-                          code: p.finding.code,
-                          ...(p.finding.subject ? { subject: p.finding.subject } : {}),
-                        },
-                      })
-                    }
+                    className="link"
+                    onClick={() => tabs.includes(tabOf(p.tab)) && setTab(p.tab)}
                   >
-                    Accept…
+                    <span
+                      className={`codicon codicon-${p.finding.severity === 'error' ? 'error' : 'warning'}`}
+                      role="img"
+                      aria-label={p.finding.severity}
+                    />{' '}
+                    {ownWords(p.finding, node)}
                   </button>
-                ) : null}
-              </li>
-            ))}
+                  {fix ? (
+                    <button
+                      type="button"
+                      className="link afd-fix-problem"
+                      title={fix.title}
+                      data-problem-fix={p.finding.code}
+                      onClick={() => void run(fix.command)}
+                    >
+                      {fix.label}
+                    </button>
+                  ) : null}
+                  {canAccept &&
+                  p.finding.severity === 'warning' &&
+                  p.finding.code !== 'open-fail-port' ? (
+                    <button
+                      type="button"
+                      className="link afd-accept-problem"
+                      title="Keep it as it is, with a reason"
+                      onClick={() =>
+                        useUi.getState().setAccept({
+                          id: `${p.finding.code}|${p.finding.subject ?? ''}`,
+                          node: id,
+                          title: p.finding.message,
+                          check: {
+                            code: p.finding.code,
+                            ...(p.finding.subject ? { subject: p.finding.subject } : {}),
+                          },
+                        })
+                      }
+                    >
+                      Accept…
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </details>
       ) : null}

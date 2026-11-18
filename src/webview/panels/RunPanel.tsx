@@ -580,7 +580,8 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
             <thead>
               <tr>
                 <th>Host</th>
-                <th>Left through</th>
+                {/* AFD-337: a host that stopped here went nowhere, so not "Left through". */}
+                <th>Went to</th>
                 <th>Result</th>
                 {outputs ? (
                   <th>
@@ -604,9 +605,15 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                   <Fragment key={h.host}>
                     <tr data-host={h.host} data-port={h.ports.join(',')}>
                       <td className="mono">{h.host}</td>
-                      <td className="mono afd-run-port">
-                        {h.ports.join(', ') || (h.ended || h.waits ? '-' : '(no route)')}
-                      </td>
+                      {h.ports.length || h.ended || h.waits ? (
+                        <td className="mono afd-run-port">{h.ports.join(', ') || '-'}</td>
+                      ) : (
+                        <td className="tone-warn" data-stopped>
+                          {h.problem
+                            ? 'stopped here (failed, no route)'
+                            : 'stopped here (no route)'}
+                        </td>
+                      )}
                       <td>
                         {h.waits ? (
                           <span className="tone-warn">waiting for a decision</span>
