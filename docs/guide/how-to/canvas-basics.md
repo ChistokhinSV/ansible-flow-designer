@@ -136,7 +136,7 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
     lights, and on release the step sits on it. A step already wired just moves.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
   **Tidy Up** lays out the whole level: the button among the zoom controls (bottom right), the "…"
-  menu, or Shift+Alt+F. Nodes without a position (a new flow, or steps an AI agent added) are placed
+  menu, or Shift+Alt+F; the view then shows the whole level. Nodes without a position (a new flow, or steps an AI agent added) are placed
   next to their neighbours until you move them.
   - While you drag a step, a dashed guide line shows when it shares an edge or a centre with
     another step; release near the line and it snaps there. "even gaps" shows when it sits halfway
@@ -234,7 +234,9 @@ In a field that takes Jinja, Ctrl+Space opens the completion list and Shift+1 ty
 
 ### With the keyboard only
 
-- **Tab** walks the nodes of the level; the focused node is selected with Enter or Space.
+- **Tab** walks the nodes of the level; the focused node is selected with Enter or Space. Wires are
+  not on the way: **Shift+Tab** from a selected node reaches its wires, each read out by the steps
+  and ports it joins.
 - On the selected node, **Tab** goes on to its ports. **Enter** opens a port's menu, as a click
   does; the arrow keys and Enter choose in it.
 - **Connect to Another Node…** and the other "pick a node" actions: **Tab** or the arrow keys show
@@ -249,7 +251,9 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 ## Nodes and wires
 
 - **Status:** a stripe on the node's left and an icon before its title: an empty circle for draft, a
-  filled one for specified, a check for implemented, a seal for tested.
+  filled one for specified, a check for implemented, a seal for tested. A step bound to a module
+  that still lacks a required parameter shows an amber warning instead of the check (its
+  **Lifecycle** names the parameter): it would not run until the parameter is set.
 - **Under the title:** the module or role the node runs, or its kind while nothing is bound; a
   decision shows its condition.
 - **Shapes:** subflows have a double border; decisions and approvals a coloured header; parallel
@@ -266,7 +270,10 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 A level opens readable. When it fits at a zoom where titles are at least 11 px, you see all of it
 (at 100% at most); otherwise it fits its width, starting at the top, and the minimap at the bottom
 left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
-whole level. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for its
+whole level, clear of the zoom controls; until you pan or zoom, the view fits again when the canvas
+changes size (the side panel, a message above the canvas). In a web page (Ansible Flow Server)
+each page opens fitted, and a page that only shows the flow lets the mouse wheel scroll the page
+until you click the canvas; Ctrl+wheel zooms at any time. Zoomed far out, nodes show titles only; from 1.4×, summary rows. Select a node for its
 Details on the right. Pause on a subflow or a bound node for a preview of what is inside.
 
 New nodes without a position, and **Tidy Up**, follow the setting `afd.canvas.direction`: top to

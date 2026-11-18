@@ -22,6 +22,13 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- The canvas shows the whole level when it opens and after **Tidy Up**, and fits again when the canvas changes size (the side panel, a message above it) until you move the view; nodes no longer open under the zoom controls, and a new step is brought into view.
+- In Ansible Flow Server's pages each page opens fitted: a zoom on one run's page no longer carries over to the next run or to the flow after Save. A page that only shows the flow lets the mouse wheel scroll the page until you click the canvas; Ctrl+wheel zooms.
+- The open fail port question is one line; on a narrow canvas its quick answers fold into **Other Choices**. A narrow designer opens with the palette folded, the side panel takes at most 40% of the width, and a run shown by its page keeps the side panel folded until a step is selected.
+- **Add Node**: typing a module's own name ("ping") highlights it and Enter picks it; picking a module keeps a title you typed, and a made-up title keeps a platform's capitals ("IOS config").
+- A step bound to a module that lacks a required parameter shows a warning instead of the implemented check, and its **Lifecycle** names the parameter.
+- A Note added on a step goes beside it, clear of its fail ports and their wires; the **+** of an open output sits past the port's label; a wire's label is no longer covered by another wire; the preview card opens past a step's port labels and stays inside the canvas.
+- Wires are read out by the steps and ports they join, not by IDs, show a focus ring, and no longer come before the steps when tabbing.
 - A step that ran for no host reads "not reached" on the canvas, not a green "0 hosts".
 - On a run that waits for an approval on Ansible Flow Server or AWX, the approval shows how many hosts wait there, not "0 hosts".
 - In a page that only shows a flow (Ansible Flow Server), **Open in Text Editor** works when the page supports it, and the Run panel no longer says "No run of this flow yet" beside the flow's runs, nor tells someone who may not run the flow to run it.

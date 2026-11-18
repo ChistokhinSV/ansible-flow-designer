@@ -1,7 +1,7 @@
 // Annotations on the canvas (AFD-65): add one where the menu or the pointer is (a Note on a node
 // right of it), recolour, tie and untie. Each is one command. Positions come from what the canvas
 // shows, so a Note stays put when it is tied or untied to a node still placed by the canvas.
-import { freeSpot, sectionAround, TIE_OFFSET } from '../core/flow/annotations';
+import { freeSpot, sectionAround, TIE_OFFSET, tieSpot } from '../core/flow/annotations';
 import { annotationSize } from '../core/flow/geometry';
 import type { AnnotationColor, AnnotationKind, Position, Ulid } from '../core/flow/types';
 import { run } from './actions';
@@ -41,8 +41,11 @@ export async function addAnnotation(
     ...view.nodes,
     ...view.annotations.filter((a) => kind === 'section' || a.kind !== 'section'),
   ];
+  const node = on ? view.nodes.find((n) => n.node.id === on) : undefined;
   const place = on
-    ? TIE_OFFSET
+    ? node
+      ? tieSpot(node, annotationSize({ kind, text }), taken)
+      : TIE_OFFSET
     : wrap
       ? wrap.position
       : how.near && at

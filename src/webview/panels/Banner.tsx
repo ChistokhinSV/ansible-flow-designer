@@ -115,13 +115,18 @@ function OpenPortsBanner({
   ];
   // The rest of the choices: the port's own menu, beside the port once it is on screen.
   const others = () => ref && openPortMenuSoon(ref);
+  // AFD-328: one line at any width. The question gives way (it ends in "…", its title in full);
+  // on a narrow canvas the quick answers fold into Other Choices, the port's own menu.
   return (
-    <div className="afd-banner warning" role="status" data-banner-count={count}>
+    <div className="afd-banner warning afd-open-ports" role="status" data-banner-count={count}>
       <span className="codicon codicon-warning" aria-hidden="true" />
-      <strong>
-        {count} open fail port{count === 1 ? '' : 's'}
-      </strong>
-      <span title="Hosts that fail there have nowhere to go, so they fail the run">
+      <span
+        className="afd-open-ports-question"
+        title={`What should happen when "${node?.title ?? open?.node}" ${FAILS[open?.port ?? ''] ?? `takes ${open?.port}`}? Hosts that fail there have nowhere to go, so they fail the run.`}
+      >
+        <strong>
+          {count} open fail port{count === 1 ? '' : 's'}:
+        </strong>{' '}
         What should happen when{' '}
         <button type="button" className="link" onClick={() => open && reveal(open.node)}>
           "{node?.title ?? open?.node}"
@@ -133,7 +138,7 @@ function OpenPortsBanner({
             <button
               key={item.label}
               type="button"
-              className="secondary"
+              className="secondary afd-open-ports-quick"
               title={'hint' in item ? item.hint : undefined}
               onClick={() => void runPortItem(item, ref)}
             >

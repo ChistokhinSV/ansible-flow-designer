@@ -1,7 +1,7 @@
 // AFD-68: where a new annotation goes: free space near a rough spot (never under a node, where a
 // Section's title bar could not be grabbed), and a Section drawn round picked boxes.
 import { describe, expect, it } from 'vitest';
-import { freeSpot, sectionAround } from '../../../src/core/flow/annotations';
+import { freeSpot, sectionAround, tieSpot } from '../../../src/core/flow/annotations';
 import { SECTION_TITLE_HEIGHT } from '../../../src/core/flow/geometry';
 
 const box = (x: number, y: number, width = 136, height = 40) => ({
@@ -35,5 +35,25 @@ describe('placing a new annotation (AFD-68)', () => {
       height: 380 - 200 + 48 + SECTION_TITLE_HEIGHT,
     });
     expect(sectionAround([])).toBeUndefined();
+  });
+});
+
+describe('a Note added on a node (AFD-328)', () => {
+  const size = { width: 200, height: 120 };
+  it('goes left of the node, clear of its fail ports and their wires on the right', () => {
+    const node = box(400, 200);
+    const at = tieSpot(node, size, [node]);
+    expect(at.x + size.width).toBeLessThan(0);
+    expect(at.y).toBe(0);
+  });
+
+  it('takes the next free side when the left is taken', () => {
+    const node = box(400, 200);
+    const left = box(150, 200);
+    const at = tieSpot(node, size, [node, left]);
+    const placed = box(400 + at.x, 200 + at.y, size.width, size.height);
+    expect(hits(placed, left)).toBe(false);
+    expect(hits(placed, node)).toBe(false);
+    expect(at.x).toBeGreaterThan(136);
   });
 });

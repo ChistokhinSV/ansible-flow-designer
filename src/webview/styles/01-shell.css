@@ -61,6 +61,8 @@
 
 .afd-center {
   grid-area: center;
+  /* AFD-328: what sits above the canvas (the open fail port question) fits the canvas's width. */
+  container: afd-center / inline-size;
   position: relative;
   min-width: 0;
   min-height: 0;

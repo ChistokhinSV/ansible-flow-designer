@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { buildModel } from '../../../src/core/flow/model';
 import type { FlowDocument, NodeType } from '../../../src/core/flow/types';
-import { suggestSteps, titleFor, usedBindings } from '../../../src/core/view/quickAdd';
+import {
+  exactMatch,
+  suggestSteps,
+  titleAfterPick,
+  titleFor,
+  usedBindings,
+} from '../../../src/core/view/quickAdd';
 import { readExample } from './helpers';
 
 const types: { type: NodeType; label: string }[] = [
@@ -57,8 +63,39 @@ describe('Quick Add suggestions (AFD-232)', () => {
   });
 
   it('a title from a module or role name', () => {
-    expect(titleFor('cisco.ios.ios_config')).toBe('Ios config');
+    // AFD-328: a module named after its collection's platform keeps the platform's capitals.
+    expect(titleFor('cisco.ios.ios_config')).toBe('IOS config');
+    expect(titleFor('arista.eos.eos_banner')).toBe('EOS banner');
+    expect(titleFor('ansible.builtin.ping')).toBe('Ping');
     expect(titleFor('netops.push-baseline')).toBe('Push baseline');
+  });
+
+  it('AFD-328: Enter picks a module typed by its own name, not one the text only finds', () => {
+    const found = suggestSteps({
+      ...base,
+      query: 'ping',
+      modules: [
+        { fqcn: 'ansible.builtin.ping', short_description: 'Try to connect', dimmed: false },
+        {
+          fqcn: 'ansible.netcommon.net_ping',
+          short_description: 'Ping from a device',
+          dimmed: false,
+        },
+      ],
+    });
+    expect(exactMatch(found, 'ping')).toBe(
+      found.findIndex((s) => s.label === 'ansible.builtin.ping'),
+    );
+    expect(exactMatch(found, 'Ping')).toBeGreaterThanOrEqual(0);
+    expect(exactMatch(found, 'pin')).toBe(-1);
+    expect(exactMatch(found, '')).toBe(-1);
+  });
+
+  it('AFD-328: a picked module keeps a title typed as a name; a search gives way', () => {
+    expect(titleAfterPick('a2 set banner', 'cisco.ios.ios_banner')).toBe('a2 set banner');
+    expect(titleAfterPick('ios banner', 'cisco.ios.ios_banner')).toBe('IOS banner');
+    expect(titleAfterPick('ping', 'ansible.builtin.ping')).toBe('Ping');
+    expect(titleAfterPick('', 'ansible.builtin.ping')).toBe('Ping');
   });
 
   it('the bindings of a flow, the latest step first, each once', () => {

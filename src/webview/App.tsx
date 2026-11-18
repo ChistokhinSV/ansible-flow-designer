@@ -207,16 +207,46 @@ interface PanelState {
   annotationsHidden?: boolean;
 }
 
+/**
+ * AFD-328: below this width (a page at 1024 px holds the designer in about 700) the palette opens
+ * folded, and a run shown by its page opens with the side panel folded until a step is selected,
+ * so the canvas keeps most of the room. Neither is remembered as the user's choice.
+ */
+export const NARROW_PX = 1000;
+
 /** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
 function usePanelState() {
   useEffect(() => {
     const saved = loadState<PanelState>();
-    if (typeof saved.panelWidth === 'number') useUi.getState().setPanelWidth(saved.panelWidth);
-    if (saved.expanded) useUi.getState().setExpanded(true);
-    if (saved.paletteCollapsed) useUi.getState().setPaletteCollapsed(true);
-    if (saved.panelCollapsed) useUi.getState().setPanelCollapsed(true);
-    if (saved.annotationsHidden) useUi.getState().setAnnotationsHidden(true);
+    const ui = useUi.getState();
+    if (typeof saved.panelWidth === 'number') ui.setPanelWidth(saved.panelWidth);
+    if (saved.expanded) ui.setExpanded(true);
+    if (saved.paletteCollapsed) ui.setPaletteCollapsed(true);
+    if (saved.panelCollapsed) ui.setPanelCollapsed(true);
+    if (saved.annotationsHidden) ui.setAnnotationsHidden(true);
+    const narrow = window.innerWidth > 0 && window.innerWidth < NARROW_PX;
+    // Folded for the width, not by the user: stored as it was, until the user changes it.
+    let paletteFolded = false;
+    let panelFolded = false;
+    if (narrow && !saved.paletteCollapsed) {
+      paletteFolded = true;
+      ui.setPaletteCollapsed(true);
+    }
+    const foldForRun = (s: ReturnType<typeof useUi.getState>) => {
+      if (!narrow || panelFolded || s.panelCollapsed || !s.embed.runShown || s.selection.node)
+        return;
+      panelFolded = true;
+      s.setPanelCollapsed(true);
+    };
+    foldForRun(useUi.getState());
     return useUi.subscribe((s, before) => {
+      if (s.embed !== before.embed) foldForRun(s);
+      // A step selected on a run's page shows what its hosts did there.
+      if (panelFolded && s.panelCollapsed && s.selection.node && !before.selection.node)
+        s.setPanelCollapsed(false);
+      if (s.paletteCollapsed !== before.paletteCollapsed && !s.paletteCollapsed)
+        paletteFolded = false;
+      if (s.panelCollapsed !== before.panelCollapsed && !s.panelCollapsed) panelFolded = false;
       if (
         s.panelWidth === before.panelWidth &&
         s.expanded === before.expanded &&
@@ -225,12 +255,13 @@ function usePanelState() {
         s.annotationsHidden === before.annotationsHidden
       )
         return;
+      const kept = loadState<PanelState>();
       saveState({
-        ...loadState(),
+        ...kept,
         panelWidth: s.panelWidth,
         expanded: s.expanded,
-        paletteCollapsed: s.paletteCollapsed,
-        panelCollapsed: s.panelCollapsed,
+        paletteCollapsed: paletteFolded ? !!kept.paletteCollapsed : s.paletteCollapsed,
+        panelCollapsed: panelFolded ? !!kept.panelCollapsed : s.panelCollapsed,
         annotationsHidden: s.annotationsHidden,
       });
     });
@@ -406,7 +437,8 @@ export function App() {
               ? 'var(--afd-collapsed-width)'
               : expanded
                 ? 'min(1100px, 80vw)'
-                : `${panelWidth}px`,
+                : // AFD-328: never more than 40% of a narrow designer: the canvas keeps the room.
+                  `min(${panelWidth}px, 40vw)`,
             // Code and Run modes read the graph: no palette to add nodes from (AFD-45).
             ...(mode !== 'design'
               ? { '--afd-left-width': '0px' }

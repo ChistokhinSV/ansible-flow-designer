@@ -245,3 +245,9 @@ button.link.danger {
   font-size: var(--afd-fs-12);
   color: inherit;
 }
+
+/* AFD-328: implemented by its binding, but a required parameter is not set. */
+.afd-lifecycle-gap {
+  margin: 6px 0 0;
+  color: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
+}
