@@ -153,6 +153,19 @@ describe('Run mode', () => {
     expect(screen.queryByText(/^Local/)).toBeNull();
   });
 
+  it('a host that runs only saved flows names neither AWX nor the local environment (AFD-332)', () => {
+    act(() => {
+      useUi.getState().setRun(null);
+      useUi.getState().setEmbed({ mayRun: false });
+    });
+    render(<RunPanel />);
+    const none = document.querySelector('[data-run-none]') as HTMLElement;
+    expect(none.dataset.runNone).toBe('saved-only');
+    expect(none.textContent).toMatch(/runs use the saved flow/);
+    expect(none.textContent).not.toMatch(/AWX|local environment/);
+    act(() => useUi.getState().setEmbed(undefined));
+  });
+
   it('a passing run proposes the implemented nodes it ran as tested, in one command', () => {
     act(() =>
       useUi.getState().setRun({

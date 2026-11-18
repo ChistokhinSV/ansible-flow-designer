@@ -318,9 +318,12 @@ export function RunPanel() {
         <h2 className="afd-panel-title">
           Run <HelpLink topic="runs" about="runs" />
         </h2>
-        <p className="muted">
-          No run of this flow yet. Launch it in AWX, or run it as a skeleton in the local
-          environment; nodes and wires then show what each host did.
+        {/* AFD-332: a host that runs only saved flows (Ansible Flow Server's draft) says so, not
+            the ways VS Code runs a flow. */}
+        <p className="muted" data-run-none={mayRun ? 'may-run' : 'saved-only'}>
+          {mayRun
+            ? 'No run of this flow yet. Launch it in AWX, or run it as a skeleton in the local environment; nodes and wires then show what each host did.'
+            : 'No run here while editing: runs use the saved flow. Save it, then launch it; its runs show what each host did.'}
         </p>
         <PastRuns run={null} />
         <Scenarios />

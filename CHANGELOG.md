@@ -22,6 +22,7 @@ All notable changes to Ansible Flow Designer.
 - The README and the extension's description introduce [Ansible Flow Server](https://github.com/ChistokhinSV/ansible-flow-server), which runs the same flows for a team.
 - **Add Node** says "Adding…" while the new step is on its way, and is not sent twice.
 - An edit that waits more than 5 seconds is written to the **Ansible Flow** output with what it waits for, so a "Saving…" that stays can be traced.
+- Embedded in a host that runs only saved flows (Ansible Flow Server's flow editor), the Run tab says runs use the saved flow, not AWX or the local environment.
 
 ### Fixed
 
