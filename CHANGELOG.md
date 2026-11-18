@@ -25,6 +25,7 @@ All notable changes to Ansible Flow Designer.
 - A step that ran for no host reads "not reached" on the canvas, not a green "0 hosts".
 - On a run that waits for an approval on Ansible Flow Server or AWX, the approval shows how many hosts wait there, not "0 hosts".
 - In a page that only shows a flow (Ansible Flow Server), **Open in Text Editor** works when the page supports it, and the Run panel no longer says "No run of this flow yet" beside the flow's runs, nor tells someone who may not run the flow to run it.
+- In a page that only shows a flow, a step's **Lifecycle** shows where it stands, without the next step to take or **Mark Tested…**.
 - **Connect to Server** from an open flow no longer fails with `spawn …rg.exe ENOENT` when the folder's git remote is not yet a server project.
 - The **Edge baseline** sample runs: its steps use the roles the sample brings (Push baseline was an empty subflow bound to a role that did not exist). **Open Sample Flow…** now also copies the sample's roles, inventory and settings, never over files the folder already has.
 - The server button in the **Flows** pane opens its menu again instead of "An unknown error occurred".
