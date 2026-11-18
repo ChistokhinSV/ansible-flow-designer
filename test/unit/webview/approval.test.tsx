@@ -129,6 +129,10 @@ describe('approvals a host decides', () => {
     fireEvent.change(screen.getByLabelText('Comment'), {
       target: { value: 'Window confirmed with the NOC' },
     });
+    // AFD-329: it asks once more, as the server's pages do.
+    fireEvent.click(screen.getByRole('button', { name: 'Approve…' }));
+    expect(posted.some((m) => (m as { type?: string }).type === 'approve')).toBe(false);
+    expect(screen.getByText('Window confirmed with the NOC')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(posted).toContainEqual({
       type: 'approve',
@@ -139,11 +143,56 @@ describe('approvals a host decides', () => {
     expect(screen.getByRole('status').textContent).toMatch(/Sent: approved/);
   });
 
-  it('someone who may not decide sees it wait, with no buttons', () => {
-    act(() => useUi.getState().setRun(served({ [id('gate')]: { status: 'waiting' } })));
+  it('Reject needs a comment and asks once more, naming where the hosts go (AFD-329)', () => {
+    act(() =>
+      useUi.getState().setRun(
+        served({
+          [id('gate')]: {
+            status: 'waiting',
+            mayDecide: true,
+            next: { rejected: 'Rollback' },
+          },
+        }),
+      ),
+    );
     render(<NodeRunPanel id={id('gate')} />);
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.getByText(/Someone allowed to approve decides it/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+    expect(screen.getByRole('alert').textContent).toMatch(/Say why you reject it/);
+    fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'No NOC slot' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+    expect(screen.getByText(/go to "Rollback", not on to the change/)).toBeTruthy();
+    expect(screen.getByText('No NOC slot')).toBeTruthy();
+    // Keep waiting goes back to the comment, sending nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Keep waiting' }));
+    expect(posted.some((m) => (m as { type?: string }).type === 'approve')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Reject…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    expect(posted).toContainEqual({
+      type: 'approve',
+      node: id('gate'),
+      decision: 'rejected',
+      comment: 'No NOC slot',
+    });
+  });
+
+  it('someone who may not decide sees it wait, who decides, and the hosts waiting', () => {
+    act(() =>
+      useUi.getState().setRun(
+        served({
+          [id('gate')]: {
+            status: 'waiting',
+            deciders: ['change-board', 'Omar Haddad'],
+            hosts: ['h01'],
+          },
+        }),
+      ),
+    );
+    render(<NodeRunPanel id={id('gate')} />);
+    expect(screen.queryByRole('button', { name: /Approve/ })).toBeNull();
+    expect(screen.getByText('change-board or Omar Haddad decides it.')).toBeTruthy();
+    // AFD-329: the hosts waiting there, though none has left it yet.
+    const row = document.querySelector<HTMLElement>('[data-host="h01"]');
+    expect(row?.textContent).toMatch(/waiting for a decision/);
   });
 
   it('a decided one says who, and why', () => {

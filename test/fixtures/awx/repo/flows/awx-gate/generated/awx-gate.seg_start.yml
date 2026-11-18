@@ -30,7 +30,7 @@
   vars:
     flow_node_id: 01JCRCN0000000000000000003
   tasks:
-    - name: "[gate] wait for approval in AWX"
+    - name: "[gate] wait for a decision"
       ansible.builtin.group_by:
         key: flow_gate_waiting
 
@@ -72,7 +72,7 @@
           afd_gate_empty: "{{ groups['flow_gate_waiting'] | default([]) | length == 0 }}"
         per_host: false
         aggregate: false
-    - name: "[gate] no host reached Approve the change"
+    - name: "[gate] end the segment when no host waits at Approve the change"
       ansible.builtin.fail:
         msg: "No host reached [gate] Approve the change: the approval is skipped and the flow finishes"
       when: groups['flow_gate_waiting'] | default([]) | length == 0

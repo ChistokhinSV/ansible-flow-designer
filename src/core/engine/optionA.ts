@@ -277,7 +277,7 @@ class Generator {
           },
         },
         {
-          name: `[${gate.key}] no host reached ${jinjaLiteral(oneLine(gate.title))}`,
+          name: `[${gate.key}] end the segment when no host waits at ${jinjaLiteral(oneLine(gate.title))}`,
           'ansible.builtin.fail': {
             msg: `No host reached [${gate.key}] ${jinjaLiteral(oneLine(gate.title))}: the approval is skipped and the flow finishes`,
           },
@@ -968,7 +968,7 @@ class Generator {
           this.segment?.seg.gate === node.id && !ctx.parent
             ? [
                 {
-                  name: `[${node.key}] wait for approval in AWX`,
+                  name: `[${node.key}] wait for a decision`,
                   'ansible.builtin.group_by': { key: this.group([], node.key, 'waiting') },
                 },
               ]

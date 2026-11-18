@@ -462,7 +462,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
     node.type !== 'start' &&
     node.type !== 'end';
   // Start and end nodes have no play: start sent every host, end lists the hosts that arrived.
-  const rows: (HostResult & { ended?: string })[] = !s
+  const played: (HostResult & { ended?: string; waits?: boolean })[] = !s
     ? []
     : node.type === 'start'
       ? s.hosts.map((host) => ({ host, ports: ['ok_hosts'] }))
@@ -473,6 +473,14 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
             ended: s.outcome[host] ?? (node.outcome === 'failed' ? 'failed here' : 'ended here'),
           }))
         : nodeHosts(s, id);
+  // AFD-329: hosts waiting at an approval have not left it: the host says which they are.
+  const rows =
+    played.length === 0 && approval?.status === 'waiting' && approval.hosts?.length
+      ? approval.hosts.map((host) => ({ host, ports: [] as string[], waits: true }))
+      : played;
+  // AFD-329: a decided approval sends its hosts on by the decision, not by failing.
+  const decided =
+    node.type === 'approval' && approval && approval.status !== 'waiting' ? approval : undefined;
   // AFD-84: an end node in a scenario: who was expected here, and where each ended.
   if (run?.scenario && doc && node.type === 'end') {
     const ends = endRows(doc, run.scenario, run, id);
@@ -515,7 +523,12 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
       ) : (
         <>
           <p>
-            {r?.hosts} host{r?.hosts === 1 ? '' : 's'} · {r?.failed} failed
+            {r?.hosts} host{r?.hosts === 1 ? '' : 's'} ·{' '}
+            {approval?.status === 'waiting'
+              ? 'waiting for a decision'
+              : decided
+                ? decided.label
+                : `${r?.failed} failed`}
             {r?.seconds !== undefined ? ` · ${formatSeconds(r.seconds)}` : ''}
           </p>
           <table className="afd-run-table" data-run-hosts={rows.length}>
@@ -547,10 +560,14 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                     <tr data-host={h.host} data-port={h.ports.join(',')}>
                       <td className="mono">{h.host}</td>
                       <td className="mono afd-run-port">
-                        {h.ports.join(', ') || (h.ended ? '-' : '(no route)')}
+                        {h.ports.join(', ') || (h.ended || h.waits ? '-' : '(no route)')}
                       </td>
                       <td>
-                        {h.ended ? (
+                        {h.waits ? (
+                          <span className="tone-warn">waiting for a decision</span>
+                        ) : decided && !h.problem && !h.ports.includes('approved') ? (
+                          <span className="tone-warn">{decided.label}</span>
+                        ) : h.ended ? (
                           <span className={node.outcome === 'failed' ? 'tone-warn' : 'tone-ok'}>
                             {h.ended}
                           </span>
@@ -620,7 +637,12 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
           </button>
         </p>
       ) : approval ? (
-        <ApprovalDecision id={id} approval={approval} message={node.approval?.message} />
+        <ApprovalDecision
+          id={id}
+          title={node.title}
+          approval={approval}
+          message={node.approval?.message}
+        />
       ) : null}
       {run && !run.scenario ? <OpenRun run={run} /> : null}
     </div>
@@ -633,15 +655,29 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
  */
 function ApprovalDecision({
   id,
+  title,
   approval,
   message,
 }: {
   id: Ulid;
+  title: string;
   approval: ShownApproval;
   message?: string;
 }) {
   const [comment, setComment] = useState('');
   const [sent, setSent] = useState<'approved' | 'rejected'>();
+  // AFD-329: each decision asks once more, as the server's pages do; a rejection says why.
+  const [asking, setAsking] = useState<'approved' | 'rejected'>();
+  const [error, setError] = useState<string>();
+  const ask = (decision: 'approved' | 'rejected') => {
+    if (decision === 'rejected' && !comment.trim()) {
+      setError('Say why you reject it: the comment is kept with the run.');
+      document.getElementById(`afd-approval-${id}`)?.focus();
+      return;
+    }
+    setError(undefined);
+    setAsking(decision);
+  };
   const decide = (decision: 'approved' | 'rejected') => {
     setSent(decision);
     send({
@@ -651,6 +687,12 @@ function ApprovalDecision({
       ...(comment.trim() ? { comment: comment.trim() } : {}),
     });
   };
+  const next = approval.next;
+  const deciders = approval.deciders?.length
+    ? approval.deciders.length === 1
+      ? approval.deciders[0]
+      : `${approval.deciders.slice(0, -1).join(', ')} or ${approval.deciders.at(-1)}`
+    : undefined;
   const when = approval.at ? new Date(approval.at).toLocaleString() : undefined;
   return (
     <section className="afd-approval" data-approval={approval.label}>
@@ -665,6 +707,27 @@ function ApprovalDecision({
       {approval.status === 'waiting' && approval.mayDecide ? (
         sent ? (
           <p role="status">Sent: {sent}. The run goes on once the server has it.</p>
+        ) : asking ? (
+          <div data-approval-confirm={asking}>
+            <p>
+              {asking === 'approved'
+                ? `Approve "${title}"? The hosts waiting here go on to ${next?.approved ? `"${next.approved}"` : 'the next steps'}.`
+                : `Reject "${title}"? The hosts waiting here ${next?.rejected ? `go to "${next.rejected}"` : 'take the rejected path'}, not on to the change.`}
+            </p>
+            {comment.trim() ? (
+              <blockquote data-approval-comment>{comment.trim()}</blockquote>
+            ) : (
+              <p className="muted">No comment.</p>
+            )}
+            <div className="afd-approval-actions">
+              <button type="button" onClick={() => decide(asking)}>
+                {asking === 'approved' ? 'Approve' : 'Reject'}
+              </button>
+              <button type="button" className="secondary" onClick={() => setAsking(undefined)}>
+                Keep waiting
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <label htmlFor={`afd-approval-${id}`}>Comment</label>
@@ -672,21 +735,34 @@ function ApprovalDecision({
               id={`afd-approval-${id}`}
               rows={2}
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Why, for the record"
+              onChange={(e) => {
+                setComment(e.target.value);
+                setError(undefined);
+              }}
+              placeholder="Why, for the record (required to reject)"
+              aria-invalid={error ? true : undefined}
             />
+            {error ? (
+              <p className="tone-warn" role="alert">
+                {error}
+              </p>
+            ) : null}
             <div className="afd-approval-actions">
-              <button type="button" onClick={() => decide('approved')}>
-                Approve
+              <button type="button" onClick={() => ask('approved')}>
+                Approve…
               </button>
-              <button type="button" className="secondary" onClick={() => decide('rejected')}>
-                Reject
+              <button type="button" className="secondary" onClick={() => ask('rejected')}>
+                Reject…
               </button>
             </div>
           </>
         )
       ) : approval.status === 'waiting' ? (
-        <p className="muted">Someone allowed to approve decides it.</p>
+        <p className="muted">
+          {deciders
+            ? `${deciders} decides it.`
+            : 'Someone with approve on this flow, or on its workspace, decides it.'}
+        </p>
       ) : null}
     </section>
   );
