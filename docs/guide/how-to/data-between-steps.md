@@ -149,6 +149,12 @@ input renames it there and in Until.
 A flow input read directly is only a note: add it as an input to show the dependency. Full list:
 [problem codes](../reference/problems.md).
 
+A step's own Details list its problems without the step's name, each with what to do. A name the
+step reads that is not one of its inputs has **Add as input**: it adds the input from where the
+value is (a flow input, the subflow's input, an earlier step's output, or a `set_fact` before it).
+When nothing in the flow sets the name, the input has no `from:` and the name goes into
+`flow.external_vars` as set outside the flow, so the other steps that read it stop warning too.
+
 ### Each step keeps its own outputs
 
 A role, a playbook or a step not bound yet sets its output as a fact named after the output
@@ -161,8 +167,10 @@ before.
 
 An output read from the register (`impl.register`) is the register itself. Its name is the
 step's (`<key>_result` unless you set **Register result as** on the Binding tab), so it is an error
-(`register-collision`) when the reader's register is also registered by another step, or is the
-name of a flow input (an extra var, which always wins): give one step its own register name.
+(`register-collision`) when another step registers the same name between the step that sets it
+and the reader, or it is the name of a flow input (an extra var, which always wins): give one step
+its own register name. Steps that register the name again before the step that sets it, or after
+the reader, are fine: a probe and a later wait that reuse one register is a normal playbook pattern.
 
 ### Values that may be missing
 

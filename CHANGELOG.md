@@ -31,9 +31,12 @@ All notable changes to Ansible Flow Designer.
 - On a page of Ansible Flow Server the canvas tells a run in the server's words: **Run a Check** (not **Run as Skeleton**), "check run", "went well", "failed" and "stopped", no exit code, and the time of each earlier run with its time zone. VS Code keeps its own words.
 - A stopped run's status in the Run tab is "stopped"; who stopped it, and where, is its **Why**.
 - Host counts say "1 host" and "4 hosts" (the run status chip, the real-run question, the run notice), not "1 hosts" or "host(s)".
+- A step's own Details list its problems without the step's name, shorter and with what to do. A name a step reads that is not one of its inputs has **Add as input**, which adds it from where the value is; when nothing in the flow sets it, the name is marked as set outside the flow, so the other steps that read it stop warning.
+- In a step's Run tab, the second column is **Went to**, and a host with no wire on from the port it took reads "stopped here (no route)" (or "stopped here (failed, no route)").
 
 ### Fixed
 
+- A step that reads a register no longer shows an error because a later step (or an earlier one) registers the same name, as a probe and a wait that reuse one register do in many playbooks. Only a step that registers it between the two still does.
 - A canvas step reached with Tab shows a focus ring.
 - The checkboxes of **Add Node** and the Flow panel's **Key** and **Owner** fields are named for screen readers.
 - In a web page the canvas opens with the whole level in view down to 30% (notes on steps included), and a narrow designer opens with its side panel folded until a step is selected. A flow put in place of the one shown (a sample opened) is fitted again, and a new note is brought into view. The designer no longer scrolls as a whole when its folded palette is taller than the window.

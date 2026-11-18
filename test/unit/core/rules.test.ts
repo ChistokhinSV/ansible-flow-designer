@@ -148,6 +148,44 @@ describe('honest checks (AFD-31)', () => {
     const [hit] = codes(registered.doc, 'register-collision');
     expect(hit?.severity).toBe('error');
     expect(hit?.message).toContain('reads the register shared_result, which "b" also sets');
+    // AFD-336: a step that registers the name again after the reader (or before the producer) is
+    // how playbooks reuse a register: the reader gets the producer's value.
+    const reused = flowOf(
+      [
+        {
+          key: 'a',
+          impl: ping('shared_result'),
+          outputs: { result: { type: 'any', from: 'impl.register' } },
+        },
+        reader,
+        { key: 'b', impl: ping('shared_result') },
+      ],
+      [
+        ['start', 'ok_hosts', 'a'],
+        ['a', 'ok_hosts', 'c'],
+        ['c', 'ok_hosts', 'b'],
+        ['b', 'ok_hosts', 'done'],
+      ],
+    );
+    expect(codes(reused.doc, 'register-collision')).toEqual([]);
+    const earlier = flowOf(
+      [
+        { key: 'b', impl: ping('shared_result') },
+        {
+          key: 'a',
+          impl: ping('shared_result'),
+          outputs: { result: { type: 'any', from: 'impl.register' } },
+        },
+        reader,
+      ],
+      [
+        ['start', 'ok_hosts', 'b'],
+        ['b', 'ok_hosts', 'a'],
+        ['a', 'ok_hosts', 'c'],
+        ['c', 'ok_hosts', 'done'],
+      ],
+    );
+    expect(codes(earlier.doc, 'register-collision')).toEqual([]);
     // A flow input of the register's name is an extra var: it always wins.
     const input = flowOf(
       [

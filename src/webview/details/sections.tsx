@@ -132,7 +132,7 @@ export function GeneralSection({
         label="Title"
         focusKey="title"
         value={node.title}
-        problem={fieldProblem(problems, 'title')}
+        problem={fieldProblem(problems, 'title', node)}
         onCommit={(v) => patch({ title: v })}
         validate={(v) => (v.trim() ? undefined : 'Required')}
       />
@@ -171,7 +171,7 @@ export function GeneralSection({
         key joins it (code reads it; a person names the step by its title). */}
       <Fold
         id="node-details"
-        open={!!fieldProblem(problems, 'key')}
+        open={!!fieldProblem(problems, 'key', node)}
         summary={
           <>
             More: key <span className="mono">{node.key}</span> and ID
@@ -182,7 +182,7 @@ export function GeneralSection({
           label="Key"
           value={node.key}
           mono
-          problem={fieldProblem(problems, 'key')}
+          problem={fieldProblem(problems, 'key', node)}
           onCommit={(v) => patch({ key: v })}
           validate={(v) => (SLUG.test(v) ? undefined : 'Lowercase words joined by dashes')}
         />
@@ -763,7 +763,7 @@ export function ExecutionSection({
             open={
               groups.length === 1 ||
               setIn(group) > 0 ||
-              fields(group).some((s) => fieldProblem(problems, `settings.${s.key}`))
+              fields(group).some((s) => fieldProblem(problems, `settings.${s.key}`, node))
             }
             defaultOpen={group === 'Timing' && !!module}
             summary={groupSummary(
@@ -805,7 +805,7 @@ export function ExecutionSection({
                       field={s as SettingField & { key: 'retries' | 'delay' | 'timeout' }}
                       label={`${s.label} · ${s.help}`}
                       choices={timingRefs}
-                      problem={fieldProblem(problems, `settings.${s.key}`)}
+                      problem={fieldProblem(problems, `settings.${s.key}`, node)}
                       onCommit={(v, inputs) =>
                         void updatePatch(node.id, {
                           settings: { [s.key]: v },
@@ -825,7 +825,7 @@ export function ExecutionSection({
                       value={settingText(value, s)}
                       choices={untilRefs}
                       placeholder={untilExample}
-                      problem={fieldProblem(problems, `settings.${s.key}`)}
+                      problem={fieldProblem(problems, `settings.${s.key}`, node)}
                       validate={(v) => settingProblem(s, v, node.type !== 'approval')}
                       onCommit={(v, inputs) =>
                         void updatePatch(node.id, {
@@ -843,7 +843,7 @@ export function ExecutionSection({
                     label={`${s.label} · ${s.key === 'timeout' && node.type === 'approval' ? 'How long the approval waits (in AWX or on the server) before its hosts take the timeout port (30m, 4h)' : s.help}`}
                     value={settingText(value, s)}
                     mono
-                    problem={fieldProblem(problems, `settings.${s.key}`)}
+                    problem={fieldProblem(problems, `settings.${s.key}`, node)}
                     validate={(v) => settingProblem(s, v, node.type !== 'approval')}
                     onCommit={(v) => set(s.key, settingValue(s, v))}
                   />

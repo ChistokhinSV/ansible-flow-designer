@@ -148,6 +148,21 @@ describe('Run mode', () => {
     expect(posted).toContainEqual({ type: 'showRunOutput' });
   });
 
+  it('a host that failed with no route reads as stopped here (AFD-337)', () => {
+    const ports = { ...summary.nodes[id('work')] };
+    delete ports.failed_hosts;
+    act(() =>
+      useUi.getState().setRun({
+        ...job,
+        summary: { ...summary, nodes: { ...summary.nodes, [id('work')]: ports } },
+      }),
+    );
+    render(<NodeRunPanel id={id('work')} />);
+    expect(screen.getByRole('columnheader', { name: 'Went to' })).toBeTruthy();
+    const stopped = document.querySelector('[data-host="h02"] [data-stopped]');
+    expect(stopped?.textContent).toBe('stopped here (failed, no route)');
+  });
+
   it('a wire lists the hosts that took it', () => {
     const edge = doc.edges.find(
       (e) => e.from.node === id('probe') && e.from.port === 'unreachable',

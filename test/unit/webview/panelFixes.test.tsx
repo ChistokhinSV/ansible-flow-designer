@@ -275,6 +275,43 @@ describe('Details content (AFD-44)', () => {
     );
   });
 
+  it('a problem reads without the node name, and Add as input fixes it in one click (AFD-336)', () => {
+    const path = model.nodes.get(task.id)?.path ?? [];
+    act(() =>
+      useUi.getState().setSnapshot(
+        snapshotOf({
+          docVersion: 4,
+          findings: [
+            {
+              code: 'binding-unknown-var',
+              severity: 'warning',
+              message: `"${task.title}" reads "mgmt_url", which is not an input of this node`,
+              brief: 'Uses mgmt_url, which is not an input.',
+              path: [...path, 'impl', 'params'],
+              node: task.id,
+              subject: 'mgmt_url',
+            },
+            {
+              code: 'k',
+              severity: 'warning',
+              message: `"${task.title}" has a long name`,
+              path: [...path, 'title'],
+              node: task.id,
+            },
+          ],
+        }),
+      ),
+    );
+    act(() => useUi.getState().openDetails(task.id, 'general'));
+    render(<Details id={task.id} />);
+    const list = screen.getByRole('list', { name: 'Problems of this node' });
+    expect(list.textContent).not.toContain(task.title as string);
+    expect(list.textContent).toContain('Uses mgmt_url, which is not an input.');
+    expect(list.textContent).toContain('Has a long name');
+    fireEvent.click(within(list).getByRole('button', { name: 'Add as input' }));
+    expect(commands()).toEqual([{ kind: 'addOutsideInput', node: task.id, name: 'mgmt_url' }]);
+  });
+
   it('tested by hand asks for a reason and sends markTested', () => {
     act(() => useUi.getState().openDetails(task.id, 'general'));
     render(

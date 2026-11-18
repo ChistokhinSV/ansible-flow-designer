@@ -222,7 +222,7 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'register-collision': {
     meaning:
-      'A from: reads a register (impl.register) that another step also registers, or that a flow input also names: the generated code reads whichever ran last, and a flow input always wins.',
+      'A from: reads a register (impl.register) that another step also registers between the producer and the reader, or that a flow input also names: the reader gets the value set last, and a flow input always wins. Steps that reuse the register before the producer or after the reader are fine.',
     fix: 'Give one of the steps its own register name (Binding › Register result as), or rename the flow input.',
   },
   'ref-may-be-undefined': {
@@ -289,7 +289,7 @@ export const FINDING_CODES: Record<string, FindingCode> = {
   },
   'input-unfed': {
     meaning:
-      'A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any.',
+      'A step input has no from and no default, so nothing gives it a value; the generated task reads a host variable of that name, if any. A name in flow.external_vars counts as given.',
     fix: 'Set its from to an upstream output or a flow input (set_io), or give it a default; for the result of a step, make it an output there first.',
   },
   'setting-unknown-var': {
