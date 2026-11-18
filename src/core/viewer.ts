@@ -25,6 +25,8 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'catalog',
   'copyText',
   'openLink',
+  // AFD-327: the flow's file, where the host can show it (the server's Files tab).
+  'openText',
   // Answers to the host and reports about the page itself.
   'inspectResult',
   'pngRendered',

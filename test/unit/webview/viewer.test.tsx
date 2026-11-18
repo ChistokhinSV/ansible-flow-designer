@@ -42,7 +42,17 @@ afterEach(cleanup);
 
 describe('AFD-270: what a viewer may send', () => {
   it('allows showing and running, and nothing that changes the flow or its files', () => {
-    for (const type of ['ready', 'run', 'launchRun', 'stopRun', 'showRun', 'runOutput', 'approve'])
+    // AFD-327: openText reads (the server shows the flow's file on its Files tab).
+    for (const type of [
+      'ready',
+      'run',
+      'launchRun',
+      'stopRun',
+      'showRun',
+      'runOutput',
+      'approve',
+      'openText',
+    ])
       expect(viewerAllows(type)).toBe(true);
     for (const type of [
       'command',
@@ -54,7 +64,6 @@ describe('AFD-270: what a viewer may send', () => {
       'completeIds',
       'initFlow',
       'export',
-      'openText',
       'launchAwx',
       'launchSwitch',
       'runPartial',

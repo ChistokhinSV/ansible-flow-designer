@@ -259,6 +259,8 @@ export function testedText(r: TestedRecord): string {
  */
 export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus): void }) {
   const doc = useUi((s) => s.snapshot?.doc);
+  // AFD-327: a viewer shows where a step stands; what to do next is for who edits it.
+  const viewer = useUi((s) => s.viewer);
   const v2 = !!doc && formatOf(doc) >= 2;
   const status = node.status ?? 'draft';
   const current = STATUS_ORDER.indexOf(status);
@@ -269,7 +271,7 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
       <ol className={`afd-stepper${v2 ? ' read' : ''}`}>
         {STATUS_ORDER.map((s, i) => (
           <li key={s} className={i < current ? 'done' : i === current ? 'current' : ''}>
-            {v2 ? (
+            {v2 || viewer ? (
               <span aria-current={i === current ? 'step' : undefined}>{s}</span>
             ) : (
               <button
@@ -289,8 +291,8 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
           {testedText(node.tested)}
         </p>
       ) : null}
-      {next ? <p className="muted">Next: {next}</p> : null}
-      {v2 && doc && (status === 'tested' || canMarkTested(doc, node)) ? (
+      {next && !viewer ? <p className="muted">Next: {next}</p> : null}
+      {!viewer && v2 && doc && (status === 'tested' || canMarkTested(doc, node)) ? (
         <div className="afd-inline-actions">
           {status === 'tested' ? (
             <button type="button" className="secondary" onClick={() => onSet(contentStatus(node))}>
