@@ -1,11 +1,21 @@
 // Wires on the canvas (AFD-70): React Flow's smooth step, or a route round the nodes in its way, from
 // the router the exports and the layout check use. AFD-294: or curved, as the setting says. The boxes are the canvas's own nodes where they
-// are drawn now, so a wire steps aside while a node is dragged across it.
+// are drawn now, so a wire steps aside while a node is dragged across it. AFD-345: the route then
+// goes through the level's lane pass (wireLanes.ts), so wires sharing a line run side by side.
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
-import { createContext, memo, useContext, useMemo } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useSyncExternalStore,
+} from 'react';
 import { type Box, labelBox, routeWire } from '../../core/view/route';
 import { insertOnWire } from '../portActions';
 import { useUi } from '../store';
+import { WireLanes } from './wireLanes';
 
 /** The level's node boxes as the canvas shows them. */
 export const NodeBoxes = createContext<readonly Box[]>([]);
@@ -19,6 +29,10 @@ export const WireHover = createContext<(id: string | null) => void>(() => {});
 export const RoutedEdge = memo(function RoutedEdge({
   id,
   data,
+  source,
+  target,
+  sourceHandleId,
+  targetHandleId,
   sourceX,
   sourceY,
   sourcePosition,
@@ -40,7 +54,8 @@ export const RoutedEdge = memo(function RoutedEdge({
   const hover = useContext(WireHover);
   const wireStyle = useUi((s) => s.wireStyle);
   const text = typeof label === 'string' ? label : undefined;
-  const route = useMemo(
+  const lanes = useContext(WireLanes);
+  const own = useMemo(
     () =>
       routeWire(
         { x: sourceX, y: sourceY },
@@ -53,6 +68,40 @@ export const RoutedEdge = memo(function RoutedEdge({
       ),
     [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, boxes, text, wireStyle],
   );
+  useLayoutEffect(() => {
+    lanes?.put({
+      id,
+      a: { x: sourceX, y: sourceY },
+      b: { x: targetX, y: targetY },
+      from: `${source}.${sourceHandleId ?? ''}`,
+      to: `${target}.${targetHandleId ?? ''}`,
+      route: own,
+      ...(text ? { label: text } : {}),
+      style: wireStyle,
+    });
+  }, [
+    lanes,
+    id,
+    own,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    source,
+    target,
+    sourceHandleId,
+    targetHandleId,
+    text,
+    wireStyle,
+  ]);
+  useLayoutEffect(() => () => lanes?.drop(id), [lanes, id]);
+  const subscribe = useCallback(
+    (fn: () => void) => (lanes ? lanes.subscribe(id, fn) : () => {}),
+    [lanes, id],
+  );
+  const spread = useSyncExternalStore(subscribe, () => lanes?.get(id));
+  // Until the pass has seen this route (a drag frame), the route as routed.
+  const route = spread && spread.base === own ? spread.route : own;
   // AFD-231: Insert Node on This Wire in one click: beside the label, clear of its text.
   const plus = (data as { plus?: boolean } | undefined)?.plus;
   const box = text ? labelBox(text, route.label) : undefined;

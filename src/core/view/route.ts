@@ -26,11 +26,11 @@ export interface Route {
 
 /** getSmoothStepPath's defaults: the stub out of a port and the corner radius. */
 const OFFSET = 20;
-const RADIUS = 5;
+export const RADIUS = 5;
 /** AFD-294: how a wire is drawn: stepped (right angles, small round corners) or curved. */
 export type WireStyle = 'stepped' | 'curved';
 /** A curved route's bends: as round as the stretches either side allow, up to this. */
-const CURVE_RADIUS = 40;
+export const CURVE_RADIUS = 40;
 /** A wire that only grazes a box edge is not through it: boxes shrink by this much first. */
 export const INSET = 2;
 /** Routes keep as far from a box as a stub keeps from its node (handle face 5 + stub 20)... */
@@ -424,7 +424,7 @@ function corners(points: Position[]): Position[] {
 }
 
 /** The route as getSmoothStepPath draws its own points: rounded corners of radius RADIUS. */
-function pathOf(points: Position[], radius = RADIUS): string {
+export function pathOf(points: Position[], radius = RADIUS): string {
   const first = points[0] as Position;
   const last = points.at(-1) as Position;
   let path = `M${first.x} ${first.y}`;
@@ -442,7 +442,7 @@ function pathOf(points: Position[], radius = RADIUS): string {
  * AFD-294: points along a bezier wire (`M x,y C c1 c2 end`), close enough to tell whether it
  * crosses a node box.
  */
-function bezierPoints(path: string): Position[] {
+export function bezierPoints(path: string): Position[] {
   const [p0, c1, c2, p1] = pointsOf(path);
   if (!p0 || !c1 || !c2 || !p1) return pointsOf(path);
   const out: Position[] = [];

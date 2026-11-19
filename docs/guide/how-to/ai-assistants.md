@@ -123,8 +123,9 @@ Good to know:
   level. `flow_describe` with `layout` shows where each node is. The first position on an
   automatically laid out level also stores the others where you see them, so nothing jumps.
 - **Layout check:** agents cannot see the canvas, so `flow_describe` with `layout` also lists, per
-  level, what would look wrong there: nodes or notes overlapping, a wire through a node, a wire
-  label on a node or on another label, wires crossing. A `flow_edit` that places nodes (a
+  level, what would look wrong there: nodes or notes overlapping, a wire through a node, two wires
+  on top of each other, a wire label on a node, on another wire or on another label, wires
+  crossing. A `flow_edit` that places nodes (a
   `position`, `move`, `tidy_up`) checks the levels it laid out. If a level looks messy, ask "fix the
   layout of the change subflow": the agent moves nodes until the check is clean. Wires step round
   the nodes in their way by themselves, so after `tidy_up` what is left is mostly crossings; a wire

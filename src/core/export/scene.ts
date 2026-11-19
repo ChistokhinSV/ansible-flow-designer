@@ -11,6 +11,7 @@ import type { PortSide } from '../flow/ports';
 import type { FlowDocument, Layout, Position, Ulid } from '../flow/types';
 import type { Finding } from '../flow/validate';
 import type { Snapshot } from '../protocol';
+import { type LaneWire, spreadWires } from '../view/lanes';
 import { type Box, routeWire } from '../view/route';
 
 export type { Box };
@@ -123,13 +124,26 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
     width: n.width,
     height: n.height,
   }));
-  const route = (wid: string, a: Position, as: Side, b: Position, bs: Side, label: string) => {
-    const r = routeWire(a, as, b, bs, obstacles, label);
-    wires.set(wid, {
+  // AFD-345: routed one by one, then spread so no two wires lie on one line.
+  const routed: LaneWire[] = [];
+  const route = (
+    wid: string,
+    a: Position,
+    as: Side,
+    b: Position,
+    bs: Side,
+    label: string,
+    from: string,
+    to: string,
+  ) => {
+    routed.push({
       id: wid,
-      path: r.path,
-      label: r.label,
-      ...(r.bends ? { bends: r.bends } : {}),
+      a,
+      b,
+      from,
+      to,
+      label,
+      route: routeWire(a, as, b, bs, obstacles, label),
     });
   };
   for (const e of view.edges) {
@@ -143,6 +157,8 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
       wireEnd(t.centre, SIDE[t.side], PORT),
       SIDE[t.side],
       e.sourcePort,
+      `${e.source}.${e.sourcePort}`,
+      `${e.target}.${e.targetPort}`,
     );
   }
   if (boundary) {
@@ -160,14 +176,42 @@ function sceneOf(model: FlowModel, snapshot: Snapshot, id: string): Scene {
         const s = framePort('in');
         const t = portAt(e.target, e.targetPort);
         if (s && t)
-          route(e.id, s.at, s.facing, wireEnd(t.centre, SIDE[t.side], PORT), SIDE[t.side], e.label);
+          route(
+            e.id,
+            s.at,
+            s.facing,
+            wireEnd(t.centre, SIDE[t.side], PORT),
+            SIDE[t.side],
+            e.label,
+            'entry',
+            `${e.target}.${e.targetPort}`,
+          );
       } else {
         const s = portAt(e.source, e.sourcePort);
         const t = framePort(e.targetPort);
         if (s && t)
-          route(e.id, wireEnd(s.centre, SIDE[s.side], PORT), SIDE[s.side], t.at, t.facing, e.label);
+          route(
+            e.id,
+            wireEnd(s.centre, SIDE[s.side], PORT),
+            SIDE[s.side],
+            t.at,
+            t.facing,
+            e.label,
+            `${e.source}.${e.sourcePort}`,
+            `exit.${e.targetPort}`,
+          );
       }
     }
+  }
+  const spread = spreadWires(routed, obstacles);
+  for (const w of routed) {
+    const r = spread.get(w.id) ?? w.route;
+    wires.set(w.id, {
+      id: w.id,
+      path: r.path,
+      label: r.label,
+      ...(r.bends ? { bends: r.bends } : {}),
+    });
   }
   const entry = model.nodes.get(id);
   return {

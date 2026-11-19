@@ -11,6 +11,8 @@ All notable changes to Ansible Flow Designer.
 
 ### Changed
 
+- Wires that would run along the same line, such as an `ok_hosts` wire beside a dashed `failed_hosts` wire, are drawn side by side a few pixels apart, each keeping its own turns, on the canvas (stepped and curved) and in the SVG and draw.io exports. Wires into the same port still join for their last stretch. A wire's label moves along its wire to a spot clear of other wires.
+- The layout check (`flow_describe` with layout) also reports two wires on top of each other and a wire label on another wire, with a hint to fix them.
 - A host that an approval's decision sends to a failed end says so in the run's output ("Rejected at … Ended at …", or "No decision in time at …"), instead of only naming the end.
 - The folded side panel reads **Side panel** beside its icon.
 - On a page where the step cannot be changed (a viewer, Run mode), its Title and **What it does** read as text, not as boxes to type in.
