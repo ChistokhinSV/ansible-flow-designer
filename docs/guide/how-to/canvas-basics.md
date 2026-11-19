@@ -294,6 +294,11 @@ open designer follows). Curved wires go from port to port in one curve where tha
 node, and round a node in the way with wide round bends. Exports (SVG, draw.io) keep stepped
 wires.
 
+Two wires that would run along the same line, an `ok_hosts` wire beside a dashed `failed_hosts`
+one, say, are drawn side by side a few pixels apart, each keeping its own turns, so you can follow
+each one; the exports draw them the same way. Wires into the same port still join for their last
+stretch. A wire's label moves along its own wire to a spot where no other wire runs through it.
+
 ## Text and the designer
 
 **Open in Text Editor** opens the YAML next to the canvas. Both edit the same document, so save, dirty

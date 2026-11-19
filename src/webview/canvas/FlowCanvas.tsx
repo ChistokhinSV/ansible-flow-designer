@@ -88,6 +88,7 @@ import { BoundaryFrame, type FrameRFNode } from './BoundaryFrame';
 import { FlowNodeView, type FlowRFNode, innerHandle } from './FlowNodeView';
 import { GhostNodeView, type GhostRFNode } from './GhostNode';
 import { NodeBoxes, RoutedEdge, WireHover } from './RoutedEdge';
+import { WireLaneStore, WireLanes } from './wireLanes';
 
 const nodeTypes = {
   flow: FlowNodeView,
@@ -522,6 +523,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       })),
     [boxKey],
   );
+  // AFD-345: wires that share a line run side by side; the pass sees every wire of the level.
+  const [lanes] = useState(() => new WireLaneStore());
+  useLayoutEffect(() => lanes.setBoxes(boxes), [lanes, boxes]);
 
   // AFD-85: wires added outside the designer.
   const outsideEdges = useUi((s) => s.outside?.edges);
@@ -1621,7 +1625,9 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
   return (
     <WireHover.Provider value={hoverWire}>
-      <NodeBoxes.Provider value={boxes}>{canvas}</NodeBoxes.Provider>
+      <NodeBoxes.Provider value={boxes}>
+        <WireLanes.Provider value={lanes}>{canvas}</WireLanes.Provider>
+      </NodeBoxes.Provider>
     </WireHover.Provider>
   );
 }
