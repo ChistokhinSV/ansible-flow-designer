@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 1.0.1 — Flows in folders of repositories, History, and the canvas in the server's words
 
 ### Added
 
