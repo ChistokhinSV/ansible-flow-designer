@@ -3,10 +3,25 @@
 import { useRef } from 'react';
 import { checkButton } from '../../core/run/words';
 import { useDialogFocus } from '../focus';
-import { SHORTCUTS } from '../shortcuts';
+import { IS_MAC, SHORTCUTS, type Shortcut } from '../shortcuts';
 import { useUi } from '../store';
 
 const GROUPS = ['Edit', 'Move around', 'Canvas', 'Flow'] as const;
+
+/**
+ * AFD-344: in the server's pages, undo and redo are the server's (a person's own edits of the
+ * shared draft, Ctrl+Y or Ctrl+Shift+Z for redo), not VS Code's.
+ */
+const SERVER_WORDS: Partial<Record<Shortcut['id'], Pick<Shortcut, 'keys' | 'label'>>> = {
+  undo: {
+    keys: IS_MAC ? '⌘Z' : 'Ctrl+Z',
+    label: "Undo your own last edit (the others' edits stay)",
+  },
+  redo: {
+    keys: IS_MAC ? '⇧⌘Z, ⌘Y' : 'Ctrl+Y, Ctrl+Shift+Z',
+    label: 'Redo: bring back what Undo took, until you make a new edit',
+  },
+};
 
 export function CheatSheet() {
   const open = useUi((s) => s.cheatSheet);
@@ -51,14 +66,18 @@ function Sheet() {
           <section key={group}>
             <h3>{group}</h3>
             <dl>
-              {SHORTCUTS.filter((s) => s.group === group).map((s) => (
-                <div key={s.id} data-shortcut={s.id}>
-                  <dt>
-                    <kbd>{s.keys}</kbd>
-                  </dt>
-                  <dd>{s.id === 'runSkeleton' ? checkButton(words) : s.label}</dd>
-                </div>
-              ))}
+              {SHORTCUTS.filter((s) => s.group === group).map((shortcut) => {
+                const s =
+                  words === 'server' ? { ...shortcut, ...SERVER_WORDS[shortcut.id] } : shortcut;
+                return (
+                  <div key={s.id} data-shortcut={s.id}>
+                    <dt>
+                      <kbd>{s.keys}</kbd>
+                    </dt>
+                    <dd>{s.id === 'runSkeleton' ? checkButton(words) : s.label}</dd>
+                  </div>
+                );
+              })}
             </dl>
           </section>
         ))}

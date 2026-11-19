@@ -212,6 +212,16 @@ describe('keyboard', () => {
     });
     expect(screen.getByRole('dialog', { name: 'Keyboard Shortcuts' })).toBeTruthy();
     expect(document.querySelector('[data-shortcut="duplicate"]')?.textContent).toContain('Ctrl+D');
+    expect(document.querySelector('[data-shortcut="undo"]')?.textContent).toContain('VS Code');
+    // AFD-344: in the server's pages, undo and redo are the server's, with both redo keys.
+    act(() => useUi.getState().setEmbed({ words: 'server' }));
+    expect(document.querySelector('[data-shortcut="undo"]')?.textContent).toBe(
+      "Ctrl+ZUndo your own last edit (the others' edits stay)",
+    );
+    expect(document.querySelector('[data-shortcut="redo"]')?.textContent).toContain(
+      'Ctrl+Y, Ctrl+Shift+Z',
+    );
+    act(() => useUi.getState().setEmbed(undefined));
     act(() => {
       fireEvent.keyDown(document.body, { key: 'Escape' });
     });
