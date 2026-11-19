@@ -2,6 +2,12 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Fixed
+
+- In Ansible Flow Server's pages, the **Keyboard Shortcuts** sheet says Undo takes back your own last edit, and lists both Redo keys (Ctrl+Y and Ctrl+Shift+Z).
+
 ## 1.0.1 — Flows in folders of repositories, History, and the canvas in the server's words
 
 ### Added
