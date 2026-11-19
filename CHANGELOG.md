@@ -4,8 +4,23 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- The **Run** dialog lists the flow's errors, a few and then how many more, each a link that closes the dialog and shows the step.
+- **Add as input** also fixes a step reading a fact that a step inside an earlier subflow sets: the step inside outputs it, each subflow on the way lifts it, and the reader takes it as an input. In the text editor the same fix is the warning's quick fix **Add … as an Input**, for every unknown variable it can fix (before, only for a `set_fact` just before).
+
+### Changed
+
+- A host that an approval's decision sends to a failed end says so in the run's output ("Rejected at … Ended at …", or "No decision in time at …"), instead of only naming the end.
+- The folded side panel reads **Side panel** beside its icon.
+- On a page where the step cannot be changed (a viewer, Run mode), its Title and **What it does** read as text, not as boxes to type in.
+- The sample Firewall firmware upgrade's launch configuration is **Firewalls on localhost** (was Skeleton on localhost): it starts real runs too.
+
 ### Fixed
 
+- The hover preview opens where it covers no other step when there is room for that.
+- A long flow name is cut short in the top bar instead of pushing the mode and **Lens** to a second row.
+- Closing a message above the canvas (an imported or sample flow's) no longer moves the steps on it.
 - In Ansible Flow Server's pages, the **Keyboard Shortcuts** sheet says Undo takes back your own last edit, and lists both Redo keys (Ctrl+Y and Ctrl+Shift+Z).
 
 ## 1.0.1 — Flows in folders of repositories, History, and the canvas in the server's words

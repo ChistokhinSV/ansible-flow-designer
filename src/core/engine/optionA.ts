@@ -562,19 +562,33 @@ class Generator {
   }
 
   private endNode(ctx: LevelCtx, node: FlowNode, edges: Edge[]): void {
-    const groups = edges
+    const routes = edges
       .filter((e) => e.to.node === node.id)
       .map((e) => {
         const from = this.model.nodes.get(e.from.node)?.node;
-        return from && from.type !== 'start' ? this.target(ctx, from, e.from.port) : undefined;
+        return from && from.type !== 'start'
+          ? { group: this.target(ctx, from, e.from.port), from, port: e.from.port }
+          : undefined;
       })
-      .filter((g): g is string => !!g);
-    if (node.outcome !== 'failed' || groups.length === 0) return;
+      .filter((r): r is { group: string; from: FlowNode; port: string } => !!r?.group);
+    if (node.outcome !== 'failed' || routes.length === 0) return;
+    const name = `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`;
+    const ended = `Ended at [${node.key}] ${jinjaLiteral(oneLine(node.title))} (outcome: failed)`;
+    // AFD-343: hosts sent here by an approval's decision fail first with a message that says so:
+    // a rejected run's output named only the failed end, as if a step had broken. Each host fails
+    // at the first entry that holds it.
+    for (const r of routes) {
+      if (r.from.type !== 'approval' || (r.port !== 'rejected' && r.port !== 'timeout')) continue;
+      if (routes.some((o) => o !== r && o.group === r.group)) continue;
+      const at = `[${r.from.key}] ${jinjaLiteral(oneLine(r.from.title))}`;
+      const said = r.port === 'rejected' ? `Rejected at ${at}` : `No decision in time at ${at}`;
+      this.outcome.push({ order: this.order, groups: [r.group], name, msg: `${said}. ${ended}` });
+    }
     this.outcome.push({
       order: this.order,
-      groups: [...new Set(groups)],
-      name: `[${node.key}] ${jinjaLiteral(oneLine(node.title))}`,
-      msg: `Ended at [${node.key}] ${jinjaLiteral(oneLine(node.title))} (outcome: failed)`,
+      groups: [...new Set(routes.map((r) => r.group))],
+      name,
+      msg: ended,
     });
   }
 

@@ -199,3 +199,43 @@ describe('launch dialog', () => {
     expect(help?.textContent).toMatch(/^The time servers every switch syncs from/);
   });
 });
+
+describe('a flow with errors', () => {
+  it('names each error with a link to its step; the link closes the dialog and shows the step', () => {
+    const step = '01JC0000000000000000000PNG';
+    useUi.setState({
+      snapshot: {
+        docVersion: 1,
+        doc: {
+          schema_version: 2,
+          flow: { id: '01JC000000000000000000FLOW', key: 'f', name: 'F', version: 1 },
+          nodes: [{ id: step, key: 'ping', type: 'task', title: 'Ping', status: 'draft' }],
+          edges: [],
+        },
+        stale: false,
+        findings: [
+          {
+            code: 'E1',
+            severity: 'error',
+            message: '"Ping" needs a module',
+            brief: 'Needs a module',
+            path: [],
+            node: step,
+          },
+        ],
+        openPorts: [],
+        autoPositions: {},
+      } as never,
+      launchNotice:
+        'The flow has 1 error, so it cannot run until it is fixed: Ping: needs a module',
+    });
+    const dialog = open();
+    // Said once, with the link, not again as the host's text.
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    const link = within(dialog).getByRole('button', { name: 'Ping: Needs a module' });
+    fireEvent.click(link);
+    expect(useUi.getState().launch).toBeNull();
+    expect(useUi.getState().selection.node).toBe(step);
+    expect(sent('launchCancel')).toHaveLength(1);
+  });
+});

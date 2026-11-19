@@ -2,11 +2,11 @@
 // Nodes, Open in Text Editor (Check Flow is with the run commands, AFD-41). Each works on the flow the user means (Host.resolveTargetFlow).
 import { readdirSync } from 'node:fs';
 import * as vscode from 'vscode';
-import { factSetter } from '../../core/flow/facts';
 import { slugify } from '../../core/flow/ids';
 import { CURRENT_FORMAT } from '../../core/flow/migrate';
 import { buildModel } from '../../core/flow/model';
 import { newFlowText } from '../../core/flow/template';
+import { problemFix } from '../../core/view/nodeProblems';
 import { nestedRepos } from '../../node/runner/nestedRepos';
 import { AcceptProblemActions } from '../ai/acceptProblemAction';
 import { COMPLETE_IDS, CompleteIdsActions } from '../ai/completeIdsAction';
@@ -76,33 +76,29 @@ export function registerFlowCommands(host: Host): vscode.Disposable[] {
       new UseFactActions(),
       { providedCodeActionKinds: UseFactActions.kinds },
     ),
-    vscode.commands.registerCommand(CMD.useFact, async (uri: vscode.Uri, message: string) => {
-      const doc = await host.resolveTargetFlow(uri);
-      if (!doc) return undefined;
-      const session = host.sessionFor(doc);
-      const snap = await session.snapshot();
-      const found = snap.findings.find(
-        (f) => f.code === 'binding-unknown-var' && f.message === message,
-      );
-      const reader =
-        found?.node && snap.doc ? buildModel(snap.doc).nodes.get(found.node) : undefined;
-      const setter =
-        reader && found?.subject && snap.doc
-          ? factSetter(buildModel(snap.doc), reader.node, found.subject)
-          : undefined;
-      if (!reader || !setter || !found?.subject) {
-        void vscode.window.showErrorMessage('That problem is no longer in the flow');
-        return undefined;
-      }
-      const outcome = await session.runCommand({
-        kind: 'useFact',
-        reader: reader.node.id,
-        setter: setter.id,
-        name: found.subject,
-      });
-      if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Not changed');
-      return outcome;
-    }),
+    vscode.commands.registerCommand(
+      CMD.useFact,
+      async (uri: vscode.Uri, message: string, code = 'binding-unknown-var') => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        const session = host.sessionFor(doc);
+        const snap = await session.snapshot();
+        const found = snap.findings.find((f) => f.code === code && f.message === message);
+        // AFD-343: the fix the step's own Details offer (Add as input).
+        const fix = found && snap.doc ? problemFix(buildModel(snap.doc), found) : undefined;
+        if (!fix) {
+          void vscode.window.showErrorMessage(
+            found
+              ? 'There is no one-click fix for that problem'
+              : 'That problem is no longer in the flow',
+          );
+          return undefined;
+        }
+        const outcome = await session.runCommand(fix.command);
+        if (!outcome.ok) void vscode.window.showErrorMessage(outcome.error ?? 'Not changed');
+        return outcome;
+      },
+    ),
     // Shared subflows (AFD-60).
     vscode.languages.registerCodeActionsProvider(
       { pattern: '**/*.flow.yaml' },

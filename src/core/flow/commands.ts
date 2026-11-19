@@ -1872,6 +1872,22 @@ function liftPathRefs(tx: YamlTransaction, id: Ulid, notes: string[]): void {
     }
 }
 
+/**
+ * AFD-343: how `reader` names `setter`: its key when the reader sees it, else the path from the
+ * subflow the reader sees down to it (`sub/inner/step`), as `from:` takes it.
+ */
+function setterPath(model: FlowModel, setter: Ulid, reader: Ulid): string {
+  const scope = keyScope(model, model.nodes.get(reader)?.level ?? ROOT);
+  const keys: string[] = [];
+  let at = model.nodes.get(setter);
+  while (at) {
+    keys.unshift(at.node.key);
+    if (scope.get(at.node.key) === at.node.id) break;
+    at = model.nodes.get(at.level);
+  }
+  return keys.join('/');
+}
+
 /** Lifts `head` (`sub/…/step`) `.out` up to the level the reader sees; the reference it reads. */
 function liftPath(
   tx: YamlTransaction,
@@ -3548,7 +3564,9 @@ export function planCommand(
       const reader = nodeAt(st, cmd.reader).node;
       if (!setFactNames(setter.impl).includes(cmd.name))
         throw new CommandError('no-fact', `${setter.title} does not set ${cmd.name}`);
-      const from = `${setter.key}.${cmd.name}`;
+      // AFD-343: a setter inside an earlier subflow is read by its path (sub/step.name), which the
+      // reader's input lifts out through each subflow on the way.
+      const from = `${setterPath(st.model, cmd.setter, cmd.reader)}.${cmd.name}`;
       if (!setter.outputs?.[cmd.name])
         setContractField(
           tx,

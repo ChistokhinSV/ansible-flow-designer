@@ -139,6 +139,29 @@
   overflow: hidden;
 }
 
+.afd-right.collapsed .afd-unfold {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  background: none;
+  color: var(--afd-fg);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.afd-right.collapsed .afd-unfold:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.afd-unfold-label {
+  writing-mode: vertical-rl;
+  font-size: var(--afd-fs-12);
+  white-space: nowrap;
+}
+
 /* The key hint on the primary button takes the button's text colour. */
 .afd-empty-actions kbd {
   margin-left: 8px;

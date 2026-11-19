@@ -18,6 +18,10 @@
   color: var(--vscode-textLink-foreground, var(--afd-decision));
   cursor: pointer;
   font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .afd-chip.afd-context {

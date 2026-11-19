@@ -14,27 +14,52 @@ type Area = { left: number; top: number; right: number; bottom: number };
 /**
  * AFD-328: where the card opens: right of the node past its port labels, else left of it, else
  * under it; inside the canvas, so it covers neither the side panel nor the page around the frame.
+ * AFD-343: of the places that fit, the first that covers no other node wins (right, left, under,
+ * over); when every place covers one, the one that covers least.
  */
 export function cardPlace(
   node: { right: number; left: number; top: number; bottom?: number },
   card: { width: number; height: number },
   area: Area,
+  others: readonly Area[] = [],
 ): { left: number; top: number } {
-  const fits = (left: number) =>
+  const clamp = (at: { left: number; top: number }) => ({
+    left: Math.max(area.left + MARGIN, Math.min(at.left, area.right - card.width - MARGIN)),
+    top: Math.max(area.top + MARGIN, Math.min(at.top, area.bottom - card.height - MARGIN)),
+  });
+  const fitsX = (left: number) =>
     left >= area.left + MARGIN && left + card.width <= area.right - MARGIN;
-  const right = node.right + PORT_LABELS;
-  const leftOf = node.left - card.width - MARGIN;
-  let left: number;
-  let top = node.top;
-  if (fits(right)) left = right;
-  else if (fits(leftOf)) left = leftOf;
-  else {
-    left = node.left;
-    top = (node.bottom ?? node.top) + MARGIN;
+  const fitsY = (top: number) =>
+    top >= area.top + MARGIN && top + card.height <= area.bottom - MARGIN;
+  const bottom = node.bottom ?? node.top;
+  const right = { left: node.right + PORT_LABELS, top: node.top };
+  const leftOf = { left: node.left - card.width - MARGIN, top: node.top };
+  const under = { left: node.left, top: bottom + MARGIN };
+  const over = { left: node.left, top: node.top - card.height - MARGIN };
+  const candidates = [
+    ...(fitsX(right.left) ? [right] : []),
+    ...(fitsX(leftOf.left) ? [leftOf] : []),
+    ...(fitsY(under.top) ? [under] : []),
+    ...(fitsY(over.top) ? [over] : []),
+  ].map(clamp);
+  if (candidates.length === 0) return clamp(under);
+  const covered = (at: { left: number; top: number }) =>
+    others.reduce((sum, o) => {
+      const w = Math.min(at.left + card.width, o.right) - Math.max(at.left, o.left);
+      const h = Math.min(at.top + card.height, o.bottom) - Math.max(at.top, o.top);
+      return w > 0 && h > 0 ? sum + w * h : sum;
+    }, 0);
+  let best = candidates[0] as { left: number; top: number };
+  let least = covered(best);
+  for (const at of candidates.slice(1)) {
+    if (least === 0) break;
+    const c = covered(at);
+    if (c < least) {
+      best = at;
+      least = c;
+    }
   }
-  left = Math.max(area.left + MARGIN, Math.min(left, area.right - card.width - MARGIN));
-  top = Math.max(area.top + MARGIN, Math.min(top, area.bottom - card.height - MARGIN));
-  return { left, top };
+  return best;
 }
 
 export function PreviewCard() {
@@ -61,11 +86,16 @@ export function PreviewCard() {
       pane && pane.width > 0
         ? pane
         : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const others = [...document.querySelectorAll<HTMLElement>('.afd-center .react-flow__node')]
+      .filter((el) => el.dataset.id !== preview.node)
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0);
     setPos(
       cardPlace(
         { right: preview.x - 12, left: preview.left, top: preview.y, bottom: preview.bottom },
         { width, height },
         area,
+        others,
       ),
     );
   }, [preview]);
