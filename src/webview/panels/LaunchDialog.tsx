@@ -4,6 +4,7 @@
 // this component's state only: never in the store, the saved state or what `inspect` reports.
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { modelOf } from '../../core/flow/model';
 import {
   checkInputs,
   type LaunchField,
@@ -34,6 +35,7 @@ export function LaunchDialog() {
 
 function Dialog({ plan }: { plan: LaunchPlan }) {
   const notice = useUi((s) => s.launchNotice);
+  const flowErrors = useUi((s) => s.snapshot?.findings.some((f) => f.severity === 'error'));
   const box = useRef<HTMLDivElement>(null);
   const trap = useDialogFocus(box);
   const title = useId();
@@ -159,11 +161,13 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
             </>
           ) : null}
         </p>
-        {notice ? (
+        {/* The host's "The flow has N errors" refusal is said again below, with links. */}
+        {notice && !(flowErrors && notice.startsWith('The flow has ')) ? (
           <p className="afd-launch-notice" role="alert">
             {notice}
           </p>
         ) : null}
+        <FlowErrors onGo={close} />
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -220,6 +224,60 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/** Errors listed before "and N more". */
+const ERRORS_SHOWN = 5;
+
+/**
+ * AFD-343: the flow's errors, each a link to its step (the dialog closes and the step is shown):
+ * "the flow has 1 error" alone did not say which or where.
+ */
+function FlowErrors({ onGo }: { onGo: () => void }) {
+  const snapshot = useUi((s) => s.snapshot);
+  const doc = snapshot?.doc;
+  const errors = (snapshot?.findings ?? []).filter((f) => f.severity === 'error');
+  if (!doc || errors.length === 0) return null;
+  const model = modelOf(doc);
+  const shown = errors.slice(0, ERRORS_SHOWN);
+  return (
+    <div className="afd-launch-errors" data-launch-errors={errors.length}>
+      <p>
+        The flow has {errors.length} error{errors.length === 1 ? '' : 's'}, so it cannot run until{' '}
+        {errors.length === 1 ? 'it is' : 'they are'} fixed:
+      </p>
+      <ul>
+        {shown.map((f, i) => {
+          const step = f.node ? model.nodes.get(f.node)?.node : undefined;
+          const text = step ? `${step.title}: ${f.brief ?? f.message}` : f.message;
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: findings have no id; the list is redrawn whole
+            <li key={i}>
+              {step && f.node ? (
+                <button
+                  type="button"
+                  className="link"
+                  data-launch-error={f.node}
+                  title="Close this and show the step"
+                  onClick={() => {
+                    onGo();
+                    useUi.getState().reveal(f.node as string);
+                  }}
+                >
+                  {text}
+                </button>
+              ) : (
+                text
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {errors.length > shown.length ? (
+        <p className="muted">and {errors.length - shown.length} more</p>
+      ) : null}
     </div>
   );
 }

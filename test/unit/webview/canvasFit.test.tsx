@@ -132,6 +132,17 @@ describe('the hover card (AFS-137 a2.11, a3.11)', () => {
     expect(under.left + card.width).toBeLessThanOrEqual(area.right);
     expect(under.top + card.height).toBeLessThanOrEqual(area.bottom);
   });
+
+  it('does not cover the next node when another place is free', () => {
+    const next = { left: 520, top: 90, right: 656, bottom: 150 };
+    const at = cardPlace({ left: 300, right: 436, top: 100, bottom: 160 }, card, area, [next]);
+    const overlaps =
+      at.left < next.right &&
+      at.left + card.width > next.left &&
+      at.top < next.bottom &&
+      at.top + card.height > next.top;
+    expect(overlaps).toBe(false);
+  });
 });
 
 describe('a step missing a required parameter (AFS-137 a2.8)', () => {

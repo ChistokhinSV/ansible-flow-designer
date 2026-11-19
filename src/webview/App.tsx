@@ -472,14 +472,18 @@ export function App() {
         </main>
         {panelCollapsed ? (
           <aside className="afd-right collapsed" aria-label="Side panel, hidden">
+            {/* AFD-343: a label beside the icon: a lone icon on a narrow frame's edge said nothing. */}
             <button
               type="button"
-              className="icon"
+              className="afd-unfold"
               aria-label="Show Side Panel"
               title="Show the side panel"
               onClick={() => useUi.getState().setPanelCollapsed(false)}
             >
               <span className="codicon codicon-layout-sidebar-right" aria-hidden="true" />
+              <span className="afd-unfold-label" aria-hidden="true">
+                Side panel
+              </span>
             </button>
           </aside>
         ) : (

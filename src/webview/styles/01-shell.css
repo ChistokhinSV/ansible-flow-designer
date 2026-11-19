@@ -27,6 +27,13 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* AFD-343: a long flow name is cut short instead of wrapping the mode and Lens to a second row;
+     the bar wraps only when 12em of name no longer fits beside them. */
+  flex: 1 1 12em;
+}
+
+.afd-breadcrumb > :not(.afd-crumb) {
+  flex-shrink: 0;
 }
 
 .afd-flow-name {

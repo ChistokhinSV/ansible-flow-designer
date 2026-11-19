@@ -2,7 +2,7 @@
 # Do not edit by hand: change the flow and save it. Option A engine (ADR-0009).
 # Unbound nodes run TODO messages: run with --check until every node is bound.
 # Local runs pass approvals [change-approval] automatically; choose another outcome with -e '{"afd_approvals": {"change-approval": "rejected"}}'.
-# Checksum: 17ee57736875e7
+# Checksum: 05ec7eee44dfca
 
 - name: "[pre-checks] Pre-checks"
   hosts: "{{ devices if devices is string else devices | join(',') }}"
@@ -298,6 +298,14 @@
       ansible.builtin.fail:
         msg: "Ended at [excluded] Excluded (outcome: failed)"
       when: inventory_hostname in groups['flow_pre_checks_failed_hosts'] | default([])
+    - name: "[stopped] Stopped"
+      ansible.builtin.fail:
+        msg: "Rejected at [change-approval] Change approval. Ended at [stopped] Stopped (outcome: failed)"
+      when: inventory_hostname in groups['flow_change_approval_rejected'] | default([])
+    - name: "[stopped] Stopped"
+      ansible.builtin.fail:
+        msg: "No decision in time at [change-approval] Change approval. Ended at [stopped] Stopped (outcome: failed)"
+      when: inventory_hostname in groups['flow_change_approval_timeout'] | default([])
     - name: "[stopped] Stopped"
       ansible.builtin.fail:
         msg: "Ended at [stopped] Stopped (outcome: failed)"

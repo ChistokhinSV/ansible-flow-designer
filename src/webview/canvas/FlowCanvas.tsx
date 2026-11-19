@@ -34,6 +34,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1084,6 +1085,22 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     void fitView(FULL_FIT);
   }, [fitView, paneWidth, paneHeight]);
   const wrapper = useRef<HTMLDivElement>(null);
+  // AFD-343: a note above the canvas closed (an import's or a sample's): the pane grows upwards,
+  // and the steps stay where they were on screen instead of jumping up or being fitted again.
+  const paneAt = useRef<{ top: number; width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const top = wrapper.current?.getBoundingClientRect().top;
+    if (top === undefined || paneWidth <= 0 || paneHeight <= 0) return;
+    const before = paneAt.current;
+    paneAt.current = { top, width: paneWidth, height: paneHeight };
+    if (!before || before.width !== paneWidth) return;
+    const up = before.top - top;
+    if (up <= 0 || Math.abs(paneHeight - before.height - up) > 1) return;
+    const vp = getViewport();
+    void setViewport({ ...vp, y: vp.y + up });
+    if (fitted.current === `${before.width}x${before.height}`)
+      fitted.current = `${paneWidth}x${paneHeight}`;
+  }, [paneWidth, paneHeight, getViewport, setViewport]);
   // AFS-148: the steps the view was fitted to. Another flow in their place (a sample opened, a
   // template started from) is fitted again, as a flow just opened.
   const fittedSteps = useRef<ReadonlySet<string>>(new Set());

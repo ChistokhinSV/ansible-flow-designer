@@ -23,8 +23,8 @@ while both run in one play, but the flow does not show it, and a run in parts (A
 loses it. So the designer offers it wherever you look for a value:
 
 - the **@** list in a parameter ("test_message · fact set by Save var"),
-- the warning on the reading step ("Save var sets it"), with the quick fix **Use test_message as
-  an Input**,
+- the warning on the reading step ("Save var sets it"), with the quick fix **Add test_message as
+  an Input** in the text editor and **Add as input** in the step's Details,
 - the Data lens, which draws such a read as a warning-coloured wire "(not declared)" with the same
   fix,
 - **Add from…** under the step's Inputs.
@@ -151,7 +151,9 @@ A flow input read directly is only a note: add it as an input to show the depend
 
 A step's own Details list its problems without the step's name, each with what to do. A name the
 step reads that is not one of its inputs has **Add as input**: it adds the input from where the
-value is (a flow input, the subflow's input, an earlier step's output, or a `set_fact` before it).
+value is (a flow input, the subflow's input, an earlier step's output, a `set_fact` before it, or
+one inside an earlier subflow, which each subflow on the way then lifts). In the text editor the
+same fix is the warning's quick fix, **Add … as an Input**.
 When nothing in the flow sets the name, the input has no `from:` and the name goes into
 `flow.external_vars` as set outside the flow, so the other steps that read it stop warning too.
 

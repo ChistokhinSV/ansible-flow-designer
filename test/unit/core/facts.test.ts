@@ -10,6 +10,7 @@ import { buildModel } from '../../../src/core/flow/model';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
 import { dataLens } from '../../../src/core/lens/data';
+import { problemFix } from '../../../src/core/view/nodeProblems';
 
 const FLOW = `schema_version: 2
 flow:
@@ -187,5 +188,28 @@ describe('a fact from an earlier subflow in the Data lens (AFD-308)', () => {
     expect(
       lens.findings.find((f) => f.id === `data:undeclared:${SHOW}.test_message`)?.detail,
     ).toContain('Save var, inside 2 facts, sets test_message');
+  });
+});
+
+describe('Add as input for a fact set inside an earlier subflow (AFD-343)', () => {
+  it('one click: the step inside outputs it, the subflow lifts it, the reader reads the subflow', () => {
+    const text = inSubflow('');
+    const finding = unknown(doc(text)).find((f) => f.node === SHOW);
+    if (!finding) throw new Error('no unknown-variable finding');
+    expect(finding.brief).toBe(
+      'Uses test_message, which is not an input. "Save var" inside "2 facts" sets it.',
+    );
+    const fix = problemFix(buildModel(doc(text)), finding);
+    expect(fix?.command).toEqual({
+      kind: 'useFact',
+      reader: SHOW,
+      setter: SAVE,
+      name: 'test_message',
+    });
+    const after = doc(planCommand(text, fix?.command as never, { newId: createIdFactory() }).text);
+    expect(after.nodes.find((n) => n.id === SHOW)?.inputs).toEqual({
+      test_message: { type: 'any', from: 'two-facts.test_message' },
+    });
+    expect(unknown(after).filter((f) => f.node === SHOW)).toEqual([]);
   });
 });

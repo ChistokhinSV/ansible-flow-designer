@@ -197,6 +197,22 @@
   opacity: 0.75;
 }
 
+/* AFD-343: where the step cannot be changed (a viewer, Run mode) its text reads as text, not as
+   boxes to type in with a resize grip. */
+.afd-editable:disabled textarea,
+.afd-editable:disabled input:not([type="checkbox"], [type="radio"]) {
+  border-color: transparent;
+  background: transparent;
+  resize: none;
+  padding-left: 0;
+  cursor: default;
+}
+
+.afd-editable:disabled textarea::placeholder,
+.afd-editable:disabled input::placeholder {
+  color: transparent;
+}
+
 .afd-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -222,6 +238,25 @@
 .afd-launch-notice {
   border-left: 3px solid var(--afd-unreachable);
   padding: 4px 8px;
+}
+
+.afd-launch-errors {
+  border-left: 3px solid var(--vscode-errorForeground, var(--afd-unreachable));
+  padding: 4px 8px;
+  margin: 8px 0;
+}
+
+.afd-launch-errors p {
+  margin: 0;
+}
+
+.afd-launch-errors ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.afd-launch-errors button.link {
+  text-align: left;
 }
 
 .afd-launch-facts {

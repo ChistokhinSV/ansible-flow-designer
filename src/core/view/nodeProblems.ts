@@ -92,8 +92,8 @@ const READS = new Set(['binding-unknown-var', 'setting-unknown-var']);
  * AFD-336: Add as input, for a variable a step reads that is not one of its inputs: from the flow
  * input, the enclosing subflow's input or the earlier step that has it as an output; a set_fact
  * becomes that step's output too (useFact). A name nothing in the flow sets is an input without a
- * source and is set outside the flow. A fact set inside an earlier subflow has no one-click fix:
- * the @ picker lifts it.
+ * source and is set outside the flow. AFD-343: a fact set inside an earlier subflow too: each
+ * subflow on the way lifts it.
  */
 export function problemFix(model: FlowModel, finding: Finding): ProblemFix | undefined {
   const name = finding.subject;
@@ -123,10 +123,35 @@ export function problemFix(model: FlowModel, finding: Finding): ProblemFix | und
       title: `Add ${name} as an input of this step, from "${source.node.title}", which sets it`,
       command: { kind: 'useFact', reader: node.id, setter: source.node.id, name },
     };
+  if (source?.how === 'inside')
+    return {
+      label,
+      title: `Add ${name} as an input of this step, from "${source.inner.title}" inside "${source.node.title}", which sets it`,
+      command: source.inner.outputs?.[name]
+        ? {
+            kind: 'setContractField',
+            target: node.id,
+            side: 'inputs',
+            name,
+            field: { type: 'any', from: `${innerPath(model, source.node, source.inner)}.${name}` },
+          }
+        : { kind: 'useFact', reader: node.id, setter: source.inner.id, name },
+    };
   if (source) return undefined;
   return {
     label,
     title: `Add ${name} as an input of this step. Nothing in the flow sets it, so it is marked as set outside the flow (inventory or extra vars)`,
     command: { kind: 'addOutsideInput', node: node.id, name },
   };
+}
+
+/** `sub/inner/step`: the path from a subflow the reader sees down to a step inside it. */
+function innerPath(model: FlowModel, top: FlowNode, inner: FlowNode): string {
+  const keys: string[] = [];
+  let at = model.nodes.get(inner.id);
+  while (at && at.node.id !== top.id) {
+    keys.unshift(at.node.key);
+    at = model.nodes.get(at.level);
+  }
+  return [top.key, ...keys].join('/');
 }

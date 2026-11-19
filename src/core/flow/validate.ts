@@ -769,7 +769,7 @@ function hintFor(model: FlowModel, node: FlowNode, level: string, name: string):
 
 /**
  * AFD-336: an unknown variable in the step's own words. A one-click fix (Add as input) goes with
- * it where the source is in reach; a fact set inside an earlier subflow is lifted with the picker.
+ * it; a fact set inside an earlier subflow is lifted by it too (AFD-343).
  */
 function unknownBrief(
   model: FlowModel,
@@ -783,7 +783,7 @@ function unknownBrief(
   if (optional) return `Uses ${name} only with a fallback, which is fine when nothing sets it.`;
   const source = factSource(model, node, name);
   if (source?.how === 'inside')
-    return `Uses ${name}, which is not an input. "${source.inner.title}" inside "${source.node.title}" sets it: add the input with @.`;
+    return `Uses ${name}, which is not an input. "${source.inner.title}" inside "${source.node.title}" sets it.`;
   return `Uses ${name}, which is not an input.`;
 }
 

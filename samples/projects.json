@@ -49,8 +49,8 @@
       ],
       "launchConfigs": [
         {
-          "name": "Skeleton on localhost",
-          "description": "The drafts as a skeleton on localhost: a check run passes the change approval by itself; a real run waits for a decision.",
+          "name": "Firewalls on localhost",
+          "description": "The draft steps run on localhost as placeholders that change nothing: a check run passes the change approval by itself; a real run waits for a decision.",
           "flowFile": "flows/firewall-upgrade/firewall-upgrade.flow.yaml",
           "inventory": "inventory.ini",
           "inputs": { "devices": ["localhost"], "target_version": "7.4.3" }

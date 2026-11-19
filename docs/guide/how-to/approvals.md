@@ -73,5 +73,9 @@ ansible-playbook -i inventories/lab/hosts.yml generated/firewall-upgrade.yml -e 
 
 ## Patterns for approvals
 
+A host that a decision sends to a failed end says so in the run's output: "Rejected at [approve]
+Change approval. Ended at [stopped] Stopped (outcome: failed)" (or "No decision in time at …").
+Ansible still prints the lines of the generated playbook where that host failed.
+
 On `rejected` or `timeout`: **Stop Flow**, **Notify On-Call and Stop** (it notifies the
 requester), or **Escalate Approval** (a second approver whose `approved` rejoins the flow).
