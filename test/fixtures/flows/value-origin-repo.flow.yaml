@@ -1,0 +1,69 @@
+# AFD-340: where a value comes from, with the repository's variables. The harness shows it
+# (?flow=value-origin-repo) with a fake repository (src/webview/harness/repoVars.ts): hover a
+# {{ name }} in Set NTP's message, open an input row in Details (pick a host there), or the Data lens.
+schema_version: 2
+flow:
+  id: 01JDXW00000000000000000001
+  key: value-origin-repo
+  name: Value origin (repository)
+  version: 1
+  goal: Show where each value comes from when the repository sets it.
+  inputs:
+    devices: {type: host_list, required: true, targets: true}
+    nginx_port: {type: integer, default: 8080, description: The port the web servers listen on}
+nodes:
+- {id: 01JDXW00000000000000000002, key: start, type: start, title: Start}
+- {id: 01JDXW00000000000000000003, key: done, type: end, title: Done, outcome: success}
+- id: 01JDXW00000000000000000004
+  key: set-ntp
+  type: task
+  title: Set NTP
+  impl:
+    kind: module
+    ref: ansible.builtin.debug
+    params:
+      msg: 'ntp {{ ntp_server }}, syslog {{ syslog_host }}, community {{ snmp_community }}'
+- id: 01JDXW00000000000000000005
+  key: syslog
+  type: task
+  title: Point syslog
+  inputs:
+    syslog_host: {type: string, default: 203.0.113.50}
+  impl:
+    kind: module
+    ref: ansible.builtin.debug
+    params:
+      msg: 'syslog to {{ syslog_host }}'
+- id: 01JDXW00000000000000000006
+  key: web-server
+  type: task
+  title: Web server
+  inputs:
+    nginx_port: {type: integer, from: flow.nginx_port}
+    nginx_user: {type: string, default: deploy}
+  impl:
+    kind: role
+    ref: nginx
+- id: 01JDXW00000000000000000007
+  key: site-play
+  type: task
+  title: Site playbook
+  impl:
+    kind: playbook
+    ref: playbooks/site.yml
+- id: 01JDXW00000000000000000008
+  key: report
+  type: task
+  title: Report
+  impl:
+    kind: module
+    ref: ansible.builtin.debug
+    params:
+      msg: 'mtu {{ mtu }} on {{ inventory_hostname }}'
+edges:
+- {id: 01JDXW00000000000000000010, from: {node: 01JDXW00000000000000000002, port: ok_hosts}, to: {node: 01JDXW00000000000000000004, port: in}}
+- {id: 01JDXW00000000000000000011, from: {node: 01JDXW00000000000000000004, port: ok_hosts}, to: {node: 01JDXW00000000000000000005, port: in}}
+- {id: 01JDXW00000000000000000012, from: {node: 01JDXW00000000000000000005, port: ok_hosts}, to: {node: 01JDXW00000000000000000006, port: in}}
+- {id: 01JDXW00000000000000000013, from: {node: 01JDXW00000000000000000006, port: ok_hosts}, to: {node: 01JDXW00000000000000000007, port: in}}
+- {id: 01JDXW00000000000000000014, from: {node: 01JDXW00000000000000000007, port: ok_hosts}, to: {node: 01JDXW00000000000000000008, port: in}}
+- {id: 01JDXW00000000000000000015, from: {node: 01JDXW00000000000000000008, port: ok_hosts}, to: {node: 01JDXW00000000000000000003, port: in}}

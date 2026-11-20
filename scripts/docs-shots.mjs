@@ -259,6 +259,30 @@ const SHOTS = {
       await page.locator('[data-contract-field="image"] .afd-contract-row').first().click();
     },
   },
+  // AFD-340: with the repository's variables (the harness's fake repository): an input whose
+  // default hides the inventory's value, and a variable's tooltip for a picked host.
+  'value-origin-repo': {
+    flow: 'value-origin-repo',
+    act: async (page) => {
+      await ui(page, 'openDetails', await idOf(page, 'syslog'), 'io');
+      await settle(page);
+      await page.locator('[data-contract-field="syslog_host"] .afd-contract-row').first().click();
+    },
+  },
+  'value-origin-repo-tip': {
+    flow: 'value-origin-repo',
+    act: async (page) => {
+      await ui(page, 'setOriginHost', 'edge-ams-02');
+      await ui(page, 'openDetails', await idOf(page, 'set-ntp'), 'binding');
+      await settle(page, 900);
+      await page
+        .locator('[data-param="msg"]')
+        .getByText('ntp_server', { exact: true })
+        .first()
+        .hover();
+      await settle(page, 900);
+    },
+  },
   'data-lens': {
     flow: 'firewall-upgrade',
     act: async (page) => {

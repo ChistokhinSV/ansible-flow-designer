@@ -29,6 +29,7 @@ import { importPlaybook } from '../import/playbook';
 import type { SourceIO } from '../import/read';
 import type { ImportResult } from '../import/result';
 import { type PlaybookForm, readPlaybook } from '../import/source';
+import { indexInputs } from '../inventory/varIndex';
 import { checkLive } from '../scenario/live';
 import type { ScenarioResult } from '../scenario/scenarios';
 import { diffEdits } from '../yaml/edits';
@@ -222,10 +223,16 @@ export async function flowDescribe(
   const scenarios = complete ? await scenarioCheckOf(io, l) : undefined;
   const line = scenarios ? scenariosLine(scenarios) : undefined;
   const nodes = typeof input.nodes === 'string' ? [input.nodes] : (input.nodes ?? []);
+  // AFD-340: asked for some nodes, their origins read the repository's variables too.
+  const index =
+    nodes.length && input.detail !== 'brief'
+      ? await io.inventory?.varIndex?.(indexInputs(l.model.doc.nodes)).catch(() => undefined)
+      : undefined;
   const view = {
     ...(input.detail === 'brief' ? { brief: true } : {}),
     ...(nodes.length ? { nodes } : {}),
     ...(input.only_problems && issues ? { onlyProblems: true } : {}),
+    ...(index ? { index } : {}),
   };
   const text = `${l.path}\n${describeFlow(l.model, l.findings, revisionOf(l.text), level, shown, issues, view)}${line ? `\n${line}` : ''}`;
   // AFD-189: a large flow comes in pages, as an outline does.

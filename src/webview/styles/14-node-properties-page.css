@@ -578,6 +578,48 @@
   color: var(--vscode-editorInfo-foreground, var(--afd-focus));
 }
 
+/* AFD-340: the repository's definitions, under the chain. */
+.afd-origin-defined {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--afd-border);
+}
+
+.afd-origin-defined-head {
+  font-weight: 600;
+}
+
+.afd-origin-rank {
+  margin-inline-end: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--afd-border);
+  border-radius: 3px;
+  color: var(--vscode-descriptionForeground, var(--afd-muted));
+  font-size: var(--afd-fs-11);
+  white-space: nowrap;
+}
+
+.afd-origin-file {
+  overflow-wrap: anywhere;
+}
+
+.afd-origin .afd-origin-hop.wins .afd-origin-label,
+.afd-origin-wins {
+  font-weight: 600;
+}
+
+.afd-origin .afd-origin-hop.other {
+  opacity: 0.6;
+}
+
+.afd-origin-host {
+  margin: 2px 0;
+}
+
+.afd-origin-host select {
+  max-width: 100%;
+}
+
 /* AFD-108: the fields list says whose fields it offers. */
 .afd-ref-menu-head {
   margin: 0;
@@ -962,4 +1004,10 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+}
+
+/* AFD-340: in a tooltip, a long list of definitions scrolls instead of growing the tip. */
+.afd-jinja-tip .afd-origin-defined .afd-origin-hops {
+  max-height: 180px;
+  overflow-y: auto;
 }

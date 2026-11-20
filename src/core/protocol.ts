@@ -7,6 +7,7 @@ import type { MergeConflict, MergeSide } from './flow/merge';
 import type { OpenPort } from './flow/openPorts';
 import type { FlowDocument, Position, Ulid } from './flow/types';
 import type { Finding } from './flow/validate';
+import type { VarIndex } from './inventory/varIndex';
 import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
@@ -270,6 +271,14 @@ export interface ViewerEmbed {
 
 export type HostMessage =
   | { type: 'snapshot'; snapshot: Snapshot }
+  /**
+   * AFD-340 (ADR-0038): the repository's variables for this flow, as the host read them; null:
+   * none (the designer answers from the flow alone). `openFiles`: the host opens a file at a line
+   * (`openCode`), so a definition is a link; without it the designer shows file:line.
+   */
+  | { type: 'varIndex'; index: VarIndex | null; openFiles?: boolean }
+  /** AFD-340: the host picked in the host's own view (VS Code's Inventory view); null: none. */
+  | { type: 'originHost'; host: string | null }
   | { type: 'run'; run: RunView | null }
   /** AFD-245: the runs kept of this flow, the newest first. */
   | { type: 'runs'; runs: PastRun[] }

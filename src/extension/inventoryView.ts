@@ -440,6 +440,11 @@ export function registerInventoryView(host: Host): vscode.Disposable[] {
   return [
     changed,
     view,
+    // AFD-340: a host picked here is the host the designers work out where a value comes from for.
+    view.onDidChangeSelection((e) => {
+      const item = e.selection[0];
+      if (item?.kind === 'host') for (const s of host.sessions.values()) s.originHost(item.host);
+    }),
     vscode.commands.registerCommand('afd.inventory.switch', switchInventory),
     vscode.commands.registerCommand('afd.inventory.refresh', forget),
     vscode.commands.registerCommand('afd.inventory.open', open),

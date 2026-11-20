@@ -20,6 +20,7 @@ import { planSave } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import type { SourceIO } from '../core/import/read';
 import { type InventoryFs, readInventory } from '../core/inventory/files';
+import { buildVarIndex } from '../core/inventory/varIndex';
 import { resolveEnvironment, settingsFromJson } from '../core/run/environment';
 import { followPaths, pathChanges } from '../core/scenario/follow';
 import { parseScenarios, type ScenarioResult, scenariosFileName } from '../core/scenario/scenarios';
@@ -538,6 +539,13 @@ export class FsFlowIO implements FlowIO {
             ? `${data.named.join(', ')} (the default of ansible.cfg)`
             : 'the default inventory (ansible.cfg names none in the repository)';
         return { data, label };
+      },
+      varIndex: async (inputs) => {
+        const root = rootOf();
+        return buildVarIndex(files(root), {
+          inventory: (await runInventory(root)).trim(),
+          ...inputs,
+        });
       },
       write: async (writes, renames) => {
         const root = rootOf();

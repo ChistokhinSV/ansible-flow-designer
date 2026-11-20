@@ -14,6 +14,7 @@ import { type Hop, hopText, inputOrigin } from '../flow/origin';
 import { defaultPortNames, portsFor } from '../flow/ports';
 import type { Annotation, ContractField, FlowNode, Position } from '../flow/types';
 import { acceptKey, type Finding } from '../flow/validate';
+import { rankWord, type VarIndex } from '../inventory/varIndex';
 import { plainText } from '../view/markdown';
 import { keyPath, levelName, withoutIds } from './refs';
 import { LAYOUT_RULES } from './specs';
@@ -92,12 +93,28 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
 }
 
 /** AFD-339: where each input of a node gets its value: `name <= hop <= hop`, notes after. */
-function originsLine(model: FlowModel, node: FlowNode, findings: readonly Finding[]): string {
+function originsLine(
+  model: FlowModel,
+  node: FlowNode,
+  findings: readonly Finding[],
+  index?: VarIndex,
+): string {
   const parts = Object.keys(node.inputs ?? {}).map((name) => {
-    const o = inputOrigin(model, node, name, { findings });
+    const o = inputOrigin(model, node, name, { findings, ...(index ? { index } : {}) });
     const main = o.hops.filter((h) => h.depth === 0).slice(1);
     const chain = main.map(hopText).join(' <= ') || hopText(o.hops[0] as Hop);
-    return `${name} <= ${chain}${o.notes.length ? ` [${o.notes.join(' ')}]` : ''}`;
+    // AFD-340: the repository's definitions in short, the winner first when there is one.
+    const d = o.defined;
+    const defined = d
+      ? ` {defined in: ${d.hops
+          .filter((h) => (h.rank ?? 0) > 0)
+          .map(
+            (h, i) =>
+              `${i === d.winner ? (d.beaten ? 'highest here ' : 'wins ') : ''}${hopText(h)} [${rankWord(h.rank ?? 0)}]`,
+          )
+          .join('; ')} (${d.scope}${d.beaten ? `; ${d.beaten} wins over them` : ''})}`
+      : '';
+    return `${name} <= ${chain}${o.notes.length ? ` [${o.notes.join(' ')}]` : ''}${defined}`;
   });
   return parts.length ? `origins: ${parts.join('; ')}` : '';
 }
@@ -115,6 +132,8 @@ export interface DescribeView {
   nodes?: string[];
   /** With layout: only the layout check, no nodes or wires. */
   onlyProblems?: boolean;
+  /** AFD-340: the repository's variables, for the origins lines. */
+  index?: VarIndex;
 }
 
 /**
@@ -297,7 +316,7 @@ export function describeFlow(
         out.push(`    ${view.brief ? briefLine(n) : nodeLine(n, layout)}`);
         // AFD-339: asked for some nodes, each input's chain in short (the whole flow stays small).
         if (view.nodes?.length && !view.brief) {
-          const origins = originsLine(model, n, findings);
+          const origins = originsLine(model, n, findings, view.index);
           if (origins) out.push(`      ${origins}`);
         }
       }

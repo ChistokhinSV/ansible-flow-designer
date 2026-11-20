@@ -7,6 +7,17 @@
 import { stringify } from 'yaml';
 import type { ResultField } from '../catalog/draft';
 import { holdsSecret, SECRET } from '../import/secrets';
+import {
+  defLabel,
+  RANK,
+  type RepoAnswer,
+  type RepoContext,
+  rankWord,
+  repoAnswer,
+  stepFile,
+  type VarDef,
+  type VarIndex,
+} from '../inventory/varIndex';
 import { MAGIC } from '../view/jinjaVocabulary';
 import { outputVar, registerName } from './dataNames';
 import { liftOf, resolveFrom, upstreamNodes } from './dataRefs';
@@ -29,9 +40,15 @@ export type HopKind =
   | 'placeholder'
   | 'external'
   | 'magic'
-  | 'unknown';
-// Phase 2 (AFD-340) adds repository kinds (inventory, group_vars, host_vars, role defaults and
-// vars, vars_files) with `file`, `line` and `rank`; callers render any hop the same way.
+  | 'unknown'
+  // AFD-340: the repository's definitions, with `file`, `line` and `rank`.
+  | 'groupVar'
+  | 'hostVar'
+  | 'roleDefault'
+  | 'roleVar'
+  | 'roleSpec'
+  | 'varsFile'
+  | 'includeVars';
 
 export interface Hop {
   kind: HopKind;
@@ -57,10 +74,30 @@ export interface Hop {
   secret?: boolean;
   /** More about the hop: a result field's doc, a magic var's doc, where an external var is set. */
   doc?: string;
-  /** Phase 2: the file and zero-based line that define it, and its precedence rank. */
+  /** AFD-340: the file (from the repository root) and zero-based line that define it. */
   file?: string;
   line?: number;
+  /** AFD-340: its precedence rank (RANK in inventory/varIndex), shown as a word (`rankWord`). */
   rank?: number;
+}
+
+/** AFD-340: every place in the repository that defines the name, and which one wins. */
+export interface Defined {
+  name: string;
+  /** Highest rank first; documentation (argument_specs) last. */
+  hops: Hop[];
+  /** Index into `hops` of the definition that wins, when it is certain. */
+  winner?: number;
+  /** The host picked, when one is. */
+  host?: string;
+  /** With a host picked: indexes into `hops` of definitions for other hosts and groups. */
+  others?: number[];
+  /** For whom: `for host x`, `for every host`, or the groups and hosts it depends on. */
+  scope: string;
+  /** Why there is no winner, or why it may still change. */
+  why?: string;
+  /** What the flow gives ranks above every one of them (`the input (play var)`): it wins. */
+  beaten?: string;
 }
 
 export interface Origin {
@@ -71,6 +108,8 @@ export interface Origin {
   secret: boolean;
   /** The chain was cut: a hop it had passed already, or too many hops. */
   cut?: 'cycle' | 'depth';
+  /** AFD-340: the repository's definitions of the name asked about, with an index. */
+  defined?: Defined;
 }
 
 /** A finding as origin reads it (the validator's, or the snapshot's). */
@@ -87,6 +126,10 @@ export interface OriginOptions {
   fieldsOf?: (step: FlowNode) => ResultField[] | undefined;
   /** The flow's findings: input-shadowed and register-collision become notes. */
   findings?: readonly OriginFinding[];
+  /** AFD-340: the repository's variables, when the host built them (absent: phase 1 answers). */
+  index?: VarIndex;
+  /** AFD-340: the host picked (inventory tree, Details): the winner is worked out for it. */
+  host?: string;
 }
 
 const MAX_HOPS = 24;
@@ -428,9 +471,30 @@ class Walk {
       });
       return;
     }
+    const index = this.opts.index;
+    if (!index) {
+      this.push({
+        kind: 'unknown',
+        label: `not set in this flow: decided at run time (inventory, group_vars, facts or extra vars)`,
+        name,
+        depth,
+        static: false,
+      });
+      return;
+    }
+    // AFD-340: what the repository holds, and the one that wins when that is certain.
+    const answer = repoAnswer(index, name, repoContext(this.model, reader), this.opts.host);
+    if (answer?.winner && this.enter(`repo:${name}`)) {
+      const hop = this.push(defHop(answer.winner, depth));
+      hop.label = `${hop.label} (wins ${answer.scope})`;
+      if (answer.winner.template) this.template(reader, answer.winner.template, depth);
+      return;
+    }
     this.push({
       kind: 'unknown',
-      label: `not set in this flow: decided at run time (inventory, group_vars, facts or extra vars)`,
+      label: answer
+        ? `not set in this flow; the repository sets it ${answer.scope.startsWith('depends') ? 'per host' : answer.scope}${answer.why ? ` (${answer.why})` : ''}`
+        : `not set in this flow or the repository's static files: decided at run time (facts, extra vars or a dynamic inventory)`,
       name,
       depth,
       static: false,
@@ -443,17 +507,246 @@ class Walk {
     else this.outside(reader, name, depth);
   }
 
-  done(notes: string[]): Origin {
+  done(notes: string[], defined?: Defined): Origin {
     const secret = this.hops.some((h) => h.secret);
     if (secret)
-      for (const h of this.hops) {
+      for (const h of [...this.hops, ...(defined?.hops ?? [])]) {
         delete h.value;
         delete h.fallback;
         delete h.template;
         h.static = false;
       }
-    return { hops: this.hops, notes, secret, ...(this.cut ? { cut: this.cut } : {}) };
+    return {
+      hops: this.hops,
+      notes,
+      secret,
+      ...(this.cut ? { cut: this.cut } : {}),
+      ...(defined ? { defined } : {}),
+    };
   }
+}
+
+/** AFD-340: whose repository definitions a step sees: its role, its own file, earlier steps' files. */
+export function repoContext(model: FlowModel, reader: FlowNode): RepoContext {
+  const own = stepFile(reader);
+  return {
+    ...(reader.impl?.kind === 'role' && reader.impl.ref ? { role: reader.impl.ref } : {}),
+    own: own ? [own] : [],
+    upstream: upstreamNodes(model, reader.id).flatMap((n) => {
+      const f = stepFile(n);
+      return f ? [f] : [];
+    }),
+  };
+}
+
+const DEF_KIND = {
+  group: 'groupVar',
+  host: 'hostVar',
+  varsFile: 'varsFile',
+  includeVars: 'includeVars',
+} as const;
+
+/** AFD-340: a repository definition as a hop. */
+export function defHop(d: VarDef, depth: number): Hop {
+  const kind: HopKind =
+    d.scope.kind === 'role'
+      ? d.scope.part === 'defaults'
+        ? 'roleDefault'
+        : d.scope.part === 'vars'
+          ? 'roleVar'
+          : 'roleSpec'
+      : DEF_KIND[d.scope.kind];
+  return {
+    kind,
+    label: defLabel(d),
+    name: d.name,
+    path: [],
+    depth,
+    file: d.file,
+    line: d.line,
+    rank: d.rank,
+    ...(d.value !== undefined ? { value: d.value } : {}),
+    ...(d.template !== undefined ? { template: d.template } : {}),
+    static: d.value !== undefined && d.rank > 0,
+    ...(d.secret ? { secret: true } : {}),
+    ...(d.doc ? { doc: d.doc } : {}),
+  };
+}
+
+/** A few definitions in words, with file and line (never a value). */
+function places(defs: readonly VarDef[]): string {
+  const shown = defs
+    .slice(0, 3)
+    .map((d) => `${defLabel(d)}, ${d.file}:${d.line + 1}`)
+    .join('; ');
+  return defs.length > 3 ? `${shown}; and ${defs.length - 3} more` : shown;
+}
+
+/** AFD-340: the repository's definitions of `name` as `node` reads it. */
+function definedOf(
+  model: FlowModel,
+  node: FlowNode,
+  name: string,
+  opts: OriginOptions,
+): { defined?: Defined; answer?: RepoAnswer } {
+  if (!opts.index) return {};
+  const answer = repoAnswer(opts.index, name, repoContext(model, node), opts.host);
+  if (!answer) return {};
+  const winner = answer.winner ? answer.defs.indexOf(answer.winner) : -1;
+  const applies = answer.applies;
+  const others = applies
+    ? answer.defs.flatMap((d, i) => (d.rank > 0 && !applies.includes(d) ? [i] : []))
+    : [];
+  return {
+    answer,
+    defined: {
+      name,
+      hops: answer.defs.map((d) => defHop(d, 0)),
+      ...(winner >= 0 ? { winner } : {}),
+      ...(opts.host ? { host: opts.host } : {}),
+      ...(others.length ? { others } : {}),
+      scope: answer.scope,
+      ...(answer.why ? { why: answer.why } : {}),
+    },
+  };
+}
+
+const capital = (s: string) => `${s.slice(0, 1).toUpperCase()}${s.slice(1)}`;
+
+/** AFD-340: the repository's values against what the flow gives at `rank` (`what`, in words). */
+function rankNotes(
+  answer: RepoAnswer | undefined,
+  name: string,
+  rank: number,
+  what: string,
+): string[] {
+  const values = (answer?.defs ?? []).filter((d) => d.rank > 0);
+  const lower = values.filter((d) => d.rank < rank);
+  const higher = values.filter((d) => d.rank > rank);
+  const notes: string[] = [];
+  for (const d of higher.slice(0, 2))
+    notes.push(
+      `The ${defLabel(d)} (${d.file}:${d.line + 1}) is a ${rankWord(d.rank)}: it ranks above ${what} (${rankWord(rank)}) and wins over it.`,
+    );
+  if (lower.length)
+    notes.push(
+      `${capital(what)} (${rankWord(rank)}) wins over the repository's ${name}: ${places(lower)}.`,
+    );
+  return notes;
+}
+
+/** Whether an input reads a value of its own name (AFD-293: the code reads the host's own var). */
+function sameNameRead(model: FlowModel, node: FlowNode, name: string): boolean {
+  const from = node.inputs?.[name]?.from?.trim();
+  const level = model.nodes.get(node.id)?.level;
+  if (!from || !level) return false;
+  const src = resolveFrom(model, node, level, 'inputs', from);
+  return (
+    (src.kind === 'flow' && src.name === name && src.path.length === 0) ||
+    (src.kind === 'output' &&
+      src.path.length === 0 &&
+      outputVar(model, src.node, src.name) === name)
+  );
+}
+
+const isMapping = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** AFD-340: what the repository's definitions mean next to `node`'s input `name`. */
+function inputRepoNotes(
+  model: FlowModel,
+  node: FlowNode,
+  name: string,
+  answer: RepoAnswer | undefined,
+): string[] {
+  const field = node.inputs?.[name];
+  const from = field?.from?.trim();
+  const notes: string[] = [];
+  if (node.impl?.kind === 'role' && isMapping(node.impl.params) && name in node.impl.params)
+    notes.push(
+      `The step passes ${name} to the role as a role param too: a role param ranks above the input and wins over it.`,
+    );
+  if (!answer) return notes;
+  if (from && sameNameRead(model, node, name)) {
+    if (answer.winner && field?.default !== undefined)
+      notes.push(
+        `${capital(answer.scope)}, the host's own ${name} is the ${defLabel(answer.winner)} (${answer.winner.file}:${answer.winner.line + 1}): it wins over the default.`,
+      );
+    return notes;
+  }
+  if (!from && field?.default === undefined) return notes;
+  // An input with a source, or with a default and no source, is a play var of the step.
+  notes.push(...rankNotes(answer, name, RANK.playVar, from ? 'the input' : "the input's default"));
+  return notes;
+}
+
+/** The rank of what the flow gives at the head of a chain, when the flow gives it. */
+function headRank(head: Hop | undefined): number | undefined {
+  switch (head?.kind) {
+    case 'setFact':
+    case 'register':
+    case 'output':
+    case 'lifted':
+    case 'runtime':
+      return RANK.setFact;
+    case 'flowInput':
+    case 'external':
+      return RANK.extraVar;
+    default:
+      return undefined;
+  }
+}
+
+/** The rank an input of a step gives its value at: a role param, a play var, or none (AFD-293). */
+function inputRank(model: FlowModel, node: FlowNode, name: string): number | undefined {
+  const field = node.inputs?.[name];
+  if (node.impl?.kind === 'role' && isMapping(node.impl.params) && name in node.impl.params)
+    return RANK.roleParam;
+  if (field?.from?.trim()) return sameNameRead(model, node, name) ? undefined : RANK.playVar;
+  return field?.default !== undefined ? RANK.playVar : undefined;
+}
+
+/** Marks the repository's definitions as beaten when the flow's value ranks above all of them. */
+function beat(defined: Defined | undefined, rank: number | undefined, what: string): void {
+  if (!defined || rank === undefined) return;
+  const values = defined.hops.filter((h) => (h.rank ?? 0) > 0);
+  if (values.length && values.every((h) => (h.rank ?? 0) < rank))
+    defined.beaten = `${what} (${rankWord(rank)})`;
+}
+
+/** A finding origin gives the host: the validator's shape. */
+export interface RepoFinding extends OriginFinding {
+  severity: 'info';
+  path: (string | number)[];
+}
+
+/**
+ * AFD-340: an input whose default hides what the inventory sets for the hosts. The default is a
+ * play var, which ranks above group and host variables, so the step never gets the inventory's
+ * value. An info finding, which the host adds to the validator's when it has the index.
+ */
+export function repoFindings(model: FlowModel, index: VarIndex): RepoFinding[] {
+  const out: RepoFinding[] = [];
+  for (const { node, path } of model.nodes.values()) {
+    for (const [name, field] of Object.entries(node.inputs ?? {})) {
+      if (field?.from?.trim() || field?.default === undefined) continue;
+      const answer = repoAnswer(index, name, repoContext(model, node));
+      const hidden = (answer?.defs ?? []).filter(
+        (d) => (d.scope.kind === 'group' || d.scope.kind === 'host') && d.rank < RANK.playVar,
+      );
+      if (!hidden.length) continue;
+      out.push({
+        code: 'input-hides-inventory',
+        severity: 'info',
+        node: node.id,
+        subject: name,
+        path: [...path, 'inputs', name],
+        brief: `The default of ${name} wins over the inventory's ${name} (${places(hidden)}): the step never gets the inventory value. Remove the default to read the host's own, or keep it on purpose.`,
+        message: `"${node.title ?? node.key}" inputs.${name}: its default is a play var and wins over the inventory's ${name} (${places(hidden)}), so the step never gets the inventory value`,
+      });
+    }
+  }
+  return out;
 }
 
 /** Precedence the flow knows for `node`'s input `name`. */
@@ -504,7 +797,12 @@ export function inputOrigin(
 ): Origin {
   const w = new Walk(model, opts);
   w.input(node, name, 0);
-  return w.done(inputNotes(model, node, name, opts));
+  const { defined, answer } = definedOf(model, node, name, opts);
+  beat(defined, inputRank(model, node, name), 'the input');
+  return w.done(
+    [...inputNotes(model, node, name, opts), ...inputRepoNotes(model, node, name, answer)],
+    defined,
+  );
 }
 
 /** Where a `from:` on `node`'s `side` reads (an output's `from` reads the node's inner level). */
@@ -530,7 +828,21 @@ export function nameOrigin(
 ): Origin {
   const w = new Walk(model, opts);
   w.name(node, name, 0);
-  return w.done(node.inputs?.[name] ? inputNotes(model, node, name, opts) : []);
+  const { defined, answer } = definedOf(model, node, name, opts);
+  if (node.inputs?.[name]) {
+    beat(defined, inputRank(model, node, name), 'the input');
+    return w.done(
+      [...inputNotes(model, node, name, opts), ...inputRepoNotes(model, node, name, answer)],
+      defined,
+    );
+  }
+  // A name the flow sets (a fact, a register, an extra var) against the repository's values.
+  const rank = headRank(w.hops.filter((h) => h.depth === 0).at(-1));
+  beat(defined, rank, 'what the flow sets');
+  return w.done(
+    rank !== undefined ? rankNotes(answer, name, rank, 'what the flow sets') : [],
+    defined,
+  );
 }
 
 /** What sets `node`'s output `name` (a subflow's: the inner step it lifts). */
@@ -566,7 +878,20 @@ export function hopText(h: Hop): string {
         ? ` = ${originValue(h.template)}`
         : '';
   const fb = h.fallback !== undefined ? ` (default ${h.fallback})` : '';
-  return `${h.label}${v}${fb}${h.secret ? ' (secret: not shown)' : ''}`;
+  const at = h.file !== undefined ? ` (${h.file}:${(h.line ?? 0) + 1})` : '';
+  return `${h.label}${at}${v}${fb}${h.secret ? ' (secret: not shown)' : ''}`;
+}
+
+/** AFD-340: the repository's definitions as lines of text, the winner marked. */
+export function definedText(d: Defined): string[] {
+  const head = `Defined in the repository (${d.scope}${d.why ? `; ${d.why}` : ''})${d.beaten ? `, and ${d.beaten} wins over all of them` : ''}:`;
+  return [
+    head,
+    ...d.hops.map(
+      (h, i) =>
+        `  ${i === d.winner ? (d.beaten ? '* highest here: ' : '* wins: ') : d.others?.includes(i) ? '(other hosts) ' : ''}${hopText(h)}${h.rank ? ` [${rankWord(h.rank)}]` : ''}`,
+    ),
+  ];
 }
 
 /** The whole origin as lines of text (titles, the AI tools): each hop, then the notes. */
@@ -577,5 +902,6 @@ export function originText(origin: Origin): string {
     lines.push(
       origin.cut === 'cycle' ? '(the chain comes back to itself)' : '(cut: too many hops)',
     );
-  return [...lines, ...origin.notes].join('\n');
+  const defined = origin.defined ? definedText(origin.defined) : [];
+  return [...lines, ...origin.notes, ...defined].join('\n');
 }

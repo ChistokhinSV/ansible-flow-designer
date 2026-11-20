@@ -17,6 +17,7 @@ import driftScan from '../../../test/fixtures/drift/scan.json';
 import annotated from '../../../test/fixtures/flows/annotated.flow.yaml?raw';
 import handWritten from '../../../test/fixtures/flows/hand-written.flow.yaml?raw';
 import valueOrigin from '../../../test/fixtures/flows/value-origin.flow.yaml?raw';
+import valueOriginRepo from '../../../test/fixtures/flows/value-origin-repo.flow.yaml?raw';
 import wireLanes from '../../../test/fixtures/flows/wire-lanes.flow.yaml?raw';
 import sampleImport from '../../../test/fixtures/import/sample-site.flow.yaml?raw';
 import lensFixture from '../../../test/fixtures/lens/facts.json';
@@ -34,9 +35,11 @@ import { parseFlow } from '../../core/flow/document';
 import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
+import { repoFindings } from '../../core/flow/origin';
 import { nodeDesigns } from '../../core/flow/semantic';
 import { newFlowText } from '../../core/flow/template';
 import { validateFlow } from '../../core/flow/validate';
+import type { VarIndex } from '../../core/inventory/varIndex';
 import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
@@ -48,6 +51,7 @@ import { checkLive, simulatedEnds } from '../../core/scenario/live';
 import type { ThemeKind } from '../../core/theme';
 import { autoPositions, layoutLevel, shownLayout } from '../../node/autoLayout';
 import { applyStandaloneTheme } from '../theme/standalone';
+import { fakeVarIndex } from './repoVars';
 
 /** IDs that are the same on every load (`01JDGKS…0001`, `…0002`, …). */
 function fixedIds(): () => string {
@@ -77,6 +81,8 @@ const FLOWS: Record<string, string> = {
   'wire-lanes': wireLanes,
   // AFD-339: where a value comes from (tooltips, Details rows, Data lens titles).
   'value-origin': valueOrigin,
+  // AFD-340: and with the repository's variables (a fake repository, repoVars.ts).
+  'value-origin-repo': valueOriginRepo,
   // AFD-16: an empty *.flow.yaml, and one that is not a flow.
   empty: '',
   broken: 'flow: [not closed\n',
@@ -84,6 +90,8 @@ const FLOWS: Record<string, string> = {
 /** Lens facts (M8) as the host would gather them for the lens-e2e fixture. */
 let lensTargets = 'edge_switches';
 let lensOpen: LensId | null = null;
+/** AFD-340: the fake repository's variables, once sent. */
+let vars: VarIndex | undefined;
 const params = new URLSearchParams(location.search);
 let text = FLOWS[params.get('flow') ?? 'edge-baseline'] ?? edgeBaseline;
 /** The flow as loaded: the Changes lens's "HEAD" (AFD-57). */
@@ -155,7 +163,9 @@ async function snapshot(): Promise<Snapshot> {
       autoPositions: {},
     };
   }
-  const { model, findings } = validateFlow(parsed.doc);
+  const { model, findings: checked } = validateFlow(parsed.doc);
+  // AFD-340: as the host adds them when it has read the repository.
+  const findings = vars ? [...checked, ...(repoFindings(model, vars) as typeof checked)] : checked;
   // As the host shows it (AFD-23).
   const layout = shownLayout(model);
   const shown = layout === model.doc.layout ? model.doc : { ...model.doc, layout };
@@ -330,6 +340,14 @@ async function onMessage(m: WebviewMessage) {
         type: 'catalogStatus',
         status: { state: 'ready', environment: 'harness fixture', platforms: CTX.platforms },
       });
+      // AFD-340: the fake repository's variables, for the flow that shows them (or `?vars=1`).
+      if (params.get('flow') === 'value-origin-repo' || params.has('vars')) {
+        const doc = parseFlow(text).doc;
+        if (doc) {
+          vars = await fakeVarIndex(doc);
+          toWebview({ type: 'varIndex', index: vars, openFiles: true });
+        }
+      }
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       sendCheck();
       // AFD-93: a clean workspace, so the first screen is measured as a newcomer sees it;
