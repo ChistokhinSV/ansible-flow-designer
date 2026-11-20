@@ -5,6 +5,7 @@
 import { type Node, type NodeProps, NodeResizer, useInternalNode } from '@xyflow/react';
 import { memo, useEffect, useRef, useState } from 'react';
 import type { AnnotationView } from '../../core/flow/annotations';
+import type { NodeView } from '../../core/flow/levelView';
 import { plainText } from '../../core/view/markdown';
 import { tieLine } from '../../core/view/tie';
 import { run } from '../actions';
@@ -86,6 +87,8 @@ export const AnnotationNodeView = memo(function AnnotationNodeView({
     const line = tieLine(
       { ...rel, width: w, height: h },
       { x: 0, y: 0, width: parent.measured.width, height: parent.measured.height },
+      // AFD-350: clear of the ports shown at rest (wired, open fail) and their wires' stubs.
+      (parent.data as { view?: NodeView }).view?.ports.filter((p) => p.rest) ?? [],
     );
     tie = line && {
       from: { x: line.from.x - rel.x, y: line.from.y - rel.y },

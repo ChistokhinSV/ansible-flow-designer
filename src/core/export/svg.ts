@@ -315,6 +315,7 @@ function notesSvg(scene: Scene): string {
         ? tieLine(
             { ...a.position, width: a.width, height: a.height },
             { ...node.position, width: node.width, height: node.height },
+            node.ports.filter((p) => p.rest),
           )
         : undefined;
       const tie = line
