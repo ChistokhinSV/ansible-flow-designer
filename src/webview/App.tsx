@@ -425,6 +425,9 @@ export function App() {
   const paletteCollapsed = useUi((s) => s.paletteCollapsed);
   usePanelState();
   const mode = useUi((s) => s.mode);
+  // AFD-349: a past version is read-only: no palette to add nodes from, as in Code and Run.
+  const past = useUi((s) => s.past !== null);
+  const palette = mode === 'design' && !past;
   const lens = useUi((s) => s.lens);
   const panel = rightPanelFor({
     lens,
@@ -448,8 +451,8 @@ export function App() {
                 ? 'min(1100px, 80vw)'
                 : // AFD-328: never more than 40% of a narrow designer: the canvas keeps the room.
                   `min(${panelWidth}px, 40vw)`,
-            // Code and Run modes read the graph: no palette to add nodes from (AFD-45).
-            ...(mode !== 'design'
+            // Code and Run modes and a past version read the graph: no palette (AFD-45, AFD-349).
+            ...(!palette
               ? { '--afd-left-width': '0px' }
               : paletteCollapsed
                 ? { '--afd-left-width': 'var(--afd-collapsed-width)' }
@@ -458,7 +461,7 @@ export function App() {
         }
       >
         <TopBar />
-        {mode === 'design' ? <Palette /> : null}
+        {palette ? <Palette /> : null}
         <main className="afd-center">
           <Banner />
           <FormatBanner />

@@ -20,6 +20,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- A flow opened at a commit (History) shows no node palette: nothing can be added there, and a narrow window keeps the room for the canvas.
 - The hover preview opens where it covers no other step when there is room for that.
 - A long flow name is cut short in the top bar instead of pushing the mode and **Lens** to a second row.
 - Closing a message above the canvas (an imported or sample flow's) no longer moves the steps on it.

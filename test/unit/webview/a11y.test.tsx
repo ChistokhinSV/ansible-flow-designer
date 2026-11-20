@@ -93,6 +93,7 @@ beforeEach(() => {
     mode: 'design',
     level: ROOT,
     testMode: true,
+    past: null,
   });
   act(() =>
     useUi.getState().setSnapshot({
@@ -327,5 +328,24 @@ describe('core tasks with the keyboard only', () => {
     key(port, 'Enter');
     press(screen.getByRole('menuitem', { name: /Notify On-Call and Stop/ }));
     expect(commands().map((c) => c.kind)).toContain('applyPattern');
+  });
+});
+
+describe('a past version (AFD-349)', () => {
+  it('shows no palette: nothing can be added to a commit', () => {
+    const { container, unmount } = render(<App />);
+    expect(container.querySelector('.afd-palette')).not.toBeNull();
+    unmount();
+    act(() =>
+      useUi.getState().setPast({
+        hash: '8b7fe57',
+        author: 'Dana Whitfield',
+        date: '2026-11-20T08:16:25Z',
+        subject: 'Greet the team by name',
+        path: 'flows/hello/hello.flow.yaml',
+      }),
+    );
+    const again = render(<App />);
+    expect(again.container.querySelector('.afd-palette')).toBeNull();
   });
 });
