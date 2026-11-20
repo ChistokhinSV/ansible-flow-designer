@@ -3,6 +3,7 @@
 // strftime, a result's fields), strftime's codes inside a format and lookup names inside lookup().
 // Pure: the fields call it with their text and caret, and draw what it returns.
 import type { RefChoice } from '../catalog/draft';
+import type { Origin } from '../flow/origin';
 import { type JinjaToken, type ScanOptions, scanJinja } from './jinjaText';
 import {
   CONSTANTS,
@@ -39,6 +40,8 @@ export interface CompleteContext {
   lookups?: readonly PluginName[];
   /** The time previews show (tests fix it). */
   now?: Date;
+  /** AFD-339: where a variable the step reads comes from (the field's step). */
+  origin?: (name: string) => Origin | undefined;
 }
 
 export type ItemKind =
@@ -495,6 +498,8 @@ export interface Description {
   label: string;
   doc?: string;
   preview?: string;
+  /** AFD-339: a variable's chain of hops, from the flow alone. */
+  origin?: Origin;
 }
 
 /** The help for the token at `offset`: a function, method, filter, test, variable or date code. */
@@ -528,8 +533,13 @@ export function describeAt(
       return word(plugins(TESTS, ctx.tests).find((w) => w.name === t.text));
     case 'var': {
       const choice = ctx.vars.find((c) => c.name === t.text);
-      if (choice) return { label: choice.name, doc: choice.detail };
-      return word(MAGIC.find((w) => w.name === t.text));
+      const origin = ctx.origin?.(t.text);
+      const found = choice
+        ? { label: choice.name, doc: choice.detail }
+        : word(MAGIC.find((w) => w.name === t.text));
+      if (!origin?.hops.length) return found;
+      // The chain says more than "input from x" or a magic var's doc: it replaces them.
+      return { label: t.text, origin };
     }
     case 'format': {
       const code = STRFTIME_CODES.find((c) => c.code === t.text.replace(/^%[-_0^#]/, '%'));

@@ -407,7 +407,8 @@ export const YamlField = forwardRef<
           onMouseMove={(e) => onHover(e.clientX, e.clientY)}
           onMouseLeave={() => {
             clearTimeout(hover.current);
-            setTip(null);
+            // AFD-339: a moment to reach the tip, whose hops can be clicked.
+            hover.current = setTimeout(() => setTip(null), 250);
           }}
           onScroll={(e) => {
             if (!layer.current) return;
@@ -430,7 +431,14 @@ export const YamlField = forwardRef<
             onPick={pickAssist}
           />
         ) : null}
-        {tip && !assist ? <JinjaTip tip={tip.d} style={{ left: tip.left, top: tip.top }} /> : null}
+        {tip && !assist ? (
+          <JinjaTip
+            tip={tip.d}
+            style={{ left: tip.left, top: tip.top }}
+            onEnter={() => clearTimeout(hover.current)}
+            onLeave={() => setTip(null)}
+          />
+        ) : null}
       </div>
       {hint && !assist ? <SignatureRow hint={hint} /> : null}
       {error ? (

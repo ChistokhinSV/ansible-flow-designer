@@ -744,7 +744,7 @@ export const TOOL_SPECS: ToolSpec[] = [
           type: 'array',
           items: { type: 'string' },
           description:
-            'Only these nodes (key paths; a subflow key also covers the steps inside it) and the wires touching them.',
+            'Only these nodes (key paths; a subflow key also covers the steps inside it) and the wires touching them, each with an origins line: where every input gets its value (flow input and default, the step and register or set_fact, a subflow input, set outside the flow, or decided at run time), secrets never shown.',
         },
         detail: {
           type: 'string',

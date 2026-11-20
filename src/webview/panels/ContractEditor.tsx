@@ -5,10 +5,18 @@
 import { type InputHTMLAttributes, useEffect, useId, useRef, useState } from 'react';
 import { refChoices } from '../../core/catalog/draft';
 import { modelOf, ROOT } from '../../core/flow/model';
+import {
+  fromOrigin,
+  inputOrigin,
+  type Origin,
+  originText,
+  outputOrigin,
+} from '../../core/flow/origin';
 import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../../core/flow/types';
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
+import { OriginChain, useOriginOptions } from '../properties/OriginView';
 import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
@@ -101,6 +109,20 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
       : model && end
         ? fromText(model, end, 'inputs', from)
         : from;
+  // AFD-339: where each value comes from, hop by hop (a step's inputs and outputs, a flow's outputs).
+  const originOpts = useOriginOptions(node ?? end);
+  const originOf = (name: string, field: ContractField | undefined): Origin | undefined => {
+    if (!model) return undefined;
+    if (node) {
+      if (side === 'inputs') return inputOrigin(model, node, name, originOpts);
+      return field?.from || node.type === 'subflow' || node.impl
+        ? outputOrigin(model, node, name, originOpts)
+        : undefined;
+    }
+    return end && field?.from
+      ? fromOrigin(model, end, 'inputs', field.from, originOpts)
+      : undefined;
+  };
   const entries = Object.entries(contract ?? {});
   const one = side === 'inputs' ? 'input' : 'output';
   const flowInputs = target === 'flow' && side === 'inputs';
@@ -170,6 +192,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
       <ul className="afd-contract">
         {entries.map(([name, field]) => {
           const isOpen = open === name;
+          const origin = originOf(name, field);
           const meta =
             side === 'outputs'
               ? undefined
@@ -183,6 +206,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
               <button
                 type="button"
                 className="afd-contract-row"
+                title={origin?.hops.length && !field?.from ? originText(origin) : undefined}
                 aria-expanded={isOpen}
                 aria-label={`${name}: ${TYPE_WORDS[field?.type ?? 'any']}${meta ? `, ${meta}` : ''}`}
                 onClick={() => setOpen(isOpen ? undefined : name)}
@@ -195,7 +219,12 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
                   </span>
                 ) : null}
                 {withFrom && field?.from ? (
-                  <span className="muted afd-contract-from" title={`Comes from ${field.from}`}>
+                  <span
+                    className="muted afd-contract-from"
+                    title={`Comes from ${field.from}${
+                      origin?.hops.length ? `\n${originText(origin)}` : ''
+                    }`}
+                  >
                     ← {fromWords(field.from)}
                   </span>
                 ) : null}
@@ -213,6 +242,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
                   flowInputs={flowInputs}
                   taken={(n) => n !== name && n in (contract ?? {})}
                   from={withFrom && field?.from ? fromWords(field.from) : undefined}
+                  origin={origin?.hops.length ? origin : undefined}
                   onChange={(next, rename) => {
                     void set(name, next, rename).then((a) => {
                       if (a.ok && rename) setOpen(rename);
@@ -262,6 +292,7 @@ function FieldForm({
   flowInputs,
   taken,
   from,
+  origin,
   onChange,
   onRemove,
 }: {
@@ -271,6 +302,7 @@ function FieldForm({
   flowInputs: boolean;
   taken(name: string): boolean;
   from?: string;
+  origin?: Origin;
   onChange(field: ContractField, rename?: string): void;
   onRemove(): void;
 }) {
@@ -309,7 +341,12 @@ function FieldForm({
           ))}
         </select>
       </div>
-      {from ? (
+      {origin ? (
+        <div className="afd-field" data-comes-from>
+          <span className="afd-label">Comes from</span>
+          <OriginChain origin={origin} />
+        </div>
+      ) : from ? (
         <div className="afd-field">
           <span className="afd-label">Comes from</span>
           <span className="afd-value">{from}</span>
