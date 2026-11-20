@@ -6,6 +6,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Added
 
+- **Where a value comes from:** hovering a variable in a step's parameters shows its chain, hop by hop: the step's input, a subflow's input, an output lifted from a step inside a subflow, a module's registered result with the field's description, a `set_fact` (its literal value, or its template and what that reads), a flow input with its default, a variable set outside the flow, or one of Ansible's own. **Details › Data** shows the same under an input as **Comes from**, the Data lens in its wires' tooltips, and `flow_describe` for the nodes asked about. A click on a hop selects that step. Secret values are never shown, and what only the run decides says so.
 - The **Run** dialog lists the flow's errors, a few and then how many more, each a link that closes the dialog and shows the step.
 - **Add as input** also fixes a step reading a fact that a step inside an earlier subflow sets: the step inside outputs it, each subflow on the way lifts it, and the reader takes it as an input. In the text editor the same fix is the warning's quick fix **Add … as an Input**, for every unknown variable it can fix (before, only for a `set_fact` just before).
 

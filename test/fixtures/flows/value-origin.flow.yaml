@@ -1,0 +1,100 @@
+# AFD-339: where a value comes from. The harness shows it (?flow=value-origin): hover a
+# {{ name }} in Report's message, an input row in Details or a Data lens wire.
+schema_version: 2
+flow:
+  id: 01JDXV00000000000000000001
+  key: value-origin
+  name: Value origin
+  version: 1
+  goal: Show where each value a step reads comes from.
+  inputs:
+    devices: {type: host_list, required: true, targets: true}
+    target_image: {type: string, default: 17.9.4, description: The image to stage}
+    api_token: {type: string, required: true}
+  external_vars:
+    change_ticket: AWX survey of the change template
+nodes:
+- {id: 01JDXV00000000000000000002, key: start, type: start, title: Start}
+- {id: 01JDXV00000000000000000003, key: done, type: end, title: Done, outcome: success}
+- id: 01JDXV00000000000000000004
+  key: read-version
+  type: task
+  title: Read version
+  impl:
+    kind: module
+    ref: ansible.builtin.command
+    params:
+      cmd: show version
+  outputs:
+    version: {type: dict, from: impl.register}
+- id: 01JDXV00000000000000000018
+  key: site
+  type: task
+  title: Site
+  impl:
+    kind: module
+    ref: ansible.builtin.set_fact
+    params:
+      site: ams1
+- id: 01JDXV00000000000000000005
+  key: site-facts
+  type: task
+  title: Site facts
+  inputs:
+    target_image: {type: string, from: flow.target_image}
+  impl:
+    kind: module
+    ref: ansible.builtin.set_fact
+    params:
+      image_path: 'flash:/{{ target_image }}-{{ site }}'
+  outputs:
+    image_path: {type: string}
+- id: 01JDXV00000000000000000006
+  key: upgrade
+  type: subflow
+  title: Upgrade
+  inputs:
+    image: {type: string, from: site-facts.image_path}
+  outputs:
+    rc: {type: integer}
+  subflow:
+    nodes:
+    - {id: 01JDXV00000000000000000007, key: start, type: start, title: Start}
+    - {id: 01JDXV00000000000000000008, key: done, type: end, title: Done, outcome: success}
+    - id: 01JDXV00000000000000000009
+      key: stage
+      type: task
+      title: Stage image
+      inputs:
+        image: {type: string, from: upgrade.image}
+      impl:
+        kind: module
+        ref: ansible.builtin.command
+        params:
+          cmd: 'copy {{ image }} flash:'
+      outputs:
+        rc: {type: integer, from: impl.register.rc}
+    edges:
+    - {id: 01JDXV00000000000000000010, from: {node: 01JDXV00000000000000000007, port: ok_hosts}, to: {node: 01JDXV00000000000000000009, port: in}}
+    - {id: 01JDXV00000000000000000011, from: {node: 01JDXV00000000000000000009, port: ok_hosts}, to: {node: 01JDXV00000000000000000008, port: in}}
+- id: 01JDXV00000000000000000012
+  key: report
+  type: task
+  title: Report
+  inputs:
+    version: {type: dict, from: read-version.version}
+    code: {type: integer, from: upgrade.rc}
+    token: {type: string, from: flow.api_token}
+    retries: {type: integer, default: 3}
+  impl:
+    kind: module
+    ref: ansible.builtin.debug
+    params:
+      msg: '{{ version.stdout }} rc={{ code }} ticket={{ change_ticket }} on {{ inventory_hostname }} token={{ token }}'
+edges:
+- {id: 01JDXV00000000000000000013, from: {node: 01JDXV00000000000000000002, port: ok_hosts}, to: {node: 01JDXV00000000000000000004, port: in}}
+- {id: 01JDXV00000000000000000014, from: {node: 01JDXV00000000000000000004, port: ok_hosts}, to: {node: 01JDXV00000000000000000018, port: in}}
+- {id: 01JDXV00000000000000000019, from: {node: 01JDXV00000000000000000018, port: ok_hosts}, to: {node: 01JDXV00000000000000000005, port: in}}
+- {id: 01JDXV00000000000000000015, from: {node: 01JDXV00000000000000000005, port: ok_hosts}, to: {node: 01JDXV00000000000000000006, port: in}}
+- {id: 01JDXV00000000000000000016, from: {node: 01JDXV00000000000000000006, port: ok_hosts}, to: {node: 01JDXV00000000000000000012, port: in}}
+- {id: 01JDXV00000000000000000017, from: {node: 01JDXV00000000000000000012, port: ok_hosts}, to: {node: 01JDXV00000000000000000003, port: in}}

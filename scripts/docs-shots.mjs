@@ -249,6 +249,16 @@ const SHOTS = {
       await page.locator('[data-timing-field="retries"]').scrollIntoViewIfNeeded();
     },
   },
+  // AFD-339: where a value comes from, under an input row in Details.
+  'value-origin': {
+    flow: 'value-origin',
+    act: async (page) => {
+      await ui(page, 'setLevel', await idOf(page, 'upgrade'));
+      await ui(page, 'openDetails', await idOf(page, 'upgrade/stage'), 'io');
+      await settle(page);
+      await page.locator('[data-contract-field="image"] .afd-contract-row').first().click();
+    },
+  },
   'data-lens': {
     flow: 'firewall-upgrade',
     act: async (page) => {

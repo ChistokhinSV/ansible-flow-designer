@@ -525,6 +525,59 @@
   pointer-events: none;
 }
 
+/* AFD-339: a variable's tip with where its value comes from: it can be reached and its hops
+   clicked. The chain is drawn the same in Details' input rows. */
+.afd-jinja-tip.with-origin {
+  max-width: min(100%, 440px);
+  pointer-events: auto;
+}
+
+.afd-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-origin-hops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* In Details, the chain sits inside an input row's list item: no row borders between hops. */
+.afd-origin .afd-origin-hop {
+  overflow-wrap: anywhere;
+  border: 0;
+}
+
+.afd-origin-arrow {
+  color: var(--vscode-descriptionForeground, var(--afd-muted));
+}
+
+.afd-origin-go {
+  cursor: pointer;
+  text-align: start;
+}
+
+.afd-origin-go:hover .afd-origin-label,
+.afd-origin-go:focus-visible .afd-origin-label {
+  text-decoration: underline;
+}
+
+.afd-origin-value {
+  color: var(--vscode-debugTokenExpression-string, var(--afd-fg));
+}
+
+.afd-origin-doc {
+  padding-inline-start: 14px;
+}
+
+.afd-origin-note {
+  color: var(--vscode-editorInfo-foreground, var(--afd-focus));
+}
+
 /* AFD-108: the fields list says whose fields it offers. */
 .afd-ref-menu-head {
   margin: 0;

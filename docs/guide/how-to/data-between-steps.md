@@ -122,6 +122,45 @@ backup (subflow)                    rollback (subflow)
 Renaming an output rewrites the inputs that read it; renaming a subflow input rewrites the inner
 steps that read it.
 
+## Where a value comes from
+
+Hover a variable in a step's parameters (a chip such as `code`, or a name inside `{{ }}` in a YAML
+box) and the tooltip shows where its value comes from, hop by hop, as the flow says it:
+
+```
+code
+← input code of "Report"
+← output rc of subflow "Upgrade", lifted from "Stage image"
+← result of "Stage image" (ansible.builtin.command), registered as stage_result · rc
+    Return code
+```
+
+- **What the chain follows:** node inputs, subflow inputs, outputs a subflow lifts from a step
+  inside it, a module step's registered result (with the field's description from the module's
+  docs), facts a step sets with `set_fact`, flow inputs, names the flow says are set outside it
+  (**Set outside the flow**), and Ansible's own variables (`inventory_hostname`, `group_names`, ...).
+- **Values:** a default or a literal is shown (`= 17.9.4`), cut in the middle when it is long. A
+  `set_fact` value that is a template shows the template, and the variables it reads follow,
+  indented. Nothing is rendered: only Ansible works out a template, when the run gets there.
+- **Secrets are never shown:** when a name on the way looks secret (password, token, key, vault),
+  a value is a vault value, or a step on the way has `no_log`, no value, default or template is
+  shown on any hop, only "secret: not shown".
+- **What the flow cannot know** says so: a name nothing in the flow sets reads "decided at run
+  time (inventory, group_vars, facts or extra vars)", and an output a role sets reads "set by role
+  … when it runs".
+- **Which value wins:** where the flow knows, a line under the chain says so: a flow input of the
+  same name (an extra var) wins over a step's input, another step sets the input's name after its
+  source (`input-shadowed`), or the step reads the host's own variable before the input's default.
+- **Go to a step:** click a hop to select its step and open its Details. Point at the tooltip to
+  keep it open.
+
+In **Details › Data**, open an input row: **Comes from** shows the same chain. Hovering the arrow
+text of a closed row shows it as a tooltip. A wire of the Data lens has the chain in its tooltip too.
+The same views are in Ansible Flow Server's pages. AI assistants get each input's chain from
+`flow_describe` when they ask for some nodes.
+
+![An input's chain in Details](../images/value-origin-light.png)
+
 ## The Data lens
 
 Top bar → **Lens** → **Data** draws a dotted wire for every `from:`. It lists the flow inputs and

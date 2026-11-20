@@ -261,7 +261,8 @@ describe('around the flow', () => {
   it('the Data lens names the Timing field on the wire of the input it reads', () => {
     const f = flow();
     f.apply({ kind: 'askAtRunTime', id: f.id, setting: 'retries', name: 'drain_tries' });
-    const titles = (dataLens(f.doc()).dataWires ?? []).map((w) => w.title);
+    // AFD-339: the lines after the first say where the value comes from.
+    const titles = (dataLens(f.doc()).dataWires ?? []).map((w) => w.title.split('\n')[0]);
     expect(titles).toContain('flow.drain_tries → Wait for the pool to drain.drain_tries · Retries');
   });
 

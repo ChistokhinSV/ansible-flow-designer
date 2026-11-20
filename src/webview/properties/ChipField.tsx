@@ -548,9 +548,20 @@ export function ChipField({
         setTip(null);
         return;
       }
+      const now = new Date();
+      // AFD-339: a chip is one variable (its text is not the field's): describe its name.
+      const over = document.elementFromPoint?.(x, y);
+      const chipRef =
+        over instanceof HTMLElement && el.contains(over)
+          ? over.closest<HTMLElement>('[data-ref]')?.dataset.ref
+          : undefined;
+      if (chipRef) {
+        const d = describeAt(`{{ ${chipRef} }}`, 3, { mode: 'template' }, { ...ctx, now });
+        setTip(d ? { d, left: x, top: y + 16 } : null);
+        return;
+      }
       const v = serialize(el);
       const offset = offsetOf(el, point.startContainer, point.startOffset);
-      const now = new Date();
       const d =
         describeAt(v, offset, optsOf(v), { ...ctx, now }) ??
         (offset > 0 ? describeAt(v, offset - 1, optsOf(v), { ...ctx, now }) : undefined);
@@ -602,7 +613,8 @@ export function ChipField({
         onMouseMove={(e) => onHover(e.clientX, e.clientY)}
         onMouseLeave={() => {
           clearTimeout(hover.current);
-          setTip(null);
+          // AFD-339: a moment to reach the tip, whose hops can be clicked.
+          hover.current = setTimeout(() => setTip(null), 250);
         }}
         onBlur={() => {
           setTimeout(() => setMenu(null), 150);
@@ -665,7 +677,14 @@ export function ChipField({
         />
       ) : null}
       {hint && !assist && !menu ? <SignatureRow hint={hint} /> : null}
-      {tip && !assist ? <JinjaTip tip={tip.d} style={{ left: tip.left, top: tip.top }} /> : null}
+      {tip && !assist ? (
+        <JinjaTip
+          tip={tip.d}
+          style={{ left: tip.left, top: tip.top }}
+          onEnter={() => clearTimeout(hover.current)}
+          onLeave={() => setTip(null)}
+        />
+      ) : null}
       {menu?.kind === 'fields' ? (
         <div
           ref={list}

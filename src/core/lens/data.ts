@@ -5,6 +5,7 @@ import { liftOf, resolveFrom } from '../flow/dataRefs';
 import { factSource } from '../flow/facts';
 import { exprRefs, refsIn, templated } from '../flow/jinja';
 import { modelOf, ROOT } from '../flow/model';
+import { inputOrigin, originText } from '../flow/origin';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
 import { isWork, listChip, title, visibleAt } from './common';
 import type { DataWire, LensChip, LensFinding, LensItem, LensView } from './types';
@@ -60,6 +61,10 @@ export function dataLens(doc: FlowDocument): LensView {
         continue;
       }
       const src = resolveFrom(model, node, level, 'inputs', from);
+      // AFD-339: the wire's title goes on past the step it comes from, to where the value starts.
+      const origin = inputOrigin(model, node, name);
+      const chain = originText({ ...origin, hops: origin.hops.slice(1), notes: [] });
+      const more = chain ? `\n${chain.replaceAll(/^/gm, '  ')}` : '';
       // Inside a subflow, <subflow>.<input> reads its input: drawn where the subflow gets it.
       if (src.kind === 'impl' || src.kind === 'subflowInput') continue;
       if (src.kind === 'unresolved') {
@@ -70,7 +75,7 @@ export function dataLens(doc: FlowDocument): LensView {
         const out = src.name;
         inputUse.set(out, (inputUse.get(out) ?? new Set()).add(node.id));
         const to = start ? visibleAt(model, node.id, ROOT) : undefined;
-        if (start && to) wire(start, to, out, `flow.${out} → ${node.title}.${name}${by}`);
+        if (start && to) wire(start, to, out, `flow.${out} → ${node.title}.${name}${by}${more}`);
         continue;
       }
       const producer = src.node.id;
@@ -86,7 +91,7 @@ export function dataLens(doc: FlowDocument): LensView {
           producer,
           to,
           out === name ? out : `${out} → ${name}`,
-          `${from} → ${node.title}.${name}${by}`,
+          `${from} → ${node.title}.${name}${by}${more}`,
         );
     }
   }

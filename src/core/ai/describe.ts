@@ -10,6 +10,7 @@ import { FINDING_CODES } from '../flow/findingCodes';
 import { purposeOf } from '../flow/format';
 import { type FlowModel, ROOT } from '../flow/model';
 import { openFailPorts } from '../flow/openPorts';
+import { type Hop, hopText, inputOrigin } from '../flow/origin';
 import { defaultPortNames, portsFor } from '../flow/ports';
 import type { Annotation, ContractField, FlowNode, Position } from '../flow/types';
 import { acceptKey, type Finding } from '../flow/validate';
@@ -88,6 +89,17 @@ function nodeLine(node: FlowNode, layout?: ShownLayout): string {
       : '',
   ];
   return parts.filter(Boolean).join(' · ');
+}
+
+/** AFD-339: where each input of a node gets its value: `name <= hop <= hop`, notes after. */
+function originsLine(model: FlowModel, node: FlowNode, findings: readonly Finding[]): string {
+  const parts = Object.keys(node.inputs ?? {}).map((name) => {
+    const o = inputOrigin(model, node, name, { findings });
+    const main = o.hops.filter((h) => h.depth === 0).slice(1);
+    const chain = main.map(hopText).join(' <= ') || hopText(o.hops[0] as Hop);
+    return `${name} <= ${chain}${o.notes.length ? ` [${o.notes.join(' ')}]` : ''}`;
+  });
+  return parts.length ? `origins: ${parts.join('; ')}` : '';
 }
 
 /** AFD-189: one line per node, for large flows (key, type, status, title, binding). */
@@ -281,8 +293,14 @@ export function describeFlow(
     }
     out.push('  nodes:');
     for (const n of lv.nodes)
-      if (n?.key && picked(n.id))
+      if (n?.key && picked(n.id)) {
         out.push(`    ${view.brief ? briefLine(n) : nodeLine(n, layout)}`);
+        // AFD-339: asked for some nodes, each input's chain in short (the whole flow stays small).
+        if (view.nodes?.length && !view.brief) {
+          const origins = originsLine(model, n, findings);
+          if (origins) out.push(`      ${origins}`);
+        }
+      }
     out.push('  wires:');
     const wires = lv.edges.filter(
       (e) => e?.from && e.to && (picked(e.from.node) || picked(e.to.node)),

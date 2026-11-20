@@ -19,6 +19,7 @@ import type {
   SignatureHint,
 } from '../../core/view/jinjaComplete';
 import { usePluginNames } from '../catalog';
+import { OriginChain, useNameOrigin } from './OriginView';
 
 const ICONS: Record<ItemKind, string> = {
   variable: 'symbol-variable',
@@ -46,7 +47,9 @@ const HEADS: Record<Completion['context'], string> = {
 /** What a field's completion knows besides its text: its variables and the environment's plugins. */
 export function useJinjaContext(choices: readonly RefChoice[]): CompleteContext {
   const plugins = usePluginNames();
-  return { vars: choices, ...plugins };
+  // AFD-339: inside a step's Details, a variable's hover shows where its value comes from.
+  const origin = useNameOrigin();
+  return { vars: choices, ...plugins, ...(origin ? { origin } : {}) };
 }
 
 /** A signature with the argument the caret is in shown strong. */
@@ -142,14 +145,32 @@ export function SignatureRow({ hint }: { hint: SignatureHint }) {
   );
 }
 
-export function JinjaTip({ tip, style }: { tip: Description; style?: CSSProperties }) {
+export function JinjaTip({
+  tip,
+  style,
+  onEnter,
+  onLeave,
+}: {
+  tip: Description;
+  style?: CSSProperties;
+  /** AFD-339: a tip with an origin stays while the pointer is on it, so a hop can be clicked. */
+  onEnter?(): void;
+  onLeave?(): void;
+}) {
   return (
-    <div className="afd-jinja-tip" role="tooltip" style={style}>
+    <div
+      className={`afd-jinja-tip${tip.origin ? ' with-origin' : ''}`}
+      role="tooltip"
+      style={style}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
       <div className="mono">{tip.label}</div>
       {tip.doc ? <div className="muted">{tip.doc}</div> : null}
       {tip.preview !== undefined ? (
         <div className="mono afd-jinja-preview">→ {tip.preview || '(empty)'}</div>
       ) : null}
+      {tip.origin ? <OriginChain origin={tip.origin} /> : null}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import edgeDrift from '../../../test/fixtures/drift/flows/edge-drift/edge-drift.
 import driftScan from '../../../test/fixtures/drift/scan.json';
 import annotated from '../../../test/fixtures/flows/annotated.flow.yaml?raw';
 import handWritten from '../../../test/fixtures/flows/hand-written.flow.yaml?raw';
+import valueOrigin from '../../../test/fixtures/flows/value-origin.flow.yaml?raw';
 import wireLanes from '../../../test/fixtures/flows/wire-lanes.flow.yaml?raw';
 import sampleImport from '../../../test/fixtures/import/sample-site.flow.yaml?raw';
 import lensFixture from '../../../test/fixtures/lens/facts.json';
@@ -74,6 +75,8 @@ const FLOWS: Record<string, string> = {
   'playbook-import': sampleImport,
   // AFD-345: wires that share a line run side by side.
   'wire-lanes': wireLanes,
+  // AFD-339: where a value comes from (tooltips, Details rows, Data lens titles).
+  'value-origin': valueOrigin,
   // AFD-16: an empty *.flow.yaml, and one that is not a flow.
   empty: '',
   broken: 'flow: [not closed\n',

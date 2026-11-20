@@ -21,6 +21,7 @@ import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
+import { OriginScope } from '../properties/OriginView';
 import { keysOf } from '../shortcuts';
 import { type Mode, type PropTab, useUi } from '../store';
 import { BehaviorSection, GeneralSection, IoSection } from './sections';
@@ -335,19 +336,22 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           <NodeRunPanel id={id} />
         ) : (
           <fieldset className="afd-editable" disabled={readOnly}>
-            {tab === 'binding' ? (
-              <Implementation node={node} model={model} draft={draft} setDraft={setDraft} />
-            ) : tab === 'io' ? (
-              <IoSection node={node} />
-            ) : tab === 'ports' ? (
-              <BehaviorSection
-                node={node}
-                problems={problems}
-                at={wanted === 'execution' ? 'execution' : undefined}
-              />
-            ) : (
-              <GeneralSection node={node} context={context} problems={problems} />
-            )}
+            {/* AFD-339: the fields' tooltips say where this step's values come from. */}
+            <OriginScope.Provider value={id}>
+              {tab === 'binding' ? (
+                <Implementation node={node} model={model} draft={draft} setDraft={setDraft} />
+              ) : tab === 'io' ? (
+                <IoSection node={node} />
+              ) : tab === 'ports' ? (
+                <BehaviorSection
+                  node={node}
+                  problems={problems}
+                  at={wanted === 'execution' ? 'execution' : undefined}
+                />
+              ) : (
+                <GeneralSection node={node} context={context} problems={problems} />
+              )}
+            </OriginScope.Provider>
           </fieldset>
         )}
       </div>
