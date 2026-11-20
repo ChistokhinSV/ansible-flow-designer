@@ -296,7 +296,10 @@ for a lab only, set `host_key_checking = False` in the lab repository's `ansible
   Select a node or a wire to list the hosts and why they failed. For a local run, **Output** on a
   host's row shows what each task of that step printed for it: `msg`, `stdout` and `stderr` (up to
   2000 characters each), changed and the return code. A `no_log` task shows only that its output
-  is hidden. Secret inputs never appear: their values are replaced in the run's kept events. With nothing selected, the panel
+  is hidden. Secret inputs never appear: their values are replaced in the run's kept events.
+  The variable icon on a host's row lists the values the step's inputs had for that host, and
+  **Details › Data** shows them under each input
+  ([the value in a run](data-between-steps.md#the-value-in-a-run)). With nothing selected, the panel
   lists the **Failed steps** of every level; click one to open it where it is, and **‹ Run
   Results** at the top of its Details brings the list back.
 - Every launch goes to a local audit log (**Ansible Flow: Show Run Audit Log**): who, when, which

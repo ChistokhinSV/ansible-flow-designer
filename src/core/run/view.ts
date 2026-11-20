@@ -1,11 +1,12 @@
 // Run mode read-outs (04 §10, M7): what a run did per node, per wire and per host, and which nodes
 // it tested (decision 15). Pure; the webview and the host share them.
 import { type FlowModel, modelOf } from '../flow/model';
+import { type Origin, originHead, originValue } from '../flow/origin';
 import { isFailPort } from '../flow/ports';
 import { nodeDesigns } from '../flow/semantic';
 import type { Edge, FlowDocument, Ulid } from '../flow/types';
 import type { RunView } from '../protocol';
-import type { RunProblem, RunSummary } from './events';
+import type { RecordedInput, RunProblem, RunSummary } from './events';
 
 /**
  * ok: every host left through a normal port; warn: some took a fail port; failed: a failure was
@@ -158,4 +159,76 @@ export function testedCandidates(doc: FlowDocument, run: RunView | null): Ulid[]
         (!now || run.design?.[n.id] === now[n.id]),
     )
     .map((n) => n.id);
+}
+
+// ---- AFD-341: the values a step's inputs had in a run --------------------------------------------
+
+/** One recorded input in words: its value as one line of YAML (cut), or why there is none. */
+export function recordedText(r: RecordedInput | undefined, max = 80): string {
+  if (!r) return 'not recorded';
+  if (r.missing === 'secret') return 'secret: not recorded';
+  if (r.missing === 'undefined') return 'not defined for this host';
+  if (r.missing === 'limit') return "not recorded: the run's limit for values was reached";
+  const text = r.cut !== undefined ? originValue(String(r.value), max) : originValue(r.value, max);
+  return r.cut !== undefined ? `${text} (cut: ${r.cut} characters)` : text;
+}
+
+/** Whether the run recorded any input of the node (for any host). */
+export function nodeInputsRecorded(s: RunSummary | undefined, node: Ulid): boolean {
+  return !!s?.inputs?.[node] && Object.keys(s.inputs[node]).length > 0;
+}
+
+/** A host's recorded inputs at a node, by name. */
+export function hostInputs(
+  s: RunSummary | undefined,
+  node: Ulid,
+  host: string,
+): Record<string, RecordedInput> | undefined {
+  return s?.inputs?.[node]?.[host];
+}
+
+export interface InputValueGroup {
+  /** The value in words (recordedText). */
+  text: string;
+  /** The longer text (a title): up to 2000 characters. */
+  full: string;
+  hosts: string[];
+  input: RecordedInput;
+}
+
+/** The values one input had at a node, hosts with the same value together, most hosts first. */
+export function inputValueGroups(
+  s: RunSummary | undefined,
+  node: Ulid,
+  name: string,
+): InputValueGroup[] {
+  const groups = new Map<string, InputValueGroup>();
+  for (const [host, byName] of Object.entries(s?.inputs?.[node] ?? {})) {
+    const input = byName[name];
+    if (!input) continue;
+    const full = recordedText(input, 2000);
+    const g = groups.get(full);
+    if (g) g.hosts.push(host);
+    else groups.set(full, { text: recordedText(input), full, hosts: [host], input });
+  }
+  for (const g of groups.values()) g.hosts.sort();
+  return [...groups.values()].sort(
+    (a, b) => b.hosts.length - a.hosts.length || (a.hosts[0] ?? '').localeCompare(b.hosts[0] ?? ''),
+  );
+}
+
+/**
+ * When the run had another value than the flow or the repository states for the host: what was
+ * predicted, in words. Only a static, uncut value is compared; a secret chain never is.
+ */
+export function differsFromPredicted(
+  origin: Origin | undefined,
+  r: RecordedInput | undefined,
+): string | undefined {
+  if (!origin || origin.secret || !r || r.missing || r.cut !== undefined) return undefined;
+  const head = originHead(origin);
+  if (!head?.static || head.value === undefined || head.value.includes('…')) return undefined;
+  if (originValue(r.value) === head.value) return undefined;
+  const who = head.file !== undefined ? 'the repository' : 'the flow';
+  return `differs from what ${who} predicted (${head.value})`;
 }

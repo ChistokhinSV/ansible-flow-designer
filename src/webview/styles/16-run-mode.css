@@ -173,3 +173,65 @@
   display: flex;
   gap: 8px;
 }
+
+/* AFD-341: the values a step's inputs had in the run, under each input in Details and per host. */
+.afd-run-values {
+  font-size: var(--afd-fs-12);
+  margin: 0 0 6px 8px;
+  overflow-wrap: anywhere;
+}
+
+.afd-run-value-groups {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.afd-run-value {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--afd-border);
+}
+
+.afd-run-value-differs {
+  color: var(--afd-unreachable);
+}
+
+.afd-run-table .afd-run-row-actions {
+  white-space: nowrap;
+}
+
+.afd-run-inputs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 1px 8px;
+}
+
+.afd-run-inputs > div {
+  display: contents;
+}
+
+.afd-run-inputs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.afd-origin-host.afd-run-host {
+  margin: 8px 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.afd-run-host label {
+  white-space: nowrap;
+}
+
+.afd-run-host select {
+  flex: 1 1 auto;
+  min-width: 0;
+}

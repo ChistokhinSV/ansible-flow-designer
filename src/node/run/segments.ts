@@ -208,5 +208,13 @@ function mergeLive(
     failures: [...earlier.failures, ...live.failures],
     outcome: { ...earlier.outcome, ...live.outcome },
     unreachable: [...new Set([...earlier.unreachable, ...live.unreachable])],
+    // AFD-341: the input values the segments before recorded, and this one's so far.
+    ...(earlier.inputs || live.inputs ? { inputs: mergeInputs(earlier.inputs, live.inputs) } : {}),
   });
+}
+
+function mergeInputs(a: RunSummary['inputs'], b: RunSummary['inputs']): RunSummary['inputs'] {
+  const out: NonNullable<RunSummary['inputs']> = { ...(a ?? {}) };
+  for (const [node, byHost] of Object.entries(b ?? {})) out[node] = { ...out[node], ...byHost };
+  return out;
 }

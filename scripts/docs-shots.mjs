@@ -283,6 +283,31 @@ const SHOTS = {
       await settle(page, 900);
     },
   },
+  // AFD-341: a finished run (the harness's `run=past`) with the value each host had for an input,
+  // next to where it comes from: every host, then one host's value in a tooltip.
+  'run-values': {
+    flow: 'value-origin-repo',
+    query: '&run=past',
+    act: async (page) => {
+      await ui(page, 'openDetails', await idOf(page, 'syslog'), 'io');
+      await settle(page);
+    },
+  },
+  'run-values-tip': {
+    flow: 'value-origin-repo',
+    query: '&run=past',
+    act: async (page) => {
+      await ui(page, 'setOriginHost', 'edge-ams-02');
+      await ui(page, 'openDetails', await idOf(page, 'syslog'), 'binding');
+      await settle(page, 900);
+      await page
+        .locator('[data-param="msg"]')
+        .getByText('syslog_host', { exact: true })
+        .first()
+        .hover();
+      await settle(page, 900);
+    },
+  },
   'data-lens': {
     flow: 'firewall-upgrade',
     act: async (page) => {
@@ -416,7 +441,7 @@ function quantize(file) {
 // ---- run -----------------------------------------------------------------------------------------
 
 async function shoot(page, name, shot, theme) {
-  await openFlow(page, shot.flow, theme);
+  await openFlow(page, shot.flow, theme, shot.query);
   if (shot.act) await shot.act(page);
   await settle(page);
   const file = join(OUT, `${name}-${theme}.png`);

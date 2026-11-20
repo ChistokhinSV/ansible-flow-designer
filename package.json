@@ -1199,6 +1199,12 @@
           "scope": "resource",
           "markdownDescription": "Ask for the vault password before a run (`auto`: when the inventory or repository vars contain vault data). The password is used for that run only and never stored."
         },
+        "afd.run.recordInputs": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Record the value each step's inputs had for each host in a run, shown in Run mode next to where the value comes from. Secrets are never recorded (`no_log` steps, vaulted values, secret-looking names and keys, the run's secret inputs); long values are cut and a run records 256 KB of values at most. Off: a run records no input values at all."
+        },
         "afd.runs.keep": {
           "type": "integer",
           "default": 30,

@@ -38,12 +38,14 @@ import { openFailPorts } from '../../core/flow/openPorts';
 import { quietRepoReads, repoFindings } from '../../core/flow/origin';
 import { nodeDesigns } from '../../core/flow/semantic';
 import { newFlowText } from '../../core/flow/template';
+import type { FlowDocument } from '../../core/flow/types';
 import { validateFlow } from '../../core/flow/validate';
+import { SECRET } from '../../core/import/secrets';
 import type { VarIndex } from '../../core/inventory/varIndex';
 import { type HistoryEntry, timingStats } from '../../core/lens/history';
 import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
-import { summarizeRun } from '../../core/run/events';
+import { type RecordedInput, type RunSummary, summarizeRun } from '../../core/run/events';
 import { type LaunchFacts, launchFields } from '../../core/run/launch';
 import { planScenarioEdit, type ScenarioRequest } from '../../core/scenario/edit';
 import { followPaths, pathChanges } from '../../core/scenario/follow';
@@ -352,6 +354,14 @@ async function onMessage(m: WebviewMessage) {
       }
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       sendCheck();
+      // AFD-341: `?run=past` shows a finished run with the values each step's inputs had.
+      if (params.get('run') === 'past') {
+        const doc = parseFlow(text).doc;
+        if (doc) {
+          toWebview({ type: 'run', run: pastRun(doc) });
+          useUi.getState().setMode('run');
+        }
+      }
       // AFD-93: a clean workspace, so the first screen is measured as a newcomer sees it;
       // `?repo=problems` shows the line a workspace with problems gets.
       toWebview({
@@ -688,5 +698,64 @@ function harnessFacts(hosts: string[]): LaunchFacts {
     prod: hosts.filter((h) => /prod/.test(h)),
     vault: false,
     environment: 'harness (fake)',
+  };
+}
+
+/**
+ * AFD-341: a finished run of the flow on the fake repository's hosts, every host on the happy path,
+ * with recorded input values: a default as written, a flow input's default, one host given
+ * another value than the flow predicts, secret-looking names not recorded, the rest undefined.
+ */
+function pastRun(doc: FlowDocument) {
+  const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
+  const hosts = ['core-ams-01', 'edge-ams-01', 'edge-ams-02'];
+  const nodes: RunSummary['nodes'] = {};
+  for (const r of Object.values(routes))
+    if (/^(ok_hosts|true|approved|branch_[0-9]+)$/.test(r.port))
+      nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
+  const inputs: NonNullable<RunSummary['inputs']> = {};
+  for (const node of doc.nodes) {
+    const fields = Object.entries(node.inputs ?? {});
+    if (fields.length === 0 || !nodes[node.id]) continue;
+    inputs[node.id] = Object.fromEntries(
+      hosts.map((host, i) => [
+        host,
+        Object.fromEntries(
+          fields.map(([name, field], k): [string, RecordedInput] => {
+            if (SECRET.test(name)) return [name, { missing: 'secret' }];
+            const flowInput = field?.from?.startsWith('flow.')
+              ? doc.flow.inputs?.[field.from.slice(5)]?.default
+              : undefined;
+            const value = field?.default ?? flowInput;
+            if (value === undefined) return [name, { missing: 'undefined' }];
+            // The last host had another value for the step's first input (the inventory's).
+            if (i === hosts.length - 1 && k === 0 && typeof value === 'string')
+              return [name, { value: '198.51.100.77' }];
+            return [name, { value }];
+          }),
+        ),
+      ]),
+    );
+  }
+  const finishedAt = new Date().toISOString();
+  return {
+    id: 'harness-past',
+    mode: 'real' as const,
+    state: 'done' as const,
+    rc: 0,
+    startedAt: finishedAt,
+    finishedAt,
+    environment: 'harness (fake)',
+    source: 'local' as const,
+    flowVersion: doc.flow.version,
+    summary: {
+      nodes,
+      outcome: {},
+      failures: [],
+      unreachable: [],
+      hosts,
+      stoppedEarly: false,
+      inputs,
+    } satisfies RunSummary,
   };
 }

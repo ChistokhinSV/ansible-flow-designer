@@ -95,3 +95,54 @@
   Inventory view's selected host is sent to the designer too. The tooltips use the host picked.
 - **Without an index** (Ansible Flow Server's pages until phase 4, AFD-342) everything answers
   as in phase 1.
+
+## Phase 3: the value a host had in a run (AFD-341, 2026-11-21)
+
+- **Context:** the chain says where a value comes from and, when the flow or the repository states
+  it, what it is. What a host really got is known only when the step runs: facts, a dynamic
+  inventory, extra vars, an upstream step's result.
+- **Recording, by Ansible:** each step with inputs gets one task before its own, `[<key>] record
+  inputs`, a `set_fact` of `afd_inputs` to a dict of the step's inputs (the play vars it gets, so
+  exactly what the step sees, per host, rendered by Ansible; the designer evaluates nothing). Only
+  the step's own inputs, not hostvars or facts in general. Not in scenario builds (`stubAll`), not
+  for playbook bindings (`import_playbook` takes no task), not for decision, approval, parallel
+  and join nodes (no inputs of their own to record). The task has `ignore_errors: true`: recording
+  never changes a run. The afd_events callback turns its result into an `inputs` event and writes
+  no task result for it, so it shows in no host's Output and counts in no routing.
+- **Event format:** `{"event": "inputs", "host", "node", "task", "inputs": {<name>: {"value": <JSON>}
+  | {"value": "<cut JSON text>", "cut": <length>} | {"missing": "secret" | "undefined" | "limit"}}}`.
+  The start event carries `record_inputs: true|false`. The run summary keeps them as
+  `RunSummary.inputs[node][host][name]` (`RecordedInput`) and `inputsOff`; a run before this
+  version has neither, and the view says the run did not record values.
+- **Never recorded** (a placeholder `missing: "secret"`, so the reader knows, never a silent gap):
+  - every input of a `no_log` step, an input with a secret-looking name, and one whose chain
+    (phase 1) is secret: the generated task writes a constant marker and never renders them;
+  - a value holding a vaulted value anywhere inside: a Jinja macro in the task walks dicts and
+    lists with `vault_encrypted` (ansible-core before 2.22 hands the callback the plain text; 2.22
+    masks it as `$REDACTED$`, which the callback also treats as secret);
+  - a value holding one of the run's secret inputs or the vault password (the callback's
+    `AFD_SECRETS_FILE` / `AFD_VAULT_FILE`, AFD-139);
+  - inside a recorded dict, the value of a secret-looking key, at any depth, becomes `********`;
+  - the run summary drops any value of a secret-looking name again, and the extension's
+    `redact.ts` pass over events.jsonl applies to these events as to every other.
+- **Size:** one value is at most 2000 characters of JSON; a longer one is cut in the middle and
+  says how long it was. A run records at most 256 KB of values; past that, a value is
+  `missing: "limit"` ("not recorded: the run's limit for values was reached").
+  `AFD_RECORD_INPUTS_BUDGET` sets the budget (tests).
+- **Switch, on by default:** `AFD_RECORD_INPUTS=0` in the run's environment turns it off: the task
+  is skipped (`when` reads the variable on the controller) and the callback writes no `inputs`
+  event, so no input value is in the events at all. The designer sets it from
+  `afd.run.recordInputs` (default true); Ansible Flow Server from `AFS_RUN_RECORD_INPUTS` (default
+  true), both through `RunFlowRequest.recordInputs`. Runs outside the designer (AWX) set the fact
+  and, without our callback, record nothing.
+- **Shown:** in Run mode, a step's Details › Data shows under each input **In this run**: the
+  values, hosts with the same value together (four values, then "and N more"), or the value of the
+  host picked (a **For host** picker of the run's hosts, outside the read-only fieldset). When the
+  chain has a static, uncut value for that host (phase 1, or phase 2's winner for the host) and
+  the run had another, it says "differs from what the flow/the repository predicted (value)". A
+  variable's tooltip adds "In this run: value (host)" when one host is picked, or the run has one.
+  The step's Run tab has an **Inputs of <host>** toggle per host row. The server's embedded viewer
+  shows the same from the run summary; no extra API.
+- **Not done:** values of a playbook binding's vars, of a role's own defaults it reads, and of
+  facts. Phase 4 (AFD-342) gives the server the repository index, so "differs from what the
+  repository predicted" works on the server too.

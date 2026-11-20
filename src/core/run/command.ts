@@ -265,6 +265,11 @@ export interface RunRequest {
    * (a scenario run keeps the rest of its folder to its owner).
    */
   eventsDir?: string;
+  /**
+   * AFD-341: record the values of each step's inputs per host (redacted, size-limited); false
+   * turns it off (AFD_RECORD_INPUTS=0: the generated task is skipped, the callback records none).
+   */
+  recordInputs?: boolean;
 }
 
 /**
@@ -313,7 +318,10 @@ function runEnv(
   probeDir: string,
   runDir: string,
   root: string,
-  config: Pick<RunRequest, 'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir'>,
+  config: Pick<
+    RunRequest,
+    'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir' | 'recordInputs'
+  >,
 ) {
   const ours = join(probeDir, 'callback_plugins');
   // AFD-141: these variables replace ansible.cfg's values, so the repository's go first.
@@ -327,6 +335,7 @@ function runEnv(
     ANSIBLE_HOST_PATTERN_MISMATCH: 'ignore',
     ANSIBLE_FORCE_COLOR: '1',
   };
+  if (config.recordInputs === false) env.AFD_RECORD_INPUTS = '0';
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
   // AFD-291: the repository's library/, module_utils/ and plugin folders, after the ones its config

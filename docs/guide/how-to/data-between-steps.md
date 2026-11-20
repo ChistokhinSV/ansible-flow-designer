@@ -200,6 +200,37 @@ and a note says that too.
 The repository is read again when a file is saved. Ansible Flow Server's pages do not read it yet:
 they show the chain from the flow alone.
 
+### The value in a run
+
+A run records the value each step's inputs had for each host, as Ansible gave them to the step.
+In **Run** mode, with a run shown, **Details › Data** has **In this run** under each input: the
+values, with the hosts that had each one. Pick a host in **For host** above the inputs to see that
+host's value alone. When the flow or the repository states a value for that host and the run had
+another, it says **differs from what the flow predicted** (or the repository) and what that was.
+A variable's tooltip adds **In this run:** with the value for the host picked (or for the run's
+only host). In the step's **Run** tab, the variable icon on a host's row lists all its inputs.
+
+![The values a step's input had in a run](../images/run-values-light.png)
+
+![A variable's tooltip in Run mode, for a picked host](../images/run-values-tip-light.png)
+
+What is never recorded, so it shows as **secret: not recorded**:
+
+- every input of a `no_log` step, an input with a secret-looking name (password, token, key,
+  vault, ...), and an input whose chain is secret;
+- a value that holds a vaulted value anywhere inside it, or one of the run's secret inputs;
+- inside a recorded dictionary, the value of a secret-looking key shows as `********`.
+
+A value longer than 2000 characters is cut in the middle and says how long it was. A run records
+256 KB of values at most; past that, a value says the run's limit was reached. An input the host
+did not have says **not defined for this host**. Only a step's own inputs are recorded, not facts
+or host variables in general, and not the variables of a step that runs a playbook.
+
+Recording is on by default. Turn it off with `afd.run.recordInputs` (on Ansible Flow Server, its
+administrator sets `AFS_RUN_RECORD_INPUTS`): the runs then record no input values at all. In the
+generated code each step with inputs has a task `[<key>] record inputs` before its own; it does
+nothing when recording is off and never fails a run.
+
 ## The Data lens
 
 Top bar → **Lens** → **Data** draws a dotted wire for every `from:`. It lists the flow inputs and

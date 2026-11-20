@@ -31,6 +31,7 @@ import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
+import { HostInputsRow } from '../properties/RunValues';
 import { showPastRun } from '../runActions';
 import { approvalOf, type ShownApproval } from '../runApproval';
 import { requestRunOutput } from '../runOutput';
@@ -492,6 +493,9 @@ export function RunPanel() {
 /** The Run tab of a node's Details (AFD-43): each host, the port it left by, its result. */
 export function NodeRunPanel({ id }: { id: Ulid }) {
   const [open, setOpen] = useState<string | null>(null);
+  // AFD-341: the host whose input values are open under its row.
+  const [inputsOf, setInputsOf] = useState<string | null>(null);
+  const recorded = useUi((s) => s.run?.summary?.inputs?.[id]);
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
@@ -583,9 +587,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                 {/* AFD-337: a host that stopped here went nowhere, so not "Left through". */}
                 <th>Went to</th>
                 <th>Result</th>
-                {outputs ? (
+                {outputs || recorded ? (
                   <th>
-                    <span className="afd-sr-only">Output</span>
+                    <span className="afd-sr-only">Output and inputs</span>
                   </th>
                 ) : null}
               </tr>
@@ -650,23 +654,43 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                           <span className="tone-ok">ok</span>
                         )}
                       </td>
-                      {outputs ? (
-                        <td>
+                      {outputs || recorded ? (
+                        <td className="afd-run-row-actions">
+                          {/* AFD-341: the values the step's inputs had for this host. */}
+                          {recorded?.[h.host] ? (
+                            <button
+                              type="button"
+                              className="icon"
+                              aria-expanded={inputsOf === h.host}
+                              aria-label={`Inputs of ${h.host}`}
+                              title={`Input values of ${h.host} in this run`}
+                              data-inputs-toggle={h.host}
+                              onClick={() => setInputsOf(inputsOf === h.host ? null : h.host)}
+                            >
+                              <span
+                                className="codicon codicon-symbol-variable"
+                                aria-hidden="true"
+                              />
+                            </button>
+                          ) : null}
                           {/* AFD-96 (S4): an icon, which a 340 px panel does not wrap. */}
-                          <button
-                            type="button"
-                            className="icon"
-                            aria-expanded={open === h.host}
-                            aria-label={`Output of ${h.host}`}
-                            title={`Output of ${h.host}`}
-                            data-output-toggle={h.host}
-                            onClick={() => setOpen(open === h.host ? null : h.host)}
-                          >
-                            <span className="codicon codicon-output" aria-hidden="true" />
-                          </button>
+                          {outputs ? (
+                            <button
+                              type="button"
+                              className="icon"
+                              aria-expanded={open === h.host}
+                              aria-label={`Output of ${h.host}`}
+                              title={`Output of ${h.host}`}
+                              data-output-toggle={h.host}
+                              onClick={() => setOpen(open === h.host ? null : h.host)}
+                            >
+                              <span className="codicon codicon-output" aria-hidden="true" />
+                            </button>
+                          ) : null}
                         </td>
                       ) : null}
                     </tr>
+                    {inputsOf === h.host ? <HostInputsRow node={id} host={h.host} /> : null}
                     {open === h.host ? <HostOutputRow node={id} host={h.host} /> : null}
                   </Fragment>
                 );

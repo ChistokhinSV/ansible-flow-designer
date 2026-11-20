@@ -772,8 +772,14 @@ export const useUi = create<UiState>((set, get) => ({
   setVarIndex(index, openFiles) {
     get().setLensFacts({ vars: index ?? undefined });
     const host = get().originHost;
-    // A host the repository no longer names is dropped.
-    set({ openFiles, ...(host && !index?.hosts.includes(host) ? { originHost: null } : {}) });
+    // A host the repository no longer names is dropped, unless the run shown has it (AFD-341).
+    const ran = host
+      ? Object.values(get().run?.summary?.inputs ?? {}).some((h) => host in h)
+      : false;
+    set({
+      openFiles,
+      ...(host && !ran && !index?.hosts.includes(host) ? { originHost: null } : {}),
+    });
   },
   setOriginHost: (originHost) => set({ originHost }),
   setHighlight: (highlight) => set({ highlight }),

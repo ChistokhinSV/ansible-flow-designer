@@ -3,6 +3,7 @@
 // by line while the run goes (createSummarizer), with a partial summary for the canvas.
 import type { Route } from '../engine/types';
 import type { Ulid } from '../flow/types';
+import { SECRET } from '../import/secrets';
 
 export interface RunFailure {
   host: string;
@@ -33,6 +34,23 @@ export interface RunSummary {
   outputs?: Record<string, Record<string, unknown>>;
   /** AFD-309: the outputs were larger than a run keeps (OUTPUTS_MAX), and are left out. */
   outputsTooLarge?: boolean;
+  /**
+   * AFD-341: per node, per host, per input: the value the step had (the afd_events `inputs`
+   * events). A run without any has none: the run did not record them.
+   */
+  inputs?: Record<Ulid, Record<string, Record<string, RecordedInput>>>;
+  /** AFD-341: the run turned recording input values off (afd.run.recordInputs, AFS setting). */
+  inputsOff?: boolean;
+}
+
+/** AFD-341: one input's value for one host, as the callback recorded it. */
+export interface RecordedInput {
+  /** The value (as JSON). When `cut`, its JSON text, cut in the middle. */
+  value?: unknown;
+  /** Why there is no value: a secret (never recorded), not defined for the host, the run's limit. */
+  missing?: 'secret' | 'undefined' | 'limit';
+  /** The value was this many characters long as JSON; `value` is the cut text. */
+  cut?: number;
 }
 
 /** AFD-309: how large the flow's outputs of one run may be, as JSON. */
@@ -59,6 +77,18 @@ interface Event {
   ts?: number;
   /** set_stats data (per_host: false) of the run, on the stats event. */
   custom?: { afd_outputs?: unknown };
+  /** AFD-341: an inputs event's values; the start event's switch. */
+  inputs?: Record<string, RecordedInput>;
+  record_inputs?: boolean;
+}
+
+/** AFD-341: an input as the run view keeps it; a name that looks secret never keeps a value. */
+function recorded(name: string, r: unknown): RecordedInput {
+  if (SECRET.test(name)) return { missing: 'secret' };
+  if (!r || typeof r !== 'object') return { missing: 'undefined' };
+  const { value, missing, cut } = r as RecordedInput;
+  if (missing === 'secret' || missing === 'undefined' || missing === 'limit') return { missing };
+  return typeof cut === 'number' ? { value, cut } : { value };
 }
 
 /** Summarizes a whole events.jsonl (a finished run). */
@@ -100,6 +130,8 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
   let finished = false;
   let outputs: RunSummary['outputs'];
   let outputsTooLarge = false;
+  const inputs: NonNullable<RunSummary['inputs']> = {};
+  let inputsOff = false;
   const clock = (ts: number | undefined) => {
     if (!playNode || typeof ts !== 'number') return;
     const t = timings[playNode];
@@ -125,6 +157,18 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     try {
       e = JSON.parse(line) as Event;
     } catch {
+      return;
+    }
+    if (e.event === 'start' && e.record_inputs === false) inputsOff = true;
+    if (e.event === 'inputs') {
+      const at = e.node ?? playNode;
+      if (!at || !e.host || !e.inputs || typeof e.inputs !== 'object') return;
+      clock(e.ts);
+      const byHost = inputs[at] ?? {};
+      inputs[at] = byHost;
+      byHost[e.host] = Object.fromEntries(
+        Object.entries(e.inputs).map(([name, r]) => [name, recorded(name, r)]),
+      );
       return;
     }
     if (e.event === 'stats') {
@@ -200,6 +244,14 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
       ...(partial && playNode && !finished && !outcomePlay ? { running: playNode } : {}),
       ...(outputs ? { outputs } : {}),
       ...(outputsTooLarge ? { outputsTooLarge: true } : {}),
+      ...(Object.keys(inputs).length
+        ? {
+            inputs: Object.fromEntries(
+              Object.entries(inputs).map(([k, byHost]) => [k, { ...byHost }]),
+            ),
+          }
+        : {}),
+      ...(inputsOff ? { inputsOff: true } : {}),
     };
   };
   return { push, summary };
