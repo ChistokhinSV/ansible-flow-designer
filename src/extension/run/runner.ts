@@ -306,6 +306,8 @@ export async function runFlow(
       inputs,
       vaultPassword,
       callbacks,
+      // AFD-341: the values each step's inputs had, per host (redacted, size-limited).
+      ...(config.get<boolean>('run.recordInputs', true) ? {} : { recordInputs: false }),
       ...(partial ? { partial, syncAlso: [relative(codeDir)] } : {}),
       audit: {
         ...(await auditHeader(document, doc)),

@@ -31,6 +31,7 @@ import type { Finding } from '../flow/validate';
 import { plainText } from '../view/markdown';
 import { bindingTask, inputVars, isIncludeTasks, stubFacts } from './binding';
 import { withoutDisabled } from './bypass';
+import { recordInputsTask } from './recordInputs';
 import { effectiveTargets } from './targets';
 import type {
   Engine,
@@ -731,6 +732,7 @@ class Generator {
         vars,
         tasks: [
           guard,
+          ...this.recordInputs(node),
           {
             block: [body, ...extra, ...this.captures(node), finished],
             rescue: [
@@ -1044,6 +1046,16 @@ class Generator {
     return { afd_repo_root: `{{ (playbook_dir ~ '/${root}') | ansible.builtin.realpath }}` };
   }
 
+  /**
+   * AFD-341: the values the step's inputs have for each host, recorded for the run view. Not in a
+   * scenario build: a simulation's inputs say nothing about a real run.
+   */
+  private recordInputs(node: FlowNode): Out[] {
+    if (this.opts.stubAll) return [];
+    const task = recordInputsTask(this.model, node);
+    return task ? [task] : [];
+  }
+
   private taskTasks(ctx: LevelCtx, node: FlowNode): Out[] {
     const enabled = new Set(portsFor(node).map((p) => p.name));
     const impl = node.impl?.ref ? node.impl : undefined;
@@ -1144,7 +1156,7 @@ class Generator {
       rescue,
     };
     if (enabled.has('always')) block.always = [route(node, 'always', on('always'))];
-    const tasks: Out[] = [block];
+    const tasks: Out[] = [...this.recordInputs(node), block];
 
     if (typeof limit === 'number' && failedHere) {
       const count = `groups['${failedHere}'] | default([]) | length`;

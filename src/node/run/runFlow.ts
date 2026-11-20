@@ -61,6 +61,8 @@ export interface RunFlowRequest {
   vaultPassword?: string;
   /** The repository's own callbacks, kept running beside the run's (`repositoryCallbacks`). */
   callbacks?: RepositoryConfig;
+  /** AFD-341: record each step's input values (default); false turns it off for this run. */
+  recordInputs?: boolean;
   /** AFD-244: the run is of a part of the flow; its code is in a folder of its own. */
   partial?: RunView['partial'];
   /** AFD-247: paths the SSH copy needs that Git does not list (a partial run's folder). */
@@ -144,6 +146,7 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
       secrets,
       hasConfig: existsSync(join(request.root, 'ansible.cfg')),
       callbacks: request.callbacks,
+      ...(request.recordInputs === false ? { recordInputs: false } : {}),
     },
     `afd-run-${id.toLowerCase()}`,
   );

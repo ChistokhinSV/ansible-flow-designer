@@ -231,7 +231,7 @@ describe('data passing (M5)', () => {
       baseline: '{{ afd_backup_config__backup_ref }}',
       backup_ref: '{{ afd_backup_config__backup_ref }}',
     });
-    const block = play(plays, 'backup-config')?.tasks?.[0]?.block ?? [];
+    const block = play(plays, 'backup-config')?.tasks?.find((t) => t.block)?.block ?? [];
     expect(block).toContainEqual({
       name: '[backup-config] keep output backup_ref',
       'ansible.builtin.set_fact': { afd_backup_config__backup_ref: '{{ backup_ref }}' },
@@ -258,7 +258,7 @@ describe('data passing (M5)', () => {
       play(
         flowWith(() => {}),
         'backup-config',
-      )?.tasks?.[0]?.block ?? [];
+      )?.tasks?.find((t) => t.block)?.block ?? [];
     expect(block.map((t) => Object.keys(t).find((k) => k.startsWith('ansible.')))).toContain(
       'ansible.builtin.set_fact',
     );

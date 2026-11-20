@@ -1,0 +1,94 @@
+# Engine test flow for AFD-341 (fictional sample ULIDs): the values each step's inputs had per host,
+# recorded by the afd_events callback. A plain value, a dict with a secret-looking key, an input fed
+# by a secret-looking flow input, an undefined one, a long one, vaulted ones (top level and nested,
+# given as extra vars by the test) and a no_log step.
+schema_version: 1
+flow:
+  id: 01JCR4F0000000000000000000
+  key: record-inputs
+  name: Engine test · record inputs
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+    greeting:
+      type: string
+      required: true
+    api_token:
+      type: string
+    blob:
+      type: string
+    not_given:
+      type: string
+nodes:
+  - id: 01JCR4N0000000000000000001
+    key: start
+    type: start
+    title: Start
+  - id: 01JCR4N0000000000000000002
+    key: show
+    type: task
+    title: Show what arrived
+    status: implemented
+    inputs:
+      word:
+        type: string
+        from: flow.greeting
+      creds:
+        type: dict
+        default:
+          user: bob
+          password: hunter2
+      access:
+        type: string
+        from: flow.api_token
+      missing:
+        type: string
+        from: flow.not_given
+      blob:
+        type: string
+        from: flow.blob
+      motd:
+        type: string
+      nested:
+        type: dict
+    impl:
+      kind: module
+      ref: ansible.builtin.debug
+      params:
+        msg: "{{ word }} {{ inventory_hostname }}"
+  - id: 01JCR4N0000000000000000003
+    key: quiet
+    type: task
+    title: Keep it quiet
+    status: implemented
+    inputs:
+      word:
+        type: string
+        from: flow.greeting
+    impl:
+      kind: module
+      ref: ansible.builtin.debug
+      params:
+        msg: "{{ word }}"
+      keywords:
+        no_log: true
+  - id: 01JCR4N0000000000000000004
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JCR4N0000000000000000005
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - { id: 01JCR4E0000000000000000001, from: { node: 01JCR4N0000000000000000001, port: ok_hosts }, to: { node: 01JCR4N0000000000000000002, port: in } }
+  - { id: 01JCR4E0000000000000000002, from: { node: 01JCR4N0000000000000000002, port: ok_hosts }, to: { node: 01JCR4N0000000000000000003, port: in } }
+  - { id: 01JCR4E0000000000000000003, from: { node: 01JCR4N0000000000000000003, port: ok_hosts }, to: { node: 01JCR4N0000000000000000004, port: in } }
+  - { id: 01JCR4E0000000000000000004, from: { node: 01JCR4N0000000000000000002, port: failed_hosts }, to: { node: 01JCR4N0000000000000000005, port: in } }
+  - { id: 01JCR4E0000000000000000005, from: { node: 01JCR4N0000000000000000003, port: failed_hosts }, to: { node: 01JCR4N0000000000000000005, port: in } }

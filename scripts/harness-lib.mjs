@@ -68,8 +68,8 @@ export async function startHarness() {
 }
 
 /** Opens a harness flow with screenshots on (no harness controls) and waits for it. */
-export async function openFlow(page, flow, theme = 'light') {
-  await page.goto(`${BASE}?flow=${flow}&theme=${theme}&shots=1`);
+export async function openFlow(page, flow, theme = 'light', query = '') {
+  await page.goto(`${BASE}?flow=${flow}&theme=${theme}&shots=1${query}`);
   await page.waitForFunction(() => window.afdUi?.getState().snapshot);
   await settle(page, 900);
 }

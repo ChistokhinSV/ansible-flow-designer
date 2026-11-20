@@ -153,7 +153,7 @@ const isTemplate = (v: unknown): v is string =>
   typeof v === 'string' && (v.includes('{{') || v.includes('{%'));
 
 /** A step that keeps its values out of the output (`no_log`): its values are secret. */
-function noLog(node: FlowNode): boolean {
+export function noLog(node: FlowNode): boolean {
   const v = node.impl?.keywords?.no_log;
   return v === true || (typeof v === 'string' && /^(true|yes|\{\{)/i.test(v.trim()));
 }

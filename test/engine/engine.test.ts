@@ -44,6 +44,11 @@ interface Scenario {
   chain?: string[];
   /** AFD-7: the flow as this edit leaves it (an extraction into a subflow). */
   transform?: (text: string) => string;
+  /** AFD-341: environment variables of the run, and shell lines before it (in its folder). */
+  env?: Record<string, string>;
+  pre?: string[];
+  /** AFD-341: more ansible-playbook arguments (an extra vars file, the vault password file). */
+  flags?: string;
 }
 
 interface Run {
@@ -119,6 +124,32 @@ const todoRuns = (run: Run, key: string, host: string) =>
       e.task === `[${key}] TODO`,
   ).length;
 const LAB = ['h01', 'h02', 'h03', 'h04', 'h05', 'h06', 'h07'];
+/** AFD-341: recorded input values. */
+const RECORD = 'test/fixtures/engine/record-inputs.flow.yaml';
+const RECORD_VARS = {
+  devices: ['h01', 'h02'],
+  greeting: 'hello',
+  api_token: 'tok-123',
+  blob: 'x'.repeat(5000),
+};
+/** Vaulted extra vars, made in the container: motd at the top, nested.inner inside a dict. */
+const RECORD_VAULT = [
+  'echo vault-pw > vault-pass',
+  "ansible-vault encrypt_string --vault-password-file vault-pass 'vaulted-motd' --name motd > vault.yml 2>/dev/null",
+  "echo 'nested:' >> vault.yml",
+  "ansible-vault encrypt_string --vault-password-file vault-pass 'vaulted-inner' --name inner 2>/dev/null | sed 's/^/  /' >> vault.yml",
+];
+const RECORD_PASS = Object.fromEntries(
+  ['h01', 'h02'].map((h) => [h, { ports: ['show.ok_hosts', 'quiet.ok_hosts'] }]),
+);
+type Recorded = Record<string, { value?: unknown; missing?: string; cut?: number }>;
+/** The inputs events of a step, per host. */
+const recordedAt = (run: Run, key: string): Record<string, Recorded> =>
+  Object.fromEntries(
+    run.events
+      .filter((e) => e.event === 'inputs' && e.node === nodeId(RECORD, key))
+      .map((e) => [String(e.host), e.inputs as Recorded]),
+  );
 const EDGE_HOSTS = ['sw-edge-01', 'sw-edge-02', 'sw-edge-03', 'sw-edge-04'];
 
 const targetHappy = [
@@ -803,6 +834,79 @@ const SCENARIOS: Scenario[] = [
       expect(run.outcome.size).toBe(0);
     },
   },
+  // AFD-341: the values each step's inputs had, per host: recorded, redacted, cut, limited, off.
+  {
+    name: 'record inputs: values per host, secrets as placeholders, long values cut',
+    flow: RECORD,
+    vars: RECORD_VARS,
+    pre: RECORD_VAULT,
+    flags: '-e @vault.yml --vault-password-file vault-pass',
+    rc: 0,
+    expect: RECORD_PASS,
+    also: (run) => {
+      const show = recordedAt(run, 'show');
+      expect(Object.keys(show).sort()).toEqual(['h01', 'h02']);
+      const h01 = show.h01 ?? {};
+      expect(h01.word).toEqual({ value: 'hello' });
+      // The dict keeps its keys; a secret-looking one loses its value.
+      expect(h01.creds).toEqual({ value: { user: 'bob', password: '********' } });
+      // Fed by a secret-looking flow input: never rendered by the task.
+      expect(h01.access).toEqual({ missing: 'secret' });
+      expect(h01.missing).toEqual({ missing: 'undefined' });
+      expect(h01.blob?.cut).toBe(5002);
+      expect(String(h01.blob?.value)).toHaveLength(1999);
+      expect(String(h01.blob?.value)).toContain('…');
+      // Vaulted, at the top and inside a dict: the plain text never reaches the events.
+      expect(h01.motd).toEqual({ missing: 'secret' });
+      expect(h01.nested).toEqual({ missing: 'secret' });
+      // A no_log step records no value at all.
+      expect(recordedAt(run, 'quiet').h01).toEqual({ word: { missing: 'secret' } });
+      const text = JSON.stringify(run.events);
+      for (const leak of ['hunter2', 'tok-123', 'vaulted-motd', 'vaulted-inner'])
+        expect(text, leak).not.toContain(leak);
+      // The record task is no task result: the host's Output has only the step's own.
+      expect(
+        run.events.some((e) => String(e.task).endsWith('] record inputs') && e.event === 'result'),
+      ).toBe(false);
+      expect(run.events.find((e) => e.event === 'start')?.record_inputs).toBe(true);
+      // The run view reads them the same.
+      const s = summarizeRun(
+        run.events.map((e) => JSON.stringify(e)).join(String.fromCharCode(10)),
+        {},
+      );
+      expect(s.inputs?.[nodeId(RECORD, 'show') as string]?.h02?.word).toEqual({ value: 'hello' });
+    },
+  },
+  {
+    name: "record inputs: past the run's budget, a value is not recorded",
+    flow: RECORD,
+    vars: RECORD_VARS,
+    pre: RECORD_VAULT,
+    flags: '-e @vault.yml --vault-password-file vault-pass',
+    env: { AFD_RECORD_INPUTS_BUDGET: '40' },
+    rc: 0,
+    expect: RECORD_PASS,
+    also: (run) => {
+      const all = Object.values(recordedAt(run, 'show')).flatMap((byName) => Object.values(byName));
+      expect(all.filter((r) => r.missing === 'limit').length).toBeGreaterThan(0);
+      expect(all.filter((r) => 'value' in r).length).toBeGreaterThan(0);
+    },
+  },
+  {
+    name: 'record inputs off: no input values in the events at all',
+    flow: RECORD,
+    vars: RECORD_VARS,
+    pre: RECORD_VAULT,
+    flags: '-e @vault.yml --vault-password-file vault-pass',
+    env: { AFD_RECORD_INPUTS: '0' },
+    rc: 0,
+    expect: RECORD_PASS,
+    also: (run) => {
+      expect(run.events.filter((e) => e.event === 'inputs')).toEqual([]);
+      expect(run.events.find((e) => e.event === 'start')?.record_inputs).toBe(false);
+      expect(JSON.stringify(run.events)).not.toContain('afd_inputs');
+    },
+  },
   ...[EDGE, OS, PORTS, LEVELS, DATA, TARGET].map((flow) => ({
     name: `syntax check ${basename(flow)}`,
     flow,
@@ -903,9 +1007,17 @@ function stage(dir: string): GenerateResult[] {
       return result;
     }
     const root = result.files[0]?.name;
-    const flags = [s.check ? '--check' : '', s.syntaxOnly ? '--syntax-check' : ''].join(' ');
+    const flags = [
+      s.check ? '--check' : '',
+      s.syntaxOnly ? '--syntax-check' : '',
+      s.flags ?? '',
+    ].join(' ');
+    const env = Object.entries(s.env ?? {})
+      .map(([k, v]) => `${k}=${v} `)
+      .join('');
+    for (const pre of s.pre ?? []) lines.push(`cd /work/s${i} && ${pre}`);
     lines.push(
-      `cd /work/s${i} && AFD_EVENTS=/work/s${i}/events.jsonl ansible-playbook -i /work/content/inventory.ini -e @vars.json ${flags} generated/${root} > out.txt 2>&1; echo $? > rc`,
+      `cd /work/s${i} && ${env}AFD_EVENTS=/work/s${i}/events.jsonl ansible-playbook -i /work/content/inventory.ini -e @vars.json ${flags} generated/${root} > out.txt 2>&1; echo $? > rc`,
     );
     return result;
   });

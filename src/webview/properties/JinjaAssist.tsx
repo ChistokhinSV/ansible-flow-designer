@@ -8,8 +8,10 @@ import {
   forwardRef,
   type KeyboardEvent,
   type ReactNode,
+  useContext,
 } from 'react';
 import type { RefChoice } from '../../core/catalog/draft';
+import type { Origin } from '../../core/flow/origin';
 import type {
   CompleteContext,
   Completion,
@@ -19,7 +21,8 @@ import type {
   SignatureHint,
 } from '../../core/view/jinjaComplete';
 import { usePluginNames } from '../catalog';
-import { OriginChain, useNameOrigin } from './OriginView';
+import { OriginChain, OriginScope, useNameOrigin } from './OriginView';
+import { RunValueTip } from './RunValues';
 
 const ICONS: Record<ItemKind, string> = {
   variable: 'symbol-variable',
@@ -171,6 +174,8 @@ export function JinjaTip({
         <div className="mono afd-jinja-preview">→ {tip.preview || '(empty)'}</div>
       ) : null}
       {tip.origin ? <OriginChain origin={tip.origin} /> : null}
+      {/* AFD-341: Run mode with one host: the value the step's input had in the run. */}
+      {tip.origin ? <TipRunValue name={tip.label} origin={tip.origin} /> : null}
     </div>
   );
 }
@@ -244,4 +249,10 @@ export function pickText(
   )
     return { text: `${item.insert} }}`, caret };
   return { text: item.insert, caret };
+}
+
+/** The run value of the scoped step's input `name` (Details › a field's variable). */
+function TipRunValue({ name, origin }: { name: string; origin: Origin }) {
+  const node = useContext(OriginScope);
+  return <RunValueTip node={node} name={name} origin={origin} />;
 }

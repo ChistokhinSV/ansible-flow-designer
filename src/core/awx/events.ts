@@ -1,6 +1,7 @@
 // AWX job events → the afd_events stream (M7, ADR-0013). AWX already records what our callback
 // writes for local runs: play starts, per-host results with group_by's `add_group`, timestamps.
 // Converting keeps one summarizer (core/run/events) for local and AWX runs.
+import { RECORD_TASK_NAME } from '../engine/recordInputs';
 import { buildModel } from '../flow/model';
 import type { FlowDocument, Ulid } from '../flow/types';
 import type { AwxJobEvent } from './types';
@@ -57,6 +58,9 @@ export function awxEventsToLines(events: AwxJobEvent[], plays: Map<string, Ulid>
     }
     const status = STATUS[e.event];
     if (!status) continue;
+    // AFD-341: the task that records a step's input values is no result of the step; AWX runs
+    // have no afd_events callback, so they record no values.
+    if (RECORD_TASK_NAME.test(String(data.task ?? e.task ?? ''))) continue;
     const res = (data.res ?? {}) as Record<string, unknown>;
     const out: Record<string, unknown> = {
       event: 'result',
