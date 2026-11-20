@@ -714,6 +714,38 @@ function beat(defined: Defined | undefined, rank: number | undefined, what: stri
     defined.beaten = `${what} (${rankWord(rank)})`;
 }
 
+const UNKNOWN_READS = new Set([
+  'binding-unknown-var',
+  'condition-unknown-var',
+  'setting-unknown-var',
+]);
+
+/**
+ * AFD-340: a step that reads a name the repository sets (group_vars, host_vars, the inventory, its
+ * role, a vars file) is not reading something unknown: its warning becomes information that says
+ * where the repository sets it. Add as input stays, to show the dependency on the canvas.
+ */
+export function quietRepoReads<
+  F extends OriginFinding & { severity: string; path?: readonly (string | number)[] },
+>(findings: readonly F[], model: FlowModel, index: VarIndex): F[] {
+  return findings.map((f) => {
+    if (!UNKNOWN_READS.has(f.code) || f.severity !== 'warning' || !f.node || !f.subject) return f;
+    const node = model.nodes.get(f.node)?.node;
+    if (!node) return f;
+    const defs = (repoAnswer(index, f.subject, repoContext(model, node))?.defs ?? []).filter(
+      (d) => d.rank > 0,
+    );
+    if (!defs.length) return f;
+    const where = places(defs);
+    return {
+      ...f,
+      severity: 'info',
+      brief: `${f.subject} is set by the repository (${where}), not by an input of this step. Add it as an input to show where it comes from.`,
+      message: `"${node.title ?? node.key}" reads "${f.subject}", which the repository sets (${where}), not an input of this step`,
+    };
+  });
+}
+
 /** A finding origin gives the host: the validator's shape. */
 export interface RepoFinding extends OriginFinding {
   severity: 'info';

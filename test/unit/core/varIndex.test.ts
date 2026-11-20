@@ -9,9 +9,11 @@ import {
   nameOrigin,
   originHead,
   originText,
+  quietRepoReads,
   repoFindings,
 } from '../../../src/core/flow/origin';
 import type { Edge, FlowDocument, FlowNode } from '../../../src/core/flow/types';
+import { validateFlow } from '../../../src/core/flow/validate';
 import { memoryFs } from '../../../src/core/inventory/memoryFs';
 import {
   buildVarIndex,
@@ -363,6 +365,26 @@ describe('origin with the repository (AFD-340)', () => {
     // Read from the host itself (no default): no finding.
     const plain = step('plain', { inputs: { syslog_host: { type: 'string' } } });
     expect(repoFindings(buildModel(flow([plain])), index)).toEqual([]);
+  });
+
+  it('a name the repository sets is not an unknown read: its warning becomes information', async () => {
+    await ready;
+    const reader = step('reader', {
+      impl: {
+        kind: 'module',
+        ref: 'ansible.builtin.debug',
+        params: { msg: '{{ syslog_host }} {{ nowhere_set }}' },
+      },
+    });
+    const { model, findings } = validateFlow(flow([reader]));
+    const unknown = (fs: typeof findings, name: string) =>
+      fs.find((f) => f.code === 'binding-unknown-var' && f.subject === name);
+    expect(unknown(findings, 'syslog_host')?.severity).toBe('warning');
+    const quiet = quietRepoReads(findings, model, index);
+    expect(unknown(quiet, 'syslog_host')).toMatchObject({ severity: 'info' });
+    expect(unknown(quiet, 'syslog_host')?.message).toContain('inventory/group_vars/all.yml:1');
+    // Nothing in the repository sets it: still a warning.
+    expect(unknown(quiet, 'nowhere_set')?.severity).toBe('warning');
   });
 
   it('a same-name read with a default: the host value wins, said for the host', async () => {

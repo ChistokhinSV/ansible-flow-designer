@@ -35,7 +35,7 @@ import { parseFlow } from '../../core/flow/document';
 import { createIdFactory } from '../../core/flow/ids';
 import { buildModel, ROOT } from '../../core/flow/model';
 import { openFailPorts } from '../../core/flow/openPorts';
-import { repoFindings } from '../../core/flow/origin';
+import { quietRepoReads, repoFindings } from '../../core/flow/origin';
 import { nodeDesigns } from '../../core/flow/semantic';
 import { newFlowText } from '../../core/flow/template';
 import { validateFlow } from '../../core/flow/validate';
@@ -165,7 +165,9 @@ async function snapshot(): Promise<Snapshot> {
   }
   const { model, findings: checked } = validateFlow(parsed.doc);
   // AFD-340: as the host adds them when it has read the repository.
-  const findings = vars ? [...checked, ...(repoFindings(model, vars) as typeof checked)] : checked;
+  const findings = vars
+    ? [...quietRepoReads(checked, model, vars), ...(repoFindings(model, vars) as typeof checked)]
+    : checked;
   // As the host shows it (AFD-23).
   const layout = shownLayout(model);
   const shown = layout === model.doc.layout ? model.doc : { ...model.doc, layout };

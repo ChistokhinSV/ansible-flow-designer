@@ -14,7 +14,7 @@ import { libraryFindings, usesLibrary } from '../core/flow/library';
 import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
-import { repoFindings } from '../core/flow/origin';
+import { quietRepoReads, repoFindings } from '../core/flow/origin';
 import type { SchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
@@ -323,8 +323,12 @@ export class FlowSession implements vscode.Disposable {
         : codePreview(parsed.doc, this.uri.path.split('/').pop() ?? 'flow.yaml');
       const folder = this.catalogFolder;
       const catalog = folder && this.deps.catalog?.cached(folder);
+      // AFD-340: a name the repository sets is not unknown to the step that reads it.
+      const own = this.vars?.index
+        ? quietRepoReads(validated.findings, model, this.vars.index)
+        : validated.findings;
       const findings = [
-        ...validated.findings,
+        ...own,
         ...(preview?.findings ?? []),
         ...(catalog ? checkBindings(parsed.doc, catalog.index, catalog.environment) : []),
         // Shared subflows against their sources (AFD-60).
