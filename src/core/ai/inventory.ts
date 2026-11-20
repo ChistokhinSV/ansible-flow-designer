@@ -27,6 +27,7 @@ import {
   type SourceKind,
   sourceEntries,
 } from '../inventory/origins';
+import type { VarIndex } from '../inventory/varIndex';
 import type { ToolResult } from './handlers';
 
 /** What a host gives the tool: the inventory's files, and a way to write them. */
@@ -41,6 +42,11 @@ export interface InventoryIO {
    * too, under their names after the renames. Notes for the answer.
    */
   write(writes: { path: string; text: string }[], renames: [string, string][]): Promise<string[]>;
+  /**
+   * AFD-340: the repository's variables for a flow that runs these roles, playbooks and task
+   * files, with the inventory in use (core/inventory/varIndex). Absent where the host has none.
+   */
+  varIndex?(inputs: { roles: string[]; files: string[] }): Promise<VarIndex>;
 }
 
 export type InventoryToolOp =

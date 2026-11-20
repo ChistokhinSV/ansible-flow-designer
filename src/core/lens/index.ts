@@ -25,7 +25,7 @@ export function lensView(
     lens === 'inventory'
       ? inventoryLens(doc, facts.inventory, run, facts.code)
       : lens === 'data'
-        ? dataLens(doc)
+        ? dataLens(doc, facts.vars)
         : lens === 'code'
           ? codeLens(doc, facts.code)
           : lens === 'access'

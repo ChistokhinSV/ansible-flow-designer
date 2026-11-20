@@ -5,6 +5,7 @@ import type { CodeScan, DriftReport } from '../core/drift/types';
 import type { CanvasMode, CanvasTarget } from '../core/flow/canvasMenu';
 import { modelOf, ROOT } from '../core/flow/model';
 import type { NodeType, PortRef, Position, Ulid } from '../core/flow/types';
+import type { VarIndex } from '../core/inventory/varIndex';
 import { lensView } from '../core/lens';
 import type { LensFacts, LensId, LensView } from '../core/lens/types';
 import type {
@@ -302,6 +303,10 @@ interface UiState {
   /** AFD-87: where the lens tab was scrolled, put back when it shows again (round 1: W14). */
   lensScroll: number;
   lensFacts: LensFacts;
+  /** AFD-340: the host opens a repository file at a line (a definition is then a link). */
+  openFiles: boolean;
+  /** AFD-340: the host picked for where a value comes from (Details, or the host's own view). */
+  originHost: string | null;
   /** The active lens for the current document, facts and run (computed, never stored). */
   lensView: LensView | null;
   /** Nodes a hovered lens panel item matches; the rest dims (04 §7). */
@@ -402,6 +407,9 @@ interface UiState {
   showLensTab(on: boolean): void;
   /** Merges facts from the host (each message carries the kinds it updates). */
   setLensFacts(facts: LensFacts): void;
+  /** AFD-340: the repository's variables from the host, and whether it opens files at a line. */
+  setVarIndex(index: VarIndex | null, openFiles: boolean): void;
+  setOriginHost(host: string | null): void;
   setHighlight(nodes: Ulid[] | null): void;
   setAccept(target: AcceptTarget | null): void;
   setTestedReason(node: Ulid | null): void;
@@ -498,6 +506,8 @@ export const useUi = create<UiState>((set, get) => ({
   lensTab: false,
   lensScroll: 0,
   lensFacts: {},
+  openFiles: false,
+  originHost: null,
   lensView: null,
   highlight: null,
   accept: null,
@@ -759,6 +769,13 @@ export const useUi = create<UiState>((set, get) => ({
     const lensFacts = { ...get().lensFacts, ...facts };
     set({ lensFacts, lensView: lensOf(get().snapshot, get().lens, lensFacts, get().run) });
   },
+  setVarIndex(index, openFiles) {
+    get().setLensFacts({ vars: index ?? undefined });
+    const host = get().originHost;
+    // A host the repository no longer names is dropped.
+    set({ openFiles, ...(host && !index?.hosts.includes(host) ? { originHost: null } : {}) });
+  },
+  setOriginHost: (originHost) => set({ originHost }),
   setHighlight: (highlight) => set({ highlight }),
   setAccept: (accept) => set({ accept }),
   setTestedReason: (testedReason) => set({ testedReason, ...closing('testedReason') }),

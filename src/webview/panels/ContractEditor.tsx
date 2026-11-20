@@ -16,7 +16,7 @@ import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../.
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
-import { OriginChain, useOriginOptions } from '../properties/OriginView';
+import { OriginChain, OriginHostPicker, useOriginOptions } from '../properties/OriginView';
 import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
@@ -188,6 +188,8 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
         ) : null}
       </div>
       {hint ? <p className="muted afd-help">{hint}</p> : null}
+      {/* AFD-340: the host where a value comes from is worked out for (the repository's hosts). */}
+      {side === 'inputs' && node ? <OriginHostPicker /> : null}
       {entries.length === 0 && !adding ? <p className="muted">None yet.</p> : null}
       <ul className="afd-contract">
         {entries.map(([name, field]) => {

@@ -3,6 +3,7 @@
 // host gathers facts (inventory, catalog, run history), the webview computes the view.
 import type { FlowCommand } from '../flow/commands';
 import type { FlowDocument, NodeType, Position, Ulid } from '../flow/types';
+import type { VarIndex } from '../inventory/varIndex';
 
 export type LensId = 'inventory' | 'data' | 'code' | 'access' | 'timing' | 'changes';
 
@@ -223,6 +224,8 @@ export interface CompareFacts {
 }
 
 export interface LensFacts {
+  /** AFD-340: the repository's variables, for the Data lens wire titles. */
+  vars?: VarIndex;
   inventory?: InventoryState;
   code?: CodeFacts;
   timing?: TimingFacts;

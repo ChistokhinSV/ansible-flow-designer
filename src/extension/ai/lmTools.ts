@@ -14,6 +14,7 @@ import type { IdFactory } from '../../core/flow/ids';
 import type { SchemaValidator } from '../../core/flow/schema';
 import { normalize, type SourceIO } from '../../core/import/read';
 import { readInventory } from '../../core/inventory/files';
+import { buildVarIndex } from '../../core/inventory/varIndex';
 import { type ScenarioResult, scenariosFileName } from '../../core/scenario/scenarios';
 import { flowFacts } from '../../core/view/flowFacts';
 import { inventoryPath } from '../../core/view/inventorySources';
@@ -158,6 +159,14 @@ function hostInventory(deps: HostToolDeps): InventoryIO {
           ? `${data.named.join(', ')} (the default of ansible.cfg)`
           : 'the default inventory (ansible.cfg names none in the repository)';
       return { data, label };
+    },
+    async varIndex(inputs) {
+      const at = folder();
+      if (!at) throw new Error('no folder is open');
+      const setting = inventoryPath(
+        vscode.workspace.getConfiguration('afd', at.uri).get<string>('run.inventory', ''),
+      );
+      return buildVarIndex(workspaceFs(at.uri), { inventory: setting, ...inputs });
     },
     async write(writes, renames) {
       const at = folder();

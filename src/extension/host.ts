@@ -20,6 +20,7 @@ import type { ScenarioTests } from './run/testController';
 import { ServerLibrary } from './runner/serverLibrary';
 import { ServerWatch } from './runner/serverWatch';
 import { ShownFlows } from './shownFlows';
+import { VarIndexService } from './varIndexService';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
@@ -55,6 +56,8 @@ export class Host {
   readonly server: ServerWatch;
   /** AFD-295: the server's library, for shared subflows from it. */
   readonly library: ServerLibrary;
+  /** AFD-340: the repository's variables, for where a value comes from. */
+  readonly vars = new VarIndexService();
   /** AFD-93: the workspace's flows, for the Flows view, Problems and the flow panel. */
   readonly index: FlowIndex;
   /** AFD-115: the live check of every flow's scenarios (set when the extension activates). */
@@ -81,6 +84,12 @@ export class Host {
     this.server = new ServerWatch(context.secrets);
     this.library = new ServerLibrary(context.secrets);
     context.subscriptions.push(this.server);
+    context.subscriptions.push(
+      this.vars,
+      this.vars.onDidChange(() => {
+        for (const s of this.sessions.values()) s.varsChanged();
+      }),
+    );
     this.deps = {
       extensionUri: context.extensionUri,
       diagnostics: this.diagnostics,
@@ -100,6 +109,7 @@ export class Host {
       // AFD-284: the server's branch for flows in a clone of a server project.
       server: this.server,
       library: this.library,
+      vars: this.vars,
       // AFD-116: the live check owns the scenarios file's changes (set when the extension starts).
       scenarios: {
         edit: (flow, doc, request) =>

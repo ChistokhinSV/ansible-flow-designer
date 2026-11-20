@@ -14,10 +14,12 @@ import { libraryFindings, usesLibrary } from '../core/flow/library';
 import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
+import { repoFindings } from '../core/flow/origin';
 import type { SchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
 import { validateFlow } from '../core/flow/validate';
+import { indexInputs, type VarIndex } from '../core/inventory/varIndex';
 import type { LensFacts, LensId } from '../core/lens/types';
 import { messageProblem } from '../core/messageCheck';
 import type {
@@ -36,6 +38,7 @@ import type { ScenarioRequest } from '../core/scenario/edit';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { ScenarioResult } from '../core/scenario/scenarios';
 import type { RepoState } from '../core/view/flowFacts';
+import { inventoryPath } from '../core/view/inventorySources';
 import { isWebLink, linksOf } from '../core/view/markdown';
 import { flowOutline, nodeAtOffset } from '../core/view/outline';
 import {
@@ -90,6 +93,7 @@ import {
   onFirstFlow,
   setFirstFlowHidden,
 } from './tour';
+import type { VarIndexService } from './varIndexService';
 
 /** Commands the designer runs say their outcome over its canvas, not in a notification (AFD-46). */
 const QUIET = { quiet: true };
@@ -144,6 +148,8 @@ export interface SessionDeps {
   server?: ServerWatch;
   /** AFD-295: the server's library, for the flow's copies of its subflows. */
   library?: ServerLibrary;
+  /** AFD-340: the repository's variables, for where a value comes from. */
+  vars?: VarIndexService;
 }
 
 export interface PerfEvent {
@@ -213,6 +219,9 @@ export class FlowSession implements vscode.Disposable {
   readonly cspViolations: string[] = [];
   /** Last skeleton or real run of this flow (shown in the top bar and inspector). */
   lastRun: RunView | null = null;
+  /** AFD-340: the repository's variables as last sent, and the request they answer. */
+  private vars?: { key: string; index: VarIndex | null };
+  private varsAsked?: string;
   /** Lens facts (M8) and code sync (M6), each in its own controller (AFD-38). */
   private readonly lens: LensController;
   private readonly code: SyncController;
@@ -326,6 +335,8 @@ export class FlowSession implements vscode.Disposable {
         ...libraryFindings(parsed.doc, this.libraryFor(parsed.doc)),
         // AFD-291: files steps read from the repository.
         ...repoFileFindings(parsed.doc, folder?.uri.fsPath),
+        // AFD-340: an input default that hides the inventory's value.
+        ...(this.vars?.index ? repoFindings(model, this.vars.index) : []),
       ];
       // Problems first, while this text is still the document's: the layout below takes a while,
       // and a later build may finish before it (AFD-38).
@@ -430,7 +441,44 @@ export class FlowSession implements vscode.Disposable {
     if (snapshot.doc && !snapshot.stale) {
       this.lens.followed(snapshot.doc);
       this.mark(snapshot.doc);
+      void this.updateVars(snapshot.doc).catch(() => undefined);
     }
+  }
+
+  /**
+   * AFD-340: the repository's variables for this flow (its inventory, and the roles, playbooks and
+   * task files its steps run), sent when they change; the findings then take them in.
+   */
+  private async updateVars(doc: FlowDocument): Promise<void> {
+    const service = this.deps.vars;
+    const folder = vscode.workspace.getWorkspaceFolder(this.uri);
+    if (!service || !folder || pastOf(this.document.uri)) return;
+    const inventory = inventoryPath(
+      vscode.workspace.getConfiguration('afd', this.uri).get<string>('run.inventory', ''),
+    );
+    const request = { inventory, ...indexInputs(doc.nodes) };
+    const key = `${service.generation}|${JSON.stringify(request)}`;
+    if (this.vars?.key === key || this.varsAsked === key) return;
+    this.varsAsked = key;
+    const index = await service.index(folder.uri, request).catch(() => null);
+    if (this.varsAsked !== key) return;
+    const same = JSON.stringify(index) === JSON.stringify(this.vars?.index ?? null);
+    this.vars = { key, index };
+    if (same) return;
+    this.broadcast({ type: 'varIndex', index, openFiles: true });
+    // The findings depend on it.
+    await this.recheck();
+  }
+
+  /** AFD-340: a file the index may read changed: read it again for the flow as shown. */
+  varsChanged(): void {
+    const doc = this.lastGood?.doc;
+    if (doc) void this.updateVars(doc).catch(() => undefined);
+  }
+
+  /** AFD-340: the host picked in the Inventory view. */
+  originHost(host: string | null): void {
+    this.broadcast({ type: 'originHost', host });
   }
 
   /** AFD-85: an outside edit adds its steps and wires; the person's own edits only drop gone ones. */
@@ -766,6 +814,8 @@ export class FlowSession implements vscode.Disposable {
         if (this.lastScan) this.post(panel, { type: 'sync', state: 'done', scan: this.lastScan });
         if (Object.keys(this.lensFacts).length > 0)
           this.post(panel, { type: 'lensFacts', facts: this.lensFacts });
+        if (this.vars?.index)
+          this.post(panel, { type: 'varIndex', index: this.vars.index, openFiles: true });
         // AFD-320: a past version opens on what its commit changed.
         if (past) {
           this.post(panel, { type: 'setLens', lens: 'changes' });

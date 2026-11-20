@@ -161,6 +161,45 @@ The same views are in Ansible Flow Server's pages. AI assistants get each input'
 
 ![An input's chain in Details](../images/value-origin-light.png)
 
+### Where the repository sets it
+
+In VS Code the designer also reads the repository, so a name the flow does not set is not just
+"decided at run time". Under the chain, **Defined in the repository** lists every place that sets
+the name, highest precedence first:
+
+- the inventory file (a group's `vars:`, a host's own line), `group_vars/` and `host_vars/`
+  beside the inventory and at the repository root (flow runs load the root's too, and they win
+  over the ones beside the inventory);
+- for a step that runs a role: the role's `defaults/main`, `vars/main` and the options of
+  `meta/argument_specs` (documentation: Ansible does not set their default);
+- for a step that runs a playbook or a task file: its literal `vars_files` and `include_vars`
+  (an `include_vars` stays with the host, so later steps see it too).
+
+Each line has its precedence in words (role default, inventory group var, group_vars, host_vars,
+play var, role var, include_vars), its value (a template as written, never worked out), and its
+file and line: click it to open the file there. Vaulted values and secret-looking names show no
+value at all.
+
+**Which one wins** depends on the host: a host's own variables beat its groups', a child group
+beats its parent, and `all` comes first. Pick a host under **Inputs** in **Details › Data** (**For
+host**), or select a host in the Inventory view: the winner for that host is marked with a star,
+and lines for other hosts are dimmed. Without a host, a winner is marked only when every line
+applies to every host. With a dynamic inventory source, a host the inventory files do not name, or
+an `include_vars` under a condition, none is marked, and the list says why.
+
+A step's input is a play var, and a play var beats the inventory: a note says so, and an input
+with a **default** and no source while the inventory sets the same name gets a finding
+(`input-hides-inventory`): the step never gets the inventory's value. Remove the default to let
+the host's own value through. A role var or an `include_vars` of the same name beats an input,
+and a note says that too.
+
+![An input whose default hides the inventory's value](../images/value-origin-repo-light.png)
+
+![A variable's tooltip for a picked host](../images/value-origin-repo-tip-light.png)
+
+The repository is read again when a file is saved. Ansible Flow Server's pages do not read it yet:
+they show the chain from the flow alone.
+
 ## The Data lens
 
 Top bar → **Lens** → **Data** draws a dotted wire for every `from:`. It lists the flow inputs and

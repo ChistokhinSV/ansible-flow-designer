@@ -235,6 +235,11 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       "Another step sets the input's own name (set_fact, register, an output of that name) where it runs after the from: step, or before the reader when the from: step does not set that name. The generated play passes the input as a play var, and Ansible ranks set_fact and register above play vars: the step reads the value set last, not the one from: names.",
     fix: 'Rename the input (the binding then reads the new name), or read from: the step that sets the name last. If the value set last is what the step should get, accept it with that reason.',
   },
+  'input-hides-inventory': {
+    meaning:
+      "An input has a default and no from:, and the repository's inventory (the inventory file, group_vars or host_vars) sets a variable of the same name. The generated play passes the default as a play var, which Ansible ranks above group and host variables: the step never gets the inventory's value. Shown only where the designer has read the repository.",
+    fix: "Remove the default so the step reads the host's own value. If the default is meant to win, accept the finding with that reason.",
+  },
   'handler-not-after': {
     meaning:
       "A handler is notified by a step it does not come after on the hosts' way: it would run before the change, or not at all.",

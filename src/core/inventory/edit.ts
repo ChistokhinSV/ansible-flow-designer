@@ -654,6 +654,49 @@ export function written(file: InventoryFile): { groups: string[]; hosts: Map<str
 }
 
 /**
+ * AFD-340: the groups of the static files with their parents and the hosts written under them, as
+ * Ansible links them: a top group is a child of `all`, a host under no group is `ungrouped`'s, and
+ * a range stands for its hosts.
+ */
+export function groupTree(
+  files: readonly InventoryFile[],
+): Map<string, { parents: Set<string>; hosts: Set<string> }> {
+  const out = new Map<string, { parents: Set<string>; hosts: Set<string> }>();
+  const group = (name: string) => {
+    let g = out.get(name);
+    if (!g) {
+      g = { parents: new Set(), hosts: new Set() };
+      out.set(name, g);
+    }
+    return g;
+  };
+  const hosts = (name: string) => expandRange(name) ?? [name];
+  group('all');
+  for (const file of files)
+    try {
+      if (file.kind === 'yaml')
+        for (const g of yamlGroups(file.text)) {
+          const entry = group(g.name);
+          const parent = g.path.length >= 3 ? String(g.path[g.path.length - 3]) : undefined;
+          if (parent && parent !== g.name) entry.parents.add(parent);
+          for (const h of Object.keys(hostsOf(g) ?? {}))
+            for (const n of hosts(h)) entry.hosts.add(n);
+        }
+      else if (file.kind === 'ini')
+        for (const l of iniLines(file.text)) {
+          if (l.header) group(l.group);
+          else if (l.section === 'children' && l.name) group(l.name).parents.add(l.group);
+          else if (l.section === 'hosts' && l.name)
+            for (const n of hosts(l.name)) group(l.group).hosts.add(n);
+        }
+    } catch {
+      // A file that does not read adds no groups; Ansible says what is wrong with it.
+    }
+  for (const [name, g] of out) if (name !== 'all' && g.parents.size === 0) g.parents.add('all');
+  return out;
+}
+
+/**
  * Applies one change to the inventory's files. A change goes to the file that writes what it
  * touches: a host's lines wherever they are, a group where it is first written.
  */

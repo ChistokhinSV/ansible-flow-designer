@@ -109,6 +109,10 @@ function useHost() {
         ui.setSync({ state: m.state, scan: m.scan, error: m.error });
       } else if (m.type === 'lensFacts') {
         ui.setLensFacts(m.facts);
+      } else if (m.type === 'varIndex') {
+        ui.setVarIndex(m.index, m.openFiles === true);
+      } else if (m.type === 'originHost') {
+        ui.setOriginHost(m.host);
       } else if (m.type === 'setLens') {
         ui.setLens(m.lens);
       } else if (m.type === 'clipboard') {

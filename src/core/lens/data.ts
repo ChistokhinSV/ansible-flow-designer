@@ -7,10 +7,11 @@ import { exprRefs, refsIn, templated } from '../flow/jinja';
 import { modelOf, ROOT } from '../flow/model';
 import { inputOrigin, originText } from '../flow/origin';
 import type { FlowDocument, FlowNode, Ulid } from '../flow/types';
+import type { VarIndex } from '../inventory/varIndex';
 import { isWork, listChip, title, visibleAt } from './common';
 import type { DataWire, LensChip, LensFinding, LensItem, LensView } from './types';
 
-export function dataLens(doc: FlowDocument): LensView {
+export function dataLens(doc: FlowDocument, index?: VarIndex): LensView {
   const model = modelOf(doc);
   const flowInputs = doc.flow.inputs ?? {};
   const start = model.levels.get(ROOT)?.nodes.find((n) => n?.type === 'start')?.id;
@@ -62,7 +63,7 @@ export function dataLens(doc: FlowDocument): LensView {
       }
       const src = resolveFrom(model, node, level, 'inputs', from);
       // AFD-339: the wire's title goes on past the step it comes from, to where the value starts.
-      const origin = inputOrigin(model, node, name);
+      const origin = inputOrigin(model, node, name, index ? { index } : {});
       const chain = originText({ ...origin, hops: origin.hops.slice(1), notes: [] });
       const more = chain ? `\n${chain.replaceAll(/^/gm, '  ')}` : '';
       // Inside a subflow, <subflow>.<input> reads its input: drawn where the subflow gets it.
