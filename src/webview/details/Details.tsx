@@ -3,7 +3,13 @@
 // modes add theirs first. Fields save as you go. The binding is staged: a bar offers Save and
 // Discard, and leaving it unsaved (another node, Escape, another level or mode) asks first.
 import { useEffect, useRef, useState } from 'react';
-import { bindingCommand, draftOf, isDirty } from '../../core/catalog/draft';
+import {
+  type BindingDraft,
+  bindingCommand,
+  draftOf,
+  isDirty,
+  rebaseDraft,
+} from '../../core/catalog/draft';
 import { formatOf } from '../../core/flow/format';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems, ownWords, problemFix } from '../../core/view/nodeProblems';
@@ -101,6 +107,19 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   useEffect(() => {
     if (node && !draft) setDraft(draftOf(node));
   }, [node, draft]);
+  // AFD-352: the step's binding changed elsewhere (a co-editor, the file): the staged binding
+  // follows it where nothing was changed here, so the save below never writes old values back.
+  // Runs before that save's timer is set (effects run in order), and a new draft clears it.
+  const theirs = node ? draftOf(node) : undefined;
+  const theirsKey = JSON.stringify(theirs ?? null);
+  const stagedFrom = useRef(theirsKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: on a change of the step's binding only
+  useEffect(() => {
+    const before = stagedFrom.current;
+    stagedFrom.current = theirsKey;
+    if (!theirs || before === theirsKey || before === 'null') return;
+    setDraft((d) => (d ? rebaseDraft(JSON.parse(before) as BindingDraft, d, theirs) : d));
+  }, [theirsKey]);
 
   const bindable = node?.type === 'task' || node?.type === 'subflow';
   const dirty = !!node && !!draft && bindable && isDirty(node, draft);
