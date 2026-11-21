@@ -21,7 +21,7 @@ import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
-import { OriginScope } from '../properties/OriginView';
+import { OriginHostPicker, OriginScope } from '../properties/OriginView';
 import { RunHostPicker } from '../properties/RunValues';
 import { keysOf } from '../shortcuts';
 import { type Mode, type PropTab, useUi } from '../store';
@@ -339,6 +339,9 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
           <>
             {/* AFD-341: the host the run's values are for; outside the read-only fieldset. */}
             {tab === 'io' && mode === 'run' ? <RunHostPicker node={id} /> : null}
+            {/* AFD-342: a read-only Details (a viewer, Code mode) has the repository's host picker
+              out here too, or the disabled fieldset would disable it. */}
+            {tab === 'io' && mode !== 'run' && readOnly ? <OriginHostPicker /> : null}
             <fieldset className="afd-editable" disabled={readOnly}>
               {/* AFD-339: the fields' tooltips say where this step's values come from. */}
               <OriginScope.Provider value={id}>

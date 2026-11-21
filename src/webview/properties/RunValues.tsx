@@ -12,6 +12,7 @@ import {
   recordedText,
 } from '../../core/run/view';
 import { useUi } from '../store';
+import { OriginHostPicker } from './OriginView';
 
 /** How many different values a row lists before "and N more". */
 const MAX_GROUPS = 4;
@@ -162,7 +163,9 @@ export function RunHostPicker({ node }: { node: string }) {
   const repo = useUi((s) => s.lensFacts.vars?.hosts);
   const host = useUi((s) => s.originHost);
   const ran = Object.keys(byHost ?? {}).sort();
-  if (mode !== 'run' || ran.length === 0) return null;
+  if (mode !== 'run') return null;
+  // AFD-342: no values of this run (a viewer before any run): the repository's hosts, if any.
+  if (ran.length === 0) return <OriginHostPicker />;
   const others = (repo ?? []).filter((h) => !ran.includes(h));
   return (
     <div className="afd-origin-host afd-run-host" data-run-host-picker>

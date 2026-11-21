@@ -9,6 +9,7 @@ import type { ResultField } from '../catalog/draft';
 import { holdsSecret, SECRET } from '../import/secrets';
 import {
   defLabel,
+  defsOf,
   RANK,
   type RepoAnswer,
   type RepoContext,
@@ -22,7 +23,7 @@ import { MAGIC } from '../view/jinjaVocabulary';
 import { outputVar, registerName } from './dataNames';
 import { liftOf, resolveFrom, upstreamNodes } from './dataRefs';
 import { factSource, setFactNames } from './facts';
-import { refsIn } from './jinja';
+import { exprRefs, refsIn } from './jinja';
 import type { FlowModel } from './model';
 import type { FlowNode, Ulid } from './types';
 
@@ -936,4 +937,158 @@ export function originText(origin: Origin): string {
     );
   const defined = origin.defined ? definedText(origin.defined) : [];
   return [...lines, ...origin.notes, ...defined].join('\n');
+}
+
+/**
+ * AFD-342: the repository's findings a host adds to the validator's when it has the index: an
+ * unknown read the repository sets becomes information (`quietRepoReads`), and an input default
+ * that hides the inventory's value is said (`repoFindings`). Ansible Flow Server's pages call it on
+ * each snapshot they show.
+ */
+export function withRepoFindings<
+  F extends OriginFinding & { severity: string; path?: readonly (string | number)[] },
+>(findings: readonly F[], model: FlowModel, index: VarIndex | undefined): (F | RepoFinding)[] {
+  if (!index) return [...findings];
+  return [...quietRepoReads(findings, model, index), ...repoFindings(model, index)];
+}
+
+/** AFD-342: a step that reads a flow input. */
+export interface FlowInputReader {
+  node: Ulid;
+  key: string;
+  title: string;
+  /** The step's input fed by the flow input; absent: the step reads the name directly. */
+  input?: string;
+}
+
+/** AFD-342: something a flow input wins over, because Ansible gives it as an extra var. */
+export interface FlowInputOverride {
+  /** In words: `group all`, `the default of input timeout of "Wait"`. */
+  label: string;
+  /** A repository definition: its file and zero-based line, and rank. */
+  file?: string;
+  line?: number;
+  rank?: number;
+  /** A step input of the same name. */
+  node?: Ulid;
+}
+
+/** AFD-342: where a flow input comes from and where it goes, for a launch form. */
+export interface FlowInputUse {
+  name: string;
+  /** How a run gives it: `asked when the run starts, required`, `the hosts the run starts on`. */
+  asked: string;
+  /** Its default as one line (never for a secret one). */
+  default?: string;
+  /** A secret-looking name or default: no value is given. */
+  secret: boolean;
+  /** The steps that read it, in the flow's order. */
+  readBy: FlowInputReader[];
+  /** What it wins over: same-name step inputs, and the repository's definitions with an index. */
+  overrides: FlowInputOverride[];
+  /** One short line: who reads it, the default, what it overrides. */
+  text: string;
+}
+
+const MAX_NAMED = 3;
+
+/** A list cut to its first few, with how many more. */
+function fewOf(items: readonly string[]): string {
+  const shown = items.slice(0, MAX_NAMED).join(', ');
+  return items.length > MAX_NAMED ? `${shown} and ${items.length - MAX_NAMED} more` : shown;
+}
+
+/** The names a step reads in its binding, keywords and condition (not through its inputs). */
+function directReads(node: FlowNode): Set<string> {
+  const impl = node.impl;
+  const names = new Set<string>([
+    ...refsIn(impl?.params ?? {}),
+    ...refsIn(impl?.keywords ?? {}),
+    ...(typeof impl?.keywords?.when === 'string' ? exprRefs(impl.keywords.when) : []),
+    ...(typeof node.condition === 'string' ? exprRefs(node.condition) : []),
+  ]);
+  return names;
+}
+
+/**
+ * AFD-342: a flow input as a launch form explains it: how a run gives it, its default, the steps
+ * that read it (through an input chain, or directly as an extra var), and what it wins over: a
+ * flow input is an extra var, so it beats a step input of the same name and every definition of
+ * the name in the repository (with `opts.index`). Subflow steps are not listed as readers: the
+ * steps inside them that read it are. Never a value of a secret input, nor a repository value.
+ */
+export function flowInputUse(
+  model: FlowModel,
+  name: string,
+  opts: { index?: VarIndex } = {},
+): FlowInputUse {
+  const field = model.doc.flow?.inputs?.[name];
+  const head = flowInputOrigin(model, name).hops[0];
+  const asked = /\((.*)\)$/.exec(head?.label ?? '')?.[1] ?? 'asked when the run starts';
+  const secret = SECRET.test(name) || holdsSecret(field?.default);
+  const readBy: FlowInputReader[] = [];
+  const overrides: FlowInputOverride[] = [];
+  for (const { node } of model.nodes.values()) {
+    if (node.type === 'subflow') continue;
+    const reader = { node: node.id, key: node.key, title: node.title ?? node.key };
+    let read = false;
+    for (const [input, f] of Object.entries(node.inputs ?? {})) {
+      const reaches = inputOrigin(model, node, input).hops.some(
+        (h) => h.kind === 'flowInput' && h.name === name,
+      );
+      if (reaches) {
+        readBy.push({ ...reader, input });
+        read = true;
+      } else if (input === name && f?.from?.trim() !== `flow.${name}`)
+        // A play var of the same name: the extra var wins over it (inputNotes says so too).
+        overrides.push({
+          label: `${f?.default !== undefined ? 'the default of ' : ''}input ${name} of "${reader.title}"`,
+          node: node.id,
+        });
+    }
+    if (!read && !node.inputs?.[name] && directReads(node).has(name)) readBy.push(reader);
+  }
+  if (opts.index)
+    for (const d of defsOf(opts.index, name)
+      .filter((x) => x.rank > 0 && x.rank < RANK.extraVar)
+      .sort((a, b) => b.rank - a.rank))
+      overrides.push({ label: defLabel(d), file: d.file, line: d.line, rank: d.rank });
+  const dflt = !secret && field?.default !== undefined ? originValue(field.default) : undefined;
+  const readers = readBy.length
+    ? `read by ${fewOf(readBy.map((r) => `${r.title}${r.input && r.input !== name ? ` (as ${r.input})` : ''}`))}`
+    : undefined;
+  // The targets input is the hosts the run starts on: no step needs to read it.
+  const first = field?.targets
+    ? `The hosts the run starts on${readers ? `; ${readers}` : ''}`
+    : readers
+      ? `R${readers.slice(1)}`
+      : 'No step reads it';
+  const parts = [
+    first,
+    ...(dflt !== undefined ? [`default ${dflt}`] : []),
+    ...(overrides.length
+      ? [
+          `wins over ${fewOf(overrides.map((o) => (o.file !== undefined ? `${o.label} (${o.file}:${(o.line ?? 0) + 1})` : o.label)))}`,
+        ]
+      : []),
+  ];
+  return {
+    name,
+    asked,
+    ...(dflt !== undefined ? { default: dflt } : {}),
+    secret,
+    readBy,
+    overrides,
+    text: `${parts.join('; ')}.`,
+  };
+}
+
+/** AFD-342: every flow input of the flow, by name (`flowInputUse`). */
+export function flowInputUses(
+  model: FlowModel,
+  opts: { index?: VarIndex } = {},
+): Record<string, FlowInputUse> {
+  return Object.fromEntries(
+    Object.keys(model.doc.flow?.inputs ?? {}).map((n) => [n, flowInputUse(model, n, opts)]),
+  );
 }

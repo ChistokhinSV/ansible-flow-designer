@@ -16,6 +16,7 @@ import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../.
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
+import { useEditable } from '../editActions';
 import { OriginChain, OriginHostPicker, useOriginOptions } from '../properties/OriginView';
 import { RunValues } from '../properties/RunValues';
 import { useUi } from '../store';
@@ -127,6 +128,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   // AFD-341: in Run mode, a step's inputs show the value each host had; the chain's value to
   // compare with is worked out for that host (the repository's winner differs per host).
   const mode = useUi((s) => s.mode);
+  const editable = useEditable();
   const runValues = mode === 'run' && !!node && side === 'inputs' && !!model;
   const originForHost = (name: string) => (host: string | undefined) =>
     model && node
@@ -202,7 +204,8 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
       {hint ? <p className="muted afd-help">{hint}</p> : null}
       {/* AFD-340: the host where a value comes from is worked out for (the repository's hosts). */}
       {/* AFD-341: Run mode has its own picker, outside the read-only fieldset (Details). */}
-      {side === 'inputs' && node && mode !== 'run' ? <OriginHostPicker /> : null}
+      {/* AFD-342: read-only (a viewer, Code mode), Details has it outside the disabled fieldset. */}
+      {side === 'inputs' && node && mode === 'design' && editable ? <OriginHostPicker /> : null}
       {entries.length === 0 && !adding ? <p className="muted">None yet.</p> : null}
       <ul className="afd-contract">
         {entries.map(([name, field]) => {
