@@ -120,6 +120,18 @@ describe('Details in Run mode', () => {
     expect(useUi.getState().originHost).toBe('h02');
   });
 
+  it('AFD-342: with no values of a run (a viewer before any run), the repository’s hosts', () => {
+    act(() => {
+      useUi.getState().setRun(null);
+      useUi.getState().setVarIndex({ defs: {}, groups: {}, hosts: ['sw-01', 'sw-02'] }, true);
+    });
+    render(<RunHostPicker node={show.id} />);
+    const select = screen.getByLabelText('For host') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(['', 'sw-01', 'sw-02']);
+    fireEvent.change(select, { target: { value: 'sw-02' } });
+    expect(useUi.getState().originHost).toBe('sw-02');
+  });
+
   it('says why there are no values: a step without any, a run that turned recording off', () => {
     render(
       <ContractEditor

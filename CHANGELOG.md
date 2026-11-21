@@ -14,6 +14,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Changed
 
+- On a page that only shows a flow (Ansible Flow Server's flow and run pages), **Details › Data** offers **For host** with the repository's hosts before any run has values, and a definition's file and line in **Where a value comes from** can be opened, where the page supports it.
 - In VS Code, a step that reads a name the repository sets (group_vars, host_vars, the inventory, its role, a vars file) is no longer warned about as an unknown variable: the problem becomes information that says where the repository sets it, with **Add as input** still offered.
 - Wires that would run along the same line, such as an `ok_hosts` wire beside a dashed `failed_hosts` wire, are drawn side by side a few pixels apart, each keeping its own turns, on the canvas (stepped and curved) and in the SVG and draw.io exports. Wires into the same port still join for their last stretch. A wire's label moves along its wire to a spot clear of other wires.
 - The layout check (`flow_describe` with layout) also reports two wires on top of each other and a wire label on another wire, with a hint to fix them.

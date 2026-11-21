@@ -27,6 +27,9 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'openLink',
   // AFD-327: the flow's file, where the host can show it (the server's Files tab).
   'openText',
+  // AFD-342: a file of the repository at a line (where a value is defined), where the host can
+  // show it (the server's Files tab).
+  'openCode',
   // Answers to the host and reports about the page itself.
   'inspectResult',
   'pngRendered',
@@ -45,6 +48,8 @@ export const PAST_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'catalog',
   'copyText',
   'openLink',
+  // AFD-342: where a value is defined, as in the viewer.
+  'openCode',
   'inspectResult',
   'pngRendered',
   'cspViolation',

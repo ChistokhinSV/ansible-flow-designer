@@ -197,8 +197,11 @@ and a note says that too.
 
 ![A variable's tooltip for a picked host](../images/value-origin-repo-tip-light.png)
 
-The repository is read again when a file is saved. Ansible Flow Server's pages do not read it yet:
-they show the chain from the flow alone.
+The repository is read again when a file is saved. Ansible Flow Server's pages read it too, at
+the commit they show, with the inventory the flow's runs use: a definition's file and line opens
+the project's **Files** tab at that line, and **For host** lists the inventory's hosts even before
+a run. Someone who may read the flow but not the project's files sees the chain from the flow
+alone.
 
 ### The value in a run
 

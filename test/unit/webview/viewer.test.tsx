@@ -52,6 +52,8 @@ describe('AFD-270: what a viewer may send', () => {
       'runOutput',
       'approve',
       'openText',
+      // AFD-342: a definition's file at its line, on the server's Files tab.
+      'openCode',
     ])
       expect(viewerAllows(type)).toBe(true);
     for (const type of [

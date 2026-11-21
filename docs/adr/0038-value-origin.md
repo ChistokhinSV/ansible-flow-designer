@@ -146,3 +146,38 @@
 - **Not done:** values of a playbook binding's vars, of a role's own defaults it reads, and of
   facts. Phase 4 (AFD-342) gives the server the repository index, so "differs from what the
   repository predicted" works on the server too.
+
+## Phase 4: the server's pages (AFD-342, 2026-11-21)
+
+Ansible Flow Server embeds the designer as a viewer (a flow, a run, a flow at a commit) and as an
+editor (a draft). Phase 2 already sent the index as a message, so the seam is mostly that message;
+this phase closes what was missing for a host other than VS Code and gives the launch form its words.
+
+- **The seam is the message.** A host posts `{type:'varIndex', index, openFiles}` (protocol, phase
+  2); no new config key. Ansible Flow Server builds the index on the server from git (its own
+  `InventoryFs` over the commit's tree) with `buildVarIndex` and the flow's `indexInputs`, and posts
+  it from its page. `openFiles: true` when the page handles `openCode {path, line}` (1-based).
+- **`openCode` is a viewer message now** (`VIEWER_MESSAGES`, and `PAST_MESSAGES` for later use):
+  opening a definition's file reads, it changes nothing. Before, the viewer dropped it, so a hop's
+  file:line could not open anything on the server's pages.
+- **The host picker in a read-only Details.** The viewer is always in Run mode, and Details there is
+  a disabled fieldset. The Run mode picker (phase 3) showed only when the run recorded values, so a
+  viewer before any run had no way to pick a host. Now: in Run mode without recorded values the
+  picker lists the repository's hosts (`OriginHostPicker`); in a read-only Details outside Run mode
+  (Code mode) the picker sits outside the fieldset too. The page need not send `originHost`.
+- **`withRepoFindings(findings, model, index)`** (origin.ts): `quietRepoReads` plus `repoFindings` in
+  one call, for a host that adds the repository's part to the snapshot it posts. Without an index it
+  returns the findings unchanged.
+- **`flowInputUse(model, name, {index})` / `flowInputUses(model, {index})`** (origin.ts), for a launch
+  form: how a run gives the input (`asked`, from `flowInputOrigin`), its default (one line, never
+  for a secret-looking name or value), `readBy` (the non-subflow steps whose input chain reaches the
+  flow input, with that input, and those that read the name directly in their binding, keywords or
+  condition), `overrides` (a flow input is an extra var: a step input of the same name not fed by it,
+  and, with an index, every repository definition of the name below extra vars, highest first; file,
+  line, rank, never a value), and `text`, one line: "Read by A (as x), B; default 30; wins over the
+  default of input timeout of "Wait", group_vars of edge (inventory/group_vars/edge.yml:3)." Three
+  names at most per list, then "and N more".
+- **Choices:** subflow steps are not readers (the steps inside them are); a direct read is found by
+  the names the binding and condition reference, not by a full walk (as the unknown-variable checks
+  do); argument_specs defaults are documentation and are never "won over"; the targets input
+  starts "The hosts the run starts on" (no step needs to read it, so no "No step reads it").
