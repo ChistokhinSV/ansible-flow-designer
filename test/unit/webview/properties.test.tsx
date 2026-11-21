@@ -197,6 +197,44 @@ describe('Details: Binding (AFD-43)', () => {
     });
   });
 
+  it('a binding changed elsewhere is not written back with the old values (AFD-352)', async () => {
+    const id = open('set-boot-variable');
+    await answer(catalog);
+    // A co-editor (or the file) changes a parameter and the title while the step is open here.
+    const changed = (d: FlowDocument, params: Record<string, unknown>, title: string) => {
+      const out = structuredClone(d);
+      for (const { node } of buildModel(out).nodes.values())
+        if (node.id === id && node.impl) {
+          node.title = title;
+          node.impl.params = { ...node.impl.params, ...params };
+        }
+      return out;
+    };
+    const theirs = changed(doc, { save_when: 'never' }, 'Set boot variable (renamed)');
+    act(() => useUi.getState().setSnapshot({ ...snapshotOf(theirs), docVersion: 2 }));
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect(commands()).toEqual([]);
+    // A change made here after it keeps theirs in every other parameter.
+    const select = within(screen.getByRole('region', { name: 'Configure' })).getByLabelText(
+      /save_when/,
+      { selector: 'select' },
+    ) as HTMLSelectElement;
+    expect(select.value).toBe('never');
+    act(() =>
+      useUi
+        .getState()
+        .setSnapshot({ ...snapshotOf(changed(theirs, { lines: ['x'] }, 'x')), docVersion: 3 }),
+    );
+    fireEvent.change(select, { target: { value: 'always' } });
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    const sent = commands();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      kind: 'setBinding',
+      impl: { params: { save_when: 'always', lines: ['x'] } },
+    });
+  });
+
   it('browsing another kind with nothing chosen does not unbind the step (AFD-299)', async () => {
     open('set-boot-variable');
     await answer(catalog);

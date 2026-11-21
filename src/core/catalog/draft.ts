@@ -39,6 +39,47 @@ export function draftOf(node: FlowNode): BindingDraft {
   };
 }
 
+/**
+ * AFD-352: the staged binding after the step's binding changed elsewhere (a co-editor in the
+ * server's pages, the file in VS Code): `base` is what it was staged from, `theirs` what the step
+ * has now. What was changed here stays; every other field (each parameter, the kind, ref and
+ * register) follows the step, so saving never writes an old value back over theirs.
+ */
+export function rebaseDraft(
+  base: BindingDraft,
+  mine: BindingDraft,
+  theirs: BindingDraft,
+): BindingDraft {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const pick = <T>(b: T, m: T, t: T): T => (same(m, b) ? t : m);
+  const fields = (
+    b: Record<string, unknown>,
+    m: Record<string, unknown>,
+    t: Record<string, unknown>,
+  ) => {
+    const out: Record<string, unknown> = {};
+    for (const k of new Set([...Object.keys(b), ...Object.keys(m), ...Object.keys(t)])) {
+      const v = pick(b[k], m[k], t[k]);
+      if (v !== undefined) out[k] = v;
+    }
+    return out;
+  };
+  return {
+    kind: pick(base.kind, mine.kind, theirs.kind),
+    ref: pick(base.ref, mine.ref, theirs.ref),
+    collection_version: pick(
+      base.collection_version,
+      mine.collection_version,
+      theirs.collection_version,
+    ),
+    params: fields(base.params, mine.params, theirs.params),
+    register: pick(base.register, mine.register, theirs.register),
+    // Contract fields are staged as changes to the step's own (null removes one): kept as they are.
+    inputs: mine.inputs,
+    outputs: mine.outputs,
+  };
+}
+
 const empty = (v: unknown) => v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
 
 /** The binding as it would be stored; null while nothing is chosen. */
