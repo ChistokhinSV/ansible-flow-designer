@@ -71,13 +71,31 @@ export function parseInput(
 ): { value: unknown } | { error: string } {
   const t = text.trim();
   switch (type) {
-    case 'host_list':
+    case 'host_list': {
+      // AFD-355: a JSON list is its names; a broken one is refused, not taken as a host name.
+      if (t.startsWith('[')) {
+        let v: unknown;
+        try {
+          v = JSON.parse(t);
+        } catch {
+          v = undefined;
+        }
+        const names = Array.isArray(v)
+          ? v.map((n) =>
+              typeof n === 'string' ? n.trim() : typeof n === 'number' ? String(n) : '',
+            )
+          : [];
+        return Array.isArray(v) && names.every((n) => n && !/[\s,]/.test(n))
+          ? { value: names }
+          : { error: 'a JSON list of names, or names separated by commas' };
+      }
       return {
         value: t
           .split(/[,\s]+/)
           .map((s) => s.trim())
           .filter(Boolean),
       };
+    }
     case 'integer':
       return /^-?[0-9]+$/.test(t) ? { value: Number(t) } : { error: 'a whole number' };
     case 'boolean':
@@ -186,6 +204,11 @@ export interface LaunchPlan {
   inventory?: string;
   /** AFD-300: the host keeps these inputs as a launch configuration (Ansible Flow Server). */
   canSave?: boolean;
+  /**
+   * AFD-355: per input, where it goes in one line (the steps that read it, its default, what it
+   * wins over), as the host's own launch form says it.
+   */
+  origins?: Record<string, string>;
 }
 
 /** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */

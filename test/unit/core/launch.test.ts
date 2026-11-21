@@ -117,6 +117,16 @@ describe('parseInput', () => {
     expect(parseInput('boolean', 'no')).toEqual({ value: false });
     expect(parseInput('boolean', 'maybe')).toEqual({ error: 'true or false' });
   });
+
+  it('a host list typed as a JSON list is its names; a broken one is refused (AFD-355)', () => {
+    expect(parseInput('host_list', ' ["sw-edge-01", "sw-edge-02", 7] ')).toEqual({
+      value: ['sw-edge-01', 'sw-edge-02', '7'],
+    });
+    for (const text of ['["sw-edge-01",', '[["a"]]', '["a b"]', '[""]', '[{}]'])
+      expect(parseInput('host_list', text)).toEqual({
+        error: 'a JSON list of names, or names separated by commas',
+      });
+  });
 });
 
 describe('readFields', () => {

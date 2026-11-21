@@ -20,7 +20,7 @@ import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
 
 const TYPE_HINT: Record<string, string> = {
-  host_list: 'hosts or groups, comma-separated',
+  host_list: 'hosts or groups, comma-separated, or a JSON list',
   list: 'items separated by commas, or a JSON list',
   dict: 'key: value lines (YAML) or JSON',
   integer: 'a whole number',
@@ -182,6 +182,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
               text={texts[f.name] ?? ''}
               groups={f.type === 'host_list' ? plan.groups : []}
               groupHosts={plan.groupHosts}
+              origin={plan.origins?.[f.name]}
               problem={problem?.field === f.name ? problem.text : undefined}
               onChange={(text) => {
                 setTexts((t) => ({ ...t, [f.name]: text }));
@@ -295,6 +296,7 @@ function Field({
   groups,
   groupHosts,
   problem,
+  origin,
   onChange,
 }: {
   field: LaunchField;
@@ -302,6 +304,8 @@ function Field({
   groups: string[];
   groupHosts?: LaunchPlan['groupHosts'];
   problem?: string;
+  /** AFD-355: where the input goes, as the host says it. */
+  origin?: string | undefined;
   onChange(text: string): void;
 }) {
   const id = `afd-launch-${field.name}`;
@@ -315,7 +319,20 @@ function Field({
         <span className="mono">{field.name}</span> <span className="muted">{type}</span>
         {field.required ? <abbr title="required"> *</abbr> : null}
       </label>
-      {field.type === 'dict' ? (
+      {field.type === 'boolean' && !field.secret ? (
+        // AFD-355: true or false picked, as the server's launch form does.
+        <select
+          id={id}
+          className="afd-input"
+          value={text}
+          aria-invalid={!!problem}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">(not set)</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      ) : field.type === 'dict' ? (
         <textarea
           id={id}
           className="afd-input mono"
@@ -383,6 +400,11 @@ function Field({
             .filter(Boolean)
             .join(' · ')}
       </span>
+      {origin ? (
+        <span className="afd-help afd-launch-origin" data-launch-origin={field.name}>
+          {origin}
+        </span>
+      ) : null}
     </div>
   );
 }

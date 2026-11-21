@@ -22,9 +22,11 @@ All notable changes to Ansible Flow Designer.
 - The folded side panel reads **Side panel** beside its icon.
 - On a page where the step cannot be changed (a viewer, Run mode), its Title and **What it does** read as text, not as boxes to type in.
 - The sample Firewall firmware upgrade's launch configuration is **Firewalls on localhost** (was Skeleton on localhost): it starts real runs too.
+- In the **Run** dialog a true/false input is picked from **true**, **false** or **(not set)**, and, in Ansible Flow Server, each input says under it which steps read it, its default and what it wins over, as the launch form does.
 
 ### Fixed
 
+- In the **Run** dialog a host list may be a JSON list (`["sw-edge-01", "sw-edge-02"]`); one that is not valid JSON is refused at its field instead of being run as a host name.
 - A step's binding open in **Details** no longer writes its old parameters back over a change made to the step elsewhere (by someone else editing the same flow in Ansible Flow Server's pages, or in the file): what you did not change follows the step.
 - In Run mode, the last step inside a subflow (a step whose port leaves the subflow) read "not reached" though its hosts ran it; its **Run** tab and **Last run** list them now. The run's routes name the steps on the way out of a subflow.
 - While a run waits for approval, the Run panel's status says "waiting for approval", not "running", and steps the run has not got to read "not reached yet", not "waiting".
