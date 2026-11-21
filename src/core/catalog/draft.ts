@@ -311,7 +311,13 @@ export function checklist(
     const input = staged.inputs?.[name];
     const from = input?.from;
     const repo = input ? undefined : doc.repoSets?.(name);
-    if (!input && repo)
+    // AFS-189: a flow input read directly is an extra var: it wins over what the repository sets.
+    if (!input && model.doc.flow?.inputs?.[name])
+      items.push({
+        state: 'ok',
+        text: `${name} comes from flow inputs${repo ? `; it wins over the repository's (${repo})` : ''}`,
+      });
+    else if (!input && repo)
       items.push({ state: 'ok', text: `${name} is set by the repository (${repo})` });
     else if (!input) items.push({ state: 'missing', text: `${name} is not an input of this node` });
     else if (from?.startsWith('flow.'))

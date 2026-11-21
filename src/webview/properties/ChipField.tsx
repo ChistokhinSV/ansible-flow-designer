@@ -622,6 +622,16 @@ export function ChipField({
           setHint(null);
           setTip(null);
           onLeave?.();
+          // AFS-189: a `{{ name }}` typed here becomes a chip once the field is left (while
+          // typing, the caret would jump). Not while the @ menu is open: its pick goes in still.
+          const el = ref.current;
+          if (!el || mode === 'expr' || menu || picking.current) return;
+          const now = serialize(el);
+          const refs = segments(now).filter((s) => 'ref' in s).length;
+          if (refs > el.querySelectorAll('.afd-ref-chip').length) {
+            render(el, now, mode);
+            paintField(ref, el, now, mode);
+          }
         }}
         onPaste={(e) => {
           // Plain text only: pasted markup would carry its own elements.

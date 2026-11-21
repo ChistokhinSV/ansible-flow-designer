@@ -25,6 +25,13 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- In Run mode, **For host** lists only the run's hosts (those that did not reach the step apart), not every host of the inventory. A host picked that did not reach the step says so, instead of "not recorded for this host".
+- In Run mode, a variable's tooltip shows **In this run** without a host picked too: the values every host had, as **Details › Data** shows them. `inventory_hostname` shows each host's own name, and a flow input a step reads directly shows the value the run was given, where the host says it (Ansible Flow Server).
+- A `{{ name }}` typed into a parameter becomes a chip once the field is left, so its tooltip says where the value comes from.
+- A flow input a step reads directly is no longer said to be set by the repository in the binding's checklist: it comes from the flow inputs, and wins over what the repository sets. When the flow's value wins, **Defined in the repository** no longer stars one of the repository's as "highest here", and no longer asks to pick a host; a definition's kind is no longer said twice ("host_vars host_vars of …").
+- The repository's variables include those written on a host range line of the inventory (`sw-edge-0[1:4] ansible_connection=local`) for each host of the range.
+- Under each flow input, the launch form names every step that reads it, not three "and 1 more". A required input that no step reads says that a run must give it all the same.
+- The Edge baseline sample's Push baseline writes the site into the AAA file (`site_name`, from the flow input `site`), and the sample's playbooks set `site` in `group_vars/edge.yml`, so **Where a value comes from** shows a repository definition that the flow input wins over.
 - A step's binding open in **Details** no longer writes its old parameters back over a change made to the step elsewhere (by someone else editing the same flow in Ansible Flow Server's pages, or in the file): what you did not change follows the step.
 - In Run mode, the last step inside a subflow (a step whose port leaves the subflow) read "not reached" though its hosts ran it; its **Run** tab and **Last run** list them now. The run's routes name the steps on the way out of a subflow.
 - While a run waits for approval, the Run panel's status says "waiting for approval", not "running", and steps the run has not got to read "not reached yet", not "waiting".

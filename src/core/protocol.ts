@@ -99,6 +99,11 @@ export interface RunView {
    * at, too). The canvas marks that step stopped.
    */
   stoppedAt?: Ulid;
+  /**
+   * AFS-189: the flow inputs the run was given, as anyone may see them (the host shows a secret
+   * one as `***`), for "In this run" on a name the steps read directly. Absent: not known.
+   */
+  flowInputs?: Record<string, unknown>;
   /** AFD-84: a scenario's result shown like a run: its verdict and each host's expected end. */
   scenario?: {
     name: string;

@@ -7,3 +7,7 @@ argument_specs:
         elements: str
         required: true
         description: NTP servers, in order of preference.
+      site_name:
+        type: str
+        default: unknown
+        description: The site, written at the top of the AAA file.

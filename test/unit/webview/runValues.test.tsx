@@ -7,10 +7,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { buildModel } from '../../../src/core/flow/model';
-import { inputOrigin } from '../../../src/core/flow/origin';
+import { inputOrigin, nameOrigin } from '../../../src/core/flow/origin';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import type { RunView } from '../../../src/core/protocol';
-import { summarizeRun } from '../../../src/core/run/events';
+import { type RunSummary, summarizeRun } from '../../../src/core/run/events';
 import { ContractEditor } from '../../../src/webview/panels/ContractEditor';
 import { NodeRunPanel } from '../../../src/webview/panels/RunPanel';
 import { JinjaTip } from '../../../src/webview/properties/JinjaAssist';
@@ -120,6 +120,27 @@ describe('Details in Run mode', () => {
     expect(useUi.getState().originHost).toBe('h02');
   });
 
+  it('AFS-189: lists the run’s hosts only, never the inventory’s others', () => {
+    act(() => {
+      useUi.getState().setVarIndex({ defs: {}, groups: {}, hosts: ['h01', 'localhost'] }, true);
+      useUi.getState().setRun({
+        ...recorded,
+        summary: { ...(recorded.summary as RunSummary), hosts: ['h01', 'h02', 'h03', 'h04'] },
+      });
+    });
+    render(<RunHostPicker node={show.id} />);
+    const select = screen.getByLabelText('For host') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(['', 'h01', 'h02', 'h03', 'h04']);
+    expect([...select.querySelectorAll('optgroup')].map((g) => g.label)).toEqual([
+      'At this step',
+      'Did not reach this step',
+    ]);
+    cleanup();
+    act(() => useUi.getState().setOriginHost('h04'));
+    inputs();
+    expect(row('word').textContent).toContain('this host did not reach this step (h04)');
+  });
+
   it('AFD-342: with no values of a run (a viewer before any run), the repository’s hosts', () => {
     act(() => {
       useUi.getState().setRun(null);
@@ -174,10 +195,50 @@ describe('a variable’s tooltip in Run mode', () => {
     expect(line?.textContent).toMatch(/differs from what the flow predicted/);
   });
 
-  it('says nothing without one host, or outside Run mode', () => {
+  it('AFS-189: without a host picked, every host’s values, as Details shows them', () => {
     tip();
+    const line = document.querySelector('[data-run-value="all"]');
+    expect(line?.textContent).toContain('{ user: bob, password: "********" } (h01, h02)');
+    expect(line?.textContent).toContain('{ user: eve, password: "********" } (h03)');
+  });
+
+  it('AFS-189: inventory_hostname is each host’s own name; a flow input read directly, its value', () => {
+    const named = (name: string) =>
+      render(
+        <OriginScope.Provider value={show.id}>
+          <JinjaTip tip={{ label: name, origin: nameOrigin(model, show, name) }} />
+        </OriginScope.Provider>,
+      );
+    named('inventory_hostname');
+    expect(document.querySelector('[data-run-value]')?.textContent).toBe(
+      "In this run: each host's own name (h01, h02, h03)",
+    );
+    cleanup();
+    // A run that does not say its inputs: nothing for the flow input.
+    named('greeting');
     expect(document.querySelector('[data-run-value]')).toBeNull();
     cleanup();
+    act(() =>
+      useUi
+        .getState()
+        .setRun({ ...recorded, flowInputs: { greeting: 'hi there', api_token: '***' } }),
+    );
+    named('greeting');
+    expect(document.querySelector('[data-run-value="flow"]')?.textContent).toBe(
+      'In this run: hi there (the flow input, the same for every host)',
+    );
+    cleanup();
+    named('api_token');
+    expect(document.querySelector('[data-run-value="flow"]')?.textContent).toContain(
+      'secret: not shown',
+    );
+    cleanup();
+    act(() => useUi.getState().setOriginHost('h02'));
+    named('inventory_hostname');
+    expect(document.querySelector('[data-run-value]')?.textContent).toBe('In this run: h02');
+  });
+
+  it('says nothing outside Run mode', () => {
     act(() => {
       useUi.getState().setOriginHost('h01');
       useUi.setState({ mode: 'design' });

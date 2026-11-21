@@ -196,7 +196,7 @@ export function JinjaTip({
         <div className="mono afd-jinja-preview">→ {tip.preview || '(empty)'}</div>
       ) : null}
       {tip.origin ? <OriginChain origin={tip.origin} /> : null}
-      {/* AFD-341: Run mode with one host: the value the step's input had in the run. */}
+      {/* AFD-341, AFS-189: Run mode: the values the run had (one host, or every host). */}
       {tip.origin ? <TipRunValue name={tip.label} origin={tip.origin} /> : null}
     </div>
   );
