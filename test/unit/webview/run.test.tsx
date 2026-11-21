@@ -340,6 +340,21 @@ describe('Run mode', () => {
     ]);
   });
 
+  it('a viewer is not offered Mark Tested, which it could not save (AFS-188)', () => {
+    act(() => {
+      useUi.getState().setRun({
+        ...job,
+        rc: 0,
+        awx: { ...job.awx, status: 'successful', revisionMismatch: false } as RunView['awx'],
+        summary: { ...summary, outcome: {} },
+      });
+      useUi.setState({ viewer: true });
+    });
+    render(<RunPanel />);
+    expect(document.querySelector('[data-tested-proposal]')).toBeNull();
+    act(() => useUi.setState({ viewer: false }));
+  });
+
   it('the top bar enables Run mode and launches in AWX', () => {
     render(<TopBar />);
     expect(screen.getByRole('button', { name: 'Run' })).toHaveProperty('disabled', false);

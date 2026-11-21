@@ -203,6 +203,10 @@ the project's **Files** tab at that line, and **For host** lists the inventory's
 a run. Someone who may read the flow but not the project's files sees the chain from the flow
 alone.
 
+Where the step cannot be changed (a viewer, Run mode, a flow at a past commit), an input's row
+still opens: it shows **Comes from**, **Defined in the repository** and **In this run**, with
+nothing to add, change or remove.
+
 ### The value in a run
 
 A run records the value each step's inputs had for each host, as Ansible gave them to the step.

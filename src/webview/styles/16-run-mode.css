@@ -221,7 +221,8 @@
 }
 
 .afd-origin-host.afd-run-host {
-  margin: 8px 12px 0;
+  /* AFS-188: inside the Inputs section, so in the panel's padding as the rows are. */
+  margin: 2px 0 4px;
   display: flex;
   align-items: center;
   gap: 6px;

@@ -33,6 +33,7 @@ import { sameValue, textOfValue, valueOfText } from '../../core/flow/valueText';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
 import { run } from '../actions';
 import { catalogRequest, type Loaded, useCatalog, useResultFields } from '../catalog';
+import { useDetailsReadOnly } from '../details/readOnly';
 import { Fold } from '../panels/Fold';
 import { useUi } from '../store';
 import { ChipField } from './ChipField';
@@ -99,13 +100,19 @@ export function Implementation(props: DraftProps) {
   const findings = useUi((s) => s.snapshot?.findings);
   // Expanded, the tab shows its three parts side by side (THREE_COLUMNS_PX): both folds open.
   const wide = useUi((s) => s.expanded);
+  const readOnly = useDetailsReadOnly();
   const find = <Find {...props} roles={roles} playbooks={playbooks} />;
   if (!draft.ref)
     return (
       <div className="afd-impl afd-impl-unbound">
-        <section className="afd-impl-find" aria-label="Find">
-          {find}
-        </section>
+        {/* AFS-188: read-only, a search that could not bind anything is not shown. */}
+        {readOnly ? (
+          <p className="muted afd-impl-none">Not bound to a module, role or playbook yet.</p>
+        ) : (
+          <section className="afd-impl-find" aria-label="Find">
+            {find}
+          </section>
+        )}
       </div>
     );
   const { node } = props;
@@ -131,7 +138,8 @@ export function Implementation(props: DraftProps) {
           removeParam={removeParam}
         />
       </section>
-      <section className="afd-impl-find" aria-label={`Change ${what}`}>
+      {/* AFS-188: read-only (a disabled fieldset), no Change: it could only be refused. */}
+      <section className="afd-impl-find afd-edit-only" aria-label={`Change ${what}`}>
         <Fold
           id="binding-change"
           lazy
@@ -497,7 +505,7 @@ function ModuleDoc({
               <td>
                 <button
                   type="button"
-                  className="icon"
+                  className="icon afd-edit-only"
                   aria-label={`Add ${name} to the parameters`}
                   title={inConfigure.has(name) ? `${name} is in Configure` : `Add ${name}`}
                   disabled={inConfigure.has(name)}
@@ -875,7 +883,7 @@ function ParamField({
       {onRemove ? (
         <button
           type="button"
-          className="icon"
+          className="icon afd-edit-only"
           aria-label={`Remove ${field.name}`}
           title={`Remove ${field.name}`}
           onClick={onRemove}
@@ -1079,7 +1087,7 @@ function ListField({
           {rows.length > 1 ? (
             <button
               type="button"
-              className="icon"
+              className="icon afd-edit-only"
               aria-label={`Remove ${name} ${i + 1}`}
               onClick={() => change(rows.filter((_, j) => j !== i))}
             >
@@ -1088,7 +1096,7 @@ function ListField({
           ) : null}
         </div>
       ))}
-      <button type="button" className="link" onClick={() => setRows([...rows, ''])}>
+      <button type="button" className="link afd-edit-only" onClick={() => setRows([...rows, ''])}>
         Add Line
       </button>
     </div>
@@ -1116,7 +1124,8 @@ function FreeVars({
   const [name, setName] = useState('');
   const valid = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !(name in params);
   return (
-    <fieldset className="afd-fieldset afd-freevars">
+    // AFS-188: read-only and empty, nothing to show.
+    <fieldset className={`afd-fieldset afd-freevars${names.length ? '' : ' afd-edit-only'}`}>
       <legend>{label}</legend>
       {names.map((n) => (
         <div key={n} className="afd-list-row" data-param={n}>
@@ -1140,7 +1149,7 @@ function FreeVars({
           )}
           <button
             type="button"
-            className="icon"
+            className="icon afd-edit-only"
             aria-label={`Remove ${n}`}
             onClick={() => onChange(n, undefined)}
           >
@@ -1148,7 +1157,7 @@ function FreeVars({
           </button>
         </div>
       ))}
-      <div className="afd-list-row">
+      <div className="afd-list-row afd-edit-only">
         <input
           className="afd-input mono"
           aria-label="New variable name"

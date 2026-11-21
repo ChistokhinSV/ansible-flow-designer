@@ -87,8 +87,11 @@
 
 .afd-contract-row {
   display: flex;
+  /* AFS-188: a narrow panel wraps the row instead of cutting each part to a few letters. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  column-gap: 6px;
+  row-gap: 0;
   width: 100%;
   min-height: 26px;
   padding: 2px 4px;
@@ -107,17 +110,28 @@
 
 .afd-contract-name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+.afd-contract-row > .afd-chip {
+  flex: none;
 }
 
 .afd-contract-from,
 .afd-contract-meta {
   font-size: var(--afd-fs-11);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.afd-contract-meta {
   white-space: nowrap;
+}
+
+/* Where the value comes from: a line of its own under the name, type and required. */
+.afd-contract-from {
+  order: 1;
+  flex: 1 0 100%;
+  overflow-wrap: anywhere;
 }
 
 .afd-contract-meta {
@@ -138,8 +152,14 @@
   border-color: currentColor;
 }
 
-.afd-contract-form {
+.afd-contract-form,
+.afd-editable.afd-contract-form {
   padding: 6px 8px 8px;
+}
+
+/* AFS-188: an input opened read-only reads at full strength: where its value comes from matters. */
+.afd-editable.afd-contract-form:disabled {
+  opacity: 1;
 }
 
 .afd-contract-new {

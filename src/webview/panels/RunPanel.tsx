@@ -31,6 +31,7 @@ import { trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
+import { useEditable } from '../editActions';
 import { HostInputsRow } from '../properties/RunValues';
 import { showPastRun } from '../runActions';
 import { approvalOf, type ShownApproval, waitsForApproval } from '../runApproval';
@@ -168,7 +169,9 @@ function OpenRun({ run }: { run: RunView }) {
 
 function Proposal({ run }: { run: RunView }) {
   const doc = useUi((s) => s.snapshot?.doc);
-  if (!doc) return null;
+  // AFS-188: who cannot change the flow is not offered a change that is then refused.
+  const editable = useEditable();
+  if (!doc || !editable) return null;
   const ids = testedCandidates(doc, run);
   if (ids.length === 0) return null;
   const model = modelOf(doc);

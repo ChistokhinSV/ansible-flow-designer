@@ -30,9 +30,11 @@ export function selectedAnnotations(): Ulid[] {
  * and no IDs are missing (AFD-19).
  */
 export function canEdit(): boolean {
-  const { mode, snapshot, level } = useUi.getState();
+  const { mode, snapshot, level, viewer } = useUi.getState();
   return (
     mode === 'design' &&
+    // AFS-188: a past version is a viewer in Design mode; nothing is offered that is then refused.
+    !viewer &&
     !!snapshot?.doc &&
     !snapshot.stale &&
     !snapshot.idGaps &&

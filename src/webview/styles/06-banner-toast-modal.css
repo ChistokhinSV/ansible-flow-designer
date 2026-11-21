@@ -197,6 +197,11 @@
   opacity: 0.75;
 }
 
+/* AFS-188: controls that only change the step (Remove, @, Add, Change) are not shown read-only. */
+.afd-editable:disabled .afd-edit-only {
+  display: none;
+}
+
 /* AFD-343: where the step cannot be changed (a viewer, Run mode) its text reads as text, not as
    boxes to type in with a resize grip. */
 .afd-editable:disabled textarea,

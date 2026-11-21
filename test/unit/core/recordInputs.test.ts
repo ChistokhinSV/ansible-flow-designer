@@ -119,7 +119,7 @@ describe('the run view', () => {
     const s = summarizeRun(events, {});
     const h01 = hostInputs(s, SHOW, 'h01') ?? {};
     expect(recordedText(h01.word)).toBe('hello');
-    expect(recordedText(h01.creds)).toBe('{ user: bob, password: "********" }');
+    expect(recordedText(h01.creds)).toBe('{user: bob, password: "********"}');
     expect(recordedText(h01.access)).toBe('secret: not recorded');
     expect(recordedText(h01.missing)).toBe('not defined for this host');
     expect(recordedText(hostInputs(s, SHOW, 'h02')?.access)).toBe(

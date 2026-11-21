@@ -265,7 +265,7 @@ describe('originOf (AFD-339)', () => {
   });
 
   it('a value is one line, cut in the middle', () => {
-    expect(originValue({ a: [1, 2] })).toBe('{ a: [ 1, 2 ] }');
+    expect(originValue({ a: [1, 2] })).toBe('{a: [1, 2]}');
     const long = originValue('x'.repeat(50) + 'y'.repeat(50));
     expect(long).toHaveLength(79);
     expect(long.startsWith('xxx') && long.endsWith('yyy') && long.includes('…')).toBe(true);
