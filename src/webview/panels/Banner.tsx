@@ -28,7 +28,10 @@ export function Banner() {
   const reveal = useUi((s) => s.reveal);
   const viewer = useUi((s) => s.viewer);
   const past = useUi((s) => s.past);
+  const pastShown = useUi((s) => s.embed.pastShown);
   if (!snapshot) return null;
+  // AFD-354: the page around the canvas says the commit already: once is enough.
+  if (past && pastShown) return null;
   // AFD-320: a past version says whose commit it is; the Changes lens shows what it changed.
   if (past)
     return (

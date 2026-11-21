@@ -267,6 +267,11 @@ export interface ViewerEmbed {
    * (skeleton run, exit codes), as in VS Code.
    */
   words?: 'designer' | 'server';
+  /**
+   * AFD-354: the page shows the past version's commit itself (who, when, its message, the way
+   * back): the canvas has no banner of its own for it.
+   */
+  pastShown?: boolean;
 }
 
 export type HostMessage =

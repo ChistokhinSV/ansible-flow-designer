@@ -30,7 +30,9 @@ what it changed. Type to narrow the list by message, author or day; pick one to 
 The flow opens in the designer read-only, in the [Changes lens](lenses.md), compared with the version
 just before the commit:
 
-- a banner names the commit, its author, day and message;
+- a banner names the commit, its author, day and message (a page that shows the commit itself, as
+  Ansible Flow Server's, has none: the commit is said once);
+- the lens says what it compares with ("the version before …"), the only version offered there;
 - added and changed steps have chips, removed ones come back as ghosts where they stood, and the
   **Lens** tab lists every change;
 - nothing can be edited or run there. To work on the flow, open the file itself.

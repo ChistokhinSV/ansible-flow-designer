@@ -50,7 +50,8 @@ already in HEAD; this is how to see it field by field.
 ![The Changes lens](../images/changes-lens-light.png)
 
 - A changed node gets a chip naming what changed (`changed: title, binding`); an added node gets
-  `added`; a subflow says how many changes are inside it, so you know where to go in.
+  `added`; a subflow says how many changes are inside it, so you know where to go in. A wire added
+  between two added nodes has no label of its own: the nodes say it.
 - A removed node is drawn as a dashed, struck-through ghost where it stood (or beside the level
   when that version stored no place).
 - Select a node: **Since <version>** at the top of its Details lists each field, before → after.
@@ -58,7 +59,7 @@ already in HEAD; this is how to see it field by field.
   the flow itself (name, goal, inputs, runtime, format). A row with a node shows it.
 - [Notes, sections and text](annotations.md) that were added or changed are outlined; the
   **Annotations** list names what changed in each (text, color, the node a note is on) and the ones
-  removed. Moving one is not a change.
+  removed. Moving one is not a change. The line over the canvas counts them too ("2 notes added").
 
 Unsaved edits count: the lens compares what you see with the version you picked. Nodes match by
 ID; a flow that got its IDs later (Complete IDs) matches by key.

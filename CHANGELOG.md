@@ -25,6 +25,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- A flow as a commit left it (History): the Changes lens says what it compares with (the version before the commit) instead of offering HEAD, a branch or a commit; the line over the canvas counts the notes, sections and text that changed instead of saying nothing changed beside a list of added notes; the Changes list names a step's place once; a wire between two added steps carries no "added" label (on a flow the commit added, every wire had one, over the port names). On a page that shows the commit itself (Ansible Flow Server), the canvas no longer repeats it in a banner of its own.
 - A step's binding open in **Details** no longer writes its old parameters back over a change made to the step elsewhere (by someone else editing the same flow in Ansible Flow Server's pages, or in the file): what you did not change follows the step.
 - In Run mode, the last step inside a subflow (a step whose port leaves the subflow) read "not reached" though its hosts ran it; its **Run** tab and **Last run** list them now. The run's routes name the steps on the way out of a subflow.
 - While a run waits for approval, the Run panel's status says "waiting for approval", not "running", and steps the run has not got to read "not reached yet", not "waiting".

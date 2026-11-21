@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { lensWhat } from '../../core/lens/caption';
 import { LENSES, type LensItem } from '../../core/lens/types';
 import { run } from '../actions';
 import { send } from '../bus';
@@ -82,6 +83,7 @@ export function LensBrowser() {
   const lens = useUi((s) => s.lens);
   const inv = useUi((s) => s.lensFacts.inventory);
   const doc = useUi((s) => s.snapshot?.doc);
+  const compare = useUi((s) => s.lensFacts.compare);
   if (!view || !lens) return null;
   const inventory = lens === 'inventory' || lens === 'access';
   return (
@@ -91,7 +93,7 @@ export function LensBrowser() {
       </h2>
       {/* AFD-83: what the lens shows on each step, before its rows. */}
       <p className="muted" data-lens-what>
-        {LENSES.find((l) => l.id === lens)?.hint}.
+        {lensWhat(lens, compare)}.
       </p>
       {inventory ? (
         <div className="afd-lens-source">
