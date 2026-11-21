@@ -9,6 +9,9 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
 } from 'react';
 import type { RefChoice } from '../../core/catalog/draft';
 import type { Origin } from '../../core/flow/origin';
@@ -160,11 +163,30 @@ export function JinjaTip({
   onEnter?(): void;
   onLeave?(): void;
 }) {
+  // A tip at a field near the window's right edge (Details at the right of the server's pages) shrank
+  // to a narrow column: it moves left to fit instead, and above its anchor when there is no room below.
+  const box = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: measured again when the tip changes
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const room = window.innerWidth - 8;
+    const x = r.right > room ? Math.max(8 - r.left, room - r.right) : 0;
+    const y = r.bottom > window.innerHeight - 8 && r.top - r.height > 8 ? -r.height - 24 : 0;
+    if (x !== shift.x || y !== shift.y) setShift({ x, y });
+  }, [tip, style?.left, style?.top]);
   return (
     <div
+      ref={box}
       className={`afd-jinja-tip${tip.origin ? ' with-origin' : ''}`}
       role="tooltip"
-      style={style}
+      style={
+        shift.x || shift.y
+          ? { ...style, transform: `translate(${shift.x}px, ${shift.y}px)` }
+          : style
+      }
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >

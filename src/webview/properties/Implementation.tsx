@@ -27,6 +27,7 @@ import { bindingTaskText } from '../../core/engine/binding';
 import { registerName } from '../../core/flow/dataNames';
 import { isBareParam } from '../../core/flow/keywords';
 import type { FlowModel } from '../../core/flow/model';
+import { repoSetsName } from '../../core/flow/origin';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import { sameValue, textOfValue, valueOfText } from '../../core/flow/valueText';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
@@ -665,6 +666,8 @@ function Configure({
     playbook?: PlaybookInfo;
   }) {
   const staged = stagedNode(node, draft);
+  // AFD-340: the repository's variables, when the host read them.
+  const vars = useUi((s) => s.lensFacts.vars);
   // AFD-108 (wave 10: Z1): the fields of upstream module results, offered after a result in @.
   const fieldsByModule = useResultFields(
     upstreamNodes(model, node.id).flatMap((n) =>
@@ -715,6 +718,7 @@ function Configure({
     plugin: doc,
     roleSpec: !!role?.entry_points[entry],
     playbookTargets: playbook?.plays.some((p) => (p.hosts ?? '').includes('afd_hosts')),
+    repoSets: (name) => repoSetsName(model, staged, name, vars),
   });
   if (!draft.ref)
     return <p className="muted afd-empty">Configure appears once something is chosen.</p>;
