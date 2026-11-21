@@ -15,6 +15,12 @@ export interface RunFailure {
 export interface RunSummary {
   /** Per node, per port: the hosts that left through it. */
   nodes: Record<Ulid, Record<string, string[]>>;
+  /**
+   * AFD-353: per step inside a subflow, per port: the hosts that left through a port leading out
+   * of its subflow (counted in `nodes` at the subflow's port). Apart from `nodes`, which says
+   * where a host ended (scenarios read it so).
+   */
+  exits?: Record<Ulid, Record<string, string[]>>;
   /** Hosts the outcome play failed, with the reason (open port, failed end). */
   outcome: Record<string, string>;
   /** Failures that were not rescued into a port (the run stopped there or a host dropped out). */
@@ -115,14 +121,20 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
   const failures: RunFailure[] = [];
   const unreachable = new Set<string>();
   const hosts = new Set<string>();
-  const add = (group: string, host: string) => {
-    const route = routes[group];
-    if (!route) return;
-    const ports = nodes[route.node] ?? {};
-    nodes[route.node] = ports;
+  const exits: NonNullable<RunSummary['exits']> = {};
+  const put = (into: RunSummary['nodes'], route: Route, host: string) => {
+    const ports = into[route.node] ?? {};
+    into[route.node] = ports;
     const list = ports[route.port] ?? [];
     if (!list.includes(host)) list.push(host);
     ports[route.port] = list;
+  };
+  /** `at`: the node whose play routed the host (AFD-353: a step inside a subflow, on the way). */
+  const add = (group: string, host: string, at: string | null | undefined) => {
+    const route = routes[group];
+    if (!route) return;
+    put(nodes, route, host);
+    for (const r of (at && route.via?.[at]) || []) put(exits, r, host);
   };
   const timings: Record<Ulid, { start: number; end: number }> = {};
   const problems: Record<Ulid, Record<string, RunProblem>> = {};
@@ -195,13 +207,13 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     // (Ansible's implicit localhost as the target, AFD-281) is a host of the run.
     if (e.host !== 'localhost' || (e.node ?? playNode)) hosts.add(e.host);
     if (e.status === 'ok' && e.group) {
-      add(e.group, e.host);
+      add(e.group, e.host, e.node ?? playNode);
       pending = pending.filter((f) => f.host !== e.host);
       lost.delete(e.host);
     }
     if (e.status === 'ok' && e.added?.host) {
       const groups = Array.isArray(e.added.groups) ? e.added.groups : [e.added.groups ?? ''];
-      for (const g of groups) add(g, e.added.host);
+      for (const g of groups) add(g, e.added.host, e.node ?? playNode);
     }
     if (e.status === 'unreachable') lost.add(e.host);
     const at = e.node ?? playNode;
@@ -225,13 +237,17 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     const done = partial ? [...failures] : [...failures, ...pending];
     const gone = new Set(unreachable);
     if (!partial) for (const h of lost) gone.add(h);
-    const byNode: RunSummary['nodes'] = {};
-    for (const [node, ports] of Object.entries(nodes))
-      byNode[node] = Object.fromEntries(
-        Object.entries(ports).map(([port, list]) => [port, [...list].sort()]),
-      );
+    const sorted = (from: RunSummary['nodes']) => {
+      const byNode: RunSummary['nodes'] = {};
+      for (const [node, ports] of Object.entries(from))
+        byNode[node] = Object.fromEntries(
+          Object.entries(ports).map(([port, list]) => [port, [...list].sort()]),
+        );
+      return byNode;
+    };
     return {
-      nodes: byNode,
+      nodes: sorted(nodes),
+      ...(Object.keys(exits).length ? { exits: sorted(exits) } : {}),
       outcome: { ...outcome },
       failures: done,
       unreachable: [...gone].sort(),

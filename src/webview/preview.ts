@@ -4,6 +4,7 @@ import { singleRef } from '../core/flow/jinja';
 import { modelOf } from '../core/flow/model';
 import type { FlowDocument, FlowNode, ImplBinding, NodeSettings, Ulid } from '../core/flow/types';
 import type { RunView } from '../core/protocol';
+import { nodePorts } from '../core/run/view';
 
 export interface PreviewStep {
   id: Ulid;
@@ -59,7 +60,7 @@ function settingBadges(s: NodeSettings | undefined): string[] {
 
 /** "ok_hosts 47 · failed_hosts 1 (sw-edge-07)" from the last run of a node. */
 function runText(run: RunView | null | undefined, id: Ulid): string | undefined {
-  const ports = run?.state === 'done' ? run.summary?.nodes[id] : undefined;
+  const ports = run?.state === 'done' ? nodePorts(run.summary, id) : undefined;
   if (!ports) return undefined;
   return Object.entries(ports)
     .map(([port, hosts]) =>

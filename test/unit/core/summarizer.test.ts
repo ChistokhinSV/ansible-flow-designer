@@ -82,3 +82,40 @@ describe('splitLines', () => {
     expect(splitLines('', 'no end yet')).toEqual({ lines: [], carry: 'no end yet' });
   });
 });
+
+// AFD-353: the last step of a subflow routes its hosts straight into the subflow's port group;
+// the run view still counts them at that step (it read "not reached" though it ran).
+describe('a step whose port leaves its subflow', () => {
+  const levels = parse(readFileSync(join(dir, 'routing-levels.flow.yaml'), 'utf8')) as FlowDocument;
+  const generated = optionA.generate(levels, { source: 'routing-levels.flow.yaml' });
+  const stage = '01JCR2N0000000000000000002';
+  const connect = '01JCR2N0000000000000000008';
+  const event = (e: Record<string, unknown>) => JSON.stringify({ ts: 1, ...e });
+
+  it('the route names the step on the way', () => {
+    const [group, route] =
+      Object.entries(generated.routes).find(([, r]) => r.node === stage && r.port === 'ok_hosts') ??
+      [];
+    expect(group).toBeDefined();
+    expect(route?.via?.[connect]).toEqual([{ node: connect, port: 'ok_hosts' }]);
+  });
+
+  it('counts the host at the step whose play routed it, and at the subflow', () => {
+    const group = Object.entries(generated.routes).find(
+      ([, r]) => r.node === stage && r.port === 'ok_hosts',
+    )?.[0];
+    const text = [
+      event({ event: 'play', name: '[connect] Connect', node: connect }),
+      event({ event: 'result', status: 'ok', host: 'h01', task: 'Ping', node: connect }),
+      event({ event: 'result', status: 'ok', host: 'h01', task: 'route', node: connect, group }),
+    ].join('\n');
+    const s = summarizeRun(text, generated.routes);
+    expect(s.nodes[stage]).toEqual({ ok_hosts: ['h01'] });
+    // Apart from where hosts ended (scenarios read `nodes`): connect is no end of the flow.
+    expect(s.nodes[connect]).toBeUndefined();
+    expect(s.exits?.[connect]).toEqual({ ok_hosts: ['h01'] });
+    const states = runStates(levels, s);
+    expect(states[connect]).toMatchObject({ state: 'ok', hosts: 1 });
+    expect(states[stage]).toMatchObject({ state: 'ok', hosts: 1 });
+  });
+});

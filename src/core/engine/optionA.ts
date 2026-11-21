@@ -347,6 +347,13 @@ class Generator {
     if (target === own) {
       this.routes[own] = { node: node.id, port };
       if (!wired && isFailPort(port)) this.openPort(node, port, own);
+    } else {
+      const route = this.routes[target];
+      if (route) {
+        // The subflow's own way up, when its port leaves its level too.
+        const up = route.via?.[parent?.node.id ?? ''] ?? [];
+        route.via = { ...route.via, [node.id]: [{ node: node.id, port }, ...up] };
+      }
     }
     this.targets.set(memo, target);
     return target;

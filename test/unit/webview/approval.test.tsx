@@ -84,6 +84,14 @@ describe('AWX approvals in Run mode', () => {
     expect(line?.dataset.approval).toBe('waiting');
     // AFD-327: with the hosts that arrived there, waiting for the decision.
     expect(line?.textContent).toBe('waiting for approval · 2 hosts');
+    // AFD-353: a step after the approval has not been reached yet; it does not wait itself.
+    const after = doc.edges.find((e) => e.from.node === id('gate'))?.to.node;
+    expect(
+      document.querySelector<HTMLElement>(`[data-node-id="${after}"] .afd-node-run`)?.textContent,
+    ).toBe('not reached yet');
+    cleanup();
+    render(<RunPanel />);
+    expect(screen.getByText('waiting for approval')).toBeTruthy();
     cleanup();
     render(<TopBar />);
     expect(screen.getByText(/AWX workflow #40 · waiting for approval/)).toBeTruthy();

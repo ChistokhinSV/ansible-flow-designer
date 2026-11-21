@@ -401,11 +401,16 @@ function RunLine({ node }: { node: FlowNode }) {
       </div>
     );
   }
-  if (!r) return <div className="afd-node-run tone-neutral">{running ? 'waiting' : 'no run'}</div>;
+  // AFD-353: a step the live run has not got to (it may wait at an approval) is not reached yet;
+  // "waiting" read as if the step itself waited.
+  if (!r)
+    return (
+      <div className="afd-node-run tone-neutral">{running ? 'not reached yet' : 'no run'}</div>
+    );
   if (r.state === 'idle')
     return (
       <div className="afd-node-run tone-neutral" data-run-state="idle">
-        {running ? 'waiting' : 'not reached'}
+        {running ? 'not reached yet' : 'not reached'}
       </div>
     );
   // AFD-81: the step a live run is in (a subflow: a step inside it), with what has happened so far.

@@ -30,6 +30,23 @@ export interface NodeRun {
   seconds?: number;
 }
 
+/**
+ * The ports a node's hosts left through: those it routed, and (AFD-353) those that led out of its
+ * subflow, which the run counts at the subflow.
+ */
+export function nodePorts(
+  s: RunSummary | undefined,
+  node: Ulid,
+): Record<string, string[]> | undefined {
+  const own = s?.nodes[node];
+  const out = s?.exits?.[node];
+  if (!out) return own;
+  const ports: Record<string, string[]> = { ...own };
+  for (const [port, hosts] of Object.entries(out))
+    ports[port] = [...new Set([...(ports[port] ?? []), ...hosts])].sort();
+  return ports;
+}
+
 export function nodeHosts(s: RunSummary, node: Ulid): HostResult[] {
   const rows = new Map<string, HostResult>();
   const row = (host: string) => {
@@ -40,7 +57,7 @@ export function nodeHosts(s: RunSummary, node: Ulid): HostResult[] {
     }
     return r;
   };
-  for (const [port, hosts] of Object.entries(s.nodes[node] ?? {}))
+  for (const [port, hosts] of Object.entries(nodePorts(s, node) ?? {}))
     for (const h of hosts) row(h).ports.push(port);
   for (const [h, p] of Object.entries(s.problems?.[node] ?? {})) row(h).problem = p;
   for (const f of s.failures)
@@ -155,7 +172,7 @@ export function testedCandidates(doc: FlowDocument, run: RunView | null): Ulid[]
     .filter(
       (n) =>
         n.status === 'implemented' &&
-        (s.nodes[n.id] || s.timings?.[n.id]) &&
+        (nodePorts(s, n.id) || s.timings?.[n.id]) &&
         (!now || run.design?.[n.id] === now[n.id]),
     )
     .map((n) => n.id);

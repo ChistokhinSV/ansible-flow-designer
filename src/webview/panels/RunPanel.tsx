@@ -33,7 +33,7 @@ import { send } from '../bus';
 import { ago } from '../constants';
 import { HostInputsRow } from '../properties/RunValues';
 import { showPastRun } from '../runActions';
-import { approvalOf, type ShownApproval } from '../runApproval';
+import { approvalOf, type ShownApproval, waitsForApproval } from '../runApproval';
 import { requestRunOutput } from '../runOutput';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
@@ -55,7 +55,8 @@ function PastRuns({ run }: { run: RunView | null }) {
     run.flowVersion !== version;
   return (
     <div className="afd-field afd-past-runs" data-past-runs={runs.length}>
-      <label htmlFor="afd-past-run">Earlier runs</label>
+      {/* AFD-353: the list holds the newest run too: it picks the run shown. */}
+      <label htmlFor="afd-past-run">Run shown</label>
       <select
         id="afd-past-run"
         className="afd-input"
@@ -101,6 +102,9 @@ function statusOf(
   run: RunView,
   words: RunWords,
 ): { label: string; tone: 'ok' | 'warn' | 'neutral'; why?: string } {
+  // AFD-353: a run that waits for a decision says so, not "running".
+  if (run.state === 'running' && waitsForApproval(run))
+    return { label: 'waiting for approval', tone: 'neutral' };
   if (run.state === 'running')
     return {
       label: run.awx
@@ -447,6 +451,13 @@ export function RunPanel() {
           <p>
             {hostsWord(s.hosts.length)}
             {s.stoppedEarly ? ' · stopped early' : ''}
+            {/* AFD-353: which hosts, not only how many (a short list in full). */}
+            {s.hosts.length > 0 && s.hosts.length <= 20 ? (
+              <span className="muted mono" data-run-host-names={s.hosts.length}>
+                {': '}
+                {s.hosts.join(', ')}
+              </span>
+            ) : null}
           </p>
           {outcome.length > 0 ? (
             <ul className="afd-run-hosts" data-run-outcome={outcome.length}>
