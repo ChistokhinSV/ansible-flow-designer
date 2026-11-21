@@ -19,6 +19,21 @@ export const fieldLabel = (f: FieldChange) => FIELD_LABEL[f.field] ?? f.field;
 
 const plural = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;
 
+/** AFD-354: "2 notes added, 1 section changed": the annotations' changes, by kind. */
+function annotationWords(list: readonly { kind: string; annotation: string }[]): string {
+  const counts = new Map<string, number>();
+  for (const a of list) {
+    const k = `${a.annotation}|${a.kind}`;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([k, n]) => {
+      const [what, change] = k.split('|');
+      return `${plural(n, what ?? 'note')} ${change}`;
+    })
+    .join(', ');
+}
+
 export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined): LensView {
   const view: LensView = {
     lens: 'changes',
@@ -51,16 +66,12 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
     if (n.kind === 'changed') {
       const fields = n.fields.map(fieldLabel);
       view.chips[n.id] = [{ text: `changed: ${fields.join(', ')}`, title: fields.join(', ') }];
-      changed.push({
-        key: n.id,
-        label: n.title,
-        value: fields.join(', '),
-        detail: where(n.where),
-        nodes: [n.id],
-      });
+      // AFD-354: the list names a step's place itself ("in Pre-checks") once the steps are on
+      // more than one level: no detail repeats it.
+      changed.push({ key: n.id, label: n.title, value: fields.join(', '), nodes: [n.id] });
     } else if (n.kind === 'added') {
       view.chips[n.id] = [{ text: 'added' }];
-      added.push({ key: n.id, label: n.title, detail: where(n.where), nodes: [n.id] });
+      added.push({ key: n.id, label: n.title, nodes: [n.id] });
     } else {
       removed.push({
         key: n.id,
@@ -82,8 +93,18 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
   view.ghosts = diff.nodes
     .filter((n) => n.kind === 'removed')
     .map((n) => ({ id: n.id, title: n.title, type: n.type, level: n.level, position: n.position }));
+  // AFD-354: a wire between two added steps needs no label (the steps say added); on a flow the
+  // commit added, every wire had one, on the port names and cut behind nodes.
+  const addedNodes = new Set(diff.nodes.filter((n) => n.kind === 'added').map((n) => n.id));
   view.wires = Object.fromEntries(
-    diff.wires.filter((w) => w.kind === 'added' && w.edge).map((w) => [w.edge, 'added']),
+    diff.wires
+      .filter(
+        (w) =>
+          w.kind === 'added' &&
+          w.edge &&
+          !(addedNodes.has(w.from.node) && addedNodes.has(w.to.node)),
+      )
+      .map((w) => [w.edge, 'added']),
   );
   const wireItems = diff.wires.map((w) => ({
     key: `${w.kind}:${w.label}`,
@@ -114,6 +135,7 @@ export function changesLens(doc: FlowDocument, compare: CompareFacts | undefined
       value: `+${diff.wires.filter((w) => w.kind === 'added').length} −${diff.wires.filter((w) => w.kind === 'removed').length}`,
     },
   );
+  if (diff.annotations.length > 0) view.annotationWords = annotationWords(diff.annotations);
   if (diff.annotations.length > 0)
     view.stats.push({
       label: 'Annotations',

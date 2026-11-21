@@ -16,6 +16,7 @@ export function CanvasCaption() {
   const doc = useUi((s) => s.snapshot?.doc);
   const level = useUi((s) => s.level);
   const targets = useUi((s) => s.lensFacts.inventory?.targets);
+  const compare = useUi((s) => s.lensFacts.compare);
   // AFD-270: a viewer has one mode and no lens, so nothing to explain.
   // AFD-320: a past version (History) shows the Changes lens, which says what it compares.
   const viewer = useUi((s) => s.viewer && !s.past);
@@ -25,7 +26,7 @@ export function CanvasCaption() {
     id: n.id,
     type: n.type,
   }));
-  const c = lens ? lensCaption(lens, view, nodes, targets) : undefined;
+  const c = lens ? lensCaption(lens, view, nodes, targets, compare) : undefined;
   return (
     <div className="afd-canvas-caption" role="status" data-canvas-caption={lens ?? mode}>
       {mode !== 'design' && m ? (
@@ -36,6 +37,7 @@ export function CanvasCaption() {
       {c ? (
         <p data-caption-lens={c.lens}>
           <strong>{c.label} lens</strong> · {c.what}.
+          {c.also ? <span data-lens-also> {c.also}</span> : null}
           {c.empty ? (
             <>
               {' '}

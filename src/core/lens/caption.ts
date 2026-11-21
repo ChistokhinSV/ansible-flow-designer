@@ -2,7 +2,7 @@
 // participant turned the Inventory and Data lenses on and saw the canvas go quiet: chips appear only
 // where a step has something for the lens, and nothing said so (P10).
 import type { Ulid } from '../flow/types';
-import { LENSES, type LensId, type LensView } from './types';
+import { type CompareFacts, LENSES, type LensId, type LensView } from './types';
 
 export interface LensCaption {
   lens: LensId;
@@ -13,6 +13,19 @@ export interface LensCaption {
   empty?: string;
   /** The empty reason is fixed by setting the flow targets. */
   setTargets?: boolean;
+  /** Changes lens (AFD-354): what changed besides the steps ("2 notes added"), as a sentence. */
+  also?: string;
+}
+
+/**
+ * What a lens shows, in a sentence's words. AFD-354: the Changes lens with one version to compare
+ * with (a past version: the one before its commit) names it, instead of promising HEAD, a branch
+ * or a commit that Compare with does not offer.
+ */
+export function lensWhat(lens: LensId, compare?: Pick<CompareFacts, 'label' | 'refs'>): string {
+  if (lens === 'changes' && compare && compare.refs.length <= 1)
+    return `What changed since ${compare.label}`;
+  return LENSES.find((l) => l.id === lens)?.hint ?? '';
 }
 
 /** Why the lens has nothing for any step of the level, per lens. */
@@ -31,9 +44,10 @@ export function lensCaption(
   view: LensView | null,
   level: { id: Ulid; type: string }[],
   targets: string | undefined,
+  compare?: Pick<CompareFacts, 'label' | 'refs'>,
 ): LensCaption {
   const def = LENSES.find((l) => l.id === lens);
-  const caption: LensCaption = { lens, label: def?.label ?? lens, what: def?.hint ?? '' };
+  const caption: LensCaption = { lens, label: def?.label ?? lens, what: lensWhat(lens, compare) };
   // The Inventory lens counts hosts from the flow targets: without them, no step has a count.
   if (lens === 'inventory' && !targets?.trim())
     return {
@@ -46,6 +60,10 @@ export function lensCaption(
   const shown =
     steps.some((n) => (view.chips[n.id]?.length ?? 0) > 0) ||
     (lens === 'changes' && (view.ghosts?.length ?? 0) > 0);
-  if (shown || steps.length === 0) return caption;
+  // AFD-354: notes, sections and texts changed count too: "nothing changed" was said beside a
+  // list of added notes.
+  const notes = lens === 'changes' ? view.annotationWords : undefined;
+  if (shown || steps.length === 0) return notes ? { ...caption, also: `Also ${notes}.` } : caption;
+  if (notes) return { ...caption, also: `No step on this level changed; ${notes}.` };
   return { ...caption, empty: view.notes[0] ?? EMPTY[lens] };
 }
