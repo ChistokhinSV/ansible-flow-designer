@@ -25,6 +25,10 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- Where a step cannot be changed (a viewer, Run mode, a flow at a past commit), the rows of **Details › Data** open again to show **Comes from**, **Defined in the repository** and **In this run**, and are no longer dimmed. **Details** shows no controls that would only be refused there: no **Add input** or **Add output**, no Remove, **@**, **Add** or **Change role** in **Binding**, and an unbound step says it is not bound yet.
+- A viewer is no longer offered **Mark … Tested** after a run, and a flow at a past commit no longer shows the **Start with a Step** card or takes **N**, Delete and the other editing keys.
+- In a narrow side panel (Ansible Flow Server's run page), an input's row wraps instead of cutting its name, type and source to a few letters (where it comes from gets a line of its own), the **Details** tabs stay on one row, and the panel is up to 360 px wide where there is no palette. **For host** sits in the panel's padding, as the rows do.
+- Values in **Where a value comes from** and **In this run** read `[edge]` and `{user: bob}`, without spaces inside the brackets.
 - A step's binding open in **Details** no longer writes its old parameters back over a change made to the step elsewhere (by someone else editing the same flow in Ansible Flow Server's pages, or in the file): what you did not change follows the step.
 - In Run mode, the last step inside a subflow (a step whose port leaves the subflow) read "not reached" though its hosts ran it; its **Run** tab and **Last run** list them now. The run's routes name the steps on the way out of a subflow.
 - While a run waits for approval, the Run panel's status says "waiting for approval", not "running", and steps the run has not got to read "not reached yet", not "waiting".

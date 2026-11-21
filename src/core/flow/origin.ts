@@ -143,7 +143,12 @@ export function originValue(value: unknown, max = MAX_VALUE): string {
       ? value === ''
         ? '""'
         : value
-      : stringify(value, { collectionStyle: 'flow', lineWidth: 0 }).trim();
+      : // AFS-188: `[edge]`, not YAML's padded `[ edge ]`.
+        stringify(value, {
+          collectionStyle: 'flow',
+          lineWidth: 0,
+          flowCollectionPadding: false,
+        }).trim();
   s = s.replaceAll(/\s*\n\s*/g, ' ');
   if (s.length <= max) return s;
   const half = Math.floor((max - 1) / 2);

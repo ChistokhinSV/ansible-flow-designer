@@ -453,8 +453,12 @@ export function App() {
               ? 'var(--afd-collapsed-width)'
               : expanded
                 ? 'min(1100px, 80vw)'
-                : // AFD-328: never more than 40% of a narrow designer: the canvas keeps the room.
-                  `min(${panelWidth}px, 40vw)`,
+                : palette
+                  ? // AFD-328: never more than 40% of a narrow designer: the canvas keeps the room.
+                    `min(${panelWidth}px, 40vw)`
+                  : // AFS-188: without the palette (Code, Run, a past version: the server's run
+                    // page) the canvas has more room, and the panel may take up to 360px of it.
+                    `min(${panelWidth}px, max(40vw, min(360px, 50vw)))`,
             // Code and Run modes and a past version read the graph: no palette (AFD-45, AFD-349).
             ...(!palette
               ? { '--afd-left-width': '0px' }

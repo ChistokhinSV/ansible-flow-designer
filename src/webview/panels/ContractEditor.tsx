@@ -16,9 +16,10 @@ import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../.
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
+import { useDetailsReadOnly } from '../details/readOnly';
 import { useEditable } from '../editActions';
 import { OriginChain, OriginHostPicker, useOriginOptions } from '../properties/OriginView';
-import { RunValues } from '../properties/RunValues';
+import { RunHostPicker, RunValues } from '../properties/RunValues';
 import { useUi } from '../store';
 
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
@@ -129,6 +130,8 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
   // compare with is worked out for that host (the repository's winner differs per host).
   const mode = useUi((s) => s.mode);
   const editable = useEditable();
+  // AFS-188: read-only, the rows still open (where a value comes from); nothing to change is shown.
+  const readOnly = useDetailsReadOnly() || !editable;
   const runValues = mode === 'run' && !!node && side === 'inputs' && !!model;
   const originForHost = (name: string) => (host: string | undefined) =>
     model && node
@@ -188,7 +191,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
     <section className="afd-section afd-contract-section">
       <div className="afd-section-head">
         <h3>{title}</h3>
-        {!adding ? (
+        {!adding && !readOnly ? (
           <button
             type="button"
             className="link"
@@ -202,10 +205,15 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
         ) : null}
       </div>
       {hint ? <p className="muted afd-help">{hint}</p> : null}
-      {/* AFD-340: the host where a value comes from is worked out for (the repository's hosts). */}
-      {/* AFD-341: Run mode has its own picker, outside the read-only fieldset (Details). */}
-      {/* AFD-342: read-only (a viewer, Code mode), Details has it outside the disabled fieldset. */}
-      {side === 'inputs' && node && mode === 'design' && editable ? <OriginHostPicker /> : null}
+      {/* AFD-340: the host where a value comes from is worked out for (the repository's hosts);
+        AFD-341: in Run mode, the run's hosts. AFS-188: here in every mode, in the panel's padding. */}
+      {side === 'inputs' && node ? (
+        mode === 'run' ? (
+          <RunHostPicker node={node.id} />
+        ) : (
+          <OriginHostPicker />
+        )
+      ) : null}
       {entries.length === 0 && !adding ? <p className="muted">None yet.</p> : null}
       <ul className="afd-contract">
         {entries.map(([name, field]) => {
@@ -257,6 +265,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
               ) : null}
               {isOpen ? (
                 <FieldForm
+                  readOnly={readOnly}
                   name={name}
                   field={field}
                   side={side}
@@ -316,7 +325,9 @@ function FieldForm({
   origin,
   onChange,
   onRemove,
+  readOnly,
 }: {
+  readOnly?: boolean;
   name: string;
   field: ContractField | undefined;
   side: 'inputs' | 'outputs';
@@ -330,7 +341,8 @@ function FieldForm({
   const id = useId();
   const current = (field ?? { type: 'any' }) as ContractField;
   return (
-    <div className="afd-contract-form">
+    // AFS-188: read-only, the fields read as text and the chain's hops still go to their steps.
+    <fieldset className="afd-contract-form afd-editable" disabled={readOnly}>
       <div className="afd-field">
         <label htmlFor={`${id}-name`}>Name</label>
         <CommitBox
@@ -413,15 +425,17 @@ function FieldForm({
       {flowInputs && current.targets ? (
         <p className="muted afd-help">The hosts the run starts on: the start node's targets.</p>
       ) : null}
-      <button
-        type="button"
-        className="link danger"
-        aria-label={`Remove ${name}`}
-        onClick={onRemove}
-      >
-        <span className="codicon codicon-trash" aria-hidden="true" /> Remove
-      </button>
-    </div>
+      {readOnly ? null : (
+        <button
+          type="button"
+          className="link danger"
+          aria-label={`Remove ${name}`}
+          onClick={onRemove}
+        >
+          <span className="codicon codicon-trash" aria-hidden="true" /> Remove
+        </button>
+      )}
+    </fieldset>
   );
 }
 

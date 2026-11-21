@@ -27,10 +27,10 @@ import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
 import { Implementation } from '../properties/Implementation';
-import { OriginHostPicker, OriginScope } from '../properties/OriginView';
-import { RunHostPicker } from '../properties/RunValues';
+import { OriginScope } from '../properties/OriginView';
 import { keysOf } from '../shortcuts';
 import { type Mode, type PropTab, useUi } from '../store';
+import { DetailsReadOnly } from './readOnly';
 import { BehaviorSection, GeneralSection, IoSection } from './sections';
 
 // AFD-297: four tabs for a step: Step, Binding, Data, Behavior. Ports and Execution are one tab
@@ -355,13 +355,10 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
         ) : tab === 'run' ? (
           <NodeRunPanel id={id} />
         ) : (
-          <>
-            {/* AFD-341: the host the run's values are for; outside the read-only fieldset. */}
-            {tab === 'io' && mode === 'run' ? <RunHostPicker node={id} /> : null}
-            {/* AFD-342: a read-only Details (a viewer, Code mode) has the repository's host picker
-              out here too, or the disabled fieldset would disable it. */}
-            {tab === 'io' && mode !== 'run' && readOnly ? <OriginHostPicker /> : null}
-            <fieldset className="afd-editable" disabled={readOnly}>
+          <DetailsReadOnly.Provider value={readOnly}>
+            {/* AFS-188: Data is never a disabled fieldset: its rows open read-only too (where a
+              value comes from, In this run), and its editors hide what cannot be used. */}
+            <fieldset className="afd-editable" disabled={readOnly && tab !== 'io'}>
               {/* AFD-339: the fields' tooltips say where this step's values come from. */}
               <OriginScope.Provider value={id}>
                 {tab === 'binding' ? (
@@ -379,7 +376,7 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
                 )}
               </OriginScope.Provider>
             </fieldset>
-          </>
+          </DetailsReadOnly.Provider>
         )}
       </div>
     </div>

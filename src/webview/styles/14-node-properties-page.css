@@ -125,19 +125,24 @@
 
 .afd-props-tabs {
   display: flex;
-  flex-wrap: wrap;
+  /* AFS-188: one row of tabs; a panel too narrow for them scrolls it rather than wrapping one. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
   gap: 2px;
   padding: 0 8px;
   border-bottom: 1px solid var(--afd-border);
 }
 
 .afd-props-tabs button {
+  flex: none;
+  white-space: nowrap;
   background: transparent;
   color: var(--afd-muted);
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  padding: 6px 10px;
+  padding: 6px 8px;
 }
 
 .afd-props-tabs button.active {
@@ -162,6 +167,12 @@
 .afd-impl {
   display: grid;
   grid-template-columns: 1fr;
+}
+
+/* AFS-188: a read-only step that is not bound yet says so. */
+.afd-impl-none {
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .afd-impl > section {

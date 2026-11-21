@@ -43,7 +43,7 @@ export function ParamPicker({
     }
   };
   return (
-    <div className="afd-field afd-param-picker" data-param-picker={fields.length}>
+    <div className="afd-field afd-param-picker afd-edit-only" data-param-picker={fields.length}>
       <label htmlFor={id}>Add a parameter</label>
       <div className="afd-chipfield">
         <input

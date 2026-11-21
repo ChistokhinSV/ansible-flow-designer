@@ -635,7 +635,7 @@ export function ChipField({
       />
       <button
         type="button"
-        className="icon afd-chipfield-at"
+        className="icon afd-chipfield-at afd-edit-only"
         title="Insert an input (@)"
         aria-label={`Insert an input into ${label ?? 'the value'}`}
         onMouseDown={(e) => {

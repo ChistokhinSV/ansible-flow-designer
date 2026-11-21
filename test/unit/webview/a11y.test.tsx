@@ -12,6 +12,7 @@ import { buildModel, ROOT } from '../../../src/core/flow/model';
 import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { App } from '../../../src/webview/App';
+import { canEdit } from '../../../src/webview/editActions';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -347,5 +348,7 @@ describe('a past version (AFD-349)', () => {
     );
     const again = render(<App />);
     expect(again.container.querySelector('.afd-palette')).toBeNull();
+    // AFS-188: nor anything else that edits (the empty level's card, N, Delete): it is refused.
+    expect(canEdit()).toBe(false);
   });
 });

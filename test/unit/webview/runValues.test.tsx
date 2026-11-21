@@ -11,6 +11,7 @@ import { inputOrigin } from '../../../src/core/flow/origin';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import type { RunView } from '../../../src/core/protocol';
 import { summarizeRun } from '../../../src/core/run/events';
+import { Details } from '../../../src/webview/details/Details';
 import { ContractEditor } from '../../../src/webview/panels/ContractEditor';
 import { NodeRunPanel } from '../../../src/webview/panels/RunPanel';
 import { JinjaTip } from '../../../src/webview/properties/JinjaAssist';
@@ -93,9 +94,9 @@ describe('Details in Run mode', () => {
   it('each input shows the values of the run, hosts with the same value together', () => {
     inputs();
     expect(row('word').textContent).toContain('hello (h01, h02, h03)');
-    expect(row('creds').textContent).toContain('{ user: bob, password: "********" } (h01, h02)');
+    expect(row('creds').textContent).toContain('{user: bob, password: "********"} (h01, h02)');
     // Another value than the flow's default for the same input: said so.
-    expect(row('creds').textContent).toContain('{ user: eve, password: "********" } (h03)');
+    expect(row('creds').textContent).toContain('{user: eve, password: "********"} (h03)');
     expect(row('creds').textContent).toMatch(/differs from what the flow predicted/);
     expect(row('access').textContent).toContain('secret: not recorded');
   });
@@ -104,7 +105,7 @@ describe('Details in Run mode', () => {
     act(() => useUi.getState().setOriginHost('h03'));
     const { unmount } = inputs();
     expect(row('creds').dataset.runValues).toBe('h03');
-    expect(row('creds').textContent).toContain('{ user: eve, password: "********" } (h03)');
+    expect(row('creds').textContent).toContain('{user: eve, password: "********"} (h03)');
     expect(row('word').textContent).not.toMatch(/differs/);
     unmount();
     act(() => useUi.setState({ mode: 'design' }));
@@ -169,7 +170,7 @@ describe('a variable’s tooltip in Run mode', () => {
     tip();
     const line = document.querySelector('[data-run-value="h03"]');
     expect(line?.textContent).toMatch(
-      /^In this run: \{ user: eve, password: "\*\*\*\*\*\*\*\*" \} \(h03\)/,
+      /^In this run: \{user: eve, password: "\*\*\*\*\*\*\*\*"\} \(h03\)/,
     );
     expect(line?.textContent).toMatch(/differs from what the flow predicted/);
   });
@@ -193,7 +194,29 @@ describe('the Run tab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inputs of h03' }));
     const values = document.querySelector('[data-host-inputs="h03"]');
     expect(values?.textContent).toContain('accesssecret: not recorded');
-    expect(values?.textContent).toContain('creds{ user: eve, password: "********" }');
+    expect(values?.textContent).toContain('creds{user: eve, password: "********"}');
     expect(values?.textContent).toContain('wordhello');
+  });
+});
+
+describe('a read-only Details, Data tab (AFS-188)', () => {
+  it('opens an input row to say where it comes from, and offers nothing to change', () => {
+    act(() => useUi.setState({ viewer: true, detailsTab: 'io' }));
+    render(<Details id={show.id} />);
+    // The rows are not in a disabled fieldset: they open, at full strength.
+    const word = screen.getByRole('button', { name: /^word:/ }) as HTMLButtonElement;
+    expect(word.closest('fieldset:disabled')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Add (input|output)$/ })).toBeNull();
+    fireEvent.click(word);
+    expect(word.getAttribute('aria-expanded')).toBe('true');
+    const form = document.querySelector('[data-contract-field="word"] .afd-contract-form');
+    expect(form?.matches(':disabled')).toBe(true);
+    expect(
+      form?.querySelector('[data-comes-from], .afd-value')?.closest('.afd-field'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remove word' })).toBeNull();
+    // The run's host picker sits in the Inputs section, in the panel's padding.
+    expect(document.querySelector('.afd-contract-section [data-run-host-picker]')).not.toBeNull();
+    act(() => useUi.setState({ viewer: false }));
   });
 });
