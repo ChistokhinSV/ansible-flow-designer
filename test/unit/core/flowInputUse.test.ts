@@ -85,7 +85,7 @@ describe('a flow input on the launch form (AFD-342)', () => {
     ]);
     expect(use.overrides[1]).toMatchObject({ file: 'inventory/group_vars/edge.yml', line: 0 });
     expect(use.text).toBe(
-      'Read by set ntp (as server), log it; default 192.0.2.1; wins over the default of input ntp_server of "wait", group_vars of edge (inventory/group_vars/edge.yml:1), group_vars of all (inventory/group_vars/all.yml:1).',
+      'Read by set ntp (as server) and log it; default 192.0.2.1; wins over the default of input ntp_server of "wait", group_vars of edge (inventory/group_vars/edge.yml:1), group_vars of all (inventory/group_vars/all.yml:1).',
     );
   });
 
@@ -95,12 +95,23 @@ describe('a flow input on the launch form (AFD-342)', () => {
     expect(use.overrides.map((o) => o.file)).toEqual([undefined]);
     const unused = flowInputUse(model, 'unused');
     expect(unused).toMatchObject({ asked: 'asked when the run starts, required', readBy: [] });
-    expect(unused.text).toBe('No step reads it.');
+    // AFS-189: a required one says that a run gives it all the same.
+    expect(unused.text).toBe('No step reads it, though a run must give it.');
     // The targets input is what the run starts on, read by a step or not.
     expect(flowInputUse(model, 'devices')).toMatchObject({
       asked: 'the hosts the run starts on',
       text: 'The hosts the run starts on.',
     });
+  });
+
+  it('names every step that reads it: a launch form cannot open "and 1 more" (AFS-189)', () => {
+    const readers = ['a', 'b', 'c', 'd'].map((k) =>
+      step(k, {
+        impl: { kind: 'module', ref: 'ansible.builtin.debug', params: { msg: '{{ site }}' } },
+      }),
+    );
+    const use = flowInputUse(buildModel(flow(readers, { site: { type: 'string' } })), 'site');
+    expect(use.text).toBe('Read by a, b, c and d.');
   });
 
   it('never gives the default of a secret one, nor a repository value', async () => {

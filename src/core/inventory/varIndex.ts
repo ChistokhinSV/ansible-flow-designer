@@ -240,7 +240,7 @@ export async function buildVarIndex(fs: InventoryFs, req: VarIndexRequest): Prom
         ),
       );
   for (const host of [...hosts].sort())
-    for (const v of inlineVars(inv.texts, { host }))
+    for (const v of inlineVars(inv.texts, { host, ranges: true }))
       add(defOf(v, { kind: 'host', host, inline: true }, RANK.hostInline));
   const base = inv.varDirs.base;
   for (const f of inv.varFiles) {

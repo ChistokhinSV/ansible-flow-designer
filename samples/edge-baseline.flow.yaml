@@ -77,6 +77,7 @@ nodes:
       ntp_servers:
       - 192.0.2.10
       - 192.0.2.11
+      site_name: '{{ site }}'
 - id: 01JB9EE0ZBGJ09TQM83XSSSS6Y
   key: validate
   type: task

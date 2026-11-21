@@ -1,0 +1,3 @@
+# The site the edge switches are at, for runs of these playbooks on their own
+# (ansible-playbook site.yml). A flow run's site input is an extra var: it wins over this.
+site: ams-edge

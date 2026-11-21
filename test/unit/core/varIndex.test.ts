@@ -163,6 +163,35 @@ describe('variable index (AFD-340)', () => {
     expect(repoAnswer(index, 'ntp_server', {}, 'web-02')?.winner?.value).toBe('192.0.2.7');
   });
 
+  it('a host range line gives each of its hosts what it sets (AFS-189)', async () => {
+    const index = await build(
+      {
+        'hosts.ini': [
+          '[edge]',
+          'sw-0[1:3] ansible_connection=local',
+          '[local]',
+          'localhost ansible_connection=ssh',
+          '',
+        ].join('\n'),
+      },
+      { inventory: 'hosts.ini' },
+    );
+    expect(repoAnswer(index, 'ansible_connection', {}, 'sw-02')?.winner).toMatchObject({
+      file: 'hosts.ini',
+      line: 1,
+      value: 'local',
+    });
+    expect(repoAnswer(index, 'ansible_connection', {}, 'localhost')?.winner).toMatchObject({
+      line: 3,
+      value: 'ssh',
+    });
+    const yaml = await build(
+      { 'hosts.yml': ['all:', '  hosts:', '    lab-[a:b]:', '      mtu: 9000', ''].join('\n') },
+      { inventory: 'hosts.yml' },
+    );
+    expect(repoAnswer(yaml, 'mtu', {}, 'lab-b')?.winner).toMatchObject({ value: '9000' });
+  });
+
   it('picks the winner per host: host > group_vars > inventory groups, child over parent', async () => {
     const index = await build();
     // web-01: its own inventory line beats every group.

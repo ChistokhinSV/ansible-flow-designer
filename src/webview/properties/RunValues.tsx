@@ -2,15 +2,18 @@
 // the value comes from. Read from the run summary (core/run/view), so the server's embedded viewer
 // draws the same. A host picked (Details › For host, the inventory tree) narrows it to that host.
 import { useId } from 'react';
-import type { Origin } from '../../core/flow/origin';
+import { type Origin, originValue } from '../../core/flow/origin';
+import { SECRET } from '../../core/import/secrets';
 import type { RecordedInput } from '../../core/run/events';
 import {
+  arrivals,
   differsFromPredicted,
   hostInputs,
   inputValueGroups,
   nodeInputsRecorded,
   recordedText,
 } from '../../core/run/view';
+import { useModel } from '../hooks';
 import { useUi } from '../store';
 import { OriginHostPicker } from './OriginView';
 
@@ -39,7 +42,12 @@ export function useRunValue(
   return mode === 'run' && host && input ? { host, input } : undefined;
 }
 
-/** The tooltip line (Run mode, one host): "In this run: value (host)", and whether it differs. */
+/**
+ * The tooltip's "In this run" (Run mode): a step input's recorded value for the host picked (and
+ * whether it differs), or every host's grouped as Details shows them; AFS-189: also each host's
+ * own name for `inventory_hostname`, and the value the run gave a flow input the step reads
+ * directly (the same for every host).
+ */
 export function RunValueTip({
   node,
   name,
@@ -49,16 +57,80 @@ export function RunValueTip({
   name: string;
   origin?: Origin;
 }) {
-  const v = useRunValue(node, name);
-  if (!v) return null;
-  const differs = differsFromPredicted(origin, v.input);
-  return (
-    <div className="afd-run-value" data-run-value={v.host}>
-      In this run: <span className="mono">{recordedText(v.input)}</span>{' '}
-      <span className="muted">({v.host})</span>
-      {differs ? <div className="afd-run-value-differs">{differs}</div> : null}
-    </div>
-  );
+  const mode = useUi((s) => s.mode);
+  const summary = useUi((s) => s.run?.summary);
+  const given = useUi((s) => s.run?.flowInputs);
+  const model = useModel();
+  const host = useRunHost(node);
+  if (mode !== 'run' || !summary) return null;
+  const byHost = node ? summary.inputs?.[node] : undefined;
+  if (node && byHost && Object.values(byHost).some((h) => name in h)) {
+    const input = host ? byHost[host]?.[name] : undefined;
+    if (host && input) {
+      const differs = differsFromPredicted(origin, input);
+      return (
+        <div className="afd-run-value" data-run-value={host}>
+          In this run: <span className="mono">{recordedText(input)}</span>{' '}
+          <span className="muted">({host})</span>
+          {differs ? <div className="afd-run-value-differs">{differs}</div> : null}
+        </div>
+      );
+    }
+    if (host) return null;
+    const groups = inputValueGroups(summary, node, name);
+    const shown = groups.slice(0, MAX_GROUPS);
+    return (
+      <div className="afd-run-value" data-run-value="all">
+        In this run:
+        {shown.map((g) => (
+          <div key={g.full}>
+            <span className="mono">{g.text}</span>{' '}
+            <span className="muted">({hostsText(g.hosts)})</span>
+          </div>
+        ))}
+        {groups.length > shown.length ? (
+          <div className="muted">and {groups.length - shown.length} more values</div>
+        ) : null}
+      </div>
+    );
+  }
+  if (name === 'inventory_hostname') {
+    const hosts = host
+      ? [host]
+      : node && byHost
+        ? Object.keys(byHost).sort()
+        : node && model
+          ? arrivals(model, summary, node)
+          : summary.hosts;
+    if (!hosts.length) return null;
+    return (
+      <div className="afd-run-value" data-run-value={host ?? 'all'}>
+        In this run:{' '}
+        {host ? (
+          <span className="mono">{host}</span>
+        ) : (
+          <>
+            each host&apos;s own name <span className="muted">({hostsText(hosts)})</span>
+          </>
+        )}
+      </div>
+    );
+  }
+  if (given && name in given && model?.doc.flow?.inputs?.[name]) {
+    const secret = SECRET.test(name) || given[name] === '***';
+    return (
+      <div className="afd-run-value" data-run-value="flow">
+        In this run:{' '}
+        {secret ? (
+          <span className="muted">secret: not shown</span>
+        ) : (
+          <span className="mono">{originValue(given[name])}</span>
+        )}{' '}
+        <span className="muted">(the flow input, the same for every host)</span>
+      </div>
+    );
+  }
+  return null;
 }
 
 /** Why a step has no values of this run: off, not recorded (an older run), or none reached it. */
@@ -102,7 +174,13 @@ export function RunValues({
       <div className="afd-run-values" data-run-values={host}>
         <span className="afd-label">In this run</span>{' '}
         <span className="mono" title={input ? recordedText(input, 2000) : undefined}>
-          {input ? recordedText(input) : 'not recorded for this host'}
+          {input
+            ? recordedText(input)
+            : hostInputs(summary, node, host)
+              ? 'not recorded for this host'
+              : (summary.hosts ?? []).includes(host)
+                ? 'this host did not reach this step'
+                : 'not in this run'}
         </span>{' '}
         <span className="muted">({host})</span>
         {differs ? <div className="afd-run-value-differs">{differs}</div> : null}
@@ -153,20 +231,20 @@ function hostsText(hosts: string[]): string {
 
 /**
  * AFD-341: the host the run values (and the repository's winner) are for, in Run mode. It sits
- * outside the read-only Details fieldset, so it can be used there; it lists the run's hosts at the
- * step and the hosts the repository names.
+ * outside the read-only Details fieldset, so it can be used there. AFS-189: it lists the run's
+ * hosts only (those that reached the step first); a host the run did not have is not offered.
  */
 export function RunHostPicker({ node }: { node: string }) {
   const id = useId();
   const mode = useUi((s) => s.mode);
   const byHost = useUi((s) => s.run?.summary?.inputs?.[node]);
-  const repo = useUi((s) => s.lensFacts.vars?.hosts);
+  const runHosts = useUi((s) => s.run?.summary?.hosts);
   const host = useUi((s) => s.originHost);
-  const ran = Object.keys(byHost ?? {}).sort();
+  const here = Object.keys(byHost ?? {}).sort();
   if (mode !== 'run') return null;
   // AFD-342: no values of this run (a viewer before any run): the repository's hosts, if any.
-  if (ran.length === 0) return <OriginHostPicker />;
-  const others = (repo ?? []).filter((h) => !ran.includes(h));
+  if (here.length === 0) return <OriginHostPicker />;
+  const elsewhere = (runHosts ?? []).filter((h) => !here.includes(h));
   return (
     <div className="afd-origin-host afd-run-host" data-run-host-picker>
       <label htmlFor={id}>For host</label>{' '}
@@ -176,21 +254,33 @@ export function RunHostPicker({ node }: { node: string }) {
         onChange={(e) => useUi.getState().setOriginHost(e.target.value || null)}
       >
         <option value="">every host of this run</option>
-        <optgroup label="Hosts in this run">
-          {ran.map((h) => (
+        {elsewhere.length ? (
+          <>
+            <optgroup label="At this step">
+              {here.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Did not reach this step">
+              {elsewhere.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </optgroup>
+          </>
+        ) : (
+          here.map((h) => (
             <option key={h} value={h}>
               {h}
             </option>
-          ))}
-        </optgroup>
-        {others.length ? (
-          <optgroup label="Other hosts">
-            {others.map((h) => (
-              <option key={h} value={h}>
-                {h}
-              </option>
-            ))}
-          </optgroup>
+          ))
+        )}
+        {host && !here.includes(host) && !elsewhere.includes(host) ? (
+          // A host picked before (Edit mode, the inventory tree) that this run did not have.
+          <option value={host}>{host} (not in this run)</option>
         ) : null}
       </select>
     </div>

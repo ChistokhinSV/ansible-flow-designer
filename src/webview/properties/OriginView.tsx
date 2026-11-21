@@ -102,7 +102,7 @@ function FileAt({ hop }: { hop: Hop }) {
   );
 }
 
-function HopLine({ hop, mark, beaten }: { hop: Hop; mark?: 'wins' | 'other'; beaten?: boolean }) {
+function HopLine({ hop, mark }: { hop: Hop; mark?: 'wins' | 'other' }) {
   const value =
     hop.value !== undefined ? hop.value : hop.template !== undefined ? hop.template : undefined;
   const body = (
@@ -122,7 +122,8 @@ function HopLine({ hop, mark, beaten }: { hop: Hop; mark?: 'wins' | 'other'; bea
       <span className="afd-origin-arrow" aria-hidden="true">
         {mark === 'wins' ? '★' : '←'}
       </span>{' '}
-      {hop.rank !== undefined ? (
+      {hop.rank !== undefined && !hop.label.startsWith(rankWord(hop.rank)) ? (
+        // AFS-189: not "host_vars host_vars of sw-01": the label names the kind already.
         <span className="afd-origin-rank">{rankWord(hop.rank)}</span>
       ) : null}
       {hop.node ? (
@@ -151,9 +152,7 @@ function HopLine({ hop, mark, beaten }: { hop: Hop; mark?: 'wins' | 'other'; bea
         body
       )}
       <FileAt hop={hop} />
-      {mark === 'wins' ? (
-        <span className="afd-origin-wins"> {beaten ? 'highest here' : 'wins'}</span>
-      ) : null}
+      {mark === 'wins' ? <span className="afd-origin-wins"> wins</span> : null}
       {mark === 'other' ? <span className="muted"> (other hosts)</span> : null}
       {hop.doc ? <div className="muted afd-origin-doc">{hop.doc}</div> : null}
     </li>
@@ -204,12 +203,18 @@ function DefinedList({ defined }: { defined: Defined }) {
             // biome-ignore lint/suspicious/noArrayIndexKey: definitions are positional.
             key={i}
             hop={h}
-            mark={i === defined.winner ? 'wins' : defined.others?.includes(i) ? 'other' : undefined}
-            beaten={!!defined.beaten}
+            // AFS-189: when the flow's value wins over all of them, none of them is starred.
+            mark={
+              i === defined.winner && !defined.beaten
+                ? 'wins'
+                : defined.others?.includes(i)
+                  ? 'other'
+                  : undefined
+            }
           />
         ))}
       </ol>
-      {defined.why ? (
+      {defined.why && !defined.beaten ? (
         <div className="muted">
           {defined.why[0]?.toUpperCase()}
           {defined.why.slice(1)}.

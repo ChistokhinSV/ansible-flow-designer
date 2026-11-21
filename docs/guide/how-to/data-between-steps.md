@@ -212,10 +212,17 @@ nothing to add, change or remove.
 A run records the value each step's inputs had for each host, as Ansible gave them to the step.
 In **Run** mode, with a run shown, **Details › Data** has **In this run** under each input: the
 values, with the hosts that had each one. Pick a host in **For host** above the inputs to see that
-host's value alone. When the flow or the repository states a value for that host and the run had
-another, it says **differs from what the flow predicted** (or the repository) and what that was.
-A variable's tooltip adds **In this run:** with the value for the host picked (or for the run's
-only host). In the step's **Run** tab, the variable icon on a host's row lists all its inputs.
+host's value alone: it lists the run's hosts, those that reached the step first. When the flow or
+the repository states a value for that host and the run had another, it says **differs from what
+the flow predicted** (or the repository) and what that was. A variable's tooltip adds **In this
+run:** with the value for the host picked, or the values of every host as Data shows them;
+`inventory_hostname` is each host's own name, and a flow input that a step reads directly has the
+value the run was given, when the page knows it (Ansible Flow Server's run page). In the step's
+**Run** tab, the variable icon on a host's row lists all its inputs.
+
+To try it on a sample: in Edge baseline, select **Push baseline** and hover `site` in its
+`site_name` parameter. The flow input gives it, and the sample's `group_vars/edge.yml` sets `site`
+too: the flow input wins over it.
 
 ![The values a step's input had in a run](../images/run-values-light.png)
 

@@ -1017,6 +1017,13 @@ function fewOf(items: readonly string[]): string {
   return items.length > MAX_NAMED ? `${shown} and ${items.length - MAX_NAMED} more` : shown;
 }
 
+/** Every item, the last after "and". */
+function allOf(items: readonly string[]): string {
+  return items.length > 1
+    ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
+    : (items[0] ?? '');
+}
+
 /** The names a step reads in its binding, keywords and condition (not through its inputs). */
 function directReads(node: FlowNode): Set<string> {
   const impl = node.impl;
@@ -1073,15 +1080,18 @@ export function flowInputUse(
       .sort((a, b) => b.rank - a.rank))
       overrides.push({ label: defLabel(d), file: d.file, line: d.line, rank: d.rank });
   const dflt = !secret && field?.default !== undefined ? originValue(field.default) : undefined;
+  // AFS-189: every reader is named: a launch form has no way to open "and 1 more".
   const readers = readBy.length
-    ? `read by ${fewOf(readBy.map((r) => `${r.title}${r.input && r.input !== name ? ` (as ${r.input})` : ''}`))}`
+    ? `read by ${allOf(readBy.map((r) => `${r.title}${r.input && r.input !== name ? ` (as ${r.input})` : ''}`))}`
     : undefined;
   // The targets input is the hosts the run starts on: no step needs to read it.
   const first = field?.targets
     ? `The hosts the run starts on${readers ? `; ${readers}` : ''}`
     : readers
       ? `R${readers.slice(1)}`
-      : 'No step reads it';
+      : field?.required
+        ? 'No step reads it, though a run must give it'
+        : 'No step reads it';
   const parts = [
     first,
     ...(dflt !== undefined ? [`default ${dflt}`] : []),

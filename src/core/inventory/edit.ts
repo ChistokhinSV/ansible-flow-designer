@@ -902,9 +902,17 @@ function iniRead(word: string): unknown {
 /** The variables written in the inventory files themselves for a host or a group. */
 export function inlineVars(
   files: readonly InventoryFile[],
-  /** `under`: only what is written on the host where it is listed in that group. */
-  target: { host?: string; group?: string; under?: string },
+  /**
+   * `under`: only what is written on the host where it is listed in that group. `ranges`: also
+   * what a host range line (`sw-[01:04] x=1`) gives the host, for readers (AFS-189); edits leave
+   * it out, as they cannot change one host of a range on its own.
+   */
+  target: { host?: string; group?: string; under?: string; ranges?: boolean },
 ): VarEntry[] {
+  const names = (name: string | undefined): boolean =>
+    name !== undefined &&
+    (name === target.host ||
+      (!!target.ranges && name.includes('[') && !!expandRange(name)?.includes(target.host ?? '')));
   const out: VarEntry[] = [];
   const seen = new Set<string>();
   const push = (v: VarEntry) => {
@@ -923,14 +931,13 @@ export function inlineVars(
       for (const g of groups) {
         if (target.group && g.name === target.group)
           for (const v of yamlMapVars(file.path, file.text, [...g.path, 'vars'])) push(v);
-        if (
-          target.host &&
-          (!target.under || g.name === target.under) &&
-          hostsOf(g) &&
-          target.host in (hostsOf(g) ?? {})
-        )
-          for (const v of yamlMapVars(file.path, file.text, [...g.path, 'hosts', target.host]))
-            push(v);
+        const listed =
+          target.host && (!target.under || g.name === target.under)
+            ? ((target.host in (hostsOf(g) ?? {}) ? target.host : undefined) ??
+              Object.keys(hostsOf(g) ?? {}).find(names))
+            : undefined;
+        if (listed)
+          for (const v of yamlMapVars(file.path, file.text, [...g.path, 'hosts', listed])) push(v);
       }
     } else if (file.kind === 'ini') {
       iniLines(file.text).forEach((l, i) => {
@@ -948,9 +955,12 @@ export function inlineVars(
           (!target.under || l.group === target.under) &&
           l.section === 'hosts' &&
           !l.header &&
-          l.name === target.host
+          names(l.name)
         ) {
-          const body = l.raw.replace(HOST_COMMENT, '').trim().slice(target.host.length);
+          const body = l.raw
+            .replace(HOST_COMMENT, '')
+            .trim()
+            .slice((l.name ?? '').length);
           for (const word of iniWords(body)) {
             const at = word.indexOf('=');
             if (at > 0)
