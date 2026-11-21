@@ -134,3 +134,11 @@ another repository:
   `probe/`.
 
 The VSIX budgets stay as they are; the packages have none.
+
+## Amendment: extension 1,312 KB, MCP 1,280 KB (AFD-340, AFD-341, 2026-11-21)
+
+Where a value comes from (ADR-0038) brings the repository variable index and its precedence into
+the extension host and the MCP server, and the run-value reduction into the host. The release
+candidate 1.0.2-rc.3 crossed both budgets: `extension.js` at 1,268 KB of 1,248 KB, `mcp.js` at
+1,249 KB of 1,216 KB. The product owner raised them to 1,312 KB and 1,280 KB rather than load the
+index lazily. The webview stays at 1,216 KB (999 KB used).

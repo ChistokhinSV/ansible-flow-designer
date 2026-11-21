@@ -15,8 +15,9 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 // 1,088 KB for wave 4's core (migration, statuses, decisions); the MCP SDK is 267 KB of it.
 // AFD-197 crossed it at 1,100 KB (import fixes, checker scopes, paging, dissolve and replace ops):
 // raised to 1,152 KB. AFD-261 (the inventory tool and its edit engine) crossed it at 1,161 KB: the
-// product owner raised it to 1,216 KB.
-const MCP_BUDGET = 1216 * 1024;
+// product owner raised it to 1,216 KB. AFD-340 (the repository's variables for where a value comes
+// from) crossed it at 1,249 KB: the product owner raised it to 1,280 KB.
+const MCP_BUDGET = 1280 * 1024;
 // AFD-37: the extension host bundle (activation loads it in every window) and the webview, which
 // loads with each designer. Measured at 0.24.x: 697 KB and 963 KB; the budgets leave room for a wave.
 // At 765 KB after wave 5, the product owner raised the host's to 832 KB (AFD-63). Wave 8's plan
@@ -31,8 +32,9 @@ const MCP_BUDGET = 1216 * 1024;
 // (set_fact facts as data) crossed it at 1,121 KB: the product owner raised it to 1,184 KB, room for
 // AFD-284 and AFD-285 (the server's change notice and live sessions in VS Code). CI checks the
 // budgets on every push since (AFD-288). AFD-309 (flow outputs) crossed it at 1,188 KB: the product
-// owner raised it to 1,248 KB.
-const EXTENSION_BUDGET = 1248 * 1024;
+// owner raised it to 1,248 KB. AFD-340 and AFD-341 (where a value comes from: the repository's
+// variables, a run's values) crossed it at 1,268 KB: the product owner raised it to 1,312 KB.
+const EXTENSION_BUDGET = 1312 * 1024;
 const WEBVIEW_BUDGET = 1216 * 1024;
 
 /** Fails a production build when a bundle grew past its budget. */
