@@ -2,8 +2,8 @@
 // include_vars), their precedence and the winner per host, and how origin uses them.
 
 import { describe, expect, it } from 'vitest';
-import { checklist } from '../../../src/core/catalog/draft';
 import { describeFlow } from '../../../src/core/ai/describe';
+import { checklist } from '../../../src/core/catalog/draft';
 import { buildModel } from '../../../src/core/flow/model';
 import {
   inputOrigin,
