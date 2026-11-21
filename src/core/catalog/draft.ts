@@ -245,7 +245,13 @@ export function missingRequired(
 export function checklist(
   model: FlowModel,
   staged: FlowNode,
-  doc: { plugin?: CatalogPlugin | null; roleSpec?: boolean; playbookTargets?: boolean },
+  doc: {
+    plugin?: CatalogPlugin | null;
+    roleSpec?: boolean;
+    playbookTargets?: boolean;
+    /** AFD-340: where the repository sets a name the step reads, when it does. */
+    repoSets?: (name: string) => string | undefined;
+  },
 ): CheckItem[] {
   const impl = staged.impl;
   if (!impl) return [{ state: 'missing', text: 'Choose a module, role or playbook' }];
@@ -263,7 +269,10 @@ export function checklist(
     if (MAGIC_VARS.test(name)) continue;
     const input = staged.inputs?.[name];
     const from = input?.from;
-    if (!input) items.push({ state: 'missing', text: `${name} is not an input of this node` });
+    const repo = input ? undefined : doc.repoSets?.(name);
+    if (!input && repo)
+      items.push({ state: 'ok', text: `${name} is set by the repository (${repo})` });
+    else if (!input) items.push({ state: 'missing', text: `${name} is not an input of this node` });
     else if (from?.startsWith('flow.'))
       items.push({ state: 'ok', text: `${name} comes from flow inputs` });
     else if (from) {

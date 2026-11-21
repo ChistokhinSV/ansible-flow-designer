@@ -2,6 +2,7 @@
 // include_vars), their precedence and the winner per host, and how origin uses them.
 
 import { describe, expect, it } from 'vitest';
+import { checklist } from '../../../src/core/catalog/draft';
 import { describeFlow } from '../../../src/core/ai/describe';
 import { buildModel } from '../../../src/core/flow/model';
 import {
@@ -11,6 +12,7 @@ import {
   originText,
   quietRepoReads,
   repoFindings,
+  repoSetsName,
 } from '../../../src/core/flow/origin';
 import type { Edge, FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import { validateFlow } from '../../../src/core/flow/validate';
@@ -385,6 +387,30 @@ describe('origin with the repository (AFD-340)', () => {
     expect(unknown(quiet, 'syslog_host')?.message).toContain('inventory/group_vars/all.yml:1');
     // Nothing in the repository sets it: still a warning.
     expect(unknown(quiet, 'nowhere_set')?.severity).toBe('warning');
+  });
+
+  it('the Binding checklist says the repository sets a name the step reads', async () => {
+    await ready;
+    const reader = step('reader', {
+      impl: {
+        kind: 'module',
+        ref: 'ansible.builtin.debug',
+        params: { msg: '{{ syslog_host }} {{ nowhere_set }}' },
+      },
+    });
+    const model = buildModel(flow([reader]));
+    const items = checklist(model, reader, {
+      repoSets: (name) => repoSetsName(model, reader, name, index),
+    });
+    expect(items).toContainEqual({
+      state: 'ok',
+      text: 'syslog_host is set by the repository (group_vars of all, inventory/group_vars/all.yml:1)',
+    });
+    expect(items).toContainEqual({
+      state: 'missing',
+      text: 'nowhere_set is not an input of this node',
+    });
+    expect(repoSetsName(model, reader, 'syslog_host', undefined)).toBeUndefined();
   });
 
   it('a same-name read with a default: the host value wins, said for the host', async () => {

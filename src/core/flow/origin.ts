@@ -747,6 +747,20 @@ export function quietRepoReads<
   });
 }
 
+/** AFD-340: where the repository sets a name a step reads (a few places in words), if it does. */
+export function repoSetsName(
+  model: FlowModel,
+  node: FlowNode,
+  name: string,
+  index: VarIndex | undefined,
+): string | undefined {
+  if (!index) return undefined;
+  const defs = (repoAnswer(index, name, repoContext(model, node))?.defs ?? []).filter(
+    (d) => d.rank > 0,
+  );
+  return defs.length ? places(defs) : undefined;
+}
+
 /** A finding origin gives the host: the validator's shape. */
 export interface RepoFinding extends OriginFinding {
   severity: 'info';

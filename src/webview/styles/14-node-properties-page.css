@@ -512,7 +512,9 @@
 .afd-jinja-tip {
   position: fixed;
   z-index: 61;
-  max-width: min(100%, 360px);
+  /* Its own width, not what is left before the window edge: it moves left to fit (JinjaTip). */
+  width: max-content;
+  max-width: min(100vw - 16px, 360px);
   padding: 4px 8px;
   font-size: var(--afd-fs-12);
   background: var(
@@ -528,7 +530,7 @@
 /* AFD-339: a variable's tip with where its value comes from: it can be reached and its hops
    clicked. The chain is drawn the same in Details' input rows. */
 .afd-jinja-tip.with-origin {
-  max-width: min(100%, 440px);
+  max-width: min(100vw - 16px, 440px);
   pointer-events: auto;
 }
 

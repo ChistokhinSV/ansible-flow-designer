@@ -25,6 +25,8 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- A variable's tooltip near the right edge of the window (Details beside the canvas in Ansible Flow Server's pages) moves left to fit instead of shrinking to a narrow column.
+- The Binding checklist says when the repository sets a name the step reads, instead of marking it missing.
 - A note's dashed tie to its step reaches the step clear of its ports and the wires leaving them, on the canvas and in SVG exports; before, a note below a step met its ok port, and one beside it crossed the fail ports.
 - A flow opened at a commit (History) shows no node palette: nothing can be added there, and a narrow window keeps the room for the canvas.
 - The hover preview opens where it covers no other step when there is room for that.
