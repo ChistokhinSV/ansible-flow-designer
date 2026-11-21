@@ -17,6 +17,7 @@ import { canMarkTested, contentStatus, nextStep } from '../../core/flow/status';
 import type { FlowNode, HandlerKind, NodeStatus, TestedRecord } from '../../core/flow/types';
 import { becomeStandsOut } from '../../core/lens/access';
 import { fieldLabel } from '../../core/lens/changes';
+import { nodePorts } from '../../core/run/view';
 import { checkRun } from '../../core/run/words';
 import { fieldProblem, type NodeProblem } from '../../core/view/nodeProblems';
 import { changeWords } from '../../core/view/outsideChanges';
@@ -219,7 +220,7 @@ export function IoSection({ node }: { node: FlowNode }) {
 function LastRun({ id }: { id: string }) {
   const run = useUi((s) => s.run);
   const words = useUi((s) => s.embed.words);
-  const ports = run?.summary?.nodes[id];
+  const ports = nodePorts(run?.summary, id);
   const failures = run?.summary?.failures.filter((f) => f.node === id) ?? [];
   if (run?.state !== 'done' || (!ports && failures.length === 0)) return null;
   return (

@@ -39,6 +39,12 @@ export interface PlayRange {
 export interface Route {
   node: Ulid;
   port: string;
+  /**
+   * AFD-353: steps inside subflows whose port leads into this group through the boundary (or by
+   * bubbling up), by step: that step's port, then each subflow's on the way (`node` itself not
+   * included). Without it the step read "not reached" on the run canvas though its hosts ran it.
+   */
+  via?: Record<Ulid, Route[]>;
 }
 
 /** One playbook of an AWX workflow split at top-level approvals (AFD-11, ADR-0016). */

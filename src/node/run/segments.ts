@@ -194,16 +194,21 @@ function mergeLive(
 ): RunSummary {
   if (before.length === 0) return withoutBookkeeping(live);
   const earlier = segmentsSummary(before, routes);
-  const nodes: RunSummary['nodes'] = structuredClone(earlier.nodes);
-  for (const [node, ports] of Object.entries(live.nodes))
-    for (const [port, hosts] of Object.entries(ports)) {
-      nodes[node] ??= {};
-      const into = nodes[node] as Record<string, string[]>;
-      into[port] = [...new Set([...(into[port] ?? []), ...hosts])];
-    }
+  const merged = (a: RunSummary['nodes'] = {}, b: RunSummary['nodes'] = {}) => {
+    const nodes: RunSummary['nodes'] = structuredClone(a);
+    for (const [node, ports] of Object.entries(b))
+      for (const [port, hosts] of Object.entries(ports)) {
+        nodes[node] ??= {};
+        const into = nodes[node] as Record<string, string[]>;
+        into[port] = [...new Set([...(into[port] ?? []), ...hosts])];
+      }
+    return nodes;
+  };
   return withoutBookkeeping({
     ...live,
-    nodes,
+    nodes: merged(earlier.nodes, live.nodes),
+    // AFD-353: the steps that led out of their subflow, in the segments before and in this one.
+    ...(earlier.exits || live.exits ? { exits: merged(earlier.exits, live.exits) } : {}),
     hosts: [...new Set([...earlier.hosts, ...live.hosts])],
     failures: [...earlier.failures, ...live.failures],
     outcome: { ...earlier.outcome, ...live.outcome },
