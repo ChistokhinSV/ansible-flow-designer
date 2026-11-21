@@ -200,6 +200,27 @@ describe('launch dialog', () => {
   });
 });
 
+describe('as the server launch form (AFD-355)', () => {
+  it('a boolean input is a true/false select; each input says where it goes when the host says', () => {
+    const dialog = open({
+      ...plan,
+      fields: [
+        ...plan.fields,
+        { name: 'dry_run', type: 'boolean', required: false, secret: false, text: 'true' },
+      ],
+      origins: { change_ticket: 'Read by Open the change. Default CHG-0000.' },
+    });
+    const dry = within(dialog).getByLabelText(/dry_run/) as HTMLSelectElement;
+    expect(dry.tagName).toBe('SELECT');
+    expect(dry.value).toBe('true');
+    expect([...dry.options].map((o) => o.value)).toEqual(['', 'true', 'false']);
+    expect(dialog.querySelector('[data-launch-origin="change_ticket"]')?.textContent).toBe(
+      'Read by Open the change. Default CHG-0000.',
+    );
+    expect(dialog.querySelectorAll('[data-launch-origin]')).toHaveLength(1);
+  });
+});
+
 describe('a flow with errors', () => {
   it('names each error with a link to its step; the link closes the dialog and shows the step', () => {
     const step = '01JC0000000000000000000PNG';
