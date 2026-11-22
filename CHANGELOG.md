@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 1.0.2 — Where a value comes from, wires side by side, and a canvas that tells what ran
 
 ### Added
 
