@@ -61,6 +61,13 @@ export function domSummary(docVersion: number): DomSummary {
                 el.querySelector('.react-flow__edge-text')?.textContent ?? '',
               ]),
             ),
+            // AFD-346: the node a step-by-step run waits before, with its waiting hosts.
+            ...(() => {
+              const el = document.querySelector<HTMLElement>('[data-step-paused]');
+              return el?.dataset.nodeId
+                ? { paused: { node: el.dataset.nodeId, hosts: Number(el.dataset.stepPaused) } }
+                : {};
+            })(),
           }
         : undefined,
     lens: lensSummary(),

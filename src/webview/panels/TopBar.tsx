@@ -16,11 +16,12 @@ import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
 import { MODES } from '../modes';
-import { startRun } from '../runActions';
+import { startRun, startStepRun } from '../runActions';
 import { waitsForApproval } from '../runApproval';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
+import { StepButtons } from './StepBar';
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);
@@ -427,80 +428,99 @@ function ActionButton({
 function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) {
   const runner = useUi((s) => s.runner);
   const words = useUi((s) => s.embed.words);
+  const stepRuns = useUi((s) => s.stepRuns);
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
-    <div className="afd-split">
-      <button
-        type="button"
-        onClick={() => (running ? send({ type: 'stopRun' }) : startRun('check'))}
-        title={
-          running
-            ? 'Stop the run: end the local run, or cancel the job or workflow in AWX'
-            : viewer
-              ? 'Run the flow in check mode: bound steps report what they would change'
-              : 'Generate the code and run it in check mode in the local Ansible environment'
-        }
-      >
-        <span
-          className={`codicon ${running ? 'codicon-debug-stop' : 'codicon-play'}`}
-          aria-hidden="true"
-        />{' '}
-        {running ? 'Stop' : checkButton(words)}
-      </button>
-      <MenuButton
-        label="More run options"
-        title="More run options"
-        items={() => [
-          {
-            type: 'item',
-            label: 'Run for Real…',
-            icon: 'debug-alt',
-            title: 'Run for real (not check mode), after a confirmation naming inventory and hosts',
-            disabled: busy,
-            onSelect: () => startRun('real'),
-          },
-          // AFD-270: a viewer's host runs the flow itself; scenarios and AWX are the editor's.
-          ...(viewer
-            ? []
-            : ([
-                {
-                  type: 'item',
-                  label: 'Run Scenarios',
-                  icon: 'beaker',
-                  title:
-                    'Run the scenario tests next to the flow: every step as its stub on local hosts, then where each host ended',
-                  disabled: busy,
-                  onSelect: () => send({ type: 'runScenarios' }),
-                },
-                {
-                  type: 'item',
-                  label: 'Launch in AWX',
-                  icon: 'rocket',
-                  title:
-                    "Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events",
-                  disabled: busy,
-                  onSelect: () => send({ type: 'launchAwx' }),
-                },
-                // AFD-276: only when afd.runner.url is set.
-                ...(runner
-                  ? [
-                      {
-                        type: 'item',
-                        label: 'Run on Server',
-                        icon: 'cloud-upload',
-                        title:
-                          "Run the flow on Ansible Flow Server: its launch configuration, at the server's commit, followed here",
-                        disabled: busy,
-                        onSelect: () => send({ type: 'launchRunner' }),
-                      },
-                    ]
-                  : []),
-              ] as UiMenuEntry[])),
-        ]}
-      >
-        <span className="codicon codicon-chevron-down" aria-hidden="true" />
-      </MenuButton>
-    </div>
+    <>
+      <StepButtons compact stop={false} />
+      <div className="afd-split">
+        <button
+          type="button"
+          onClick={() => (running ? send({ type: 'stopRun' }) : startRun('check'))}
+          title={
+            running
+              ? 'Stop the run: end the local run, or cancel the job or workflow in AWX'
+              : viewer
+                ? 'Run the flow in check mode: bound steps report what they would change'
+                : 'Generate the code and run it in check mode in the local Ansible environment'
+          }
+        >
+          <span
+            className={`codicon ${running ? 'codicon-debug-stop' : 'codicon-play'}`}
+            aria-hidden="true"
+          />{' '}
+          {running ? 'Stop' : checkButton(words)}
+        </button>
+        <MenuButton
+          label="More run options"
+          title="More run options"
+          items={() => [
+            {
+              type: 'item',
+              label: 'Run for Real…',
+              icon: 'debug-alt',
+              title:
+                'Run for real (not check mode), after a confirmation naming inventory and hosts',
+              disabled: busy,
+              onSelect: () => startRun('real'),
+            },
+            // AFD-346: only where the host runs flows step by step.
+            ...(stepRuns
+              ? [
+                  {
+                    type: 'item',
+                    label: 'Run Step by Step…',
+                    icon: 'debug-step-over',
+                    title:
+                      'Run the flow pausing before each step: Step (F10), Continue to a pause point (F5), Stop (Shift+F5)',
+                    disabled: busy,
+                    onSelect: () => startStepRun('check'),
+                  } as UiMenuEntry,
+                ]
+              : []),
+            // AFD-270: a viewer's host runs the flow itself; scenarios and AWX are the editor's.
+            ...(viewer
+              ? []
+              : ([
+                  {
+                    type: 'item',
+                    label: 'Run Scenarios',
+                    icon: 'beaker',
+                    title:
+                      'Run the scenario tests next to the flow: every step as its stub on local hosts, then where each host ended',
+                    disabled: busy,
+                    onSelect: () => send({ type: 'runScenarios' }),
+                  },
+                  {
+                    type: 'item',
+                    label: 'Launch in AWX',
+                    icon: 'rocket',
+                    title:
+                      "Launch the flow's AWX job template (the pushed commit of the AWX project) and follow its job events",
+                    disabled: busy,
+                    onSelect: () => send({ type: 'launchAwx' }),
+                  },
+                  // AFD-276: only when afd.runner.url is set.
+                  ...(runner
+                    ? [
+                        {
+                          type: 'item',
+                          label: 'Run on Server',
+                          icon: 'cloud-upload',
+                          title:
+                            "Run the flow on Ansible Flow Server: its launch configuration, at the server's commit, followed here",
+                          disabled: busy,
+                          onSelect: () => send({ type: 'launchRunner' }),
+                        },
+                      ]
+                    : []),
+                ] as UiMenuEntry[])),
+          ]}
+        >
+          <span className="codicon codicon-chevron-down" aria-hidden="true" />
+        </MenuButton>
+      </div>
+    </>
   );
 }
 
@@ -512,6 +532,22 @@ function LiveRun({ run }: { run: RunView }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const at = run.summary?.running;
   const step = at && doc ? modelOf(doc).nodes.get(at)?.node.title : undefined;
+  // AFD-346: a step-by-step run waiting before a step says where, not "running".
+  const paused = run.step?.paused;
+  const pausedAt = paused && doc ? modelOf(doc).nodes.get(paused.node)?.node.title : undefined;
+  if (paused)
+    return (
+      <button
+        type="button"
+        className="afd-run-status"
+        data-run-state="paused"
+        onClick={() => useUi.getState().reveal(paused.node)}
+        title="Show the step the run waits before"
+      >
+        <span className="codicon codicon-debug-pause" aria-hidden="true" /> Paused before{' '}
+        {pausedAt ?? paused.node} · {hostsWord(paused.hosts.length)}
+      </button>
+    );
   return (
     <button
       type="button"

@@ -193,6 +193,9 @@ export function runCanvasAction(
     case 'runPartial':
       startPartialRun(action.node, action.only);
       return;
+    case 'togglePausePoint':
+      send({ type: 'togglePausePoint', node: action.node });
+      return;
     case 'removeEntry':
       void run({ kind: 'setBoundaryIn', subflow: action.subflow, node: null });
       return;
@@ -245,6 +248,9 @@ export function CanvasContextMenu() {
   const flow = useReactFlow();
   // AFD-270: every entry changes the flow or opens its files.
   const viewer = useUi((s) => s.viewer);
+  // AFD-346: pause points, where the host runs flows step by step.
+  const stepRuns = useUi((s) => s.stepRuns);
+  const pausePoints = useUi((s) => s.pausePoints);
   if (!menu || !snapshot?.doc || viewer) return null;
   const model = modelOf(snapshot.doc);
   const scenario = editing && check ? scenarioMenu(snapshot.doc, check, editing) : undefined;
@@ -256,6 +262,7 @@ export function CanvasContextMenu() {
     openPorts: snapshot.openPorts,
     hasPlay: (id) => !!snapshot.plays?.[id],
     ...(scenario ? { scenario } : {}),
+    ...(stepRuns ? { pausePoints } : {}),
   });
   if (entries.length === 0) return null;
   const fitView = () => void flow.fitView(FULL_FIT);

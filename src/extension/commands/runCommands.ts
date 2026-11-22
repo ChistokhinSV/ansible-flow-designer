@@ -3,6 +3,7 @@
 
 import * as vscode from 'vscode';
 import type { Notice, NoticeLevel, RunView } from '../../core/protocol';
+import { stepRefusal } from '../../core/run/step';
 import { runVerdict } from '../../core/run/view';
 import { hostsWord } from '../../core/run/words';
 import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun';
@@ -15,6 +16,7 @@ import { auditUri } from '../run/audit';
 import { takeLaunch } from '../run/launch';
 import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
+import { sendStep, togglePausePoint } from '../run/stepRun';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 import { serverCommands, showServerState } from '../runner/connect';
@@ -44,7 +46,12 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
     if (result.errorCode === 'changed') {
       await host.sessions
         .get(doc.uri.toString())
-        ?.openLaunch(mode, 'The targets match other hosts now: check them, then Run again.');
+        ?.openLaunch(
+          mode,
+          'The targets match other hosts now: check them, then Run again.',
+          undefined,
+          more.step,
+        );
       return result;
     }
     if (result.state === 'error')
@@ -107,6 +114,7 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
         token: string,
         inputs: Record<string, unknown>,
         vaultPassword?: string,
+        step?: boolean,
       ) => {
         const launch = takeLaunch(token, uri);
         if (!launch) {
@@ -120,7 +128,62 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           vaultPassword,
           confirmed: launch.mode === 'check' || !!launch.facts,
           expect: launch.facts,
+          ...(step === true ? { step: true } : {}),
         });
+      },
+    ),
+    // AFD-346 (ADR-0039): Run Step by Step opens the launch dialog with it chosen; a flow with no
+    // designer open runs at once. `target: 'awx'` is refused: AWX starts Ansible itself.
+    vscode.commands.registerCommand(
+      CMD.runStepByStep,
+      async (
+        arg?: vscode.Uri | { mode?: RunOptions['mode']; target?: 'local' | 'awx' | 'runner' },
+        given?: { mode?: RunOptions['mode']; target?: 'local' | 'awx' | 'runner' },
+      ) => {
+        const uri = arg instanceof vscode.Uri ? arg : undefined;
+        const opts = (arg instanceof vscode.Uri ? given : arg) ?? {};
+        const refused = stepRefusal(opts.target ?? 'local');
+        if (refused) {
+          void vscode.window.showInformationMessage(`${refused}.`);
+          return { error: refused };
+        }
+        const mode = opts.mode ?? 'check';
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        const session = host.sessions.get(doc.uri.toString());
+        if (!session?.hasPanels) return run(mode, doc.uri, { step: true });
+        await session.openLaunch(mode, undefined, undefined, true);
+        return undefined;
+      },
+    ),
+    ...(
+      [
+        [CMD.stepNext, 'step'],
+        [CMD.stepContinue, 'continue'],
+        [CMD.stepPause, 'pause'],
+      ] as const
+    ).map(([id, command]) =>
+      vscode.commands.registerCommand(id, async (uri?: vscode.Uri) => {
+        const outcome = await sendStep(command, host.targetUri(uri));
+        if (outcome === 'none')
+          void vscode.window.showInformationMessage(
+            'No step-by-step run is going for this flow: start one with Run Step by Step.',
+          );
+        else if (outcome !== 'sent') void vscode.window.showErrorMessage(outcome.error);
+        return outcome;
+      }),
+    ),
+    vscode.commands.registerCommand(
+      CMD.togglePausePoint,
+      async (uri?: vscode.Uri, node?: string) => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc || typeof node !== 'string') return undefined;
+        const session = host.sessionFor(doc);
+        const flowId = (await session.snapshot()).doc?.flow.id;
+        if (!flowId) return undefined;
+        const points = await togglePausePoint(host.context.workspaceState, doc.uri, flowId, node);
+        session.showPausePoints(points);
+        return points;
       },
     ),
     vscode.commands.registerCommand(CMD.stopRun, async (uri?: vscode.Uri) => {

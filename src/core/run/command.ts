@@ -274,9 +274,10 @@ export interface RunRequest {
   /**
    * AFD-346 (ADR-0039): a step-by-step run: our afd_step strategy pauses before each step and
    * reads the driver's control.json in the run folder; a pause nobody answers ends after
-   * `timeoutS`. Absent: no strategy variable is set and the run is as every run.
+   * `timeoutS`. `inside`: the step a later approval segment starts inside (it paused in the
+   * segment before). Absent: no strategy variable is set and the run is as every run.
    */
-  step?: { timeoutS: number };
+  step?: { timeoutS: number; inside?: string };
 }
 
 /**
@@ -345,9 +346,18 @@ function runEnv(
   if (config.recordInputs === false) env.AFD_RECORD_INPUTS = '0';
   if (config.step) {
     env.ANSIBLE_STRATEGY = 'afd_step';
-    env.ANSIBLE_STRATEGY_PLUGINS = join(probeDir, 'strategy_plugins');
+    // The repository's strategy folders stay found (its config's, then its root's), ours last.
+    const known = theirs?.plugins;
+    const strategies = known
+      ? [...(known.strategy_plugins ?? []).filter(pluginPath), join(root, 'strategy_plugins')]
+      : [];
+    env.ANSIBLE_STRATEGY_PLUGINS = [
+      ...new Set([...strategies, join(probeDir, 'strategy_plugins')]),
+    ].join(':');
     env.AFD_STEP_CONTROL = join(runDir, STEP_CONTROL);
     env.AFD_STEP_TIMEOUT = String(config.step.timeoutS);
+    if (config.step.inside && /^[0-9A-Za-z]+$/.test(config.step.inside))
+      env.AFD_STEP_INSIDE = config.step.inside;
   }
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');

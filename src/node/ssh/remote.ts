@@ -45,10 +45,14 @@ export async function putRunFile(
   runDir: string,
   name: string,
   text: string,
+  /** AFD-346: replace the file whole (control.json, read by the run while it waits). */
+  whole = false,
 ): Promise<string | undefined> {
   const there = remotePaths(env, runDir).run;
   // A container's own user writes the events beside it.
-  const r = await run(writeFileCommand(env, `${there}/${name}`, !!env.container), { input: text });
+  const r = await run(writeFileCommand(env, `${there}/${name}`, !!env.container, whole), {
+    input: text,
+  });
   return r.code === 0 ? undefined : `Could not write ${name} on ${env.host}: ${sshWhy(r.stderr)}`;
 }
 

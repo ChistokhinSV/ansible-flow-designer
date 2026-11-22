@@ -29,6 +29,14 @@ export const CMD = {
   /** AFD-244: a skeleton run from a step on, or of one step; from the designer's menus only. */
   runPartial: 'afd.run.partial',
   stopRun: 'afd.run.stop',
+  /** AFD-346: Run Step by Step: the launch dialog with Step by step chosen. */
+  runStepByStep: 'afd.run.stepByStep',
+  /** AFD-346: Step (F10), Continue (F5), Pause (F6) for the step-by-step run going. */
+  stepNext: 'afd.run.step',
+  stepContinue: 'afd.run.continue',
+  stepPause: 'afd.run.pause',
+  /** AFD-346: a pause point on a step, set or taken away (the designer's node menu). */
+  togglePausePoint: 'afd.run.togglePausePoint',
   runScenarios: 'afd.run.scenarios',
   copyScenarioRunner: 'afd.run.copyScenarioRunner',
   setupFlowMerging: 'afd.flow.setupMerging',

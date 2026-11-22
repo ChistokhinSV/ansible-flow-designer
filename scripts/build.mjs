@@ -127,10 +127,10 @@ const testOptions = {
   logLevel: 'info',
 };
 
-/** The probe ships inside the VSIX as plain Python sources (ADR-0005): dist/probe/{afd_probe,callback_plugins,vars_plugins}. */
+/** The probe ships inside the VSIX as plain Python sources (ADR-0005): dist/probe/{afd_probe,callback_plugins,vars_plugins,strategy_plugins}. */
 function copyProbe() {
   rmSync('dist/probe', { recursive: true, force: true });
-  for (const dir of ['afd_probe', 'callback_plugins', 'vars_plugins']) {
+  for (const dir of ['afd_probe', 'callback_plugins', 'vars_plugins', 'strategy_plugins']) {
     cpSync(join('probe', dir), join('dist/probe', dir), {
       recursive: true,
       filter: (src) => !src.includes('__pycache__') && !src.endsWith('.pyc'),

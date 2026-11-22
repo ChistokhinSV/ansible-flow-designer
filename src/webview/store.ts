@@ -183,6 +183,12 @@ interface UiState {
   past: PastVersion | null;
   /** AFD-276: an Ansible Flow Server is set up: the run menu offers Run on Server. */
   runner: boolean;
+  /** AFD-346: the host runs flows step by step (VS Code; not a server's pages yet). */
+  stepRuns: boolean;
+  /** AFD-346: the flow's pause points (the host keeps them, not the flow file). */
+  pausePoints: Ulid[];
+  setStepRuns(on: boolean): void;
+  setPausePoints(points: Ulid[]): void;
   /** AFD-314: what the page around a viewer shows and allows. */
   embed: Required<ViewerEmbed>;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
@@ -438,6 +444,8 @@ export const useUi = create<UiState>((set, get) => ({
   viewer: false,
   past: null,
   runner: false,
+  stepRuns: false,
+  pausePoints: [],
   embed: { runShown: false, mayRun: true, mayStop: true, words: 'designer', pastShown: false },
   expandSubflows: false,
   wireStyle: 'stepped',
@@ -568,6 +576,8 @@ export const useUi = create<UiState>((set, get) => ({
   },
   setTestMode: (testMode) => set({ testMode }),
   setRunner: (runner) => set({ runner }),
+  setStepRuns: (stepRuns) => set({ stepRuns }),
+  setPausePoints: (pausePoints) => set({ pausePoints }),
   setEmbed: (embed) =>
     set({
       embed: {

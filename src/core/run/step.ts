@@ -86,3 +86,58 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
   }
   return state;
 }
+
+/** What a run view says of a step-by-step run (`RunView.step`). */
+export interface RunStep extends StepState {
+  /** Pauses before every step (Run Step by Step), not only at pause points. */
+  every: boolean;
+  /** The pause points the run was given (and has now). */
+  points: Ulid[];
+}
+
+/** A step event line of events.jsonl (pause, resume, stopped), parsed; undefined for others. */
+export function stepEvent(line: string): Record<string, unknown> | undefined {
+  if (!/"event":\s*"(pause|resume|stopped)"/.test(line)) return undefined;
+  try {
+    const e = JSON.parse(line) as Record<string, unknown>;
+    return e && typeof e === 'object' && !Array.isArray(e) ? e : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Where step-by-step runs run, said where the command is not offered (ADR-0039 §6). */
+export const STEP_NOT_ON_AWX =
+  'Step-by-step runs run here (local, WSL, SSH, container) or on Ansible Flow Server, not on AWX';
+
+/** Whether a run target can run step by step: the reason when it cannot. */
+export function stepRefusal(target: 'local' | 'awx' | 'runner'): string | undefined {
+  return target === 'awx' ? STEP_NOT_ON_AWX : undefined;
+}
+
+const hostsOf = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
+
+/** "in 59 min", "in 40 s": how long until a pause stops the run by itself. */
+export function stopsIn(pause: Pick<StepPause, 'since' | 'timeout'>, nowMs: number): string {
+  const left = Math.max(0, Math.round(pause.since + pause.timeout - nowMs / 1000));
+  return left >= 120 ? `${Math.round(left / 60)} min` : `${left} s`;
+}
+
+/** The Run panel's line for a paused run: "Paused before Ping · 3 hosts · stops by itself in 59 min". */
+export function pausedLine(pause: StepPause, title: string, nowMs: number): string {
+  return `Paused before ${title} · ${hostsOf(pause.hosts.length)} · stops by itself in ${stopsIn(pause, nowMs)}`;
+}
+
+/** Why a step-by-step run stopped, in words: by its driver, or because nobody answered. */
+export function stoppedLine(
+  stopped: NonNullable<StepState['stopped']>,
+  title: string,
+  timeoutS: number,
+): string {
+  if (stopped.reason === 'timeout') {
+    const min = Math.round(timeoutS / 60);
+    const span = timeoutS >= 120 ? `${min} minutes` : `${Math.round(timeoutS)} s`;
+    return `Stopped before ${title}: nobody answered for ${span}`;
+  }
+  return `Stopped before ${title}`;
+}

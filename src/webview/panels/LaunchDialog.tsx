@@ -44,6 +44,8 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
   );
   const [vault, setVault] = useState('');
   const [problem, setProblem] = useState<{ field: string; text: string } | null>(null);
+  // AFD-346: step by step, where the host offers it (chosen by Run Step by Step).
+  const [stepped, setStepped] = useState(plan.steps?.on === true);
   const real = plan.mode === 'real';
 
   // The host counts the hosts again when the targets change (secrets do not pick hosts).
@@ -101,6 +103,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
       token: plan.token,
       inputs: r.inputs,
       ...(plan.vault ? { vaultPassword: vault } : {}),
+      ...(plan.steps && stepped ? { step: true } : {}),
     });
     setVault('');
     useUi.getState().setLaunch(null);
@@ -210,6 +213,23 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
             </div>
           ) : null}
           <Facts plan={plan} />
+          {plan.steps ? (
+            <div className="afd-field afd-launch-step">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={stepped}
+                  data-launch-step
+                  onChange={(e) => setStepped(e.target.checked)}
+                />{' '}
+                Step by step: pause before each step
+              </label>
+              <span className="afd-help">
+                Step (F10) runs the next step, Continue (F5) runs on to a pause point, Stop
+                (Shift+F5) ends the run there.
+              </span>
+            </div>
+          ) : null}
           <div className="afd-modal-actions">
             {plan.canSave ? (
               <button type="button" className="secondary" onClick={save} data-launch-save>
@@ -221,6 +241,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
             </button>
             <button type="submit" disabled={!!plan.factsError} data-launch-run>
               {runLabel}
+              {plan.steps && stepped ? ' Step by Step' : ''}
             </button>
           </div>
         </form>

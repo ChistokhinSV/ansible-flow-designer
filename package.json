@@ -221,6 +221,35 @@
         "icon": "$(play)"
       },
       {
+        "command": "afd.run.stepByStep",
+        "title": "Run Step by Step…",
+        "category": "Ansible Flow",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "afd.run.step",
+        "title": "Step: Run the Next Step",
+        "category": "Ansible Flow",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "afd.run.continue",
+        "title": "Continue to the Next Pause Point",
+        "category": "Ansible Flow",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "afd.run.pause",
+        "title": "Pause Before the Next Step",
+        "category": "Ansible Flow",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "afd.run.togglePausePoint",
+        "title": "Toggle Pause Point",
+        "category": "Ansible Flow"
+      },
+      {
         "command": "afd.run.stop",
         "title": "Stop Run",
         "category": "Ansible Flow",
@@ -859,6 +888,26 @@
           "when": "afd.running"
         },
         {
+          "command": "afd.run.stepByStep",
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor) && !afd.running"
+        },
+        {
+          "command": "afd.run.step",
+          "when": "afd.stepping"
+        },
+        {
+          "command": "afd.run.continue",
+          "when": "afd.stepping"
+        },
+        {
+          "command": "afd.run.pause",
+          "when": "afd.stepping && !afd.stepPaused"
+        },
+        {
+          "command": "afd.run.togglePausePoint",
+          "when": "false"
+        },
+        {
           "command": "afd.flow.insertShared",
           "when": "activeCustomEditorId == afd.flowEditor || resourceFilename =~ /\\.flow\\.yaml$/"
         },
@@ -1204,6 +1253,13 @@
           "default": true,
           "scope": "resource",
           "markdownDescription": "Record the value each step's inputs had for each host in a run, shown in Run mode next to where the value comes from. Secrets are never recorded (`no_log` steps, vaulted values, secret-looking names and keys, the run's secret inputs); long values are cut and a run records 256 KB of values at most. Off: a run records no input values at all."
+        },
+        "afd.run.stepTimeout": {
+          "type": "integer",
+          "default": 3600,
+          "minimum": 10,
+          "scope": "resource",
+          "markdownDescription": "How long a step-by-step run waits before a step for Step, Continue or Stop, in seconds. When nobody answers in time the run stops by itself, also when VS Code was closed."
         },
         "afd.runs.keep": {
           "type": "integer",
@@ -4354,6 +4410,24 @@
         "key": "shift+f5",
         "mac": "shift+f5",
         "when": "activeCustomEditorId == afd.flowEditor && afd.running"
+      },
+      {
+        "command": "afd.run.step",
+        "key": "f10",
+        "mac": "f10",
+        "when": "activeCustomEditorId == afd.flowEditor && afd.stepping"
+      },
+      {
+        "command": "afd.run.continue",
+        "key": "f5",
+        "mac": "f5",
+        "when": "activeCustomEditorId == afd.flowEditor && afd.stepping"
+      },
+      {
+        "command": "afd.run.pause",
+        "key": "f6",
+        "mac": "f6",
+        "when": "activeCustomEditorId == afd.flowEditor && afd.stepping && !afd.stepPaused"
       },
       {
         "command": "afd.code.generate",
