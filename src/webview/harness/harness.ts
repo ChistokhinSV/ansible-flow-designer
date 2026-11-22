@@ -337,6 +337,8 @@ async function onMessage(m: WebviewMessage) {
         testMode: true,
         expandSubflows: true,
         ...(params.has('viewer') ? { viewer: true } : {}),
+        // AFD-346: `?run=step` (paused) and `?run=stepped` (stopped) as VS Code runs them.
+        ...(params.get('run')?.startsWith('step') || params.has('steps') ? { stepRuns: true } : {}),
       });
       // AFD-73: hidden, so other screenshots stay as they were; its own shot shows it.
       toWebview({ type: 'firstFlow', hidden: true, done: [] });
@@ -355,6 +357,17 @@ async function onMessage(m: WebviewMessage) {
       toWebview({ type: 'snapshot', snapshot: await snapshot() });
       sendCheck();
       // AFD-341: `?run=past` shows a finished run with the values each step's inputs had.
+      // AFD-346: a step-by-step run paused before a step, or stopped there, with a pause point.
+      if (params.get('run') === 'step' || params.get('run') === 'stepped') {
+        const doc = parseFlow(text).doc;
+        if (doc) {
+          const run = stepRunView(doc, params.get('run') === 'stepped');
+          pausePoints = run.points;
+          toWebview({ type: 'pausePoints', points: pausePoints });
+          toWebview({ type: 'run', run: run.view });
+          useUi.getState().setMode('run');
+        }
+      }
       if (params.get('run') === 'past') {
         const doc = parseFlow(text).doc;
         if (doc) {
@@ -448,10 +461,22 @@ async function onMessage(m: WebviewMessage) {
           vault: false,
           environment: 'harness (fake)',
           inventory: 'inventory/lab.ini',
+          // AFD-346: VS Code offers step by step; Run Step by Step ticks it.
+          ...(params.has('steps') ? { steps: { on: m.step === true } } : {}),
         },
       });
       break;
     }
+    // AFD-346: the buttons and the node menu, on the fake run.
+    case 'stepRun':
+      console.log('harness: step-by-step command', m.command);
+      break;
+    case 'togglePausePoint':
+      pausePoints = pausePoints.includes(m.node)
+        ? pausePoints.filter((n) => n !== m.node)
+        : [...pausePoints, m.node];
+      toWebview({ type: 'pausePoints', points: pausePoints });
+      break;
     case 'launchCheck': {
       const hosts = Object.values(m.inputs).filter(Array.isArray).flat().map(String);
       toWebview({ type: 'launchFacts', token: m.token, facts: harnessFacts(hosts) });
@@ -706,6 +731,90 @@ function harnessFacts(hosts: string[]): LaunchFacts {
  * with recorded input values: a default as written, a flow input's default, one host given
  * another value than the flow predicts, secret-looking names not recorded, the rest undefined.
  */
+/** AFD-346: the pause points of the fake host. */
+let pausePoints: string[] = [];
+
+/**
+ * AFD-346: a step-by-step run of the flow: the first steps done on three hosts, paused before the
+ * next one (or stopped there), and a pause point further on.
+ */
+function stepRunView(doc: FlowDocument, stopped: boolean) {
+  const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
+  const hosts = ['edge-ams-01', 'edge-ams-02', 'edge-ams-03'];
+  const happy = Object.values(routes).filter((r) => /^(ok_hosts|true)$/.test(r.port));
+  const order = [...new Set(happy.map((r) => r.node))].filter(
+    (n) => doc.nodes.find((x) => x.id === n)?.type === 'task',
+  );
+  // The edge sample: done Pre-checks, waiting before Backup config, a pause point on Validate.
+  const byKey = (key: string) => doc.nodes.find((n) => n.key === key)?.id;
+  const known = byKey('backup-config');
+  if (known)
+    order.splice(
+      0,
+      order.length,
+      ...[byKey('precheck'), known, byKey('validate')].filter((n): n is string => !!n),
+    );
+  const at = order[Math.min(1, order.length - 1)] ?? doc.nodes[0]?.id ?? '';
+  const nodes: RunSummary['nodes'] = {};
+  const start = doc.nodes.find((n) => n.type === 'start')?.id;
+  const before = (n: string) =>
+    n === start || (order.includes(n) && order.indexOf(n) < order.indexOf(at));
+  for (const r of happy.filter((x) => before(x.node)))
+    nodes[r.node] = { ...nodes[r.node], [r.port]: hosts };
+  const summary: RunSummary = {
+    hosts,
+    nodes,
+    outcome: {},
+    failures: [],
+    unreachable: [],
+    stoppedEarly: false,
+  } as RunSummary;
+  const points = order.slice(-1);
+  const startedAt = new Date(Date.now() - 95_000).toISOString();
+  const base = {
+    id: 'harness-step',
+    mode: 'check' as const,
+    startedAt,
+    environment: 'docker: afd-ee:2.19',
+    source: 'local' as const,
+    summary,
+  };
+  const view = stopped
+    ? {
+        ...base,
+        state: 'error' as const,
+        rc: 2,
+        errorCode: 'cancelled' as const,
+        error: `Stopped before ${doc.nodes.find((n) => n.id === at)?.title ?? at}`,
+        finishedAt: new Date().toISOString(),
+        stoppedAt: at,
+        step: {
+          every: true,
+          points,
+          pauses: 2,
+          stopped: { node: at, hosts, reason: 'driver' as const },
+        },
+      }
+    : {
+        ...base,
+        state: 'running' as const,
+        step: {
+          every: true,
+          points,
+          pauses: 2,
+          paused: {
+            id: 'harness-2',
+            node: at,
+            play: 'step',
+            hosts,
+            since: Date.now() / 1000 - 30,
+            timeout: 3600,
+          },
+        },
+      };
+  return { view, points };
+}
+
 function pastRun(doc: FlowDocument) {
   const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
   const hosts = ['core-ams-01', 'edge-ams-01', 'edge-ams-02'];

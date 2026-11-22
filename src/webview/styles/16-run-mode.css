@@ -236,3 +236,71 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* AFD-346: the step a step-by-step run waits before: a steady ring in the waiting colour (not the
+   running pulse) and a badge with the hosts waiting there. */
+.afd-node.step-paused {
+  outline: 3px solid var(--afd-approval);
+  outline-offset: 3px;
+  animation: none;
+}
+
+/* Its hosts have not run it yet, but it is where the run is: not dimmed as a step not reached. */
+.afd-node.run-idle.step-paused {
+  opacity: 1;
+}
+
+.afd-step-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 4px;
+  border-radius: 9px;
+  font-size: var(--afd-fs-12);
+  line-height: 18px;
+  color: var(--afd-bg);
+  background: var(--afd-approval);
+  pointer-events: auto;
+}
+
+.afd-step-badge .codicon {
+  font-size: var(--afd-fs-12);
+}
+
+/* AFD-346: a pause point, as an editor's breakpoint: a dot at the node's top left corner. */
+.afd-pause-point {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  z-index: 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--afd-bg);
+  background: var(--vscode-debugIcon-breakpointForeground, var(--afd-failed));
+}
+
+.afd-step-buttons {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.afd-step-section .afd-step-buttons {
+  margin: 4px 0 6px;
+  flex-wrap: wrap;
+}
+
+.afd-launch-step label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

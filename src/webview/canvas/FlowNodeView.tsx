@@ -376,6 +376,22 @@ function CodeLines({ node }: { node: FlowNode }) {
   );
 }
 
+/**
+ * AFD-346: how many hosts a step-by-step run has waiting before this node (the step, or the
+ * subflow on this level that holds it); undefined when it waits elsewhere or not at all.
+ */
+function usePausedHere(id: Ulid): number | undefined {
+  return useUi((s) => {
+    const paused = s.mode === 'run' && s.run?.state === 'running' ? s.run.step?.paused : undefined;
+    const doc = s.snapshot?.doc;
+    if (!paused || !doc) return undefined;
+    if (paused.node === id) return paused.hosts.length;
+    return shownOn(modelOf(doc), [paused.node], s.level).includes(id)
+      ? paused.hosts.length
+      : undefined;
+  });
+}
+
 /** Run mode (04 §10): how many hosts the node handled, how many failed, how long it took. */
 function RunLine({ node }: { node: FlowNode }) {
   const r = useUi((s) => s.runNodes?.[node.id]);
@@ -384,10 +400,24 @@ function RunLine({ node }: { node: FlowNode }) {
   const shown = useUi((s) => s.run);
   // AFS-147: the step a run was stopped in (an approval it waited at too): stopped, whatever it
   // had done; the steps after it read "not reached".
+  const paused = usePausedHere(node.id);
+  // AFD-346: the step a step-by-step run waits before, with the hosts waiting there.
+  if (paused !== undefined)
+    return (
+      <div className="afd-node-run tone-running" data-run-state="paused">
+        paused here · {paused} host{paused === 1 ? '' : 's'} waiting
+      </div>
+    );
+  // AFD-346: a step-by-step run stopped at a step boundary: its hosts stopped before this step.
+  const before = shown?.step?.stopped?.node === node.id ? shown.step.stopped.hosts.length : 0;
   if (shown && shown.state !== 'running' && shown.stoppedAt === node.id)
     return (
       <div className="afd-node-run tone-warn" data-run-state="stopped">
-        {r && r.hosts > 0 ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}` : 'stopped'}
+        {before
+          ? `stopped before · ${before} host${before === 1 ? '' : 's'}`
+          : r && r.hosts > 0
+            ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}`
+            : 'stopped'}
       </div>
     );
   const approval = approvalOf(shown, node.id);
@@ -649,6 +679,9 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   const pickAt = useUi((s) => s.pick !== null && s.pickAt === node.id);
   const runMode = useUi((s) => s.mode === 'run');
   const runState = useUi((s) => (s.mode === 'run' ? s.runNodes?.[node.id]?.state : undefined));
+  // AFD-346: where a step-by-step run waits (a ring and the waiting hosts), and pause points.
+  const pausedHosts = usePausedHere(node.id);
+  const pausePoint = useUi((s) => s.stepRuns && s.pausePoints.includes(node.id));
   // AFD-85: changed outside the designer (a subflow: a step inside it was).
   const outside = useUi((s) =>
     s.outside?.nodes.includes(node.id)
@@ -681,6 +714,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     outside,
     runMode ? 'run-mode' : '',
     runState ? `run-${runState}` : '',
+    pausedHosts !== undefined ? 'step-paused' : '',
+    pausePoint ? 'has-pause-point' : '',
     'afd-node',
     `type-${node.type}`,
     // AFD-334: coloured as specified while it would not run.
@@ -706,6 +741,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       data-node-id={node.id}
       data-disabled={node.disabled ? 'true' : undefined}
       data-run-state={runState}
+      data-step-paused={pausedHosts}
+      data-pause-point={pausePoint ? 'true' : undefined}
       data-lens={lensChips}
       data-outside={outside || undefined}
       title={outsideLine}
@@ -749,6 +786,25 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
         </button>
       ) : null}
       {badge && !far ? <ProblemMark node={node} badge={badge} /> : null}
+      {pausedHosts !== undefined ? (
+        <span
+          className="afd-step-badge"
+          role="img"
+          aria-label={`Paused here: ${pausedHosts} host${pausedHosts === 1 ? '' : 's'} waiting`}
+          title={`Paused here: ${pausedHosts} host${pausedHosts === 1 ? '' : 's'} waiting. Step (F10), Continue (F5), Stop (Shift+F5).`}
+        >
+          <span className="codicon codicon-debug-pause" aria-hidden="true" />
+          {pausedHosts}
+        </span>
+      ) : null}
+      {pausePoint ? (
+        <span
+          className="afd-pause-point"
+          role="img"
+          aria-label="Pause point"
+          title="Pause point: a step-by-step run pauses here, also after Continue"
+        />
+      ) : null}
       {role === 'frame' ? <InnerHandles ports={ports} /> : null}
       {plusPort ? (
         <PortPlus nodeId={node.id} port={plusPort} focusable={selected || active} />

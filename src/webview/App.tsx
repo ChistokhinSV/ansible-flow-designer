@@ -85,9 +85,12 @@ function useHost() {
         ui.setServerChange(m.change);
       } else if (m.type === 'repoState') {
         ui.setRepo(m.state);
+      } else if (m.type === 'pausePoints') {
+        ui.setPausePoints(m.points);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
         ui.setRunner(m.runner === true);
+        ui.setStepRuns(m.stepRuns === true);
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.wireStyle) ui.setWireStyle(m.wireStyle);
         if (m.past) enterPast(m.past);

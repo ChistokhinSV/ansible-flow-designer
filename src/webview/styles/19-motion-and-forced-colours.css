@@ -66,3 +66,21 @@
     animation: none;
   }
 }
+
+@media (forced-colors: active) {
+  /* AFD-346: the paused step and pause points stay visible in the system colours. */
+  .afd-node.step-paused {
+    outline-color: Highlight;
+  }
+
+  .afd-step-badge {
+    color: HighlightText;
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .afd-pause-point {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}

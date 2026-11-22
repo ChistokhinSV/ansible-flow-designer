@@ -48,6 +48,8 @@ def run_config(root: str) -> dict[str, Any]:
             "lookup_plugins": paths("DEFAULT_LOOKUP_PLUGIN_PATH"),
             "test_plugins": paths("DEFAULT_TEST_PLUGIN_PATH"),
             "vars_plugins": paths("DEFAULT_VARS_PLUGIN_PATH"),
+            # AFD-346: a step-by-step run sets ANSIBLE_STRATEGY_PLUGINS; these stay in it.
+            "strategy_plugins": paths("DEFAULT_STRATEGY_PLUGIN_PATH"),
         },
         "vars_enabled": [str(v) for v in (getattr(C, "VARIABLE_PLUGINS_ENABLED", None) or [])],
     }

@@ -105,6 +105,8 @@ export type CanvasAction =
   | { do: 'peekCode'; node: Ulid }
   /** AFD-244: a skeleton run that starts at this step, or runs it alone. */
   | { do: 'runPartial'; node: Ulid; only: boolean }
+  /** AFD-346: a step-by-step run pauses before this step, also after Continue. */
+  | { do: 'togglePausePoint'; node: Ulid }
   | { do: 'find' }
   | { do: 'removeEntry'; subflow: Ulid }
   | { do: 'removeExit'; subflow: Ulid; from: PortRef; port: string }
@@ -149,6 +151,11 @@ export interface CanvasMenuContext {
   format?: number;
   /** AFD-116: the scenario being edited on the canvas: its what-if items join a step's menu. */
   scenario?: ScenarioMenu;
+  /**
+   * AFD-346: the flow's pause points, when the host runs flows step by step: a step's menu sets
+   * or takes away its own.
+   */
+  pausePoints?: readonly Ulid[];
 }
 
 /** What a step's menu needs of the scenario being edited (AFD-116). */
@@ -497,6 +504,17 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
         'Run This Step (Skeleton)',
         { do: 'runPartial', node: id, only: true },
         { icon: 'debug-step-over', ...lock },
+      ),
+    );
+  }
+  // AFD-346: a step is where a step-by-step run can pause; a subflow pauses at its own steps.
+  if (ctx.pausePoints && !ends && node.type !== 'subflow' && !node.disabled) {
+    const on = ctx.pausePoints.includes(id);
+    runs.push(
+      item(
+        on ? 'Remove Pause Point' : 'Add Pause Point',
+        { do: 'togglePausePoint', node: id },
+        { icon: 'debug-breakpoint' },
       ),
     );
   }

@@ -291,6 +291,8 @@ for a lab only, set `host_key_checking = False` in the lab repository's `ansible
 
 - While a run goes, the Run button is **Stop** (or **Ansible Flow: Stop Run**, Shift+F5): it ends
   the run, which shows as stopped, not failed.
+- To pause before each step and go on one step at a time, see
+  [Run step by step](step-by-step.md).
 - The top bar shows hosts, failures and the exit code; **Show terminal** brings the output back.
 - In **Run** mode, nodes show "3 hosts · 1 failed · 2.1 s", wires show how many hosts took them.
   Select a node or a wire to list the hosts and why they failed. For a local run, **Output** on a

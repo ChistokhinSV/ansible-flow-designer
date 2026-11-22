@@ -209,6 +209,11 @@ export interface LaunchPlan {
    * wins over), as the host's own launch form says it.
    */
   origins?: Record<string, string>;
+  /**
+   * AFD-346: the host runs step by step: the dialog offers it, chosen when `on` (Run Step by
+   * Step). Absent: not offered (a server's pages, AFS-177).
+   */
+  steps?: { on: boolean };
 }
 
 /** A target the run touches beyond the flow targets: nodes with an inventory_target (AFD-14). */

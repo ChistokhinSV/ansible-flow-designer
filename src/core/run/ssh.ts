@@ -167,15 +167,18 @@ export function syncCommand(target: SshTarget, r: SyncRequest) {
 }
 
 /** Writes the connection's input to a file on the host, readable by the account alone. */
-export function writeFileCommand(target: SshTarget, path: string, open = false) {
+export function writeFileCommand(target: SshTarget, path: string, open = false, whole = false) {
   const dir = path.slice(0, path.lastIndexOf('/'));
+  // AFD-346: `whole` writes a temporary file and moves it in: a reader never sees half of it.
+  const to = whole ? `${path}.tmp` : path;
   const steps = [
     'umask 077',
     `mkdir -p ${rq(dir)}`,
     // A container's own user writes the run's events here; only the mount leads to the folder.
     ...(open ? [`chmod 777 ${rq(dir)}`] : []),
-    `cat > ${rq(path)}`,
-    ...(open ? [`chmod 644 ${rq(path)}`] : []),
+    `cat > ${rq(to)}`,
+    ...(open ? [`chmod 644 ${rq(to)}`] : []),
+    ...(whole ? [`mv -f ${rq(to)} ${rq(path)}`] : []),
   ];
   return onHost(target.host, steps.join(' && '));
 }

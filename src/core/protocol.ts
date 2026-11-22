@@ -12,6 +12,7 @@ import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
 import type { PastRun } from './run/pastRuns';
+import type { RunStep, StepCommand } from './run/step';
 import type { ScenarioRequest } from './scenario/edit';
 import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
@@ -99,6 +100,11 @@ export interface RunView {
    * at, too). The canvas marks that step stopped.
    */
   stoppedAt?: Ulid;
+  /**
+   * AFD-346 (ADR-0039): a step-by-step run: where it waits now (still `running`), which hosts wait
+   * there, the pause points, and where it was stopped.
+   */
+  step?: RunStep;
   /**
    * AFS-189: the flow inputs the run was given, as anyone may see them (the host shows a secret
    * one as `***`), for "In this run" on a name the steps read directly. Absent: not known.
@@ -329,7 +335,14 @@ export type HostMessage =
       runner?: boolean;
       /** AFD-294 (`afd.canvas.wireStyle`): how the canvas draws wires. */
       wireStyle?: 'stepped' | 'curved';
+      /**
+       * AFD-346: the host runs flows step by step (VS Code): Run Step by Step, Step, Continue,
+       * Pause and pause points show. A server's pages do not set it yet (AFS-177).
+       */
+      stepRuns?: boolean;
     }
+  /** AFD-346: the flow's pause points (kept by the host, not in the flow file). */
+  | { type: 'pausePoints'; points: Ulid[] }
   /** AFD-294: the wire style setting changed. */
   | { type: 'wireStyle'; style: 'stepped' | 'curved' }
   /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
@@ -402,7 +415,12 @@ export type WebviewMessage =
   | { type: 'tidyUp'; level?: string }
   /** AFD-294: the canvas's wire toggle: keep this style as the user's setting. */
   | { type: 'setWireStyle'; style: 'stepped' | 'curved' }
-  | { type: 'run'; mode: 'check' | 'real' }
+  /** `step` (AFD-346): the launch dialog opens with Step by step chosen. */
+  | { type: 'run'; mode: 'check' | 'real'; step?: boolean }
+  /** AFD-346: Step, Continue, Pause or Stop for the step-by-step run going. */
+  | { type: 'stepRun'; command: StepCommand }
+  /** AFD-346: a pause point on a step, set or taken away. */
+  | { type: 'togglePausePoint'; node: Ulid }
   /** AFD-244: a skeleton run from a top-level step on, or of that step alone. */
   | { type: 'runPartial'; node: Ulid; only: boolean }
   /** AFD-245: show a kept run again (an id from `runs`). */
@@ -420,6 +438,8 @@ export type WebviewMessage =
       token: string;
       inputs: Record<string, unknown>;
       vaultPassword?: string;
+      /** AFD-346: run step by step (offered when the plan has `steps`). */
+      step?: boolean;
     }
   | { type: 'launchCancel'; token: string }
   /**
@@ -534,7 +554,12 @@ export interface DomSummary {
   /** Inside a subflow: frame ports shown (enabled ones) and boundary wires drawn. */
   frame: { ports: string[]; wires: number } | null;
   /** Run mode (M7): each node's run state and each wire's label as drawn. */
-  run?: { nodes: Record<string, string>; wires: Record<string, string> };
+  run?: {
+    nodes: Record<string, string>;
+    wires: Record<string, string>;
+    /** AFD-346: where a step-by-step run waits, and how many hosts wait there. */
+    paused?: { node: string; hosts: number };
+  };
   /** Lens (M8): chips per node, finding ids, data wires, highlighted nodes, the open card's rows. */
   lens?: {
     lens: string;

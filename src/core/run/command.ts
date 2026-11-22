@@ -4,6 +4,7 @@
 import { SECRET } from '../import/secrets';
 import type { Environment } from './environment';
 import { LOGIN_PROFILE, onHost, readFromInput, remotePaths, rq, shQuote } from './ssh';
+import { STEP_CONTROL } from './step';
 
 export { shQuote };
 
@@ -270,6 +271,13 @@ export interface RunRequest {
    * turns it off (AFD_RECORD_INPUTS=0: the generated task is skipped, the callback records none).
    */
   recordInputs?: boolean;
+  /**
+   * AFD-346 (ADR-0039): a step-by-step run: our afd_step strategy pauses before each step and
+   * reads the driver's control.json in the run folder; a pause nobody answers ends after
+   * `timeoutS`. `inside`: the step a later approval segment starts inside (it paused in the
+   * segment before). Absent: no strategy variable is set and the run is as every run.
+   */
+  step?: { timeoutS: number; inside?: string };
 }
 
 /**
@@ -320,7 +328,7 @@ function runEnv(
   root: string,
   config: Pick<
     RunRequest,
-    'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir' | 'recordInputs'
+    'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir' | 'recordInputs' | 'step'
   >,
 ) {
   const ours = join(probeDir, 'callback_plugins');
@@ -336,6 +344,21 @@ function runEnv(
     ANSIBLE_FORCE_COLOR: '1',
   };
   if (config.recordInputs === false) env.AFD_RECORD_INPUTS = '0';
+  if (config.step) {
+    env.ANSIBLE_STRATEGY = 'afd_step';
+    // The repository's strategy folders stay found (its config's, then its root's), ours last.
+    const known = theirs?.plugins;
+    const strategies = known
+      ? [...(known.strategy_plugins ?? []).filter(pluginPath), join(root, 'strategy_plugins')]
+      : [];
+    env.ANSIBLE_STRATEGY_PLUGINS = [
+      ...new Set([...strategies, join(probeDir, 'strategy_plugins')]),
+    ].join(':');
+    env.AFD_STEP_CONTROL = join(runDir, STEP_CONTROL);
+    env.AFD_STEP_TIMEOUT = String(config.step.timeoutS);
+    if (config.step.inside && /^[0-9A-Za-z]+$/.test(config.step.inside))
+      env.AFD_STEP_INSIDE = config.step.inside;
+  }
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
   // AFD-291: the repository's library/, module_utils/ and plugin folders, after the ones its config

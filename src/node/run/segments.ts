@@ -19,9 +19,10 @@ import type { SegmentFile } from '../../core/engine/types';
 import type { Ulid } from '../../core/flow/types';
 import type { RunApproval, RunView } from '../../core/protocol';
 import { type RunSummary, summarizeRun } from '../../core/run/events';
+import type { StepControl } from '../../core/run/step';
 import { withoutBookkeeping } from '../awx/awxWorkflow';
 import { runsDir } from './pastRuns';
-import { type RunFlowHooks, type RunFlowRequest, runFlow } from './runFlow';
+import { type RunFlowHooks, type RunFlowRequest, runFlow, type StepDriver } from './runFlow';
 
 /** How a gate was decided. `timeout` takes the approval's timeout port (else rejected's). */
 export type GateDecision = 'approved' | 'rejected' | 'timeout';
@@ -107,6 +108,10 @@ export async function runSegments(
   let segment = segments.find((s) => s.name === 'start');
   let inputs = request.inputs;
   let last: RunView | undefined;
+  // AFD-346: a step-by-step run's driver of the segment going, and the control it ended with.
+  let driver: StepDriver | undefined;
+  let stepControl: StepControl | undefined;
+  let inside: Ulid | undefined;
   /** The run as one, with what the segments that ended did. */
   const view = (run: RunView): RunView => ({
     ...run,
@@ -118,9 +123,29 @@ export async function runSegments(
     const current = segment;
     const id = `${request.id}-${k}`;
     const run = await runFlow(
-      { ...request, id, playbook: `${generated}${current.file}`, inputs },
+      {
+        ...request,
+        id,
+        playbook: `${generated}${current.file}`,
+        inputs,
+        // AFD-346: each segment process reads the control the one before ended with; after a
+        // decision it starts inside the approval step, which paused in the segment before.
+        ...(request.step
+          ? {
+              step: {
+                ...request.step,
+                ...(stepControl ? { control: stepControl } : {}),
+                ...(inside ? { inside } : {}),
+              },
+            }
+          : {}),
+      },
       {
         ...hooks,
+        started: (stop, step) => {
+          driver = step;
+          return hooks.started?.(stop, step);
+        },
         // While a segment runs: what the ones before did, and what this one does so far.
         report: (r) =>
           hooks.report({
@@ -132,6 +157,8 @@ export async function runSegments(
       },
     );
     last = run;
+    stepControl = driver?.control() ?? stepControl;
+    driver = undefined;
     const text = await readFile(
       join(runsDir(request.storage, request.doc.flow.id), id, 'events.jsonl'),
       'utf8',
@@ -142,6 +169,7 @@ export async function runSegments(
     if (!current.gate) break;
     if (outcome.empty) {
       segment = nextSegment(segments, current.name, 'empty');
+      inside = undefined;
       inputs = segmentInputs(request.inputs, outcome.carried);
       continue;
     }
@@ -171,6 +199,7 @@ export async function runSegments(
         decision === 'approved' ? 'approved' : decision === 'timeout' ? 'timed out' : 'rejected',
     };
     segment = nextSegment(segments, current.name, decision);
+    inside = current.gate;
     inputs = segmentInputs(request.inputs, outcome.carried, decision);
   }
   const done = view(

@@ -9,8 +9,9 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GenerateResult } from '../../core/engine/types';
+import { modelOf } from '../../core/flow/model';
 import { nodeDesigns } from '../../core/flow/semantic';
-import type { FlowDocument } from '../../core/flow/types';
+import type { FlowDocument, Ulid } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
 import {
   type ProcessSpec,
@@ -21,10 +22,23 @@ import {
 import type { Environment } from '../../core/run/environment';
 import { createSummarizer, type RunSummary, summarizeRun } from '../../core/run/events';
 import { redactLine, redactText, secretValues } from '../../core/run/redact';
+import {
+  answer,
+  type RunStep,
+  STEP_CONTROL,
+  type StepCommand,
+  type StepControl,
+  type StepPause,
+  startControl,
+  stepEvent,
+  stepState,
+  stoppedLine,
+} from '../../core/run/step';
 import { followRunFile, putRunFile, removeRunDir, syncWorkspace } from '../ssh/remote';
 import { appendAudit } from './audit';
 import { type Execution, startProcess } from './exec';
 import { keepRun, runsDir } from './pastRuns';
+import { writeControl } from './stepChannel';
 import { stopStarted } from './stop';
 import { dropVars, KEEP_RUNS, pruneRuns } from './storage';
 import { tailFile } from './tail';
@@ -71,6 +85,30 @@ export interface RunFlowRequest {
   audit?: Record<string, unknown>;
   /** Stops the run when it aborts. */
   signal?: AbortSignal;
+  /**
+   * AFD-346 (ADR-0039): run step by step: pause before every step (`every`) or only at `points`;
+   * a pause nobody answers for `timeoutS` stops the run. `control` is the control to start with
+   * (a later approval segment: the one the segment before had); `inside` the step it starts in.
+   */
+  step?: {
+    every: boolean;
+    points: Ulid[];
+    timeoutS: number;
+    control?: StepControl;
+    inside?: Ulid;
+  };
+}
+
+/** AFD-346: how the host drives a step-by-step run while it goes. */
+export interface StepDriver {
+  /** Step, Continue, Pause or Stop; resolves with why it could not be sent, if it could not. */
+  send(command: StepCommand): Promise<string | undefined>;
+  /** New pause points, for the run's next step boundary. */
+  setPoints(points: Ulid[]): Promise<string | undefined>;
+  /** The pause the run waits at now. */
+  paused(): StepPause | undefined;
+  /** The control last written (a later approval segment starts with it). */
+  control(): StepControl;
 }
 
 export interface RunFlowHooks {
@@ -87,8 +125,11 @@ export interface RunFlowHooks {
   ): Execution | Promise<Execution>;
   /** The default process's output, line by line. */
   log?(line: string): void;
-  /** The run started; `stop` ends it. Returns what to call when the run has ended. */
-  started?(stop: () => Promise<void>): (() => void) | undefined;
+  /**
+   * The run started; `stop` ends it, `step` drives a step-by-step run. Returns what to call when
+   * the run has ended.
+   */
+  started?(stop: () => Promise<void>, step?: StepDriver): (() => void) | undefined;
   /** Whether to watch for a run gone quiet (no event for `STALL_MS`). */
   watchQuiet?: boolean;
   /** The run went quiet. */
@@ -134,6 +175,23 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
       )) ?? (await putRunFile(remote, runDir, 'vars.json', JSON.stringify(plain, null, 2)));
     if (failed) return fail(failed);
   }
+  // AFD-346: the control the run reads at its first step boundary, there before the process is.
+  let control: StepControl | undefined = request.step
+    ? (request.step.control ?? startControl(request.step.every, request.step.points))
+    : undefined;
+  const writeStep = async (c: StepControl): Promise<string | undefined> => {
+    try {
+      if (remote) return await putRunFile(remote, runDir, STEP_CONTROL, JSON.stringify(c), true);
+      await writeControl(runDir, c);
+      return undefined;
+    } catch (e) {
+      return `Could not write ${STEP_CONTROL}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  };
+  if (control) {
+    const failed = await writeStep(control);
+    if (failed) return fail(failed);
+  }
   const spec = runProcess(
     request.env,
     { root: request.root, probe: request.probeDir },
@@ -147,6 +205,14 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
       hasConfig: existsSync(join(request.root, 'ansible.cfg')),
       callbacks: request.callbacks,
       ...(request.recordInputs === false ? { recordInputs: false } : {}),
+      ...(request.step
+        ? {
+            step: {
+              timeoutS: request.step.timeoutS,
+              ...(request.step.inside ? { inside: request.step.inside } : {}),
+            },
+          }
+        : {}),
     },
     `afd-run-${id.toLowerCase()}`,
   );
@@ -184,13 +250,25 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
   let lastEvent = Date.now();
   let changed = false;
   let quiet = false;
+  // AFD-346: the step events so far, and what they say (paused where, stopped where).
+  const stepEvents: Record<string, unknown>[] = [];
+  let points = request.step?.points ?? [];
+  const stepView = (): RunStep | undefined =>
+    request.step ? { ...stepState(stepEvents), every: request.step.every, points } : undefined;
   const tail = tailFile(eventsFile, (lines) => {
-    for (const line of lines) live.push(redactLine(line, hidden));
+    for (const line of lines) {
+      live.push(redactLine(line, hidden));
+      const e = request.step ? stepEvent(line) : undefined;
+      if (e) stepEvents.push(e);
+    }
     lastEvent = Date.now();
     changed = true;
     quiet = false;
   });
   const ticker = setInterval(() => {
+    const step = stepView();
+    // A run paused for its driver is not quiet: it waits for Step, Continue or Stop.
+    if (step?.paused) lastEvent = Date.now();
     if (hooks.watchQuiet && !quiet && Date.now() - lastEvent > STALL_MS) {
       quiet = true;
       changed = true;
@@ -202,8 +280,28 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
       ...running,
       summary: live.summary({ partial: true }),
       ...(quiet ? { quiet } : {}),
+      ...(step ? { step } : {}),
     });
   }, LIVE_MS);
+  const driver: StepDriver | undefined = request.step
+    ? {
+        send: async (command) => {
+          const paused = stepState(stepEvents).paused;
+          // Pause is for a run that goes; a paused one waits already.
+          if (command === 'pause' && paused) return undefined;
+          control = answer(command, points, paused?.id);
+          return writeStep(control);
+        },
+        setPoints: async (next) => {
+          points = [...next];
+          changed = true;
+          control = { ...(control ?? startControl(false)), points };
+          return writeStep(control);
+        },
+        paused: () => stepState(stepEvents).paused,
+        control: () => control ?? startControl(false, points),
+      }
+    : undefined;
 
   // Stopping ends the process; the run then ends as stopped, not as an error.
   let stopped = false;
@@ -224,7 +322,7 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
   const onAbort = () => void stop();
   if (request.signal?.aborted) onAbort();
   else request.signal?.addEventListener('abort', onAbort, { once: true });
-  const release = hooks.started?.(stop);
+  const release = hooks.started?.(stop, driver);
   const rc = await execution.exit;
   release?.();
   request.signal?.removeEventListener('abort', onAbort);
@@ -245,21 +343,43 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
     }
   } catch {}
   const summary = summarizeRun(text, code.routes);
-  hooks.finished?.({ stopped, rc, events: !!text.trim(), summary });
+  // AFD-346: the whole file read again: a stopped event the tail had not reached counts too.
+  const step: RunStep | undefined = request.step
+    ? {
+        ...stepState(
+          text
+            .split('\n')
+            .map(stepEvent)
+            .filter((e): e is Record<string, unknown> => !!e),
+        ),
+        every: request.step.every,
+        points,
+      }
+    : undefined;
+  // A step-by-step run stopped at a step boundary exits 2: it was stopped, it did not fail.
+  const stepStopped = step?.stopped;
+  const stoppedAt = stepStopped?.node;
+  const title = stoppedAt ? (modelOf(doc).nodes.get(stoppedAt)?.node.title ?? stoppedAt) : '';
+  if (step) delete step.paused;
+  hooks.finished?.({ stopped: stopped || !!stepStopped, rc, events: !!text.trim(), summary });
   const done: RunView = {
     ...running,
-    state: rc === undefined || stopped ? 'error' : 'done',
+    state: rc === undefined || stopped || stepStopped ? 'error' : 'done',
     finishedAt: new Date().toISOString(),
     rc,
     summary,
-    error: stopped
-      ? 'Stopped by the user'
-      : rc === undefined
-        ? 'The run could not be started'
-        : text
-          ? undefined
-          : 'The run produced no events',
-    ...(stopped ? { errorCode: 'cancelled' as const } : {}),
+    error: stepStopped
+      ? stoppedLine(stepStopped, title, request.step?.timeoutS ?? 0)
+      : stopped
+        ? 'Stopped by the user'
+        : rc === undefined
+          ? 'The run could not be started'
+          : text
+            ? undefined
+            : 'The run produced no events',
+    ...(stopped || stepStopped ? { errorCode: 'cancelled' as const } : {}),
+    ...(stoppedAt ? { stoppedAt } : {}),
+    ...(step ? { step } : {}),
   };
   if (request.audit)
     await appendAudit(request.storage, {

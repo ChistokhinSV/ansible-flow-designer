@@ -38,6 +38,7 @@ import { approvalOf, type ShownApproval, waitsForApproval } from '../runApproval
 import { requestRunOutput } from '../runOutput';
 import { useUi } from '../store';
 import { HelpLink } from './HelpLink';
+import { StepSection } from './StepBar';
 
 /**
  * AFD-245: the runs kept of this flow. Choosing one shows it on the canvas again, with what each
@@ -106,6 +107,9 @@ function statusOf(
   // AFD-353: a run that waits for a decision says so, not "running".
   if (run.state === 'running' && waitsForApproval(run))
     return { label: 'waiting for approval', tone: 'neutral' };
+  // AFD-346: a step-by-step run that waits for Step, Continue or Stop.
+  if (run.state === 'running' && run.step?.paused)
+    return { label: 'paused, step by step', tone: 'neutral' };
   if (run.state === 'running')
     return {
       label: run.awx
@@ -434,6 +438,8 @@ export function RunPanel() {
           than your HEAD: push your changes to the project's remote so the run matches the design.
         </p>
       ) : null}
+      {/* AFD-346: where a step-by-step run waits, and Step, Continue, Pause, Stop. */}
+      <StepSection run={run} />
       {/* A scenario has no terminal or AWX job of its own (AFD-84). */}
       {run.scenario ? null : <OpenRun run={run} />}
       <FailedSteps />
