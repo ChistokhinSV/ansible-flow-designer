@@ -23,6 +23,9 @@ All notable changes to Ansible Flow Designer.
 - On a page where the step cannot be changed (a viewer, Run mode), its Title and **What it does** read as text, not as boxes to type in.
 - The sample Firewall firmware upgrade's launch configuration is **Firewalls on localhost** (was Skeleton on localhost): it starts real runs too.
 - In the **Run** dialog a true/false input is picked from **true**, **false** or **(not set)**, and, in Ansible Flow Server, each input says under it which steps read it, its default and what it wins over, as the launch form does.
+- A task its `failed_when` condition failed says in the run why: "Its failed_when condition was true: <condition>", instead of Ansible's "Unknown error" or its generic message. A task with a message of its own keeps it.
+- On Ansible Flow Server's pages, a run whose failing hosts were all sent to a failed end by an approval's rejection (or by nobody deciding in time) reads **rejected** (or **not decided in time**) in the Run panel's status and in the top bar, and its host lines leave step keys out and say "(outcome: rejected)".
+- An approval's **Run** tab says why you do not decide it, when the server says (for example because you launched the run), before who decides it.
 
 ### Fixed
 
@@ -37,6 +40,7 @@ All notable changes to Ansible Flow Designer.
 - A narrow tool bar wraps the key, version and **Add Scenarios** under the flow name instead of running them over the mode switch and cutting the name to nothing.
 - A new note from the palette keeps its text field focused while the canvas catches up, so typing goes into the note.
 - Notes under a run or a lens keep their text readable: the card fades, its words do not.
+- The time of an approval's decision on its **Run** tab names its time zone.
 - Where a step cannot be changed (a viewer, Run mode, a flow at a past commit), the rows of **Details › Data** open again to show **Comes from**, **Defined in the repository** and **In this run**, and are no longer dimmed. **Details** shows no controls that would only be refused there: no **Add input** or **Add output**, no Remove, **@**, **Add** or **Change role** in **Binding**, and an unbound step says it is not bound yet.
 - A viewer is no longer offered **Mark … Tested** after a run, and a flow at a past commit no longer shows the **Start with a Step** card or takes **N**, Delete and the other editing keys.
 - In a narrow side panel (Ansible Flow Server's run page), an input's row wraps instead of cutting its name, type and source to a few letters (where it comes from gets a line of its own), the **Details** tabs stay on one row, and the panel is up to 360 px wide where there is no palette. **For host** sits in the panel's padding, as the rows do.

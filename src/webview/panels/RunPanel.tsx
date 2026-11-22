@@ -17,7 +17,7 @@ import {
   runVerdict,
   testedCandidates,
 } from '../../core/run/view';
-import { hostsWord, type RunWords } from '../../core/run/words';
+import { decidedAgainst, hostsWord, outcomeWords, type RunWords } from '../../core/run/words';
 import {
   endRows,
   endWords,
@@ -140,6 +140,10 @@ function statusOf(
     const { ok, failed } = runVerdict(run);
     if (ok) return { label: 'went well', tone: 'ok' };
     if (run.summary?.stoppedEarly) return { label: 'stopped early', tone: 'warn' };
+    // AFD-359: hosts a decision sent to a failed end were not approved; nothing broke.
+    const against = run.summary ? decidedAgainst(run.summary) : undefined;
+    if (against)
+      return { label: against === 'rejected' ? 'rejected' : 'not decided in time', tone: 'warn' };
     const of = hostsWord(run.summary?.hosts.length ?? 0);
     return { label: failed ? `failed · ${failed} of ${of}` : 'failed', tone: 'warn' };
   }
@@ -466,7 +470,8 @@ export function RunPanel() {
             <ul className="afd-run-hosts" data-run-outcome={outcome.length}>
               {outcome.map(([host, why]) => (
                 <li key={host}>
-                  <span className="mono">{host}</span> <span className="muted">{why}</span>
+                  <span className="mono">{host}</span>{' '}
+                  <span className="muted">{outcomeWords(why, words)}</span>
                 </li>
               ))}
             </ul>
@@ -784,7 +789,18 @@ function ApprovalDecision({
       ? approval.deciders[0]
       : `${approval.deciders.slice(0, -1).join(', ')} or ${approval.deciders.at(-1)}`
     : undefined;
-  const when = approval.at ? new Date(approval.at).toLocaleString() : undefined;
+  // AFD-359: with its time zone, as every other time on a server's page.
+  const when = approval.at
+    ? new Date(approval.at).toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short',
+      })
+    : undefined;
   return (
     <section className="afd-approval" data-approval={approval.label}>
       <p>
@@ -849,7 +865,9 @@ function ApprovalDecision({
           </>
         )
       ) : approval.status === 'waiting' ? (
-        <p className="muted">
+        <p className="muted" data-approval-why>
+          {/* AFD-359: why this person does not decide it, when the host says. */}
+          {approval.why ? `${approval.why}. ` : ''}
           {deciders
             ? `${deciders} decides it.`
             : 'Someone with approve on this flow, or on its workspace, decides it.'}

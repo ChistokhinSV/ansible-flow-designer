@@ -254,6 +254,24 @@ describe('Run mode', () => {
       'Stopped by Dana Whitfield before it went on',
     );
     expect(document.body.textContent).not.toMatch(/Run interrupted/);
+    // AFD-359: a run whose host a rejection sent to a failed end reads rejected, without keys.
+    act(() =>
+      useUi.getState().setRun({
+        ...server,
+        rc: 2,
+        summary: {
+          ...(server.summary as NonNullable<RunView['summary']>),
+          outcome: {
+            sw1: 'Rejected at [approve] Change approval. Ended at [no] Not approved (outcome: failed)',
+          },
+        },
+      }),
+    );
+    expect(document.querySelector('[data-run-status]')?.textContent).toBe('rejected');
+    expect(document.querySelector('.afd-run-status')?.textContent).toContain('1 host · rejected');
+    expect(document.querySelector('[data-run-outcome]')?.textContent).toContain(
+      'Rejected at Change approval. Ended at Not approved (outcome: rejected)',
+    );
     unmount();
     act(() => useUi.getState().setEmbed(undefined));
   });

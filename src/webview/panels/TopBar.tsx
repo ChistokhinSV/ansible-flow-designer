@@ -9,7 +9,7 @@ import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
 import { runVerdict } from '../../core/run/view';
-import { checkButton, hostsWord } from '../../core/run/words';
+import { checkButton, decidedAgainst, hostsWord } from '../../core/run/words';
 import { scenarioChip } from '../../core/scenario/authoring';
 import { chooseMode } from '../actions';
 import { send } from '../bus';
@@ -591,12 +591,16 @@ function RunStatus({ run }: { run: RunView | null }) {
   const where = run.awx ? `AWX #${run.awx.jobId} · ` : '';
   const hosts = hostsWord(s?.hosts.length ?? 0);
   // AFS-153: a server's pages say how a run went, not Ansible's exit code.
+  // AFD-359: hosts a decision sent to a failed end were not approved; nothing broke.
+  const against = server && !ok && s ? decidedAgainst(s) : undefined;
   const label = server
     ? s?.stoppedEarly
       ? 'Stopped early'
       : ok
         ? `${hosts} · went well`
-        : `${hosts} · ${failed} failed`
+        : against
+          ? `${hosts} · ${against === 'rejected' ? 'rejected' : 'not decided in time'}`
+          : `${hosts} · ${failed} failed`
     : s?.stoppedEarly
       ? `${where}Stopped early · exit ${run.rc}`
       : `${where}${hosts} · ${failed} failed · exit ${run.rc}`;
