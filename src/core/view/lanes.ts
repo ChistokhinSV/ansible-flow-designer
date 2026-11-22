@@ -364,31 +364,36 @@ export function spreadWires(level: readonly LaneWire[], boxes: readonly Box[]): 
     if (!text) return;
     // Wires into the same port run together on purpose: a label on that bundle names its own wire.
     const others = lines.filter((_, m) => m !== n && (wires[m] as LaneWire).to !== w.to);
-    if (!labelOnWire(text, route.label, others)) {
+    // AFD-351: but their labels do not stack on the shared stretch, where nobody could count the
+    // wires: a label on another label moves along its own wire, off the bundle where it can.
+    const mates = lines.filter((_, m) => m !== n && (wires[m] as LaneWire).to === w.to);
+    const onLabel = (at: Position) => {
+      const box = labelBox(text, at);
+      return placed.some((r) => overlaps(box, r));
+    };
+    if (!labelOnWire(text, route.label, others) && !onLabel(route.label)) {
       placed.push(labelBox(text, route.label));
       return;
     }
     const own = lines[n] as Position[];
     const total = lengthOf(own);
     const from = arcOf(own, route.label);
-    const free = (at: Position) => {
-      const box = labelBox(text, at);
-      return (
-        !labelOnWire(text, at, others) &&
-        !boxes.some((r) => overlaps(box, r)) &&
-        !placed.some((r) => overlaps(box, r))
-      );
-    };
-    for (let k = STEP; k <= total; k += STEP)
-      for (const arc of [from - k, from + k]) {
-        if (arc < 0 || arc > total) continue;
-        const at = pointAt(own, arc);
-        if (!free(at)) continue;
-        const label = { x: Math.round(at.x * 100) / 100, y: Math.round(at.y * 100) / 100 };
-        out.set(w.id, { ...route, label });
-        placed.push(labelBox(text, label));
-        return;
-      }
+    const free = (at: Position, offBundle: boolean) =>
+      !labelOnWire(text, at, others) &&
+      !(offBundle && labelOnWire(text, at, mates)) &&
+      !boxes.some((r) => overlaps(labelBox(text, at), r)) &&
+      !onLabel(at);
+    for (const offBundle of mates.length ? [true, false] : [false])
+      for (let k = STEP; k <= total; k += STEP)
+        for (const arc of [from - k, from + k]) {
+          if (arc < 0 || arc > total) continue;
+          const at = pointAt(own, arc);
+          if (!free(at, offBundle)) continue;
+          const label = { x: Math.round(at.x * 100) / 100, y: Math.round(at.y * 100) / 100 };
+          out.set(w.id, { ...route, label });
+          placed.push(labelBox(text, label));
+          return;
+        }
     placed.push(labelBox(text, route.label));
   });
   return out;

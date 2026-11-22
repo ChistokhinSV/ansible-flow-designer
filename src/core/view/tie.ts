@@ -22,7 +22,15 @@ interface Point {
 export interface TiePort {
   side: PortSide;
   offset: number;
+  /**
+   * AFD-351: a port shown only on hover (unreachable, timeout): the tie keeps off it and its label
+   * too, where the border allows; never at the cost of crossing a port shown at rest.
+   */
+  optional?: boolean;
 }
+
+/** How far a side port's label reaches past it ("unreachable" at the canvas's port label size). */
+const LABEL = 96;
 
 const centre = (b: Box) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 
@@ -94,22 +102,43 @@ export function tieLine(
   if (!ports.length) return straight;
   const stubs = ports.map((p) => {
     const { at, out } = portAt(node, p);
-    return [at, { x: at.x + out.x * STUB, y: at.y + out.y * STUB }] as const;
+    const reach = p.optional && (p.side === 'left' || p.side === 'right') ? LABEL : STUB;
+    return {
+      optional: !!p.optional,
+      seg: [at, { x: at.x + out.x * reach, y: at.y + out.y * reach }] as const,
+    };
   });
-  const clear = (from: Point, to: Point) =>
-    stubs.every(([s, t]) => apart(from, to, s, t) >= CLEAR) &&
-    // Not back across the node: the tie reaches the side that faces the note.
-    !crossesNode(from, to, node);
-  if (clear(straight.from, straight.to)) return straight;
-  let best: { from: Point; to: Point; length: number } | undefined;
+  // How much a tie comes too close to the ports: those at rest first, then the optional ones.
+  const cost = (from: Point, to: Point) => {
+    let rest = crossesNode(from, to, node) ? 1e6 : 0;
+    let optional = 0;
+    for (const { optional: hover, seg } of stubs) {
+      const short = Math.max(0, CLEAR - apart(from, to, seg[0], seg[1]));
+      if (hover) optional += short;
+      else rest += short;
+    }
+    return { rest, optional };
+  };
+  const ties = [{ ...straight, straight: true }];
   for (const side of ['top', 'right', 'bottom', 'left'] as const)
     for (const offset of ALONG) {
       const to = portAt(node, { side, offset }).at;
-      const from = border(note, to);
-      if (!clear(from, to)) continue;
-      const length = Math.hypot(to.x - from.x, to.y - from.y);
-      if (!best || length < best.length) best = { from, to, length };
+      ties.push({ from: border(note, to), to, straight: false });
     }
+  let best: { from: Point; to: Point; rest: number; optional: number; length: number } | undefined;
+  for (const t of ties) {
+    const c = cost(t.from, t.to);
+    // A tie that touches a port shown at rest is never chosen over the straight one (AFD-350).
+    if (c.rest > 0 && !t.straight) continue;
+    const length = Math.hypot(t.to.x - t.from.x, t.to.y - t.from.y);
+    const better =
+      !best ||
+      c.rest < best.rest ||
+      (c.rest === best.rest &&
+        (c.optional < best.optional - 0.5 ||
+          (Math.abs(c.optional - best.optional) <= 0.5 && length < best.length - 1)));
+    if (better) best = { from: t.from, to: t.to, ...c, length };
+  }
   return best ? { from: best.from, to: best.to } : straight;
 }
 

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { flowLayoutProblems } from '../../../src/core/export/layoutCheck';
-import { NODE_WIDTH, nodeSize } from '../../../src/core/flow/geometry';
+import { annotationSize, NODE_WIDTH, nodeSize } from '../../../src/core/flow/geometry';
 import { createIdFactory } from '../../../src/core/flow/ids';
 import { buildModel, ROOT } from '../../../src/core/flow/model';
 import { newFlowText } from '../../../src/core/flow/template';
@@ -125,6 +125,46 @@ async function checked(doc: FlowDocument) {
   const problems = flowLayoutProblems(model, shown).get(ROOT) ?? [];
   return { at, problems, kinds: new Set(problems.map((p) => p.kind)) };
 }
+
+describe('Tidy Up keeps tied Notes off steps (AFD-351)', () => {
+  it('a Note left or right of its step lands on no other step after the layout', async () => {
+    const doc = sample();
+    const nodes = doc.nodes ?? [];
+    // Notes on every step: one left, one right (where AFD-328 and the old default put them).
+    doc.annotations = nodes.map((n, i) => ({
+      id: `01NOTE${String(i).padStart(20, '0')}`,
+      key: `note-${i + 1}`,
+      on: n.id,
+      ...(i % 2 ? { x: NODE_WIDTH + 24, y: 0 } : { x: -232, y: 0 }),
+      text: 'Why this step is here',
+    }));
+    const level = buildModel(doc).levels.get(ROOT);
+    if (!level) throw new Error('no top level');
+    const at = await layoutLevel(level);
+    const stepBoxes = nodes.map((n) => ({
+      key: n.key,
+      ...(at[n.id] as Position),
+      ...nodeSize(n.type),
+    }));
+    const noteBoxes = doc.annotations.map((a) => {
+      const base = at[a.on as string] as Position;
+      return { key: a.key, x: base.x + a.x, y: base.y + a.y, ...annotationSize(a) };
+    });
+    const hits = noteBoxes.flatMap((nb) =>
+      [...stepBoxes, ...noteBoxes]
+        .filter((b) => b.key !== nb.key)
+        .filter(
+          (b) =>
+            nb.x < b.x + b.width &&
+            nb.x + nb.width > b.x &&
+            nb.y < b.y + b.height &&
+            nb.y + nb.height > b.y,
+        )
+        .map((b) => `${nb.key}/${b.key}`),
+    );
+    expect(hits).toEqual([]);
+  });
+});
 
 describe('auto layout with the canvas ports (AFD-192)', () => {
   // The false wire first, as an agent's batch left it: ELK's own bottom ports then came in wire

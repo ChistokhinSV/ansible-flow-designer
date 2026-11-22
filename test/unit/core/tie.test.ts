@@ -65,3 +65,27 @@ describe('a tie clear of the ports (AFD-350)', () => {
     expect(tieLine(note, node, [{ side: 'bottom', offset: 0.5 }])).toEqual(tieLine(note, node));
   });
 });
+
+describe('a tie clear of the ports shown on hover (AFD-351)', () => {
+  // A task's right side: failed_hosts wired (at rest), unreachable and timeout on hover.
+  const ports: TiePort[] = [
+    { side: 'right', offset: 0.25 },
+    { side: 'right', offset: 0.5, optional: true },
+    { side: 'right', offset: 0.75, optional: true },
+  ];
+
+  it('a Note on the right does not leave between unreachable and timeout', () => {
+    const tie = tieLine({ x: 318, y: 0, width: 200, height: 120 }, node, ports);
+    if (!tie) throw new Error('no tie');
+    expect(tie.to.y < 38 || tie.to.y > 57).toBe(true);
+    expect(near(tie, { x: 208, y: 19 }, 12)).toBe(false);
+    // Nor across their labels, past the ports.
+    expect(near(tie, { x: 260, y: 38 }, 6)).toBe(false);
+    expect(near(tie, { x: 260, y: 57 }, 6)).toBe(false);
+  });
+
+  it('a Note on the left keeps its straight tie', () => {
+    const note = { x: -232, y: 0, width: 200, height: 76 };
+    expect(tieLine(note, node, ports)).toEqual(tieLine(note, node));
+  });
+});

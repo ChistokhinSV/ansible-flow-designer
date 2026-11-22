@@ -26,7 +26,9 @@ function Editor({ id, text, done }: { id: string; text: string; done(): void }) 
   const [value, setValue] = useState(text);
   const field = useRef<HTMLTextAreaElement>(null);
   const finished = useRef(false);
+  const opened = useRef(0);
   useEffect(() => {
+    opened.current = performance.now();
     field.current?.focus();
     field.current?.select();
   }, []);
@@ -43,7 +45,16 @@ function Editor({ id, text, done }: { id: string; text: string; done(): void }) 
       aria-label="Annotation text (Markdown); Ctrl+Enter saves, Escape cancels"
       value={value}
       onChange={(e) => setValue(e.target.value)}
-      onBlur={save}
+      onBlur={(e) => {
+        // AFD-351: a Note just added from the palette lost its field to nothing (the page around
+        // the canvas redrawing as the host answered), and typing went to the canvas. Focus going
+        // nowhere right after the field opened is not leaving it: the field takes it back.
+        if (!e.relatedTarget && document.hasFocus() && performance.now() - opened.current < 600) {
+          requestAnimationFrame(() => field.current?.focus());
+          return;
+        }
+        save();
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -87,8 +98,13 @@ export const AnnotationNodeView = memo(function AnnotationNodeView({
     const line = tieLine(
       { ...rel, width: w, height: h },
       { x: 0, y: 0, width: parent.measured.width, height: parent.measured.height },
-      // AFD-350: clear of the ports shown at rest (wired, open fail) and their wires' stubs.
-      (parent.data as { view?: NodeView }).view?.ports.filter((p) => p.rest) ?? [],
+      // AFD-350: clear of the ports shown at rest (wired, open fail) and their wires' stubs;
+      // AFD-351: and, where it can, of those shown on hover and their labels.
+      (parent.data as { view?: NodeView }).view?.ports.map((p) => ({
+        side: p.side,
+        offset: p.offset,
+        ...(p.rest ? {} : { optional: true }),
+      })) ?? [],
     );
     tie = line && {
       from: { x: line.from.x - rel.x, y: line.from.y - rel.y },

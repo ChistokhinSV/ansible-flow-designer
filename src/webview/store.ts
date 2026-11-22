@@ -537,10 +537,13 @@ export const useUi = create<UiState>((set, get) => ({
     const level =
       model?.levels.has(open) || model?.nodes.get(open)?.node.type === 'subflow' ? open : ROOT;
     const sel = get().selection;
+    // AFD-351: a Note just added is selected and edited when the host answers; a snapshot without
+    // it yet (one sent before the host's answer arrived) does not drop it, nor its text field.
+    const editing = get().editingAnnotation;
     const selection =
       (sel.node && !ids.has(sel.node)) ||
       sel.nodes?.some((id) => !ids.has(id)) ||
-      sel.annotations?.some((id) => !notes.has(id))
+      sel.annotations?.some((id) => !notes.has(id) && id !== editing)
         ? {}
         : sel;
     const gone = (ref: PortRef | undefined) => ref !== undefined && !ids.has(ref.node);

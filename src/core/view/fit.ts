@@ -77,6 +77,40 @@ export function readableViewport(
   return { zoom, x: Math.min(leftmost, Math.max(rightmost, centred)), y };
 }
 
+/** AFD-351: the zoom controls' column height (React Flow's margin and up to five buttons). */
+export const CONTROLS_HEIGHT = 160;
+/** AFD-351: room round a level Fit View shows whole, in screen px. */
+export const WHOLE_MARGIN = 16;
+
+/**
+ * AFD-351: Fit View: all of the level, as large as the pane allows. React Flow's fit kept 7% on
+ * every side and the controls' column on the whole right edge, then centred the level: on a narrow
+ * page a wide flow came out tiny, a band of empty canvas above it. Here the margin is small, the
+ * controls' column is kept clear only where the level would reach it (the bottom right), and a
+ * level that fills the width starts at the top, as a page does, with the room left below it.
+ */
+export function wholeViewport(bounds: Rect, pane: { width: number; height: number }): Viewport {
+  const w = Math.max(1, bounds.width);
+  const h = Math.max(1, bounds.height);
+  const place = (right: number): Viewport => {
+    const width = Math.max(1, pane.width - 2 * WHOLE_MARGIN - right);
+    const height = Math.max(1, pane.height - 2 * WHOLE_MARGIN);
+    const zoom = Math.min(width / w, height / h, MAX_FIT_ZOOM);
+    const byWidth = width / w < height / h;
+    return {
+      zoom,
+      x: WHOLE_MARGIN + (width - w * zoom) / 2 - bounds.x * zoom,
+      y: (byWidth ? WHOLE_MARGIN : (pane.height - h * zoom) / 2) - bounds.y * zoom,
+    };
+  };
+  const free = place(0);
+  const right = (bounds.x + w) * free.zoom + free.x;
+  const bottom = (bounds.y + h) * free.zoom + free.y;
+  const underControls =
+    right > pane.width - CONTROLS_ROOM && bottom > pane.height - CONTROLS_HEIGHT;
+  return underControls ? place(CONTROLS_ROOM) : free;
+}
+
 /** The empty-level card's room on the canvas, in flow units (AFD-48). */
 export const EMPTY_CARD = { width: 440, height: 240 };
 

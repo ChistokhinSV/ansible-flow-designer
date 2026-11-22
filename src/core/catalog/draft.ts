@@ -288,10 +288,13 @@ export function checklist(
   staged: FlowNode,
   doc: {
     plugin?: CatalogPlugin | null;
+    /** Whether the role has argument_specs for the entry point; absent while the role is not read. */
     roleSpec?: boolean;
     playbookTargets?: boolean;
     /** AFD-340: where the repository sets a name the step reads, when it does. */
     repoSets?: (name: string) => string | undefined;
+    /** AFD-351: a check-mode run in the host's words ("skeleton run", "check run"). */
+    checkRun?: string;
   },
 ): CheckItem[] {
   const impl = staged.impl;
@@ -333,16 +336,21 @@ export function checklist(
   }
   if (impl.kind === 'module' && plugin) {
     const check = plugin.attributes?.check_mode?.support;
+    const run = doc.checkRun ?? 'skeleton run';
     if (check === 'full')
-      items.push({ state: 'ok', text: 'Supports check mode, safe in skeleton runs' });
+      items.push({ state: 'ok', text: `Supports check mode: a ${run} shows what it would change` });
     else if (check === 'partial')
-      items.push({ state: 'warn', text: 'Partial check mode support: skeleton runs may differ' });
+      items.push({
+        state: 'warn',
+        text: `Partial check mode support: a ${run} may not show all it would change`,
+      });
     else if (check === 'none')
-      items.push({ state: 'warn', text: 'No check mode: skeleton runs skip this task' });
+      items.push({ state: 'warn', text: `No check mode: a ${run} skips this task` });
     if (plugin.deprecated)
       items.push({ state: 'warn', text: `Deprecated: ${plugin.deprecated.why || 'see the docs'}` });
   }
-  if (impl.kind === 'role')
+  // AFD-351: a role not read (yet) is not said to lack argument_specs.
+  if (impl.kind === 'role' && doc.roleSpec !== undefined)
     items.push(
       doc.roleSpec
         ? { state: 'ok', text: 'The role checks its arguments (argument_specs)' }

@@ -1,6 +1,7 @@
 // Top-down layered layout with ELK, run in the host (5–15 nodes per level: milliseconds, no worker).
 import type ELK from 'elkjs/lib/elk.bundled.js';
-import { nodeSize } from '../core/flow/geometry';
+import { kindOf } from '../core/flow/annotations';
+import { annotationSize, nodeSize } from '../core/flow/geometry';
 import { portOffsets } from '../core/flow/levelView';
 import { buildModel, type FlowModel, type Level } from '../core/flow/model';
 import type { PortSide } from '../core/flow/ports';
@@ -44,21 +45,58 @@ const portId = (node: Ulid, port: string) => `${node}:${port}`;
  * `false` handle (the two labels then shared one gap), and a step fed by `failed_hosts` (a right
  * side port) could land left of the column it handles, its wires across that column.
  */
-function elkNode(n: FlowNode) {
+function elkNode(n: FlowNode, room: Room = NO_ROOM) {
   const size = nodeSize(n.type);
+  const width = size.width + room.left + room.right;
+  const height = size.height + room.top + room.bottom;
   const ports = portOffsets(n).map((p) => {
     const across = p.side === 'top' || p.side === 'bottom';
     const along = Math.round((across ? size.width : size.height) * p.offset);
+    // On the edge of the box ELK places (the node and its Notes), level with the node's port.
     return {
       id: portId(n.id, p.name),
-      x: across ? along : p.side === 'right' ? size.width : 0,
-      y: across ? (p.side === 'bottom' ? size.height : 0) : along,
+      x: across ? room.left + along : p.side === 'right' ? width : 0,
+      y: across ? (p.side === 'bottom' ? height : 0) : room.top + along,
       width: 0,
       height: 0,
       layoutOptions: { 'elk.port.side': SIDE[p.side] },
     };
   });
-  return { id: n.id, ...size, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } };
+  return { id: n.id, width, height, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } };
+}
+
+/** Room a node's tied Notes take round it, past each of its edges. */
+interface Room {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+const NO_ROOM: Room = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * AFD-351: Notes tied to a node keep their offset from it, so Tidy Up lays out the node and its
+ * Notes as one box. Laid out as the node alone, a Note left or right of it landed on the next
+ * step of the layer (a Note on Start and on the Pre-checks title).
+ */
+function noteRoom(level: Pick<Level, 'annotations'>, nodes: readonly FlowNode[]): Map<Ulid, Room> {
+  const sizes = new Map(nodes.map((n) => [n.id, nodeSize(n.type)]));
+  const out = new Map<Ulid, Room>();
+  for (const a of level.annotations ?? []) {
+    if (!a || typeof a !== 'object' || kindOf(a) !== 'note' || !a.on) continue;
+    const size = sizes.get(a.on);
+    if (!size) continue;
+    const x = Number(a.x) || 0;
+    const y = Number(a.y) || 0;
+    const note = annotationSize(a);
+    const room = out.get(a.on) ?? { ...NO_ROOM };
+    room.left = Math.max(room.left, -x);
+    room.top = Math.max(room.top, -y);
+    room.right = Math.max(room.right, x + note.width - size.width);
+    room.bottom = Math.max(room.bottom, y + note.height - size.height);
+    out.set(a.on, room);
+  }
+  return out;
 }
 
 /**
@@ -71,7 +109,8 @@ export async function layoutLevel(
   direction: LayoutDirection = 'TB',
 ): Promise<Record<Ulid, Position>> {
   const nodes = level.nodes.filter((n) => n?.id);
-  const children = nodes.map(elkNode);
+  const rooms = noteRoom(level, nodes);
+  const children = nodes.map((n) => elkNode(n, rooms.get(n.id)));
   const ports = new Set(children.flatMap((c) => c.ports.map((p) => p.id)));
   const ids = new Set(nodes.map((n) => n.id));
   // A wire on a port the node does not have (the validator reports it) ends at the node itself.
@@ -86,8 +125,10 @@ export async function layoutLevel(
       .map((e) => ({ id: e.id, sources: [end(e.from)], targets: [end(e.to)] })),
   });
   const out: Record<Ulid, Position> = {};
-  for (const c of graph.children ?? [])
-    out[c.id] = { x: Math.round(c.x ?? 0), y: Math.round(c.y ?? 0) };
+  for (const c of graph.children ?? []) {
+    const room = rooms.get(c.id) ?? NO_ROOM;
+    out[c.id] = { x: Math.round((c.x ?? 0) + room.left), y: Math.round((c.y ?? 0) + room.top) };
+  }
   return out;
 }
 

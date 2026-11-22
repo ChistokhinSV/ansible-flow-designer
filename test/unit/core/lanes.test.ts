@@ -15,7 +15,7 @@ import {
   labelOnWire,
   spreadWires,
 } from '../../../src/core/view/lanes';
-import { type Box, pointsOf, routeWire } from '../../../src/core/view/route';
+import { type Box, labelBox, overlaps, pointsOf, routeWire } from '../../../src/core/view/route';
 import { shownPositions } from '../../../src/node/autoLayout';
 import { WireLaneStore } from '../../../src/webview/canvas/wireLanes';
 
@@ -85,6 +85,16 @@ describe('wire lanes (AFD-345)', () => {
     expect(labelOnWire('failed_hosts', label, [cornersOf(across) as Position[]])).toBe(false);
     // Still on its own wire.
     expect(labelOnWire('x', label, [cornersOf(l) as Position[]])).toBe(true);
+  });
+
+  it('labels of wires into one port do not stack on their shared stretch (AFD-351)', () => {
+    const ws = [0, 1, 2].map((i) =>
+      wire(`f${i}`, { x: 0, y: i * 10 }, { x: 0, y: 400 }, 'stop.in', 'failed_hosts'),
+    );
+    const out = spreadWires(ws, []);
+    const boxes = ws.map((w) => labelBox('failed_hosts', out.get(w.id)?.label as Position));
+    const stacked = boxes.flatMap((b, i) => boxes.slice(i + 1).filter((c) => overlaps(b, c)));
+    expect(stacked).toEqual([]);
   });
 
   it('the canvas store spreads the wires its edges put, as the exports do', () => {

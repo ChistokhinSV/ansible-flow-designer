@@ -13,16 +13,19 @@ export function StatusIcon({
   status,
   label = true,
   hurt = false,
+  errors = false,
 }: {
   status: NodeStatus;
   label?: boolean;
   /** AFS-147: the run shown failed hosts at this step: the mark is not green beside "1 failed". */
   hurt?: boolean;
+  /** AFD-351: the step has errors: no green check beside them either. */
+  errors?: boolean;
 }) {
-  const name = `Status: ${status}${hurt ? '. Hosts failed here in this run' : ''}`;
+  const name = `Status: ${status}${hurt ? '. Hosts failed here in this run' : ''}${errors ? '. The step has errors' : ''}`;
   return (
     <span
-      className={`afd-status-icon codicon codicon-${ICON[status]} status-${status}${hurt ? ' run-hurt' : ''}`}
+      className={`afd-status-icon codicon codicon-${ICON[status]} status-${status}${hurt || errors ? ' run-hurt' : ''}`}
       {...(label ? { role: 'img', 'aria-label': name, title: name } : { 'aria-hidden': true })}
     />
   );
