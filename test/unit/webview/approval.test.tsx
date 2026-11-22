@@ -203,6 +203,41 @@ describe('approvals a host decides', () => {
     expect(row?.textContent).toMatch(/waiting for a decision/);
   });
 
+  it('says why this person does not decide it, and the time with its zone (AFD-359)', () => {
+    act(() =>
+      useUi.getState().setRun(
+        served({
+          [id('gate')]: {
+            status: 'waiting',
+            deciders: ['change-board'],
+            why: 'You launched this run, so others decide its approvals',
+          },
+        }),
+      ),
+    );
+    render(<NodeRunPanel id={id('gate')} />);
+    expect(
+      screen.getByText(
+        'You launched this run, so others decide its approvals. change-board decides it.',
+      ),
+    ).toBeTruthy();
+    cleanup();
+    act(() =>
+      useUi.getState().setRun({
+        ...served({
+          [id('gate')]: { status: 'approved', by: 'Sam Reyes', at: '2026-11-21T07:40:05Z' },
+        }),
+        state: 'done',
+      }),
+    );
+    render(<NodeRunPanel id={id('gate')} />);
+    const when = new Date('2026-11-21T07:40:05Z').toLocaleString(undefined, {
+      timeZoneName: 'short',
+    });
+    const zone = when.split(' ').at(-1) as string;
+    expect(document.querySelector('[data-approval]')?.textContent).toContain(zone);
+  });
+
   it('a decided one says who, and why', () => {
     act(() =>
       useUi.getState().setRun({

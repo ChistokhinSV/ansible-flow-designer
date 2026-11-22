@@ -262,6 +262,23 @@ class CallbackModule(CallbackBase):
             self._emit(**event)
             return
         message = data.get("msg") or data.get("reason")
+        # AFD-359: a task its failed_when failed has no message of its own; Ansible says
+        # "Unknown error". The condition is the reason. A task with a message of its own (a
+        # TODO step's debug msg) keeps it.
+        if (
+            status == "failed"
+            and data.get("failed_when_result") is True
+            and (
+                not message
+                or "Unknown error" in str(message)
+                or "'failed_when' expression evaluated" in str(message)
+            )
+        ):
+            conditions = getattr(result._task, "failed_when", None) or []
+            if isinstance(conditions, str):
+                conditions = [conditions]
+            said = " and ".join(str(c) for c in conditions if c is not None)
+            message = "Its failed_when condition was true" + (f": {said}" if said else "")
         if status in ("failed", "unreachable") and message:
             event["msg"] = str(message)[:MSG_LIMIT]
         routing = "group" in event or "added" in event or result._task.action in ROUTING
