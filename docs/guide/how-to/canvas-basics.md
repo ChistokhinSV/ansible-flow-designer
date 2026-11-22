@@ -142,7 +142,8 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
     lights, and on release the step sits on it. A step already wired just moves.
 - **Move:** drag; arrow keys nudge the focused node. Positions go to the flow's `layout:` block.
   **Tidy Up** lays out the whole level: the button among the zoom controls (bottom right), the "…"
-  menu, or Shift+Alt+F; the view then shows the whole level. Nodes without a position (a new flow, or steps an AI agent added) are placed
+  menu, or Shift+Alt+F; the view then shows the whole level. A step's notes keep their place
+  beside it and get room of their own, so Tidy Up never puts a note on another step. Nodes without a position (a new flow, or steps an AI agent added) are placed
   next to their neighbours until you move them.
   - While you drag a step, a dashed guide line shows when it shares an edge or a centre with
     another step; release near the line and it snaps there. "even gaps" shows when it sits halfway
@@ -276,7 +277,8 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 A level opens readable. When it fits at a zoom where titles are at least 11 px, you see all of it
 (at 100% at most); otherwise it fits its width, starting at the top, and the minimap at the bottom
 left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
-whole level, clear of the zoom controls; until you pan or zoom, the view fits again when the canvas
+whole level as large as the canvas allows, keeping the zoom controls' corner clear when the level
+would reach it; a level that fills the width starts at the top; until you pan or zoom, the view fits again when the canvas
 changes size (the side panel). Closing a message above the canvas leaves the steps where they are. In a web page (Ansible Flow Server)
 each page opens with the whole level in view, notes included, down to 30% (a larger level opens
 readable, as above); a narrow page opens with the side panel folded until you select a step. A

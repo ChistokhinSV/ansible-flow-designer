@@ -13,6 +13,7 @@ import {
 import { formatOf } from '../../core/flow/format';
 import type { FlowNode } from '../../core/flow/types';
 import { nodeProblems, ownWords, problemFix } from '../../core/view/nodeProblems';
+import { shownStatus } from '../../core/view/statusGap';
 import { run } from '../actions';
 import { send } from '../bus';
 import { StatusIcon } from '../canvas/StatusIcon';
@@ -26,6 +27,7 @@ import { NodeCodePanel } from '../panels/DriftPanel';
 import { HelpLink } from '../panels/HelpLink';
 import { StepFindings } from '../panels/LensFinding';
 import { NodeRunPanel } from '../panels/RunPanel';
+import { useStatusGap } from '../paramGaps';
 import { Implementation } from '../properties/Implementation';
 import { OriginScope } from '../properties/OriginView';
 import { keysOf } from '../shortcuts';
@@ -166,6 +168,7 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
     void save().then((ok) => useUi.getState().resolveLeave(ok ? 'go' : 'stay'));
   }, [leave]);
 
+  const gap = useStatusGap(node ?? undefined);
   if (!snapshot?.doc || !model || !entry || !node || !draft) return null;
   const tabs = detailsTabs(node, mode);
   const tab = tabs.includes(tabOf(wanted)) ? tabOf(wanted) : (tabs[0] as PropTab);
@@ -177,6 +180,8 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
   const canAccept = editable && !!snapshot.doc && formatOf(snapshot.doc) >= 2;
   const tabsWithProblems = new Set<string>(problems.map((p) => tabOf(p.tab)));
   const errors = problems.filter((p) => p.finding.severity === 'error').length;
+  // AFD-351: the word Lifecycle shows (specified while a required parameter is missing).
+  const shown = shownStatus(node.status ?? 'draft', gap);
   // Design edits everything; Code mode only the binding (AFD-45); Run mode reads.
   const readOnly = !editable || mode === 'run' || (mode === 'code' && tab !== 'binding');
 
@@ -193,12 +198,12 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
       ) : null}
       <header className="afd-details-head">
         <div className="afd-details-name">
-          <StatusIcon status={node.status ?? 'draft'} />
+          <StatusIcon status={shown} errors={errors > 0} />
           <h2>{node.title}</h2>
         </div>
         <div className="afd-details-bar">
           <span className="afd-chip">
-            {TYPE_LABEL[node.type]} · {node.status ?? 'draft'}
+            {TYPE_LABEL[node.type]} · {shown}
           </span>
           <div className="afd-details-actions">
             {play ? (

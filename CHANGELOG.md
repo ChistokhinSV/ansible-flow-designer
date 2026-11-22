@@ -26,6 +26,16 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- **Tidy Up** leaves room for the notes tied to each step: a note no longer lands on another step (it could cover Start and the next step's title).
+- **Fit View** shows the level as large as the canvas allows: on a narrow page a wide flow no longer comes out tiny below an empty band. A page opens the same way.
+- A role's **Binding** no longer says "No argument_specs" while the role is not read yet, and **About** says when the role is not among the repository's roles instead of "Reading…" for ever.
+- A step's header shows the same status as **Lifecycle** (specified while a required parameter is missing), and a step with errors has no green check.
+- **Binding** says what check mode means in the host's words ("check run" in Ansible Flow Server).
+- A note's dashed tie keeps off the ports shown on hover (unreachable, timeout) and their labels where the step's border allows.
+- Labels of wires into one port no longer stack on their shared line: each moves along its own wire.
+- A narrow tool bar wraps the key, version and **Add Scenarios** under the flow name instead of running them over the mode switch and cutting the name to nothing.
+- A new note from the palette keeps its text field focused while the canvas catches up, so typing goes into the note.
+- Notes under a run or a lens keep their text readable: the card fades, its words do not.
 - Where a step cannot be changed (a viewer, Run mode, a flow at a past commit), the rows of **Details › Data** open again to show **Comes from**, **Defined in the repository** and **In this run**, and are no longer dimmed. **Details** shows no controls that would only be refused there: no **Add input** or **Add output**, no Remove, **@**, **Add** or **Change role** in **Binding**, and an unbound step says it is not bound yet.
 - A viewer is no longer offered **Mark … Tested** after a run, and a flow at a past commit no longer shows the **Start with a Step** card or takes **N**, Delete and the other editing keys.
 - In a narrow side panel (Ansible Flow Server's run page), an input's row wraps instead of cutting its name, type and source to a few letters (where it comes from gets a line of its own), the **Details** tabs stay on one row, and the panel is up to 360 px wide where there is no palette. **For host** sits in the panel's padding, as the rows do.

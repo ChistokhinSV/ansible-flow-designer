@@ -62,6 +62,7 @@ import {
   READABLE_ZOOM,
   readableViewport,
   union,
+  wholeViewport,
 } from '../../core/view/fit';
 import { exitLabelledAtRest, labelledAtRest } from '../../core/view/nodeFace';
 import { pickCandidates, stepPick } from '../../core/view/pick';
@@ -1086,8 +1087,10 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   const refit = useCallback(() => {
     touched.current = false;
     fitted.current = `${paneWidth}x${paneHeight}`;
-    void fitView(FULL_FIT);
-  }, [fitView, paneWidth, paneHeight]);
+    // AFD-351: the level's own bounds (tied Notes where they show) in the whole pane.
+    if (!contentBounds || paneWidth <= 0 || paneHeight <= 0) return void fitView(FULL_FIT);
+    void setViewport(wholeViewport(contentBounds, { width: paneWidth, height: paneHeight }));
+  }, [fitView, setViewport, contentBounds, paneWidth, paneHeight]);
   const wrapper = useRef<HTMLDivElement>(null);
   // AFD-343: a note above the canvas closed (an import's or a sample's): the pane grows upwards,
   // and the steps stay where they were on screen instead of jumping up or being fitted again.
@@ -1131,15 +1134,22 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     // would put it near the origin. The level's own bounds have every annotation where it shows.
     const loose = getNodesBounds(nodes.filter((n) => !n.parentId));
     const bounds = contentBounds ? union(loose, contentBounds) : loose;
+    // An empty level opens with its card in view too (AFD-48).
+    const shown = cardAt ? union(bounds, cardAt) : bounds;
+    // AFD-351: in a web page a level opens whole as Fit View shows it, while that is legible.
+    const whole = inVsCode()
+      ? undefined
+      : wholeViewport(shown, { width: paneWidth, height: paneHeight });
     void setViewport(
-      readableViewport(
-        // An empty level opens with its card in view too (AFD-48).
-        cardAt ? union(bounds, cardAt) : bounds,
-        // AFD-328: clear of the zoom controls at the right.
-        { width: Math.max(1, paneWidth - CONTROLS_ROOM), height: paneHeight },
-        top ? top.position.x + (top.width ?? 0) / 2 : undefined,
-        inVsCode() ? READABLE_ZOOM : PAGE_FIT_ZOOM,
-      ),
+      whole && whole.zoom >= PAGE_FIT_ZOOM
+        ? whole
+        : readableViewport(
+            shown,
+            // AFD-328: clear of the zoom controls at the right.
+            { width: Math.max(1, paneWidth - CONTROLS_ROOM), height: paneHeight },
+            top ? top.position.x + (top.width ?? 0) / 2 : undefined,
+            inVsCode() ? READABLE_ZOOM : PAGE_FIT_ZOOM,
+          ),
     );
   }, [nodes, paneWidth, paneHeight, setViewport, cardAt, contentBounds]);
 
@@ -1551,10 +1561,8 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         showInteractive={false}
         position="bottom-right"
         fitViewOptions={FULL_FIT}
-        onFitView={() => {
-          touched.current = false;
-          fitted.current = `${paneWidth}x${paneHeight}`;
-        }}
+        // AFD-351: after React Flow's own fit, the level as large as the pane allows (refit).
+        onFitView={refit}
       >
         {/* AFD-294: Tidy Up at hand, where the level can be changed. */}
         {editable ? (

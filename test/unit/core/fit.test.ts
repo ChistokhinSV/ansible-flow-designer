@@ -2,6 +2,7 @@
 // at the top, never below the zoom where titles are 11 px.
 import { describe, expect, it } from 'vitest';
 import {
+  CONTROLS_ROOM,
   FIT_MARGIN,
   minimapCorner,
   PAGE_FIT_ZOOM,
@@ -10,6 +11,8 @@ import {
   READABLE_ZOOM,
   readableViewport,
   TITLE_PX,
+  WHOLE_MARGIN,
+  wholeViewport,
 } from '../../../src/core/view/fit';
 
 const PANE = { width: 800, height: 700 };
@@ -96,5 +99,29 @@ describe('panInto (AFD-328)', () => {
   it('brings a node off the left or top in, at the zoom it is at', () => {
     const to = panInto({ x: -50, y: -20, width: 100, height: 40 }, { x: 0, y: 0, zoom: 0.5 }, PANE);
     expect(to).toEqual({ x: FIT_MARGIN + 25, y: FIT_MARGIN + 10, zoom: 0.5 });
+  });
+});
+
+describe('wholeViewport (AFD-351)', () => {
+  it('a wide level in a narrow, tall pane fills the width and starts at the top', () => {
+    const pane = { width: 358, height: 550 };
+    const v = wholeViewport({ x: 0, y: 0, width: 736, height: 615 }, pane);
+    // React Flow's fit (7% round, the controls' column kept clear) gave 0.365 here.
+    expect(v.zoom).toBeGreaterThan(0.43);
+    expect(v.y).toBe(WHOLE_MARGIN);
+    expect(Math.round(v.x + (736 * v.zoom) / 2)).toBe(Math.round(pane.width / 2));
+  });
+
+  it('keeps the bottom right clear for the zoom controls when the level would reach them', () => {
+    const pane = { width: 800, height: 400 };
+    const v = wholeViewport({ x: 0, y: 0, width: 800, height: 400 }, pane);
+    const right = 800 * v.zoom + v.x;
+    expect(right).toBeLessThanOrEqual(pane.width - CONTROLS_ROOM);
+  });
+
+  it('never zooms past 100%', () => {
+    expect(
+      wholeViewport({ x: 0, y: 0, width: 100, height: 100 }, { width: 800, height: 600 }).zoom,
+    ).toBe(1);
   });
 });

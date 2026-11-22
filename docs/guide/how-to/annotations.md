@@ -10,7 +10,7 @@ flow there).
 ## The three kinds
 
 - **Note**: a sticky card. A note **on a node** is tied to it by a dashed line: it moves with the
-  node (Tidy Up included), is copied, extracted and deleted with it, and its text becomes a comment
+  node (Tidy Up included, which leaves room for it so it covers no other step), is copied, extracted and deleted with it, and its text becomes a comment
   above that step's code.
 - **Section**: a titled region behind the steps, such as "Pre-checks" or "Change window". Drag it
   by its **title bar** (the strip across its top, with a grip): the steps and annotations wholly

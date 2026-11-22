@@ -31,6 +31,7 @@ import { repoSetsName } from '../../core/flow/origin';
 import type { ContractField, FlowNode } from '../../core/flow/types';
 import { sameValue, textOfValue, valueOfText } from '../../core/flow/valueText';
 import type { CatalogDoc, PlaybookInfo, RoleInfo } from '../../core/protocol';
+import { checkRun } from '../../core/run/words';
 import { run } from '../actions';
 import { catalogRequest, type Loaded, useCatalog, useResultFields } from '../catalog';
 import { useDetailsReadOnly } from '../details/readOnly';
@@ -174,7 +175,7 @@ export function Implementation(props: DraftProps) {
               removeParam={removeParam}
             />
           ) : draft.kind === 'role' ? (
-            <RoleDoc {...props} role={role} />
+            <RoleDoc {...props} role={role} reading={roles.loading} />
           ) : (
             <PlaybookDoc playbook={playbook} />
           )}
@@ -565,9 +566,22 @@ function OptionFacts({ option }: { option: CatalogOption }) {
   return facts.length > 0 ? <span className="muted afd-facts"> {facts.join(', ')}</span> : null;
 }
 
-function RoleDoc({ draft, setDraft, role }: DraftProps & { role?: RoleInfo }) {
+function RoleDoc({
+  draft,
+  setDraft,
+  role,
+  reading,
+}: DraftProps & { role?: RoleInfo; reading?: boolean }) {
   if (!draft.ref) return <p className="muted afd-empty">Choose a role from this repository.</p>;
-  if (!role) return <p className="muted">Reading {draft.ref}…</p>;
+  if (!role && reading) return <p className="muted">Reading {draft.ref}…</p>;
+  // AFD-351: the roles are read and this one is not among them: say so, never "Reading" for ever.
+  if (!role)
+    return (
+      <p className="muted" data-role-unread>
+        {draft.ref} is not among the roles read from this repository, so its documentation cannot be
+        shown here.
+      </p>
+    );
   const entries = Object.keys(role.entry_points);
   const entry = String(draft.params.tasks_from ?? 'main');
   const spec = role.entry_points[entry];
@@ -676,6 +690,7 @@ function Configure({
   const staged = stagedNode(node, draft);
   // AFD-340: the repository's variables, when the host read them.
   const vars = useUi((s) => s.lensFacts.vars);
+  const words = useUi((s) => s.embed.words);
   // AFD-108 (wave 10: Z1): the fields of upstream module results, offered after a result in @.
   const fieldsByModule = useResultFields(
     upstreamNodes(model, node.id).flatMap((n) =>
@@ -724,9 +739,10 @@ function Configure({
   const impl = staged.impl;
   const items = checklist(model, staged, {
     plugin: doc,
-    roleSpec: !!role?.entry_points[entry],
+    ...(role ? { roleSpec: !!role.entry_points[entry] } : {}),
     playbookTargets: playbook?.plays.some((p) => (p.hosts ?? '').includes('afd_hosts')),
     repoSets: (name) => repoSetsName(model, staged, name, vars),
+    checkRun: checkRun(words),
   });
   if (!draft.ref)
     return <p className="muted afd-empty">Configure appears once something is chosen.</p>;

@@ -30,6 +30,10 @@
   /* AFD-343: a long flow name is cut short instead of wrapping the mode and Lens to a second row;
      the bar wraps only when 12em of name no longer fits beside them. */
   flex: 1 1 12em;
+  /* AFD-351: the chips after the name (key and version, Add Scenarios) wrap under it when the bar
+     is short of room; kept on one line they ran over the mode switch and cut the name to nothing. */
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 .afd-breadcrumb > :not(.afd-crumb) {
