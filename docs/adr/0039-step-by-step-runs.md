@@ -239,3 +239,31 @@ before), Docker Desktop, the same images:
 6. **tests:** keep `test/engine/step.test.ts` in the engine suite (add 2.22 when an image exists);
    an integration test runs Hello step by step in a container and presses Step, Continue, Stop;
    the scenario runner is not touched (it never sets `step`).
+
+## As built (AFD-346, branch afd-346-step)
+
+- core: `RunView.step` (`RunStep`: `every`, `points`, `pauses`, `paused`, `stopped`), `stepEvent`,
+  `pausedLine`/`stoppedLine` words, `stepRefusal('awx')`; `RunRequest.step.inside` becomes
+  `AFD_STEP_INSIDE` (node ids only); `ANSIBLE_STRATEGY_PLUGINS` keeps the repository's
+  `strategy_plugins` paths (the probe's `run_config` now reports `DEFAULT_STRATEGY_PLUGIN_PATH`)
+  and its root `strategy_plugins/`, ours last; setting `afd.run.stepTimeout` (default 3600 s).
+- node: `runFlow` `step: {every, points, timeoutS, control?, inside?}` writes the start control
+  before the process (SSH: `putRunFile(..., whole)`: `cat >` a `.tmp`, then `mv -f`), folds the
+  step events into the live view, keeps the quiet-run timer off while paused, and ends a run with
+  a `stopped` event as `error`/`cancelled` with `stoppedAt` and "Stopped before <Title>" (or
+  "…: nobody answered for N minutes"), whatever its exit code. `started(stop, driver)` hands a
+  `StepDriver` (`send`, `setPoints`, `paused`, `control`). `runSegments` starts each segment with
+  the control the one before ended with and, after a decision, `inside` the gate.
+- extension: `afd.run.stepByStep` (Run ▾, Command Palette, the launch dialog's tick for check and
+  real runs), `afd.run.step` F10, `afd.run.continue` F5, `afd.run.pause` F6 (VS Code's debug
+  Pause key), Shift+F5 Stop: while paused it sends `stop` (the run ends at its step, stats
+  written), while a step runs it ends the process as before. Context keys `afd.stepping`,
+  `afd.stepPaused`. Pause points per flow id in workspace state (`afd.pausePoints.<flow id>`),
+  toggled from a step's menu (`afd.run.togglePausePoint`), sent to the run going.
+- AWX: VS Code has no AWX target for Run (AWX is its own Launch in AWX), so Run Step by Step is
+  never offered for AWX; the command with `{target: 'awx'}` answers the §6 words. The MCP server
+  and the Copilot tools have no run tool (only scenarios, which never step): nothing to refuse
+  there yet.
+- webview: `config.stepRuns` (VS Code sets it, a past version and a server's pages do not), the
+  `pausePoints` message, `stepRun`/`togglePausePoint` messages, `launchRun.step`,
+  `LaunchPlan.steps`. Without `stepRuns` nothing new shows.
