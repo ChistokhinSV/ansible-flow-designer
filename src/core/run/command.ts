@@ -4,6 +4,7 @@
 import { SECRET } from '../import/secrets';
 import type { Environment } from './environment';
 import { LOGIN_PROFILE, onHost, readFromInput, remotePaths, rq, shQuote } from './ssh';
+import { STEP_CONTROL } from './step';
 
 export { shQuote };
 
@@ -270,6 +271,12 @@ export interface RunRequest {
    * turns it off (AFD_RECORD_INPUTS=0: the generated task is skipped, the callback records none).
    */
   recordInputs?: boolean;
+  /**
+   * AFD-346 (ADR-0039): a step-by-step run: our afd_step strategy pauses before each step and
+   * reads the driver's control.json in the run folder; a pause nobody answers ends after
+   * `timeoutS`. Absent: no strategy variable is set and the run is as every run.
+   */
+  step?: { timeoutS: number };
 }
 
 /**
@@ -320,7 +327,7 @@ function runEnv(
   root: string,
   config: Pick<
     RunRequest,
-    'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir' | 'recordInputs'
+    'hasConfig' | 'emptyConfig' | 'callbacks' | 'eventsDir' | 'recordInputs' | 'step'
   >,
 ) {
   const ours = join(probeDir, 'callback_plugins');
@@ -336,6 +343,12 @@ function runEnv(
     ANSIBLE_FORCE_COLOR: '1',
   };
   if (config.recordInputs === false) env.AFD_RECORD_INPUTS = '0';
+  if (config.step) {
+    env.ANSIBLE_STRATEGY = 'afd_step';
+    env.ANSIBLE_STRATEGY_PLUGINS = join(probeDir, 'strategy_plugins');
+    env.AFD_STEP_CONTROL = join(runDir, STEP_CONTROL);
+    env.AFD_STEP_TIMEOUT = String(config.step.timeoutS);
+  }
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');
   // AFD-291: the repository's library/, module_utils/ and plugin folders, after the ones its config
