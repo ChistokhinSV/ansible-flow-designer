@@ -26,6 +26,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- A step's **Run** tab says "This run did not reach this node" for the run shown: it said "The last run" while an older run was open.
 - Where a step cannot be changed (a viewer, Run mode, a flow at a past commit), the rows of **Details › Data** open again to show **Comes from**, **Defined in the repository** and **In this run**, and are no longer dimmed. **Details** shows no controls that would only be refused there: no **Add input** or **Add output**, no Remove, **@**, **Add** or **Change role** in **Binding**, and an unbound step says it is not bound yet.
 - A viewer is no longer offered **Mark … Tested** after a run, and a flow at a past commit no longer shows the **Start with a Step** card or takes **N**, Delete and the other editing keys.
 - In a narrow side panel (Ansible Flow Server's run page), an input's row wraps instead of cutting its name, type and source to a few letters (where it comes from gets a line of its own), the **Details** tabs stay on one row, and the panel is up to 360 px wide where there is no palette. **For host** sits in the panel's padding, as the rows do.
