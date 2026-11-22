@@ -582,7 +582,8 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
       {!s ? (
         <p className="muted">No run yet.</p>
       ) : r?.state === 'idle' ? (
-        <p className="muted">The last run did not reach this node.</p>
+        // AFD-358: the run shown, which on the server's run pages may be an older one.
+        <p className="muted">This run did not reach this node.</p>
       ) : (
         <>
           <p>
