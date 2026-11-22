@@ -180,6 +180,21 @@ container) or on Ansible Flow Server, not on AWX". The MCP and Copilot tools ans
   canvas shows the next pause. SSH: writing the file is one SSH command, ~470 ms to the GNS3 VM
   without connection reuse (not run end to end in the spike).
 
+### Remeasured on an idle machine (2026-11-22)
+
+The numbers above were taken while other work loaded the machine. Again with the PC idle (CPU 0%
+before), Docker Desktop, the same images:
+
+- Latency: three runs of `test/engine/step.test.ts` (21/21 each, `AFD_KEEP=1` to read the fresh
+  `latency.txt`): median 95 to 125 ms, max 127 to 189 ms over 15 answers per image, on 2.19, 2.20
+  and 2.21. The same as under load: the 100 ms read of `control.json` sets it, not the machine.
+- Cost when nobody pauses: the edge sample in check mode, 10 runs each, alternating, normal
+  strategy against `afd_step` with `continue` and no pause point: 2.19 2,608 ms against 2,704 ms
+  (+96 ms, runs spread by ±130 ms), 2.21 2,810 ms against 2,811 ms. Within the noise. A run that
+  is not step-by-step does not load the plugin at all.
+- Cost while paused: one run left paused before its first step for 12 s: 0.5 to 0.6% of one CPU
+  and 47 MB (the `ansible-playbook` process itself) in `docker stats`.
+
 ## Consequences and risks
 
 - The strategy relies on linear's internals (`_set_hosts_cache`, `get_hosts_left`,
