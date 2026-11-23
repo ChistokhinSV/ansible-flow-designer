@@ -45,6 +45,13 @@ export interface Route {
    * included). Without it the step read "not reached" on the run canvas though its hosts ran it.
    */
   via?: Record<Ulid, Route[]>;
+  /**
+   * AFS-208: the outcome play fails the hosts in this group (an open fail port, a failed end), with
+   * this message. Ansible can leave such a host out of that play and still end with 0 (an include
+   * error that a rescue routed: Ansible keeps the host failed and runs no later play on it): the
+   * run summary then fails it itself.
+   */
+  fails?: string;
 }
 
 /** One playbook of an AWX workflow split at top-level approvals (AFD-11, ADR-0016). */

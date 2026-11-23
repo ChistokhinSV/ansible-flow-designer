@@ -224,6 +224,10 @@ function Proposal({ run }: { run: RunView }) {
 function FailedSteps() {
   const runNodes = useUi((s) => s.runNodes);
   const doc = useUi((s) => s.snapshot?.doc);
+  const summary = useUi((s) => s.run?.summary);
+  // AFS-208: a decision sent every such host to a failed end: nothing broke, they were not approved.
+  const against = summary ? decidedAgainst(summary) : undefined;
+  const why = against === 'rejected' ? 'rejected' : against ? 'not decided in time' : 'failed';
   if (!runNodes || !doc) return null;
   const model = modelOf(doc);
   const failed = Object.entries(runNodes)
@@ -244,7 +248,7 @@ function FailedSteps() {
   if (failed.length === 0) return null;
   return (
     <section className="afd-section" data-failed-steps={failed.length}>
-      <h3>Failed steps</h3>
+      <h3>{against ? 'Not approved' : 'Failed steps'}</h3>
       <ul className="afd-run-hosts">
         {failed.map(({ id, r, title, trail }) => (
           <li key={id}>
@@ -258,7 +262,7 @@ function FailedSteps() {
             </button>{' '}
             <span className="muted">
               {trail.length ? `${trail.join(' › ')} · ` : ''}
-              {r.failed} of {r.hosts} host{r.hosts === 1 ? '' : 's'} failed
+              {r.failed} of {r.hosts} host{r.hosts === 1 ? '' : 's'} {why}
             </span>
           </li>
         ))}

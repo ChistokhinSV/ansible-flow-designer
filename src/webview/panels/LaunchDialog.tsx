@@ -21,7 +21,7 @@ import { useUi } from '../store';
 import { stepKeysLine } from './StepBar';
 
 const TYPE_HINT: Record<string, string> = {
-  host_list: 'hosts or groups, comma-separated, or a JSON list',
+  host_list: 'the hosts or groups the run starts on: comma-separated, or a JSON list',
   list: 'items separated by commas, or a JSON list',
   dict: 'key: value lines (YAML) or JSON',
   integer: 'a whole number',
@@ -336,6 +336,10 @@ function Field({
   const hint = TYPE_HINT[type];
   const preview = field.type === 'list' || field.type === 'dict' ? parsedPreview(type, text) : '';
   const words = text.split(/[,\s]+/).filter(Boolean);
+  // AFS-208: the host list's help says what it is; its origin line does not say it again.
+  const told =
+    type === 'host_list' ? origin?.replace(/^The hosts the run starts on(; |\.?$)/, '') : origin;
+  const shownOrigin = told ? `${told.charAt(0).toUpperCase()}${told.slice(1)}` : undefined;
   return (
     <div className="afd-field" data-launch-field={field.name}>
       <label htmlFor={id}>
@@ -423,9 +427,9 @@ function Field({
             .filter(Boolean)
             .join(' · ')}
       </span>
-      {origin ? (
+      {shownOrigin ? (
         <span className="afd-help afd-launch-origin" data-launch-origin={field.name}>
-          {origin}
+          {shownOrigin}
         </span>
       ) : null}
     </div>

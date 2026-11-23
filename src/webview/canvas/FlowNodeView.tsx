@@ -566,6 +566,34 @@ function StatusMark({
   );
 }
 
+/**
+ * AFS-208: in a run, a step's authoring status is no result: a green check on a step waiting for
+ * approval, or a dot on a step that only printed TODO, read as how it went. A step without code
+ * says so in words; a step whose code lacks a parameter keeps its warning; others show no mark.
+ */
+function RunStatusMark({
+  node,
+  status,
+  gap,
+}: {
+  node: FlowNode;
+  status: NodeStatus;
+  gap: StatusGap;
+}) {
+  if (hasGap(gap) && (status === 'implemented' || status === 'tested'))
+    return <StatusMark status={status} gap={gap} />;
+  if (node.type !== 'task' || node.impl?.ref) return null;
+  return (
+    <span
+      className="afd-chip afd-run-todo"
+      data-run-todo
+      title="This step has no code yet: in a run it prints TODO and changes nothing"
+    >
+      TODO
+    </span>
+  );
+}
+
 const NodeBody = memo(function NodeBody({
   node,
   near,
@@ -611,7 +639,11 @@ const NodeBody = memo(function NodeBody({
     );
   const head = (
     <div className="afd-node-head">
-      {unreached ? null : <StatusMark status={status} gap={gap} hurt={hurt} />}
+      {unreached ? null : runMode ? (
+        <RunStatusMark node={node} status={status} gap={gap} />
+      ) : (
+        <StatusMark status={status} gap={gap} hurt={hurt} />
+      )}
       <Title node={node} />
     </div>
   );

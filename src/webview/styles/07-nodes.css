@@ -65,6 +65,12 @@
   --afd-status-color: var(--afd-neutral);
 }
 
+/* AFS-208: in a run, a step without code says TODO in words, not as a status dot. */
+.afd-run-todo {
+  flex: none;
+  padding: 0 4px;
+}
+
 /* Type shapes. */
 .afd-node.type-subflow {
   border-style: double;

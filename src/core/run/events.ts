@@ -135,10 +135,13 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     ports[route.port] = list;
   };
   /** `at`: the node whose play routed the host (AFD-353: a step inside a subflow, on the way). */
+  /** AFS-208: hosts in a group the outcome play fails, by group. */
+  const failing = new Map<string, Set<string>>();
   const add = (group: string, host: string, at: string | null | undefined) => {
     const route = routes[group];
     if (!route) return;
     put(nodes, route, host);
+    if (route.fails !== undefined) failing.set(group, (failing.get(group) ?? new Set()).add(host));
     for (const r of (at && route.via?.[at]) || []) put(exits, r, host);
   };
   const timings: Record<Ulid, { start: number; end: number }> = {};
@@ -254,6 +257,14 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
   const summary = ({ partial = false }: { partial?: boolean } = {}): RunSummary => {
     // Copies: the summarizer goes on taking lines after a partial summary.
     const done = partial ? [...failures] : [...failures, ...pending];
+    // AFS-208: a finished run failed the hosts its outcome play fails, also those Ansible left out
+    // of that play (an include error a rescue routed keeps the host failed: no later play runs on
+    // it, the play's fail never reports it, and Ansible ends with 0). Not in a run that stopped
+    // early (max_fail_percentage): its hosts failed where it stopped, not at the outcome.
+    const failed = { ...outcome };
+    if (!partial && finished && (sawOutcome || done.length === 0))
+      for (const [group, held] of failing)
+        for (const h of held) failed[h] ??= routes[group]?.fails || 'failed';
     const gone = new Set(unreachable);
     if (!partial) for (const h of lost) gone.add(h);
     const sorted = (from: RunSummary['nodes']) => {
@@ -267,7 +278,7 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     return {
       nodes: sorted(nodes),
       ...(Object.keys(exits).length ? { exits: sorted(exits) } : {}),
-      outcome: { ...outcome },
+      outcome: failed,
       failures: done,
       unreachable: [...gone].sort(),
       hosts: [...hosts].sort(),

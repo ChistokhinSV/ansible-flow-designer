@@ -1372,6 +1372,12 @@ class Generator {
     if (this.outcome.length === 0) return outputs.length ? outputs : undefined;
     const entries = [...this.outcome].sort((a, b) => a.order - b.order);
     const groups = [...new Set(entries.flatMap((e) => e.groups))];
+    // AFS-208: the run summary fails these hosts too when Ansible leaves them out of this play.
+    for (const e of entries)
+      for (const g of e.groups) {
+        const route = this.routes[g];
+        if (route && route.fails === undefined) route.fails = e.msg;
+      }
     const play: OutMap = {
       name: `[${this.doc.flow.key}] Outcome`,
       hosts: groups.join(':'),
