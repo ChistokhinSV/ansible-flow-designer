@@ -174,7 +174,7 @@ class Merger {
       ...at.owner,
       id: at.id,
       kind: 'value',
-      label: at.field ? `${at.label}: ${at.field}` : at.label,
+      label: at.field ? `${at.label}: ${fieldWords(at.field)}` : at.label,
       ...(at.field ? { field: at.field } : {}),
       base,
       ours,
@@ -204,6 +204,52 @@ class Merger {
     }
     return out;
   }
+}
+
+/**
+ * AFS-232: a field as the Properties panel names it ("What it does", not `intent`); a field
+ * inside one keeps its path after it: "Binding (params.msg)". `field` itself stays the raw path.
+ */
+const FIELD_WORDS: Record<string, string> = {
+  title: 'Title',
+  intent: 'What it does',
+  key: 'Key',
+  status: 'Status',
+  disabled: 'Switched off',
+  tested: 'Tested',
+  impl: 'Binding',
+  undo: 'Undo binding',
+  inputs: 'Inputs',
+  outputs: 'Outputs',
+  settings: 'Settings',
+  condition: 'Condition',
+  outcome: 'Outcome',
+  approval: 'Approval',
+  'approval.approvers': 'Approvers',
+  'approval.message': 'Message',
+  'approval.notify': 'Notify',
+  notify: 'Notifies',
+  notified: 'Listens to',
+  branches: 'Branches',
+  join_mode: 'Join',
+  ports: 'Ports',
+  accepted: 'Accepted findings',
+  name: 'Name',
+  goal: 'Goal',
+  owner: 'Owner',
+  version: 'Version',
+  text: 'Text',
+};
+
+export function fieldWords(field: string): string {
+  const whole = FIELD_WORDS[field];
+  if (whole) return whole;
+  const parts = field.split('.');
+  for (let i = parts.length - 1; i > 0; i--) {
+    const head = FIELD_WORDS[parts.slice(0, i).join('.')];
+    if (head) return `${head} (${parts.slice(i).join('.')})`;
+  }
+  return field;
 }
 
 /** A position, or another value that never conflicts: the side that moved it, else ours. */

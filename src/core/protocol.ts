@@ -345,6 +345,12 @@ export type HostMessage =
        * point's settings (Edit Pause Point…), the failure filters, and Retry at a failure pause.
        */
       debugRuns?: boolean;
+      /**
+       * AFS-224: who an approval with no Approvers asks (people and groups who may approve this
+       * flow by default), from a host that knows them (Ansible Flow Server); [] means only an
+       * administrator. Absent: not known (VS Code), and the Approvers field says nothing more.
+       */
+      impliedApprovers?: string[];
     }
   /**
    * AFD-346: the flow's pause points (kept by the host, not in the flow file). ADR-0040: `settings`

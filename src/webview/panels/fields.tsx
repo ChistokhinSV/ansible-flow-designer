@@ -21,6 +21,10 @@ interface CommitProps {
   problem?: string;
   /** Values the browser offers as the person types (a datalist; AFD-103: Until's fields). */
   suggestions?: readonly string[];
+  /** AFS-224: the field's tooltip. */
+  title?: string;
+  /** AFS-224: a second muted line under the help (what an empty value means here). */
+  note?: string;
 }
 
 export function CommitField({
@@ -35,6 +39,8 @@ export function CommitField({
   focusKey,
   problem,
   suggestions,
+  title,
+  note,
 }: CommitProps) {
   const id = useId();
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
@@ -80,6 +86,7 @@ export function CommitField({
     // AFD-334 (AFS-156): named by its label for every reader, also one that takes a placeholder
     // or the value before a label's for= (Key and Owner were read as their values).
     'aria-label': label,
+    ...(title ? { title } : {}),
     'aria-invalid': !!error,
     'aria-describedby': error ? `${id}-error` : undefined,
   };
@@ -108,6 +115,11 @@ export function CommitField({
         </div>
       ) : help ? (
         <span className="afd-help">{help}</span>
+      ) : null}
+      {note ? (
+        <span className="afd-help" data-field-note>
+          {note}
+        </span>
       ) : null}
     </div>
   );

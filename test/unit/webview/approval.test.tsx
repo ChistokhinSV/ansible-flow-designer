@@ -11,6 +11,7 @@ import { openFailPorts } from '../../../src/core/flow/openPorts';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import type { RunView } from '../../../src/core/protocol';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
+import { Details } from '../../../src/webview/details/Details';
 import { NodeRunPanel, RunPanel } from '../../../src/webview/panels/RunPanel';
 import { TopBar } from '../../../src/webview/panels/TopBar';
 import { useUi } from '../../../src/webview/store';
@@ -286,5 +287,34 @@ describe('approvals a host decides', () => {
     cleanup();
     render(<TopBar />);
     expect(screen.getByText('Stopped')).toBeTruthy();
+  });
+});
+
+describe('AFS-224: an empty Approvers says who will be asked', () => {
+  const field = () => {
+    act(() => {
+      useUi.setState({ mode: 'design', run: null, detailsTab: 'general' });
+      useUi.getState().openDetails(id('gate'), 'general');
+    });
+    render(<Details id={id('gate')} />);
+    return screen.getByLabelText('Approvers') as HTMLInputElement;
+  };
+
+  it('names the people and groups the host says, as a tooltip and a line', () => {
+    act(() => useUi.setState({ impliedApprovers: ['change-board', 'Sam Reyes'] }));
+    const input = field();
+    expect(input.title).toBe('Asks: change-board, Sam Reyes');
+    expect(document.querySelector('[data-field-note]')?.textContent).toBe(
+      'Asks: change-board, Sam Reyes',
+    );
+  });
+
+  it('none: an administrator; a host that does not know (VS Code): nothing', () => {
+    act(() => useUi.setState({ impliedApprovers: [] }));
+    expect(field().title).toBe('Asks: an administrator');
+    cleanup();
+    act(() => useUi.setState({ impliedApprovers: null }));
+    expect(field().title).toBe('');
+    expect(document.querySelector('[data-field-note]')).toBeNull();
   });
 });

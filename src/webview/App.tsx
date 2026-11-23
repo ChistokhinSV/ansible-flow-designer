@@ -94,6 +94,11 @@ function useHost() {
         ui.setRunner(m.runner === true);
         ui.setStepRuns(m.stepRuns === true);
         ui.setDebugRuns(m.debugRuns === true);
+        useUi.setState({
+          impliedApprovers: Array.isArray(m.impliedApprovers)
+            ? m.impliedApprovers.map(String)
+            : null,
+        });
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.wireStyle) ui.setWireStyle(m.wireStyle);
         if (m.past) enterPast(m.past);

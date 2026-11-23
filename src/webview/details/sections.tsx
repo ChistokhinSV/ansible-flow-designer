@@ -540,11 +540,18 @@ function ApprovalFields({
 }) {
   const fields = node.approval ?? {};
   const set = (change: Record<string, unknown>) => patch({ approval: { ...fields, ...change } });
+  // AFS-224: with Approvers empty, who will be asked, where the host knows (the server).
+  const implied = useUi((s) => s.impliedApprovers);
+  const asks =
+    implied && !(fields.approvers ?? []).length
+      ? `Asks: ${implied.length ? implied.join(', ') : 'an administrator'}`
+      : undefined;
   return (
     <>
       <CommitField
         label="Approvers"
         help="Users or groups who may decide, commas between. Empty: whoever the runner lets approve."
+        {...(asks ? { title: asks, note: asks } : {})}
         value={(fields.approvers ?? []).join(', ')}
         placeholder="change-board, dana"
         onCommit={(v) => set({ approvers: namesOf(v) })}

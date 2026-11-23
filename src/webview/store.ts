@@ -196,6 +196,8 @@ interface UiState {
   pointSettings: Record<Ulid, PausePoint>;
   /** ADR-0040 §7: which failures pause this flow's debug runs. */
   failureFilters: FailureFilters;
+  /** AFS-224: who an approval with no Approvers asks; null where the host does not know. */
+  impliedApprovers: string[] | null;
   /** AFD-371: the step whose Edit Pause Point… popover is open. */
   pointEdit: Ulid | null;
   setStepRuns(on: boolean): void;
@@ -463,6 +465,7 @@ export const useUi = create<UiState>((set, get) => ({
   pointSettings: {},
   failureFilters: {},
   pointEdit: null,
+  impliedApprovers: null,
   embed: { runShown: false, mayRun: true, mayStop: true, words: 'designer', pastShown: false },
   expandSubflows: false,
   wireStyle: 'stepped',
