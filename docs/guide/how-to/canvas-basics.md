@@ -20,8 +20,9 @@ time: the top of the flow, or the inside of one subflow.
 - **Palette** (left, Design mode): the node types a first flow needs (Task, Subflow, Decision,
   Approval; Parallel, Join, Start and End under **More node types**), the failure patterns once
   the level has a step that can fail, and annotations. **? Legend** shows what the port and wire
-  styles mean and what each port is for. The arrow at its top folds it to icons for a wider canvas.
-  Code and Run modes read the graph, so the palette folds away there.
+  styles mean and what each port is for. The arrow at its top folds it to icons for a wider canvas;
+  in a designer narrower than 1200 px (a laptop's web page) it starts folded, and it folds when the
+  window gets that narrow. Code and Run modes read the graph, so the palette folds away there.
 - **Folds:** rarer fields sit behind a line that says what is inside (**More**, **More node
   types**, **More ports**, Quick Add's **Extra ports**, each group of **How it runs**). A fold opens by itself when
   something in it is set or has a problem, and otherwise stays as you left it.
@@ -116,11 +117,17 @@ takes it back. In a format 1 flow the Lifecycle and Status ▸ in the menu set a
   - drag from a port and release on empty canvas (Quick add);
   - double-click empty canvas, or right-click it → **Add Node Here…**;
   - or a port's **Insert Node on This Wire**, or drop a palette type onto a wire (it lights while
-    you drag over it).
+    you drag over it). A step put on a wire going down goes between its two steps; when they are
+    too close, the step after it and everything below move down to make room, in the same undo
+    step.
+  - **Selected step, its wires:** with a step selected, its ports name themselves beside it, and
+    the labels of the wires it sends there step back so the two do not overlap.
   - **Find what the step runs while you name it.** As you type in Quick Add's **Title**, a list
     under the field shows what the text matches: a step type by the start of its name (`dec` →
     Decision), modules from the catalog, roles. While the field is empty it lists what this flow
-    already runs. When modules or roles are listed, the first one (or the one named exactly as
+    already runs. Modules and roles are listed by how well their name matches: the name typed in
+    full first (`push_baseline`), then names that start with it, then names with every word typed
+    in any order, then those whose description has them. When modules or roles are listed, the first one (or the one named exactly as
     typed) is highlighted and Enter picks it: the step is bound to it, and a title typed as a name
     stays (a search gives way to a title made from the module's name). ↓ and ↑ move; ↑ from the
     first row leaves the list, and Enter then adds the step as typed, without a binding. With
@@ -260,7 +267,10 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 - **Status:** a stripe on the node's left and an icon before its title: an empty circle for draft, a
   filled one for specified, a check for implemented, a seal for tested. A step bound to a module
   that still lacks a required parameter shows an amber warning instead of the check (its
-  **Lifecycle** names the parameter): it would not run until the parameter is set.
+  **Lifecycle** names the parameter): it would not run until the parameter is set. So does a
+  step that would fail on every host: a network module (`cli_command`, `ios_config`) on hosts the
+  repository's inventory connects to with `ansible_connection: local`, or an `assert` on a name
+  nothing sets.
 - **Under the title:** the module or role the node runs, or its kind while nothing is bound; a
   decision shows its condition.
 - **Shapes:** subflows have a double border; decisions and approvals a coloured header; parallel
@@ -276,7 +286,8 @@ Code's Keyboard Shortcuts ([commands](../reference/commands.md#keyboard)).
 
 A level opens readable. When it fits at a zoom where titles are at least 11 px, you see all of it
 (at 100% at most); otherwise it fits its width, starting at the top, and the minimap at the bottom
-left shows where you are. **Fit View** (right-click the canvas, or the zoom controls) shows the
+left shows where you are (or the top left, where the bottom left would cover a step; it stays
+where it is while that corner is clear). **Fit View** (right-click the canvas, or the zoom controls) shows the
 whole level as large as the canvas allows, keeping the zoom controls' corner clear when the level
 would reach it; a level that fills the width starts at the top; until you pan or zoom, the view fits again when the canvas
 changes size (the side panel). Closing a message above the canvas leaves the steps where they are. In a web page (Ansible Flow Server)

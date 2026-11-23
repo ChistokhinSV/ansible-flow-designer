@@ -398,6 +398,41 @@ describe('origin with the repository (AFD-340)', () => {
     expect(repoFindings(buildModel(flow([plain])), index)).toEqual([]);
   });
 
+  it('AFD-360: a network module on hosts the inventory connects to locally: a warning', async () => {
+    const local = await build({
+      ...REPO,
+      'inventory/group_vars/all.yml': 'ansible_connection: local\n',
+    });
+    const cli = step('cli', {
+      impl: {
+        kind: 'module',
+        ref: 'ansible.netcommon.cli_command',
+        params: { command: 'show clock' },
+      },
+    });
+    expect(repoFindings(buildModel(flow([cli])), local)).toMatchObject([
+      { code: 'binding-connection-local', severity: 'warning', node: cli.id },
+    ]);
+    // A module that runs locally, a step that sets its own connection, or network_cli somewhere.
+    const ping = step('ping', { impl: { kind: 'module', ref: 'ansible.builtin.ping' } });
+    const own = step('own', {
+      impl: {
+        kind: 'module',
+        ref: 'cisco.ios.ios_command',
+        keywords: { vars: { ansible_connection: 'ansible.netcommon.network_cli' } },
+      },
+    });
+    expect(repoFindings(buildModel(flow([ping, own])), local)).toEqual([]);
+    const mixed = await build({
+      ...REPO,
+      'inventory/group_vars/all.yml': 'ansible_connection: local\n',
+      'inventory/group_vars/web.yml': 'ansible_connection: ansible.netcommon.network_cli\n',
+    });
+    expect(repoFindings(buildModel(flow([cli])), mixed)).toEqual([]);
+    // Nothing in the inventory says: no finding.
+    expect(repoFindings(buildModel(flow([cli])), index)).toEqual([]);
+  });
+
   it('a name the repository sets is not an unknown read: its warning becomes information', async () => {
     await ready;
     const reader = step('reader', {

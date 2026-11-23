@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { missingRequired } from '../core/catalog/draft';
 import type { FlowNode } from '../core/flow/types';
 import type { CatalogDoc } from '../core/protocol';
-import { missingRole, type StatusGap } from '../core/view/statusGap';
+import { missingRole, runFailures, type StatusGap } from '../core/view/statusGap';
 import { onHostMessage } from './bus';
 import { catalogRequest } from './catalog';
 import { useUi } from './store';
@@ -53,7 +53,14 @@ export function useMissingParams(node: FlowNode | undefined): readonly string[] 
 export function useStatusGap(node: FlowNode | undefined): StatusGap {
   const params = useMissingParams(node);
   const role = useUi((s) => (node ? missingRole(s.snapshot?.findings, node.id) : undefined));
-  return useMemo(() => ({ params, ...(role ? { role } : {}) }), [params, role]);
+  const findings = useUi((s) => s.snapshot?.findings);
+  const fails = useMemo(() => (node ? runFailures(findings, node) : []), [findings, node]);
+  const failKey = fails.join('|');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the same words are the same answer
+  return useMemo(
+    () => ({ params, ...(role ? { role } : {}), ...(fails.length ? { fails } : {}) }),
+    [params, role, failKey],
+  );
 }
 
 /**
@@ -90,7 +97,9 @@ export function useLevelGaps(nodes: readonly FlowNode[]): Record<string, StatusG
       const doc = impl?.ref ? read[impl.ref] : undefined;
       const params = impl && doc ? missingRequired(impl, doc) : [];
       const role = missingRole(findings, n.id);
-      if (params.length || role) out[n.id] = { params, ...(role ? { role } : {}) };
+      const fails = runFailures(findings, n);
+      if (params.length || role || fails.length)
+        out[n.id] = { params, ...(role ? { role } : {}), ...(fails.length ? { fails } : {}) };
     }
     return out;
   }, [nodes, read, findings]);

@@ -822,6 +822,15 @@ function checkBindingVars(
   ];
   const reported = new Set<string>();
   const bindingText = JSON.stringify([impl.params ?? {}, impl.keywords ?? {}]);
+  // AFD-360: in an assert's `that`, "x is defined" is the test, not a fallback: with nothing to
+  // set x, the assert fails on every host.
+  const asserted = new Set(
+    impl.kind === 'module' &&
+      /^(ansible\.(builtin|legacy)\.)?assert$/.test(impl.ref) &&
+      impl.params?.that !== undefined
+      ? exprRefs([impl.params.that])
+      : [],
+  );
   for (const [read, where] of reads)
     for (const name of read) {
       if (inputs.has(name) || known.has(name) || MAGIC_VARS.test(name) || reported.has(name))
@@ -829,16 +838,19 @@ function checkBindingVars(
       reported.add(name);
       const flow = flowInputs.has(name);
       // AFD-185: a value read only with a fallback (| default, is defined) cannot fail the task.
-      const optional = !flow && onlyGuarded(bindingText, name);
+      const tested = asserted.has(name) && onlyGuarded(bindingText, name);
+      const optional = !flow && !tested && onlyGuarded(bindingText, name);
       add({
         code: 'binding-unknown-var',
         severity: flow || optional ? 'info' : 'warning',
         brief: unknownBrief(model, node, name, flow, optional),
         message: flow
           ? `${label(node)} reads flow input "${name}" directly: add it as a node input (from: flow.${name}) to show the dependency`
-          : optional
-            ? `${label(node)} reads "${name}" only with a fallback (default or is defined): fine when nothing sets it; an input, or flow.external_vars, shows where it comes from`
-            : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
+          : tested
+            ? `${label(node)} asserts on "${name}", which is not an input of this node: unless the hosts set it, the assert fails on every host${hintFor(model, node, level, name)}`
+            : optional
+              ? `${label(node)} reads "${name}" only with a fallback (default or is defined): fine when nothing sets it; an input, or flow.external_vars, shows where it comes from`
+              : `${label(node)} reads "${name}", which is not an input of this node${hintFor(model, node, level, name)}`,
         path: where,
         node: node.id,
         subject: name,

@@ -2,6 +2,29 @@
 
 All notable changes to Ansible Flow Designer.
 
+## Unreleased
+
+### Changed
+
+- Quick Add lists a module or role by how well its name matches what is typed: a role typed in full (`push_baseline`) comes first, words match in any order (`baseline push`), and modules the catalog finds only by a part of a word come last.
+- The palette starts folded to its icons in a designer narrower than 1200 px (a server page at 1024 px), and folds when the window gets that narrow; it unfolds as before.
+- With a step selected, the labels of its wires step back: the step names its ports beside them, and the wire labels lay over those names.
+- Read-only, a step's **Data** rows show the type and **Required** or **Optional** as words, not as a select and a checkbox that did nothing; **Comes from** starts with where the value comes from, not with the step itself.
+- **More actions** on a step names each item as it shows it (**Copy node**, **Widen the panel**), with the shortcut after it.
+- The Run dialog's host list shows an example while empty, not the help line under it a second time.
+
+### Fixed
+
+- A step added between the last step and **Done** (or on any wire going down) is placed between them, and **Done** and the steps below move down to make room. It was put under **Done**, with its wires looping round it, and kept there when saved.
+- A wire label no longer sits on the edge of a step, cut by it ("iled_hosts").
+- A step bound to a network module (`cli_command`, `ios_config` and the like) on hosts the repository's inventory connects to with `ansible_connection: local` shows a warning, and reads specified, not implemented: the run would fail on every host with "Connection type local is not valid for this module".
+- An assert on a name nothing sets (`that: ntp_status is defined`) is a warning, and the step reads specified: in an assert, `is defined` is the test, so it fails on every host. Elsewhere `is defined` still counts as a guard.
+- **Find** `has:problems` lists steps with an error or a warning, not those with information only.
+- The **@** list (Insert an input) names the **Data** tab, and says why it is empty when the step has no inputs and nothing before it gives a result.
+- **More actions** closes with Escape while the focus is still on its button.
+- The minimap stays in its corner while that corner is clear, instead of jumping between the corners as the view moves.
+- In Run mode, a step without code says **TODO** on a run that ended or stopped before it too, as it does on a paused run.
+
 ## 1.1.0 — Run step by step, with pause points
 
 ### Added

@@ -227,13 +227,12 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
                 },
                 {
                   label: 'Copy node',
-                  text: `Copy (${keysOf('copy')})`,
+                  keys: keysOf('copy'),
                   icon: 'copy',
                   run: () => copySelection(),
                 },
                 {
-                  label: expanded ? 'Collapse the panel' : 'Expand the panel',
-                  text: expanded ? 'Narrow the panel' : 'Widen the panel',
+                  label: expanded ? 'Narrow the panel' : 'Widen the panel',
                   icon: expanded ? 'screen-normal' : 'screen-full',
                   run: () => useUi.getState().setExpanded(!expanded),
                 },
@@ -241,7 +240,6 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
                   ? [
                       {
                         label: 'Delete node',
-                        text: 'Delete',
                         icon: 'trash',
                         danger: true,
                         disabled: !editable,
@@ -389,10 +387,10 @@ export function Details({ id, context }: { id: string; context?: boolean }) {
 }
 
 interface MoreItem {
-  /** The accessible name (what tests and screen readers say). */
+  /** What the menu shows, and its accessible name (AFD-360: they differed). */
   label: string;
-  /** What the menu shows, when shorter than the label. */
-  text?: string;
+  /** Its shortcut, shown after the label and given as aria-keyshortcuts. */
+  keys?: string;
   icon: string;
   danger?: boolean;
   disabled?: boolean;
@@ -403,17 +401,33 @@ interface MoreItem {
 function MoreActions({ items }: { items: MoreItem[] }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
       if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
     };
+    // AFD-360: Escape closes it wherever the focus is (it stayed on the button, and the menu
+    // stayed open over the Data tab); the focus goes back to the button.
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      e.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    };
     document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
+    document.addEventListener('keydown', onEscape, true);
+    box.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', onEscape, true);
+    };
   }, [open]);
   return (
     <div className="afd-more" ref={box}>
       <button
+        ref={button}
         type="button"
         className="icon"
         title="More actions"
@@ -425,23 +439,13 @@ function MoreActions({ items }: { items: MoreItem[] }) {
         <span className="codicon codicon-ellipsis" aria-hidden="true" />
       </button>
       {open ? (
-        <div
-          className="afd-more-menu"
-          role="menu"
-          aria-label="More actions"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation();
-              setOpen(false);
-            }
-          }}
-        >
+        <div className="afd-more-menu" role="menu" aria-label="More actions">
           {items.map((i) => (
             <button
               key={i.label}
               type="button"
               role="menuitem"
-              aria-label={i.label}
+              aria-keyshortcuts={i.keys}
               className={i.danger ? 'danger' : undefined}
               disabled={i.disabled}
               onClick={() => {
@@ -449,8 +453,13 @@ function MoreActions({ items }: { items: MoreItem[] }) {
                 i.run();
               }}
             >
-              <span className={`codicon codicon-${i.icon}`} aria-hidden="true" />{' '}
-              {i.text ?? i.label}
+              <span className={`codicon codicon-${i.icon}`} aria-hidden="true" /> {i.label}
+              {i.keys ? (
+                <span className="muted afd-more-keys" aria-hidden="true">
+                  {' '}
+                  {i.keys}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>

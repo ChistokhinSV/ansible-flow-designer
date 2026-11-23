@@ -113,8 +113,17 @@ describe('Run mode', () => {
     const runNodes = useUi.getState().runNodes ?? {};
     const work = runNodes[id('work')];
     if (!work) throw new Error('no run line for work');
+    // AFS-232: and the step without code, which still says TODO (as on a paused run's canvas).
+    const exclude = runNodes[id('exclude')];
+    if (!exclude) throw new Error('no run line for exclude');
     act(() =>
-      useUi.setState({ runNodes: { ...runNodes, [id('work')]: { ...work, state: 'idle' } } }),
+      useUi.setState({
+        runNodes: {
+          ...runNodes,
+          [id('work')]: { ...work, state: 'idle' },
+          [id('exclude')]: { ...exclude, state: 'idle' },
+        },
+      }),
     );
     render(
       <ReactFlowProvider>

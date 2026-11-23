@@ -311,7 +311,9 @@ export function Lifecycle({ node, onSet }: { node: FlowNode; onSet(s: NodeStatus
           does not run until{' '}
           {lack.params.length
             ? 'they are set on the Binding tab'
-            : 'the role is added to the project, or another is bound'}
+            : lack.role
+              ? 'the role is added to the project, or another is bound'
+              : 'this is fixed'}
           .
         </p>
       ) : null}

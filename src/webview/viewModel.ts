@@ -46,6 +46,74 @@ export function freeSpot(
   return spot;
 }
 
+/** Room between the rows (and columns) of a placed level: as the auto layout leaves it. */
+const ROW_GAP = 56;
+
+/**
+ * AFD-360: where a step inserted on a wire goes on a placed level, and what moves to make room.
+ * The step goes in line after the wire's source; when the gap to the wire's target is too small,
+ * the target and every node at or below it (to its right, for a wire that leaves sideways) move
+ * on by the room the step needs, as the layout would place them. Before, the step was put in the
+ * first free spot below the middle of the wire: under the target, with the wire looping round it.
+ * A wire that runs back up (or left) keeps the old free spot.
+ */
+export function insertRoom(
+  view: LevelView,
+  edge: Ulid,
+  size: { width: number; height: number } = nodeSize('task'),
+): { position: Position; moved: Record<Ulid, Position> } | undefined {
+  const e = view.edges.find((x) => x.id === edge);
+  const a = view.nodes.find((n) => n.node.id === e?.source);
+  const b = view.nodes.find((n) => n.node.id === e?.target);
+  if (!e || !a || !b) return undefined;
+  const side = a.ports.find((p) => p.name === e.sourcePort)?.side ?? 'bottom';
+  const moved: Record<Ulid, Position> = {};
+  if (side !== 'right' && b.position.y >= a.position.y + a.height) {
+    const top = a.position.y + a.height + ROW_GAP;
+    const x = Math.round(a.position.x + a.width / 2 - size.width / 2);
+    const short = top + size.height + ROW_GAP - b.position.y;
+    if (short <= 0) {
+      // Room enough: the step sits in the middle of the gap.
+      const y = (a.position.y + a.height + b.position.y - size.height) / 2;
+      return { position: { x, y: Math.round(y) }, moved };
+    }
+    for (const n of view.nodes) {
+      if (n === a || n.position.y < b.position.y) continue;
+      moved[n.node.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y + short) };
+    }
+    return { position: { x, y: Math.round(top) }, moved };
+  }
+  if (side === 'right' && b.position.x >= a.position.x + a.width) {
+    const left = a.position.x + a.width + ROW_GAP + 40;
+    const y = Math.round(a.position.y + a.height / 2 - size.height / 2);
+    const short = left + size.width + ROW_GAP + 40 - b.position.x;
+    if (short <= 0) return { position: { x: Math.round(left), y }, moved };
+    // Sideways only what the target leads to, so the main column stays where it is.
+    const after = downstream(view, b.node.id);
+    for (const n of view.nodes) {
+      if (n === a || n.position.x < b.position.x || !after.has(n.node.id)) continue;
+      moved[n.node.id] = { x: Math.round(n.position.x + short), y: Math.round(n.position.y) };
+    }
+    return { position: { x: Math.round(left), y }, moved };
+  }
+  const mid = { x: (a.position.x + b.position.x) / 2 + 40, y: (a.position.y + b.position.y) / 2 };
+  return { position: freeSpot(view, mid, size), moved };
+}
+
+/** The node and every node its wires lead to on the level. */
+function downstream(view: LevelView, from: Ulid): Set<Ulid> {
+  const seen = new Set<Ulid>([from]);
+  const queue = [from];
+  for (let id = queue.shift(); id; id = queue.shift()) {
+    for (const e of view.edges) {
+      if (e.source !== id || seen.has(e.target)) continue;
+      seen.add(e.target);
+      queue.push(e.target);
+    }
+  }
+  return seen;
+}
+
 /** Where a node attached to a port goes: right of problem ports, below the others (D-12). */
 export function besidePort(view: LevelView, node: Ulid, port: string): Position | undefined {
   const source = view.nodes.find((n) => n.node.id === node);

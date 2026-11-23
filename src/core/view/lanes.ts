@@ -371,7 +371,9 @@ export function spreadWires(level: readonly LaneWire[], boxes: readonly Box[]): 
       const box = labelBox(text, at);
       return placed.some((r) => overlaps(box, r));
     };
-    if (!labelOnWire(text, route.label, others) && !onLabel(route.label)) {
+    // AFD-360: nor on a node: a label beside a node's edge was cut by it ("iled_hosts").
+    const onNode = boxes.some((r) => overlaps(labelArea(text, route.label), r));
+    if (!labelOnWire(text, route.label, others) && !onLabel(route.label) && !onNode) {
       placed.push(labelBox(text, route.label));
       return;
     }

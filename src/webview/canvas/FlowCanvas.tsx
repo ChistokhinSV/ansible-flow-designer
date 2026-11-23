@@ -324,9 +324,14 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   // The wire under a palette step being dragged: it lights, and the drop inserts the step there.
   const dropWire = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  // AFD-360: the selected step names its own ports beside them; the labels of the wires it sends
+  // there step back, else "timeout" sat on its "failed_hosts" wire label.
   const shows = useCallback(
-    (id: string, port: string) => labelledAtRest(port) || id === hoverEdge || id === selection.edge,
-    [hoverEdge, selection.edge],
+    (id: string, port: string, source: string) =>
+      (labelledAtRest(port) && source !== selection.node) ||
+      id === hoverEdge ||
+      id === selection.edge,
+    [hoverEdge, selection.edge, selection.node],
   );
   const { screenToFlowPosition, setViewport, fitView, getViewport, setCenter } = useReactFlow();
   const centerOn = useUi((s) => s.centerOn);
@@ -394,6 +399,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
   // AFD-72: the minimap never covers a node; when both left corners would, a button shows it.
   const checklist = useFirstFlowShown();
+  const lastCorner = useRef<'bottom-left' | 'top-left' | null>(null);
   const corner = useStore((s) => {
     const [x, y, zoom] = s.transform;
     const boxes = view.nodes.map((n) => ({
@@ -402,8 +408,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       width: n.width * zoom,
       height: n.height * zoom,
     }));
-    return minimapCorner(boxes, { width: s.width, height: s.height }, checklist);
+    return minimapCorner(
+      boxes,
+      { width: s.width, height: s.height },
+      checklist,
+      undefined,
+      lastCorner.current,
+    );
   });
+  lastCorner.current = corner;
   const [miniAsked, setMiniAsked] = useState(false);
   const partly = useStore((s) => {
     if (!contentBounds || s.width <= 0) return false;
@@ -558,7 +571,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         ? hostsOn(ran, e).length > 0
           ? hostCount(hostsOn(ran, e).length)
           : undefined
-        : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort) ? e.sourcePort : undefined)),
+        : (lensWires?.[e.id] ?? (shows(e.id, e.sourcePort, e.source) ? e.sourcePort : undefined)),
       className: `afd-edge tone-${e.tone}${e.problem ? ' problem' : ''}${
         ran ? (hostsOn(ran, e).length > 0 ? ' run-taken' : ' run-idle') : ''
       }${dataLens ? ' lens-control' : ''}${outsideEdges?.includes(e.id) ? ' outside-mark' : ''}${
@@ -701,7 +714,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
         target: e.target,
         targetHandle: e.targetPort,
         type: 'routed',
-        label: exitLabelledAtRest(e) || shows(e.id, 'in') ? e.label : undefined,
+        label: exitLabelledAtRest(e) || shows(e.id, 'in', e.source) ? e.label : undefined,
         className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
         markerEnd: {
           type: MarkerType.ArrowClosed,

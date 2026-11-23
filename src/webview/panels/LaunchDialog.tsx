@@ -28,6 +28,16 @@ const TYPE_HINT: Record<string, string> = {
   boolean: 'true or false',
 };
 
+/**
+ * AFS-232: what the empty field shows: an example, so it does not repeat the help line under it
+ * (the host list said what it is twice).
+ */
+const TYPE_EXAMPLE: Record<string, string> = {
+  host_list: 'e.g. edge, core-01',
+  list: 'e.g. one, two',
+  integer: 'e.g. 10',
+};
+
 export function LaunchDialog() {
   const plan = useUi((s) => s.launch);
   // A new plan (opened again, facts changed at Run) starts its fields afresh.
@@ -376,7 +386,7 @@ function Field({
           autoComplete="off"
           spellCheck={false}
           value={text}
-          placeholder={hint}
+          placeholder={field.description ? hint : TYPE_EXAMPLE[type]}
           aria-invalid={!!problem}
           onChange={(e) => onChange(e.target.value)}
         />

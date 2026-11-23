@@ -407,6 +407,23 @@ describe('fewer false unknown-variable findings (AFD-182..187)', () => {
       ['_pe_host', 'info'],
       ['_targets', 'info'],
     ]);
+    // AFD-360: in an assert's that, "is defined" is the test itself: nothing sets it, it fails.
+    const asserts = flowOf(
+      [
+        {
+          key: 'a',
+          impl: {
+            kind: 'module',
+            ref: 'ansible.builtin.assert',
+            params: { that: ['ntp_status is defined'] },
+          },
+        },
+      ],
+      wires,
+    ).doc;
+    const found = codes(asserts, 'binding-unknown-var');
+    expect(found.map((f) => [f.subject, f.severity])).toEqual([['ntp_status', 'warning']]);
+    expect(found[0]?.message).toContain('the assert fails on every host');
   });
 
   it('a read guarded by "is defined", an optional input or a guarding decision is not flagged', () => {

@@ -11,7 +11,7 @@ import { menuAnchor } from './canvas/FlowNodeView';
 import { canvasPlace } from './clipboard';
 import { INSERTABLE } from './panels/QuickAdd';
 import { useUi } from './store';
-import { besidePort, freeSpot, levelView, unplacedPositions } from './viewModel';
+import { besidePort, insertRoom, levelView, unplacedPositions } from './viewModel';
 
 function currentView() {
   const { snapshot, optimistic } = useUi.getState();
@@ -48,14 +48,15 @@ export async function dropPattern(pattern: PatternId, node: Ulid, port?: string)
   await applyPatternAt(pattern, { node, port: target });
 }
 
-function insertPosition(edge: Ulid): Position | undefined {
+/** AFD-360: where a step put on a wire goes, and what moves on to make room (insertRoom). */
+function insertPlace(edge: Ulid): { position?: Position; makeRoom?: Record<Ulid, Position> } {
   const ctx = currentView();
-  const e = ctx?.view.edges.find((x) => x.id === edge);
-  const a = ctx?.view.nodes.find((n) => n.node.id === e?.source);
-  const b = ctx?.view.nodes.find((n) => n.node.id === e?.target);
-  if (!ctx || !a || !b) return undefined;
-  const mid = { x: (a.position.x + b.position.x) / 2 + 40, y: (a.position.y + b.position.y) / 2 };
-  return freeSpot(ctx.view, mid, { width: a.width, height: a.height });
+  const room = ctx ? insertRoom(ctx.view, edge) : undefined;
+  if (!room) return {};
+  return {
+    position: room.position,
+    ...(Object.keys(room.moved).length ? { makeRoom: room.moved } : {}),
+  };
 }
 
 export async function runPortItem(item: PortMenuItem, ref: PortRef): Promise<void> {
@@ -76,7 +77,7 @@ export async function runPortItem(item: PortMenuItem, ref: PortRef): Promise<voi
       return;
     }
     case 'insert':
-      ui.openQuickAdd({ type: 'task', insertOn: item.edge, position: insertPosition(item.edge) });
+      ui.openQuickAdd({ type: 'task', insertOn: item.edge, ...insertPlace(item.edge) });
       return;
     case 'pick':
       ui.setPick({ mode: item.mode, ref, edge: item.edge });
@@ -116,7 +117,7 @@ export function insertOnWire(edge: Ulid, type: NodeType = 'task'): void {
   ui.openQuickAdd({
     type,
     insertOn: edge,
-    ...(auto ? {} : { position: insertPosition(edge) }),
+    ...(auto ? {} : insertPlace(edge)),
   });
 }
 
@@ -243,7 +244,7 @@ export function addFromPalette(type: NodeType): boolean {
     ui.openQuickAdd({
       type,
       insertOn: next.insertOn,
-      ...(auto ? {} : { position: insertPosition(next.insertOn) }),
+      ...(auto ? {} : insertPlace(next.insertOn)),
     });
   else {
     const ctx = currentView();

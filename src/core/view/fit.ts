@@ -149,6 +149,11 @@ export function minimapCorner(
   /** The bottom left is taken (the first-flow checklist, AFD-73). */
   bottomTaken = false,
   size = MINIMAP,
+  /**
+   * AFD-360: the corner it is in now: it stays there while that is clear, so it does not jump
+   * from corner to corner as the view pans.
+   */
+  now: 'bottom-left' | 'top-left' | null = null,
 ): 'bottom-left' | 'top-left' | null {
   const corner = (top: number): Rect => ({
     x: size.margin,
@@ -161,8 +166,11 @@ export function minimapCorner(
       (b) =>
         b.x < r.x + r.width && b.x + b.width > r.x && b.y < r.y + r.height && b.y + b.height > r.y,
     );
-  if (!bottomTaken && clear(corner(pane.height - size.margin - size.height))) return 'bottom-left';
-  if (clear(corner(size.margin))) return 'top-left';
+  const bottom = !bottomTaken && clear(corner(pane.height - size.margin - size.height));
+  const top = clear(corner(size.margin));
+  if (now === 'top-left' && top) return 'top-left';
+  if (bottom) return 'bottom-left';
+  if (top) return 'top-left';
   return null;
 }
 

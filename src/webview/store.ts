@@ -34,6 +34,8 @@ export interface QuickAddState {
   connectFrom?: PortRef;
   /** Insert the new node on this edge (port menu "Insert node on this wire"). */
   insertOn?: Ulid;
+  /** AFD-360: nodes that move on to make room for the inserted one (placed levels). */
+  makeRoom?: Record<Ulid, Position>;
   /** Prefilled title (port menu suggestions such as "Cleanup task"). */
   title?: string;
 }

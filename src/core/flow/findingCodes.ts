@@ -273,8 +273,14 @@ export const FINDING_CODES: Record<string, FindingCode> = {
       "A binding reads playbook_dir. Generated plays run from the flow's generated/ folder, so paths next to the source playbook are not found there.",
     fix: 'Write repository paths from {{ afd_repo_root }}, the repository root the generated play sets; a shared task file can use {{ afd_repo_root | default(playbook_dir) }} so it works from the source playbook too.',
   },
+  'binding-connection-local': {
+    meaning:
+      'A step runs a network module (CLI, NETCONF or REST), and the repository\'s inventory sets ansible_connection: local for its hosts: the run fails with "Connection type local is not valid for this module". Shown only where the designer has read the repository.',
+    fix: 'Set ansible_connection to ansible.netcommon.network_cli (or httpapi, netconf) for those hosts in the inventory, or bind a module that runs locally.',
+  },
   'binding-unknown-var': {
-    meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
+    meaning:
+      "A binding parameter (assert that included) uses a variable no input provides. In an assert's that, x is defined is the test itself, not a fallback: a warning, since the assert fails wherever nothing sets x.",
     fix: 'Add the input the message names (set_io) or fix the name. A variable set outside the flow at run time (AWX or Kestra extra vars, inventory, a caller) goes into flow.external_vars (update_flow).',
   },
   'condition-braces': {

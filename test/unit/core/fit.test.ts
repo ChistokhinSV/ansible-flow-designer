@@ -83,6 +83,12 @@ describe('minimap corner (AFD-72)', () => {
     // The first-flow checklist holds the bottom left (AFD-73).
     expect(minimapCorner([], pane, true)).toBe('top-left');
   });
+
+  it('AFD-360: stays in the top left while that is clear, instead of jumping back', () => {
+    expect(minimapCorner([], pane, false, undefined, 'top-left')).toBe('top-left');
+    const high = { x: 40, y: 20, width: 120, height: 60 };
+    expect(minimapCorner([high], pane, false, undefined, 'top-left')).toBe('bottom-left');
+  });
 });
 
 describe('panInto (AFD-328)', () => {

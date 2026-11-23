@@ -97,6 +97,16 @@ describe('wire lanes (AFD-345)', () => {
     expect(stacked).toEqual([]);
   });
 
+  it('a label beside a node moves along its wire off the node (AFD-360)', () => {
+    const l = wire('a', { x: 0, y: 0 }, { x: 0, y: 300 }, 'p.in', 'failed_hosts');
+    // A node just left of the wire, under the label's middle spot.
+    const node: Box = { x: -120, y: l.route.label.y - 30, width: 100, height: 60 };
+    expect(overlaps(labelBox('failed_hosts', l.route.label), node)).toBe(true);
+    const label = spreadWires([l], [node]).get('a')?.label as Position;
+    expect(overlaps(labelBox('failed_hosts', label), node)).toBe(false);
+    expect(label.x).toBe(0);
+  });
+
   it('the canvas store spreads the wires its edges put, as the exports do', () => {
     const store = new WireLaneStore();
     let told = 0;

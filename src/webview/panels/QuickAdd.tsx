@@ -211,7 +211,13 @@ function QuickAddDialog() {
     // Nodes still at auto-layout positions are written too, so the new node does not move them.
     const freeze =
       snap?.doc && quick.position
-        ? unplacedPositions(levelView(snap, useUi.getState().optimistic, levelId), snap.doc.layout)
+        ? {
+            ...unplacedPositions(
+              levelView(snap, useUi.getState().optimistic, levelId),
+              snap.doc.layout,
+            ),
+            ...quick.makeRoom,
+          }
         : undefined;
     setAdding(true);
     const ack = await run({

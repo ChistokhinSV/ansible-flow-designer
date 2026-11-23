@@ -190,6 +190,22 @@ describe('read-only panels (AFD-30)', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete node' }));
     expect(commands()).toEqual([{ kind: 'deleteNodes', ids: [task.id], edges: [], heal: true }]);
   });
+
+  it('AFD-360: More actions says what it shows, and Escape closes it from the button too', () => {
+    render(<Details id={task.id} />);
+    const more = screen.getByRole('button', { name: 'More actions' });
+    fireEvent.click(more);
+    // The accessible name is the words shown (a shortcut after them is not part of it).
+    for (const item of screen.getAllByRole('menuitem'))
+      expect(item.getAttribute('aria-label')).toBeNull();
+    expect(
+      screen.getByRole('menuitem', { name: 'Copy node' }).getAttribute('aria-keyshortcuts'),
+    ).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Widen the panel|Narrow the panel/ })).toBeTruthy();
+    fireEvent.keyDown(more, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(more);
+  });
 });
 
 describe('inner steps and levels (AFD-30)', () => {

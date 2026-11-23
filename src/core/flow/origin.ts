@@ -768,7 +768,7 @@ export function repoSetsName(
 
 /** A finding origin gives the host: the validator's shape. */
 export interface RepoFinding extends OriginFinding {
-  severity: 'info';
+  severity: 'info' | 'warning';
   path: (string | number)[];
 }
 
@@ -797,8 +797,49 @@ export function repoFindings(model: FlowModel, index: VarIndex): RepoFinding[] {
         message: `"${node.title ?? node.key}" inputs.${name}: its default is a play var and wins over the inventory's ${name} (${places(hidden)}), so the step never gets the inventory value`,
       });
     }
+    const local = localConnection(model, node, index);
+    if (local)
+      out.push({
+        code: 'binding-connection-local',
+        severity: 'warning',
+        node: node.id,
+        subject: 'ansible_connection',
+        path: [...path, 'impl', 'ref'],
+        brief: `${node.impl?.ref} talks to the device over a network connection (network_cli, httpapi or netconf), but the inventory sets ansible_connection: local for these hosts (${places(local)}): the run fails with "Connection type local is not valid for this module".`,
+        message: `"${node.title ?? node.key}" runs ${node.impl?.ref}, which needs a network connection, but the inventory sets ansible_connection: local (${places(local)})`,
+      });
   }
   return out;
+}
+
+/**
+ * Modules that need a persistent network connection: the netcommon CLI, NETCONF and REST modules,
+ * and the modules of the network platform collections. Their facts modules too.
+ */
+const NETWORK_MODULE =
+  /^(ansible\.netcommon\.(cli_|net_|netconf_|network_resource|restconf_)|(cisco\.(ios|iosxr|nxos|asa)|arista\.eos|junipernetworks\.junos|vyos\.vyos)\.)/;
+
+/**
+ * AFD-360: the inventory's ansible_connection definitions for a step bound to a network module,
+ * when every one of them says local (a step that sets its own connection is left alone). Such a
+ * step showed implemented, and the first run failed on every host.
+ */
+function localConnection(model: FlowModel, node: FlowNode, index: VarIndex): VarDef[] | undefined {
+  const impl = node.impl;
+  if (impl?.kind !== 'module' || !NETWORK_MODULE.test(impl.ref ?? '')) return undefined;
+  const kw = impl.keywords ?? {};
+  if (
+    'connection' in kw ||
+    (kw.vars && typeof kw.vars === 'object' && 'ansible_connection' in kw.vars)
+  )
+    return undefined;
+  const defs = (
+    repoAnswer(index, 'ansible_connection', repoContext(model, node))?.defs ?? []
+  ).filter((d) => (d.scope.kind === 'group' || d.scope.kind === 'host') && d.rank > 0);
+  if (!defs.length) return undefined;
+  const local = (d: VarDef) =>
+    /^["']?(ansible\.builtin\.)?local["']?$/.test((d.value ?? '').trim());
+  return defs.every(local) ? defs : undefined;
 }
 
 /** Precedence the flow knows for `node`'s input `name`. */

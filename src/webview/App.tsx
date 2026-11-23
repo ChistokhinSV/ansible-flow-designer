@@ -223,6 +223,12 @@ interface PanelState {
  * beside the canvas it left a laptop's flow too narrow to see whole.
  */
 export const NARROW_PX = 1000;
+/**
+ * AFD-360: the palette folds below 1200: a server page at 1024 left the canvas about 240 px
+ * between the palette and the side panel. A window made narrower later folds it too (until the
+ * user opens it again).
+ */
+export const PALETTE_NARROW_PX = 1200;
 
 /** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
 function usePanelState() {
@@ -235,10 +241,11 @@ function usePanelState() {
     if (saved.panelCollapsed) ui.setPanelCollapsed(true);
     if (saved.annotationsHidden) ui.setAnnotationsHidden(true);
     const narrow = window.innerWidth > 0 && window.innerWidth < NARROW_PX;
+    const paletteNarrow = window.innerWidth > 0 && window.innerWidth < PALETTE_NARROW_PX;
     // Folded for the width, not by the user: stored as it was, until the user changes it.
     let paletteFolded = false;
     let panelFolded = false;
-    if (narrow && !saved.paletteCollapsed) {
+    if (paletteNarrow && !saved.paletteCollapsed) {
       paletteFolded = true;
       ui.setPaletteCollapsed(true);
     }
@@ -255,7 +262,17 @@ function usePanelState() {
       s.setPanelCollapsed(true);
     };
     foldForRun(useUi.getState());
-    return useUi.subscribe((s, before) => {
+    let wasNarrow = paletteNarrow;
+    const onResize = () => {
+      const now = window.innerWidth > 0 && window.innerWidth < PALETTE_NARROW_PX;
+      if (now && !wasNarrow && !useUi.getState().paletteCollapsed) {
+        paletteFolded = true;
+        useUi.getState().setPaletteCollapsed(true);
+      }
+      wasNarrow = now;
+    };
+    window.addEventListener('resize', onResize);
+    const off = useUi.subscribe((s, before) => {
       if (s.embed !== before.embed) foldForRun(s);
       // A step selected on a run's page shows what its hosts did there.
       if (panelFolded && s.panelCollapsed && s.selection.node && !before.selection.node)
@@ -281,6 +298,10 @@ function usePanelState() {
         annotationsHidden: s.annotationsHidden,
       });
     });
+    return () => {
+      off();
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 }
 
