@@ -15,7 +15,7 @@ import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { deleteSelection, detachNodes, selectFlow } from '../../../src/webview/editActions';
 import { installKeyboard } from '../../../src/webview/keyboard';
 import { QuickAdd } from '../../../src/webview/panels/QuickAdd';
-import { dropWireEnd, insertOnWire } from '../../../src/webview/portActions';
+import { addFromPalette, dropWireEnd, insertOnWire } from '../../../src/webview/portActions';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -119,6 +119,52 @@ describe('+ on an open output (AFD-231)', () => {
     const edge = wire(EDGE, 'precheck', 'backup-config');
     act(() => insertOnWire(edge));
     expect(useUi.getState().quickAdd).toMatchObject({ type: 'task', insertOn: edge });
+  });
+});
+
+describe('a step put on a wire of a placed level (AFD-360)', () => {
+  const layout = EDGE.layout as Record<string, { x: number; y: number }>;
+
+  it('goes between the two steps; the step after it and everything below move down', async () => {
+    act(() => useUi.getState().select({ node: id('validate') }));
+    expect(addFromPalette('task')).toBe(true);
+    const quick = useUi.getState().quickAdd;
+    expect(quick?.insertOn).toBe(wire(EDGE, 'validate', 'done'));
+    const at = quick?.position as { x: number; y: number };
+    const done = quick?.makeRoom?.[id('done')] as { x: number; y: number };
+    // Below Validate, above Done (which moved down to make room), in Validate's column.
+    expect(at.y).toBeGreaterThan(layout[id('validate')]?.y ?? 0);
+    expect(done.y).toBeGreaterThan(at.y + 76);
+    expect(done.x).toBe(layout[id('done')]?.x);
+    expect(at.x).toBe(layout[id('validate')]?.x);
+    // What is above the gap stays.
+    expect(quick?.makeRoom?.[id('push-baseline')]).toBeUndefined();
+    expect(quick?.makeRoom?.[id('rollback')]).toBeUndefined();
+
+    // The add writes the moved positions in the same edit.
+    render(<QuickAdd />);
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Check NTP' } });
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('dialog'));
+    });
+    const add = commands().find((c) => c?.kind === 'addNode') as Extract<
+      FlowCommand,
+      { kind: 'addNode' }
+    >;
+    expect(add.position).toEqual(at);
+    expect(add.freeze?.[id('done')]).toEqual(done);
+  });
+
+  it('a gap wide enough keeps every step where it is', () => {
+    const roomy = structuredClone(EDGE);
+    (roomy.layout as Record<string, { x: number; y: number }>)[id('done')] = { x: 160, y: 900 };
+    show(roomy);
+    act(() => useUi.getState().select({ node: id('validate') }));
+    addFromPalette('task');
+    const quick = useUi.getState().quickAdd;
+    expect(quick?.makeRoom).toBeUndefined();
+    expect(quick?.position?.y).toBeGreaterThan(600);
+    expect(quick?.position?.y).toBeLessThan(900 - 76);
   });
 });
 
