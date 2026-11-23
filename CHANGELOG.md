@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 1.0.3 — Undo no longer stops the canvas from moving steps
 
 ### Fixed
 
