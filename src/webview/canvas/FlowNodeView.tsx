@@ -571,6 +571,8 @@ function StatusMark({
  * approval, or a dot on a step that only printed TODO, read as how it went. A step without code
  * says so in words; a step whose code lacks a parameter keeps its warning; others show no mark.
  */
+const NO_GAP: StatusGap = { params: [] };
+
 function RunStatusMark({
   node,
   status,
@@ -623,6 +625,7 @@ const NodeBody = memo(function NodeBody({
     );
   }
   const status = node.status ?? 'draft';
+  const todo = node.type === 'task' && !node.impl?.ref;
   // AFD-242: a disabled step says so in every mode; it has no code and no run to show.
   if (node.disabled && !near)
     return (
@@ -639,8 +642,10 @@ const NodeBody = memo(function NodeBody({
     );
   const head = (
     <div className="afd-node-head">
-      {unreached ? null : runMode ? (
-        <RunStatusMark node={node} status={status} gap={gap} />
+      {/* AFS-232: TODO is no result: it shows on a step the run did not reach as well, so an
+        ended or stopped run reads as a paused one does. */}
+      {unreached && !todo ? null : runMode ? (
+        <RunStatusMark node={node} status={status} gap={unreached ? NO_GAP : gap} />
       ) : (
         <StatusMark status={status} gap={gap} hurt={hurt} />
       )}

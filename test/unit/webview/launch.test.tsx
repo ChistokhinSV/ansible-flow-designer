@@ -232,6 +232,9 @@ describe('as the server launch form (AFD-355)', () => {
     expect(dialog.querySelector('[data-launch-origin="devices"]')?.textContent).toBe(
       'Read by Ping.',
     );
+    // AFS-232: the empty field shows an example, not the help line again.
+    const box = dialog.querySelector<HTMLInputElement>('[data-launch-field="devices"] input');
+    expect(box?.placeholder).toBe('e.g. edge, core-01');
     cleanup();
     const only = open({ ...plan, origins: { devices: 'The hosts the run starts on.' } });
     expect(only.querySelector('[data-launch-origin="devices"]')).toBeNull();
