@@ -2,7 +2,7 @@
 
 All notable changes to Ansible Flow Designer.
 
-## Unreleased
+## 1.1.0 — Run step by step, with pause points
 
 ### Added
 
