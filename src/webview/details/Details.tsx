@@ -409,7 +409,7 @@ function MoreActions({ items }: { items: MoreItem[] }) {
     };
     // AFD-360: Escape closes it wherever the focus is (it stayed on the button, and the menu
     // stayed open over the Data tab); the focus goes back to the button.
-    const escape = (e: KeyboardEvent) => {
+    const onEscape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
       e.preventDefault();
@@ -417,11 +417,11 @@ function MoreActions({ items }: { items: MoreItem[] }) {
       button.current?.focus();
     };
     document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', escape, true);
+    document.addEventListener('keydown', onEscape, true);
     box.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
     return () => {
       document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', escape, true);
+      document.removeEventListener('keydown', onEscape, true);
     };
   }, [open]);
   return (
