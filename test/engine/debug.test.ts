@@ -516,6 +516,8 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(m('via_cred')?.masked).toBe('credential');
     expect(m('via_cred_b64')?.masked).toBe('credential');
     expect(m('via_external')?.masked).toBe('external');
+    // A provider value that is also a credential's variable reads external (the server's case).
+    expect(m('via_both')?.masked).toBe('external');
     // The one accepted leak: a plain secret under a harmless name no list knows.
     expect(m('via_snmp')?.value).toBe('Snmp-Comm-5Rt4');
     expect(m('templated_ref')).toMatchObject({ type: 'template' });

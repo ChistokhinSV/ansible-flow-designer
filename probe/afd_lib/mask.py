@@ -143,16 +143,18 @@ def _json_file(path: str | None) -> object:
 def load_known() -> Known:
     """The run's known secrets, from the files its shell names (never from the environment)."""
     known = Known()
-    secrets = _json_file(os.environ.get("AFD_SECRETS_FILE"))
-    if isinstance(secrets, Mapping):
-        for v in secrets.values():
-            known.add(v, "credential")
+    # External secrets first: the first kind given stays, and a value a provider resolved is also
+    # a credential's variable (a login or become password) when a credential reads it from there.
     external = _json_file(os.environ.get("AFD_EXTERNAL_SECRETS_FILE"))
     if isinstance(external, Mapping):
         for v in external.values():
             known.add(v, "external")
     elif isinstance(external, list):
         known.add(external, "external")
+    secrets = _json_file(os.environ.get("AFD_SECRETS_FILE"))
+    if isinstance(secrets, Mapping):
+        for v in secrets.values():
+            known.add(v, "credential")
     path = os.environ.get("AFD_VAULT_FILE")
     if path:
         try:

@@ -20,6 +20,7 @@
         via_cred: "{{ cred_password }}"
         via_cred_b64: "{{ api_cred | b64encode }}"
         via_external: "{{ ext_value }}"
+        via_both: "{{ login_secret }}"
         via_db_copy: "{{ db_password ~ '!' }}"
         via_snmp: "{{ snmp_community }}"
         big_value: "{{ 'x' * 70000 }}"
