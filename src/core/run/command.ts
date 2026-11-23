@@ -276,8 +276,10 @@ export interface RunRequest {
    * reads the driver's control.json in the run folder; a pause nobody answers ends after
    * `timeoutS`. `inside`: the step a later approval segment starts inside (it paused in the
    * segment before). Absent: no strategy variable is set and the run is as every run.
+   * `debug` (ADR-0040): a debug run (AFD_DEBUG=1): variables, evaluate, conditions, pause on
+   * failure.
    */
-  step?: { timeoutS: number; inside?: string };
+  step?: { timeoutS: number; inside?: string; debug?: boolean };
 }
 
 /**
@@ -358,6 +360,7 @@ function runEnv(
     env.AFD_STEP_TIMEOUT = String(config.step.timeoutS);
     if (config.step.inside && /^[0-9A-Za-z]+$/.test(config.step.inside))
       env.AFD_STEP_INSIDE = config.step.inside;
+    if (config.step.debug) env.AFD_DEBUG = '1';
   }
   if (config.emptyConfig) env.ANSIBLE_CONFIG = join(runDir, 'ansible.cfg');
   else if (config.hasConfig) env.ANSIBLE_CONFIG = join(root, 'ansible.cfg');

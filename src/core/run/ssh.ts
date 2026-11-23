@@ -274,3 +274,46 @@ export function hostProblems(facts: HostFacts, container: boolean, engine = 'doc
   }
   return out;
 }
+
+/** ADR-0040 §2: how long a relay or a one-shot request waits for the run's answer (seconds). */
+export const ANSWER_WAIT_S = 30;
+
+/** The wait for answer-<n>.json, then its text on the output (or an error answer), in sh. */
+function answerScript(n: string, waitS: number): string {
+  const ticks = Math.max(1, Math.round(waitS / 0.02));
+  return [
+    `i=0; while [ ! -f "answer-${n}.json" ] && [ "$i" -lt ${ticks} ]; do sleep 0.02; i=$((i+1)); done`,
+    `if [ -f "answer-${n}.json" ]; then cat "answer-${n}.json"; rm -f "answer-${n}.json";` +
+      ` else rm -f "request-${n}.json"; printf '%s' '{"error":"The run did not answer"}'; fi`,
+  ].join('; ');
+}
+
+/**
+ * ADR-0040 §2 (AFD-370): a debug run's requests over one kept-open ssh channel. Each request is
+ * two lines on the input (its number, its JSON); the relay writes request-<n>.json whole in the run
+ * folder, waits for answer-<n>.json and prints `<n> <answer JSON>` as one line. POSIX sh only: an
+ * SSH host has no Python of its own when its runs go in a container.
+ */
+export function relayCommand(target: SshTarget, runDir: string, waitS = ANSWER_WAIT_S) {
+  const dir = remotePaths(target, runDir).run as string;
+  const script = [
+    `cd ${rq(dir)} || exit 1`,
+    'umask 022',
+    'while IFS= read -r n && IFS= read -r req; do',
+    `case "$n" in ''|*[!0-9]*) continue;; esac`,
+    `printf '%s\n' "$req" > "request-$n.json.tmp" && mv -f "request-$n.json.tmp" "request-$n.json"`,
+    `printf '%s ' "$n"; ${answerScript('$n', waitS)}; printf '\n'`,
+    'done',
+  ].join('\n');
+  return onHost(target.host, script);
+}
+
+/** The relay's fallback: one ssh per request, the request on its input, the answer on its output. */
+export function askCommand(target: SshTarget, runDir: string, n: number, waitS = ANSWER_WAIT_S) {
+  const dir = remotePaths(target, runDir).run as string;
+  const file = `request-${n}.json`;
+  return onHost(
+    target.host,
+    `cd ${rq(dir)} && umask 022 && cat > ${file}.tmp && mv -f ${file}.tmp ${file} && ${answerScript(String(n), waitS)}`,
+  );
+}

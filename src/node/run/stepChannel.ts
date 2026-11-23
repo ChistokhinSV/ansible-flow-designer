@@ -12,9 +12,16 @@ const WAIT_MS = 25;
 
 /** Replaces the run's control.json whole: the run never reads half a file. */
 export async function writeControl(runDir: string, control: StepControl): Promise<void> {
-  const path = join(runDir, STEP_CONTROL);
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(control), 'utf8');
+  await writeWhole(join(runDir, STEP_CONTROL), JSON.stringify(control));
+}
+
+let serial = 0;
+
+/** Writes a file whole (a temporary file, then a rename): a reader never sees half of it. */
+export async function writeWhole(path: string, text: string): Promise<void> {
+  serial += 1;
+  const tmp = `${path}.${process.pid}.${serial}.tmp`;
+  await writeFile(tmp, text, 'utf8');
   for (let i = 1; ; i++) {
     try {
       await rename(tmp, path);

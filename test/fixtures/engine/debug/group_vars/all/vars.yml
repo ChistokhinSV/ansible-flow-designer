@@ -1,0 +1,11 @@
+---
+# Fictional lab data for the debugger engine tests (ADR-0040).
+ntp_servers: [192.0.2.250, 192.0.2.251]
+# A secret-looking name, plain text.
+db_password: Db-Plain-7Hx2
+# A secret under a harmless name that no list knows: the one leak ADR-0040 accepts.
+snmp_community: Snmp-Comm-5Rt4
+# A host variable whose rendering runs a command on the controller: never run by the debugger.
+lazy_pipe: "{{ lookup('pipe', 'touch /tmp/afd-side-effect-lazy && echo ran') }}"
+templated_ref: "{{ ntp_servers | first }}"
+site_tier: "{{ 'gold' if inventory_hostname == 'h02' else 'silver' }}"

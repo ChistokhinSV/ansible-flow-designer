@@ -1,7 +1,7 @@
 # ADR-0040: Flow debugger: variables at a pause, watch, evaluate, conditions, failure pause
 
-- Status: proposed (2026-11-23, 1.2 design; AFD-347, AFD-361, server AFS-179, AFS-223). It builds
-  on ADR-0039 §5 (the reserved seam).
+- Status: accepted (2026-11-23, 1.2; AFD-347, AFD-361, AFD-370, AFD-371, AFD-372, server AFS-179,
+  AFS-223). It builds on ADR-0039 §5 (the reserved seam). The engine is built: see "As built".
 - Context: 1.2 turns step-by-step runs into a debugger, in VS Code and in Ansible Flow Server's
   pages, using one engine. The minimal set agreed for 1.2:
   - variables of each host at a paused step;
@@ -196,3 +196,64 @@ second layer.
 - Debug runs fork a process per evaluate. The child avoids display and logging and ends with
   `os._exit`.
 - Cores before 2.19 would need other code paths; debugging there is refused with a clear message.
+
+## As built (engine, 2026-11-23)
+
+The engine part (§1 to §7) is built in `probe/afd_lib/` (`mask.py`, `capture.py`, `render.py`,
+`debug.py`), `probe/strategy_plugins/afd_step.py`, `src/core/run/step.ts`, `src/node/run/inspect.ts`
+and `runFlow.ts`; the VS Code adapter (§8) comes next. The engine suite (`test/engine/debug.test.ts`)
+runs on 2.19, 2.20 and 2.21. Deviations and details:
+
+- **afd_events.py does not import `afd_lib`.** The scenario CLI ships the callback alone, so it keeps
+  its own copy of `SECRET_NAME`; only `afd_step.py` loads the library, and only in debug runs (the
+  probe folder goes on `sys.path`). Runs that are not debug runs never load it.
+- **External secrets come in `AFD_EXTERNAL_SECRETS_FILE`** (a JSON object or list), not inside
+  `AFD_SECRETS_FILE`: that file is also passed as extra vars (`-e @"$sv"`), so keys added there
+  would become variables. A server writes resolved values to the new file; they mask as `external`.
+- **no_log registers.** From 2.19 a registered result of a `no_log` task keeps its whole output and
+  no `_ansible_no_log` flag. The engine collects the register names of `no_log` tasks from every
+  play it runs and masks those variables, and any expression naming them, as `no_log`. A result's
+  `censored` text masks as `no_log` too.
+- **Values under secret-looking names are learned as known values** (kind `name`), so their copies
+  (`db_password ~ '!'`) are masked as well.
+- **A known value masks the whole string** it is found in; only log lines keep their text, with the
+  matched part replaced by `********`.
+- **Masked values** go out as `{"__afd__": "masked", "masked": kind}` inside a value, and as
+  `{name, type: "masked", masked}` in a list; other markers are `template` (with its text), `lazy`,
+  `bytes` and `deep`.
+- **Step inputs** are the step's play vars without the generator's own (`flow_node_id`, `afd_sim`);
+  an input the record inputs task marks secret masks as `credential`.
+- **Ops:** `scopes` (with `facts: true` the facts are listed too), `vars` (`scope`, `path` of names
+  and indexes, `start`, `count` up to 1000, default 100), `facts`, `eval` and `watch` (one child for
+  all hosts and expressions, 2 s per expression, at most 10 s). A request for another pause is
+  answered `{gone: true}`; an unknown host is an error.
+- **Evaluate refusals:** every `lookup`, `query` and `q` (also used as a name), the `vault` and
+  `unvault` filters, `{{ }}` or `{% %}` inside an expression, and attributes starting with `_`. At
+  render time a lazy variable may still use the lookups that only read what is there (`vars`,
+  `items`, `list`, ...); every other lookup fails with "not allowed while debugging".
+- **Hit counts** count the hosts arriving at the step (those the condition matches, when there is
+  one); the point pauses at the gate where the count reaches N. Each count is a `hits` event, and
+  the driver carries the counts into an approval's later segment in `control.json` (`hits`).
+- **Log points** write `{event: "log", node, host, message, masked?}`; a condition or message that
+  fails writes `{event: "log", node, host?, source, error}`. A log point never pauses, also with a
+  condition (it then logs the matching hosts only).
+- **Pause events of a debug run** carry `kind` (`condition` before `point` before `step`),
+  `matched`, and `debug: true`; on a core the library refuses, `debug: false` and `why`. A failure
+  pause carries `failed` (`{host, task, msg, hard?, unreachable?}`), `attempt`, `hosts` (all the
+  play's hosts: every pause holds all hosts) and `retry: {refused}` where Retry is not offered.
+- **Retry** is `{command: "retry", reply, after: "step"|"continue"}`: `after` says how the run goes
+  on at the next steps. A refused Retry leaves the run paused and writes a `refused` event;
+  `StepDriver.send('retry')` returns the words without writing.
+- **Failure filters** travel in `control.json` as `failures: {failed, unreachable}`; a debug run
+  starts with `{failed: true}`. Unreachable hosts are those the play routed to a step's
+  unreachable port (`flow_<key>_unreachable`: module steps ignore unreachable), or whose `dark`
+  count grew, or that joined `tqm._unreachable_hosts`. Hard fails (outside the rescue) come from
+  `tqm._failed_hosts`; the suite has no case that makes one yet.
+- **Outside debug runs** point settings are not read: a point with settings pauses like a plain
+  point, and a log-only point does not pause. Pause events are as in 1.1.
+- **The SSH relay is POSIX sh**, not Python (an SSH host whose runs go in a container may have no
+  Python): two lines in (the request's number, its JSON), one line out (`<n> <answer>`). It waits up
+  to 30 s for an answer; when the channel dies, each request goes as one ssh command.
+- **Not tested yet:** the SSH relay against a real host (the commands are unit tested), handlers
+  notified by a failed attempt, `add_host` routes, `include_tasks` steps, approval segments with a
+  failure pause, Retry in a rolling subflow (refused by the play's name and `serial`).
