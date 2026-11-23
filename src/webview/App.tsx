@@ -220,9 +220,11 @@ interface PanelState {
  * folded, and a run shown by its page opens with the side panel folded until a step is selected,
  * so the canvas keeps most of the room. Neither is remembered as the user's choice.
  * AFS-148: in a web page the side panel opens folded so on the flow's page and in its editor too:
- * beside the canvas it left a laptop's flow too narrow to see whole.
+ * beside the canvas it left a laptop's flow too narrow to see whole. AFD-360: below 1200, not 1000:
+ * a server page at 1024 left the canvas about 240 px between the palette and the side panel. A
+ * window made narrower later folds the palette too (until the user opens it again).
  */
-export const NARROW_PX = 1000;
+export const NARROW_PX = 1200;
 
 /** The side panel's width and expanded state survive a reload of the designer (AFD-43). */
 function usePanelState() {
@@ -255,7 +257,17 @@ function usePanelState() {
       s.setPanelCollapsed(true);
     };
     foldForRun(useUi.getState());
-    return useUi.subscribe((s, before) => {
+    let wasNarrow = narrow;
+    const onResize = () => {
+      const now = window.innerWidth > 0 && window.innerWidth < NARROW_PX;
+      if (now && !wasNarrow && !useUi.getState().paletteCollapsed) {
+        paletteFolded = true;
+        useUi.getState().setPaletteCollapsed(true);
+      }
+      wasNarrow = now;
+    };
+    window.addEventListener('resize', onResize);
+    const off = useUi.subscribe((s, before) => {
       if (s.embed !== before.embed) foldForRun(s);
       // A step selected on a run's page shows what its hosts did there.
       if (panelFolded && s.panelCollapsed && s.selection.node && !before.selection.node)
@@ -281,6 +293,10 @@ function usePanelState() {
         annotationsHidden: s.annotationsHidden,
       });
     });
+    return () => {
+      off();
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 }
 

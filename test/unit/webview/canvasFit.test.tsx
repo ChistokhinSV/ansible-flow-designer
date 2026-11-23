@@ -228,6 +228,46 @@ describe('a narrow designer (AFS-137 a9.3)', () => {
   });
 });
 
+describe('a laptop-wide page (AFD-360)', () => {
+  it('opens at 1024 with the palette folded; a window made narrower folds it', async () => {
+    const width = window.innerWidth;
+    const listeners = new Set<(m: HostMessage) => void>();
+    setTransport({
+      post: () => undefined,
+      subscribe(l) {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      },
+      getState: () => undefined,
+      setState: () => undefined,
+    });
+    const open = async (w: number) => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: w });
+      useUi.setState({ paletteCollapsed: false, panelCollapsed: false, panelWidth: 340 });
+      const view = render(<App />);
+      await act(async () => {
+        for (const l of listeners) l({ type: 'config', testMode: false });
+        for (const l of listeners)
+          l({ type: 'snapshot', snapshot: snapshotOf(example('edge-baseline.flow.yaml')) });
+      });
+      return view;
+    };
+    try {
+      (await open(1024)).unmount();
+      expect(useUi.getState().paletteCollapsed).toBe(true);
+      await open(1440);
+      expect(useUi.getState().paletteCollapsed).toBe(false);
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1100 });
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(useUi.getState().paletteCollapsed).toBe(true);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    }
+  });
+});
+
 describe('a narrow designer in a web page (AFS-148 a9.n1, a2.n1)', () => {
   it('opens with the side panel folded, and unfolds it when a step is selected', async () => {
     const width = window.innerWidth;

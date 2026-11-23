@@ -399,6 +399,7 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
   );
   // AFD-72: the minimap never covers a node; when both left corners would, a button shows it.
   const checklist = useFirstFlowShown();
+  const lastCorner = useRef<'bottom-left' | 'top-left' | null>(null);
   const corner = useStore((s) => {
     const [x, y, zoom] = s.transform;
     const boxes = view.nodes.map((n) => ({
@@ -407,8 +408,15 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
       width: n.width * zoom,
       height: n.height * zoom,
     }));
-    return minimapCorner(boxes, { width: s.width, height: s.height }, checklist);
+    return minimapCorner(
+      boxes,
+      { width: s.width, height: s.height },
+      checklist,
+      undefined,
+      lastCorner.current,
+    );
   });
+  lastCorner.current = corner;
   const [miniAsked, setMiniAsked] = useState(false);
   const partly = useStore((s) => {
     if (!contentBounds || s.width <= 0) return false;
