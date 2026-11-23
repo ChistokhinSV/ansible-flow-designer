@@ -533,7 +533,14 @@ export function mergeFlows(
     };
   };
   const top = level(ROOT);
-  const keys = new Set([...ours.rootKeys, ...theirs.rootKeys]);
+  // An empty section stays only when the merge keeps it: as a three-way change of the key itself
+  // (the side that added or removed it wins). AFS-203: Ansible Flow Server's Undo of a first move
+  // merged the edit's result, the draft and the text before it, and kept `layout: {}`, which the
+  // next move could not write several positions into.
+  const has = (flat: { rootKeys: string[] }, key: string) => flat.rootKeys.includes(key);
+  const kept = (key: string) =>
+    has(ours, key) === has(base, key) ? has(theirs, key) : has(ours, key);
+  const keys = new Set(['annotations', 'layout', 'decisions'].filter(kept));
   const doc: FlowDocument = {
     schema_version: oursDoc.schema_version,
     flow: { ...header, version } as FlowHeader,
