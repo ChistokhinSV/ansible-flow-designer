@@ -12,6 +12,7 @@ All notable changes to Ansible Flow Designer.
 ### Fixed
 
 - Undo of a flow's first move or Tidy Up no longer leaves an empty `layout: {}` behind, and moving several steps into an empty layout works: in Ansible Flow Server's pages, every move after such an Undo was refused with "overlapping edits".
+
 ## 1.0.2 — Where a value comes from, wires side by side, and a canvas that tells what ran
 
 ### Added
