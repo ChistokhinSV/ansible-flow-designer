@@ -137,12 +137,39 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
   /** `at`: the node whose play routed the host (AFD-353: a step inside a subflow, on the way). */
   /** AFS-208: hosts in a group the outcome play fails, by group. */
   const failing = new Map<string, Set<string>>();
+  /** ADR-0040 §7: where each step's play routed each host, so a Retry can take it back. */
+  const placed: { at: string; host: string; group: string }[] = [];
   const add = (group: string, host: string, at: string | null | undefined) => {
     const route = routes[group];
     if (!route) return;
     put(nodes, route, host);
     if (route.fails !== undefined) failing.set(group, (failing.get(group) ?? new Set()).add(host));
     for (const r of (at && route.via?.[at]) || []) put(exits, r, host);
+    if (at) placed.push({ at, host, group });
+  };
+  const take = (into: RunSummary['nodes'], route: Route, host: string) => {
+    const list = into[route.node]?.[route.port];
+    if (!list) return;
+    const i = list.indexOf(host);
+    if (i >= 0) list.splice(i, 1);
+  };
+  /** A retry event: the step's results for these hosts are forgotten (its next attempt counts). */
+  const forget = (node: string, again: string[]) => {
+    for (let i = placed.length - 1; i >= 0; i--) {
+      const p = placed[i] as (typeof placed)[number];
+      if (p.at !== node || !again.includes(p.host)) continue;
+      placed.splice(i, 1);
+      const route = routes[p.group];
+      if (!route) continue;
+      take(nodes, route, p.host);
+      for (const r of route.via?.[node] ?? []) take(exits, r, p.host);
+      failing.get(p.group)?.delete(p.host);
+    }
+    for (const h of again) {
+      delete problems[node]?.[h];
+      lost.delete(h);
+    }
+    pending = pending.filter((f) => !(again.includes(f.host) && (f.node ?? playNode) === node));
   };
   const timings: Record<Ulid, { start: number; end: number }> = {};
   const waited: Record<Ulid, number> = {};
@@ -182,6 +209,11 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
       return;
     }
     if (e.event === 'start' && e.record_inputs === false) inputsOff = true;
+    if (e.event === 'retry') {
+      const again = (e as { hosts?: unknown }).hosts;
+      if (typeof e.node === 'string' && Array.isArray(again)) forget(e.node, again.map(String));
+      return;
+    }
     // AFS-205: a step-by-step run's pause (ADR-0039) is time the step did not run.
     if (e.event === 'pause' && typeof e.node === 'string' && typeof e.ts === 'number') {
       pausedSince = { node: e.node, ts: e.ts };

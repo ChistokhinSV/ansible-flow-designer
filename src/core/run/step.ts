@@ -16,25 +16,93 @@ export const STEP_TIMEOUT_S = 3600;
  * - pause: (while running) pause before the next step;
  * - stop: end the run before the next step (now, when paused).
  */
-export type StepCommand = 'step' | 'continue' | 'pause' | 'stop';
+export type StepCommand = 'step' | 'continue' | 'pause' | 'stop' | 'retry';
+
+/**
+ * ADR-0040 §6 (AFD-371): a pause point with settings, read in debug runs only.
+ * - condition: Jinja, checked per host at the step's gate; all hosts pause if any matches;
+ * - hits: pause where the count of hosts arriving here (matching the condition, if any) reaches N;
+ * - log: a message rendered per host into a masked log event; a log point never pauses.
+ */
+export interface PausePoint {
+  node: Ulid;
+  condition?: string;
+  hits?: number;
+  log?: string;
+}
+
+/** A pause point as control.json takes it: a bare node id (always) or one with settings. */
+export type PointSpec = Ulid | PausePoint;
+
+/** ADR-0040 §7: which failures pause a debug run (a host failed: on unless turned off). */
+export interface FailureFilters {
+  failed?: boolean;
+  unreachable?: boolean;
+}
 
 export interface StepControl {
   v: typeof STEP_VERSION;
   command: StepCommand;
-  /** Pause points: node ids the run pauses before, also after Continue. */
-  points: Ulid[];
+  /** Pause points: node ids (or points with settings) the run pauses before, also after Continue. */
+  points: PointSpec[];
   /** The pause this answers; none for a command sent while the run goes (pause, stop). */
   reply?: string | null;
+  /** After Retry: how the run goes on at the next steps (step: pause before each). */
+  after?: 'step' | 'continue';
+  /** Debug runs: which failures pause the run. */
+  failures?: FailureFilters;
+  /** Debug runs: hit counts so far, per point (carried into an approval's later segment). */
+  hits?: Record<Ulid, number>;
+}
+
+/** The node id of a pause point. */
+export const pointNode = (p: PointSpec): Ulid => (typeof p === 'string' ? p : p.node);
+
+/** Whether a point has settings (a condition, a hit count, a log message). */
+export function hasSettings(p: PointSpec): p is PausePoint {
+  return typeof p !== 'string' && !!(p.condition?.trim() || p.hits || p.log?.trim());
+}
+
+/** Points as control.json takes them: a point without settings as its bare id; one per node. */
+export function normalPoints(points: readonly PointSpec[]): PointSpec[] {
+  const out = new Map<Ulid, PointSpec>();
+  for (const p of points) {
+    if (!hasSettings(p)) {
+      out.set(pointNode(p), pointNode(p));
+      continue;
+    }
+    const q: PausePoint = { node: p.node };
+    if (p.condition?.trim()) q.condition = p.condition.trim();
+    if (typeof p.hits === 'number' && Number.isInteger(p.hits) && p.hits > 0) q.hits = p.hits;
+    if (p.log?.trim()) q.log = p.log;
+    out.set(p.node, q);
+  }
+  return [...out.values()];
 }
 
 /** The control a step-by-step run starts with: pause before the first step, or at a point. */
-export function startControl(every: boolean, points: Ulid[] = []): StepControl {
+export function startControl(every: boolean, points: PointSpec[] = []): StepControl {
   return { v: STEP_VERSION, command: every ? 'step' : 'continue', points, reply: null };
 }
 
 /** The answer to a pause (or a command while running, with no pause). */
-export function answer(command: StepCommand, points: Ulid[], pause?: string): StepControl {
+export function answer(command: StepCommand, points: PointSpec[], pause?: string): StepControl {
   return { v: STEP_VERSION, command, points, reply: pause ?? null };
+}
+
+/** ADR-0040 §1: what made a debug run pause. */
+export type PauseKind = 'step' | 'point' | 'condition' | 'failure';
+
+/** A host that failed the step a failure pause is after. */
+export interface FailedHost {
+  host: string;
+  /** The task that failed, and its message. */
+  task: string;
+  msg: string;
+  /** It failed outside the step's rescue: Retry is refused. */
+  hard?: boolean;
+  /** Unreachable (the unreachable filter). */
+  unreachable?: boolean;
 }
 
 export interface StepPause {
@@ -47,7 +115,36 @@ export interface StepPause {
   /** When it paused (seconds, the run's clock) and how long it waits. */
   since: number;
   timeout: number;
+  /** Debug runs (ADR-0040): why it paused. */
+  kind?: PauseKind;
+  /** A condition's pause: the hosts the condition matched (all hosts wait). */
+  matched?: string[];
+  /** A failure pause: the hosts that failed, with their task and message. */
+  failed?: FailedHost[];
+  /** A failure pause: which attempt of the step failed (2 after one Retry). */
+  attempt?: number;
+  /** A failure pause where Retry is not offered: why, in words. */
+  retryRefused?: string;
+  /** Debug runs: the run answers inspect requests at this pause (false: `why` says why not). */
+  debug?: boolean;
+  why?: string;
 }
+
+/** ADR-0040 §6: a log point's line for a host, or a condition or message that failed. */
+export interface PointLog {
+  node: Ulid;
+  host?: string;
+  message?: string;
+  /** Why parts of the message were masked. */
+  masked?: string[];
+  /** A condition or a message that could not be rendered: the error, in words. */
+  error?: string;
+  source?: 'condition' | 'log' | 'point';
+  ts: number;
+}
+
+/** How many log lines a run view keeps (the newest). */
+export const LOGS_KEPT = 500;
 
 export interface StepState {
   /** Paused now: where, and which hosts wait there. */
@@ -61,7 +158,32 @@ export interface StepState {
   pauses: number;
   /** The run was stopped at a step boundary: by its driver or by the pause timeout. */
   stopped?: { node: Ulid; hosts: string[]; reason: 'driver' | 'timeout' };
+  /** Debug runs: log point lines and condition errors, the newest `LOGS_KEPT`. */
+  logs?: PointLog[];
+  /** Debug runs: hit counts so far, per point. */
+  hits?: Record<Ulid, number>;
+  /** Debug runs: each Retry, the step and the hosts it ran again. */
+  retries?: { node: Ulid; hosts: string[]; attempt: number }[];
+  /** The last command the run refused, and why (Retry where it is not offered). */
+  refused?: { pause: string; command: string; why: string };
 }
+
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+
+function failedHosts(v: unknown): FailedHost[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
+    .map((f) => ({
+      host: String(f.host ?? ''),
+      task: String(f.task ?? ''),
+      msg: String(f.msg ?? ''),
+      ...(f.hard ? { hard: true } : {}),
+      ...(f.unreachable ? { unreachable: true } : {}),
+    }));
+}
+
+const KINDS = new Set<PauseKind>(['step', 'point', 'condition', 'failure']);
 
 /** What the step events of a run (in order) say now. Other events are ignored. */
 export function stepState(events: Iterable<Record<string, unknown>>): StepState {
@@ -70,14 +192,46 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
     if (e.event === 'pause' && typeof e.id === 'string' && typeof e.node === 'string') {
       state.pauses += 1;
       state.running = undefined;
+      const retry = e.retry as { refused?: unknown } | undefined;
       state.paused = {
         id: e.id,
         node: e.node,
         play: String(e.play ?? ''),
-        hosts: Array.isArray(e.hosts) ? e.hosts.map(String) : [],
+        hosts: strings(e.hosts),
         since: Number(e.ts ?? 0),
         timeout: Number(e.timeout ?? STEP_TIMEOUT_S),
+        ...(KINDS.has(e.kind as PauseKind) ? { kind: e.kind as PauseKind } : {}),
+        ...(Array.isArray(e.matched) ? { matched: strings(e.matched) } : {}),
+        ...(Array.isArray(e.failed) ? { failed: failedHosts(e.failed) } : {}),
+        ...(typeof e.attempt === 'number' ? { attempt: e.attempt } : {}),
+        ...(retry && typeof retry.refused === 'string' ? { retryRefused: retry.refused } : {}),
+        ...(typeof e.debug === 'boolean' ? { debug: e.debug } : {}),
+        ...(typeof e.why === 'string' ? { why: e.why } : {}),
       };
+    } else if (e.event === 'log' && typeof e.node === 'string') {
+      const logs = state.logs ?? [];
+      state.logs = logs;
+      logs.push({
+        node: e.node,
+        ...(typeof e.host === 'string' ? { host: e.host } : {}),
+        ...(typeof e.message === 'string' ? { message: e.message } : {}),
+        ...(Array.isArray(e.masked) ? { masked: strings(e.masked) } : {}),
+        ...(typeof e.error === 'string' ? { error: e.error } : {}),
+        ...(e.source === 'condition' || e.source === 'log' || e.source === 'point'
+          ? { source: e.source }
+          : {}),
+        ts: Number(e.ts ?? 0),
+      });
+      if (logs.length > LOGS_KEPT) logs.splice(0, logs.length - LOGS_KEPT);
+    } else if (e.event === 'hits' && typeof e.node === 'string' && typeof e.count === 'number') {
+      state.hits = { ...state.hits, [e.node]: e.count };
+    } else if (e.event === 'retry' && typeof e.node === 'string') {
+      state.retries = [
+        ...(state.retries ?? []),
+        { node: e.node, hosts: strings(e.hosts), attempt: Number(e.attempt ?? 2) },
+      ];
+    } else if (e.event === 'refused' && typeof e.id === 'string') {
+      state.refused = { pause: e.id, command: String(e.command ?? ''), why: String(e.why ?? '') };
     } else if (e.event === 'resume') {
       const was = state.paused;
       if (was && was.id === e.id) {
@@ -104,8 +258,12 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
 export interface RunStep extends StepState {
   /** Pauses before every step (Run Step by Step), not only at pause points. */
   every: boolean;
-  /** The pause points the run was given (and has now). */
+  /** The pause points the run was given (and has now): their node ids. */
   points: Ulid[];
+  /** ADR-0040: the points with settings (a condition, a hit count, a log message). */
+  settings?: PausePoint[];
+  /** ADR-0040: a debug run (variables, evaluate, watch, conditions, pause on failure). */
+  debug?: boolean;
   /**
    * AFS-205: who may go on from a pause, in the host's words ("Dana Whitfield or an operator of
    * this flow"), for a reader who may not: set by a host where others look at a run.
@@ -115,7 +273,7 @@ export interface RunStep extends StepState {
 
 /** A step event line of events.jsonl (pause, resume, stopped), parsed; undefined for others. */
 export function stepEvent(line: string): Record<string, unknown> | undefined {
-  if (!/"event":\s*"(pause|resume|stopped)"/.test(line)) return undefined;
+  if (!/"event":\s*"(pause|resume|stopped|log|hits|retry|refused)"/.test(line)) return undefined;
   try {
     const e = JSON.parse(line) as Record<string, unknown>;
     return e && typeof e === 'object' && !Array.isArray(e) ? e : undefined;
@@ -187,3 +345,88 @@ export function runningLine(title: string | undefined, every: boolean): string {
   if (title) return `Running ${title}…`;
   return every ? 'Running a step…' : 'Running on to the next pause point…';
 }
+
+/**
+ * ADR-0040 §2 (AFD-370): requests a driver sends a paused debug run, as request-<n>.json beside
+ * control.json; the run answers with answer-<n>.json.
+ * - scopes: a host's scopes with each variable's name, type and size, no values;
+ * - vars: the value at a path in a scope (a scalar, cut at 64 KB; a container's items, paged);
+ * - facts: the same in the facts scope (read only when asked);
+ * - eval: a Jinja expression for one host (lookups refused, 2 s limit, the result masked);
+ * - watch: expressions for hosts (all paused hosts by default), which also compares hosts.
+ */
+export type InspectOp = 'scopes' | 'vars' | 'facts' | 'eval' | 'watch';
+export type VarScope = 'inputs' | 'host' | 'flow' | 'facts';
+export type MaskKind = 'vault' | 'no_log' | 'credential' | 'external' | 'name';
+
+export interface InspectArgs {
+  host?: string;
+  hosts?: string[];
+  scope?: VarScope;
+  path?: (string | number)[];
+  start?: number;
+  count?: number;
+  /** scopes: list the facts too. */
+  facts?: boolean;
+  expr?: string;
+  exprs?: string[];
+  /** eval and watch: seconds (default 2, at most 10). */
+  timeout?: number;
+}
+
+/** A variable or an item: a scalar's value, a container's count; masked ones say why only. */
+export interface VarEntry {
+  name: string | number;
+  /** dict, list, str, int, float, bool, null, template, masked, ... */
+  type: string;
+  size?: number;
+  count?: number;
+  value?: unknown;
+  /** The value was this long; `value` is its start. */
+  cut?: number;
+  masked?: MaskKind;
+}
+
+export interface InspectAnswer {
+  v?: number;
+  pause?: string;
+  n?: number;
+  /** How long the run took to answer (ms). */
+  ms?: number;
+  /** The pause asked about is over. */
+  gone?: boolean;
+  error?: string;
+  /** eval: refused before it ran (a lookup, the vault filters). */
+  refused?: boolean;
+  /** eval: stopped at its time limit. */
+  timeout?: boolean;
+  host?: string;
+  scope?: VarScope;
+  scopes?: { id: VarScope; name: string; expensive?: boolean; vars?: VarEntry[] }[];
+  /** vars: `scope` at a path's root, or the container's type; eval: the result's type. */
+  type?: string;
+  total?: number;
+  start?: number;
+  children?: VarEntry[];
+  more?: boolean;
+  value?: unknown;
+  cut?: number;
+  count?: number;
+  size?: number;
+  masked?: MaskKind;
+  expr?: string;
+  results?: (InspectAnswer & { host: string; expr: string })[];
+}
+
+/** The request file's body. */
+export function inspectRequest(
+  n: number,
+  pause: string,
+  op: InspectOp,
+  args: InspectArgs,
+): Record<string, unknown> {
+  return { ...args, v: STEP_VERSION, pause, n, op };
+}
+
+export const requestFile = (n: number) => `request-${n}.json`;
+export const answerFile = (n: number) => `answer-${n}.json`;

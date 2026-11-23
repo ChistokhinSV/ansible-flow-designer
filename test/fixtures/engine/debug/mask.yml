@@ -1,0 +1,48 @@
+---
+# Shaped like a generated flow: one play per step, vars.flow_node_id names the step. The prep
+# step derives values from secrets in every way ADR-0040 §4 masks.
+- name: "[prep] Prepare data"
+  hosts: devices
+  gather_facts: "{{ want_facts | default(false) | bool }}"
+  vars:
+    flow_node_id: n-prep
+  tasks:
+    - name: "[prep] derive values"
+      ansible.builtin.set_fact:
+        via_set_fact: "{{ vault_secret }}"
+        via_b64: "{{ vault_secret | b64encode }}"
+        via_to_json: "{{ {'k': vault_secret} | to_json }}"
+        via_concat: "{{ 'pre-' ~ vault_secret ~ '-x' }}"
+        via_upper: "{{ vault_secret | upper }}"
+        via_dict: {inner: "{{ vault_secret }}", lst: ["{{ vault_secret }}", 1]}
+        via_nested_vault: "{{ nested_vault }}"
+        via_wholefile: "{{ wf_secret }}"
+        via_cred: "{{ cred_password }}"
+        via_cred_b64: "{{ api_cred | b64encode }}"
+        via_external: "{{ ext_value }}"
+        via_db_copy: "{{ db_password ~ '!' }}"
+        via_snmp: "{{ snmp_community }}"
+        big_value: "{{ 'x' * 70000 }}"
+        many: "{{ range(250) | list }}"
+    - name: "[prep] secret command"
+      ansible.builtin.command: "echo {{ vault_secret }}"
+      register: reg_nolog
+      no_log: true
+      changed_when: false
+    - name: "[prep] plain command"
+      ansible.builtin.command: "echo hello"
+      register: reg_plain
+      changed_when: false
+
+- name: "[check] Check state"
+  hosts: devices
+  gather_facts: false
+  vars:
+    flow_node_id: n-check
+    step_input_vlan: 120
+    step_input_secret_password: "{{ db_password }}"
+  tasks:
+    - name: "[check] noop"
+      ansible.builtin.debug:
+        msg: "check {{ inventory_hostname }}"
+      changed_when: false

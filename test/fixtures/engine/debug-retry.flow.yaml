@@ -1,0 +1,75 @@
+# Debugger engine tests (ADR-0040 §7): a check that fails until a marker file exists, wired to a
+# repair step and a failed end. Fictional ULIDs and hosts.
+schema_version: 1
+flow:
+  id: 01JS4F00000000000000000010
+  key: debug-retry
+  name: Debug retry
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01JS4N00000000000000000011
+    key: start
+    type: start
+    title: Start
+  - id: 01JS4N00000000000000000012
+    key: check
+    type: task
+    title: Check marker
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.command
+      params:
+        cmd: test -f {{ marker_dir }}/marker-{{ inventory_hostname }}
+  - id: 01JS4N00000000000000000013
+    key: apply
+    type: task
+    title: Apply change
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.debug
+      params:
+        msg: applied on {{ inventory_hostname }}
+  - id: 01JS4N00000000000000000014
+    key: fix
+    type: task
+    title: Repair
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.debug
+      params:
+        msg: repairing {{ inventory_hostname }}
+  - id: 01JS4N00000000000000000015
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JS4N00000000000000000016
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - id: 01JS4E00000000000000000011
+    from: {node: 01JS4N00000000000000000011, port: ok_hosts}
+    to: {node: 01JS4N00000000000000000012, port: in}
+  - id: 01JS4E00000000000000000012
+    from: {node: 01JS4N00000000000000000012, port: ok_hosts}
+    to: {node: 01JS4N00000000000000000013, port: in}
+  - id: 01JS4E00000000000000000013
+    from: {node: 01JS4N00000000000000000013, port: ok_hosts}
+    to: {node: 01JS4N00000000000000000015, port: in}
+  - id: 01JS4E00000000000000000014
+    from: {node: 01JS4N00000000000000000012, port: failed_hosts}
+    to: {node: 01JS4N00000000000000000014, port: in}
+  - id: 01JS4E00000000000000000015
+    from: {node: 01JS4N00000000000000000014, port: ok_hosts}
+    to: {node: 01JS4N00000000000000000016, port: in}

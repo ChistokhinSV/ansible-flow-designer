@@ -24,6 +24,15 @@ import { createSummarizer, type RunSummary, summarizeRun } from '../../core/run/
 import { redactLine, redactText, secretValues } from '../../core/run/redact';
 import {
   answer,
+  type FailureFilters,
+  hasSettings,
+  type InspectAnswer,
+  type InspectArgs,
+  type InspectOp,
+  inspectRequest,
+  normalPoints,
+  type PointSpec,
+  pointNode,
   type RunStep,
   STEP_CONTROL,
   type StepCommand,
@@ -37,6 +46,7 @@ import {
 import { followRunFile, putRunFile, removeRunDir, syncWorkspace } from '../ssh/remote';
 import { appendAudit } from './audit';
 import { type Execution, startProcess } from './exec';
+import { type Inspector, localInspector, sshInspector } from './inspect';
 import { keepRun, runsDir } from './pastRuns';
 import { writeControl } from './stepChannel';
 import { stopStarted } from './stop';
@@ -89,26 +99,40 @@ export interface RunFlowRequest {
    * AFD-346 (ADR-0039): run step by step: pause before every step (`every`) or only at `points`;
    * a pause nobody answers for `timeoutS` stops the run. `control` is the control to start with
    * (a later approval segment: the one the segment before had); `inside` the step it starts in.
+   * ADR-0040: `debug` makes it a debug run (AFD_DEBUG=1): points with settings, inspect requests,
+   * and a pause on failure as `failures` says (a host failed: on by default).
    */
   step?: {
     every: boolean;
-    points: Ulid[];
+    points: PointSpec[];
     timeoutS: number;
     control?: StepControl;
     inside?: Ulid;
+    debug?: boolean;
+    failures?: FailureFilters;
   };
 }
 
 /** AFD-346: how the host drives a step-by-step run while it goes. */
 export interface StepDriver {
-  /** Step, Continue, Pause or Stop; resolves with why it could not be sent, if it could not. */
+  /**
+   * Step, Continue, Pause, Stop or (at a failure pause of a debug run) Retry; resolves with why
+   * it could not be sent, if it could not.
+   */
   send(command: StepCommand): Promise<string | undefined>;
-  /** New pause points, for the run's next step boundary. */
-  setPoints(points: Ulid[]): Promise<string | undefined>;
+  /** New pause points (bare ids, or with settings in a debug run), for the next step boundary. */
+  setPoints(points: PointSpec[]): Promise<string | undefined>;
+  /** ADR-0040: which failures pause a debug run, from the next step on. */
+  setFailures(failures: FailureFilters): Promise<string | undefined>;
   /** The pause the run waits at now. */
   paused(): StepPause | undefined;
-  /** The control last written (a later approval segment starts with it). */
+  /** The control last written, with the hit counts so far (a later segment starts with it). */
   control(): StepControl;
+  /**
+   * ADR-0040 §2: a request about the pause the run waits at now (variables, evaluate, watch);
+   * resolves with the run's answer, `{gone: true}` when no pause waits. Never rejects.
+   */
+  inspect(op: InspectOp, args?: InspectArgs): Promise<InspectAnswer>;
 }
 
 export interface RunFlowHooks {
@@ -176,8 +200,17 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
     if (failed) return fail(failed);
   }
   // AFD-346: the control the run reads at its first step boundary, there before the process is.
+  // ADR-0040: a debug run's failure filters go with every control written.
+  const debug = !!request.step?.debug;
+  let failures: FailureFilters | undefined = debug
+    ? (request.step?.control?.failures ?? request.step?.failures ?? { failed: true })
+    : undefined;
   let control: StepControl | undefined = request.step
-    ? (request.step.control ?? startControl(request.step.every, request.step.points))
+    ? {
+        ...(request.step.control ??
+          startControl(request.step.every, normalPoints(request.step.points))),
+        ...(failures ? { failures } : {}),
+      }
     : undefined;
   const writeStep = async (c: StepControl): Promise<string | undefined> => {
     try {
@@ -210,6 +243,7 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
             step: {
               timeoutS: request.step.timeoutS,
               ...(request.step.inside ? { inside: request.step.inside } : {}),
+              ...(debug ? { debug: true } : {}),
             },
           }
         : {}),
@@ -252,9 +286,19 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
   let quiet = false;
   // AFD-346: the step events so far, and what they say (paused where, stopped where).
   const stepEvents: Record<string, unknown>[] = [];
-  let points = request.step?.points ?? [];
+  let points = normalPoints(request.step?.points ?? []);
+  const pointsView = () => {
+    const settings = points.filter(hasSettings);
+    return {
+      points: points.map(pointNode),
+      ...(settings.length ? { settings } : {}),
+      ...(debug ? { debug: true } : {}),
+    };
+  };
   const stepView = (): RunStep | undefined =>
-    request.step ? { ...stepState(stepEvents), every: request.step.every, points } : undefined;
+    request.step
+      ? { ...stepState(stepEvents), every: request.step.every, ...pointsView() }
+      : undefined;
   const tail = tailFile(eventsFile, (lines) => {
     for (const line of lines) {
       live.push(redactLine(line, hidden));
@@ -283,23 +327,61 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
       ...(step ? { step } : {}),
     });
   }, LIVE_MS);
+  // ADR-0040: how the run goes on after a Retry (as the driver went before it).
+  let going: 'step' | 'continue' =
+    (control?.command === 'retry' ? control.after : control?.command) === 'continue'
+      ? 'continue'
+      : 'step';
+  const withRun = (c: StepControl): StepControl => {
+    const hits = stepState(stepEvents).hits ?? request.step?.control?.hits;
+    return {
+      ...c,
+      ...(failures ? { failures } : {}),
+      ...(hits && Object.keys(hits).length ? { hits: { ...hits } } : {}),
+    };
+  };
+  let inspector: Inspector | undefined;
+  let asked = 0;
   const driver: StepDriver | undefined = request.step
     ? {
         send: async (command) => {
           const paused = stepState(stepEvents).paused;
           // Pause is for a run that goes; a paused one waits already.
           if (command === 'pause' && paused) return undefined;
-          control = answer(command, points, paused?.id);
+          if (command === 'retry') {
+            if (paused?.kind !== 'failure')
+              return 'Retry is offered only where hosts failed a step';
+            if (paused.retryRefused) return paused.retryRefused;
+            control = withRun({ ...answer('retry', points, paused.id), after: going });
+            return writeStep(control);
+          }
+          if (command === 'step' || command === 'continue') going = command;
+          control = withRun(answer(command, points, paused?.id));
           return writeStep(control);
         },
         setPoints: async (next) => {
-          points = [...next];
+          points = normalPoints(next);
           changed = true;
-          control = { ...(control ?? startControl(false)), points };
+          control = withRun({ ...(control ?? startControl(false)), points });
+          return writeStep(control);
+        },
+        setFailures: async (next) => {
+          if (!debug) return 'Pause on failure needs a debug run';
+          failures = { ...next };
+          control = withRun({ ...(control ?? startControl(false)), points });
           return writeStep(control);
         },
         paused: () => stepState(stepEvents).paused,
-        control: () => control ?? startControl(false, points),
+        control: () => withRun(control ?? startControl(false, points)),
+        inspect: async (op, args = {}) => {
+          const paused = stepState(stepEvents).paused;
+          if (!debug) return { error: 'Variables and evaluate need a debug run' };
+          if (!paused) return { gone: true };
+          if (paused.debug === false) return { error: paused.why ?? 'The run cannot be debugged' };
+          inspector ??= remote ? sshInspector(remote, runDir) : localInspector(runDir);
+          asked += 1;
+          return inspector.ask(asked, inspectRequest(asked, paused.id, op, args));
+        },
       }
     : undefined;
 
@@ -324,6 +406,7 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
   else request.signal?.addEventListener('abort', onAbort, { once: true });
   const release = hooks.started?.(stop, driver);
   const rc = await execution.exit;
+  inspector?.close();
   release?.();
   request.signal?.removeEventListener('abort', onAbort);
   clearInterval(ticker);
@@ -353,7 +436,7 @@ export async function runFlow(request: RunFlowRequest, hooks: RunFlowHooks): Pro
             .filter((e): e is Record<string, unknown> => !!e),
         ),
         every: request.step.every,
-        points,
+        ...pointsView(),
       }
     : undefined;
   // A step-by-step run stopped at a step boundary exits 2: it was stopped, it did not fail.
