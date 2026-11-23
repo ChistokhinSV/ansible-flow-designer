@@ -685,7 +685,9 @@ function positionOps(st: State, positions: Record<Ulid, Position>): Op[] {
     ([id, p]) => [id, { x: Math.round(p.x), y: Math.round(p.y) }] as const,
   );
   if (rounded.length === 0) return [];
-  if (st.doc.layout === undefined || st.doc.layout === null) {
+  // AFS-203: an empty layout (`layout: {}`) gets the whole block in one edit too: several
+  // positions added to it one by one overlapped ("overlapping edits").
+  if (!st.doc.layout || Object.keys(st.doc.layout).length === 0) {
     const block: Record<string, YamlValue> = {};
     for (const [id, p] of rounded) block[id] = { x: p.x, y: p.y };
     return [(f) => setIn(f, ['layout'], block, { before: after(ROOT_ORDER, 'layout') })];

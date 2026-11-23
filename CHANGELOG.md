@@ -9,6 +9,9 @@ All notable changes to Ansible Flow Designer.
 - **Run step by step:** **Run ▾ › Run Step by Step…** (or the **Step by step** tick in the Run dialog, for a check or a real run) runs the flow pausing before each step, in the local environment, a container, WSL or an SSH host. The canvas rings the step the run waits before, with a badge for the hosts waiting there, and the steps before show what they did. **Step** (F10) runs that step and pauses before the next, **Continue** (F5) runs on to the next pause point or the end, **Pause** (F6) pauses before the next step, **Stop** (Shift+F5) ends the run there: it ends as stopped, not failed, and the Run panel lists each host as stopped before that step. A pause nobody answers stops the run by itself after an hour, also with VS Code closed; the new setting `afd.run.stepTimeout` changes how long. Not for AWX.
 - **Pause points:** **Add Pause Point** in a step's menu marks it with a dot; Continue pauses there. Pause points are kept for the workspace, not in the flow file.
 
+### Fixed
+
+- Undo of a flow's first move or Tidy Up no longer leaves an empty `layout: {}` behind, and moving several steps into an empty layout works: in Ansible Flow Server's pages, every move after such an Undo was refused with "overlapping edits".
 ## 1.0.2 — Where a value comes from, wires side by side, and a canvas that tells what ran
 
 ### Added
