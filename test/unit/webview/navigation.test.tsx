@@ -64,9 +64,14 @@ beforeEach(() => {
     level: ROOT,
     testMode: true,
   });
+  // AFD-360: a desktop-wide designer: below 1200 px the palette opens folded.
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
   show(os);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+});
 
 describe('find', () => {
   it('Ctrl+F finds a step inside a subflow and shows it there; the box stays open', async () => {

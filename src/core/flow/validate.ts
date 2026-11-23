@@ -838,7 +838,7 @@ function checkBindingVars(
       reported.add(name);
       const flow = flowInputs.has(name);
       // AFD-185: a value read only with a fallback (| default, is defined) cannot fail the task.
-      const tested = asserted.has(name);
+      const tested = asserted.has(name) && onlyGuarded(bindingText, name);
       const optional = !flow && !tested && onlyGuarded(bindingText, name);
       add({
         code: 'binding-unknown-var',
