@@ -50,6 +50,8 @@ def run_config(root: str) -> dict[str, Any]:
             "vars_plugins": paths("DEFAULT_VARS_PLUGIN_PATH"),
             # AFD-346: a step-by-step run sets ANSIBLE_STRATEGY_PLUGINS; these stay in it.
             "strategy_plugins": paths("DEFAULT_STRATEGY_PLUGIN_PATH"),
+            # AFS-210: a run adds the repository's top roles/ to roles_path, after these.
+            "roles": paths("DEFAULT_ROLES_PATH"),
         },
         "vars_enabled": [str(v) for v in (getattr(C, "VARIABLE_PLUGINS_ENABLED", None) or [])],
     }

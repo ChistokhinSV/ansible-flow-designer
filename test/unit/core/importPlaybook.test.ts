@@ -299,8 +299,30 @@ describe('mappings', () => {
       'pb/p.yml',
     );
     expect(r.notes).toEqual([
-      'Role own is in pb/roles/own, which generated plays do not search: add its folder to roles_path in ansible.cfg.',
+      'Role own is in pb/roles/own, which runs do not search: move it to roles/ at the top of the project, or add pb/roles to roles_path in ansible.cfg.',
     ]);
+  });
+
+  it('AFS-210: a role in the top roles/ is found by runs: implemented, no note', async () => {
+    const top = await load(
+      memory({
+        'motd.yml': '- hosts: all\n  gather_facts: no\n  roles: [motd]\n',
+        'roles/motd/tasks/main.yml': '- ping:\n',
+      }),
+      'motd.yml',
+    );
+    expect(top.notes).toEqual([]);
+    const { doc } = check(top);
+    expect(doc.nodes.find((n) => n.impl?.kind === 'role')?.status).toBe('implemented');
+    // From a playbook in a folder too: the top roles/ is on the runs' roles path.
+    const nested = await load(
+      memory({
+        'pb/motd.yml': '- hosts: all\n  gather_facts: no\n  roles: [motd]\n',
+        'roles/motd/tasks/main.yml': '- ping:\n',
+      }),
+      'pb/motd.yml',
+    );
+    expect(nested.notes).toEqual([]);
   });
 });
 

@@ -21,6 +21,11 @@ All notable changes to Ansible Flow Designer.
 - A run whose host failed at a step with an open fail port no longer reads as passed when Ansible leaves that host out of the outcome play and ends with exit 0 (a role or an included task file that cannot be found): the host counts as failed, with where it stopped.
 - The Run panel lists the steps of a run a rejection ended under "Not approved" ("1 of 1 host rejected"), not under "Failed steps".
 - In Run mode, steps no longer show their status mark (a green check on a step waiting for approval read like a result); a step without code says **TODO** instead.
+- A role in the `roles/` folder at the top of the repository is found by runs without an `ansible.cfg` naming it: an imported playbook's role there no longer fails with "the role was not found". Runs search it after the roles path the config gives.
+
+### Changed
+
+- Importing a playbook whose role is in another `roles/` folder says the two ways on: move it to `roles/` at the top of the project, or add its folder to `roles_path` in `ansible.cfg`.
 
 ## 1.0.3 — Undo no longer stops the canvas from moving steps
 

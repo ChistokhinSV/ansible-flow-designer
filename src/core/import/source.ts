@@ -1019,10 +1019,11 @@ class Reader {
       }));
     } else {
       // Ansible's order: roles/ next to the playbook, then roles_path, then the playbook's folder.
+      // AFS-210: runs add the repository's top roles/ to roles_path, so a role there is found.
       candidates = [
-        { dir: join(fromDir, 'roles', name), onRolesPath: false },
+        { dir: join(fromDir, 'roles', name), onRolesPath: !fromDir || fromDir === '.' },
         ...cfgRoles.map((p) => ({ dir: join(p, name), onRolesPath: true })),
-        { dir: join('roles', name), onRolesPath: false },
+        { dir: join('roles', name), onRolesPath: true },
         { dir: join(fromDir, name), onRolesPath: false },
       ];
     }

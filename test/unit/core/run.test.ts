@@ -258,6 +258,31 @@ describe('command lines', () => {
       'host_group_vars,community.general.something,afd_repo_vars',
     );
     expect(withPlugins.env.AFD_REPO_ROOT).toBe('/repo');
+    // An older probe says nothing of roles_path: it is left alone (the variable would replace it).
+    expect(withPlugins.env.ANSIBLE_ROLES_PATH).toBeUndefined();
+    // AFS-210: the repository's top roles/ after its config's roles_path (an imported playbook's
+    // role there is found, as next to a playbook at the root).
+    const withRoles = runProcess(
+      local.ok ? local.env : (undefined as never),
+      { root: '/repo', probe: '/ext/probe' },
+      {
+        playbook: 'flows/motd/generated/main.yml',
+        check: true,
+        runDir: '/tmp/r',
+        vault: false,
+        hasConfig: false,
+        callbacks: {
+          enabled: [],
+          paths: [],
+          plugins: { roles: ['/root/.ansible/roles', '/usr/share/ansible/roles', 'a:b'] },
+          varsEnabled: [],
+        },
+      },
+      'n',
+    );
+    expect(withRoles.env.ANSIBLE_ROLES_PATH).toBe(
+      '/root/.ansible/roles:/usr/share/ansible/roles:/repo/roles',
+    );
     // With the empty config no repository plugin runs: they are code.
     const empty = runProcess(
       local.ok ? local.env : (undefined as never),
