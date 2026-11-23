@@ -272,7 +272,7 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
                   flowInputs={flowInputs}
                   taken={(n) => n !== name && n in (contract ?? {})}
                   from={withFrom && field?.from ? fromWords(field.from) : undefined}
-                  origin={origin?.hops.length ? origin : undefined}
+                  origin={comesFrom(origin, node?.id)}
                   onChange={(next, rename) => {
                     void set(name, next, rename).then((a) => {
                       if (a.ok && rename) setOpen(rename);
@@ -312,6 +312,24 @@ export function ContractEditor({ title, target, side, contract, withFrom, hint }
       ) : null}
     </section>
   );
+}
+
+/**
+ * AFD-360: the chain under Comes from, without its first hop when that is this step's own input:
+ * the list named the step it is on first ("input devices of 'Backup config'" on Backup config).
+ */
+function comesFrom(origin: Origin | undefined, node: string | undefined): Origin | undefined {
+  if (!origin?.hops.length) return undefined;
+  const [first, ...rest] = origin.hops;
+  const own =
+    !!node &&
+    first?.node === node &&
+    first.depth === 0 &&
+    first.value === undefined &&
+    first.fallback === undefined &&
+    first.template === undefined &&
+    rest.length > 0;
+  return own ? { ...origin, hops: rest } : origin;
 }
 
 /** One field's form: its name, type, whether a run must give it, what it is asked as, its default. */
@@ -360,19 +378,29 @@ function FieldForm({
         />
       </div>
       <div className="afd-field">
-        <label htmlFor={`${id}-type`}>Type</label>
-        <select
-          id={`${id}-type`}
-          aria-label={`Type of ${name}`}
-          value={current.type ?? 'any'}
-          onChange={(e) => onChange({ ...current, type: e.target.value as ContractType })}
-        >
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {TYPE_WORDS[t]}
-            </option>
-          ))}
-        </select>
+        {readOnly ? (
+          <span className="afd-label">Type</span>
+        ) : (
+          <label htmlFor={`${id}-type`}>Type</label>
+        )}
+        {readOnly ? (
+          <span className="afd-value" data-type-read>
+            {TYPE_WORDS[current.type ?? 'any']}
+          </span>
+        ) : (
+          <select
+            id={`${id}-type`}
+            aria-label={`Type of ${name}`}
+            value={current.type ?? 'any'}
+            onChange={(e) => onChange({ ...current, type: e.target.value as ContractType })}
+          >
+            {TYPES.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_WORDS[t]}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {origin ? (
         <div className="afd-field" data-comes-from>
@@ -387,14 +415,21 @@ function FieldForm({
       ) : null}
       {side === 'inputs' ? (
         <div className="afd-field afd-check">
-          <label>
-            <input
-              type="checkbox"
-              checked={!!current.required}
-              onChange={(e) => onChange({ ...current, required: e.target.checked || undefined })}
-            />{' '}
-            Required
-          </label>
+          {readOnly ? (
+            // AFD-360: read-only, said in words: a checkbox looked like it could be ticked.
+            <span className="afd-value" data-required-read>
+              {current.required ? 'Required' : 'Optional'}
+            </span>
+          ) : (
+            <label>
+              <input
+                type="checkbox"
+                checked={!!current.required}
+                onChange={(e) => onChange({ ...current, required: e.target.checked || undefined })}
+              />{' '}
+              Required
+            </label>
+          )}
           <span className="afd-help">
             {flowInputs
               ? 'A run must give it (a default makes it optional).'

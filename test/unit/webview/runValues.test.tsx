@@ -276,6 +276,18 @@ describe('a read-only Details, Data tab (AFS-188)', () => {
       form?.querySelector('[data-comes-from], .afd-value')?.closest('.afd-field'),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Remove word' })).toBeNull();
+    // AFD-360: type and Required read as words, not as a select and a checkbox that do nothing.
+    expect(form?.querySelector('select, input[type="checkbox"]')).toBeNull();
+    expect(form?.querySelector('[data-type-read]')?.textContent).toBeTruthy();
+    expect(form?.querySelector('[data-required-read]')?.textContent).toMatch(
+      /^(Required|Optional)$/,
+    );
+    // Comes from does not start with this step's own input.
+    const hops = [...(form?.querySelectorAll('[data-comes-from] li') ?? [])].map(
+      (l) => l.textContent,
+    );
+    expect(hops.length).toBeGreaterThan(0);
+    expect(hops[0] ?? '').not.toContain(`"${show.title}"`);
     // The run's host picker sits in the Inputs section, in the panel's padding.
     expect(document.querySelector('.afd-contract-section [data-run-host-picker]')).not.toBeNull();
     act(() => useUi.setState({ viewer: false }));
