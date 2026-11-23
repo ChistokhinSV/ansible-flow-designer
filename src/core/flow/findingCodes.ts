@@ -279,7 +279,8 @@ export const FINDING_CODES: Record<string, FindingCode> = {
     fix: 'Set ansible_connection to ansible.netcommon.network_cli (or httpapi, netconf) for those hosts in the inventory, or bind a module that runs locally.',
   },
   'binding-unknown-var': {
-    meaning: 'A binding parameter (assert that included) uses a variable no input provides.',
+    meaning:
+      "A binding parameter (assert that included) uses a variable no input provides. In an assert's that, x is defined is the test itself, not a fallback: a warning, since the assert fails wherever nothing sets x.",
     fix: 'Add the input the message names (set_io) or fix the name. A variable set outside the flow at run time (AWX or Kestra extra vars, inventory, a caller) goes into flow.external_vars (update_flow).',
   },
   'condition-braces': {

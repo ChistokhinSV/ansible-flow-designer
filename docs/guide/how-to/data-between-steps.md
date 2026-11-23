@@ -269,7 +269,9 @@ A step's Retries, Delay and Timeout can read an input too, as a value given at r
 [Retries and polling](polling-and-retries.md#a-wait-the-operator-sets-at-run-time). Renaming the
 input renames it there and in Until.
 
-A flow input read directly is only a note: add it as an input to show the dependency. Full list:
+In an `assert`'s `that:`, `x is defined` is the test itself, not a guard: when nothing sets `x`,
+`binding-unknown-var` is a warning, since the assert fails on every host. A flow input read
+directly is only a note: add it as an input to show the dependency. Full list:
 [problem codes](../reference/problems.md).
 
 A step's own Details list its problems without the step's name, each with what to do. A name the
