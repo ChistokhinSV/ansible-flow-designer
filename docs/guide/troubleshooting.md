@@ -63,8 +63,9 @@ These need an Ansible environment with ansible-core 2.19 or later
 - **"No playbooks in …":** a playbook is a YAML list of plays (`hosts:`) or `import_playbook`
   entries. Task files, vars files and roles are imported through the playbooks that use them.
 - **A role step is a draft, or the notes say "add its folder to roles_path":** generated playbooks
-  find roles through the repository's `ansible.cfg`. Add the role's folder to `roles_path` under
-  `[defaults]`, then import again.
+  find roles in `roles/` at the top of the repository and through the repository's `ansible.cfg`.
+  Move the role to `roles/`, or add its folder to `roles_path` under `[defaults]`, then import
+  again.
 - **A step is a draft with "not fully qualified":** the module's short name is not an
   `ansible.builtin` module and the module catalog is not loaded. Open the step's properties and bind
   the full name (for example `cisco.ios.ios_config`), or open a flow first so the catalog loads.

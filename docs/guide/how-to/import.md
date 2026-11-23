@@ -63,7 +63,8 @@ ready to run:
   format 2 flow, since its status follows the binding), to check;
 - play `serial`, `any_errors_fatal` and `max_fail_percentage`: they apply to each step;
 - `strategy` and `order`: left out;
-- a role that generated playbooks cannot find: add its folder to `roles_path` in `ansible.cfg`.
+- a role that runs cannot find (not in `roles/` at the top of the repository, nor on `roles_path`):
+  move it to `roles/` at the top, or add its folder to `roles_path` in `ansible.cfg`.
 
 ### Re-import from the source
 

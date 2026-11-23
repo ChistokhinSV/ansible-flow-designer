@@ -911,7 +911,8 @@ class PlaybookImporter {
       this.notes.push(`Role ${r.ref} was not found in the repository: its step is a draft.`);
     else if (!r.onRolesPath)
       this.notes.push(
-        `Role ${r.ref} is in ${r.dir}, which generated plays do not search: add its folder to roles_path in ansible.cfg.`,
+        // AFS-210: the two ways on, with the folder named (runs search the project's top roles/).
+        `Role ${r.ref} is in ${r.dir}, which runs do not search: move it to roles/ at the top of the project, or add ${(r.dir ?? '').split('/').slice(0, -1).join('/') || '.'} to roles_path in ansible.cfg.`,
       );
     if (r.dropped.length)
       this.notes.push(

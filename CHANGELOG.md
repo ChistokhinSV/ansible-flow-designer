@@ -18,6 +18,11 @@ All notable changes to Ansible Flow Designer.
 - "Stops by itself in 61 s" with a 60 s timeout.
 - The terminal says a pause once in plain words ("Paused before Ping: 1 host waits for Step, Continue or Stop"), before the person answers.
 - A subflow stopped at a step inside it reads stopped, not "not reached".
+- A role in the `roles/` folder at the top of the repository is found by runs without an `ansible.cfg` naming it: an imported playbook's role there no longer fails with "the role was not found". Runs search it after the roles path the config gives.
+
+### Changed
+
+- Importing a playbook whose role is in another `roles/` folder says the two ways on: move it to `roles/` at the top of the project, or add its folder to `roles_path` in `ansible.cfg`.
 
 ## 1.0.3 — Undo no longer stops the canvas from moving steps
 

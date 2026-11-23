@@ -369,6 +369,10 @@ function runEnv(
       [...new Set([...(paths ?? []).filter(pluginPath), own])].join(':');
     for (const [folder, variable] of REPO_FOLDERS)
       env[variable] = list(theirs.plugins[folder], join(root, folder));
+    // AFS-210: the repository's top roles/ too, as next to a playbook at its root; only from a
+    // probe that says the config's roles_path (an older one says nothing: the path is left alone).
+    if (theirs.plugins.roles)
+      env.ANSIBLE_ROLES_PATH = list(theirs.plugins.roles, join(root, 'roles'));
     env.ANSIBLE_VARS_PLUGINS = list(theirs.plugins.vars_plugins, join(probeDir, 'vars_plugins'));
     const enabled = (theirs.varsEnabled ?? []).filter((n) => CALLBACK_NAME.test(n));
     env.ANSIBLE_VARS_ENABLED = [
