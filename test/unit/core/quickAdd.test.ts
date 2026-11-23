@@ -6,6 +6,7 @@ import type { FlowDocument, NodeType } from '../../../src/core/flow/types';
 import {
   defaultPick,
   exactMatch,
+  matchRank,
   suggestSteps,
   titleAfterPick,
   titleFor,
@@ -56,6 +57,43 @@ describe('Quick Add suggestions (AFD-232)', () => {
       'role:netops.push_config',
     ]);
     expect(found[0]?.hint).toBe('module, used in this flow');
+  });
+
+  it('AFD-360: the name typed in full first; words in any order; the catalog-only finds last', () => {
+    const found = (query: string, extra: Partial<Parameters<typeof suggestSteps>[0]> = {}) =>
+      suggestSteps({
+        ...base,
+        query,
+        modules: [
+          { fqcn: 'ansible.netcommon.cli_config', short_description: 'Push text', dimmed: false },
+          { fqcn: 'cisco.ios.ios_config', short_description: 'Manage IOS', dimmed: false },
+          {
+            fqcn: 'chistokhinsv.ansible_flow.run',
+            short_description: 'Run a flow',
+            dimmed: false,
+          },
+          {
+            fqcn: 'ansible.netcommon.cli_command',
+            short_description: 'Run a command such as show running-config',
+            dimmed: false,
+          },
+        ],
+        roles: ['push_baseline', 'netops.backup'],
+        ...extra,
+      }).map((s) => s.label);
+    expect(found('push_baseline')[0]).toBe('push_baseline');
+    expect(found('push')[0]).toBe('push_baseline');
+    expect(found('baseline push')).toContain('push_baseline');
+    // "show running" is what cli_command does; the run module only shares a word's start.
+    const show = found('show running');
+    expect(show.indexOf('ansible.netcommon.cli_command')).toBeLessThan(
+      show.indexOf('chistokhinsv.ansible_flow.run'),
+    );
+    expect(matchRank('netops.baseline.push_baseline', 'role', ['push', 'baseline'])).toBe(0);
+    expect(matchRank('ansible.builtin.ping', '', ['pi'])).toBe(1);
+    expect(matchRank('cisco.ios.ios_config', '', ['config'])).toBe(2);
+    expect(matchRank('x.y.z', 'Does a thing', ['thing'])).toBe(3);
+    expect(matchRank('x.y.z', '', ['thing'])).toBe(4);
   });
 
   it('another type picked: step types only', () => {

@@ -44,11 +44,13 @@ export function suggestSteps(input: SuggestInput): Suggestion[] {
     .filter((t) => t.type !== input.type && t.label.toLowerCase().startsWith(q))
     .map((t) => ({ kind: 'type', type: t.type, label: t.label, hint: 'step type' }));
   if (!task) return types;
+  const words = wordsOf(q);
   const seen = new Set<string>();
   const once = (ref: string) => (seen.has(ref) ? false : !!seen.add(ref));
-  // What the flow already uses comes first among the matches: it is the likelier pick.
+  const named = (ref: string) => words.every((w) => ref.toLowerCase().includes(w));
+  // What the flow already uses comes first among equal matches: it is the likelier pick.
   const used: Suggestion[] = input.used
-    .filter((u) => u.ref.toLowerCase().includes(q) && once(`${u.kind}:${u.ref}`))
+    .filter((u) => named(u.ref) && once(`${u.kind}:${u.ref}`))
     .slice(0, MAX_ROLES)
     .map((u) => ({ kind: u.kind, ref: u.ref, label: u.ref, hint: `${u.kind}, used in this flow` }));
   const modules: Suggestion[] = input.modules
@@ -61,10 +63,39 @@ export function suggestSteps(input: SuggestInput): Suggestion[] {
       hint: m.short_description || 'module',
     }));
   const roles: Suggestion[] = input.roles
-    .filter((r) => r.toLowerCase().includes(q) && once(`role:${r}`))
+    .filter((r) => named(r) && once(`role:${r}`))
     .slice(0, MAX_ROLES)
     .map((r) => ({ kind: 'role', ref: r, label: r, hint: 'role' }));
-  return [...types, ...used, ...modules, ...roles];
+  // AFD-360: by how well the name matches, then in that order: the role push_baseline typed in
+  // full came sixth, after five modules the catalog only found for its words.
+  const found = [...used, ...modules, ...roles]
+    .map((s, i) => ({ s, i, rank: s.kind === 'type' ? 9 : matchRank(s.ref, s.hint, words) }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map((x) => x.s);
+  return [...types, ...found];
+}
+
+/** The words of what is typed: `show running`, `push_baseline` and `push-baseline` alike. */
+function wordsOf(q: string): string[] {
+  return q.split(/[\s._/-]+/).filter(Boolean);
+}
+
+/**
+ * AFD-360: how well a module or role matches the words typed, best first: its own name exactly
+ * (`push_baseline`), its name starting with them, every word in its name, every word in what it
+ * does, else only what the catalog's search found (`run` for "running").
+ */
+export function matchRank(ref: string, about: string, words: readonly string[]): number {
+  if (words.length === 0) return 4;
+  const full = ref.toLowerCase();
+  const name = full.split(/[./]/).pop() ?? full;
+  const joined = words.join('_');
+  if (name === joined || name.replace(/-/g, '_') === joined || full === words.join('.')) return 0;
+  if (name.startsWith(words[0] as string) && words.every((w) => name.includes(w))) return 1;
+  if (words.every((w) => full.includes(w))) return 2;
+  const text = about.toLowerCase();
+  if (words.every((w) => text.includes(w))) return 3;
+  return 4;
 }
 
 /**

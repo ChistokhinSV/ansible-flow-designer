@@ -1,6 +1,6 @@
 // AFD-334: a step implemented by its binding that would not run is shown specified, with why.
 import { describe, expect, it } from 'vitest';
-import { gapWords, missingRole, shownStatus } from '../../../src/core/view/statusGap';
+import { gapWords, missingRole, runFailures, shownStatus } from '../../../src/core/view/statusGap';
 
 describe('status gap (AFD-334)', () => {
   it('implemented with a gap reads specified; other statuses stay', () => {
@@ -31,5 +31,28 @@ describe('status gap (AFD-334)', () => {
     ];
     expect(missingRole(findings, 'n1')).toBe('x');
     expect(missingRole(findings, 'n2')).toBeUndefined();
+  });
+
+  it('AFD-360: findings that fail every host at run time make a gap too', () => {
+    const finding = (code: string, severity: 'warning' | 'info', subject: string) => ({
+      code,
+      severity,
+      message: '',
+      path: [],
+      node: 'n1',
+      subject,
+    });
+    const cli = { id: 'n1', impl: { kind: 'module', ref: 'ansible.netcommon.cli_command' } };
+    const assert = { id: 'n1', impl: { kind: 'module', ref: 'ansible.builtin.assert' } };
+    const local = [finding('binding-connection-local', 'warning', 'ansible_connection')];
+    expect(runFailures(local, cli)).toEqual([
+      'The inventory connects to its hosts locally (ansible_connection: local)',
+    ]);
+    const unknown = [finding('binding-unknown-var', 'warning', 'ntp_status')];
+    expect(runFailures(unknown, assert)).toEqual(['It asserts on ntp_status, which nothing sets']);
+    // Elsewhere an unknown read is a warning to look at, not a sure failure; info never counts.
+    expect(runFailures(unknown, cli)).toEqual([]);
+    expect(runFailures([finding('binding-unknown-var', 'info', 'x')], assert)).toEqual([]);
+    expect(shownStatus('implemented', { params: [], fails: ['x'] })).toBe('specified');
   });
 });

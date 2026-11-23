@@ -660,7 +660,12 @@ export function ChipField({
       {menu?.kind === 'refs' ? (
         <div ref={list} className="afd-ref-menu" role="listbox" aria-label="Inputs">
           {shown.length === 0 ? (
-            <div className="muted">No inputs match. Add inputs on the Inputs and outputs tab.</div>
+            // AFD-360: the tab is Data; and say why the list is empty, not only where to go.
+            <div className="muted">
+              {choices.length === 0
+                ? 'Nothing to insert yet: this step has no inputs, and no step wired before it gives a result. Wire it after the step it reads from, or add an input on the Data tab.'
+                : 'No input matches. Add inputs on the Data tab.'}
+            </div>
           ) : (
             shown.map((c, i) =>
               option(

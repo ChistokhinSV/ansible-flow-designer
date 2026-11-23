@@ -118,7 +118,7 @@ export function matchesFilters(node: FlowNode, q: FindQuery, ctx: FindContext = 
         : v === 'binding'
           ? !!node.impl
           : v === 'problems'
-            ? mine.length > 0
+            ? mine.some((f) => f.severity !== 'info')
             : v === 'errors'
               ? mine.some((f) => f.severity === 'error')
               : v === 'disabled'
