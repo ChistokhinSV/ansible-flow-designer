@@ -21,7 +21,8 @@ them in the node's Details (Approvers, Notify, Message), or in the flow file:
 ```
 
 - `approvers`: users or groups, by login or group name, who may decide. Without it, whoever the
-  runner lets approve.
+  runner lets approve. On Ansible Flow Server's pages an empty **Approvers** says who that is
+  ("Asks: change-board, Sam Reyes").
 - `notify`: users or groups told it waits, beside the approvers.
 - `message`: what the approvers read before deciding. In AWX it becomes the approval's
   description.
