@@ -27,7 +27,12 @@ The run starts and pauses before its first step. The canvas switches to **Run** 
 - The steps already run show what they did, as in any run: hosts, failures, output. Steps not
   reached yet read "not reached yet".
 - The top bar reads "Paused before Ping · 1 host"; click it to show that step. The Run panel says
-  the same, which hosts wait, and when the run stops by itself.
+  the same, which hosts wait, and when the run stops by itself. A step inside a subflow is named
+  by its path: "Paused before Pre-checks › Read device status".
+- The step's **Run** tab lists the hosts that wait there, "waiting for Step or Continue".
+- After **Step** or **Continue** the Run panel says which step runs ("Running Ping…") until the
+  run pauses again.
+- A step's time leaves the pause out: "ran 1 s, waited 31 s".
 
 ## Step, Continue, Pause, Stop
 
@@ -39,7 +44,11 @@ The run starts and pauses before its first step. The canvas switches to **Run** 
 | Stop     | Shift+F5 | While paused: ends the run there; while a step runs: ends the run now, as Stop Run always did |
 
 The buttons are in the top bar beside **Stop** and in the Run panel; the keys work while the
-flow's designer has focus. A run stopped while it waits ends as **stopped**, not failed: its hosts
+flow's designer has focus. **Continue** and **Pause** share one place, so the focus stays on it.
+
+On Ansible Flow Server's pages the canvas has the same buttons. F5 reloads a web page, so there
+the keys are **F10** (Step) and **F8** (Continue, or Pause while a step runs), while the canvas
+has the focus; Stop has no key. A run stopped while it waits ends as **stopped**, not failed: its hosts
 read "stopped before <step>" in the Run panel and the step reads "stopped before · 3 hosts".
 
 A step runs on all its hosts together. Steps no host reaches are not paused at. A subflow pauses at
@@ -47,8 +56,10 @@ each step inside it, not at the subflow itself.
 
 ## Pause points
 
-Right-click a step and choose **Add Pause Point**: a red dot marks it. **Continue** runs on to the
-next pause point. Pause points are kept for this workspace, not in the flow file, so they do not
+Right-click a step and choose **Add Pause Point**: a red dot marks it. In **Run** mode the dot also
+shows at a step's top left corner while the pointer is on the step: click it to add or take away
+the pause point. **Continue** runs on to the next pause point, and the Run panel says when the run
+waits at one. Pause points are kept for this workspace, not in the flow file, so they do not
 show up in a commit. **Remove Pause Point** takes one away; a change applies to the run going from
 its next step on.
 

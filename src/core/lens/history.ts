@@ -25,7 +25,11 @@ export function historyEntry(run: RunView): HistoryEntry | undefined {
     source: run.source === 'awx' ? 'awx' : 'local',
     rc: run.rc,
     timings: Object.fromEntries(
-      Object.entries(t).map(([n, x]) => [n, Math.max(0, x.end - x.start)]),
+      // AFS-205: a step-by-step run's pauses are not the step's time.
+      Object.entries(t).map(([n, x]) => [
+        n,
+        Math.max(0, x.end - x.start - (run.summary?.waited?.[n] ?? 0)),
+      ]),
     ),
   };
 }

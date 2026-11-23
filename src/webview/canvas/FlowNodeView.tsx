@@ -25,6 +25,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { pausableNode } from '../../core/flow/canvasMenu';
 import { purposeOf } from '../../core/flow/format';
 import { modelOf } from '../../core/flow/model';
 import { mainOutputs, type PortSide } from '../../core/flow/ports';
@@ -32,7 +33,7 @@ import { sharedAround } from '../../core/flow/refs';
 import type { FlowNode, NodeStatus, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import type { Snapshot } from '../../core/protocol';
-import { formatSeconds } from '../../core/run/view';
+import { stepTime } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { shownOn } from '../../core/view/find';
 import { subLine } from '../../core/view/nodeFace';
@@ -42,9 +43,11 @@ import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges'
 import { gapWords, hasGap, type StatusGap, shownStatus } from '../../core/view/statusGap';
 import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
+import { stepKeysLine } from '../panels/StepBar';
 import { useStatusGap } from '../paramGaps';
 import { addNextNode } from '../portActions';
 import { hasPreview } from '../preview';
+import { togglePausePoint } from '../runActions';
 import { approvalOf } from '../runApproval';
 import { useUi } from '../store';
 import type { NodeView, PortView } from '../viewModel';
@@ -392,6 +395,19 @@ function usePausedHere(id: Ulid): number | undefined {
   });
 }
 
+/**
+ * AFS-205: whether a stopped run stopped inside this node (a subflow on the level shown that holds
+ * the step it stopped at).
+ */
+function useStoppedInside(id: Ulid): boolean {
+  return useUi((s) => {
+    const at = s.mode === 'run' && s.run?.state !== 'running' ? s.run?.stoppedAt : undefined;
+    const doc = s.snapshot?.doc;
+    if (!at || at === id || !doc) return false;
+    return shownOn(modelOf(doc), [at], s.level).includes(id);
+  });
+}
+
 /** Run mode (04 §10): how many hosts the node handled, how many failed, how long it took. */
 function RunLine({ node }: { node: FlowNode }) {
   const r = useUi((s) => s.runNodes?.[node.id]);
@@ -401,6 +417,8 @@ function RunLine({ node }: { node: FlowNode }) {
   // AFS-147: the step a run was stopped in (an approval it waited at too): stopped, whatever it
   // had done; the steps after it read "not reached".
   const paused = usePausedHere(node.id);
+  // AFS-205: a subflow on this level stopped inside reads stopped, not "not reached".
+  const stoppedInside = useStoppedInside(node.id);
   // AFD-346: the step a step-by-step run waits before, with the hosts waiting there.
   if (paused !== undefined)
     return (
@@ -410,7 +428,7 @@ function RunLine({ node }: { node: FlowNode }) {
     );
   // AFD-346: a step-by-step run stopped at a step boundary: its hosts stopped before this step.
   const before = shown?.step?.stopped?.node === node.id ? shown.step.stopped.hosts.length : 0;
-  if (shown && shown.state !== 'running' && shown.stoppedAt === node.id)
+  if (shown && shown.state !== 'running' && (shown.stoppedAt === node.id || stoppedInside))
     return (
       <div className="afd-node-run tone-warn" data-run-state="stopped">
         {before
@@ -455,7 +473,8 @@ function RunLine({ node }: { node: FlowNode }) {
   }
   const parts = [`${r.hosts} host${r.hosts === 1 ? '' : 's'}`];
   if (r.failed > 0) parts.push(`${r.failed} failed`);
-  if (r.seconds !== undefined) parts.push(formatSeconds(r.seconds));
+  // AFS-205: without the time a step-by-step run waited before it ("ran 1 s, waited 31 s").
+  if (r.seconds !== undefined) parts.push(stepTime(r));
   const tone = r.state === 'ok' ? 'ok' : 'warn';
   return (
     <div className={`afd-node-run tone-${tone}`} data-run-state={r.state}>
@@ -682,6 +701,10 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   // AFD-346: where a step-by-step run waits (a ring and the waiting hosts), and pause points.
   const pausedHosts = usePausedHere(node.id);
   const pausePoint = useUi((s) => s.stepRuns && s.pausePoints.includes(node.id));
+  // AFS-205: in Run mode a step offers its pause point on hover, where the host runs step by step.
+  const pauseHere = useUi(
+    (s) => s.stepRuns && s.mode === 'run' && !!s.snapshot?.doc && pausableNode(node),
+  );
   // AFD-85: changed outside the designer (a subflow: a step inside it was).
   const outside = useUi((s) =>
     s.outside?.nodes.includes(node.id)
@@ -791,18 +814,31 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
           className="afd-step-badge"
           role="img"
           aria-label={`Paused here: ${pausedHosts} host${pausedHosts === 1 ? '' : 's'} waiting`}
-          title={`Paused here: ${pausedHosts} host${pausedHosts === 1 ? '' : 's'} waiting. Step (F10), Continue (F5), Stop (Shift+F5).`}
+          title={`Paused here: ${pausedHosts} host${pausedHosts === 1 ? '' : 's'} waiting. ${stepKeysLine()}.`}
         >
           <span className="codicon codicon-debug-pause" aria-hidden="true" />
           {pausedHosts}
         </span>
       ) : null}
-      {pausePoint ? (
-        <span
-          className="afd-pause-point"
-          role="img"
-          aria-label="Pause point"
-          title="Pause point: a step-by-step run pauses here, also after Continue"
+      {pausePoint || pauseHere ? (
+        // AFS-205: the dot sets or takes away the pause point; shown faint on hover where none is.
+        <button
+          type="button"
+          className={`afd-pause-point nodrag nopan${pausePoint ? '' : ' off'}`}
+          aria-label={pausePoint ? 'Remove pause point' : 'Pause here'}
+          aria-pressed={pausePoint}
+          tabIndex={-1}
+          data-pause-dot={pausePoint ? 'on' : 'off'}
+          title={
+            pausePoint
+              ? 'Pause point: a step-by-step run pauses here, also after Continue. Click to remove it.'
+              : 'Pause here: a step-by-step run pauses before this step, also after Continue'
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePausePoint(node.id);
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
         />
       ) : null}
       {role === 'frame' ? <InnerHandles ports={ports} /> : null}

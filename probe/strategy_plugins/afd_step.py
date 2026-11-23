@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
+import sys
 import time
 
 from ansible.plugins.strategy.linear import StrategyModule as LinearStrategy
@@ -35,6 +37,14 @@ DOCUMENTATION = """
 """
 
 display = Display()
+
+
+def _paused_line(play: str, hosts: int) -> str:
+    """The terminal's line for a pause: the step's title without its [key], the hosts waiting."""
+    title = re.sub(r"^\[[^\]]*\]\s*", "", play) or play
+    waits = "1 host waits" if hosts == 1 else f"{hosts} hosts wait"
+    return f"Paused before {title}: {waits} for Step, Continue or Stop"
+
 
 VERSION = 1
 POLL_S = 0.1
@@ -136,7 +146,11 @@ class StrategyModule(LinearStrategy):
             hosts=hosts,
             timeout=state.timeout,
         )
-        display.display(f"AFD: paused before {name} ({len(hosts)} host(s)); waiting for the driver")
+        # AFS-205: in plain words, once: "Paused before Read facts: 2 hosts wait for Step, ...".
+        display.display(_paused_line(name, len(hosts)))
+        # Out now, before anyone answers: a pipe (a server's run) holds it back otherwise, and the
+        # line came after who said Step.
+        sys.stdout.flush()
         deadline = time.monotonic() + state.timeout
         while True:
             control = state.read()
@@ -153,7 +167,7 @@ class StrategyModule(LinearStrategy):
                     event="stopped", id=pause, node=node, play=name, hosts=hosts, reason="timeout"
                 )
                 display.warning(
-                    f"AFD: nobody answered within {int(state.timeout)} s; the run stops"
+                    f"Nobody answered the pause for {int(state.timeout)} s: the run stops here"
                 )
                 return "stop"
             time.sleep(POLL_S)

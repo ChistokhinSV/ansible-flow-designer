@@ -16,6 +16,7 @@ import {
   ANNOTATION_COLORS,
   type AnnotationColor,
   type AnnotationKind,
+  type FlowNode,
   NODE_STATUSES,
   type NodeStatus,
   type PortRef,
@@ -156,6 +157,11 @@ export interface CanvasMenuContext {
    * or takes away its own.
    */
   pausePoints?: readonly Ulid[];
+  /**
+   * AFS-205: a viewer (the server's pages): the menu offers only what does not change the flow,
+   * its pause points.
+   */
+  viewer?: boolean;
 }
 
 /** What a step's menu needs of the scenario being edited (AFD-116). */
@@ -281,6 +287,33 @@ function wired(model: FlowModel, ids: readonly Ulid[]): boolean {
   const set = new Set(ids);
   const level = model.levels.get(model.nodes.get(ids[0] as Ulid)?.level ?? ROOT);
   return (level?.edges ?? []).some((e) => e && set.has(e.from?.node) !== set.has(e.to?.node));
+}
+
+/**
+ * AFD-346: a step is where a step-by-step run can pause; a subflow pauses at its own steps, start
+ * and end and a step switched off never.
+ */
+export function pausable(model: FlowModel, id: Ulid): boolean {
+  const node = model.nodes.get(id)?.node;
+  return !!node && pausableNode(node);
+}
+
+/** The same, of a node at hand. */
+export function pausableNode(node: Pick<FlowNode, 'type' | 'disabled'>): boolean {
+  return node.type !== 'start' && node.type !== 'end' && node.type !== 'subflow' && !node.disabled;
+}
+
+/** Add or Remove Pause Point, where the host runs flows step by step. */
+function pauseItems(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
+  if (!ctx.pausePoints || !pausable(model, id)) return [];
+  const on = ctx.pausePoints.includes(id);
+  return [
+    item(
+      on ? 'Remove Pause Point' : 'Add Pause Point',
+      { do: 'togglePausePoint', node: id },
+      { icon: 'debug-breakpoint' },
+    ),
+  ];
 }
 
 function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMenuEntry[] {
@@ -507,17 +540,7 @@ function nodeMenu(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasMen
       ),
     );
   }
-  // AFD-346: a step is where a step-by-step run can pause; a subflow pauses at its own steps.
-  if (ctx.pausePoints && !ends && node.type !== 'subflow' && !node.disabled) {
-    const on = ctx.pausePoints.includes(id);
-    runs.push(
-      item(
-        on ? 'Remove Pause Point' : 'Add Pause Point',
-        { do: 'togglePausePoint', node: id },
-        { icon: 'debug-breakpoint' },
-      ),
-    );
-  }
+  runs.push(...pauseItems(model, id, ctx));
 
   const remove = edit
     ? [item('Delete', { do: 'delete', nodes: one }, { icon: 'trash', shortcut: 'delete', ...lock })]
@@ -751,6 +774,8 @@ export function canvasMenu(
   given: CanvasMenuContext,
 ): CanvasMenuEntry[] {
   const ctx = { ...given, format: given.format ?? formatOf(model.doc) };
+  // AFS-205: a viewer's menu: a step's pause point, nothing else.
+  if (ctx.viewer) return target.kind === 'node' ? pauseItems(model, target.id, ctx) : [];
   const edit = ctx.mode === 'design' && !ctx.stale;
   switch (target.kind) {
     case 'node':

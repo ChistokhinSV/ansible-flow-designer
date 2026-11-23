@@ -267,3 +267,17 @@ before), Docker Desktop, the same images:
 - webview: `config.stepRuns` (VS Code sets it, a past version and a server's pages do not), the
   `pausePoints` message, `stepRun`/`togglePausePoint` messages, `launchRun.step`,
   `LaunchPlan.steps`. Without `stepRuns` nothing new shows.
+
+## Server pages (AFS-205)
+
+- A viewer sends `stepRun` and `togglePausePoint` (`core/viewer.ts`); the host checks who may drive
+  the run. Without them the canvas buttons on a server's flow page sent nothing.
+- A viewer's step menu offers only **Add/Remove Pause Point** (`canvasMenu` with `viewer`); in Run
+  mode a dot at a step's corner (on hover) toggles it.
+- Keys in a web page: F10 Step, F8 Continue or Pause (F5 reloads the page); VS Code keeps its key
+  bindings. `stepKeys()` gives each host's keys to the buttons' titles.
+- `StepState.running` (from `resume`): the bar says "Running <step>…" with Pause; `RunStep.who`
+  tells a reader who may go on; `stepPath` names a step inside a subflow by its path.
+- `RunSummary.waited`: the seconds paused before each step, left out of its time.
+- The strategy's pause line is plain words and flushed at once, so a server's output has it before
+  who answered it.

@@ -17,6 +17,10 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   'launchSave',
   'stopRun',
   'showRun',
+  // AFS-205: a step-by-step run's Step, Continue, Pause and Stop, and pause points, where the host
+  // runs flows step by step (config.stepRuns); the host checks who may drive the run.
+  'stepRun',
+  'togglePausePoint',
   'runOutput',
   'showRunOutput',
   // AFD-273: deciding an approval of the run shown, where the host lets this person decide.

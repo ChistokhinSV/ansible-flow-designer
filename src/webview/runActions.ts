@@ -26,6 +26,11 @@ export function stepRun(command: StepCommand): void {
   send({ type: 'stepRun', command });
 }
 
+/** AFS-205: a step's pause point set or taken away (its menu, its dot on the canvas). */
+export function togglePausePoint(node: string): void {
+  send({ type: 'togglePausePoint', node });
+}
+
 /** AFD-245: an earlier run of this flow, on the canvas again. */
 export function showPastRun(id: string): void {
   send({ type: 'showRun', id });

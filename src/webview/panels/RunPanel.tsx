@@ -10,11 +10,11 @@ import { pastRunLabel } from '../../core/run/pastRuns';
 import {
   arrivals,
   edgeHosts,
-  formatSeconds,
   type HostResult,
   nodeHosts,
   runPassed,
   runVerdict,
+  stepTime,
   testedCandidates,
 } from '../../core/run/view';
 import { decidedAgainst, hostsWord, outcomeWords, type RunWords } from '../../core/run/words';
@@ -27,7 +27,7 @@ import {
   missWords,
   scenarioMisses,
 } from '../../core/scenario/view';
-import { trailOf } from '../../core/view/find';
+import { shownOn, trailOf } from '../../core/view/find';
 import { run as runCommand } from '../actions';
 import { send } from '../bus';
 import { ago } from '../constants';
@@ -547,11 +547,22 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
             ended: s.outcome[host] ?? (node.outcome === 'failed' ? 'failed here' : 'ended here'),
           }))
         : nodeHosts(s, id);
+  // AFS-205: a step-by-step run paused before this step (or a step inside this subflow): its
+  // hosts wait here, not "0 hosts".
+  const pause = run?.state === 'running' ? run.step?.paused : undefined;
+  const pausedHere =
+    pause &&
+    (pause.node === id ||
+      shownOn(model, [pause.node], model.nodes.get(id)?.level ?? '').includes(id))
+      ? pause
+      : undefined;
   // AFD-329: hosts waiting at an approval have not left it: the host says which they are.
   const rows: typeof played =
     played.length === 0 && approval?.status === 'waiting' && approval.hosts?.length
       ? approval.hosts.map((host) => ({ host, ports: [] as string[], waits: true }))
-      : played;
+      : played.length === 0 && pausedHere
+        ? pausedHere.hosts.map((host) => ({ host, ports: [] as string[], waits: true }))
+        : played;
   // AFD-329: a decided approval sends its hosts on by the decision, not by failing.
   const decided =
     node.type === 'approval' && approval && approval.status !== 'waiting' ? approval : undefined;
@@ -592,19 +603,27 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
     <div className="afd-panel-body" data-node-run={id}>
       {!s ? (
         <p className="muted">No run yet.</p>
-      ) : r?.state === 'idle' ? (
+      ) : r?.state === 'idle' && !pausedHere ? (
         // AFD-358: the run shown, which on the server's run pages may be an older one.
         <p className="muted">This run did not reach this node.</p>
       ) : (
         <>
           <p>
-            {r?.hosts} host{r?.hosts === 1 ? '' : 's'} ·{' '}
-            {approval?.status === 'waiting'
-              ? 'waiting for a decision'
-              : decided
-                ? decided.label
-                : `${r?.failed} failed`}
-            {r?.seconds !== undefined ? ` · ${formatSeconds(r.seconds)}` : ''}
+            {pausedHere && played.length === 0
+              ? `${rows.length} host${rows.length === 1 ? '' : 's'} · paused before ${
+                  pausedHere.node === id ? 'this step' : 'a step inside'
+                }`
+              : `${r?.hosts} host${r?.hosts === 1 ? '' : 's'} · ${
+                  approval?.status === 'waiting'
+                    ? 'waiting for a decision'
+                    : decided
+                      ? decided.label
+                      : `${r?.failed} failed`
+                }`}
+            {/* AFS-205: without the time a step-by-step run waited before it. */}
+            {r?.seconds !== undefined && !(pausedHere && played.length === 0)
+              ? ` · ${stepTime(r)}`
+              : ''}
           </p>
           <table className="afd-run-table" data-run-hosts={rows.length}>
             <thead>
@@ -646,7 +665,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                       )}
                       <td>
                         {h.waits ? (
-                          <span className="tone-warn">waiting for a decision</span>
+                          <span className="tone-warn">
+                            {pausedHere ? 'waiting for Step or Continue' : 'waiting for a decision'}
+                          </span>
                         ) : decided && !h.problem && !h.ports.includes('approved') ? (
                           <span className="tone-warn">{decided.label}</span>
                         ) : h.ended ? (

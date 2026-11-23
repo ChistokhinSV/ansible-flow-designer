@@ -8,6 +8,16 @@ All notable changes to Ansible Flow Designer.
 
 - **Run step by step:** **Run ▾ › Run Step by Step…** (or the **Step by step** tick in the Run dialog, for a check or a real run) runs the flow pausing before each step, in the local environment, a container, WSL or an SSH host. The canvas rings the step the run waits before, with a badge for the hosts waiting there, and the steps before show what they did. **Step** (F10) runs that step and pauses before the next, **Continue** (F5) runs on to the next pause point or the end, **Pause** (F6) pauses before the next step, **Stop** (Shift+F5) ends the run there: it ends as stopped, not failed, and the Run panel lists each host as stopped before that step. A pause nobody answers stops the run by itself after an hour, also with VS Code closed; the new setting `afd.run.stepTimeout` changes how long. Not for AWX.
 - **Pause points:** **Add Pause Point** in a step's menu marks it with a dot; Continue pauses there. Pause points are kept for the workspace, not in the flow file.
+- In Run mode, a dot at a step's corner (shown on hover) adds or takes away its pause point.
+- On Ansible Flow Server's pages, the read-only canvas drives a step-by-step run too: Step, Continue, Pause and Stop in the top bar and the Run panel, **Add Pause Point** on a step's menu, and the keys **F10** (Step) and **F8** (Continue or Pause), since F5 reloads a web page.
+- After Step or Continue the Run panel says which step runs ("Running Ping…"); a pause inside a subflow is named by its path ("Pre-checks › Read device status"); the paused step's Run tab lists the hosts waiting there.
+
+### Fixed
+
+- A step's time in a step-by-step run no longer counts the pause: it reads "ran 1 s, waited 31 s". A time near a whole minute no longer reads "6 min 60 s".
+- "Stops by itself in 61 s" with a 60 s timeout.
+- The terminal says a pause once in plain words ("Paused before Ping: 1 host waits for Step, Continue or Stop"), before the person answers.
+- A subflow stopped at a step inside it reads stopped, not "not reached".
 
 ## 1.0.3 — Undo no longer stops the canvas from moving steps
 

@@ -18,6 +18,7 @@ import { checkButton } from '../../core/run/words';
 import { send } from '../bus';
 import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
+import { stepKeysLine } from './StepBar';
 
 const TYPE_HINT: Record<string, string> = {
   host_list: 'hosts or groups, comma-separated, or a JSON list',
@@ -225,8 +226,9 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
                 Step by step: pause before each step
               </label>
               <span className="afd-help">
-                Step (F10) runs the next step, Continue (F5) runs on to a pause point, Stop
-                (Shift+F5) ends the run there.
+                {/* AFS-205: the keys of this host (a web page has no F5). */}
+                {stepKeysLine()}: Step runs the next step, Continue runs on to a pause point, Stop
+                ends the run there.
               </span>
             </div>
           ) : null}

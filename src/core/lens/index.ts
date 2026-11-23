@@ -100,7 +100,8 @@ export function summaryRows(
   if (t) add('duration', `avg ${formatSeconds(t.avg)} · p95 ${formatSeconds(t.p95)}`);
   else if (durationSeconds(s.timeout) === undefined && run?.summary?.timings?.[node.id]) {
     const x = run.summary.timings[node.id];
-    if (x) add('duration', `last ${formatSeconds(x.end - x.start)}`);
+    const waited = run.summary.waited?.[node.id] ?? 0;
+    if (x) add('duration', `last ${formatSeconds(Math.max(0, x.end - x.start - waited))}`);
   }
   return rows;
 }

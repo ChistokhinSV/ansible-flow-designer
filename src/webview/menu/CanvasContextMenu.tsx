@@ -35,7 +35,7 @@ import {
   upLevel,
 } from '../editActions';
 import { addNextNode, runPortItem } from '../portActions';
-import { startPartialRun } from '../runActions';
+import { startPartialRun, togglePausePoint } from '../runActions';
 import { keysOf } from '../shortcuts';
 import { type ContextMenuState, useUi } from '../store';
 import { Menu, type UiMenuEntry } from './Menu';
@@ -194,7 +194,7 @@ export function runCanvasAction(
       startPartialRun(action.node, action.only);
       return;
     case 'togglePausePoint':
-      send({ type: 'togglePausePoint', node: action.node });
+      togglePausePoint(action.node);
       return;
     case 'removeEntry':
       void run({ kind: 'setBoundaryIn', subflow: action.subflow, node: null });
@@ -246,12 +246,12 @@ export function CanvasContextMenu() {
   const editing = useUi((s) => s.scenarioEditing);
   const check = useUi((s) => s.scenarioCheck);
   const flow = useReactFlow();
-  // AFD-270: every entry changes the flow or opens its files.
+  // AFD-270: every entry changes the flow or opens its files; AFS-205: but a step's pause point.
   const viewer = useUi((s) => s.viewer);
   // AFD-346: pause points, where the host runs flows step by step.
   const stepRuns = useUi((s) => s.stepRuns);
   const pausePoints = useUi((s) => s.pausePoints);
-  if (!menu || !snapshot?.doc || viewer) return null;
+  if (!menu || !snapshot?.doc || (viewer && !stepRuns)) return null;
   const model = modelOf(snapshot.doc);
   const scenario = editing && check ? scenarioMenu(snapshot.doc, check, editing) : undefined;
   const entries = canvasMenu(model, menu.target, {
@@ -263,6 +263,7 @@ export function CanvasContextMenu() {
     hasPlay: (id) => !!snapshot.plays?.[id],
     ...(scenario ? { scenario } : {}),
     ...(stepRuns ? { pausePoints } : {}),
+    ...(viewer ? { viewer: true } : {}),
   });
   if (entries.length === 0) return null;
   const fitView = () => void flow.fitView(FULL_FIT);

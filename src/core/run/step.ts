@@ -1,6 +1,7 @@
 // Step-by-step runs (AFD-346, ADR-0039): the channel between a run and its driver. The run's
 // afd_step strategy appends pause, resume and stopped events to events.jsonl; the driver answers in
 // control.json, replaced whole. Pure: the files are written and read by the hosts.
+import { type FlowModel, ROOT } from '../flow/model';
 import type { Ulid } from '../flow/types';
 
 export const STEP_VERSION = 1;
@@ -51,6 +52,11 @@ export interface StepPause {
 export interface StepState {
   /** Paused now: where, and which hosts wait there. */
   paused?: StepPause;
+  /**
+   * AFS-205: the step that runs now, after Step or Continue answered its pause (until the next
+   * pause, stop or the end): the bar says "Running <step>…" with Pause.
+   */
+  running?: { node: Ulid; play: string };
   /** How many pauses so far. */
   pauses: number;
   /** The run was stopped at a step boundary: by its driver or by the pause timeout. */
@@ -63,6 +69,7 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
   for (const e of events) {
     if (e.event === 'pause' && typeof e.id === 'string' && typeof e.node === 'string') {
       state.pauses += 1;
+      state.running = undefined;
       state.paused = {
         id: e.id,
         node: e.node,
@@ -72,9 +79,14 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
         timeout: Number(e.timeout ?? STEP_TIMEOUT_S),
       };
     } else if (e.event === 'resume') {
-      if (state.paused?.id === e.id) state.paused = undefined;
+      const was = state.paused;
+      if (was && was.id === e.id) {
+        state.running = { node: was.node, play: was.play };
+        state.paused = undefined;
+      }
     } else if (e.event === 'stopped' && typeof e.node === 'string') {
       state.paused = undefined;
+      state.running = undefined;
       state.stopped = {
         node: e.node,
         hosts: Array.isArray(e.hosts) ? e.hosts.map(String) : [],
@@ -82,6 +94,7 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
       };
     } else if (e.event === 'stats') {
       state.paused = undefined;
+      state.running = undefined;
     }
   }
   return state;
@@ -93,6 +106,11 @@ export interface RunStep extends StepState {
   every: boolean;
   /** The pause points the run was given (and has now). */
   points: Ulid[];
+  /**
+   * AFS-205: who may go on from a pause, in the host's words ("Dana Whitfield or an operator of
+   * this flow"), for a reader who may not: set by a host where others look at a run.
+   */
+  who?: string;
 }
 
 /** A step event line of events.jsonl (pause, resume, stopped), parsed; undefined for others. */
@@ -119,7 +137,12 @@ const hostsOf = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
 
 /** "in 59 min", "in 40 s": how long until a pause stops the run by itself. */
 export function stopsIn(pause: Pick<StepPause, 'since' | 'timeout'>, nowMs: number): string {
-  const left = Math.max(0, Math.round(pause.since + pause.timeout - nowMs / 1000));
+  // AFS-205: never more than the timeout ("61 s" of a 60 s one): the run's clock (a container's)
+  // may be a little ahead of the page's.
+  const left = Math.min(
+    pause.timeout,
+    Math.max(0, Math.round(pause.since + pause.timeout - nowMs / 1000)),
+  );
   return left >= 120 ? `${Math.round(left / 60)} min` : `${left} s`;
 }
 
@@ -140,4 +163,27 @@ export function stoppedLine(
     return `Stopped before ${title}: nobody answered for ${span}`;
   }
   return `Stopped before ${title}`;
+}
+
+/**
+ * AFS-205: a step by its path from the top level: "Pre-checks › Read device status" for a step
+ * inside a subflow, so a pause there names where it is; the id when the flow does not have it.
+ */
+export function stepPath(model: FlowModel, id: Ulid): string {
+  const entry = model.nodes.get(id);
+  if (!entry) return id;
+  const titles = [entry.node.title || entry.node.key || id];
+  for (let level = entry.level; level && level !== ROOT; ) {
+    const around = model.nodes.get(level);
+    if (!around) break;
+    titles.unshift(around.node.title || around.node.key || level);
+    level = around.level;
+  }
+  return titles.join(' › ');
+}
+
+/** AFS-205: the line of a step-by-step run whose step runs now: "Running Pre-checks…". */
+export function runningLine(title: string | undefined, every: boolean): string {
+  if (title) return `Running ${title}…`;
+  return every ? 'Running a step…' : 'Running on to the next pause point…';
 }
