@@ -257,3 +257,77 @@ runs on 2.19, 2.20 and 2.21. Deviations and details:
 - **Not tested yet:** the SSH relay against a real host (the commands are unit tested), handlers
   notified by a failed attempt, `add_host` routes, `include_tasks` steps, approval segments with a
   failure pause, Retry in a rolling subflow (refused by the play's name and `serial`).
+
+## As built (front end, 2026-11-23)
+
+The VS Code adapter (§8) and the canvas parts of §6 and §7 (AFD-369, AFD-371, AFD-372).
+
+- **The adapter** is `src/node/debug/adapter.ts` (no vscode import; the unit tests drive it with a
+  fake StepDriver), wrapped by `src/extension/debug/flowDebugger.ts` as an inline adapter for the
+  debug type `ansible-flow` (`flow`, `mode`, `stopOnEntry`, `inputs`). Run ▾ › Debug opens the
+  launch dialog (`plan.steps.debug`); its answers (inputs, vault password) are kept in memory by a
+  one-time `launch` id, never in the debug configuration. A debug run is `RunOptions.debug` in the
+  runner: `every` is `stopOnEntry`, the points and filters come from the session.
+- **Threads:** before the first pause one thread named after the flow; then a thread per host of
+  the pause (failed, then matched, then the others), `<host> · failed|unreachable|matched|waiting`.
+  Thread ids stay with their host for the session. Stopped reasons: `exception` (failure),
+  `breakpoint` (point or condition), `entry` (the first pause with stopOnEntry), `step`. A pause seen
+  to end without a new one sends `continued` (the canvas or a key answered it).
+- **Frames:** the step, each subflow around it (`stepPath` names), then `<flow name> (flow)` on line
+  1 (subtle). Lines are the nodes' `key:` lines (`keyLines`, from the YAML ranges): flows written
+  with `- id:` first have `key:` on the next line, so "the `- key:` line" is the `key:` line. A
+  custom request `afd/frame {frameId}` answers `{node}`; the extension reveals it on the canvas on
+  `onDidChangeActiveStackItem`. VS Code opens the frame's file with the default editor, which is
+  the designer.
+- **Variables:** a scope's items come from `vars` with `path: []`; containers get `indexedVariables`
+  (lists) or `namedVariables` (dicts); without a count from VS Code the adapter reads pages of 1000
+  up to 5000 items. Handles are dropped at each new pause. Masked values read `masked: <why>`.
+- **Evaluate:** `{{ }}` around the expression is taken off. In the console (`repl`) an error or a
+  refusal is a successful answer whose text is `Refused: …` / `Error: …`; in Watch it is a failed
+  answer (VS Code shows it inline). A dict or list result can be expanded (from the value the
+  answer carried). `supportsEvaluateForHovers` is off: hovering YAML would evaluate noise.
+- **Breakpoints:** function breakpoints are named `<flow key>:<step key path>`; a bare key path
+  works for the flow being debugged; another flow's are `verified:false`. Hit conditions accept
+  `N`, `=N`, `==N`, `>=N` (all mean "on the Nth arrival"); anything else is unverified with words.
+  Source breakpoints must be on a pausable step's `key:` line. A function breakpoint and a source
+  breakpoint on the same step merge (settings from the one that has them). The canvas's points are
+  mirrored into function breakpoints when they change and before a debug session starts (the
+  points of both kept), and a person's change in the Breakpoints view is written back to the
+  workspace state of an open flow. A disabled breakpoint is not a point.
+- **Step Into / Step Out** are refused with words. **Retry** is the custom request `retry`, the
+  command `afd.debug.retry` (`sendStep('retry')`, so the canvas and the debugger share it) and the
+  exception text says where to find it.
+- **Workspace state:** `afd.pausePoints.<flowId>` now holds `PointSpec[]` (bare ids as in 1.1, or
+  points with settings); `afd.failureFilters.<flowId>` holds `{failed, unreachable}` (failed on by
+  default). Step-by-step runs get the specs too (settings are ignored outside debug runs).
+- **Tested:** the adapter (`test/unit/core/debugAdapter.test.ts`), the canvas
+  (`test/unit/webview/debugRun.test.tsx`), and `test/integration/debugRun.test.ts` (`just
+  test-debug`): a flow where h02 fails, debugged in a container (afd-ee:2.19), WSL (Ubuntu,
+  ansible-core 2.21) and over SSH (`gns3`, in afd-ee:2.21): threads, frames, scopes, evaluate and
+  its refusal, Retry (attempt 2), Continue to the end.
+
+### Designer ↔ host messages for the server's pages
+
+The canvas sends and takes these, so a server wires the same UI (all additions are optional):
+
+- `config.debugRuns: true` (with `stepRuns`): Run ▾ › Debug…, **Edit Pause Point…** in a step's
+  menu, the failure filters, Retry at a failure pause. Without it nothing of this shows.
+- Host → designer `pausePoints`: `{points: Ulid[], settings?: PausePoint[], failures?:
+  FailureFilters}`. `settings` lists the points with a condition, a hit count or a log message
+  (`{node, condition?, hits?, log?}`); `failures` is `{failed?, unreachable?}` (the popover's
+  checkboxes; failed counts as on unless false).
+- Designer → host `setPausePoint {node, point: PausePoint | null}`: Save in the popover (a point
+  without settings is `{node}`, meaning always), `null` removes the point. The condition comes
+  without `{{ }}`. Answer with a new `pausePoints`.
+- Designer → host `setFailureFilters {failures: {failed, unreachable}}`: answer with a new
+  `pausePoints` carrying `failures`.
+- Designer → host `stepRun {command: 'retry'}`: Retry at a failure pause (`StepDriver.send('retry')`
+  returns the refusal words, which the host shows; the run's `refused` event also reaches the Run
+  panel). Offered only when `run.step.paused.kind === 'failure'` and not `retryRefused`.
+- Designer → host `run {mode, step: true, debug: true}`: Run ▾ › Debug…; answer with a `launch`
+  plan whose `steps: {on, debug: true}`; its Run says **Debug** and `launchRun` carries
+  `debug: true` (and `step: true`; `on` is "pause before the first step").
+- The failure bar, the reason line and the Run panel's **Log points** read `RunView.step`
+  (`paused.kind`, `failed`, `attempt`, `retryRefused`, `logs`, `refused`) as `stepState` gives it.
+  For a reader who may not drive the run (`stepRuns` false), the bar shows the reason line only.
+- `VIEWER_MESSAGES` allows `setPausePoint` and `setFailureFilters`; the host checks who may.

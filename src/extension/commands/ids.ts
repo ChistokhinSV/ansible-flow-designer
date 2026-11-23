@@ -37,6 +37,14 @@ export const CMD = {
   stepPause: 'afd.run.pause',
   /** AFD-346: a pause point on a step, set or taken away (the designer's node menu). */
   togglePausePoint: 'afd.run.togglePausePoint',
+  /** AFD-371: a pause point's settings (Edit Pause Point… on the canvas). */
+  setPausePoint: 'afd.run.setPausePoint',
+  /** AFD-372: which failures pause a flow's debug runs (Edit Pause Point… on the canvas). */
+  setFailureFilters: 'afd.run.setFailureFilters',
+  /** ADR-0040 (AFD-369): Debug Flow: the launch dialog for a debug run, then VS Code's debugger. */
+  runDebug: 'afd.run.debug',
+  /** AFD-372: Retry at a failure pause of a debug run (the step runs again on the failed hosts). */
+  debugRetry: 'afd.debug.retry',
   runScenarios: 'afd.run.scenarios',
   copyScenarioRunner: 'afd.run.copyScenarioRunner',
   setupFlowMerging: 'afd.flow.setupMerging',

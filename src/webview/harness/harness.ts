@@ -47,6 +47,7 @@ import type { CodeFacts, InventoryFacts, LensId } from '../../core/lens/types';
 import type { CatalogRequest, HostMessage, Snapshot, WebviewMessage } from '../../core/protocol';
 import { type RecordedInput, type RunSummary, summarizeRun } from '../../core/run/events';
 import { type LaunchFacts, launchFields } from '../../core/run/launch';
+import type { PausePoint } from '../../core/run/step';
 import { planScenarioEdit, type ScenarioRequest } from '../../core/scenario/edit';
 import { followPaths, pathChanges } from '../../core/scenario/follow';
 import { checkLive, simulatedEnds } from '../../core/scenario/live';
@@ -339,6 +340,10 @@ async function onMessage(m: WebviewMessage) {
         ...(params.has('viewer') ? { viewer: true } : {}),
         // AFD-346: `?run=step` (paused) and `?run=stepped` (stopped) as VS Code runs them.
         ...(params.get('run')?.startsWith('step') || params.has('steps') ? { stepRuns: true } : {}),
+        // ADR-0040: `?run=failure` a debug run paused where a host failed; `?debug=1` debug runs.
+        ...(params.get('run') === 'failure' || params.has('debug')
+          ? { stepRuns: true, debugRuns: true }
+          : {}),
       });
       // AFD-73: hidden, so other screenshots stay as they were; its own shot shows it.
       toWebview({ type: 'firstFlow', hidden: true, done: [] });
@@ -358,10 +363,14 @@ async function onMessage(m: WebviewMessage) {
       sendCheck();
       // AFD-341: `?run=past` shows a finished run with the values each step's inputs had.
       // AFD-346: a step-by-step run paused before a step, or stopped there, with a pause point.
-      if (params.get('run') === 'step' || params.get('run') === 'stepped') {
+      if (['step', 'stepped', 'failure'].includes(params.get('run') ?? '')) {
         const doc = parseFlow(text).doc;
         if (doc) {
-          const run = stepRunView(doc, params.get('run') === 'stepped');
+          const run = stepRunView(
+            doc,
+            params.get('run') === 'stepped',
+            params.get('run') === 'failure',
+          );
           pausePoints = run.points;
           toWebview({ type: 'pausePoints', points: pausePoints });
           toWebview({ type: 'run', run: run.view });
@@ -462,7 +471,9 @@ async function onMessage(m: WebviewMessage) {
           environment: 'harness (fake)',
           inventory: 'inventory/lab.ini',
           // AFD-346: VS Code offers step by step; Run Step by Step ticks it.
-          ...(params.has('steps') ? { steps: { on: m.step === true } } : {}),
+          ...(params.has('steps') || params.has('debug')
+            ? { steps: { on: m.step === true, ...(m.debug ? { debug: true } : {}) } }
+            : {}),
         },
       });
       break;
@@ -470,6 +481,24 @@ async function onMessage(m: WebviewMessage) {
     // AFD-346: the buttons and the node menu, on the fake run.
     case 'stepRun':
       console.log('harness: step-by-step command', m.command);
+      break;
+    case 'setPausePoint':
+      pointSettings = pointSettings.filter((p) => p.node !== m.node);
+      if (m.point === null) pausePoints = pausePoints.filter((n) => n !== m.node);
+      else {
+        if (!pausePoints.includes(m.node)) pausePoints = [...pausePoints, m.node];
+        if (typeof m.point !== 'string' && (m.point.condition || m.point.hits || m.point.log))
+          pointSettings.push(m.point);
+      }
+      toWebview({ type: 'pausePoints', points: pausePoints, settings: pointSettings });
+      break;
+    case 'setFailureFilters':
+      toWebview({
+        type: 'pausePoints',
+        points: pausePoints,
+        settings: pointSettings,
+        failures: m.failures,
+      });
       break;
     case 'togglePausePoint':
       pausePoints = pausePoints.includes(m.node)
@@ -733,12 +762,13 @@ function harnessFacts(hosts: string[]): LaunchFacts {
  */
 /** AFD-346: the pause points of the fake host. */
 let pausePoints: string[] = [];
+let pointSettings: PausePoint[] = [];
 
 /**
  * AFD-346: a step-by-step run of the flow: the first steps done on three hosts, paused before the
  * next one (or stopped there), and a pause point further on.
  */
-function stepRunView(doc: FlowDocument, stopped: boolean) {
+function stepRunView(doc: FlowDocument, stopped: boolean, failure = false) {
   const { routes } = engineFor(doc).generate(doc, { source: 'harness.flow.yaml' });
   const hosts = ['edge-ams-01', 'edge-ams-02', 'edge-ams-03'];
   const happy = Object.values(routes).filter((r) => /^(ok_hosts|true)$/.test(r.port));
@@ -809,6 +839,21 @@ function stepRunView(doc: FlowDocument, stopped: boolean) {
             hosts,
             since: Date.now() / 1000 - 30,
             timeout: 3600,
+            // ADR-0040 §7: edge-ams-02 failed the step (fictional).
+            ...(failure
+              ? {
+                  kind: 'failure' as const,
+                  debug: true,
+                  attempt: 1,
+                  failed: [
+                    {
+                      host: 'edge-ams-02',
+                      task: 'Push config',
+                      msg: 'interface Gi0/3 rejected the change',
+                    },
+                  ],
+                }
+              : {}),
           },
         },
       };

@@ -63,6 +63,9 @@ waits at one. Pause points are kept for this workspace, not in the flow file, so
 show up in a commit. **Remove Pause Point** takes one away; a change applies to the run going from
 its next step on.
 
+To also see each host's variables, pause where a condition holds or where a host fails, and run a
+failed step again, debug the flow instead: [Debug a flow](debug-a-flow.md).
+
 ## When nobody answers
 
 A paused run waits for an hour, then stops by itself, also when VS Code was closed in the

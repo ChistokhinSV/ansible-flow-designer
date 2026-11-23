@@ -196,6 +196,9 @@ export function runCanvasAction(
     case 'togglePausePoint':
       togglePausePoint(action.node);
       return;
+    case 'editPausePoint':
+      ui.setPointEdit(action.node);
+      return;
     case 'removeEntry':
       void run({ kind: 'setBoundaryIn', subflow: action.subflow, node: null });
       return;
@@ -251,6 +254,7 @@ export function CanvasContextMenu() {
   // AFD-346: pause points, where the host runs flows step by step.
   const stepRuns = useUi((s) => s.stepRuns);
   const pausePoints = useUi((s) => s.pausePoints);
+  const debugRuns = useUi((s) => s.debugRuns);
   if (!menu || !snapshot?.doc || (viewer && !stepRuns)) return null;
   const model = modelOf(snapshot.doc);
   const scenario = editing && check ? scenarioMenu(snapshot.doc, check, editing) : undefined;
@@ -263,6 +267,7 @@ export function CanvasContextMenu() {
     hasPlay: (id) => !!snapshot.plays?.[id],
     ...(scenario ? { scenario } : {}),
     ...(stepRuns ? { pausePoints } : {}),
+    ...(stepRuns && debugRuns ? { pointSettings: true } : {}),
     ...(viewer ? { viewer: true } : {}),
   });
   if (entries.length === 0) return null;

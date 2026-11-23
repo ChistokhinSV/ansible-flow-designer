@@ -63,6 +63,7 @@ playbooks are generated from it.
 **Running**
 - [Runs and environments](how-to/runs-and-environments.md)
 - [Run step by step](how-to/step-by-step.md)
+- [Debug a flow](how-to/debug-a-flow.md)
 - [Scenario tests](how-to/scenario-tests.md)
 - [Approvals](how-to/approvals.md)
 - [AWX](how-to/awx.md)

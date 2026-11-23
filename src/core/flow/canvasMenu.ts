@@ -108,6 +108,8 @@ export type CanvasAction =
   | { do: 'runPartial'; node: Ulid; only: boolean }
   /** AFD-346: a step-by-step run pauses before this step, also after Continue. */
   | { do: 'togglePausePoint'; node: Ulid }
+  /** AFD-371: the pause point's settings (always, when a condition holds, after N, log only). */
+  | { do: 'editPausePoint'; node: Ulid }
   | { do: 'find' }
   | { do: 'removeEntry'; subflow: Ulid }
   | { do: 'removeExit'; subflow: Ulid; from: PortRef; port: string }
@@ -157,6 +159,8 @@ export interface CanvasMenuContext {
    * or takes away its own.
    */
   pausePoints?: readonly Ulid[];
+  /** ADR-0040 (AFD-371): the host runs debug runs: a step's menu edits its pause point's settings. */
+  pointSettings?: boolean;
   /**
    * AFS-205: a viewer (the server's pages): the menu offers only what does not change the flow,
    * its pause points.
@@ -313,6 +317,15 @@ function pauseItems(model: FlowModel, id: Ulid, ctx: CanvasMenuContext): CanvasM
       { do: 'togglePausePoint', node: id },
       { icon: 'debug-breakpoint' },
     ),
+    ...(ctx.pointSettings
+      ? [
+          item(
+            'Edit Pause Point…',
+            { do: 'editPausePoint', node: id },
+            { icon: 'debug-breakpoint-conditional' },
+          ),
+        ]
+      : []),
   ];
 }
 

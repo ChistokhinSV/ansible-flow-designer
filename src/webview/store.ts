@@ -18,6 +18,7 @@ import type {
 } from '../core/protocol';
 import type { LaunchFacts, LaunchPlan } from '../core/run/launch';
 import type { PastRun } from '../core/run/pastRuns';
+import type { FailureFilters, PausePoint } from '../core/run/step';
 import { type NodeRun, runStates } from '../core/run/view';
 import type { ScenarioCheck } from '../core/scenario/live';
 import type { Forced, ScenarioResult } from '../core/scenario/scenarios';
@@ -189,8 +190,18 @@ interface UiState {
   stepRuns: boolean;
   /** AFD-346: the flow's pause points (the host keeps them, not the flow file). */
   pausePoints: Ulid[];
+  /** ADR-0040: the host runs debug runs (Run ▾ › Debug, point settings, Retry). */
+  debugRuns: boolean;
+  /** ADR-0040 §6: the pause points with settings (a condition, a hit count, a log message). */
+  pointSettings: Record<Ulid, PausePoint>;
+  /** ADR-0040 §7: which failures pause this flow's debug runs. */
+  failureFilters: FailureFilters;
+  /** AFD-371: the step whose Edit Pause Point… popover is open. */
+  pointEdit: Ulid | null;
   setStepRuns(on: boolean): void;
-  setPausePoints(points: Ulid[]): void;
+  setDebugRuns(on: boolean): void;
+  setPausePoints(points: Ulid[], settings?: PausePoint[], failures?: FailureFilters): void;
+  setPointEdit(node: Ulid | null): void;
   /** AFD-314: what the page around a viewer shows and allows. */
   embed: Required<ViewerEmbed>;
   /** AFD-243 (`afd.canvas.expandSubflows`, on by default): subflows can be expanded in place. */
@@ -448,6 +459,10 @@ export const useUi = create<UiState>((set, get) => ({
   runner: false,
   stepRuns: false,
   pausePoints: [],
+  debugRuns: false,
+  pointSettings: {},
+  failureFilters: {},
+  pointEdit: null,
   embed: { runShown: false, mayRun: true, mayStop: true, words: 'designer', pastShown: false },
   expandSubflows: false,
   wireStyle: 'stepped',
@@ -579,7 +594,17 @@ export const useUi = create<UiState>((set, get) => ({
   setTestMode: (testMode) => set({ testMode }),
   setRunner: (runner) => set({ runner }),
   setStepRuns: (stepRuns) => set({ stepRuns }),
-  setPausePoints: (pausePoints) => set({ pausePoints }),
+  setDebugRuns: (debugRuns) => set({ debugRuns }),
+  setPausePoints: (pausePoints, settings, failures) =>
+    set((s) => ({
+      pausePoints,
+      // A host that sends no settings (1.1) has none: every point pauses always.
+      pointSettings: Object.fromEntries(
+        (settings ?? []).filter((p) => pausePoints.includes(p.node)).map((p) => [p.node, p]),
+      ),
+      failureFilters: failures ?? s.failureFilters,
+    })),
+  setPointEdit: (pointEdit) => set({ pointEdit }),
   setEmbed: (embed) =>
     set({
       embed: {

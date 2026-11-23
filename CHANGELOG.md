@@ -4,6 +4,12 @@ All notable changes to Ansible Flow Designer.
 
 ## Unreleased
 
+### Added
+
+- **Debug a flow:** **Run ▾ › Debug…** (or a launch configuration of type `ansible-flow`, or F5 on a flow) runs the flow in VS Code's debugger. At each pause Call Stack has a thread per host, host name first; Variables shows the step's inputs, the host's variables, the flow data and the facts of the host picked, with secrets masked and the reason said; the Debug Console and Watch evaluate Jinja for that host (lookups are refused). Picking a frame shows its step on the canvas. Needs ansible-core 2.19 or later; local, container, WSL and SSH runs.
+- **Pause where a host fails:** a debug run pauses where a host fails a step (the **Host failed** filter, on by default) or, if asked, where a host is unreachable. The canvas shows "1 host failed Apply config (attempt 1)" with each host's task and message, and **Retry**, **Continue** and **Stop**. Retry runs the step again on the failed hosts and says that changes on hosts are not undone; where it is not offered, the bar says why.
+- **Edit Pause Point…** in a step's menu: always pause, pause when a condition holds (all hosts wait when any host matches), only after the step is reached N times, or log only (a message per host, in the Debug Console and the Run panel). Such points have a dot of their own. Pause points are also VS Code breakpoints, named `<flow>:<step>`, both ways; a breakpoint on a step's `key:` line in the flow file works too.
+
 ### Changed
 
 - Quick Add lists a module or role by how well its name matches what is typed: a role typed in full (`push_baseline`) comes first, words match in any order (`baseline push`), and modules the catalog finds only by a part of a word come last.

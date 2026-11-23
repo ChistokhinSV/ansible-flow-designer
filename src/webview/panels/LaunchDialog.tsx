@@ -114,7 +114,8 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
       token: plan.token,
       inputs: r.inputs,
       ...(plan.vault ? { vaultPassword: vault } : {}),
-      ...(plan.steps && stepped ? { step: true } : {}),
+      ...(plan.steps && (stepped || plan.steps.debug) ? { step: true } : {}),
+      ...(plan.steps?.debug ? { debug: true } : {}),
     });
     setVault('');
     useUi.getState().setLaunch(null);
@@ -131,7 +132,15 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     send({ type: 'launchSave', token: plan.token, inputs: r.inputs });
   };
   const words = useUi((s) => s.embed.words);
-  const runLabel = real ? 'Run for Real' : checkButton(words);
+  // ADR-0040: Run ▾ › Debug: a debug run.
+  const debug = plan.steps?.debug === true;
+  const runLabel = debug
+    ? real
+      ? 'Debug for Real'
+      : 'Debug'
+    : real
+      ? 'Run for Real'
+      : checkButton(words);
   return (
     <div className="afd-modal-backdrop">
       <div
@@ -141,6 +150,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
         aria-modal="true"
         aria-labelledby={title}
         data-launch={plan.mode}
+        data-launch-debug={debug ? 'true' : undefined}
         onKeyDown={(e) => {
           trap(e);
           if (e.key === 'Escape') {
@@ -233,9 +243,12 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
                   data-launch-step
                   onChange={(e) => setStepped(e.target.checked)}
                 />{' '}
-                Step by step: pause before each step
+                {debug ? 'Pause before the first step' : 'Step by step: pause before each step'}
               </label>
               <span className="afd-help">
+                {debug
+                  ? 'The run pauses at pause points and where a host fails a step; each pause shows the variables of each host.'
+                  : null}{' '}
                 {/* AFS-205: the keys of this host (a web page has no F5). */}
                 {stepKeysLine()}: Step runs the next step, Continue runs on to a pause point, Stop
                 ends the run there.
@@ -253,7 +266,7 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
             </button>
             <button type="submit" disabled={!!plan.factsError} data-launch-run>
               {runLabel}
-              {plan.steps && stepped ? ' Step by Step' : ''}
+              {plan.steps && stepped && !debug ? ' Step by Step' : ''}
             </button>
           </div>
         </form>
