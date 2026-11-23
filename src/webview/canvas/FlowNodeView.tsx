@@ -33,6 +33,7 @@ import { sharedAround } from '../../core/flow/refs';
 import type { FlowNode, NodeStatus, NodeType, Ulid } from '../../core/flow/types';
 import { summaryRows } from '../../core/lens';
 import type { Snapshot } from '../../core/protocol';
+import { pointDot, pointWords } from '../../core/run/debug';
 import { stepTime } from '../../core/run/view';
 import { codeState } from '../../core/view/codeState';
 import { shownOn } from '../../core/view/find';
@@ -419,6 +420,17 @@ function RunLine({ node }: { node: FlowNode }) {
   const paused = usePausedHere(node.id);
   // AFS-205: a subflow on this level stopped inside reads stopped, not "not reached".
   const stoppedInside = useStoppedInside(node.id);
+  // ADR-0040 §7 (AFD-372): a failure pause: how many hosts failed the step it waits after.
+  const failedHere = useUi((s) => {
+    const p = s.run?.state === 'running' ? s.run.step?.paused : undefined;
+    return p?.kind === 'failure' && p.node === node.id ? (p.failed?.length ?? 0) : undefined;
+  });
+  if (failedHere !== undefined)
+    return (
+      <div className="afd-node-run tone-warn" data-run-state="failure-paused">
+        {failedHere} host{failedHere === 1 ? '' : 's'} failed · paused · {paused ?? 0} waiting
+      </div>
+    );
   // AFD-346: the step a step-by-step run waits before, with the hosts waiting there.
   if (paused !== undefined)
     return (
@@ -738,6 +750,16 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
   // AFD-346: where a step-by-step run waits (a ring and the waiting hosts), and pause points.
   const pausedHosts = usePausedHere(node.id);
   const pausePoint = useUi((s) => s.stepRuns && s.pausePoints.includes(node.id));
+  // AFD-371: a point with a condition or a count, or log only, has a dot of its own.
+  const dot = useUi((s) => pointDot(s.pointSettings[node.id]));
+  const dotWords = useUi((s) => pointWords(s.pointSettings[node.id]));
+  const failurePaused = useUi(
+    (s) =>
+      s.mode === 'run' &&
+      s.run?.state === 'running' &&
+      s.run.step?.paused?.kind === 'failure' &&
+      s.run.step.paused.node === node.id,
+  );
   // AFS-205: in Run mode a step offers its pause point on hover, where the host runs step by step.
   const pauseHere = useUi(
     (s) => s.stepRuns && s.mode === 'run' && !!s.snapshot?.doc && pausableNode(node),
@@ -775,6 +797,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     runMode ? 'run-mode' : '',
     runState ? `run-${runState}` : '',
     pausedHosts !== undefined ? 'step-paused' : '',
+    failurePaused ? 'step-failure-paused' : '',
     pausePoint ? 'has-pause-point' : '',
     'afd-node',
     `type-${node.type}`,
@@ -861,14 +884,16 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
         // AFS-205: the dot sets or takes away the pause point; shown faint on hover where none is.
         <button
           type="button"
-          className={`afd-pause-point nodrag nopan${pausePoint ? '' : ' off'}`}
+          className={`afd-pause-point nodrag nopan${pausePoint ? (dot === 'on' ? '' : ` ${dot}`) : ' off'}`}
           aria-label={pausePoint ? 'Remove pause point' : 'Pause here'}
           aria-pressed={pausePoint}
           tabIndex={-1}
-          data-pause-dot={pausePoint ? 'on' : 'off'}
+          data-pause-dot={pausePoint ? dot : 'off'}
           title={
             pausePoint
-              ? 'Pause point: a step-by-step run pauses here, also after Continue. Click to remove it.'
+              ? dot === 'on'
+                ? 'Pause point: a step-by-step run pauses here, also after Continue. Click to remove it.'
+                : `${dotWords} Click to remove it; Edit Pause Point… in the step's menu changes it.`
               : 'Pause here: a step-by-step run pauses before this step, also after Continue'
           }
           onClick={(e) => {

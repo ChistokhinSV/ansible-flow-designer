@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { type FlowCommand, planCommand } from '../../../src/core/flow/commands';
 import { createIdFactory } from '../../../src/core/flow/ids';
-import { mergeFlows } from '../../../src/core/flow/merge';
+import { fieldWords, mergeFlows } from '../../../src/core/flow/merge';
 import { writeMergedFlow } from '../../../src/core/flow/mergeText';
 import { buildModel } from '../../../src/core/flow/model';
 import type { FlowDocument } from '../../../src/core/flow/types';
@@ -78,7 +78,7 @@ describe('mergeFlows (AFD-283)', () => {
         kind: 'value',
         node: v,
         field: 'title',
-        label: 'Validate it: title',
+        label: 'Validate it: Title',
         base: 'Validate',
         ours: 'Validate it',
         theirs: 'Check it',
@@ -89,6 +89,18 @@ describe('mergeFlows (AFD-283)', () => {
     expect(entry(chosen.doc, 'validate')?.node.title).toBe('Check it');
     // The conflict is still listed, with what was chosen applied.
     expect(chosen.conflicts.map((c) => c.id)).toEqual([`node:${v}:title`]);
+  });
+
+  it("AFS-232: a conflict names the field as the panel does, not by the file's word", () => {
+    const v = id(BASE, 'validate');
+    const ours = run(BASE, { kind: 'updateNode', id: v, patch: { intent: 'Check twice' } });
+    const theirs = run(BASE, { kind: 'updateNode', id: v, patch: { intent: 'Check once' } });
+    const [c] = mergeFlows(doc(BASE), doc(ours), doc(theirs)).conflicts;
+    expect(c?.label).toBe('Validate: What it does');
+    expect(c?.field).toBe('intent');
+    expect(fieldWords('impl.params.msg')).toBe('Binding (params.msg)');
+    expect(fieldWords('approval.approvers')).toBe('Approvers');
+    expect(fieldWords('somethingnew')).toBe('somethingnew');
   });
 
   it('a step removed on one side and changed on the other is a conflict', () => {

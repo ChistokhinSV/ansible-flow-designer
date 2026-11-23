@@ -304,6 +304,63 @@
   background: var(--vscode-debugIcon-breakpointForeground, var(--afd-failed));
 }
 
+/* AFD-371: a point with a condition or a hit count (a dot with a bar, as an editor's conditional
+   breakpoint) and a log point (a diamond, as an editor's log point). */
+.afd-pause-point.condition::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 3px;
+  height: 2px;
+  background: var(--afd-bg);
+}
+
+.afd-pause-point.log {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+/* AFD-372: the step a debug run paused after because hosts failed it. */
+.afd-node.step-failure-paused {
+  outline-color: var(--afd-failed);
+}
+
+.afd-failure-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--afd-failed);
+  background: color-mix(in srgb, var(--afd-failed) 12%, var(--afd-bg));
+}
+
+.afd-failure-bar .afd-failure-reason {
+  font-weight: 600;
+}
+
+.afd-failure-bar .afd-failure-note {
+  flex-basis: 100%;
+  font-size: var(--afd-fs-12);
+}
+
+.afd-point-dialog .afd-point-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.afd-point-dialog input[type="text"],
+.afd-point-dialog input:not([type]) {
+  width: 100%;
+}
+
+.afd-point-dialog input[type="number"] {
+  width: 5em;
+}
+
 .afd-step-buttons {
   margin: 0;
   padding: 0;

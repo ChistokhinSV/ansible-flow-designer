@@ -163,10 +163,13 @@ export default defineConfig([
       'out/test/integration/inventoryView.test.js',
       'out/test/integration/merge.test.js',
       'out/test/integration/stepRun.test.js',
+      'out/test/integration/debugRun.test.js',
     ],
   },
   // AFD-346: the Hello sample run step by step (skipped without a run environment).
   { ...common, label: 'step', files: 'out/test/integration/stepRun.test.js' },
+  // AFD-369: a flow debugged through VS Code's debugger (skipped without a run environment).
+  { ...common, label: 'debug', files: 'out/test/integration/debugRun.test.js' },
   // AFD-283: flows merge in git by their steps.
   { ...common, label: 'merge', files: 'out/test/integration/merge.test.js' },
   // AFD-172: the AI integration diagnostics report, kept in out/diagnostics/ per editor.

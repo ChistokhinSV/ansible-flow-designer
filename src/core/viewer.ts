@@ -21,6 +21,10 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   // runs flows step by step (config.stepRuns); the host checks who may drive the run.
   'stepRun',
   'togglePausePoint',
+  // ADR-0040: a pause point's settings and the failure filters, where the host runs debug runs
+  // (config.debugRuns).
+  'setPausePoint',
+  'setFailureFilters',
   'runOutput',
   'showRunOutput',
   // AFD-273: deciding an approval of the run shown, where the host lets this person decide.

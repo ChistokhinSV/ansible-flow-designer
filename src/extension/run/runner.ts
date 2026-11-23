@@ -25,6 +25,7 @@ import {
 } from '../../core/run/launch';
 import { revealAfterRun } from '../../core/run/redact';
 import { STEP_TIMEOUT_S } from '../../core/run/step';
+import type { DebugRunHooks } from '../../node/debug/adapter';
 import type { Execution } from '../../node/run/exec';
 import {
   launchFacts as factsOfLaunch,
@@ -40,7 +41,7 @@ import { showEnvironmentError } from '../env/setupEnvironment';
 import { CANCELLED } from '../errors';
 import { collectInputs } from './inputs';
 import { auditHeader, prepareRun } from './prepare';
-import { pausePoints, stepReported, stepStarted } from './stepRun';
+import { pointSpecs, stepReported, stepStarted } from './stepRun';
 import { runStarted } from './stop';
 import { showRunTerminal, watchRunTerminal } from './terminal';
 
@@ -67,6 +68,11 @@ export interface RunOptions {
   partial?: PartialRun;
   /** AFD-346: run step by step: pause before every step (Step, Continue, Pause, Stop). */
   step?: boolean;
+  /**
+   * ADR-0040 (AFD-369): a debug run, driven by VS Code's debugger: its pause points, failure
+   * filters and whether it pauses before the first step come from the debug session.
+   */
+  debug?: DebugRunHooks;
 }
 
 export interface RunDeps {
@@ -314,15 +320,25 @@ export async function runFlow(
       ...(config.get<boolean>('run.recordInputs', true) ? {} : { recordInputs: false }),
       ...(partial ? { partial, syncAlso: [relative(codeDir)] } : {}),
       // AFD-346: paused before every step; Continue runs on to the flow's pause points.
-      ...(options.step
+      ...(options.debug
         ? {
             step: {
-              every: true,
-              points: pausePoints(deps.state, doc.flow.id),
+              every: options.debug.every,
+              points: options.debug.points,
               timeoutS: config.get<number>('run.stepTimeout', STEP_TIMEOUT_S),
+              debug: true,
+              failures: options.debug.failures,
             },
           }
-        : {}),
+        : options.step
+          ? {
+              step: {
+                every: true,
+                points: pointSpecs(deps.state, doc.flow.id),
+                timeoutS: config.get<number>('run.stepTimeout', STEP_TIMEOUT_S),
+              },
+            }
+          : {}),
       audit: {
         ...(await auditHeader(document, doc)),
         mode: options.mode,
@@ -333,12 +349,14 @@ export async function runFlow(
         targets: uses.map((u) => ({ target: u.declared, nodes: u.nodes, hosts: u.count })),
         prod,
         vault: vaultPassword !== undefined,
-        ...(options.step ? { stepByStep: true } : {}),
+        ...(options.step || options.debug ? { stepByStep: true } : {}),
+        ...(options.debug ? { debug: true } : {}),
       },
     },
     {
       report: (run) => {
         stepReported(document.uri, run);
+        options.debug?.report(run);
         deps.report(run);
       },
       execute: inTerminal,
@@ -349,7 +367,8 @@ export async function runFlow(
           if (step?.paused() && !(await step.send('stop'))) return;
           await stop();
         });
-        const stepping = step ? stepStarted(document.uri, step) : undefined;
+        const stepping = step ? stepStarted(document.uri, step, !!options.debug) : undefined;
+        if (step) options.debug?.started(step);
         return () => {
           registration.dispose();
           stepping?.dispose();

@@ -25,6 +25,7 @@ import { MergeNote } from './panels/MergeNote';
 import { NotAFlow } from './panels/NotAFlow';
 import { OutsideNote } from './panels/OutsideNote';
 import { Palette } from './panels/Palette';
+import { PausePointDialog } from './panels/PausePointDialog';
 import { PickBar } from './panels/PickBar';
 import { PortMenu } from './panels/PortMenu';
 import { PreviewCard } from './panels/PreviewCard';
@@ -33,6 +34,7 @@ import { RunPanel, WireRunPanel } from './panels/RunPanel';
 import { ScenariosPanel } from './panels/ScenariosPanel';
 import { SelectionPanel } from './panels/SelectionPanel';
 import { ServerNote } from './panels/ServerNote';
+import { FailureBar } from './panels/StepBar';
 import { TestedDialog } from './panels/TestedDialog';
 import { Toasts } from './panels/Toasts';
 import { TopBar } from './panels/TopBar';
@@ -86,11 +88,17 @@ function useHost() {
       } else if (m.type === 'repoState') {
         ui.setRepo(m.state);
       } else if (m.type === 'pausePoints') {
-        ui.setPausePoints(m.points);
+        ui.setPausePoints(m.points, m.settings, m.failures);
       } else if (m.type === 'config') {
         ui.setTestMode(m.testMode);
         ui.setRunner(m.runner === true);
         ui.setStepRuns(m.stepRuns === true);
+        ui.setDebugRuns(m.debugRuns === true);
+        useUi.setState({
+          impliedApprovers: Array.isArray(m.impliedApprovers)
+            ? m.impliedApprovers.map(String)
+            : null,
+        });
         ui.setExpandSubflows(m.expandSubflows === true);
         if (m.wireStyle) ui.setWireStyle(m.wireStyle);
         if (m.past) enterPast(m.past);
@@ -502,6 +510,7 @@ export function App() {
           <OutsideNote />
           <MergeNote />
           <ServerNote />
+          <FailureBar />
           <FlowCanvas />
           <Toasts />
         </main>
@@ -562,6 +571,7 @@ export function App() {
         <CanvasContextMenu />
         <CheatSheet />
         <LaunchDialog />
+        <PausePointDialog />
         <PreviewCard />
       </div>
     </ReactFlowProvider>

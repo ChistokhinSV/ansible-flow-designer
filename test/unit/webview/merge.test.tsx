@@ -37,7 +37,7 @@ beforeEach(() => {
           kind: 'value',
           node: hello,
           field: 'title',
-          label: 'Say hello: title',
+          label: 'Say hello: Title',
           base: 'Say hello',
           ours: 'Say hello to the team',
           theirs: 'Greet everyone',
@@ -47,7 +47,7 @@ beforeEach(() => {
           id: 'flow:goal',
           kind: 'value',
           field: 'goal',
-          label: 'The flow: goal',
+          label: 'The flow: Goal',
           ours: 'Greet',
           theirs: 'Say hi',
           chosen: 'theirs',
@@ -78,7 +78,7 @@ describe('the Merge note (AFD-283)', () => {
       side: 'theirs',
     });
     // The step's name shows it on the canvas.
-    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: 'Say hello: title' }));
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: 'Say hello: Title' }));
     expect(useUi.getState().highlight).toEqual([hello]);
 
     fireEvent.click(within(note).getByRole('button', { name: 'Finish merge' }));

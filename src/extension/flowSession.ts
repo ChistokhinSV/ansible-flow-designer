@@ -75,7 +75,7 @@ import { checkLaunch, dropLaunch, planLaunch } from './run/launch';
 import { listRuns, loadRun } from './run/pastRuns';
 import type { RunDeps } from './run/runner';
 import { announceFollow, followScenarios, scenariosUri } from './run/scenarioFollow';
-import { pausePoints } from './run/stepRun';
+import { failureFilters, pausePoints, pointSettings } from './run/stepRun';
 import { showRunTerminal } from './run/terminal';
 import { runnerConfigured } from './runner/runnerRun';
 import type { ServerLibrary } from './runner/serverLibrary';
@@ -778,7 +778,7 @@ export class FlowSession implements vscode.Disposable {
           runner: runnerConfigured(this.document.uri),
           wireStyle: wireStyleOf(this.document.uri),
           // AFD-346: VS Code runs flows step by step (a past version is not run).
-          ...(past ? {} : { stepRuns: true }),
+          ...(past ? {} : { stepRuns: true, debugRuns: true }),
           ...(past
             ? {
                 viewer: true,
@@ -970,7 +970,8 @@ export class FlowSession implements vscode.Disposable {
         break;
       // AFD-82: the designer's Run opens its launch dialog.
       case 'run':
-        if (m.step)
+        if (m.debug) await vscode.commands.executeCommand(CMD.runDebug, this.uri, { mode: m.mode });
+        else if (m.step)
           await vscode.commands.executeCommand(CMD.runStepByStep, this.uri, { mode: m.mode });
         else await vscode.commands.executeCommand(CMD.runLaunch, this.uri, m.mode);
         break;
@@ -983,12 +984,20 @@ export class FlowSession implements vscode.Disposable {
               ? CMD.stepContinue
               : m.command === 'pause'
                 ? CMD.stepPause
-                : CMD.stopRun,
+                : m.command === 'retry'
+                  ? CMD.debugRetry
+                  : CMD.stopRun,
           this.uri,
         );
         break;
       case 'togglePausePoint':
         await vscode.commands.executeCommand(CMD.togglePausePoint, this.uri, m.node);
+        break;
+      case 'setPausePoint':
+        await vscode.commands.executeCommand(CMD.setPausePoint, this.uri, m.node, m.point);
+        break;
+      case 'setFailureFilters':
+        await vscode.commands.executeCommand(CMD.setFailureFilters, this.uri, m.failures);
         break;
       case 'runPartial':
         await vscode.commands.executeCommand(CMD.runPartial, this.uri, {
@@ -1015,6 +1024,7 @@ export class FlowSession implements vscode.Disposable {
           m.inputs,
           m.vaultPassword,
           m.step === true,
+          m.debug === true,
         );
         break;
       case 'launchCancel':
@@ -1234,6 +1244,8 @@ export class FlowSession implements vscode.Disposable {
     prefill?: { targets?: string },
     /** AFD-346: Step by step chosen in the dialog (Run Step by Step). */
     step = false,
+    /** ADR-0040: a debug run (Debug Flow). */
+    debug = false,
   ): Promise<void> {
     const deps = this.deps.run?.(this.uri);
     const panel = [...this.panels].find((p) => p.active) ?? [...this.panels][0];
@@ -1241,25 +1253,38 @@ export class FlowSession implements vscode.Disposable {
     const r = await planLaunch(this.document, deps, mode, prefill);
     if (!r.ok) {
       if (r.environment)
-        showEnvironmentError(r.error, () => this.openLaunch(mode, undefined, prefill, step));
+        showEnvironmentError(r.error, () => this.openLaunch(mode, undefined, prefill, step, debug));
       else this.post(panel, { type: 'notify', level: 'error', text: r.error });
       return;
     }
-    const plan = { ...r.plan, steps: { on: step } };
+    const plan = { ...r.plan, steps: { on: step, ...(debug ? { debug: true } : {}) } };
     this.post(panel, { type: 'launch', plan, ...(notice ? { notice } : {}) });
   }
 
+  /** AFD-346: the flow's pause points (ADR-0040: with their settings and the failure filters). */
+  private async pointsMessage(): Promise<HostMessage | undefined> {
+    const state = this.deps.run?.(this.uri).state;
+    const flowId = (await this.snapshot()).doc?.flow.id;
+    if (!state || !flowId) return undefined;
+    const settings = pointSettings(state, flowId);
+    return {
+      type: 'pausePoints',
+      points: pausePoints(state, flowId),
+      ...(settings.length ? { settings } : {}),
+      failures: failureFilters(state, flowId),
+    };
+  }
+
   /** AFD-346: the flow's pause points, to every designer of it. */
-  showPausePoints(points: Ulid[]): void {
-    this.broadcast({ type: 'pausePoints', points });
+  async showPausePoints(): Promise<void> {
+    const m = await this.pointsMessage();
+    if (m) this.broadcast(m);
   }
 
   /** AFD-346: the pause points kept for this flow (workspace state). */
   private async sendPausePoints(panel: vscode.WebviewPanel): Promise<void> {
-    const state = this.deps.run?.(this.uri).state;
-    const flowId = (await this.snapshot()).doc?.flow.id;
-    if (!state || !flowId) return;
-    this.post(panel, { type: 'pausePoints', points: pausePoints(state, flowId) });
+    const m = await this.pointsMessage();
+    if (m) this.post(panel, m);
   }
 
   /**

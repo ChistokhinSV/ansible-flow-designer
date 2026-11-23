@@ -5,7 +5,15 @@ import { useEffect, useState } from 'react';
 import { modelOf } from '../../core/flow/model';
 import type { Ulid } from '../../core/flow/types';
 import type { RunView } from '../../core/protocol';
-import { pausedLine, runningLine, type StepCommand, stepPath } from '../../core/run/step';
+import { failedLines, reasonLine, retryWarning } from '../../core/run/debug';
+import {
+  pausedLine,
+  runningLine,
+  type StepCommand,
+  type StepPause,
+  stepPath,
+  stopsIn,
+} from '../../core/run/step';
 import { stepRun } from '../runActions';
 import { useUi } from '../store';
 import { inVsCode } from '../transport';
@@ -102,6 +110,9 @@ export function StepButtons({ compact, stop = true }: { compact?: boolean; stop?
     );
   };
   const going = paused ? undefined : 'The run is going: it pauses before its next step';
+  // ADR-0040 §7 (AFD-372): at a failure pause, Retry first; where it is not offered, its words.
+  const failure = run.step.paused?.kind === 'failure' ? run.step.paused : undefined;
+  const retry = failure ? <RetryButton pause={failure} compact={compact} /> : null;
   // AFS-205: Continue and Pause share one place (one button), so the focus stays on it when one
   // turns into the other; Step stays, waiting for the next pause.
   const goOrPause = paused
@@ -109,6 +120,7 @@ export function StepButtons({ compact, stop = true }: { compact?: boolean; stop?
     : button('pause', 'debug-pause', 'Pause', 'Pause before the next step');
   return (
     <fieldset className="afd-step-buttons" aria-label="Step-by-step run">
+      {retry}
       {button('step', 'debug-step-over', 'Step', 'Run this step, then pause', going)}
       {goOrPause}
       {stop
@@ -122,6 +134,114 @@ export function StepButtons({ compact, stop = true }: { compact?: boolean; stop?
           )
         : null}
     </fieldset>
+  );
+}
+
+/** AFD-371: what the log points wrote (and conditions that failed), the newest last. */
+function PointLogs({ logs }: { logs: NonNullable<RunView['step']>['logs'] }) {
+  const doc = useUi((s) => s.snapshot?.doc);
+  const shown = (logs ?? []).slice(-50);
+  const title = (id: Ulid) => (doc ? stepPath(modelOf(doc), id) : id);
+  return (
+    <details className="afd-point-logs" data-point-logs={logs?.length ?? 0}>
+      <summary>Log points ({logs?.length ?? 0})</summary>
+      <ul className="afd-run-hosts">
+        {shown.map((l, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: log lines repeat; their order is the key.
+          <li key={i} className={l.error ? 'tone-warn' : undefined}>
+            <span className="muted">{title(l.node)}</span>{' '}
+            {l.host ? <span className="mono">{l.host}: </span> : null}
+            {l.error
+              ? `${l.source === 'condition' ? 'condition' : 'message'} failed: ${l.error}`
+              : l.message}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** Retry at a failure pause: says that the step runs again; where refused, why (disabled). */
+function RetryButton({ pause, compact }: { pause: StepPause; compact?: boolean }) {
+  const title = useTitle(pause.node);
+  const refused = pause.retryRefused;
+  const words = refused ? `Retry is not offered here: ${refused}` : retryWarning(pause, title);
+  return (
+    <button
+      type="button"
+      className={`secondary afd-step-button${compact ? ' icon' : ''}`}
+      data-step-command="retry"
+      aria-disabled={refused ? true : undefined}
+      aria-label={compact ? 'Retry' : undefined}
+      title={words}
+      onClick={() => !refused && stepRun('retry')}
+    >
+      <span className="codicon codicon-debug-restart" aria-hidden="true" />
+      {compact ? null : ' Retry'}
+    </button>
+  );
+}
+
+/**
+ * The line of a paused run: a debug run's reason (the step, the hosts and why), or 1.1's line;
+ * with how long until it stops by itself.
+ */
+export function pauseLine(
+  pause: StepPause,
+  title: string,
+  now: number,
+  pointHere: boolean,
+): string {
+  if (!pause.kind) return `${pausedLine(pause, title, now)}${pointHere ? ' · a pause point' : ''}`;
+  return `${reasonLine(pause, title, pointHere)} · stops by itself in ${stopsIn(pause, now)}`;
+}
+
+/** What a failure pause says under its line: the hosts and why, then Retry's warning or refusal. */
+function FailureNote({ pause, title }: { pause: StepPause; title: string }) {
+  const lines = failedLines(pause);
+  return (
+    <>
+      <ul className="afd-run-hosts" data-failed-hosts={lines.length}>
+        {lines.slice(0, 5).map((l) => (
+          <li key={l} className="mono">
+            {l}
+          </li>
+        ))}
+        {lines.length > 5 ? <li className="muted">and {lines.length - 5} more</li> : null}
+      </ul>
+      <p
+        className="muted afd-failure-note"
+        data-retry-note={pause.retryRefused ? 'refused' : 'warn'}
+      >
+        {pause.retryRefused
+          ? `Retry is not offered here: ${pause.retryRefused}. Continue routes the failed hosts as the flow says; Stop ends the run.`
+          : `${retryWarning(pause, title)} Continue routes the failed hosts as the flow says; Stop ends the run.`}
+      </p>
+    </>
+  );
+}
+
+/**
+ * AFD-372: a failure pause over the canvas: the reason line, the failed hosts, Retry (with its
+ * warning), Continue and Stop where this host drives the run; the reason alone for a reader.
+ */
+export function FailureBar() {
+  const run = useUi((s) => s.run);
+  const stepRuns = useUi((s) => s.stepRuns);
+  const pause =
+    run?.state === 'running' && !run.past && run.step?.paused?.kind === 'failure'
+      ? run.step.paused
+      : undefined;
+  const title = useTitle(pause?.node);
+  const now = useNow(!!pause);
+  if (!pause) return null;
+  return (
+    <section className="afd-failure-bar" role="status" data-failure-bar={pause.id}>
+      <span className="codicon codicon-error" aria-hidden="true" />
+      <span className="afd-failure-reason">{pauseLine(pause, title, now, false)}</span>
+      {stepRuns ? <StepButtons compact={false} /> : null}
+      <FailureNote pause={pause} title={title} />
+    </section>
   );
 }
 
@@ -147,8 +267,7 @@ export function StepSection({ run }: { run: RunView }) {
           <>
             <p data-step-paused={step.paused.node}>
               <span className="codicon codicon-debug-pause" aria-hidden="true" />{' '}
-              {pausedLine(step.paused, pausedTitle, now)}
-              {pausePoint ? ' · a pause point' : ''}{' '}
+              {pauseLine(step.paused, pausedTitle, now, pausePoint)}{' '}
               <button
                 type="button"
                 className="link"
@@ -158,6 +277,14 @@ export function StepSection({ run }: { run: RunView }) {
               </button>
             </p>
             <p className="muted">Waiting there: {step.paused.hosts.join(', ') || 'no host'}</p>
+            {step.paused.kind === 'failure' ? (
+              <FailureNote pause={step.paused} title={pausedTitle} />
+            ) : null}
+            {step.refused && step.refused.pause === step.paused.id ? (
+              <p className="muted" data-step-refused>
+                {step.refused.why}
+              </p>
+            ) : null}
           </>
         ) : going ? (
           <p className="muted" data-step-going>
@@ -188,6 +315,7 @@ export function StepSection({ run }: { run: RunView }) {
         )}
       </div>
       {going && stepRuns ? <StepButtons /> : null}
+      {step.logs?.length ? <PointLogs logs={step.logs} /> : null}
       {/* AFS-205: a reader who may not go on is told who may. */}
       {going && !stepRuns && step.paused && step.who ? (
         <p className="muted" data-step-who>

@@ -11,6 +11,7 @@ import { registerFlowCommands } from './commands/flowCommands';
 import { CMD } from './commands/ids';
 import { registerImportCommands } from './commands/importCommands';
 import { registerRunCommands } from './commands/runCommands';
+import { registerDebugger } from './debug/flowDebugger';
 import { registerDocuments } from './documents';
 import { registerExport } from './export';
 import { Feedback, registerFeedback } from './feedback';
@@ -177,6 +178,7 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     ...registerOutline(host),
     ...registerFlowCommands(host),
     ...registerRunCommands(host),
+    ...registerDebugger(host),
     host.scenarioLive,
     host.scenarioTests,
     watchSharedSources(host),

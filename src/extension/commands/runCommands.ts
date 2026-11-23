@@ -3,10 +3,12 @@
 
 import * as vscode from 'vscode';
 import type { Notice, NoticeLevel, RunView } from '../../core/protocol';
+import type { FailureFilters, PointSpec } from '../../core/run/step';
 import { stepRefusal } from '../../core/run/step';
 import { runVerdict } from '../../core/run/view';
 import { hostsWord } from '../../core/run/words';
 import { clearToken, launchInAwx, setToken, setupTemplate } from '../awx/awxRun';
+import { debugFlow } from '../debug/flowDebugger';
 import { copyFileToHost, setUpEnvironment } from '../env/setupEnvironment';
 import { switchEnvironment } from '../env/switchEnvironment';
 import { isCancelled, showOutcomeError } from '../errors';
@@ -16,7 +18,7 @@ import { auditUri } from '../run/audit';
 import { takeLaunch } from '../run/launch';
 import { type RunOptions, runFlow } from '../run/runner';
 import { copyScenarioRunner, runScenariosCommand } from '../run/scenarios';
-import { sendStep, togglePausePoint } from '../run/stepRun';
+import { sendStep, setFailureFilters, setPausePoint, togglePausePoint } from '../run/stepRun';
 import { stopRun } from '../run/stop';
 import { syntaxCheck } from '../run/syntaxCheck';
 import { serverCommands, showServerState } from '../runner/connect';
@@ -115,6 +117,7 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
         inputs: Record<string, unknown>,
         vaultPassword?: string,
         step?: boolean,
+        debug?: boolean,
       ) => {
         const launch = takeLaunch(token, uri);
         if (!launch) {
@@ -123,6 +126,19 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
           );
           return undefined;
         }
+        // ADR-0040: a debug run goes through VS Code's debugger (threads, variables, the console).
+        if (debug === true)
+          return debugFlow(
+            uri,
+            {
+              mode: launch.mode,
+              inputs,
+              vaultPassword,
+              confirmed: launch.mode === 'check' || !!launch.facts,
+              expect: launch.facts,
+            },
+            step === true,
+          );
         return run(launch.mode, uri, {
           inputs,
           vaultPassword,
@@ -182,8 +198,73 @@ export function registerRunCommands(host: Host): vscode.Disposable[] {
         const flowId = (await session.snapshot()).doc?.flow.id;
         if (!flowId) return undefined;
         const points = await togglePausePoint(host.context.workspaceState, doc.uri, flowId, node);
-        session.showPausePoints(points);
+        await session.showPausePoints();
         return points;
+      },
+    ),
+    // ADR-0040 (AFD-369): Debug Flow: the launch dialog for a debug run where the designer is
+    // open; otherwise VS Code's debugger at once (inputs asked as Run asks them).
+    vscode.commands.registerCommand(
+      CMD.runDebug,
+      async (
+        arg?: vscode.Uri | { mode?: RunOptions['mode'] },
+        given?: { mode?: RunOptions['mode'] },
+      ) => {
+        const uri = arg instanceof vscode.Uri ? arg : undefined;
+        const mode = (arg instanceof vscode.Uri ? given?.mode : arg?.mode) ?? 'check';
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc) return undefined;
+        const session = host.sessions.get(doc.uri.toString());
+        if (!session?.hasPanels) return debugFlow(doc.uri, { mode });
+        await session.openLaunch(mode, undefined, undefined, false, true);
+        return undefined;
+      },
+    ),
+    // AFD-372: Retry at a failure pause (the step bar's button, the exception's words).
+    vscode.commands.registerCommand(CMD.debugRetry, async (uri?: vscode.Uri) => {
+      const outcome = await sendStep('retry', host.targetUri(uri));
+      if (outcome === 'none')
+        void vscode.window.showInformationMessage(
+          'No debug run waits at a failure: Retry is offered where a host failed a step.',
+        );
+      else if (outcome !== 'sent') void vscode.window.showWarningMessage(outcome.error);
+      return outcome;
+    }),
+    vscode.commands.registerCommand(
+      CMD.setPausePoint,
+      async (uri?: vscode.Uri, node?: string, point?: PointSpec | null) => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc || typeof node !== 'string' || point === undefined) return undefined;
+        const session = host.sessionFor(doc);
+        const flowId = (await session.snapshot()).doc?.flow.id;
+        if (!flowId) return undefined;
+        const points = await setPausePoint(
+          host.context.workspaceState,
+          doc.uri,
+          flowId,
+          node,
+          point,
+        );
+        await session.showPausePoints();
+        return points;
+      },
+    ),
+    vscode.commands.registerCommand(
+      CMD.setFailureFilters,
+      async (uri?: vscode.Uri, failures?: FailureFilters) => {
+        const doc = await host.resolveTargetFlow(uri);
+        if (!doc || !failures || typeof failures !== 'object') return undefined;
+        const session = host.sessionFor(doc);
+        const flowId = (await session.snapshot()).doc?.flow.id;
+        if (!flowId) return undefined;
+        const next = await setFailureFilters(
+          host.context.workspaceState,
+          doc.uri,
+          flowId,
+          failures,
+        );
+        await session.showPausePoints();
+        return next;
       },
     ),
     vscode.commands.registerCommand(CMD.stopRun, async (uri?: vscode.Uri) => {

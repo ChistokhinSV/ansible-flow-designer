@@ -12,7 +12,7 @@ import type { LensFacts, LensId } from './lens/types';
 import type { OutputEntry, RunSummary } from './run/events';
 import type { LaunchFacts, LaunchPlan } from './run/launch';
 import type { PastRun } from './run/pastRuns';
-import type { RunStep, StepCommand } from './run/step';
+import type { FailureFilters, PausePoint, RunStep, StepCommand } from './run/step';
 import type { ScenarioRequest } from './scenario/edit';
 import type { ScenarioCheck } from './scenario/live';
 import type { ScenarioResult } from './scenario/scenarios';
@@ -340,9 +340,24 @@ export type HostMessage =
        * Pause and pause points show. A server's pages do not set it yet (AFS-177).
        */
       stepRuns?: boolean;
+      /**
+       * ADR-0040 (AFD-369, AFD-371, AFD-372): the host runs debug runs: Run ▾ › Debug, a pause
+       * point's settings (Edit Pause Point…), the failure filters, and Retry at a failure pause.
+       */
+      debugRuns?: boolean;
+      /**
+       * AFS-224: who an approval with no Approvers asks (people and groups who may approve this
+       * flow by default), from a host that knows them (Ansible Flow Server); [] means only an
+       * administrator. Absent: not known (VS Code), and the Approvers field says nothing more.
+       */
+      impliedApprovers?: string[];
     }
-  /** AFD-346: the flow's pause points (kept by the host, not in the flow file). */
-  | { type: 'pausePoints'; points: Ulid[] }
+  /**
+   * AFD-346: the flow's pause points (kept by the host, not in the flow file). ADR-0040: `settings`
+   * the points with a condition, a hit count or a log message; `failures` which failures pause a
+   * debug run (a host failed: on unless turned off).
+   */
+  | { type: 'pausePoints'; points: Ulid[]; settings?: PausePoint[]; failures?: FailureFilters }
   /** AFD-294: the wire style setting changed. */
   | { type: 'wireStyle'; style: 'stepped' | 'curved' }
   /** AFD-73: the user's first-flow progress (tour keys reached) and whether the checklist is hidden. */
@@ -415,12 +430,25 @@ export type WebviewMessage =
   | { type: 'tidyUp'; level?: string }
   /** AFD-294: the canvas's wire toggle: keep this style as the user's setting. */
   | { type: 'setWireStyle'; style: 'stepped' | 'curved' }
-  /** `step` (AFD-346): the launch dialog opens with Step by step chosen. */
-  | { type: 'run'; mode: 'check' | 'real'; step?: boolean }
-  /** AFD-346: Step, Continue, Pause or Stop for the step-by-step run going. */
+  /**
+   * `step` (AFD-346): the launch dialog opens with Step by step chosen. `debug` (ADR-0040): Run ▾ ›
+   * Debug, a debug run (where the host offers it, config.debugRuns).
+   */
+  | { type: 'run'; mode: 'check' | 'real'; step?: boolean; debug?: boolean }
+  /**
+   * AFD-346: Step, Continue, Pause or Stop for the step-by-step run going. ADR-0040: Retry at a
+   * failure pause of a debug run (the host answers a refusal with its words).
+   */
   | { type: 'stepRun'; command: StepCommand }
   /** AFD-346: a pause point on a step, set or taken away. */
   | { type: 'togglePausePoint'; node: Ulid }
+  /**
+   * ADR-0040 §6 (AFD-371): a pause point's settings from Edit Pause Point… (a bare id or no
+   * settings: always pause); null takes the point away.
+   */
+  | { type: 'setPausePoint'; node: Ulid; point: PausePoint | null }
+  /** ADR-0040 §7 (AFD-372): which failures pause this flow's debug runs. */
+  | { type: 'setFailureFilters'; failures: FailureFilters }
   /** AFD-244: a skeleton run from a top-level step on, or of that step alone. */
   | { type: 'runPartial'; node: Ulid; only: boolean }
   /** AFD-245: show a kept run again (an id from `runs`). */
@@ -440,6 +468,8 @@ export type WebviewMessage =
       vaultPassword?: string;
       /** AFD-346: run step by step (offered when the plan has `steps`). */
       step?: boolean;
+      /** ADR-0040: a debug run (the plan's `steps.debug`). */
+      debug?: boolean;
     }
   | { type: 'launchCancel'; token: string }
   /**

@@ -90,7 +90,7 @@ describe('AFD-283: flows merge in git by their steps', () => {
     const view = await api.merge(flow);
     assert.equal(view?.conflicts.length, 1);
     const [c] = view?.conflicts ?? [];
-    assert.equal(c?.label, 'Validate it: title');
+    assert.equal(c?.label, 'Validate it: Title');
     assert.equal(c?.chosen, 'ours');
 
     await api.mergeChoose(flow, c?.id as string, 'theirs');

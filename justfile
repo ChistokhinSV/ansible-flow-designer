@@ -126,6 +126,11 @@ test-step $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests
     npx --no-install vscode-test --label step
 
+# AFD-369: a flow debugged through VS Code's debugger (needs AFD_TEST_IMAGE, AFD_TEST_WSL or AFD_TEST_SSH)
+test-debug $AFD_VSCODE_VERSION="stable": build-prod
+    node scripts/build.mjs --tests
+    npx --no-install vscode-test --label debug
+
 # Imports inside VS Code: AWX workflows (M9), playbooks and job templates (AFD-26); the skeleton run needs AFD_TEST_IMAGE, the API imports AFD_AWX_URL/TOKEN
 test-import $AFD_VSCODE_VERSION="stable": build-prod
     node scripts/build.mjs --tests

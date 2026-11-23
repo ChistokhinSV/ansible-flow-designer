@@ -64,7 +64,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:**/*.flow.yaml",
-    "onStartupFinished"
+    "onStartupFinished",
+    "onDebugResolve:ansible-flow"
   ],
   "contributes": {
     "customEditors": [
@@ -247,6 +248,28 @@
       {
         "command": "afd.run.togglePausePoint",
         "title": "Toggle Pause Point",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.run.debug",
+        "title": "Debug Flow…",
+        "category": "Ansible Flow",
+        "icon": "$(debug-alt-small)"
+      },
+      {
+        "command": "afd.debug.retry",
+        "title": "Retry Failed Step",
+        "category": "Ansible Flow",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "afd.run.setPausePoint",
+        "title": "Edit Pause Point",
+        "category": "Ansible Flow"
+      },
+      {
+        "command": "afd.run.setFailureFilters",
+        "title": "Set Failure Pauses",
         "category": "Ansible Flow"
       },
       {
@@ -905,6 +928,22 @@
         },
         {
           "command": "afd.run.togglePausePoint",
+          "when": "false"
+        },
+        {
+          "command": "afd.run.debug",
+          "when": "isWorkspaceTrusted && (activeCustomEditorId == afd.flowEditor || resourceFilename =~ /.flow.yaml$/) && !afd.running"
+        },
+        {
+          "command": "afd.debug.retry",
+          "when": "afd.stepPaused"
+        },
+        {
+          "command": "afd.run.setPausePoint",
+          "when": "false"
+        },
+        {
+          "command": "afd.run.setFailureFilters",
           "when": "false"
         },
         {
@@ -4446,6 +4485,74 @@
         "key": "f7",
         "mac": "f7",
         "when": "activeCustomEditorId == afd.flowEditor"
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "yaml"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "ansible-flow",
+        "label": "Ansible Flow",
+        "languages": [
+          "yaml"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "flow"
+            ],
+            "properties": {
+              "flow": {
+                "type": "string",
+                "description": "The .flow.yaml to debug.",
+                "default": "${file}"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "check",
+                  "real"
+                ],
+                "default": "check",
+                "description": "check: check mode (bound steps change nothing); real: a real run, after a confirmation naming the hosts."
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "default": false,
+                "description": "Pause before the first step; otherwise the run pauses at pause points and where a host fails."
+              },
+              "inputs": {
+                "type": "object",
+                "description": "Flow input values; the ones left out are asked for. Never put secrets here."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "ansible-flow",
+            "request": "launch",
+            "name": "Debug flow",
+            "flow": "${file}",
+            "mode": "check"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Ansible Flow: Debug a flow",
+            "description": "Debug a .flow.yaml in check mode",
+            "body": {
+              "type": "ansible-flow",
+              "request": "launch",
+              "name": "Debug flow",
+              "flow": "^\"${file}\"",
+              "mode": "check"
+            }
+          }
+        ]
       }
     ]
   },

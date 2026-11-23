@@ -37,7 +37,7 @@ describe('the merge driver (AFD-283)', () => {
 
     const both = mergeFlowTexts(BASE, ours, retitle(BASE, 'Validate', 'Check it'));
     if (both.kind !== 'merged') throw new Error('not merged');
-    expect(both.merge.conflicts.map((c) => c.label)).toEqual(['Validate it: title']);
+    expect(both.merge.conflicts.map((c) => c.label)).toEqual(['Validate it: Title']);
     expect(both.text).toContain('title: Validate it');
     expect(both.text).not.toContain('<<<<');
     const id = both.merge.conflicts[0]?.id as string;

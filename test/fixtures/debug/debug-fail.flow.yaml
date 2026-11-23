@@ -1,0 +1,64 @@
+# AFD-369 (ADR-0040): the VS Code debugger's integration test: h02 fails Check marker every time
+# (Retry pauses again), the other hosts go on to Apply change. Fictional ULIDs and hosts.
+schema_version: 1
+flow:
+  id: 01JS5F00000000000000000020
+  key: debug-fail
+  name: Debug fail
+  version: 1
+  owner: netops
+  inputs:
+    devices:
+      type: host_list
+      required: true
+      targets: true
+nodes:
+  - id: 01JS5N00000000000000000021
+    key: start
+    type: start
+    title: Start
+  - id: 01JS5N00000000000000000022
+    key: check
+    type: task
+    title: Check marker
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.assert
+      params:
+        that:
+          - inventory_hostname != 'h02'
+        fail_msg: h02 has no marker
+  - id: 01JS5N00000000000000000023
+    key: apply
+    type: task
+    title: Apply change
+    status: implemented
+    impl:
+      kind: module
+      ref: ansible.builtin.debug
+      params:
+        msg: applied on {{ inventory_hostname }}
+  - id: 01JS5N00000000000000000024
+    key: done
+    type: end
+    title: Done
+    outcome: success
+  - id: 01JS5N00000000000000000025
+    key: failed
+    type: end
+    title: Failed
+    outcome: failed
+edges:
+  - id: 01JS5E00000000000000000021
+    from: {node: 01JS5N00000000000000000021, port: ok_hosts}
+    to: {node: 01JS5N00000000000000000022, port: in}
+  - id: 01JS5E00000000000000000022
+    from: {node: 01JS5N00000000000000000022, port: ok_hosts}
+    to: {node: 01JS5N00000000000000000023, port: in}
+  - id: 01JS5E00000000000000000023
+    from: {node: 01JS5N00000000000000000023, port: ok_hosts}
+    to: {node: 01JS5N00000000000000000024, port: in}
+  - id: 01JS5E00000000000000000024
+    from: {node: 01JS5N00000000000000000022, port: failed_hosts}
+    to: {node: 01JS5N00000000000000000025, port: in}

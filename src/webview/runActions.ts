@@ -1,6 +1,6 @@
 // AFD-81: a run asked for from the designer (top bar, Run menu, first-flow checklist). The canvas
 // switches to Run mode once the host reports it running, so the run shows where the person looks.
-import type { StepCommand } from '../core/run/step';
+import type { FailureFilters, PausePoint, StepCommand } from '../core/run/step';
 import { send } from './bus';
 import { useUi } from './store';
 
@@ -19,6 +19,22 @@ export function startPartialRun(node: string, only: boolean): void {
 export function startStepRun(mode: 'check' | 'real'): void {
   useUi.getState().setRunAsked(true);
   send({ type: 'run', mode, step: true });
+}
+
+/** ADR-0040: Run ▾ › Debug: the launch dialog for a debug run. */
+export function startDebugRun(mode: 'check' | 'real'): void {
+  useUi.getState().setRunAsked(true);
+  send({ type: 'run', mode, step: true, debug: true });
+}
+
+/** AFD-371: a pause point's settings (Save in Edit Pause Point…), or null to take it away. */
+export function setPausePoint(node: string, point: PausePoint | null): void {
+  send({ type: 'setPausePoint', node, point });
+}
+
+/** AFD-372: which failures pause this flow's debug runs. */
+export function setFailureFilters(failures: FailureFilters): void {
+  send({ type: 'setFailureFilters', failures });
 }
 
 /** AFD-346: Step, Continue, Pause or Stop for the step-by-step run going. */

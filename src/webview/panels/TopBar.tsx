@@ -17,7 +17,7 @@ import { send } from '../bus';
 import type { UiMenuEntry } from '../menu/Menu';
 import { MenuButton } from '../menu/MenuButton';
 import { MODES } from '../modes';
-import { startRun, startStepRun } from '../runActions';
+import { startDebugRun, startRun, startStepRun } from '../runActions';
 import { waitsForApproval } from '../runApproval';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
@@ -430,6 +430,7 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
   const runner = useUi((s) => s.runner);
   const words = useUi((s) => s.embed.words);
   const stepRuns = useUi((s) => s.stepRuns);
+  const debugRuns = useUi((s) => s.debugRuns);
   const busy = running ? 'A run is going: stop it first' : undefined;
   return (
     <>
@@ -475,6 +476,20 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
                     title: `Run the flow pausing before each step: ${stepKeysLine()}`,
                     disabled: busy,
                     onSelect: () => startStepRun('check'),
+                  } as UiMenuEntry,
+                ]
+              : []),
+            // ADR-0040: a debug run, where the host offers it.
+            ...(stepRuns && debugRuns
+              ? [
+                  {
+                    type: 'item',
+                    label: 'Debug…',
+                    icon: 'debug-alt-small',
+                    title:
+                      'Run the flow in check mode as a debug run: pause at pause points and where a host fails, with each host’s variables',
+                    disabled: busy,
+                    onSelect: () => startDebugRun('check'),
                   } as UiMenuEntry,
                 ]
               : []),
