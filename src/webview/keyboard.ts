@@ -19,7 +19,9 @@ import {
   upLevel,
 } from './editActions';
 import { CLOSED, ESCAPE_ORDER, isOpen } from './overlays';
+import { stepKeyCommand } from './panels/StepBar';
 import { addNode } from './portActions';
+import { stepRun } from './runActions';
 import { IS_MAC } from './shortcuts';
 import { type Mode, useUi } from './store';
 
@@ -106,6 +108,17 @@ export function installKeyboard(): () => void {
     }
     if (target?.closest?.('.nokey')) return;
     const ui = useUi.getState();
+    // AFS-205: in a web page, F10 and F8 drive the step-by-step run going, while it goes (VS Code
+    // has its own key bindings for them).
+    const stepping = ui.stepRuns && ui.run?.state === 'running' && ui.run.step && !ui.run.past;
+    if (stepping && ui.run?.step) {
+      const command = stepKeyCommand(e, !!ui.run.step.paused);
+      if (command) {
+        consume();
+        if (!e.repeat) stepRun(command);
+        return;
+      }
+    }
     const mod = IS_MAC ? e.metaKey : e.ctrlKey;
     if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !e.altKey) {
       // AFD-153: a held key repeats; one press deletes once.

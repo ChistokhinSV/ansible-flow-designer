@@ -30,7 +30,8 @@ describe('stepState', () => {
     ];
     expect(stepState(events).paused).toMatchObject({ id: 't-1', node: 'a', hosts: ['h1', 'h2'] });
     events.push({ event: 'resume', id: 't-1', command: 'step' });
-    expect(stepState(events)).toEqual({ pauses: 1 });
+    // AFS-205: and the step it paused before runs now.
+    expect(stepState(events)).toEqual({ pauses: 1, running: { node: 'a', play: '[a] Step' } });
   });
 
   it('a resume of another pause leaves the run paused', () => {

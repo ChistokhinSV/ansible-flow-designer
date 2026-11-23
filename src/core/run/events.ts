@@ -32,6 +32,11 @@ export interface RunSummary {
   stoppedEarly: boolean;
   /** Per node: first and last event time (epoch seconds) of its plays (Run mode, M7). */
   timings?: Record<Ulid, { start: number; end: number }>;
+  /**
+   * AFS-205: per node, the seconds a step-by-step run waited before it (paused, between its play's
+   * start and Step or Continue): inside `timings`, so a step's time leaves it out.
+   */
+  waited?: Record<Ulid, number>;
   /** Per node, per host: the first failed or unreachable result, rescued or not (Run mode, M7). */
   problems?: Record<Ulid, Record<string, RunProblem>>;
   /** A partial summary (AFD-81): the node whose play is running. */
@@ -137,6 +142,8 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     for (const r of (at && route.via?.[at]) || []) put(exits, r, host);
   };
   const timings: Record<Ulid, { start: number; end: number }> = {};
+  const waited: Record<Ulid, number> = {};
+  let pausedSince: { node: string; ts: number } | undefined;
   const problems: Record<Ulid, Record<string, RunProblem>> = {};
   let playNode: string | null = null;
   let finished = false;
@@ -172,6 +179,18 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
       return;
     }
     if (e.event === 'start' && e.record_inputs === false) inputsOff = true;
+    // AFS-205: a step-by-step run's pause (ADR-0039) is time the step did not run.
+    if (e.event === 'pause' && typeof e.node === 'string' && typeof e.ts === 'number') {
+      pausedSince = { node: e.node, ts: e.ts };
+      return;
+    }
+    if (e.event === 'resume' || e.event === 'stopped') {
+      if (pausedSince && typeof e.ts === 'number')
+        waited[pausedSince.node] =
+          (waited[pausedSince.node] ?? 0) + Math.max(0, e.ts - pausedSince.ts);
+      pausedSince = undefined;
+      return;
+    }
     if (e.event === 'inputs') {
       const at = e.node ?? playNode;
       if (!at || !e.host || !e.inputs || typeof e.inputs !== 'object') return;
@@ -254,6 +273,7 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
       hosts: [...hosts].sort(),
       stoppedEarly: !partial && !sawOutcome && done.length > 0,
       timings: Object.fromEntries(Object.entries(timings).map(([k, t]) => [k, { ...t }])),
+      ...(Object.keys(waited).length ? { waited: { ...waited } } : {}),
       problems: Object.fromEntries(
         Object.entries(problems).map(([k, byHost]) => [k, { ...byHost }]),
       ),

@@ -26,8 +26,13 @@ export interface NodeRun {
   hosts: number;
   /** Hosts that left through a fail port or failed without a route. */
   failed: number;
-  /** Seconds between the first and last event of the node's plays. */
+  /**
+   * Seconds between the first and last event of the node's plays; AFS-205: without the time a
+   * step-by-step run waited before it (`waited`).
+   */
   seconds?: number;
+  /** AFS-205: seconds a step-by-step run was paused before this step. */
+  waited?: number;
 }
 
 /**
@@ -68,14 +73,16 @@ export function nodeHosts(s: RunSummary, node: Ulid): HostResult[] {
 export function nodeRun(s: RunSummary, node: Ulid): NodeRun {
   const rows = nodeHosts(s, node);
   const t = s.timings?.[node];
-  const seconds = t ? t.end - t.start : undefined;
+  const waited = s.waited?.[node];
+  const seconds = t ? Math.max(0, t.end - t.start - (waited ?? 0)) : undefined;
+  const wait = waited ? { waited } : {};
   // AFD-327: a play that ran for no host (the hosts went elsewhere, or the run failed before)
   // did nothing: not reached, not a green "0 hosts".
-  if (rows.length === 0) return { state: 'idle', hosts: 0, failed: 0, seconds };
+  if (rows.length === 0) return { state: 'idle', hosts: 0, failed: 0, seconds, ...wait };
   const unrouted = s.failures.some((f) => f.node === node);
   const failed = rows.filter((r) => r.ports.length === 0 || r.ports.some(isFailPort)).length;
   const state: NodeRunState = unrouted ? 'failed' : failed > 0 ? 'warn' : 'ok';
-  return { state, hosts: rows.length, failed, seconds };
+  return { state, hosts: rows.length, failed, seconds, ...wait };
 }
 
 /** Hosts that took a wire: those that left its source through the source port. */
@@ -128,9 +135,19 @@ export function runStates(doc: FlowDocument, s: RunSummary): Record<Ulid, NodeRu
 export function formatSeconds(seconds: number | undefined): string {
   if (seconds === undefined) return '';
   if (seconds < 1) return '<1 s';
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
-  const m = Math.floor(seconds / 60);
-  return `${m} min ${String(Math.round(seconds - m * 60)).padStart(2, '0')} s`;
+  if (seconds < 10) return `${seconds.toFixed(1)} s`;
+  // AFS-205: rounded once, so 419.6 s reads "7 min 00 s", not "6 min 60 s".
+  const whole = Math.round(seconds);
+  if (whole < 60) return `${whole} s`;
+  const m = Math.floor(whole / 60);
+  return `${m} min ${String(whole - m * 60).padStart(2, '0')} s`;
+}
+
+/** AFS-205: a step's time with the time a step-by-step run waited before it: "ran 1 s, waited 31 s". */
+export function stepTime(r: Pick<NodeRun, 'seconds' | 'waited'>): string {
+  if (r.seconds === undefined) return '';
+  if (!r.waited || r.waited < 1) return formatSeconds(r.seconds);
+  return `ran ${formatSeconds(r.seconds)}, waited ${formatSeconds(r.waited)}`;
 }
 
 /**

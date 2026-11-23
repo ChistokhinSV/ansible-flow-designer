@@ -282,6 +282,26 @@
   border-radius: 50%;
   border: 1px solid var(--afd-bg);
   background: var(--vscode-debugIcon-breakpointForeground, var(--afd-failed));
+  /* AFS-205: a button (it sets and takes away the pause point). */
+  padding: 0;
+  cursor: pointer;
+}
+
+/* AFS-205: where no pause point is, the dot shows faint while the pointer is on the step. */
+.afd-pause-point.off {
+  opacity: 0;
+  background: transparent;
+  border-color: var(--vscode-debugIcon-breakpointForeground, var(--afd-failed));
+}
+
+.afd-node:hover .afd-pause-point.off,
+.afd-pause-point.off:focus-visible {
+  opacity: 0.7;
+}
+
+.afd-pause-point.off:hover {
+  opacity: 1;
+  background: var(--vscode-debugIcon-breakpointForeground, var(--afd-failed));
 }
 
 .afd-step-buttons {

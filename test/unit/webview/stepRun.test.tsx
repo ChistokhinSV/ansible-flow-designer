@@ -16,7 +16,8 @@ import type { RunView } from '../../../src/core/protocol';
 import type { LaunchPlan } from '../../../src/core/run/launch';
 import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { LaunchDialog } from '../../../src/webview/panels/LaunchDialog';
-import { RunPanel } from '../../../src/webview/panels/RunPanel';
+import { NodeRunPanel, RunPanel } from '../../../src/webview/panels/RunPanel';
+import { stepKeyCommand, stepKeys } from '../../../src/webview/panels/StepBar';
 import { TopBar } from '../../../src/webview/panels/TopBar';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
@@ -124,6 +125,25 @@ describe('step-by-step run on the canvas', () => {
     act(() => useUi.setState({ stepRuns: false }));
     canvas();
     expect(node(first.id)?.querySelector('.afd-pause-point')).toBeNull();
+  });
+
+  it("AFS-205: a step's dot sets or takes away its pause point; none on start", () => {
+    canvas();
+    const dot = node(first.id)?.querySelector('[data-pause-dot]') as HTMLElement;
+    expect(dot.dataset.pauseDot).toBe('off');
+    fireEvent.click(dot);
+    expect(sent('togglePausePoint')).toEqual([{ type: 'togglePausePoint', node: first.id }]);
+    const start = doc.nodes.find((n) => n.type === 'start')?.id as string;
+    expect(node(start)?.querySelector('[data-pause-dot]')).toBeNull();
+  });
+
+  it("AFS-205: the paused step's Run tab lists the hosts waiting there, not 0 hosts", () => {
+    act(() => useUi.getState().setRun(paused));
+    render(<NodeRunPanel id={first.id} />);
+    const body = document.querySelector(`[data-node-run="${first.id}"]`) as HTMLElement;
+    expect(body.textContent).toContain('2 hosts · paused before this step');
+    expect(body.querySelectorAll('[data-host]')).toHaveLength(2);
+    expect(body.textContent).toContain('waiting for Step or Continue');
   });
 
   it('a stopped run: the step reads stopped before, the panel lists each host', () => {
@@ -262,5 +282,28 @@ describe('pause points and the launch dialog', () => {
     expect(document.querySelector('[data-launch-step]')).toBeNull();
     fireEvent.click(document.querySelector('[data-launch-run]') as HTMLElement);
     expect(sent('launchRun').at(-1)).not.toHaveProperty('step');
+  });
+});
+
+describe('AFS-205: keys', () => {
+  it('keys in a web page (AFS-205): F10 steps, F8 goes on or pauses; F5 is left to the browser', () => {
+    const key = (k: string, more = {}) => ({
+      key: k,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      ...more,
+    });
+    expect(stepKeyCommand(key('F10'), true, true)).toBe('step');
+    expect(stepKeyCommand(key('F8'), true, true)).toBe('continue');
+    expect(stepKeyCommand(key('F8'), false, true)).toBe('pause');
+    expect(stepKeyCommand(key('F10'), false, true)).toBeUndefined();
+    expect(stepKeyCommand(key('F5'), true, true)).toBeUndefined();
+    expect(stepKeyCommand(key('F8', { shiftKey: true }), true, true)).toBeUndefined();
+    // VS Code runs its own key bindings for them.
+    expect(stepKeyCommand(key('F10'), true, false)).toBeUndefined();
+    expect(stepKeys(true)).toEqual({ step: 'F10', continue: 'F8', pause: 'F8' });
+    expect(stepKeys(false).continue).toBe('F5');
   });
 });

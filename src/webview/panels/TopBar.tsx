@@ -8,6 +8,7 @@
 import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
+import { stepPath } from '../../core/run/step';
 import { runVerdict } from '../../core/run/view';
 import { checkButton, decidedAgainst, hostsWord } from '../../core/run/words';
 import { scenarioChip } from '../../core/scenario/authoring';
@@ -21,7 +22,7 @@ import { waitsForApproval } from '../runApproval';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
-import { StepButtons } from './StepBar';
+import { StepButtons, stepKeysLine } from './StepBar';
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);
@@ -471,8 +472,7 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
                     type: 'item',
                     label: 'Run Step by Step…',
                     icon: 'debug-step-over',
-                    title:
-                      'Run the flow pausing before each step: Step (F10), Continue to a pause point (F5), Stop (Shift+F5)',
+                    title: `Run the flow pausing before each step: ${stepKeysLine()}`,
                     disabled: busy,
                     onSelect: () => startStepRun('check'),
                   } as UiMenuEntry,
@@ -534,7 +534,8 @@ function LiveRun({ run }: { run: RunView }) {
   const step = at && doc ? modelOf(doc).nodes.get(at)?.node.title : undefined;
   // AFD-346: a step-by-step run waiting before a step says where, not "running".
   const paused = run.step?.paused;
-  const pausedAt = paused && doc ? modelOf(doc).nodes.get(paused.node)?.node.title : undefined;
+  // AFS-205: a step inside a subflow by its path ("Pre-checks › Read device status").
+  const pausedAt = paused && doc ? stepPath(modelOf(doc), paused.node) : undefined;
   if (paused)
     return (
       <button
