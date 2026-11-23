@@ -8,7 +8,7 @@ import { parse } from 'yaml';
 import { optionA } from '../../../src/core/engine/optionA';
 import type { FlowDocument } from '../../../src/core/flow/types';
 import { createSummarizer, splitLines, summarizeRun } from '../../../src/core/run/events';
-import { runStates } from '../../../src/core/run/view';
+import { runStates, runVerdict } from '../../../src/core/run/view';
 
 const dir = join(__dirname, '../../fixtures/engine');
 const doc = parse(readFileSync(join(dir, 'routing-ports.flow.yaml'), 'utf8')) as FlowDocument;
@@ -117,5 +117,79 @@ describe('a step whose port leaves its subflow', () => {
     const states = runStates(levels, s);
     expect(states[connect]).toMatchObject({ state: 'ok', hosts: 1 });
     expect(states[stage]).toMatchObject({ state: 'ok', hosts: 1 });
+  });
+});
+
+// AFS-208: an include_role that cannot find its role fails inside the step's block; the rescue
+// routes the host to the open failed_hosts port, but Ansible keeps it failed: no later play runs on
+// it (the outcome play never fails it) and Ansible ends with 0. The run still failed that host.
+describe('a host Ansible left out of the outcome play', () => {
+  const event = (e: Record<string, unknown>) => JSON.stringify({ ts: 1, ...e });
+  const lines = [
+    event({ event: 'play', name: '[probe] Probe', node: id('probe') }),
+    event({
+      event: 'result',
+      status: 'failed',
+      host: 'h01',
+      task: '[probe] Apply role',
+      node: id('probe'),
+      msg: "The role 'motd' was not found",
+    }),
+    event({
+      event: 'result',
+      status: 'ok',
+      host: 'h01',
+      task: '[probe] route failed_hosts',
+      node: id('probe'),
+      group: 'flow_probe_failed_hosts',
+    }),
+  ];
+
+  it('the route of an open fail port says what the outcome play fails it with', () => {
+    expect(routes.flow_probe_failed_hosts?.fails).toBe(
+      'Stopped at [probe] Probe: failed_hosts is not wired',
+    );
+    expect(routes.flow_probe_ok_hosts?.fails).toBeUndefined();
+  });
+
+  it('fails it once the run has ended, not while it goes', () => {
+    const ended = summarizeRun([...lines, event({ event: 'stats' })].join('\n'), routes);
+    expect(ended.outcome).toEqual({ h01: 'Stopped at [probe] Probe: failed_hosts is not wired' });
+    expect(ended.failures).toEqual([]);
+    expect(
+      runVerdict({ id: 'r', mode: 'check', state: 'done', rc: 0, summary: ended } as never),
+    ).toEqual({ ok: false, failed: 1 });
+    // While the run goes, the outcome play may still come.
+    const s = createSummarizer(routes);
+    for (const l of lines) s.push(l);
+    expect(s.summary({ partial: true }).outcome).toEqual({});
+  });
+
+  it('keeps the message of the outcome play when it did fail the host', () => {
+    const text = [
+      ...lines,
+      event({ event: 'play', name: '[routing-ports] Outcome' }),
+      event({ event: 'result', status: 'failed', host: 'h01', task: 'x', msg: 'said by Ansible' }),
+      event({ event: 'stats' }),
+    ].join('\n');
+    expect(summarizeRun(text, routes).outcome).toEqual({ h01: 'said by Ansible' });
+  });
+
+  it('leaves it out of a run that stopped early: its hosts failed where it stopped', () => {
+    const text = [
+      ...lines,
+      event({
+        event: 'result',
+        status: 'failed',
+        host: 'h01',
+        task: '[probe] max_fail_percentage 40 exceeded',
+        node: id('probe'),
+        msg: 'Flow stopped at [probe]: 1 of 1 hosts failed',
+      }),
+      event({ event: 'stats' }),
+    ].join('\n');
+    const s = summarizeRun(text, routes);
+    expect(s.stoppedEarly).toBe(true);
+    expect(s.outcome).toEqual({});
   });
 });

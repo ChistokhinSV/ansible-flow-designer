@@ -18,6 +18,9 @@ All notable changes to Ansible Flow Designer.
 - "Stops by itself in 61 s" with a 60 s timeout.
 - The terminal says a pause once in plain words ("Paused before Ping: 1 host waits for Step, Continue or Stop"), before the person answers.
 - A subflow stopped at a step inside it reads stopped, not "not reached".
+- A run whose host failed at a step with an open fail port no longer reads as passed when Ansible leaves that host out of the outcome play and ends with exit 0 (a role or an included task file that cannot be found): the host counts as failed, with where it stopped.
+- The Run panel lists the steps of a run a rejection ended under "Not approved" ("1 of 1 host rejected"), not under "Failed steps".
+- In Run mode, steps no longer show their status mark (a green check on a step waiting for approval read like a result); a step without code says **TODO** instead.
 
 ## 1.0.3 — Undo no longer stops the canvas from moving steps
 

@@ -127,7 +127,11 @@ describe('Run mode', () => {
     const node = (key: string) => document.querySelector(`[data-node-id="${id(key)}"]`);
     expect(node('work')?.querySelector('.afd-node-run')?.textContent).toBe('not reached');
     expect(node('work')?.querySelector('.afd-status-icon')).toBeNull();
-    expect(node('exclude')?.querySelector('.afd-status-icon')).not.toBeNull();
+    // AFS-208: in a run no step shows its authoring status as a mark; one without code says TODO.
+    expect(node('probe')?.querySelector('.afd-status-icon')).toBeNull();
+    expect(node('exclude')?.querySelector('.afd-status-icon')).toBeNull();
+    expect(node('exclude')?.querySelector('[data-run-todo]')?.textContent).toBe('TODO');
+    expect(node('probe')?.querySelector('[data-run-todo]')).toBeNull();
     const idle = edges.filter((e) => String(e.className).includes('run-idle'));
     expect(idle.length).toBeGreaterThan(0);
     for (const e of idle) expect(e.label).toBeUndefined();

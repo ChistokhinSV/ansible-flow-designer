@@ -219,6 +219,23 @@ describe('as the server launch form (AFD-355)', () => {
     );
     expect(dialog.querySelectorAll('[data-launch-origin]')).toHaveLength(1);
   });
+
+  it('the host list says what it is once (AFS-208)', () => {
+    const dialog = open({
+      ...plan,
+      origins: { devices: 'The hosts the run starts on; read by Ping.' },
+    });
+    const help = dialog.querySelector('[data-launch-field="devices"] [data-launch-help]');
+    expect(help?.textContent).toBe(
+      'The hosts or groups the run starts on: comma-separated, or a JSON list',
+    );
+    expect(dialog.querySelector('[data-launch-origin="devices"]')?.textContent).toBe(
+      'Read by Ping.',
+    );
+    cleanup();
+    const only = open({ ...plan, origins: { devices: 'The hosts the run starts on.' } });
+    expect(only.querySelector('[data-launch-origin="devices"]')).toBeNull();
+  });
 });
 
 describe('a flow with errors', () => {

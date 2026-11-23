@@ -137,6 +137,39 @@ describe('failed steps in the run panel', () => {
     expect(useUi.getState().level).toBe(inner.level);
     expect(useUi.getState().selection).toEqual({ node: inner.node.id });
   });
+
+  it('a run a rejection ended lists them as not approved, not failed (AFS-208)', () => {
+    const run: RunView = {
+      id: 'r2',
+      mode: 'real',
+      state: 'done',
+      rc: 2,
+      startedAt: '2026-10-31T08:00:00Z',
+      finishedAt: '2026-10-31T08:01:00Z',
+      source: 'local',
+      flowVersion: os.flow.version,
+      summary: {
+        nodes: {},
+        outcome: { 'fw-01': 'Rejected at [ask] Change approval. Ended at [no] Not approved' },
+        failures: [],
+        unreachable: [],
+        hosts: ['fw-01'],
+        stoppedEarly: false,
+      },
+    };
+    render(<App />);
+    act(() =>
+      useUi.setState({
+        mode: 'run',
+        run,
+        runNodes: { [inner.node.id]: { state: 'warn', hosts: 1, failed: 1 } },
+      }),
+    );
+    const list = document.querySelector('[data-failed-steps]') as HTMLElement;
+    expect(list.textContent).toContain('Not approved');
+    expect(list.textContent).toContain('1 of 1 host rejected');
+    expect(list.textContent).not.toContain('failed');
+  });
 });
 
 describe('side panels', () => {
