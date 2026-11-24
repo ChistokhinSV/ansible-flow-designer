@@ -93,7 +93,8 @@ describe('Run mode', () => {
     const line = (key: string) =>
       document.querySelector<HTMLElement>(`[data-node-id="${id(key)}"] .afd-node-run`);
     expect(line('probe')?.dataset.runState).toBe('warn');
-    expect(line('probe')?.textContent).toMatch(/^3 hosts · 1 failed · /);
+    // AFD-379: the job's one problem at probe is an unreachable host: counted as such, not failed.
+    expect(line('probe')?.textContent).toMatch(/^3 hosts · 1 unreachable · /);
     expect(line('exclude')?.dataset.runState).toBe('ok');
     expect(line('notify')?.textContent).toMatch(/^1 host · /);
     const state = (key: string) =>

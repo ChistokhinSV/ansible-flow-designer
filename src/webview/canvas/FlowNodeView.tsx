@@ -500,7 +500,10 @@ function RunLine({ node }: { node: FlowNode }) {
     );
   }
   const parts = [`${r.hosts} host${r.hosts === 1 ? '' : 's'}`];
-  if (r.failed > 0) parts.push(`${r.failed} failed`);
+  // AFD-379: of the failed hosts, those that could not be reached are counted apart.
+  const unreachable = r.unreachable ?? 0;
+  if (r.failed - unreachable > 0) parts.push(`${r.failed - unreachable} failed`);
+  if (unreachable > 0) parts.push(`${unreachable} unreachable`);
   // AFS-205: without the time a step-by-step run waited before it ("ran 1 s, waited 31 s").
   if (r.seconds !== undefined) parts.push(stepTime(r));
   const tone = r.state === 'ok' ? 'ok' : 'warn';

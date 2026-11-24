@@ -80,6 +80,7 @@ All notable changes to Ansible Flow Designer.
 - At a debug pause, **Host variables** no longer lists the values the generated code keeps for itself (`afd_failed_task`, `afd_inputs` and the like).
 - In the Debug Console, an expression that is not finished ("A quote (') is not closed") is an error, not "Refused".
 - `vars['db' ~ '_password']` is masked with that variable's own reason (`masked: vault` for a vaulted one), not "secret-looking name".
+- A finished step's badge counts a host that could not be reached as unreachable ("3 hosts · 1 unreachable"), not as failed.
 
 ## 1.1.0 — Run step by step, with pause points
 
