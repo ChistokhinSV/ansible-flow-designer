@@ -20,7 +20,7 @@ import { FlowCanvas } from '../../../src/webview/canvas/FlowCanvas';
 import { LaunchDialog } from '../../../src/webview/panels/LaunchDialog';
 import { PausePointDialog } from '../../../src/webview/panels/PausePointDialog';
 import { RunPanel } from '../../../src/webview/panels/RunPanel';
-import { FailureBar } from '../../../src/webview/panels/StepBar';
+import { FailureBar, refusedLine } from '../../../src/webview/panels/StepBar';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
 
@@ -255,6 +255,34 @@ describe('AFD-372: a failure pause', () => {
     );
   });
 
+  it('AFD-380: an unreachable host reads unreachable on the paused step', () => {
+    const pause = {
+      ...failurePause,
+      failed: [{ host: 'web-02', task: 'ping', msg: 'no route', unreachable: true }],
+    } as StepPause;
+    act(() => useUi.getState().setRun(failed(pause)));
+    render(
+      <ReactFlowProvider>
+        <div style={{ width: 1600, height: 600 }}>
+          <FlowCanvas cull={false} />
+        </div>
+      </ReactFlowProvider>,
+    );
+    const n = document.querySelector<HTMLElement>(`[data-node-id="${first.id}"]`);
+    expect(n?.querySelector('.afd-node-run')?.textContent).toBe(
+      '1 host unreachable · paused · 3 waiting',
+    );
+  });
+
+  it('AFD-379: a refusal that already says Retry is not offered is not said twice', () => {
+    expect(
+      refusedLine("Retry is not offered for a host that failed outside the step's rescue."),
+    ).toBe("Retry is not offered for a host that failed outside the step's rescue.");
+    expect(refusedLine('a rolling subflow runs as one play')).toBe(
+      'Retry is not offered here: a rolling subflow runs as one play.',
+    );
+  });
+
   it('log point lines show in the Run panel', () => {
     const run = failed({ ...failurePause, kind: 'point', failed: undefined });
     act(() =>
@@ -306,6 +334,15 @@ describe('ADR-0040: Debug in the launch dialog', () => {
     inventory: 'inventory.ini',
     steps: { on: false, debug: true },
     ...over,
+  });
+
+  it('AFD-379: the first Debug dialog, opened with no hosts, gains the Vault field once they read', () => {
+    act(() => useUi.getState().setLaunch(debugPlan({ vault: false })));
+    render(<LaunchDialog />);
+    expect(document.getElementById('afd-launch-__vault')).toBeNull();
+    // The host's answer for the hosts typed: their inventory holds vaulted values.
+    act(() => useUi.getState().setLaunchFacts('t-1', undefined, 'Pick the hosts', true));
+    expect(document.getElementById('afd-launch-__vault')).not.toBeNull();
   });
 
   it('AFD-376: Change beside the inventory keeps it a Debug dialog with what was typed', () => {

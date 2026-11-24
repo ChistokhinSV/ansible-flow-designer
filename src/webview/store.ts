@@ -392,7 +392,7 @@ interface UiState {
   showScenario(name: string | null): void;
   setLaunch(plan: LaunchPlan | null, notice?: string): void;
   /** The facts for the dialog's current targets, if it is still the dialog of that token. */
-  setLaunchFacts(token: string, facts?: LaunchFacts, error?: string): void;
+  setLaunchFacts(token: string, facts?: LaunchFacts, error?: string, vault?: boolean): void;
   /** Opens a level; selection, menus and picks belong to the level being left. */
   setLevel(level: string): void;
   /** Shows a node: opens its level and selects it. */
@@ -710,6 +710,12 @@ export const useUi = create<UiState>((set, get) => ({
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   setRun(run) {
     const asked = get().runAsked && !!run;
+    // AFD-379: a designer that learns of a paused run it has not shown (opened at the pause from a
+    // launch.json debug, or a run started outside it) shows it in Run mode, with the ring on the
+    // paused step; Design mode showed nothing of the pause.
+    const before = get().run;
+    const pausedNew =
+      run?.state === 'running' && !run.past && !!run.step?.paused && before?.id !== run.id;
     // A run from the host replaces a scenario on the canvas.
     if (get().scenarioShown || get().scenarioEditing)
       set({ scenarioShown: null, scenarioEditing: null, runBeforeScenario: null });
@@ -720,7 +726,7 @@ export const useUi = create<UiState>((set, get) => ({
       ...(asked ? { runAsked: false } : {}),
     });
     // A run the designer started shows where it is on the canvas (AFD-81, round 1: P5).
-    if (asked && run?.state === 'running') get().setMode('run');
+    if ((asked && run?.state === 'running') || pausedNew) get().setMode('run');
   },
   setRunAsked: (runAsked) => set({ runAsked }),
   setPastRuns: (pastRuns) => set({ pastRuns, pastRunsKnown: true }),
@@ -796,10 +802,18 @@ export const useUi = create<UiState>((set, get) => ({
     if (result) get().setMode('run');
   },
   setLaunch: (launch, launchNotice) => set({ launch, launchNotice }),
-  setLaunchFacts(token, facts, error) {
+  setLaunchFacts(token, facts, error, vault) {
     const plan = get().launch;
     if (plan?.token !== token) return;
-    set({ launch: { ...plan, facts, factsError: facts ? undefined : error } });
+    // AFD-379: the hosts now known may hold vaulted values: the Vault password field follows.
+    set({
+      launch: {
+        ...plan,
+        facts,
+        factsError: facts ? undefined : error,
+        ...(vault !== undefined ? { vault: plan.vault || vault } : {}),
+      },
+    });
   },
   setLens(lens) {
     set({

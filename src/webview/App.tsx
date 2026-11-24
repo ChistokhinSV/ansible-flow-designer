@@ -74,7 +74,7 @@ function useHost() {
       } else if (m.type === 'launch') {
         ui.setLaunch(m.plan, m.notice);
       } else if (m.type === 'launchFacts') {
-        ui.setLaunchFacts(m.token, m.facts, m.error);
+        ui.setLaunchFacts(m.token, m.facts, m.error, m.vault);
       } else if (m.type === 'scenarios') {
         ui.setScenarios(m.results, m.show);
       } else if (m.type === 'scenarioCheck') {

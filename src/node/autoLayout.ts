@@ -30,6 +30,9 @@ const OPTIONS = {
   'elk.edgeRouting': 'ORTHOGONAL',
 };
 
+/** Room right of a node for a right side port's name, past ELK's spacing between nodes. */
+const LABEL_ROOM = 56;
+
 const SIDE: Record<PortSide, string> = {
   top: 'NORTH',
   bottom: 'SOUTH',
@@ -59,10 +62,20 @@ function elkNode(n: FlowNode, room: Room = NO_ROOM) {
       y: across ? (p.side === 'bottom' ? height : 0) : room.top + along,
       width: 0,
       height: 0,
+      // AFD-380: the canvas writes a right side port's name right of the node (`failed_hosts`,
+      // `unreachable`): as a label here ELK keeps that room clear. A node placed beside it (a
+      // Stopped end) had only the 48 px between nodes, and the names ran into its border.
+      ...(p.side === 'right' ? { labels: [{ text: p.name, width: LABEL_ROOM, height: 13 }] } : {}),
       layoutOptions: { 'elk.port.side': SIDE[p.side] },
     };
   });
-  return { id: n.id, width, height, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } };
+  return {
+    id: n.id,
+    width,
+    height,
+    ports,
+    layoutOptions: { 'elk.portConstraints': 'FIXED_POS', 'elk.portLabels.placement': 'OUTSIDE' },
+  };
 }
 
 /** Room a node's tied Notes take round it, past each of its edges. */

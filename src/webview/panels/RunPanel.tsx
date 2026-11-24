@@ -65,7 +65,14 @@ function PastRuns({ run }: { run: RunView | null }) {
         value={shown ?? ''}
         onChange={(e) => e.target.value && showPastRun(e.target.value)}
       >
-        {shown ? null : <option value="">The run shown is not among the kept runs</option>}
+        {/* AFD-379: a run still going is kept when it ends: it is the run in progress. */}
+        {shown ? null : (
+          <option value="">
+            {run?.state === 'running' && !run.past
+              ? 'This run, in progress'
+              : 'The run shown is not among the kept runs'}
+          </option>
+        )}
         {runs.map((r) => (
           <option key={r.id} value={r.id} title={r.partial}>
             {pastRunLabel(r, undefined, words)}
@@ -92,11 +99,16 @@ function describe(run: RunView, words: RunWords): string {
   // AFS-139: a run on Ansible Flow Server is not a local run.
   if (run.source === 'runner') {
     const check = words === 'server' ? 'Check run' : 'Skeleton run';
-    const kind = run.mode === 'check' ? check : 'Real run';
+    const debug = run.step?.debug;
+    const kind = debug ? 'Debug run' : run.mode === 'check' ? check : 'Real run';
     const number = run.runner?.number ? ` #${run.runner.number}` : '';
+    const mode = debug ? ` (${run.mode === 'check' ? 'check mode' : 'real'})` : '';
     const config = run.runner?.config ? ` · ${run.runner.config}` : '';
-    return `${kind}${number} on Ansible Flow Server${config}`;
+    return `${kind}${number}${mode} on Ansible Flow Server${config}`;
   }
+  // AFD-379: a debug run is named as one, not as a skeleton run.
+  if (run.step?.debug)
+    return `Local debug run (${run.mode === 'check' ? 'check mode' : 'real, changes the hosts'})`;
   return run.mode === 'check' ? 'Local skeleton run (check mode)' : 'Local real run';
 }
 
@@ -108,8 +120,16 @@ function statusOf(
   if (run.state === 'running' && waitsForApproval(run))
     return { label: 'waiting for approval', tone: 'neutral' };
   // AFD-346: a step-by-step run that waits for Step, Continue or Stop.
+  // AFS (debug UI): a debug run that waits says it is debugging, not running step by step.
   if (run.state === 'running' && run.step?.paused)
-    return { label: 'paused, step by step', tone: 'neutral' };
+    return {
+      label: run.step.debug
+        ? run.step.paused.kind === 'failure'
+          ? 'paused at a failure, debugging'
+          : 'paused, debugging'
+        : 'paused, step by step',
+      tone: 'neutral',
+    };
   if (run.state === 'running')
     return {
       label: run.awx
@@ -707,12 +727,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                             ) : null}
                           </>
                         ) : h.problem ? (
-                          <span title={h.problem.msg}>
-                            {h.problem.status} in {h.problem.task}
-                            {h.problem.msg ? (
-                              <span className="muted"> · {h.problem.msg}</span>
-                            ) : null}
-                          </span>
+                          // AFD-379: the task and message take the row below, across the table:
+                          // in this column of a 340 px panel they wrapped every 10 characters.
+                          <span title={h.problem.msg}>{h.problem.status}</span>
                         ) : (
                           <span className="tone-ok">ok</span>
                         )}
@@ -753,6 +770,18 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                         </td>
                       ) : null}
                     </tr>
+                    {h.problem &&
+                    !h.waits &&
+                    !h.ended &&
+                    !planted &&
+                    !(decided && !h.ports.includes('approved')) ? (
+                      <tr className="afd-run-detail" data-host-detail={h.host}>
+                        <td colSpan={outputs || recorded ? 4 : 3}>
+                          {h.problem.status} in {h.problem.task}
+                          {h.problem.msg ? <span className="muted"> · {h.problem.msg}</span> : null}
+                        </td>
+                      </tr>
+                    ) : null}
                     {inputsOf === h.host ? <HostInputsRow node={id} host={h.host} /> : null}
                     {open === h.host ? <HostOutputRow node={id} host={h.host} /> : null}
                   </Fragment>

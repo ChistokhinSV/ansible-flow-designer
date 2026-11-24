@@ -4,8 +4,9 @@
 // node ID, so a copy that keeps them mixes with the original (a pause point set on the copy showed
 // on the original).
 import * as vscode from 'vscode';
-import { keyFromFile, withNewIds } from '../core/flow/newIds';
+import { copiesAmong, keyFromFile, withNewIds } from '../core/flow/newIds';
 import { CMD } from './commands/ids';
+import { headText } from './gitHead';
 import type { Host } from './host';
 
 export const FLOW_COPY = 'flow-copy';
@@ -29,12 +30,27 @@ function rangeOf(text: string, id: string): vscode.Range {
   return new vscode.Range(line, character, line, character + id.length);
 }
 
+/** Git's word (tracked or not) and the file's creation time, to tell the original from a copy. */
+async function candidate<T extends { uri: vscode.Uri }>(f: T) {
+  const head = await headText(f.uri);
+  let born = 0;
+  try {
+    const st = await vscode.workspace.fs.stat(f.uri);
+    // ctime is the creation time where the file system keeps one; a copy is newer either way.
+    born = st.ctime > 0 ? st.ctime : st.mtime;
+  } catch {
+    // Gone meanwhile: unknown.
+  }
+  return { ...f, tracked: head === undefined ? undefined : head !== null, born };
+}
+
 export function registerFlowCopies(host: Host): vscode.Disposable[] {
   const problems = vscode.languages.createDiagnosticCollection('ansible-flow-copies');
   const publish = async () => {
     const next = new Map<string, vscode.Diagnostic[]>();
+    // AFD-380: only the copies are flagged; the original keeps its IDs.
     for (const [id, flows] of host.index.copies())
-      for (const f of flows) {
+      for (const f of copiesAmong(await Promise.all(flows.map(candidate)))) {
         const others = flows.filter((o) => o.uri.toString() !== f.uri.toString());
         const names = others.map((o) => vscode.workspace.asRelativePath(o.uri)).join(', ');
         const d = new vscode.Diagnostic(
@@ -102,6 +118,8 @@ export function registerFlowCopies(host: Host): vscode.Disposable[] {
         void vscode.window.showErrorMessage('The flow does not parse: fix it first');
         return { ok: false, error: 'The flow does not parse' };
       }
+      // AFD-380: the designer's own change, not one made outside it.
+      host.sessions.get(doc.uri.toString())?.expectOwn(next);
       const edit = new vscode.WorkspaceEdit();
       edit.replace(doc.uri, new vscode.Range(0, 0, doc.lineCount, 0), next);
       const ok = await vscode.workspace.applyEdit(edit);

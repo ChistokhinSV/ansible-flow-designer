@@ -126,7 +126,17 @@ export class ScenarioLive implements vscode.Disposable {
     if (!doc || !isFileKey(doc.flow?.key)) return undefined;
     const uri = scenariosUri(flow, doc);
     const text = await textOf(uri);
-    const check = checkLive(doc, text, this.verdicts(flow));
+    const stored = this.verdicts(flow);
+    const check = checkLive(doc, text, stored);
+    // AFD-380: the verdicts of scenarios no longer in the file (deleted in the text) are dropped,
+    // so a new scenario with that name does not show them.
+    if (!check.error) {
+      const gone = Object.keys(stored).filter((name) => !check.names.includes(name));
+      if (gone.length)
+        await this.keepVerdicts(flow, (v) => {
+          for (const name of gone) delete v[name];
+        });
+    }
     this.checks.set(flow.toString(), check);
     this.checked.fire({ flow, check });
     this.publish(flow, flowText ?? '', doc, uri, text, check);
@@ -189,6 +199,16 @@ export class ScenarioLive implements vscode.Disposable {
       return { ok: false, error: 'VS Code rejected the edit' };
     if (open && !wasDirty) await open.save();
     if (cmd.kind === 'add') markTourKey(SCENARIO_ADDED);
+    // AFD-380: a verdict belongs to the scenario it was made on: a new scenario has none, even
+    // with the name of one deleted before, and a renamed scenario keeps its own.
+    if (cmd.kind === 'add') await this.keepVerdicts(flow, (v) => delete v[cmd.scenario.name]);
+    else if (cmd.kind === 'delete') await this.keepVerdicts(flow, (v) => delete v[cmd.name]);
+    else if (cmd.kind === 'rename')
+      await this.keepVerdicts(flow, (v) => {
+        const was = v[cmd.name];
+        delete v[cmd.name];
+        if (was) v[cmd.to] = was;
+      });
     const stack = this.undos.get(flow.toString()) ?? [];
     stack.push(before);
     if (stack.length > 30) stack.shift();
@@ -317,6 +337,19 @@ export class ScenarioLive implements vscode.Disposable {
       {},
     );
     return all[flow.toString()] ?? {};
+  }
+
+  /** Changes a flow's kept verdicts. */
+  private async keepVerdicts(
+    flow: vscode.Uri,
+    change: (mine: Record<string, StoredVerdict>) => void,
+  ): Promise<void> {
+    const state = this.host.context.workspaceState;
+    const all = { ...state.get<Record<string, Record<string, StoredVerdict>>>(VERDICTS, {}) };
+    const mine = { ...(all[flow.toString()] ?? {}) };
+    change(mine);
+    all[flow.toString()] = mine;
+    await state.update(VERDICTS, all);
   }
 
   /** Keeps the verdicts of a Run Scenarios in Ansible, then checks again so the designer has them. */

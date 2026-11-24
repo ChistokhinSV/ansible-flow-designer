@@ -67,9 +67,6 @@ export async function planLaunch(
               ? 'Pick the hosts to run on: a group below, or host names'
               : start.error,
         };
-  const ask = vscode.workspace
-    .getConfiguration('afd', document.uri)
-    .get<'auto' | 'always' | 'never'>('run.askVaultPassword', 'auto');
   const facts = found.ok ? found.facts : undefined;
   sweep();
   const token = randomUUID();
@@ -89,22 +86,38 @@ export async function planLaunch(
       groups,
       groupHosts,
       ...(facts ? { facts } : { factsError: found.ok ? undefined : found.error }),
-      vault: ask === 'always' || (ask === 'auto' && !!facts?.vault),
+      vault: asksVault(document, facts),
       environment: env.env.label,
       inventory:
         vscode.workspace.getConfiguration('afd', folder.uri).get<string>('run.inventory', '') ||
-        (facts?.sources.length ? facts.sources.join(', ') : 'the default of ansible.cfg'),
+        // AFD-379: with none set, Ansible's own default ("the default of ansible.cfg" read as a
+        // file the workspace did not have, and the confirmation then said /etc/ansible/hosts).
+        (facts?.sources.length
+          ? facts.sources.join(', ')
+          : "Ansible's default (/etc/ansible/hosts, unless an ansible.cfg names one)"),
     },
   };
 }
 
-/** The facts for the dialog's inputs as they are now; the token keeps them for Run. */
+/** Whether the dialog asks for the vault password (`afd.run.askVaultPassword`, the inventory). */
+function asksVault(document: vscode.TextDocument, facts: LaunchFacts | undefined): boolean {
+  const ask = vscode.workspace
+    .getConfiguration('afd', document.uri)
+    .get<'auto' | 'always' | 'never'>('run.askVaultPassword', 'auto');
+  return ask === 'always' || (ask === 'auto' && !!facts?.vault);
+}
+
+/**
+ * The facts for the dialog's inputs as they are now; the token keeps them for Run. AFD-379: with
+ * whether to ask for the vault password: a dialog that opened before it had hosts (the first of a
+ * flow) knew no facts and showed no field; the run then asked in an input box.
+ */
 export async function checkLaunch(
   document: vscode.TextDocument,
   deps: RunDeps,
   token: string,
   inputs: Record<string, unknown>,
-): Promise<{ facts?: LaunchFacts; error?: string }> {
+): Promise<{ facts?: LaunchFacts; error?: string; vault?: boolean }> {
   sweep();
   const p = pending.get(token);
   if (!p || p.uri !== document.uri.toString()) return { error: 'This dialog has expired' };
@@ -113,7 +126,9 @@ export async function checkLaunch(
   if (!doc || !folder) return { error: 'The flow does not parse' };
   const found = await launchFacts(doc, inputs, folder.uri, deps.probes);
   p.facts = found.ok ? found.facts : undefined;
-  return found.ok ? { facts: found.facts } : { error: found.error };
+  return found.ok
+    ? { facts: found.facts, vault: asksVault(document, found.facts) }
+    : { error: found.error };
 }
 
 /** The token's launch, once: a second Run with it, another flow's or an old one gets nothing. */

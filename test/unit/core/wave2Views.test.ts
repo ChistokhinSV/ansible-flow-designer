@@ -88,9 +88,22 @@ describe('what an undo did (AFD-239)', () => {
     const node = id(EDGE, 'validate');
     const renamed = apply(EDGE, { kind: 'updateNode', id: node, patch: { title: 'Validate NTP' } });
     expect(undoSummary(docOf(renamed), docOf(EDGE), 'Undid')).toEqual({
-      text: 'Undid: changed Validate (title)',
+      text: 'Undid: changed Validate (Title)',
       node,
     });
+    // AFD-380: the binding is named as the details panel names it, not by its YAML key (impl).
+    const step = all(EDGE).find((n) => n.impl) as FlowNode;
+    const rebound = docOf(EDGE);
+    const walk = (list: FlowNode[] | undefined): void => {
+      for (const n of list ?? []) {
+        if (n.id === step.id) n.impl = { ...(n.impl as object), state: 'touch' } as never;
+        walk((n as { nodes?: FlowNode[] }).nodes);
+      }
+    };
+    walk(rebound.nodes);
+    expect(undoSummary(rebound, docOf(EDGE), 'Undid').text).toBe(
+      `Undid: changed ${step.title} (Binding)`,
+    );
     const movedText = apply(EDGE, { kind: 'moveNodes', positions: { [node]: { x: 900, y: 900 } } });
     expect(undoSummary(docOf(movedText), docOf(EDGE), 'Undid')).toEqual({
       text: 'Undid: moved 1 node',

@@ -64,3 +64,30 @@ export function sharedIds<T extends { id?: string | undefined }>(
   for (const [id, list] of by) if (list.length < 2) by.delete(id);
   return by;
 }
+
+/** One file of a group that shares a flow ID: whether Git tracks it and when it was made. */
+export interface CopyCandidate {
+  /** Undefined outside a Git repository. */
+  tracked?: boolean | undefined;
+  /** Creation time (ms) where the file system keeps one, else its last change; 0 if unknown. */
+  born: number;
+}
+
+/**
+ * AFD-380: which files of a group sharing a flow ID are the copies, so that only they are flagged
+ * and offered new IDs: the original keeps its IDs (Code mode, history, scenarios and server links
+ * follow them). Git decides first: tracked files are originals when some are not. Otherwise the
+ * oldest file is the original. When neither tells them apart, every file is flagged.
+ */
+export function copiesAmong<T extends CopyCandidate>(group: readonly T[]): T[] {
+  const tracked = group.filter((f) => f.tracked === true);
+  if (tracked.length > 0 && tracked.length < group.length)
+    return group.filter((f) => f.tracked !== true);
+  const pool = tracked.length > 0 ? tracked : group;
+  const known = pool.filter((f) => f.born > 0);
+  if (known.length < pool.length || known.length < 2) return [...group];
+  const first = Math.min(...known.map((f) => f.born));
+  const originals = known.filter((f) => f.born === first);
+  if (originals.length > 1) return [...group];
+  return group.filter((f) => f !== originals[0]);
+}

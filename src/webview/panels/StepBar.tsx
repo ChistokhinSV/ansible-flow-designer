@@ -79,6 +79,24 @@ function failedAt(run: RunView, node: Ulid | undefined): Set<string> {
   );
 }
 
+type Stopped = NonNullable<NonNullable<RunView['step']>['stopped']>;
+
+/** "after" a failure pause's step (it ran), "at" a step hosts failed, else "before". */
+function stoppedWhere(run: RunView, stopped: Stopped): string {
+  if (stopped.after) return 'after';
+  return failedAt(run, stopped.node).size ? 'at' : 'before';
+}
+
+/**
+ * The hosts a stopped run left at its step: those that stopped there and (AFD-379) those that
+ * failed the step at a failure pause, which the stop lists apart.
+ */
+function stoppedHosts(run: RunView, stopped: Stopped): { host: string; failed: boolean }[] {
+  const failed = new Set([...(stopped.failed ?? []), ...failedAt(run, stopped.node)]);
+  const all = [...new Set([...stopped.hosts, ...(stopped.failed ?? [])])];
+  return all.map((host) => ({ host, failed: failed.has(host) }));
+}
+
 function useNow(on: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -171,11 +189,20 @@ function PointLogs({ logs }: { logs: NonNullable<RunView['step']>['logs'] }) {
   );
 }
 
+/**
+ * AFD-379: why Retry is not offered, as one sentence. The engine's reason may already say "Retry is
+ * not offered …" and end with a full stop ("Retry is not offered here: Retry is not offered for …..").
+ */
+export function refusedLine(reason: string): string {
+  const said = reason.trim().replace(/[.\s]+$/, '');
+  return /^retry is not offered/i.test(said) ? `${said}.` : `Retry is not offered here: ${said}.`;
+}
+
 /** Retry at a failure pause: says that the step runs again; where refused, why (disabled). */
 function RetryButton({ pause, compact }: { pause: StepPause; compact?: boolean }) {
   const title = useTitle(pause.node);
   const refused = pause.retryRefused;
-  const words = refused ? `Retry is not offered here: ${refused}` : retryWarning(pause, title);
+  const words = refused ? refusedLine(refused) : retryWarning(pause, title);
   return (
     <button
       type="button"
@@ -224,7 +251,7 @@ function FailureNote({ pause, title }: { pause: StepPause; title: string }) {
         data-retry-note={pause.retryRefused ? 'refused' : 'warn'}
       >
         {pause.retryRefused
-          ? `Retry is not offered here: ${pause.retryRefused}. Continue routes the failed hosts as the flow says; Stop ends the run.`
+          ? `${refusedLine(pause.retryRefused)} Continue routes the failed hosts as the flow says; Stop ends the run.`
           : `${retryWarning(pause, title)} Continue routes the failed hosts as the flow says; Stop ends the run.`}
       </p>
     </>
@@ -255,6 +282,17 @@ export function FailureBar() {
   );
 }
 
+/** What Continue does, by the pause points: at the only one, it runs to the end. */
+export function continueLine(points: readonly Ulid[], pausedAt: Ulid | undefined): string {
+  const ahead = points.filter((p) => p !== pausedAt).length;
+  if (points.length === 0)
+    return 'No pause point: Continue runs to the end. Right-click a step to add one.';
+  const n = `${points.length} pause point${points.length === 1 ? '' : 's'}`;
+  return ahead === 0
+    ? `${n}: Continue runs to the end (this is the only one).`
+    : `${n}: Continue runs on to the next one.`;
+}
+
 /** The Run panel's part of a step-by-step run: where it waits, the hosts there, the buttons. */
 export function StepSection({ run }: { run: RunView }) {
   const step = run.step;
@@ -270,7 +308,8 @@ export function StepSection({ run }: { run: RunView }) {
   const pausePoint = !!step.paused && step.points.includes(step.paused.node);
   return (
     <section className="afd-section afd-step-section" data-step-run={going ? 'going' : 'ended'}>
-      <h3>Step by step</h3>
+      {/* AFD-379: a debug run is named as one. */}
+      <h3>{step.debug ? 'Debug' : 'Step by step'}</h3>
       {/* AFS-205: said to a screen reader as it changes (paused, running, stopped). */}
       <div aria-live="polite">
         {going && step.paused ? (
@@ -309,17 +348,21 @@ export function StepSection({ run }: { run: RunView }) {
               {step.stopped.reason === 'timeout' ? (run.error ?? 'Stopped') : 'Stopped'}
               {step.stopped.reason === 'timeout'
                 ? ''
-                : ` ${failedAt(run, step.stopped.node).size ? 'at' : 'before'} ${stoppedTitle}`}
+                : ` ${stoppedWhere(run, step.stopped)} ${stoppedTitle}`}
             </p>
-            <ul className="afd-run-hosts" data-step-stopped-hosts={step.stopped.hosts.length}>
-              {step.stopped.hosts.map((h) => (
-                <li key={h}>
-                  <span className="mono">{h}</span>{' '}
-                  {/* AFD-378: stopped at a failure pause, a host that failed the step says so. */}
-                  <span className="muted">
-                    {failedAt(run, step.stopped?.node).has(h)
+            <ul
+              className="afd-run-hosts"
+              data-step-stopped-hosts={stoppedHosts(run, step.stopped).length}
+            >
+              {stoppedHosts(run, step.stopped).map(({ host, failed }) => (
+                <li key={host}>
+                  <span className="mono">{host}</span>{' '}
+                  {/* AFD-378, AFD-379: stopped at a failure pause, the step ran: a host that failed
+                      it says so, the others stopped after it, not before. */}
+                  <span className="muted" data-stopped-host={failed ? 'failed' : 'stopped'}>
+                    {failed
                       ? `failed ${stoppedTitle}, then stopped`
-                      : `stopped before ${stoppedTitle}`}
+                      : `stopped ${step.stopped?.after ? 'after' : 'before'} ${stoppedTitle}`}
                   </span>
                 </li>
               ))}
@@ -339,11 +382,10 @@ export function StepSection({ run }: { run: RunView }) {
           Waiting for {step.who} to go on.
         </p>
       ) : null}
-      {stepRuns ? (
+      {/* AFD-379: what Continue does is said while there is a run to continue, not after it. */}
+      {going && stepRuns ? (
         <p className="muted" data-pause-points={points.length}>
-          {points.length
-            ? `${points.length} pause point${points.length === 1 ? '' : 's'}: Continue runs on to the next one.`
-            : 'No pause point: Continue runs to the end. Right-click a step to add one.'}
+          {continueLine(points, step.paused?.node)}
         </p>
       ) : null}
     </section>

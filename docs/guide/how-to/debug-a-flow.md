@@ -126,7 +126,14 @@ The canvas shows a bar over the flow: "Paused after Apply config: 1 of 4 hosts f
   exception's text says so too.
 - **Continue** sends the failed hosts where the flow says (the fail port's wire, or a failed end).
 - **Stop** ends the run there, after the step: the failed hosts stay failed at it (they do not go
-  on by the fail port), and the others are stopped after it.
+  on by the fail port), and the others are stopped after it. The Run panel's **Debug** section says "Stopped after <step>", each host
+  "stopped after <step>" or "failed <step>, then stopped".
+
+In the Run panel a debug run reads **Local debug run (check mode)** and its status **paused,
+debugging**; the run in progress is the **Run shown** until it ends and joins the kept runs. A
+designer opened at a pause (from a launch.json debug session) opens in Run mode, with the ring on
+the paused step. The Debug dialog shows the **Vault password** field as soon as the hosts typed
+reach an inventory with vaulted values, also the first time it opens.
 
 Retry is not offered for a rolling subflow (it runs as one play) or a host that failed outside the
 step's rescue (a missing role, an include error: Ansible takes the host out of the run). There the

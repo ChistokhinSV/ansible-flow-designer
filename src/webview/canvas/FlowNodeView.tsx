@@ -409,6 +409,15 @@ function useStoppedInside(id: Ulid): boolean {
   });
 }
 
+/** "1 host failed", "2 hosts unreachable", "1 host failed, 1 unreachable" from "failed/unreachable". */
+function failureWords(counts: string): string {
+  const [failed = 0, unreachable = 0] = counts.split('/').map(Number);
+  const hosts = (n: number) => `${n} host${n === 1 ? '' : 's'}`;
+  if (unreachable === 0) return `${hosts(failed)} failed`;
+  if (failed === 0) return `${hosts(unreachable)} unreachable`;
+  return `${hosts(failed)} failed, ${unreachable} unreachable`;
+}
+
 /** Run mode (04 §10): how many hosts the node handled, how many failed, how long it took. */
 function RunLine({ node }: { node: FlowNode }) {
   const r = useUi((s) => s.runNodes?.[node.id]);
@@ -421,14 +430,18 @@ function RunLine({ node }: { node: FlowNode }) {
   // AFS-205: a subflow on this level stopped inside reads stopped, not "not reached".
   const stoppedInside = useStoppedInside(node.id);
   // ADR-0040 §7 (AFD-372): a failure pause: how many hosts failed the step it waits after.
+  // AFD-380: an unreachable host reads unreachable, as in the failure bar, not failed.
   const failedHere = useUi((s) => {
     const p = s.run?.state === 'running' ? s.run.step?.paused : undefined;
-    return p?.kind === 'failure' && p.node === node.id ? (p.failed?.length ?? 0) : undefined;
+    if (p?.kind !== 'failure' || p.node !== node.id) return undefined;
+    const list = p.failed ?? [];
+    const unreachable = list.filter((f) => f.unreachable).length;
+    return `${list.length - unreachable}/${unreachable}`;
   });
   if (failedHere !== undefined)
     return (
       <div className="afd-node-run tone-warn" data-run-state="failure-paused">
-        {failedHere} host{failedHere === 1 ? '' : 's'} failed · paused · {paused ?? 0} waiting
+        {failureWords(failedHere)} · paused · {paused ?? 0} waiting
       </div>
     );
   // AFD-346: the step a step-by-step run waits before, with the hosts waiting there.
