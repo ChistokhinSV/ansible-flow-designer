@@ -46,6 +46,31 @@ DOCUMENTATION = """
 
 display = Display()
 
+# ansible-core 2.19+ calls every strategy outside ansible.builtin deprecated, with no replacement
+# planned, on each play of a step-by-step or debug run. This plugin is the linear strategy with
+# pauses, and the warning tells the person running a flow nothing they can act on, so that one
+# message is dropped (Display is one object per process; the loader warns right after it imports
+# this module). Every other deprecation warning still shows.
+_THIRD_PARTY_STRATEGY = "Use of strategy plugins not included in ansible.builtin are deprecated"
+
+
+def _quiet_strategy_deprecation() -> None:
+    if getattr(display, "_afd_quiet", False):
+        return
+    warn = display.deprecated
+
+    def deprecated(*args, **kwargs):
+        msg = kwargs.get("msg", args[0] if args else "")
+        if isinstance(msg, str) and msg.startswith(_THIRD_PARTY_STRATEGY):
+            return None
+        return warn(*args, **kwargs)
+
+    display.deprecated = deprecated
+    display._afd_quiet = True
+
+
+_quiet_strategy_deprecation()
+
 
 def _paused_line(play: str, hosts: int) -> str:
     """The terminal's line for a pause: the step's title without its [key], the hosts waiting."""
@@ -89,13 +114,15 @@ FAIL_FACTS = (
 )
 # A rolling subflow (AFD-55) is one play with serial for all its steps.
 ROLLING = re.compile(r": rolling, .+ at a time$")
+# Why Retry is not offered, as a reason: shown alone and after "Retry is not offered here: ".
 NO_RETRY_ROLLING = (
-    "Retry is not offered in a rolling subflow: its steps run as one play for each batch. "
+    "A rolling subflow runs its steps as one play for each batch. "
     "Rerun from this step as a new run instead."
 )
 NO_RETRY_HARD = (
-    "Retry is not offered for a host that failed outside the step's rescue (a failure "
-    "percentage, an include error). Rerun from this step as a new run instead."
+    "Ansible took the failed host out of the run (it failed outside the step's rescue, as with a "
+    "missing role, an include error or a failure percentage). Rerun from this step as a new run "
+    "instead."
 )
 _MISSING = object()
 
@@ -214,7 +241,8 @@ def _wants_pause(control: dict, node: str) -> bool:
 def _msg(result: object) -> str:
     if not isinstance(result, dict):
         return ""
-    parts = [str(result.get("msg") or result.get("reason") or "")]
+    # "The command exited with a non-zero return code; rc=1", not "code.; rc=1".
+    parts = [str(result.get("msg") or result.get("reason") or "").strip().rstrip(".")]
     rc = result.get("rc")
     if rc not in (None, 0):
         parts.append(f"rc={rc}")
@@ -222,6 +250,37 @@ def _msg(result: object) -> str:
     if err:
         parts.append(str(err)[:200])
     return "; ".join(p for p in parts if p)[:500]
+
+
+def _last_failures(path: str, offset: int) -> dict[str, dict]:
+    """The last failed result of each host in events.jsonl after `offset` (the afd_events
+    callback's lines, masked there): the task and message of a failure no rescue saw."""
+    out: dict[str, dict] = {}
+    if not path:
+        return out
+    try:
+        with open(path, encoding="utf-8") as f:
+            f.seek(offset)
+            lines = f.read().splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        if '"result"' not in line or '"failed"' not in line:
+            continue
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if e.get("event") == "result" and e.get("status") == "failed" and not e.get("ignored"):
+            out[str(e.get("host"))] = e
+    return out
+
+
+def _events_size(path: str) -> int:
+    try:
+        return os.path.getsize(path) if path else 0
+    except OSError:
+        return 0
 
 
 class StrategyModule(LinearStrategy):
@@ -398,12 +457,15 @@ class StrategyModule(LinearStrategy):
             for h in hosts
         }
 
-    def _afd_failed(self, before: dict, filters: dict) -> list[dict]:
+    def _afd_failed(self, before: dict, filters: dict, events: str = "", offset: int = 0):
         """The hosts that failed the play just run: rescued into the fail port (the rescue set
-        afd_failed_node again), failed outside the rescue, or unreachable (when asked)."""
+        afd_failed_node again), failed outside the rescue, or unreachable (when asked). A failure
+        outside the rescue has no afd_failed_* facts: its task and message are the run's last
+        failed result for the host (events.jsonl since the play started)."""
         facts = self._variable_manager._nonpersistent_fact_cache
         stats = self._tqm._stats
         out = []
+        seen: dict[str, dict] | None = None
         for name, snap in before.items():
             hf = facts.get(name, {})
             node_fact = hf.get("afd_failed_node", _MISSING)
@@ -429,6 +491,12 @@ class StrategyModule(LinearStrategy):
                 }
                 if hard and not rescued:
                     item["hard"] = True
+                if not item["task"] or not item["msg"]:
+                    if seen is None:
+                        seen = _last_failures(events, offset)
+                    last = seen.get(name) or {}
+                    item["task"] = item["task"] or str(last.get("task") or "")
+                    item["msg"] = item["msg"] or str(last.get("msg") or "")[:500]
                 out.append(item)
             elif filters["unreachable"] and gone:
                 out.append({"host": name, "task": "", "msg": "Unreachable", "unreachable": True})
@@ -507,11 +575,12 @@ class StrategyModule(LinearStrategy):
         before = self._afd_snapshot(play)
         # Every pause holds all hosts: after a Retry, those that passed still wait at it.
         everyone = [s["host"] for s in before.values()]
+        offset = _events_size(state.events)
         result = super().run(iterator, play_context)
         attempt = 1
         while not state.stopped:
             filters = state.failures()
-            failed = self._afd_failed(before, filters)
+            failed = self._afd_failed(before, filters, state.events, offset)
             if not failed or state.read().get("command") == "stop":
                 return result
             refused = None
@@ -547,5 +616,6 @@ class StrategyModule(LinearStrategy):
             )
             fresh = self._afd_snapshot(play)
             before = {n: fresh.get(n, before[n]) for n in names}
+            offset = _events_size(state.events)
             result = self._afd_rerun(iterator, play_context, names)
         return self._tqm.RUN_FAILED_BREAK_PLAY

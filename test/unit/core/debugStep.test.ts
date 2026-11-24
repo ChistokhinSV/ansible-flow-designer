@@ -155,7 +155,7 @@ describe('ADR-0040: what a debug run says', () => {
       .map(line)
       .join('');
     const s = summarizeRun(text, routes);
-    expect(s.nodes.CHECK).toEqual({ ok_hosts: ['h1', 'h2'], failed_hosts: [] });
+    expect(s.nodes.CHECK).toEqual({ ok_hosts: ['h1', 'h2'] });
     expect(s.outcome).toEqual({});
     expect(s.problems?.CHECK ?? {}).toEqual({});
     expect(s.failures).toEqual([]);

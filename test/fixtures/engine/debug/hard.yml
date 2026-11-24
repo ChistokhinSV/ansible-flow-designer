@@ -1,0 +1,23 @@
+---
+# A failure outside a step's rescue (AFD-379): a role that is not there, on one host. Ansible
+# takes the host out of the run; the failure pause names its task and message, without Retry.
+- name: "[prep] Prepare data"
+  hosts: devices
+  gather_facts: false
+  vars:
+    flow_node_id: n-prep
+  tasks:
+    - name: "[prep] include the role"
+      ansible.builtin.include_role:
+        name: no_such_role_here
+      when: inventory_hostname == 'h02'
+
+- name: "[check] Check state"
+  hosts: devices
+  gather_facts: false
+  vars:
+    flow_node_id: n-check
+  tasks:
+    - name: "[check] noop"
+      ansible.builtin.debug:
+        msg: "check {{ inventory_hostname }}"

@@ -56,6 +56,15 @@ All notable changes to Ansible Flow Designer.
 - At a debug pause, **Step inputs** lists the step's own inputs, also those the flow data gives (`devices`), and no longer an internal value of the generator (`afd_repo_root`).
 - Evaluate says what is wrong in plain words: "lookups are not allowed in Evaluate", "A bracket (() is not closed", "A quote (') is not closed", instead of Jinja's parser messages.
 - An approval step's **Approvers** help no longer says "whoever the runner lets approve" where the server names who an empty field asks; that line reads "Empty, so it asks: …", and the example names in the fields start with "e.g." so they do not read as values.
+- Stop at a failure pause leaves the failed hosts failed at that step: they are no longer shown going on by the step's fail port (to a failed end), also after a Retry that failed again.
+- A failure pause where Retry is not offered (a missing role, an include error) names each host's task and message, and says once, in plain words, why there is no Retry.
+- The debugger's failure text reads "non-zero return code; rc=1", without ".;".
+- Debug and step-by-step runs no longer print ansible-core's deprecation warnings about third-party strategy plugins and the templar's `environment` attribute.
+- **Edit Pause Point…** shows **Pause when a host is unreachable** as the Breakpoints view's **Host unreachable** filter has it, once a debug session has started.
+- **Step Out** says in the Debug Console that it is not there yet, and the run stays paused; it was a pop-up.
+- At a debug pause, **Host variables** no longer lists the values the generated code keeps for itself (`afd_failed_task`, `afd_inputs` and the like).
+- In the Debug Console, an expression that is not finished ("A quote (') is not closed") is an error, not "Refused".
+- `vars['db' ~ '_password']` is masked with that variable's own reason (`masked: vault` for a vaulted one), not "secret-looking name".
 
 ## 1.1.0 — Run step by step, with pause points
 

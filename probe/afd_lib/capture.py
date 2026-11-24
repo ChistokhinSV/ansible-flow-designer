@@ -244,8 +244,11 @@ class HostView:
     def scope_of(self, name: str) -> str | None:
         if name in MAGIC or name in OWN_PLAY_VARS or name.startswith("ansible_facts"):
             return None
-        if name not in self._extra and name.startswith("afd_") and name in self._all_play:
-            return None  # the generator's own play variables
+        if name not in self._extra and name.startswith("afd_"):
+            # The generator's own: its play variables and the facts its code sets on a host
+            # (afd_failed_node, afd_failed_result, afd_failed_task, afd_inputs). Evaluate still
+            # reads them.
+            return None
         if name in self._extra:
             return "flow"
         if name in self._play_vars:

@@ -85,6 +85,7 @@ function setup() {
   let finish: (v: RunView) => void = () => undefined;
   let stopped = 0;
   const saved: PointSpec[] = [];
+  const kept: FailureFilters[] = [];
   const host: DebugHost = {
     load: async () => ({ path: FLOW, text, doc }),
     start: (_args, h) => {
@@ -100,6 +101,7 @@ function setup() {
     },
     samePath: (a, b) => a.toLowerCase() === b.toLowerCase(),
     savedPoints: () => saved,
+    keepFailures: (f) => kept.push(f),
   };
   const adapter = new FlowDebugAdapter(host, (m) => out.push(m as Msg));
   let seq = 1;
@@ -119,6 +121,7 @@ function setup() {
     finish: (v: RunView) => finish(v),
     stopped: () => stopped,
     saved,
+    kept,
   };
 }
 
@@ -226,6 +229,11 @@ describe('AFD-369: the debug adapter', () => {
     ]);
     await t.req('setExceptionBreakpoints', { filters: [] });
     expect(t.driver.failures.at(-1)).toEqual({ failed: false, unreachable: false });
+    // AFD-379: kept as the flow's filters, so Edit Pause Point shows what the Breakpoints view does.
+    expect(t.kept).toEqual([
+      { failed: true, unreachable: true },
+      { failed: false, unreachable: false },
+    ]);
   });
 
   it('a failure pause: one stopped event on the failed host, threads host first, frames, info', async () => {
@@ -267,21 +275,31 @@ describe('AFD-369: the debug adapter', () => {
     expect(t.events('continued')).toHaveLength(1);
   });
 
-  it('Retry refused says why; Step Into is Step, Step Out refused; Continue and Step go to the driver', async () => {
+  it('Retry refused says why; Step Into is Step, Step Out said in the console; Continue and Step go to the driver', async () => {
     await t.req('configurationDone');
     const refused = {
       ...failure,
-      retryRefused: 'a rolling subflow runs as one play: rerun from this step as a new run',
+      retryRefused: 'A rolling subflow runs as one play. Rerun from this step as a new run.',
     };
     t.driver.pause = refused;
     t.hooks().report(view(refused));
+    // AFD-379: said once, with one full stop.
+    const said = t.events('output').map((e) => String(e.body.output));
+    expect(said.join('')).toContain(
+      'Retry is not offered here: A rolling subflow runs as one play. Rerun from this step as a new run.\n',
+    );
+    const stops = t.events('stopped').length;
     const r = await t.req('retry');
     expect(r.success).toBe(false);
     expect(r.message).toMatch(/rolling subflow/);
     expect((await t.req('stepIn', { threadId: 2 })).success).toBe(true);
+    // AFD-379: not a pop-up: the Debug Console says so, and the pause is told again.
     const out = await t.req('stepOut', { threadId: 2 });
-    expect(out.success).toBe(false);
-    expect(out.message).toMatch(/Step Out is not in this version/);
+    expect(out.success).toBe(true);
+    const last = t.events('output').at(-1);
+    expect(last?.body).toMatchObject({ category: 'console' });
+    expect(String(last?.body.output)).toMatch(/^Step Out is not there yet/);
+    expect(t.events('stopped')).toHaveLength(stops + 1);
     expect((await t.req('next', { threadId: 2 })).success).toBe(true);
     expect((await t.req('continue', { threadId: 2 })).body).toEqual({ allThreadsContinued: true });
     expect(t.driver.sent).toEqual(['retry', 'step', 'step', 'continue']);
@@ -401,6 +419,10 @@ describe('AFD-369: the debug adapter', () => {
     const watch = await t.req('evaluate', { expression: 'bad', context: 'watch' });
     expect(watch.success).toBe(false);
     expect(watch.message).toBe("Error: 'bad' is undefined");
+    // AFD-379: an expression not finished is an error, not a refusal.
+    t.driver.answers = () => ({ error: "A quote (') is not closed" });
+    const open = await t.req('evaluate', { expression: "'abc", context: 'repl' });
+    expect(open.body.result).toBe("Error: A quote (') is not closed");
   });
 
   it('log lines and refusals go to the Debug Console once; the run ending terminates', async () => {

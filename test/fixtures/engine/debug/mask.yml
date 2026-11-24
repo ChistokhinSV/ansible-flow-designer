@@ -30,6 +30,14 @@
       register: reg_nolog
       no_log: true
       changed_when: false
+    - name: "[prep] registered set_fact"
+      ansible.builtin.set_fact:
+        prep_value: 7
+        prep_copy: "{{ db_password }}"
+        prep_big: "{{ 'y' * 70000 }}"
+        prep_list: "{{ range(500) | list }}"
+        prep_one: [1]
+      register: reg_setfact
     - name: "[prep] plain command"
       ansible.builtin.command: "echo hello"
       register: reg_plain

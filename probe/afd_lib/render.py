@@ -57,6 +57,13 @@ def precheck(expr: str, environment, where: str = "Evaluate") -> str | None:
     return check_template("{{ " + expr + " }}", environment, where, expression=True)
 
 
+def refusal(text: str) -> dict:
+    """A precheck's answer: refused (a lookup, a vault filter, a name starting with _: what
+    Evaluate does not allow), or an error (a bracket or quote not closed, not Jinja: the
+    expression is not finished, nothing was refused)."""
+    return {"error": text, "refused": True} if "not allowed" in text else {"error": text}
+
+
 PAIRS = {"(": ")", "[": "]", "{": "}"}
 
 

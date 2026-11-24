@@ -166,6 +166,9 @@ const maskRequests: Record<string, [InspectOp, InspectArgs]> = {
     { host: 'h01', expr: 'hostvars[inventory_hostname].db_password | list' },
   ],
   leakVarsDyn: ['eval', { host: 'h01', expr: "vars['db' ~ '_password'] | list" }],
+  // AFD-379: a name made of constants is that variable: its own reason.
+  leakVarsVault: ['eval', { host: 'h01', expr: "vars['vault' ~ '_secret'] | reverse | join" }],
+  regSetFact: ['vars', { host: 'h01', scope: 'host', path: ['reg_setfact'] }],
   leakNested: ['eval', { host: 'h01', expr: 'nested_vault | dict2items' }],
   okPlainPart: ['eval', { host: 'h01', expr: 'via_dict.lst[1] + 1' }],
   okHostvars: ['eval', { host: 'h01', expr: "hostvars['h02'].ntp_servers | length" }],
@@ -256,11 +259,13 @@ const SCENARIOS: Scenario[] = [
     check: true,
     start: { ...startControl(false), failures },
     decide: async (p, n, ask) => {
-      if (n === 0 && p.kind === 'failure')
+      if (n === 0 && p.kind === 'failure') {
         answers.set(
           'failedResult',
           await ask('eval', { host: 'sw-edge-04', expr: 'afd_failed_node' }),
         );
+        answers.set('failedScopes', await ask('scopes', { host: 'sw-edge-04' }));
+      }
       return answer('continue', [], p.id);
     },
   },
@@ -271,6 +276,33 @@ const SCENARIOS: Scenario[] = [
     check: true,
     start: { ...startControl(false), failures },
     decide: (p) => answer('stop', [], p.id),
+  },
+  {
+    name: 'stop: retry fails again, then stop',
+    flow: EDGE,
+    vars: EDGE_VARS,
+    check: true,
+    start: { ...startControl(false), failures },
+    decide: (p, n) =>
+      n === 0
+        ? { ...answer('retry', [], p.id), after: 'continue' as const, failures }
+        : answer('stop', [], p.id),
+  },
+  {
+    name: 'stop: step past a failure by its fail port, then stop before the next step',
+    flow: EDGE,
+    vars: EDGE_VARS,
+    check: true,
+    start: { ...startControl(false), failures },
+    decide: (p, n) =>
+      n === 0 ? { ...answer('step', [], p.id), failures } : answer('stop', [], p.id),
+  },
+  {
+    name: 'hard: a failure outside the rescue names its task and message, no Retry',
+    playbook: 'hard.yml',
+    vars: { ext_value: 'Ext-Fict-44dd', cred_password: 'Cred-Fict-11aa' },
+    start: { ...startControl(false), failures },
+    decide: (p) => answer('continue', [], p.id),
   },
   {
     name: 'retry: a second failure pauses again, then continue',
@@ -423,6 +455,11 @@ const results = (o: Outcome) =>
     .filter((e) => e.event === 'result')
     .map((e) => `${e.host} ${e.status} ${e.task}`)
     .sort();
+/** AFD_KEEP_EVENTS=<folder>: a scenario's events.jsonl kept there as a fixture (the 2.21 image). */
+function keep(name: string, o: Outcome): void {
+  const to = process.env.AFD_KEEP_EVENTS;
+  if (to) writeFileSync(join(to, `${name}.events.jsonl`), o.text);
+}
 const leaks = (text: string) =>
   SECRETS.flatMap((s) => forms(s).filter((f) => text.toLowerCase().includes(f.toLowerCase())));
 const child = (a: InspectAnswer | undefined, name: string | number) =>
@@ -460,8 +497,6 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
       'ANSIBLE_HOST_KEY_CHECKING=False',
       '-e',
       'ANSIBLE_LOCALHOST_WARNING=False',
-      '-e',
-      'ANSIBLE_DEPRECATION_WARNINGS=False',
       '-e',
       'PYTHONDONTWRITEBYTECODE=1',
       image,
@@ -501,6 +536,16 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(side.trim()).toBe('none');
   });
 
+  it('prints none of the deprecation warnings the debugger caused (AFD-379)', () => {
+    for (const [name, o] of outcomes) {
+      expect({ name, strategy: /third party strategy plugins/.test(o.out) }).toEqual({
+        name,
+        strategy: false,
+      });
+      expect({ name, env: /`environment` attribute/.test(o.out) }).toEqual({ name, env: false });
+    }
+  });
+
   it('lists scopes with names, types and sizes, no values; facts only when asked', () => {
     const scopes = a('scopes')?.scopes ?? [];
     expect(scopes.map((s) => s.id)).toEqual(['inputs', 'host', 'flow', 'facts']);
@@ -529,6 +574,10 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(facts?.scope).toBe('facts');
     expect(child(facts, 'hostname') ?? child(facts, 'nodename')).toBeTruthy();
     expect(a('nobody')?.error).toMatch(/h99/);
+    // AFD-379: a registered set_fact lists as many rows as its count says.
+    const reg = host.find((v) => v.name === 'reg_setfact');
+    expect(reg?.type).toBe('dict');
+    expect(a('regSetFact')?.children).toHaveLength(reg?.count ?? -1);
   });
 
   it('masks each kind of secret, with its reason and never its size', () => {
@@ -625,7 +674,8 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     for (const [k, kind] of Object.entries(kinds))
       expect({ k, ...a(k) }).toMatchObject({ k, type: 'masked', masked: kind });
     // vars[<a name chosen at run time>]: every variable is read; the first masked one names it.
-    expect(a('leakVarsDyn')).toMatchObject({ type: 'masked' });
+    expect(a('leakVarsDyn')).toMatchObject({ type: 'masked', masked: 'name' });
+    expect(a('leakVarsVault')).toMatchObject({ type: 'masked', masked: 'vault' });
     // A plain part of a value with a masked part is shown.
     expect(a('okPlainPart')).toMatchObject({ type: 'int', value: 2 });
     expect(a('okHostvars')).toMatchObject({ type: 'int', value: 2 });
@@ -636,11 +686,11 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(a('refusedUnderscore')?.error).toMatch(/Names starting with _/);
     // Plain words, not Jinja's parser terms.
     expect(a('evalLookup')?.error).toMatch(/lookups are not allowed in Evaluate/);
-    expect(a('evalUnclosed')).toMatchObject({
-      refused: true,
-      error: 'A bracket (() is not closed',
-    });
+    // AFD-379: an expression not finished is an error, not a refusal.
+    expect(a('evalUnclosed')).toMatchObject({ error: 'A bracket (() is not closed' });
+    expect(a('evalUnclosed')?.refused).toBeUndefined();
     expect(a('evalUnquoted')?.error).toBe("A quote (') is not closed");
+    expect(a('evalUnquoted')?.refused).toBeUndefined();
     const rows = a('leakWatch')?.results ?? [];
     expect(rows).toHaveLength(6);
     expect(rows.every((r) => r.type === 'masked')).toBe(true);
@@ -718,6 +768,10 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(fails[0]?.attempt).toBe(1);
     expect(fails[0]?.hosts.sort()).toEqual(EDGE_HOSTS);
     expect(a('failedResult')?.value).toBe('precheck');
+    // AFD-379: the generator's own facts are not Host variables (Evaluate still reads them).
+    const hostVars = (a('failedScopes')?.scopes ?? []).find((s) => s.id === 'host')?.vars ?? [];
+    expect(hostVars.length).toBeGreaterThan(0);
+    expect(hostVars.filter((v) => String(v.name).startsWith('afd_'))).toEqual([]);
     const off = summarizeRun(o.text, o.code?.routes ?? {});
     expect(off.nodes[idOf(EDGE, 'precheck')]?.failed_hosts).toEqual(['sw-edge-04']);
     expect(o.rc).toBe(2);
@@ -735,6 +789,56 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(stepState(o.events).stopped?.hosts.sort()).toEqual(EDGE_HOSTS.slice(0, 3));
     expect(o.events.some((e) => String(e.task ?? '').startsWith('[backup-config]'))).toBe(false);
     expect(o.rc).not.toBe(0);
+    // AFD-379: the summary leaves the failed host failed at the step, not by its fail port.
+    const precheck = idOf(EDGE, 'precheck');
+    const s = summarizeRun(o.text, o.code?.routes ?? {});
+    expect(s.nodes[precheck]?.failed_hosts ?? []).toEqual([]);
+    expect(s.nodes[precheck]?.ok_hosts).toEqual(EDGE_HOSTS.slice(0, 3));
+    expect(s.failures.map((f) => [f.host, f.node])).toEqual([['sw-edge-04', precheck]]);
+    expect(s.failures[0]?.task).toBeTruthy();
+    expect(s.outcome).toEqual({});
+    keep('stop-at-failure', o);
+  });
+
+  it('retry that fails again, then stop: stopped after the step, the host failed at it', () => {
+    const o = get('stop: retry fails again, then stop');
+    const precheck = idOf(EDGE, 'precheck');
+    expect(o.pauses.map((p) => `${p.kind}#${p.attempt}`)).toEqual(['failure#1', 'failure#2']);
+    expect(stepState(o.events).stopped).toMatchObject({
+      node: precheck,
+      after: true,
+      failed: ['sw-edge-04'],
+    });
+    const s = summarizeRun(o.text, o.code?.routes ?? {});
+    expect(s.nodes[precheck]?.failed_hosts ?? []).toEqual([]);
+    expect(s.failures.map((f) => [f.host, f.node])).toEqual([['sw-edge-04', precheck]]);
+    expect(s.outcome).toEqual({});
+    keep('retry-then-stop', o);
+  });
+
+  it('a host that went on by its fail port, then stop before a step: it keeps that route', () => {
+    const o = get('stop: step past a failure by its fail port, then stop before the next step');
+    const precheck = idOf(EDGE, 'precheck');
+    expect(o.pauses.map((p) => p.kind)).toEqual(['failure', 'step']);
+    const stopped = stepState(o.events).stopped;
+    expect(stopped?.after).toBeUndefined();
+    expect(stopped?.failed).toBeUndefined();
+    expect(stopped?.node).toBe(o.pauses[1]?.node);
+    const s = summarizeRun(o.text, o.code?.routes ?? {});
+    expect(s.nodes[precheck]?.failed_hosts).toEqual(['sw-edge-04']);
+    expect(s.failures).toEqual([]);
+    keep('fail-port-then-stop', o);
+  });
+
+  it('a failure outside the rescue names its task and message; Retry is not offered, said once', () => {
+    const o = get('hard: a failure outside the rescue names its task and message, no Retry');
+    const fail = o.pauses.find((p) => p.kind === 'failure');
+    expect(fail?.failed).toHaveLength(1);
+    expect(fail?.failed?.[0]).toMatchObject({ host: 'h02', hard: true });
+    expect(fail?.failed?.[0]?.task).toMatch(/include the role/);
+    expect(fail?.failed?.[0]?.msg).toMatch(/no_such_role_here/);
+    expect(fail?.retryRefused).toMatch(/^Ansible took the failed host out of the run/);
+    expect(o.out).toMatch(/h02: \[prep\] include the role: .*no_such_role_here/);
   });
 
   it('retry runs the step again for the failed hosts; a second failure pauses again', () => {

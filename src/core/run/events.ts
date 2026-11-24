@@ -152,6 +152,10 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     if (!list) return;
     const i = list.indexOf(host);
     if (i >= 0) list.splice(i, 1);
+    // A port no host left by is not one: no "0 hosts" wire.
+    const ports = into[route.node];
+    if (ports && list.length === 0) delete ports[route.port];
+    if (ports && Object.keys(ports).length === 0) delete into[route.node];
   };
   /** A retry event: the step's results for these hosts are forgotten (its next attempt counts). */
   const forget = (node: string, again: string[]) => {
@@ -170,6 +174,35 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
       lost.delete(h);
     }
     pending = pending.filter((f) => !(again.includes(f.host) && (f.node ?? playNode) === node));
+  };
+  /**
+   * AFD-379: Stop at a failure pause (a stopped event `after` the step, its `failed` hosts). The
+   * step's rescue had already sent them out by its fail port; the run ends there instead, so they
+   * failed at the step: not routed (a failure of it), not failed at the flow's end. The hosts
+   * that passed keep their port: they ran the step, and stopped after it.
+   */
+  const stopAfter = (node: string, held: string[]) => {
+    for (let i = placed.length - 1; i >= 0; i--) {
+      const p = placed[i] as (typeof placed)[number];
+      if (p.at !== node || !held.includes(p.host)) continue;
+      placed.splice(i, 1);
+      const route = routes[p.group];
+      if (!route) continue;
+      take(nodes, route, p.host);
+      for (const r of route.via?.[node] ?? []) take(exits, r, p.host);
+      failing.get(p.group)?.delete(p.host);
+    }
+    for (const h of held) {
+      pending = pending.filter((f) => !(f.host === h && (f.node ?? playNode) === node));
+      if (failures.some((f) => f.host === h && f.node === node)) continue;
+      const problem = problems[node]?.[h];
+      failures.push({
+        host: h,
+        node,
+        task: problem?.task ?? '',
+        ...(problem?.msg ? { msg: problem.msg } : {}),
+      });
+    }
   };
   const timings: Record<Ulid, { start: number; end: number }> = {};
   const waited: Record<Ulid, number> = {};
@@ -218,6 +251,11 @@ export function createSummarizer(routes: Record<string, Route>): Summarizer {
     if (e.event === 'pause' && typeof e.node === 'string' && typeof e.ts === 'number') {
       pausedSince = { node: e.node, ts: e.ts };
       return;
+    }
+    if (e.event === 'stopped') {
+      const held = (e as { failed?: unknown }).failed;
+      if ((e as { after?: unknown }).after === true && typeof e.node === 'string')
+        stopAfter(e.node, Array.isArray(held) ? held.map(String) : []);
     }
     if (e.event === 'resume' || e.event === 'stopped') {
       if (pausedSince && typeof e.ts === 'number')

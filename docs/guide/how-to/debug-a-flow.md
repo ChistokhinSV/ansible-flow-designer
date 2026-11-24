@@ -51,7 +51,9 @@ Every pause holds all hosts, wherever it comes from.
   `.flow.yaml`; picking a frame shows that step on the canvas.
 - **Variables** shows, for the host of the frame you picked:
   - **Step inputs**: the step's inputs as the run has them, also those the flow data gives;
-  - **Host variables**: inventory variables, set_fact values and registered results;
+  - **Host variables**: inventory variables, set_fact values and registered results (not the
+    values the generated code keeps for itself, such as `afd_failed_task`; Evaluate still reads
+    them);
   - **Flow data**: the run's flow inputs;
   - **Facts**: read only when you open it.
 
@@ -63,20 +65,21 @@ Every pause holds all hosts, wherever it comes from.
   secret-looking name. A copy made by a filter (`b64encode`, `to_json`, `~`) is masked too.
 - **Debug Console** and **Watch** evaluate a Jinja expression for that host, as you would write it
   in a `when:` (`{{ }}` around it is fine). A lookup, `query`, the `vault` and `unvault` filters
-  and names starting with `_` are refused: the console says "Refused: …" (for a lookup, "lookups are not allowed in Evaluate"). A bracket or quote left open is named: "A bracket (() is not closed". An expression stops after
+  and names starting with `_` are refused: the console says "Refused: …" (for a lookup, "lookups are not allowed in Evaluate"). An expression that is not finished is an error, and a bracket or quote left open is named: "Error: A bracket (() is not closed". An expression stops after
   2 s. Evaluate only reads: it sets nothing and runs no task.
 - An expression that reads a masked value is masked whole, with that value's reason, whatever it
   does with it: `password | reverse | join`, `password[0:4]`, `password | length`,
   `password == 'guess'` and `password | hash('sha1')` all read `masked: …`. So does one that
   reads a dict or list with a masked part (`creds | dict2items`), while a plain part of it
-  (`creds.user`) is shown. `hostvars[...]` and `vars[...]` count too; with a host or a name
+  (`creds.user`) is shown. `hostvars[...]` and `vars[...]` count too: a name made of written
+  parts (`vars['db' ~ '_password']`) is that variable, with its reason; with a host or a name
   chosen at run time (`hostvars[inventory_hostname].x`), the value is checked on every host.
 - The Debug Console also shows the reason of each pause and the lines log points write.
 
 **Continue** (F5), **Step Over** (F10, runs the step and pauses before the next) and **Stop**
 (Shift+F5) work as in a step-by-step run. **Step Into** (F11) does what Step Over does: the run
 pauses before the next step, also the first step inside a subflow. Step Out is not there yet; the
-Debug Console says so.
+Debug Console says so, and the run stays paused.
 
 ## Pause points and breakpoints
 
@@ -110,7 +113,8 @@ always, and passes a log-only point.
 
 A debug run pauses where a host fails a step (the **Host failed** filter in the Breakpoints view,
 on by default) and, if you turn it on, where a host is unreachable (**Host unreachable**). The same
-two checkboxes are in **Edit Pause Point…**.
+two checkboxes are in **Edit Pause Point…**: once a debug session has started, they show what the
+Breakpoints view has.
 
 The canvas shows a bar over the flow: "Paused after Apply config: 1 of 4 hosts failed
 (attempt 1)", each failed host with its task and message, and:
@@ -121,16 +125,20 @@ The canvas shows a bar over the flow: "Paused after Apply config: 1 of 4 hosts f
   **Retry** button in the designer's step bar, or **Ansible Flow: Retry Failed Step**; the
   exception's text says so too.
 - **Continue** sends the failed hosts where the flow says (the fail port's wire, or a failed end).
-- **Stop** ends the run there, after the step: the failed hosts stay failed at it, and the others
-  are stopped after it.
+- **Stop** ends the run there, after the step: the failed hosts stay failed at it (they do not go
+  on by the fail port), and the others are stopped after it.
 
 Retry is not offered for a rolling subflow (it runs as one play) or a host that failed outside the
-step's rescue; there the bar says why, and **Continue** or **Stop** remain. Run the flow again from
-that step as a new run instead.
+step's rescue (a missing role, an include error: Ansible takes the host out of the run). There the
+bar still names each host's task and message, says once why there is no Retry, and **Continue** or
+**Stop** remain. Run the flow again from that step as a new run instead.
 
 ## Good to know
 
 - The pause points, their settings and the failure filters are kept for this workspace, not in the
   flow file.
 - A debug run waits for an answer as long as a step-by-step run (`afd.run.stepTimeout`).
+- A step-by-step or debug run uses a strategy plugin of its own. ansible-core 2.19 and later warn
+  that strategy plugins outside `ansible.builtin` are deprecated; the run leaves out that one
+  warning, and every other deprecation warning still shows.
 - On Ansible Flow Server's pages the canvas has the same Edit Pause Point… and failure bar.

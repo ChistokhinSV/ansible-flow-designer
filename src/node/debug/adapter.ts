@@ -87,6 +87,11 @@ export interface DebugHost {
    * message: a log point mirrored there gets its message back from here.
    */
   savedPoints?(): PointSpec[];
+  /**
+   * The Breakpoints view's Host failed and Host unreachable filters, as VS Code sends them: kept
+   * as the flow's failure filters, so the designer's Edit Pause Point shows the same.
+   */
+  keepFailures?(failures: Required<FailureFilters>): void;
 }
 
 type Json = Record<string, unknown>;
@@ -111,7 +116,9 @@ interface Frame {
   node: Ulid;
 }
 
-const EVAL_REFUSED = /not allowed|refused/i;
+const EVAL_REFUSED = /not allowed/i;
+const STEP_OUT =
+  'Step Out is not there yet: Step (F10) runs the step and pauses before the next one; Continue (F5) runs on to the next pause point.';
 
 export class FlowDebugAdapter {
   private seq = 1;
@@ -232,6 +239,10 @@ export class FlowDebugAdapter {
           failed: filters.includes('failed'),
           unreachable: filters.includes('unreachable'),
         };
+        this.host.keepFailures?.({
+          failed: this.failures.failed === true,
+          unreachable: this.failures.unreachable === true,
+        });
         const error = this.driver ? await this.driver.setFailures(this.failures) : undefined;
         if (error) this.output(error, 'stderr');
         return this.respond(req, { breakpoints: filters.map(() => ({ verified: true })) });
@@ -264,13 +275,12 @@ export class FlowDebugAdapter {
       // inside a subflow.
       case 'stepIn':
         return this.command(req, 'step');
+      // Not there yet: said in the Debug Console (a refused request is a pop-up). VS Code takes
+      // an answered step request as the run going on: the pause is told again.
       case 'stepOut':
       case 'stepBack':
       case 'reverseContinue':
-        return this.refuse(
-          req,
-          'Step Out is not in this version: Step (F10) runs the step and pauses before the next one; Continue (F5) runs on to the next pause point',
-        );
+        return this.notThere(req);
       case 'afd/frame': {
         const frame = this.frames.get(Number(a.frameId));
         return this.respond(req, frame ? { node: frame.node } : {});
@@ -361,6 +371,13 @@ export class FlowDebugAdapter {
     }
   }
 
+  private notThere(req: Request): void {
+    this.output(STEP_OUT);
+    this.respond(req);
+    const pause = this.paused();
+    if (pause) this.stopped(pause, true);
+  }
+
   private async command(req: Request, command: StepCommand, body: Json = {}): Promise<void> {
     if (!this.driver) return this.refuse(req, 'The run has not started yet');
     const error = await this.driver.send(command);
@@ -434,7 +451,8 @@ export class FlowDebugAdapter {
     return [...new Set([...failed, ...(pause.matched ?? []), ...pause.hosts])];
   }
 
-  private stopped(pause: StepPause): void {
+  /** `again`: the same pause told again (after Step Out), without its lines in the console. */
+  private stopped(pause: StepPause, again = false): void {
     const title = this.title(pause.node);
     const first = this.hostsOf(pause)[0];
     const reason =
@@ -449,7 +467,7 @@ export class FlowDebugAdapter {
     const lines = [reasonLine(pause, title, !!point), ...failedLines(pause)];
     if (pause.kind === 'failure') lines.push(this.retryText(pause, title));
     if (pause.debug === false && pause.why) lines.push(`Variables are not shown: ${pause.why}`);
-    this.output(lines.join('\n'), pause.kind === 'failure' ? 'important' : 'console');
+    if (!again) this.output(lines.join('\n'), pause.kind === 'failure' ? 'important' : 'console');
     this.event('stopped', {
       reason,
       description: shortReason(pause, title),
@@ -461,8 +479,9 @@ export class FlowDebugAdapter {
   }
 
   private retryText(pause: StepPause, title: string): string {
+    // The run's words are whole sentences: said once, with one full stop.
     return pause.retryRefused
-      ? `Retry is not offered here: ${pause.retryRefused}.`
+      ? `Retry is not offered here: ${pause.retryRefused.replace(/\.+$/, '')}.`
       : `${retryWarning(pause, title)} Retry: the Retry button in the designer's step bar, or the command Retry Failed Step.`;
   }
 

@@ -27,7 +27,13 @@ import {
 } from '../../node/debug/adapter';
 import type { Host } from '../host';
 import { type RunOptions, runFlow } from '../run/runner';
-import { onPausePointsChanged, pointSpecs, pointsFromBreakpoints } from '../run/stepRun';
+import {
+  failureFilters,
+  onPausePointsChanged,
+  pointSpecs,
+  pointsFromBreakpoints,
+  setFailureFilters,
+} from '../run/stepRun';
 import { stopRun } from '../run/stop';
 
 export const DEBUG_TYPE = 'ansible-flow';
@@ -113,6 +119,18 @@ function adapterHost(host: Host, session: vscode.DebugSession): DebugHost {
     savedPoints() {
       const id = loaded?.flow.id;
       return id ? pointSpecs(host.context.workspaceState, id) : [];
+    },
+    // AFD-379: the Breakpoints view's filters are the flow's: Edit Pause Point shows them.
+    keepFailures(failures) {
+      const uri = flowUri;
+      const id = loaded?.flow.id;
+      if (!uri || !id) return;
+      const state = host.context.workspaceState;
+      const now = failureFilters(state, id);
+      if (now.failed === failures.failed && now.unreachable === failures.unreachable) return;
+      void setFailureFilters(state, uri, id, failures)
+        .then(() => host.sessions.get(uri.toString())?.showPausePoints())
+        .catch(() => undefined);
     },
   };
 }

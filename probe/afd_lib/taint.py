@@ -34,6 +34,24 @@ class TooMany(Exception):
     """A hostvars lookup by a host chosen at run time, in an inventory too large to check."""
 
 
+def _constant(node) -> object:
+    """A key written as constants joined (`'db' ~ '_password'`, `'a' + 'b'`): its value; DYN for a
+    key chosen at run time. So `vars['db' ~ '_password']` reads that variable, with its reason."""
+    from jinja2 import nodes
+
+    if isinstance(node, nodes.Const):
+        v = node.value
+        return v if isinstance(v, (str, int)) and not isinstance(v, bool) else DYN
+    if isinstance(node, nodes.Concat):
+        parts = [_constant(n) for n in node.nodes]
+        return DYN if any(p is DYN for p in parts) else "".join(str(p) for p in parts)
+    if isinstance(node, nodes.Add):
+        left, right = _constant(node.left), _constant(node.right)
+        if isinstance(left, str) and isinstance(right, str):
+            return left + right
+    return DYN
+
+
 def _chain(node) -> tuple[str, list] | None:
     """(root name, keys) of a chain of names, attributes and items; None for anything else."""
     from jinja2 import nodes
@@ -44,15 +62,7 @@ def _chain(node) -> tuple[str, list] | None:
             keys.append(node.attr)
             node = node.node
         elif isinstance(node, nodes.Getitem):
-            arg = node.arg
-            if (
-                isinstance(arg, nodes.Const)
-                and isinstance(arg.value, (str, int))
-                and not isinstance(arg.value, bool)
-            ):
-                keys.append(arg.value)
-            else:
-                keys.append(DYN)
+            keys.append(_constant(node.arg))
             node = node.node
         elif isinstance(node, nodes.Name):
             keys.reverse()

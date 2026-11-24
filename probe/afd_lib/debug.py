@@ -142,11 +142,16 @@ class Gate:
         return self._views[name]
 
     def environment(self):
+        # Only parsed and lexed with (names read, syntax checks), never rendered with: a Jinja
+        # environment of our own parses as Ansible's does. Templar.environment is deprecated in
+        # ansible-core 2.19 (removed in 2.23), and reading it printed a warning in debug runs.
         if self._templar is None:
-            from ansible.template import Templar
+            from jinja2.sandbox import ImmutableSandboxedEnvironment
 
-            self._templar = Templar(loader=self.strategy._loader)  # noqa: SLF001
-        return self._templar.environment
+            self._templar = ImmutableSandboxedEnvironment(
+                extensions=["jinja2.ext.loopcontrols", "jinja2.ext.do"]
+            )
+        return self._templar
 
     # ---- requests --------------------------------------------------------------------------
     def serve(self, folder: str) -> int:
@@ -261,7 +266,7 @@ class Gate:
     def evaluate(self, host: str, expr: str, timeout: object = None) -> dict:
         refused = render.precheck(expr, self.environment())
         if refused:
-            return {"host": host, "expr": expr, "error": refused, "refused": True}
+            return {"host": host, "expr": expr, **render.refusal(refused)}
         # The plain texts of this host's vaulted values are learned here, before the child.
         masked = self._masked_row(host, expr)
         if masked:
@@ -293,7 +298,7 @@ class Gate:
                 templar = self._templar_for(target)
                 for e in exprs:
                     if refused[e]:
-                        rows.append({"host": h, "expr": e, "error": refused[e], "refused": True})
+                        rows.append({"host": h, "expr": e, **render.refusal(refused[e])})
                         continue
                     if masked.get((h, e)):
                         rows.append(masked[(h, e)])
