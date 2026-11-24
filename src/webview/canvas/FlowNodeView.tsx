@@ -447,7 +447,7 @@ function RunLine({ node }: { node: FlowNode }) {
         {r && r.failed > 0
           ? `${r.failed} host${r.failed === 1 ? '' : 's'} failed · stopped`
           : before
-            ? `stopped before · ${before} host${before === 1 ? '' : 's'}`
+            ? `stopped ${shown?.step?.stopped?.after ? 'after' : 'before'} · ${before} host${before === 1 ? '' : 's'}`
             : r && r.hosts > 0
               ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}`
               : 'stopped'}

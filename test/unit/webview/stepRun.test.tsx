@@ -217,7 +217,9 @@ describe('Run panel and top bar', () => {
     render(<TopBar />);
     const status = document.querySelector('[data-run-state="paused"]') as HTMLElement;
     expect(status.dataset.pauseKind).toBe('failure');
-    expect(status.textContent).toContain(`2 hosts failed ${first.title} (attempt 2)`);
+    expect(status.textContent).toContain(
+      `Paused after ${first.title}: 2 of 2 hosts failed (attempt 2)`,
+    );
     expect(status.textContent).not.toContain('Paused before');
   });
 
