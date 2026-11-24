@@ -250,6 +250,70 @@ describe('Run panel and top bar', () => {
     );
   });
 
+  it('AFD-379: Stop at a failure pause of a debug run: stopped after the step, as the engine says', () => {
+    // The engine's `stopped` event at a failure pause (afd_step.py): the hosts that ran the step,
+    // the failed ones apart, and `after`.
+    act(() =>
+      useUi.getState().setRun({
+        ...stopped,
+        step: {
+          every: false,
+          points: [],
+          pauses: 1,
+          debug: true,
+          stopped: {
+            node: first.id,
+            hosts: ['web-01', 'web-03'],
+            failed: ['web-02'],
+            reason: 'driver',
+            after: true,
+          },
+        },
+      }),
+    );
+    render(<RunPanel />);
+    const section = document.querySelector('.afd-step-section') as HTMLElement;
+    expect(section.querySelector('h3')?.textContent).toBe('Debug');
+    expect(section.querySelector('[data-step-stopped]')?.textContent).toBe(
+      `Stopped after ${first.title}`,
+    );
+    const hosts = section.querySelector('[data-step-stopped-hosts]') as HTMLElement;
+    expect(hosts.dataset.stepStoppedHosts).toBe('3');
+    expect(hosts.textContent).toContain(`web-01 stopped after ${first.title}`);
+    expect(hosts.textContent).toContain(`web-02 failed ${first.title}, then stopped`);
+    expect(hosts.textContent).not.toContain('before');
+    // A finished run says nothing of what Continue would do.
+    expect(section.querySelector('[data-pause-points]')).toBeNull();
+  });
+
+  it('AFD-379: a debug run is named as one; the live run is the run shown', () => {
+    act(() => {
+      useUi.setState({
+        pastRuns: [{ id: 'older', startedAt: '2026-11-01T10:00:00Z', mode: 'check' } as never],
+      });
+      useUi.getState().setRun({
+        ...paused,
+        step: { ...(paused.step as NonNullable<RunView['step']>), debug: true },
+      });
+    });
+    render(<RunPanel />);
+    const panel = document.body;
+    expect(panel.textContent).toContain('Local debug run (check mode)');
+    expect(document.querySelector('[data-run-status]')?.textContent).toBe('paused, debugging');
+    expect(panel.textContent).toContain('This run, in progress');
+    expect(panel.textContent).not.toContain('not among the kept runs');
+  });
+
+  it('AFD-379: a designer that learns of a paused run shows it in Run mode, with the ring', () => {
+    act(() => useUi.setState({ mode: 'design', run: null }));
+    act(() => useUi.getState().setRun(paused));
+    expect(useUi.getState().mode).toBe('run');
+    // The same run again does not take the person out of Design.
+    act(() => useUi.setState({ mode: 'design' }));
+    act(() => useUi.getState().setRun({ ...paused }));
+    expect(useUi.getState().mode).toBe('design');
+  });
+
   it('AFD-378: paused before any play ended, Hosts counts the hosts waiting, not 0', () => {
     act(() => useUi.getState().setRun(paused));
     render(<RunPanel />);

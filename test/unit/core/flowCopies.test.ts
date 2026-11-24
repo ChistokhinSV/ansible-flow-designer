@@ -5,9 +5,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { createIdFactory } from '../../../src/core/flow/ids';
-import { keyFromFile, sharedIds, withNewIds } from '../../../src/core/flow/newIds';
+import { modelOf } from '../../../src/core/flow/model';
+import { copiesAmong, keyFromFile, sharedIds, withNewIds } from '../../../src/core/flow/newIds';
 import type { FlowDocument } from '../../../src/core/flow/types';
-import { importLine, subflowCount } from '../../../src/core/import/result';
+import { importPlaybook } from '../../../src/core/import/playbook';
+import { importLine, nodeTally } from '../../../src/core/import/result';
+import { readPlaybook } from '../../../src/core/import/source';
+import { fsSource } from './helpers';
 
 const HELLO = readFileSync(join(__dirname, '../../../samples/hello.flow.yaml'), 'utf8');
 const ULID = /\b[0-9A-HJKMNP-TV-Z]{26}\b/g;
@@ -43,16 +47,57 @@ describe('withNewIds', () => {
   });
 });
 
-describe('AFD-378: the import notice counts as Readiness does', () => {
-  it('names the subflows, so its nodes match Readiness', () => {
-    const c = { steps: 20, implemented: 20, drafts: 0 };
-    expect(importLine('site.flow.yaml', c, 8)).toBe(
-      'Imported site.flow.yaml: 28 nodes (20 steps in 8 subflows); 20 steps ready to run, 0 to check.',
+describe('AFD-378, AFD-380: the import notice counts as Readiness does', () => {
+  it('counts every node Readiness counts: subflows and decisions too', async () => {
+    const root = join(__dirname, '../../../samples/playbooks/edge-baseline');
+    const read = await readPlaybook(fsSource(root), 'site.yml');
+    const r = importPlaybook(
+      read.playbook as NonNullable<typeof read.playbook>,
+      { key: 'site', newId: createIdFactory(), generatedDir: 'flows/site/generated' },
+      read.notes,
+    );
+    const tally = nodeTally(r.doc);
+    const readiness = [...modelOf(r.doc).nodes.values()].filter(
+      ({ node }) => node.type !== 'start' && node.type !== 'end',
+    ).length;
+    expect(tally.total).toBe(readiness);
+    const line = importLine('site.flow.yaml', r.counts, tally);
+    expect(line.startsWith(`Imported site.flow.yaml: ${readiness} nodes (20 steps, `)).toBe(true);
+    expect(line).toBe(
+      'Imported site.flow.yaml: 28 nodes (20 steps, 7 subflows, 1 decision); 20 steps ready to run, 0 to check.',
     );
     expect(importLine('a.flow.yaml', { steps: 1, implemented: 1, drafts: 0 })).toBe(
       'Imported a.flow.yaml: 1 step; 1 step ready to run, 0 to check.',
     );
-    const doc = parse(HELLO) as FlowDocument;
-    expect(subflowCount(doc)).toBe(0);
+    expect(nodeTally(parse(HELLO) as FlowDocument).others).toEqual({});
+  });
+});
+
+describe('AFD-380: only the copy is flagged, not the original', () => {
+  it('Git first: the files it does not track are the copies', () => {
+    const group = [
+      { n: 'orig', tracked: true, born: 300 },
+      { n: 'copy', tracked: false, born: 100 },
+    ];
+    expect(copiesAmong(group).map((f) => f.n)).toEqual(['copy']);
+  });
+  it('without Git, or when Git tracks both, the newer file is the copy', () => {
+    expect(
+      copiesAmong([
+        { n: 'copy', born: 200 },
+        { n: 'orig', born: 100 },
+      ]).map((f) => f.n),
+    ).toEqual(['copy']);
+    expect(
+      copiesAmong([
+        { n: 'orig', tracked: true, born: 100 },
+        { n: 'copy', tracked: true, born: 200 },
+        { n: 'copy2', tracked: true, born: 300 },
+      ]).map((f) => f.n),
+    ).toEqual(['copy', 'copy2']);
+  });
+  it('flags every file when nothing tells them apart', () => {
+    expect(copiesAmong([{ born: 0 }, { born: 100 }])).toHaveLength(2);
+    expect(copiesAmong([{ born: 100 }, { born: 100 }])).toHaveLength(2);
   });
 });

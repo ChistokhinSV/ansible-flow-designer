@@ -246,3 +246,21 @@ describe('auto layout with the canvas ports (AFD-192)', () => {
     expect(overlapping(bs)).toEqual([]);
   });
 });
+
+describe('AFD-380: room for the names of right side ports', () => {
+  it('a node beside a step with failure ports leaves room for `failed_hosts`', async () => {
+    const doc = parse(readExample('edge-baseline.flow.yaml')) as FlowDocument;
+    const level = buildModel(doc).levels.get(ROOT);
+    if (!level) throw new Error('no top level');
+    const at = await layoutLevel(level);
+    const node = (key: string) =>
+      level.nodes.find((n) => n.key === key) as FlowDocument['nodes'][0];
+    const validate = node('validate');
+    const rollback = node('rollback');
+    const a = at[validate.id] as Position;
+    const b = at[rollback.id] as Position;
+    // Side by side, and the gap holds the canvas's label (13 px out, about 80 px of text).
+    expect(b.y).toBeLessThan(a.y + nodeSize(validate.type).height);
+    expect(b.x - (a.x + nodeSize(validate.type).width)).toBeGreaterThanOrEqual(96);
+  });
+});

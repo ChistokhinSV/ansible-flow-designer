@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import { parseFlow } from '../../core/flow/document';
 import { SLUG, slugify, uniqueKey } from '../../core/flow/ids';
 import { normalize, type SourceIO } from '../../core/import/read';
-import { type ImportResult, importLine, subflowCount } from '../../core/import/result';
+import { type ImportResult, importLine, nodeTally } from '../../core/import/result';
 
 export async function exists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -140,14 +140,17 @@ export async function announceImport(outcome: ImportSummary): Promise<void> {
     outcome.uris.length === 1
       ? vscode.workspace.asRelativePath(outcome.uris[0] as vscode.Uri)
       : `${outcome.uris.length} flows`;
-  let subflows = 0;
+  const tally: ReturnType<typeof nodeTally> = { total: 0, others: {} };
   for (const uri of outcome.uris) {
     try {
       const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-      subflows += subflowCount(parseFlow(text).doc);
+      const one = nodeTally(parseFlow(text).doc);
+      tally.total += one.total;
+      for (const [type, n] of Object.entries(one.others) as [keyof typeof one.others, number][])
+        tally.others[type] = (tally.others[type] ?? 0) + n;
     } catch {}
   }
-  const text = importLine(what, c, subflows);
+  const text = importLine(what, c, tally);
   const show = outcome.notes.length ? 'Show notes' : undefined;
   const pick = await vscode.window.showInformationMessage(text, ...(show ? [show] : []));
   if (pick === show)

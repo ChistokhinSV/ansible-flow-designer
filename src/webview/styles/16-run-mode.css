@@ -106,6 +106,12 @@
   overflow-wrap: anywhere;
 }
 
+/* AFD-379: a failed host's task and message, across the table under its row. */
+.afd-run-table .afd-run-detail td {
+  padding: 0 4px 4px 12px;
+  font-size: var(--afd-fs-11);
+}
+
 .afd-run-table .afd-run-port {
   white-space: nowrap;
   overflow-wrap: normal;

@@ -111,19 +111,25 @@
 
 .afd-frame-label {
   position: absolute;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--afd-bg);
   font-size: var(--afd-fs-11);
+  line-height: 14px;
   white-space: nowrap;
   color: var(--afd-muted);
   pointer-events: none;
 }
 
+/* AFD-380: top and bottom labels sit outside the frame, clear of its dashed line (the wires run
+   inside), instead of across it. */
 .afd-frame-port.side-top .afd-frame-label {
-  left: 16px;
-  top: -4px;
+  left: 14px;
+  bottom: calc(50% + 3px);
 }
 .afd-frame-port.side-bottom .afd-frame-label {
-  left: 16px;
-  top: 0;
+  left: 14px;
+  top: calc(50% + 3px);
 }
 .afd-frame-port.side-right .afd-frame-label {
   left: 16px;

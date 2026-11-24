@@ -13,6 +13,15 @@ export interface UndoSummary {
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** AFD-380: a node's field as the details panel names it ("Binding", not the YAML's `impl`). */
+const FIELD_NAMES: Record<string, string> = {
+  impl: 'Binding',
+  accepted: 'Accepted findings',
+  level: 'Subflow',
+};
+const fieldName = (field: string) =>
+  FIELD_NAMES[field] ?? `${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+
 /** The stored positions that differ between two versions, among nodes both have. */
 function moved(before: FlowDocument, after: FlowDocument): Ulid[] {
   const was = before.layout ?? {};
@@ -40,7 +49,7 @@ export function undoSummary(
   named('removed', 'removed');
   const changed = of('changed');
   if (changed.length === 1) {
-    const fields = (changed[0]?.fields ?? []).map((f) => f.field);
+    const fields = (changed[0]?.fields ?? []).map((f) => fieldName(f.field));
     const shown = fields.slice(0, 3).join(', ');
     parts.push(
       `changed ${changed[0]?.title}${shown ? ` (${shown}${fields.length > 3 ? '…' : ''})` : ''}`,

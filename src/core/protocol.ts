@@ -379,7 +379,14 @@ export type HostMessage =
   /** AFD-82: opens the launch dialog with a run's plan, or closes it (null); `notice` says why. */
   | { type: 'launch'; plan: LaunchPlan | null; notice?: string }
   /** AFD-82: the facts for the dialog's current targets. */
-  | { type: 'launchFacts'; token: string; facts?: LaunchFacts; error?: string }
+  | {
+      type: 'launchFacts';
+      token: string;
+      facts?: LaunchFacts;
+      error?: string;
+      /** AFD-379: whether the dialog asks for the vault password, for these facts. */
+      vault?: boolean;
+    }
   /** AFD-84: the flow's scenario results; `show` puts that one on the canvas in Run mode. */
   | { type: 'scenarios'; results: ScenarioResult[]; show?: string }
   /**

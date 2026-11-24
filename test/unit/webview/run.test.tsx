@@ -156,7 +156,11 @@ describe('Run mode', () => {
       ['h01', 'ok_hosts'],
       ['h02', 'failed_hosts'],
     ]);
-    expect(rows[1]?.textContent).toContain('failed in [work]');
+    // AFD-379: the task and message in the row below, across the table.
+    expect(rows[1]?.textContent).toContain('failed');
+    expect(document.querySelector('[data-host-detail="h02"]')?.textContent).toContain(
+      'failed in [work]',
+    );
     fireEvent.click(screen.getByRole('button', { name: /Open in AWX/ }));
     expect(posted).toContainEqual({ type: 'showRunOutput' });
   });

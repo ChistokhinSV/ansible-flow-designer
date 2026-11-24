@@ -537,6 +537,9 @@ export class FlowSession implements vscode.Disposable {
     const own =
       this.pendingParse?.text === text ||
       this.ownText === text ||
+      // A whole-text edit takes the document's line ends.
+      (this.ownText !== undefined &&
+        this.ownText.replace(/\r\n/g, '\n') === text.replace(/\r\n/g, '\n')) ||
       reason !== undefined ||
       vscode.window.activeTextEditor?.document === this.document;
     if (!own) this.outsideEdit = true;
