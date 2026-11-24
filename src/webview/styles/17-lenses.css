@@ -113,7 +113,8 @@
 
 /* Data lens: control wires recede, derived data wires are dotted (decision 14). */
 .react-flow__edge.lens-control .react-flow__edge-path,
-.react-flow__edge.lens-control .react-flow__edge-textwrapper {
+.react-flow__edge.lens-control .react-flow__edge-textwrapper,
+.afd-wire-label.lens-control {
   opacity: 0.3;
 }
 
@@ -126,6 +127,15 @@
 .react-flow__edge.afd-data-edge .react-flow__edge-text {
   fill: var(--afd-lens-data);
   font-style: italic;
+}
+
+.afd-wire-label.afd-data-edge {
+  color: var(--afd-lens-data);
+  font-style: italic;
+}
+
+.afd-wire-label.afd-data-edge.undeclared {
+  color: var(--vscode-editorWarning-foreground, var(--afd-unreachable));
 }
 
 /* AFD-287: a fact read with no input for it. */
@@ -517,6 +527,11 @@
 
 .react-flow__edge.afd-notify-edge .react-flow__edge-text {
   fill: var(--afd-notify);
+  font-style: italic;
+}
+
+.afd-wire-label.afd-notify-edge {
+  color: var(--afd-notify);
   font-style: italic;
 }
 

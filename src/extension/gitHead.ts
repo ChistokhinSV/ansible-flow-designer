@@ -76,15 +76,18 @@ export async function onHeadMoved(
   });
 }
 
-/** HEAD's text of the file, or undefined when it is not in a repository or not committed yet. */
-export async function headText(uri: vscode.Uri): Promise<string | undefined> {
+/**
+ * HEAD's text of the file; null when it is in a repository that has not committed it yet (AFD-377:
+ * a new flow or a copy), undefined outside a repository or without the Git extension.
+ */
+export async function headText(uri: vscode.Uri): Promise<string | null | undefined> {
   const git = await gitApi();
   const repo = git?.getRepository(uri);
   if (!repo) return undefined;
   try {
     return await repo.show('HEAD', uri.fsPath);
   } catch {
-    return undefined;
+    return null;
   }
 }
 

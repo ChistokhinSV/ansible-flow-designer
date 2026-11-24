@@ -31,7 +31,7 @@ export async function planLaunch(
   deps: RunDeps,
   mode: 'check' | 'real',
   /** AFD-83: start the targets field with this (the Inventory view's Run Flow on This Group…). */
-  prefill: { targets?: string } = {},
+  prefill: { targets?: string; texts?: Record<string, string> } = {},
 ): Promise<{ ok: true; plan: LaunchPlan } | { ok: false; error: string; environment?: boolean }> {
   const doc = parseFlow(document.getText()).doc;
   if (!doc) return { ok: false, error: 'The flow does not parse: fix it before running' };
@@ -43,6 +43,12 @@ export async function planLaunch(
   // AFD-95 (X5): the groups first; with groups to pick from, a skeleton run's hosts start empty.
   const { groups, hosts: groupHosts } = await inventoryGroups(folder.uri, deps.probes);
   const fields = launchFields(doc, remembered, mode === 'check', groups.length === 0);
+  // AFD-376: the dialog opens again (Change beside the inventory) with what was typed in it.
+  if (prefill.texts)
+    for (const f of fields) {
+      const typed = prefill.texts[f.name];
+      if (!f.secret && typeof typed === 'string') f.text = typed;
+    }
   if (prefill.targets) {
     const lists = fields.filter((f) => f.type === 'host_list');
     const field = lists.find((f) => f.targets) ?? lists[0];

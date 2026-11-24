@@ -3,9 +3,10 @@
 import { realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, relative as relativePath } from 'node:path';
 import * as vscode from 'vscode';
+import { parseFlow } from '../../core/flow/document';
 import { SLUG, slugify, uniqueKey } from '../../core/flow/ids';
 import { normalize, type SourceIO } from '../../core/import/read';
-import type { ImportResult } from '../../core/import/result';
+import { type ImportResult, importLine, subflowCount } from '../../core/import/result';
 
 export async function exists(uri: vscode.Uri): Promise<boolean> {
   try {
@@ -139,7 +140,14 @@ export async function announceImport(outcome: ImportSummary): Promise<void> {
     outcome.uris.length === 1
       ? vscode.workspace.asRelativePath(outcome.uris[0] as vscode.Uri)
       : `${outcome.uris.length} flows`;
-  const text = `Imported ${what}: ${c?.steps ?? 0} step(s), ${c?.implemented ?? 0} ready to run, ${c?.drafts ?? 0} to check.`;
+  let subflows = 0;
+  for (const uri of outcome.uris) {
+    try {
+      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+      subflows += subflowCount(parseFlow(text).doc);
+    } catch {}
+  }
+  const text = importLine(what, c, subflows);
   const show = outcome.notes.length ? 'Show notes' : undefined;
   const pick = await vscode.window.showInformationMessage(text, ...(show ? [show] : []));
   if (pick === show)

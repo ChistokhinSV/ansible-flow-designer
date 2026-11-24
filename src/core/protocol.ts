@@ -486,6 +486,12 @@ export type WebviewMessage =
       token: string;
       mode: 'check' | 'real';
       what: 'environment' | 'inventory';
+      /** The tick of the dialog, so it opens again as it was (a Debug dialog stays one). */
+      step?: boolean;
+      /** ADR-0040: the dialog was a Debug dialog. */
+      debug?: boolean;
+      /** The fields as typed (never a secret one): the dialog opens again with them. */
+      texts?: Record<string, string>;
     }
   /** AFD-85: Clear on the outside-edit note. */
   | { type: 'clearOutside' }

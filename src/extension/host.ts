@@ -21,6 +21,7 @@ import { ServerLibrary } from './runner/serverLibrary';
 import { ServerWatch } from './runner/serverWatch';
 import { ShownFlows } from './shownFlows';
 import { VarIndexService } from './varIndexService';
+import { knownBase } from './versionBase';
 
 export const VIEW_TYPE = 'afd.flowEditor';
 
@@ -104,6 +105,7 @@ export class Host {
         storage: context.globalStorageUri,
       },
       run: (uri) => this.runDeps(uri),
+      versionBase: (uri) => knownBase(uri, this.lastSaved.get(uri.toString())),
       shown: this.shown,
       repo: () => this.index.state(),
       // AFD-284: the server's branch for flows in a clone of a server project.

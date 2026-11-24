@@ -32,6 +32,18 @@ All notable changes to Ansible Flow Designer.
 - **More actions** closes with Escape while the focus is still on its button.
 - The minimap stays in its corner while that corner is clear, instead of jumping between the corners as the view moves.
 - In Run mode, a step without code says **TODO** on a run that ended or stopped before it too, as it does on a paused run.
+- **Change** beside the inventory or the environment in the Debug dialog brings the Debug dialog back, with the inputs as typed and the tick as it was; it came back as the Run as Skeleton dialog with the inputs cleared.
+- A debug run started from the Debug dialog with **Pause before the first step** not ticked runs on to the first pause point or failure; it always paused before the first step.
+- **Pause before the first step** stays in view beside **Debug**; with the vault password field shown it sat under the dialog's buttons.
+- The Run dialog names input types as the side panel does (text, host list, yes/no), not by their names in the file.
+- One Undo takes back a change made in the designer, version bump included, and Redo works after it. The bump was made on save as a step of its own, so the first Undo took back only the bump and, with auto save, the next save bumped again and lost Redo.
+- A flow that Git does not hold yet (new, or a copy) keeps its version until it is committed; every save of it moved the version up.
+- A flow copied as a file (in the Explorer) shows a warning in Problems that it has the same ID as the original, and the key too if so, with the quick fix **Give This Flow New IDs**. Pause points, remembered inputs and run history follow a flow's ID, so the copy and the original shared them.
+- At a pause where hosts failed a step, the top bar says so ("3 hosts failed Pre-checks (attempt 2)"), as the failure bar does; it said "Paused before Pre-checks".
+- A run stopped at a failure pause shows the step as failed by its hosts ("3 hosts failed · stopped") and each host as having failed it; it read "stopped before".
+- Host names in a step's Run tab stay on one line; "edge-rtr-01" broke at each dash.
+- The import notice counts the subflows as Readiness does ("28 nodes (20 steps in 8 subflows)"), so the two no longer disagree.
+- A wire's label is drawn over all the wires, so another wire running through it no longer strikes it through.
 
 ## 1.1.0 — Run step by step, with pause points
 

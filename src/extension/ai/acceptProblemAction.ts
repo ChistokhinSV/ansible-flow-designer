@@ -18,7 +18,9 @@ export class AcceptProblemActions implements vscode.CodeActionProvider {
           d.source === 'Ansible Flow' &&
           d.severity === vscode.DiagnosticSeverity.Warning &&
           typeof d.code === 'string' &&
-          d.code !== 'open-fail-port',
+          d.code !== 'open-fail-port' &&
+          // AFD-378: a copy is fixed with new IDs, not accepted.
+          d.code !== 'flow-copy',
       )
       .map((d) => {
         const a = new vscode.CodeAction('Accept with Reason…', vscode.CodeActionKind.QuickFix);

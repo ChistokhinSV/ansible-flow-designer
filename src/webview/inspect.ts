@@ -58,7 +58,10 @@ export function domSummary(docVersion: number): DomSummary {
             wires: Object.fromEntries(
               [...document.querySelectorAll<SVGElement>('.react-flow__edge[data-id]')].map((el) => [
                 el.dataset.id ?? '',
-                el.querySelector('.react-flow__edge-text')?.textContent ?? '',
+                // AFD-378: labels are drawn over the wires, outside the wire's own element.
+                document.querySelector(`[data-edge-label="${el.dataset.id}"]`)?.textContent ??
+                  el.querySelector('.react-flow__edge-text')?.textContent ??
+                  '',
               ]),
             ),
             // AFD-346: the node a step-by-step run waits before, with its waiting hosts.

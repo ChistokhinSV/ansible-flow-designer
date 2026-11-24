@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { type FlowCommand, planCommand, testedFinding } from '../../../src/core/flow/commands';
 import { createIdFactory } from '../../../src/core/flow/ids';
-import { planSave } from '../../../src/core/flow/save';
+import { planSave, versionEditFor } from '../../../src/core/flow/save';
 import { nodeDesigns, testedDropBack } from '../../../src/core/flow/semantic';
 import type { FlowDocument, FlowNode } from '../../../src/core/flow/types';
 import type { RunView } from '../../../src/core/protocol';
@@ -96,6 +96,30 @@ describe('save', () => {
     expect((parse(saved) as FlowDocument).flow.version).toBe(version + 1);
     // Saving again: nothing left to drop, and the version moved once relative to the base.
     expect(planSave(saved, saved, TESTED).edits).toEqual([]);
+  });
+
+  it('AFD-377: a designer edit carries the version bump, once, and a save adds nothing after it', () => {
+    const version = (parse(OS) as FlowDocument).flow.version;
+    const r = run(OS, {
+      kind: 'updateNode',
+      id: id('post-checks'),
+      patch: { title: 'Post-checks again' },
+    });
+    const bump = versionEditFor(OS, parse(r.text) as FlowDocument, OS);
+    expect(bump.length).toBeGreaterThan(0);
+    const edited = applyEdits(OS, [...r.edits, ...bump]);
+    expect((parse(edited) as FlowDocument).flow.version).toBe(version + 1);
+    // The save finds the version moved already: no edit of its own (so Redo is kept).
+    expect(planSave(edited, OS, OS).edits).toEqual([]);
+    // The next edit does not move it again.
+    const r2 = run(edited, {
+      kind: 'updateNode',
+      id: id('post-checks'),
+      patch: { title: 'Post-checks 3' },
+    });
+    expect(versionEditFor(edited, parse(r2.text) as FlowDocument, OS)).toEqual([]);
+    // A flow Git does not hold yet: no base, no bump.
+    expect(versionEditFor(OS, parse(r.text) as FlowDocument, undefined)).toEqual([]);
   });
 
   it('marking nodes tested and saving keeps them tested', () => {

@@ -14,6 +14,8 @@ export const CMD = {
   expandRole: 'afd.flow.expandRole',
   /** The Problems panel's quick fix on a warning (AFD-51); not in the Command Palette. */
   acceptProblem: 'afd.flow.acceptProblem',
+  /** AFD-378: the quick fix on a flow that shares its ID with another; not in the Command Palette. */
+  newFlowIds: 'afd.flow.newIds',
   useFact: 'afd.flow.useFact',
   openInTextEditor: 'afd.flow.openInTextEditor',
   generateCode: 'afd.code.generate',

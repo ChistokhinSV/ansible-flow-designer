@@ -8,6 +8,7 @@
 import { modelOf, ROOT } from '../../core/flow/model';
 import { LENSES } from '../../core/lens/types';
 import type { RunView } from '../../core/protocol';
+import { reasonLine } from '../../core/run/debug';
 import { stepPath } from '../../core/run/step';
 import { runVerdict } from '../../core/run/view';
 import { checkButton, decidedAgainst, hostsWord } from '../../core/run/words';
@@ -557,11 +558,19 @@ function LiveRun({ run }: { run: RunView }) {
         type="button"
         className="afd-run-status"
         data-run-state="paused"
+        data-pause-kind={paused.kind ?? 'step'}
         onClick={() => useUi.getState().reveal(paused.node)}
-        title="Show the step the run waits before"
+        title={
+          paused.kind === 'failure'
+            ? 'Show the step the hosts failed'
+            : 'Show the step the run waits before'
+        }
       >
-        <span className="codicon codicon-debug-pause" aria-hidden="true" /> Paused before{' '}
-        {pausedAt ?? paused.node} · {hostsWord(paused.hosts.length)}
+        {/* AFD-378: a failure pause names the failure, as the failure bar does. */}
+        <span className="codicon codicon-debug-pause" aria-hidden="true" />{' '}
+        {paused.kind === 'failure'
+          ? reasonLine(paused, pausedAt ?? paused.node)
+          : `Paused before ${pausedAt ?? paused.node} · ${hostsWord(paused.hosts.length)}`}
       </button>
     );
   return (

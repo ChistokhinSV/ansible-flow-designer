@@ -702,32 +702,39 @@ export function FlowCanvas({ cull = true }: { cull?: boolean }) {
     return out;
   }, [snapshot, expansion.frames, _optimistic, titled]);
   const allEdges = useMemo<Edge[]>(
-    () => [
-      ...edges,
-      ...dataEdges,
-      ...notifyEdges,
-      ...inlineEdges,
-      ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
-        id: e.id,
-        source: e.source,
-        sourceHandle: e.sourcePort,
-        target: e.target,
-        targetHandle: e.targetPort,
-        type: 'routed',
-        label: exitLabelledAtRest(e) || shows(e.id, 'in', e.source) ? e.label : undefined,
-        className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
-        },
-        selected: selection.edge === e.id,
-        deletable: true,
-        reconnectable: false,
-        ariaLabel: titled(e.source, e.sourcePort, e.target, e.targetPort),
-        focusable:
-          selection.edge === e.id || selection.node === e.source || selection.node === e.target,
-      })),
-    ],
+    () =>
+      [
+        ...edges,
+        ...dataEdges,
+        ...notifyEdges,
+        ...inlineEdges,
+        ...(boundary?.edges ?? []).map((e: BoundaryEdgeView) => ({
+          id: e.id,
+          source: e.source,
+          sourceHandle: e.sourcePort,
+          target: e.target,
+          targetHandle: e.targetPort,
+          type: 'routed',
+          label: exitLabelledAtRest(e) || shows(e.id, 'in', e.source) ? e.label : undefined,
+          className: `afd-edge afd-boundary-edge tone-${e.tone}${e.problem ? ' problem' : ''}`,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: `var(--afd-${e.tone === 'neutral' ? 'neutral' : e.tone})`,
+          },
+          selected: selection.edge === e.id,
+          deletable: true,
+          reconnectable: false,
+          ariaLabel: titled(e.source, e.sourcePort, e.target, e.targetPort),
+          focusable:
+            selection.edge === e.id || selection.node === e.source || selection.node === e.target,
+        })),
+      ]
+        // AFD-378: a label drawn over the wires takes its wire's classes (tone, lens, data).
+        .map((e: Edge) =>
+          e.label && e.type === 'routed'
+            ? { ...e, data: { ...(e.data ?? {}), labelClass: e.className ?? '' } }
+            : e,
+        ),
     [
       edges,
       dataEdges,

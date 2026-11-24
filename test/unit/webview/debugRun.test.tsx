@@ -279,6 +279,77 @@ describe('AFD-372: a failure pause', () => {
 });
 
 describe('ADR-0040: Debug in the launch dialog', () => {
+  const debugPlan = (over: Partial<LaunchPlan> = {}): LaunchPlan => ({
+    token: 't-1',
+    mode: 'check',
+    flow: 'Hello',
+    fields: [
+      { name: 'site', type: 'string', required: true, secret: false, text: '' },
+      {
+        name: 'devices',
+        type: 'host_list',
+        required: true,
+        secret: false,
+        text: '',
+        targets: true,
+      },
+      { name: 'dry_run', type: 'boolean', required: false, secret: false, text: '' },
+      { name: 'api_token', type: 'string', required: false, secret: true, text: '' },
+    ],
+    groups: [],
+    vault: true,
+    environment: 'local',
+    inventory: 'inventory.ini',
+    steps: { on: false, debug: true },
+    ...over,
+  });
+
+  it('AFD-376: Change beside the inventory keeps it a Debug dialog with what was typed', () => {
+    act(() => useUi.getState().setLaunch(debugPlan()));
+    render(<LaunchDialog />);
+    fireEvent.change(document.getElementById('afd-launch-site') as HTMLInputElement, {
+      target: { value: 'lab-east' },
+    });
+    fireEvent.change(document.getElementById('afd-launch-api_token') as HTMLInputElement, {
+      target: { value: 'fictional-token' },
+    });
+    fireEvent.click(document.querySelector('[data-launch-step]') as HTMLInputElement);
+    const changes = [...document.querySelectorAll('.afd-launch-where button')];
+    fireEvent.click(changes[1] as HTMLElement);
+    const m = sent('launchSwitch')[0] as Record<string, unknown>;
+    expect(m).toMatchObject({ what: 'inventory', debug: true, step: true });
+    expect(m.texts).toEqual({ site: 'lab-east', devices: '', dry_run: '' });
+  });
+
+  it('AFD-376: with the tick off a debug run does not pause before the first step', () => {
+    act(() => useUi.getState().setLaunch(debugPlan({ fields: [], vault: false })));
+    render(<LaunchDialog />);
+    fireEvent.click(document.querySelector('[data-launch-run]') as HTMLButtonElement);
+    expect(sent('launchRun')[0]).toMatchObject({ debug: true });
+    expect(sent('launchRun')[0]).not.toHaveProperty('step');
+  });
+
+  it('AFD-376: the tick sits with Run in the footer, below a vault field', () => {
+    act(() => useUi.getState().setLaunch(debugPlan()));
+    render(<LaunchDialog />);
+    const footer = document.querySelector('.afd-launch-footer') as HTMLElement;
+    expect(footer.querySelector('[data-launch-step]')).not.toBeNull();
+    expect(footer.querySelector('[data-launch-run]')).not.toBeNull();
+    expect(footer.querySelector('#afd-launch-__vault')).toBeNull();
+  });
+
+  it('AFD-378: input types read as in the side panel', () => {
+    act(() => useUi.getState().setLaunch(debugPlan()));
+    render(<LaunchDialog />);
+    const type = (n: string) =>
+      document.querySelector(`[data-launch-field="${n}"] [data-launch-type]`)?.textContent;
+    expect([type('site'), type('devices'), type('dry_run')]).toEqual([
+      'text',
+      'host list',
+      'yes/no',
+    ]);
+  });
+
   it('Run says Debug and the run is a debug run', () => {
     const plan: LaunchPlan = {
       token: 't-1',
@@ -304,6 +375,8 @@ describe('ADR-0040: Debug in the launch dialog', () => {
     render(<LaunchDialog />);
     const run = document.querySelector('[data-launch-run]') as HTMLButtonElement;
     expect(run.textContent).toBe('Debug');
+    // The tick asks for a pause before the first step.
+    fireEvent.click(document.querySelector('[data-launch-step]') as HTMLInputElement);
     fireEvent.click(run);
     expect(sent('launchRun')[0]).toMatchObject({ step: true, debug: true });
   });

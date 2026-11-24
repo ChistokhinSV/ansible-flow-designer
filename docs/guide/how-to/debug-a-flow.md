@@ -14,7 +14,9 @@ shown.
 
 - **Run ▾ › Debug…** in the designer's top bar, or **Ansible Flow: Debug Flow…** in the Command
   Palette. The launch dialog opens; its button reads **Debug**. Tick **Pause before the first
-  step** to stop at once; otherwise the run goes on to the first pause point or failure.
+  step** (beside the button) to stop at once; otherwise the run goes on to the first pause point
+  or failure. **Change** beside the environment or the inventory brings the Debug dialog back with
+  what you typed (secret inputs are typed again).
 - Or press F5 with a flow open and no `launch.json`, or add a launch configuration of type
   `ansible-flow` (Run and Debug view › create a launch.json › Ansible Flow):
 

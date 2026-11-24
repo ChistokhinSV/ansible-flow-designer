@@ -69,6 +69,16 @@ export function stepKeyCommand(
 }
 
 /** A clock for "stops by itself in", once a minute is enough but seconds read better near 0. */
+/** The hosts that left a step through a failure port (failed or unreachable). */
+function failedAt(run: RunView, node: Ulid | undefined): Set<string> {
+  const ports = node ? run.summary?.nodes?.[node] : undefined;
+  return new Set(
+    Object.entries(ports ?? {})
+      .filter(([port]) => port.startsWith('failed') || port.startsWith('unreachable'))
+      .flatMap(([, hosts]) => hosts),
+  );
+}
+
 function useNow(on: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -297,13 +307,20 @@ export function StepSection({ run }: { run: RunView }) {
           <>
             <p data-step-stopped={step.stopped.node}>
               {step.stopped.reason === 'timeout' ? (run.error ?? 'Stopped') : 'Stopped'}
-              {step.stopped.reason === 'timeout' ? '' : ` before ${stoppedTitle}`}
+              {step.stopped.reason === 'timeout'
+                ? ''
+                : ` ${failedAt(run, step.stopped.node).size ? 'at' : 'before'} ${stoppedTitle}`}
             </p>
             <ul className="afd-run-hosts" data-step-stopped-hosts={step.stopped.hosts.length}>
               {step.stopped.hosts.map((h) => (
                 <li key={h}>
                   <span className="mono">{h}</span>{' '}
-                  <span className="muted">stopped before {stoppedTitle}</span>
+                  {/* AFD-378: stopped at a failure pause, a host that failed the step says so. */}
+                  <span className="muted">
+                    {failedAt(run, step.stopped?.node).has(h)
+                      ? `failed ${stoppedTitle}, then stopped`
+                      : `stopped before ${stoppedTitle}`}
+                  </span>
                 </li>
               ))}
             </ul>

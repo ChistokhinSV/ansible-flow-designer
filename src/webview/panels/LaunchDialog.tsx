@@ -5,6 +5,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { modelOf } from '../../core/flow/model';
+import type { ContractType } from '../../core/flow/types';
 import {
   checkInputs,
   type LaunchField,
@@ -16,6 +17,7 @@ import {
 } from '../../core/run/launch';
 import { checkButton } from '../../core/run/words';
 import { send } from '../bus';
+import { CONTRACT_TYPE_WORDS } from '../constants';
 import { useDialogFocus } from '../focus';
 import { useUi } from '../store';
 import { stepKeysLine } from './StepBar';
@@ -91,8 +93,21 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
     useUi.getState().setLaunch(null);
   };
   // AFD-257: the host opens the switch and then this dialog again, for what the new one answers.
+  // AFD-376: it comes back as it was: a Debug dialog stays one, with its tick and the typed fields
+  // (secret ones are typed again: they never leave this component).
   const change = (what: 'environment' | 'inventory') => {
-    send({ type: 'launchSwitch', token: plan.token, mode: plan.mode, what });
+    const kept = Object.fromEntries(
+      plan.fields.filter((f) => !f.secret).map((f) => [f.name, texts[f.name] ?? '']),
+    );
+    send({
+      type: 'launchSwitch',
+      token: plan.token,
+      mode: plan.mode,
+      what,
+      ...(plan.steps ? { step: stepped } : {}),
+      ...(plan.steps?.debug ? { debug: true } : {}),
+      texts: kept,
+    });
     useUi.getState().setLaunch(null);
   };
   const submit = () => {
@@ -114,7 +129,8 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
       token: plan.token,
       inputs: r.inputs,
       ...(plan.vault ? { vaultPassword: vault } : {}),
-      ...(plan.steps && (stepped || plan.steps.debug) ? { step: true } : {}),
+      // AFD-376: a debug run pauses before the first step only when the tick asks for it.
+      ...(plan.steps && stepped ? { step: true } : {}),
       ...(plan.steps?.debug ? { debug: true } : {}),
     });
     setVault('');
@@ -234,40 +250,43 @@ function Dialog({ plan }: { plan: LaunchPlan }) {
             </div>
           ) : null}
           <Facts plan={plan} />
-          {plan.steps ? (
-            <div className="afd-field afd-launch-step">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={stepped}
-                  data-launch-step
-                  onChange={(e) => setStepped(e.target.checked)}
-                />{' '}
-                {debug ? 'Pause before the first step' : 'Step by step: pause before each step'}
-              </label>
-              <span className="afd-help">
-                {debug
-                  ? 'The run pauses at pause points and where a host fails a step; each pause shows the variables of each host.'
-                  : null}{' '}
-                {/* AFS-205: the keys of this host (a web page has no F5). */}
-                {stepKeysLine()}: Step runs the next step, Continue runs on to a pause point, Stop
-                ends the run there.
-              </span>
-            </div>
-          ) : null}
-          <div className="afd-modal-actions">
-            {plan.canSave ? (
-              <button type="button" className="secondary" onClick={save} data-launch-save>
-                Save as Launch Configuration…
-              </button>
+          {/* AFD-376: the tick stays in view with Run (it hid under the footer below a vault field). */}
+          <div className="afd-launch-footer">
+            {plan.steps ? (
+              <div className="afd-field afd-launch-step">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={stepped}
+                    data-launch-step
+                    onChange={(e) => setStepped(e.target.checked)}
+                  />{' '}
+                  {debug ? 'Pause before the first step' : 'Step by step: pause before each step'}
+                </label>
+                <span className="afd-help">
+                  {debug
+                    ? 'The run pauses at pause points and where a host fails a step; each pause shows the variables of each host.'
+                    : null}{' '}
+                  {/* AFS-205: the keys of this host (a web page has no F5). */}
+                  {stepKeysLine()}: Step runs the next step, Continue runs on to a pause point, Stop
+                  ends the run there.
+                </span>
+              </div>
             ) : null}
-            <button type="button" className="secondary" onClick={close}>
-              Cancel
-            </button>
-            <button type="submit" disabled={!!plan.factsError} data-launch-run>
-              {runLabel}
-              {plan.steps && stepped && !debug ? ' Step by Step' : ''}
-            </button>
+            <div className="afd-modal-actions">
+              {plan.canSave ? (
+                <button type="button" className="secondary" onClick={save} data-launch-save>
+                  Save as Launch Configuration…
+                </button>
+              ) : null}
+              <button type="button" className="secondary" onClick={close}>
+                Cancel
+              </button>
+              <button type="submit" disabled={!!plan.factsError} data-launch-run>
+                {runLabel}
+                {plan.steps && stepped && !debug ? ' Step by Step' : ''}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -366,7 +385,11 @@ function Field({
   return (
     <div className="afd-field" data-launch-field={field.name}>
       <label htmlFor={id}>
-        <span className="mono">{field.name}</span> <span className="muted">{type}</span>
+        {/* AFD-378: the type in the side panel's words (text, host list, yes/no). */}
+        <span className="mono">{field.name}</span>{' '}
+        <span className="muted" data-launch-type={type}>
+          {CONTRACT_TYPE_WORDS[type as ContractType] ?? type}
+        </span>
         {field.required ? <abbr title="required"> *</abbr> : null}
       </label>
       {field.type === 'boolean' && !field.secret ? (

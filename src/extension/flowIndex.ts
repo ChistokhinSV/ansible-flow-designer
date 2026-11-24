@@ -6,6 +6,7 @@
 // a time, so a large workspace never holds up activation.
 import * as vscode from 'vscode';
 import { generatedState } from '../core/engine/files';
+import { sharedIds } from '../core/flow/newIds';
 import {
   type FlowFacts,
   type FlowProblem,
@@ -352,6 +353,17 @@ export class FlowIndex implements vscode.Disposable {
       if (owners.length === 0) this.soon();
       for (const f of owners) this.soon(false, f.uri);
     });
+  }
+
+  /** AFD-378: the flows read so far that share their flow ID with another one, by that ID. */
+  copies(): Map<string, { uri: vscode.Uri; name: string; key: string }[]> {
+    const flows = [...this.known].map(([key, k]) => ({
+      uri: vscode.Uri.parse(key),
+      name: k.facts.name,
+      key: k.facts.key,
+      id: k.facts.id,
+    }));
+    return sharedIds(flows);
   }
 
   /** Forget every flow's facts (Flows view Refresh). */

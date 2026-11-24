@@ -320,7 +320,7 @@ const TAKES = {
       // The failed host's wire, then the step it failed at.
       await m.clickOn(
         wv
-          .locator('.react-flow__edge-text')
+          .locator('.afd-wire-label')
           .filter({ hasText: /^1 host$/ })
           .first(),
       );

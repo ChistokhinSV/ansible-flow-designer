@@ -16,6 +16,7 @@ import type { Contract, ContractField, ContractType, FlowNode, Ulid } from '../.
 import { fromText } from '../../core/view/fromText';
 import { defaultText, defaultValue } from '../../core/view/inputDefault';
 import { run } from '../actions';
+import { CONTRACT_TYPE_WORDS } from '../constants';
 import { useDetailsReadOnly } from '../details/readOnly';
 import { useEditable } from '../editActions';
 import { OriginChain, OriginHostPicker, useOriginOptions } from '../properties/OriginView';
@@ -25,15 +26,7 @@ import { useUi } from '../store';
 const TYPES: ContractType[] = ['string', 'integer', 'boolean', 'list', 'dict', 'host_list', 'any'];
 
 /** What each type is called on screen; the file keeps Ansible's names. */
-const TYPE_WORDS: Record<ContractType, string> = {
-  string: 'text',
-  integer: 'number',
-  boolean: 'yes/no',
-  list: 'list',
-  dict: 'map',
-  host_list: 'host list',
-  any: 'any',
-};
+const TYPE_WORDS = CONTRACT_TYPE_WORDS;
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const NAME_HELP = 'Letters, digits and _, starting with a letter or _';

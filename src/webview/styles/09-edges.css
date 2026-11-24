@@ -46,6 +46,21 @@
   font-family: var(--afd-mono);
 }
 
+/* AFD-378: a wire's label over all the wires (in SVG, a wire drawn later struck it through). */
+.afd-wire-label {
+  position: absolute;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--afd-bg);
+  color: var(--afd-muted);
+  font-size: var(--afd-fs-10);
+  font-family: var(--afd-mono);
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: all;
+  cursor: pointer;
+}
+
 .react-flow__controls-button svg {
   fill: currentColor;
 }

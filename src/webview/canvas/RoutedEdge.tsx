@@ -106,8 +106,32 @@ export const RoutedEdge = memo(function RoutedEdge({
   const plus = (data as { plus?: boolean } | undefined)?.plus;
   const box = text ? labelBox(text, route.label) : undefined;
   const plusAt = { x: box ? box.x + box.width + 12 : route.label.x, y: route.label.y };
+  // AFD-378: the port name over every wire, not in this wire's SVG: a wire drawn after it (two
+  // fail wires sharing a lane) struck it through.
+  const labelClass = (data as { labelClass?: string } | undefined)?.labelClass ?? '';
   return (
     <>
+      {text ? (
+        <EdgeLabelRenderer>
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: the wire is the control; the label is a larger target for the mouse. */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: the wire itself takes the keyboard. */}
+          <div
+            className={`afd-wire-label nodrag nopan ${labelClass}`}
+            data-edge-label={id}
+            style={{
+              transform: `translate(-50%, -50%) translate(${route.label.x}px, ${route.label.y}px)`,
+            }}
+            onMouseEnter={() => hover(id)}
+            onMouseLeave={() => hover(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (useUi.getState().selection.edge !== id) useUi.getState().select({ edge: id });
+            }}
+          >
+            {text}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
       {plus ? (
         <EdgeLabelRenderer>
           <button
@@ -132,7 +156,7 @@ export const RoutedEdge = memo(function RoutedEdge({
         path={route.path}
         labelX={route.label.x}
         labelY={route.label.y}
-        label={label}
+        label={text ? undefined : label}
         labelStyle={labelStyle}
         labelShowBg={labelShowBg}
         labelBgStyle={labelBgStyle}

@@ -195,6 +195,59 @@ describe('Run panel and top bar', () => {
     expect(sent('stepRun')).toEqual([{ type: 'stepRun', command: 'pause' }]);
   });
 
+  it('AFD-378: at a failure pause the top bar names the failure, not "Paused before"', () => {
+    const step = paused.step as NonNullable<RunView['step']>;
+    act(() =>
+      useUi.getState().setRun({
+        ...paused,
+        step: {
+          ...step,
+          paused: {
+            ...(step.paused as NonNullable<typeof step.paused>),
+            kind: 'failure',
+            attempt: 2,
+            failed: [
+              { host: 'web-01', task: 'ping', msg: 'no python' },
+              { host: 'web-02', task: 'ping', msg: 'no python' },
+            ],
+          },
+        },
+      }),
+    );
+    render(<TopBar />);
+    const status = document.querySelector('[data-run-state="paused"]') as HTMLElement;
+    expect(status.dataset.pauseKind).toBe('failure');
+    expect(status.textContent).toContain(`2 hosts failed ${first.title} (attempt 2)`);
+    expect(status.textContent).not.toContain('Paused before');
+  });
+
+  it('AFD-378: stopped at a failure pause, the step and its hosts read failed, not stopped before', () => {
+    act(() =>
+      useUi.getState().setRun({
+        ...stopped,
+        summary: {
+          hosts: ['web-01', 'web-02'],
+          nodes: { [first.id]: { failed_hosts: ['web-01', 'web-02'] } },
+          failures: [],
+          outcome: {},
+          unreachable: [],
+        } as never,
+      }),
+    );
+    canvas();
+    expect(node(first.id)?.querySelector('.afd-node-run')?.textContent).toBe(
+      '2 hosts failed · stopped',
+    );
+    cleanup();
+    render(<RunPanel />);
+    expect(document.querySelector('[data-step-stopped]')?.textContent).toBe(
+      `Stopped at ${first.title}`,
+    );
+    expect(document.querySelector('[data-step-stopped-hosts]')?.textContent).toContain(
+      `web-01 failed ${first.title}, then stopped`,
+    );
+  });
+
   it('the top bar says where the run waits and has the step buttons beside Stop', () => {
     act(() => useUi.getState().setRun(paused));
     render(<TopBar />);

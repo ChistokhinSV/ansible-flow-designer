@@ -111,6 +111,16 @@
   overflow-wrap: normal;
 }
 
+/* AFD-378: a host name on one line ("edge-rtr-01" broke at each hyphen); a very long one is cut,
+   with the whole name on hover. */
+.afd-run-table .afd-run-host {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Run mode shows results, not wiring: unwired ports and port labels stay hidden. */
 .afd-node.run-mode .afd-port.reveal,
 .afd-node.run-mode .afd-port-label {

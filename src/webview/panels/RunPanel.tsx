@@ -657,7 +657,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
                 return (
                   <Fragment key={h.host}>
                     <tr data-host={h.host} data-port={h.ports.join(',')}>
-                      <td className="mono">{h.host}</td>
+                      <td className="mono afd-run-host" title={h.host}>
+                        {h.host}
+                      </td>
                       {h.ports.length || h.ended || h.waits ? (
                         <td className="mono afd-run-port">{h.ports.join(', ') || '-'}</td>
                       ) : (

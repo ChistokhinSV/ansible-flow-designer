@@ -443,11 +443,14 @@ function RunLine({ node }: { node: FlowNode }) {
   if (shown && shown.state !== 'running' && (shown.stoppedAt === node.id || stoppedInside))
     return (
       <div className="afd-node-run tone-warn" data-run-state="stopped">
-        {before
-          ? `stopped before · ${before} host${before === 1 ? '' : 's'}`
-          : r && r.hosts > 0
-            ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}`
-            : 'stopped'}
+        {/* AFD-378: stopped at a failure pause, the hosts ran the step and failed it. */}
+        {r && r.failed > 0
+          ? `${r.failed} host${r.failed === 1 ? '' : 's'} failed · stopped`
+          : before
+            ? `stopped before · ${before} host${before === 1 ? '' : 's'}`
+            : r && r.hosts > 0
+              ? `stopped · ${r.hosts} host${r.hosts === 1 ? '' : 's'}`
+              : 'stopped'}
       </div>
     );
   const approval = approvalOf(shown, node.id);

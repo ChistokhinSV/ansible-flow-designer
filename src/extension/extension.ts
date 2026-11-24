@@ -15,6 +15,7 @@ import { registerDebugger } from './debug/flowDebugger';
 import { registerDocuments } from './documents';
 import { registerExport } from './export';
 import { Feedback, registerFeedback } from './feedback';
+import { registerFlowCopies } from './flowCopies';
 import { registerFlowsView } from './flowsView';
 import { registerHelp } from './help';
 import { registerHistoryView } from './history/historyView';
@@ -184,6 +185,8 @@ export function activate(context: vscode.ExtensionContext): AfdTestApi | undefin
     watchSharedSources(host),
     ...registerImportCommands(host),
     ...host.index.start(),
+    // AFD-378: flows that share a flow ID (a file copied in the Explorer).
+    ...registerFlowCopies(host),
     // AFD-93: the flow panel's line about the workspace follows the index.
     host.index.onDidChange(async () => {
       const state = await host.index.state();

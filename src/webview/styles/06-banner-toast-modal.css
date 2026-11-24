@@ -293,14 +293,22 @@ fieldset.afd-launch-groups {
   font-size: var(--afd-fs-12);
 }
 
-/* AFD-95 (round 2: S6): Run stays in view; only the fields and facts scroll under it. */
-.afd-launch .afd-modal-actions {
+/* AFD-95 (round 2: S6): Run stays in view; only the fields and facts scroll under it.
+   AFD-376: the step tick with it, so a vault field above cannot push it under the footer. */
+.afd-launch-footer {
   position: sticky;
   bottom: -12px;
-  margin: 12px -16px -12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px -16px -12px;
   padding: 8px 16px 12px;
   background: var(--vscode-editorWidget-background, var(--afd-panel));
   border-top: 1px solid var(--afd-border);
+}
+
+.afd-launch-footer .afd-modal-actions {
+  margin-top: 0;
 }
 
 /* ---------- AFD-232: what matches the title in Quick Add ---------- */

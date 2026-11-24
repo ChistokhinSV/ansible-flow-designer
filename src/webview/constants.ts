@@ -1,8 +1,22 @@
 // Labels, drag types and small formatters several webview components share (AFD-34), so no
 // component imports another one for a constant.
 import { NODE_TYPE_LABEL } from '../core/export/details';
-import type { NodeType } from '../core/flow/types';
+import type { ContractType, NodeType } from '../core/flow/types';
 import type { PortState } from './viewModel';
+
+/**
+ * What each input type is called on screen (the side panel and the launch dialog, AFD-378); the
+ * file keeps Ansible's names.
+ */
+export const CONTRACT_TYPE_WORDS: Record<ContractType, string> = {
+  string: 'text',
+  integer: 'number',
+  boolean: 'yes/no',
+  list: 'list',
+  dict: 'map',
+  host_list: 'host list',
+  any: 'any',
+};
 
 /** Node type names, shared with the exports (AFD-25). */
 export const TYPE_LABEL: Record<NodeType, string> = NODE_TYPE_LABEL;

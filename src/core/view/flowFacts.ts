@@ -15,6 +15,8 @@ export type CodeState = 'current' | 'out of date' | 'edited by hand' | 'no code 
 export interface FlowFacts {
   name: string;
   key: string;
+  /** AFD-378: the flow's ID, to find copies that share it. */
+  id?: string;
   errors: number;
   warnings: number;
   code: CodeState;
@@ -92,7 +94,14 @@ export async function flowFacts(
       code: f.code,
     };
   });
-  const base = { name: doc.flow.name, key: doc.flow.key, errors, warnings, problems };
+  const base = {
+    name: doc.flow.name,
+    key: doc.flow.key,
+    ...(typeof doc.flow.id === 'string' ? { id: doc.flow.id } : {}),
+    errors,
+    warnings,
+    problems,
+  };
   if (errors > 0) return { ...base, code: 'blocked', kept: [] };
   const plan = await planGenerated(text, schema, dir, options);
   if (plan.kept.length > 0) return { ...base, code: 'edited by hand', kept: plan.kept };

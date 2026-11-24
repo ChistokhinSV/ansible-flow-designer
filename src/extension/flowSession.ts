@@ -15,6 +15,7 @@ import type { MergeSide } from '../core/flow/merge';
 import { buildModel, modelOf, ROOT } from '../core/flow/model';
 import { openFailPorts } from '../core/flow/openPorts';
 import { quietRepoReads, repoFindings } from '../core/flow/origin';
+import { versionEditFor } from '../core/flow/save';
 import type { SchemaValidator } from '../core/flow/schema';
 import { newFlowText } from '../core/flow/template';
 import type { FlowDocument, Position, Ulid } from '../core/flow/types';
@@ -51,7 +52,7 @@ import {
 import type { ServerChange } from '../core/view/serverChange';
 import { undoSummary } from '../core/view/undoSummary';
 import { pastAllows, VIEWER_REFUSAL } from '../core/viewer';
-import { diffEdits } from '../core/yaml/edits';
+import { applyEdits, diffEdits } from '../core/yaml/edits';
 import { parseYaml, type YamlFile } from '../core/yaml/parse';
 import { YamlEditError } from '../core/yaml/transaction';
 import { autoPositions, type LayoutDirection, layoutLevel, shownLayout } from '../node/autoLayout';
@@ -151,6 +152,8 @@ export interface SessionDeps {
   library?: ServerLibrary;
   /** AFD-340: the repository's variables, for where a value comes from. */
   vars?: VarIndexService;
+  /** AFD-377: what flow.version moves against (ADR-0006), so a designer edit carries its bump. */
+  versionBase?: (uri: vscode.Uri) => string | undefined;
 }
 
 export interface PerfEvent {
@@ -1040,7 +1043,14 @@ export class FlowSession implements vscode.Disposable {
           m.what === 'environment' ? CMD.switchEnvironment : CMD.switchInventory,
           this.uri,
         );
-        await this.openLaunch(m.mode);
+        // AFD-376: as it was: a Debug dialog stays one, with its tick and the fields as typed.
+        await this.openLaunch(
+          m.mode,
+          undefined,
+          m.texts ? { texts: m.texts } : undefined,
+          m.step === true,
+          m.debug === true,
+        );
         break;
       case 'clearOutside':
         await this.clearOutside();
@@ -1241,7 +1251,7 @@ export class FlowSession implements vscode.Disposable {
   async openLaunch(
     mode: 'check' | 'real',
     notice?: string,
-    prefill?: { targets?: string },
+    prefill?: { targets?: string; texts?: Record<string, string> },
     /** AFD-346: Step by step chosen in the dialog (Run Step by Step). */
     step = false,
     /** ADR-0040: a debug run (Debug Flow). */
@@ -1454,19 +1464,33 @@ export class FlowSession implements vscode.Disposable {
       flowFromFile(result.file).doc,
     ).catch(() => undefined);
     follow?.apply(edit);
-    for (const e of result.edits) {
+    // AFD-377: the version bump goes in the same edit, so one Undo takes back both and a save
+    // after it adds no step of its own (which lost Redo).
+    const bumps = versionEditFor(
+      text,
+      flowFromFile(result.file).doc,
+      this.deps.versionBase?.(this.uri),
+    );
+    const apart = bumps.every((v) =>
+      result.edits.every((e) => v.end <= e.start || v.start >= e.end),
+    );
+    const bump = apart ? bumps : [];
+    for (const e of [...result.edits, ...bump]) {
       edit.replace(
         this.uri,
         new vscode.Range(this.document.positionAt(e.start), this.document.positionAt(e.end)),
         e.newText,
       );
     }
-    this.pendingParse = result.file;
+    const pending = bump.length
+      ? parseYaml(applyEdits(text, [...result.edits, ...bump]))
+      : result.file;
+    this.pendingParse = pending;
     watch?.phase('VS Code applying the edit');
     const applied = await vscode.workspace.applyEdit(edit);
     if (!applied) {
       // AFD-153: the text it describes never came; the next change is not this command's.
-      if (this.pendingParse === result.file) this.pendingParse = undefined;
+      if (this.pendingParse === pending) this.pendingParse = undefined;
       return { ok: false, error: 'VS Code rejected the edit' };
     }
     markTour(command);
