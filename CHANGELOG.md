@@ -51,6 +51,8 @@ All notable changes to Ansible Flow Designer.
 - After a Retry that fails again, every host still waits at the failure pause (in Call Stack, and "1 of 4 hosts failed (attempt 2)"), not only the retried one.
 - Stop at a failure pause says "Stopped after" the step: its failed hosts stay failed there, and the others stopped after it, not before it.
 - **Step Into** in a debug session steps as **Step Over** does, instead of a refusal; a pause after a hit count says "reached N times"; a value cut at 64 KB says so at the start of its line; an empty **Facts** says why; `[1 item]`, `{1 key}`.
+- At a debug pause, **Step inputs** lists the step's own inputs, also those the flow data gives (`devices`), and no longer an internal value of the generator (`afd_repo_root`).
+- Evaluate says what is wrong in plain words: "lookups are not allowed in Evaluate", "A bracket (() is not closed", "A quote (') is not closed", instead of Jinja's parser messages.
 
 ## 1.1.0 — Run step by step, with pause points
 

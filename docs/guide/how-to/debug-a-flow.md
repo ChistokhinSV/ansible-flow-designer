@@ -50,7 +50,7 @@ Every pause holds all hosts, wherever it comes from.
   host. Its frames are the step and the subflows around it, each on its `key:` line in the
   `.flow.yaml`; picking a frame shows that step on the canvas.
 - **Variables** shows, for the host of the frame you picked:
-  - **Step inputs**: the step's inputs as the run has them;
+  - **Step inputs**: the step's inputs as the run has them, also those the flow data gives;
   - **Host variables**: inventory variables, set_fact values and registered results;
   - **Flow data**: the run's flow inputs;
   - **Facts**: read only when you open it.
@@ -63,7 +63,7 @@ Every pause holds all hosts, wherever it comes from.
   secret-looking name. A copy made by a filter (`b64encode`, `to_json`, `~`) is masked too.
 - **Debug Console** and **Watch** evaluate a Jinja expression for that host, as you would write it
   in a `when:` (`{{ }}` around it is fine). A lookup, `query`, the `vault` and `unvault` filters
-  and names starting with `_` are refused: the console says "Refused: …". An expression stops after
+  and names starting with `_` are refused: the console says "Refused: …" (for a lookup, "lookups are not allowed in Evaluate"). A bracket or quote left open is named: "A bracket (() is not closed". An expression stops after
   2 s. Evaluate only reads: it sets nothing and runs no task.
 - An expression that reads a masked value is masked whole, with that value's reason, whatever it
   does with it: `password | reverse | join`, `password[0:4]`, `password | length`,
