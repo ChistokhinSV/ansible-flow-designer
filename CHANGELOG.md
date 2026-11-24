@@ -42,7 +42,6 @@ All notable changes to Ansible Flow Designer.
 - At a pause where hosts failed a step, the top bar says so ("3 hosts failed Pre-checks (attempt 2)"), as the failure bar does; it said "Paused before Pre-checks".
 - A run stopped at a failure pause shows the step as failed by its hosts ("3 hosts failed · stopped") and each host as having failed it; it read "stopped before".
 - Host names in a step's Run tab stay on one line; "edge-rtr-01" broke at each dash.
-- The import notice counts the subflows as Readiness does ("28 nodes (20 steps in 8 subflows)"), so the two no longer disagree.
 - A wire's label is drawn over all the wires, so another wire running through it no longer strikes it through.
 - While a run is paused, the Run panel's **Hosts** counts and names the hosts waiting; before the first step had ended it said "0 hosts".
 - The pause point dot on a step takes clicks in a larger circle round it, so it is easy to hit.
@@ -55,6 +54,21 @@ All notable changes to Ansible Flow Designer.
 - **Step Into** in a debug session steps as **Step Over** does, instead of a refusal; a pause after a hit count says "reached N times"; a value cut at 64 KB says so at the start of its line; an empty **Facts** says why; `[1 item]`, `{1 key}`.
 - At a debug pause, **Step inputs** lists the step's own inputs, also those the flow data gives (`devices`), and no longer an internal value of the generator (`afd_repo_root`).
 - Evaluate says what is wrong in plain words: "lookups are not allowed in Evaluate", "A bracket (() is not closed", "A quote (') is not closed", instead of Jinja's parser messages.
+- Only the copy of a flow is flagged "a copy?" and offered **Give This Flow New IDs**: the file Git does not track yet, else the newer one. The original was flagged too, and the quick fix there would have given the committed flow new IDs.
+- **Give This Flow New IDs** is no longer reported as a change made outside the designer ("The flow's key changed outside the designer").
+- A new scenario has no Ansible result; one with the name of a deleted scenario showed that scenario's "Ansible: passed … · out of date". A renamed scenario keeps its own.
+- The import notice counts every node Readiness counts, decisions too ("28 nodes (20 steps, 7 subflows, 1 decision)"); it said 27.
+- A flow opened by an import while a tab of the same path was left from an earlier session (its file gone then) opens, instead of "The editor could not be opened because the file was not found" until the window was reloaded.
+- The port names on an open subflow's boundary sit beside its dashed line, no longer struck through by it; and a step's failure port names (`failed_hosts`, `unreachable`) have room before a node laid out beside it, such as a Stopped end.
+- The Undo and Redo notices name a step's fields as the side panel does ("changed Write marker file (Binding)", not "(impl)").
+- At a failure pause where a host is unreachable, the step reads "1 host unreachable · paused", not "1 host failed".
+- Stop at a failure pause of a debug run: the Run panel says "Stopped after" the step, each host "stopped after" it or "failed it, then stopped"; it said "stopped before".
+- A debug run is named as one in the Run panel ("Local debug run (check mode)", "Debug run #2 (check mode) on Ansible Flow Server", status "paused, debugging"), not a skeleton run paused step by step; the line on what Continue does shows only while the run goes on, and at the only pause point says Continue runs to the end.
+- The run in progress reads "This run, in progress" under **Run shown**, not "The run shown is not among the kept runs".
+- The first Debug or Run dialog of a flow shows the **Vault password** field once the hosts typed reach vaulted values; it showed none, and the run then asked in an input box.
+- A designer opened at a debug pause (from a launch.json session) opens in Run mode with the ring on the paused step, not in Design mode.
+- With no inventory set, the Run dialog says "Ansible's default (/etc/ansible/hosts, unless an ansible.cfg names one)", not "the default of ansible.cfg".
+- A failed host's task and message in a step's Run tab take a line of their own under the host, across the panel, instead of wrapping every ten characters in the Result column; where Retry is not offered the reason is no longer said twice.
 - An approval step's **Approvers** help no longer says "whoever the runner lets approve" where the server names who an empty field asks; that line reads "Empty, so it asks: …", and the example names in the fields start with "e.g." so they do not read as values.
 
 ## 1.1.0 — Run step by step, with pause points
