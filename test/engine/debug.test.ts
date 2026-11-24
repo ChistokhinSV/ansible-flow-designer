@@ -172,6 +172,8 @@ const maskRequests: Record<string, [InspectOp, InspectArgs]> = {
   okHostname: ['eval', { host: 'h01', expr: 'inventory_hostname | upper' }],
   okPlainFilter: ['eval', { host: 'h02', expr: 'site_tier | reverse | join' }],
   refusedUnderscore: ['eval', { host: 'h01', expr: '_x | default(1)' }],
+  evalUnclosed: ['eval', { host: 'h01', expr: 'foo(' }],
+  evalUnquoted: ['eval', { host: 'h01', expr: "'abc | upper" }],
   leakWatch: ['watch', { exprs: ['vault_secret | reverse | join', 'db_password | length'] }],
   nobody: ['scopes', { host: 'h99' }],
 };
@@ -235,6 +237,7 @@ const SCENARIOS: Scenario[] = [
         'conditionEval',
         await ask('eval', { host: 'sw-edge-02', expr: 'inventory_hostname' }),
       );
+      answers.set('edgeInputs', await ask('vars', { host: 'sw-edge-02', scope: 'inputs' }));
       return { ...answer('continue', CONDITIONS, p.id), failures: { failed: false } };
     },
   },
@@ -631,6 +634,13 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(a('okPlainFilter')).toMatchObject({ type: 'str', value: 'dlog' });
     expect(a('refusedUnderscore')).toMatchObject({ refused: true });
     expect(a('refusedUnderscore')?.error).toMatch(/Names starting with _/);
+    // Plain words, not Jinja's parser terms.
+    expect(a('evalLookup')?.error).toMatch(/lookups are not allowed in Evaluate/);
+    expect(a('evalUnclosed')).toMatchObject({
+      refused: true,
+      error: 'A bracket (() is not closed',
+    });
+    expect(a('evalUnquoted')?.error).toBe("A quote (') is not closed");
     const rows = a('leakWatch')?.results ?? [];
     expect(rows).toHaveLength(6);
     expect(rows.every((r) => r.type === 'masked')).toBe(true);
@@ -665,6 +675,10 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
       true,
     );
     expect(a('conditionEval')?.value).toBe('sw-edge-02');
+    // The step's own inputs, also one the flow data gives; not the generator's afd_repo_root.
+    const inputs = (a('edgeInputs')?.children ?? []).map((c) => String(c.name));
+    expect(inputs).toContain('devices');
+    expect(inputs).not.toContain('afd_repo_root');
   });
 
   it('counts arrivals for hit counts and writes masked log lines without pausing', () => {

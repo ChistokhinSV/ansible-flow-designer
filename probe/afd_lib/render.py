@@ -42,40 +42,95 @@ def _short(name: object) -> str:
     return str(name).rsplit(".", 1)[-1]
 
 
-def precheck(expr: str, environment) -> str | None:
-    """Why `expr` is refused before anything renders it, in plain words; None when it may run."""
+def precheck(expr: str, environment, where: str = "Evaluate") -> str | None:
+    """Why `expr` is refused before anything renders it, in plain words; None when it may run.
+    `where` names what refuses it ("Evaluate", "a condition")."""
     if not expr.strip():
         return "Nothing to evaluate"
     if len(expr) > EXPR_LIMIT:
         return f"The expression is longer than {EXPR_LIMIT} characters"
     if any(m in expr for m in ("{{", "}}", "{%", "%}", "{#", "#}")):
         return "Write an expression without {{ }} or {% %}"
-    return check_template("{{ " + expr + " }}", environment, "Not a Jinja expression")
+    unclosed = not_closed(expr)
+    if unclosed:
+        return unclosed
+    return check_template("{{ " + expr + " }}", environment, where, expression=True)
 
 
-def check_template(text: str, environment, what: str = "Not a Jinja template") -> str | None:
-    """Why a template (a log message, an expression in braces) is refused; None when it may run."""
+PAIRS = {"(": ")", "[": "]", "{": "}"}
+
+
+def not_closed(expr: str) -> str | None:
+    """A bracket or quote the expression opens and never closes (or closes without opening), in
+    words: Jinja's own error names the `}}` the expression is wrapped in, never typed."""
+    stack: list[str] = []
+    quote = ""
+    escaped = False
+    for ch in expr:
+        if quote:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch in PAIRS:
+            stack.append(ch)
+        elif ch in PAIRS.values():
+            if not stack or PAIRS[stack[-1]] != ch:
+                return f"A {ch} has no opening bracket before it"
+            stack.pop()
+    if quote:
+        return f"A quote ({quote}) is not closed"
+    if stack:
+        return f"A bracket ({stack[-1]}) is not closed"
+    return None
+
+
+def _syntax(ex: BaseException, expression: bool) -> str:
+    """Jinja's syntax error in plain words, without the parser's own terms."""
+    text = (str(ex).strip().splitlines() or [""])[0]
+    if expression:
+        text = (
+            text.replace("expected token 'end of print statement'", "expected the end")
+            .replace("'end of print statement'", "the end")
+            .replace("unexpected '}'", "unexpected end")
+            .replace("unexpected end of template", "unexpected end")
+        )
+    return text[:300]
+
+
+def check_template(
+    text: str, environment, where: str = "a log message", expression: bool = False
+) -> str | None:
+    """Why a template (a log message, an expression in braces) is refused; None when it may run.
+    `where` names what refuses it, in the words: "lookups are not allowed in Evaluate"."""
     try:
         from jinja2 import nodes
 
         ast = environment.parse(text)
     except Exception as ex:  # noqa: BLE001
-        return f"{what}: {str(ex)[:300]}"
+        what = "Not a Jinja expression" if expression else "Not a Jinja template"
+        return f"{what}: {_syntax(ex, expression)}"
+    lookups = f"lookups are not allowed in {where}: they can read files or run commands"
     for call in ast.find_all(nodes.Call):
         if isinstance(call.node, nodes.Name) and call.node.name in LOOKUP_CALLS:
-            return f"{call.node.name}() is not allowed while debugging: it can read or run things"
+            return f"{call.node.name}(): {lookups}"
     for name in ast.find_all(nodes.Name):
         if name.name in LOOKUP_CALLS:
-            return f"{name.name} is not allowed while debugging: it can read or run things"
+            return f"{name.name}: {lookups}"
     for f in ast.find_all(nodes.Filter):
         if _short(f.name) in FILTER_DENY:
-            return f"The {f.name} filter is not allowed while debugging"
+            return f"The {f.name} filter is not allowed in {where}"
     for attr in ast.find_all(nodes.Getattr):
         if str(attr.attr).startswith("_"):
-            return "Attributes starting with _ are not allowed while debugging"
+            return f"Attributes starting with _ are not allowed in {where}"
     for name in ast.find_all(nodes.Name):
         if str(name.name).startswith("_"):
-            return "Names starting with _ are not allowed while debugging"
+            return f"Names starting with _ are not allowed in {where}"
     return None
 
 
@@ -100,7 +155,9 @@ def block_lookups() -> None:
     class _Guard:
         def get(self, name, *a, **kw):
             if _short(name) not in LOOKUP_ALLOW:
-                raise Blocked(f"lookup {name!r} is not allowed while debugging")
+                raise Blocked(
+                    f"lookups are not allowed while debugging (a variable runs lookup {name!r})"
+                )
             return real.get(name, *a, **kw)
 
         def __getattr__(self, attr):

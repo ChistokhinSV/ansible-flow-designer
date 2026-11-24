@@ -52,11 +52,13 @@ MAGIC = {
     "ansible_search_path", "ansible_loop_var", "ansible_index_var", "ansible_parent_role_names",
     "ansible_parent_role_paths", "ansible_role_name", "ansible_vault_id", "vars",
 }  # fmt: skip
-# The generator's own play variables: not inputs of the step.
-OWN_PLAY_VARS = {"flow_node_id", "afd_sim"}
+# The generator's own play variables: not inputs of the step (afd_repo_root, afd_* data names).
+OWN_PLAY_VARS = {"flow_node_id", "afd_sim", "afd_repo_root"}
 # The record inputs task marks an input the flow knows is secret with this constant (AFD-341).
 SECRET_MARK = "__afd_secret__"
 _MARKED = re.compile(r"'([A-Za-z_][A-Za-z0-9_]*)'\s*:\s*'" + SECRET_MARK + "'")
+# Every input the record inputs task names: `'devices': (('__afd_vault__' ...` or a secret's mark.
+_INPUT = re.compile(r"'([A-Za-z_][A-Za-z0-9_]*)'\s*:\s*(?:\(|'" + SECRET_MARK + "')")
 
 
 def plain(value: object, depth: int = 0) -> object:
@@ -178,6 +180,21 @@ def nolog_registers(play) -> set[str]:
     return found
 
 
+def step_inputs(play) -> set[str]:
+    """The step's inputs by name, as its record inputs task lists them: an input the flow data
+    gives (`devices`) is an extra variable, not a play variable, and is a step input too."""
+    found: set[str] = set()
+
+    def visit(task) -> None:
+        if str(getattr(task, "name", "") or "").endswith("] record inputs"):
+            for v in (getattr(task, "args", None) or {}).values():
+                found.update(_INPUT.findall(str.__str__(str(v))))
+
+    with contextlib.suppress(Exception):
+        _walk_tasks(list(play.tasks or []), visit)
+    return found
+
+
 def secret_inputs(play) -> set[str]:
     """The inputs the flow knows are secret: the record inputs task writes them as a constant."""
     found: set[str] = set()
@@ -204,9 +221,12 @@ class HostView:
         secret: set[str],
         masker: Masker,
         nolog: set[str] | None = None,
+        inputs: set[str] | None = None,
     ) -> None:
         self._vars = all_vars
-        self._play_vars = play_vars - OWN_PLAY_VARS
+        self._play_vars = {n for n in play_vars - OWN_PLAY_VARS if not str(n).startswith("afd_")}
+        self._inputs = (inputs or set()) | self._play_vars
+        self._all_play = play_vars
         self._extra = extra
         self._secret = secret
         self._nolog = nolog or set()
@@ -224,6 +244,8 @@ class HostView:
     def scope_of(self, name: str) -> str | None:
         if name in MAGIC or name in OWN_PLAY_VARS or name.startswith("ansible_facts"):
             return None
+        if name not in self._extra and name.startswith("afd_") and name in self._all_play:
+            return None  # the generator's own play variables
         if name in self._extra:
             return "flow"
         if name in self._play_vars:
@@ -247,7 +269,9 @@ class HostView:
                     out[str(name)] = plain(self._masker.mask(str(name), facts[name]))
         else:
             for name in sorted(self._vars, key=str):
-                if self.scope_of(str(name)) != scope:
+                where = self.scope_of(str(name))
+                # A step input the flow data gives is listed in both: it is the step's input.
+                if not (where == scope or (scope == "inputs" and where and name in self._inputs)):
                     continue
                 if scope == "inputs" and name in self._secret:
                     out[name] = plain(Masked("credential"))

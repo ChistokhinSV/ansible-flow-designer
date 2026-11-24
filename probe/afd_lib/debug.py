@@ -137,6 +137,7 @@ class Gate:
                 secret=self._secret,
                 masker=self.session.masker,
                 nolog=self.session.nolog,
+                inputs=capture.step_inputs(self.play),
             )
         return self._views[name]
 
@@ -349,8 +350,8 @@ def at_point(session: Session, strategy, play, hosts: list, node: str, point: Ma
     if cond or log:
         gate = Gate(session, strategy, play, hosts, "")
         env = gate.environment()
-        bad_cond = render.precheck(cond, env) if cond else None
-        bad_log = render.check_template(log, env) if log else None
+        bad_cond = render.precheck(cond, env, "a condition") if cond else None
+        bad_log = render.check_template(log, env, "a log message") if log else None
         # Before the child: the vaulted plain texts are learned, and what each host's condition
         # and message read is checked (AFD-373). A condition that reads a masked value is not
         # checked (true or false would tell its value); in a message, each {{ }} that reads one
