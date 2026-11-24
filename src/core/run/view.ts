@@ -24,8 +24,13 @@ export interface HostResult {
 export interface NodeRun {
   state: NodeRunState;
   hosts: number;
-  /** Hosts that left through a fail port or failed without a route. */
+  /** Hosts that left through a fail port or failed without a route (`unreachable` included). */
   failed: number;
+  /**
+   * AFD-379: of `failed`, the hosts that could not be reached (the unreachable port, or dropped
+   * unreachable): a badge says "1 failed · 1 unreachable" with `failed - unreachable` failed.
+   */
+  unreachable?: number;
   /**
    * Seconds between the first and last event of the node's plays; AFS-205: without the time a
    * step-by-step run waited before it (`waited`).
@@ -80,9 +85,23 @@ export function nodeRun(s: RunSummary, node: Ulid): NodeRun {
   // did nothing: not reached, not a green "0 hosts".
   if (rows.length === 0) return { state: 'idle', hosts: 0, failed: 0, seconds, ...wait };
   const unrouted = s.failures.some((f) => f.node === node);
-  const failed = rows.filter((r) => r.ports.length === 0 || r.ports.some(isFailPort)).length;
-  const state: NodeRunState = unrouted ? 'failed' : failed > 0 ? 'warn' : 'ok';
-  return { state, hosts: rows.length, failed, seconds, ...wait };
+  const failing = rows.filter((r) => r.ports.length === 0 || r.ports.some(isFailPort));
+  // AFD-379: a host that could not be reached is counted as unreachable, not failed.
+  const gone = failing.filter((r) =>
+    r.ports.length === 0
+      ? r.problem?.status === 'unreachable' || s.unreachable.includes(r.host)
+      : r.ports.every((p) => p === 'unreachable' || !isFailPort(p)),
+  ).length;
+  const failed = failing.length;
+  const state: NodeRunState = unrouted ? 'failed' : failing.length > 0 ? 'warn' : 'ok';
+  return {
+    state,
+    hosts: rows.length,
+    failed,
+    ...(gone ? { unreachable: gone } : {}),
+    seconds,
+    ...wait,
+  };
 }
 
 /** Hosts that took a wire: those that left its source through the source port. */

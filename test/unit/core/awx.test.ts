@@ -89,6 +89,9 @@ describe('Run mode read-outs (04 §10) and tested proposals (decision 15)', () =
 
   it('per node: hosts, failures through fail ports, the reason per host', () => {
     expect(nodeRun(summary, id('probe'))).toMatchObject({ state: 'warn', hosts: 3, failed: 1 });
+    // AFD-379: of those, the host that could not be reached is counted as unreachable.
+    expect(nodeRun(summary, id('probe')).unreachable).toBe(1);
+    expect(nodeRun(summary, id('exclude')).unreachable).toBeUndefined();
     expect(nodeRun(summary, id('exclude'))).toMatchObject({ state: 'ok', hosts: 1, failed: 0 });
     // No play of its own: nodeRun sees nothing; runStates counts what start sent and ends received.
     expect(nodeRun(summary, id('failed')).state).toBe('idle');
