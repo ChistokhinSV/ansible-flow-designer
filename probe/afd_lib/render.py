@@ -73,6 +73,9 @@ def check_template(text: str, environment, what: str = "Not a Jinja template") -
     for attr in ast.find_all(nodes.Getattr):
         if str(attr.attr).startswith("_"):
             return "Attributes starting with _ are not allowed while debugging"
+    for name in ast.find_all(nodes.Name):
+        if str(name.name).startswith("_"):
+            return "Names starting with _ are not allowed while debugging"
     return None
 
 

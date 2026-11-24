@@ -119,6 +119,8 @@ export interface StepPause {
   kind?: PauseKind;
   /** A condition's pause: the hosts the condition matched (all hosts wait). */
   matched?: string[];
+  /** A hit count's pause: the count of arrivals it was set to (N). */
+  reached?: number;
   /** A failure pause: the hosts that failed, with their task and message. */
   failed?: FailedHost[];
   /** A failure pause: which attempt of the step failed (2 after one Retry). */
@@ -156,8 +158,17 @@ export interface StepState {
   running?: { node: Ulid; play: string };
   /** How many pauses so far. */
   pauses: number;
-  /** The run was stopped at a step boundary: by its driver or by the pause timeout. */
-  stopped?: { node: Ulid; hosts: string[]; reason: 'driver' | 'timeout' };
+  /**
+   * The run was stopped at a step boundary: by its driver or by the pause timeout. `after`: at a
+   * failure pause, after the step ran; `hosts` then stopped after it and `failed` failed it.
+   */
+  stopped?: {
+    node: Ulid;
+    hosts: string[];
+    reason: 'driver' | 'timeout';
+    after?: boolean;
+    failed?: string[];
+  };
   /** Debug runs: log point lines and condition errors, the newest `LOGS_KEPT`. */
   logs?: PointLog[];
   /** Debug runs: hit counts so far, per point. */
@@ -202,6 +213,7 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
         timeout: Number(e.timeout ?? STEP_TIMEOUT_S),
         ...(KINDS.has(e.kind as PauseKind) ? { kind: e.kind as PauseKind } : {}),
         ...(Array.isArray(e.matched) ? { matched: strings(e.matched) } : {}),
+        ...(typeof e.reached === 'number' ? { reached: e.reached } : {}),
         ...(Array.isArray(e.failed) ? { failed: failedHosts(e.failed) } : {}),
         ...(typeof e.attempt === 'number' ? { attempt: e.attempt } : {}),
         ...(retry && typeof retry.refused === 'string' ? { retryRefused: retry.refused } : {}),
@@ -245,6 +257,8 @@ export function stepState(events: Iterable<Record<string, unknown>>): StepState 
         node: e.node,
         hosts: Array.isArray(e.hosts) ? e.hosts.map(String) : [],
         reason: e.reason === 'timeout' ? 'timeout' : 'driver',
+        ...(e.after === true ? { after: true } : {}),
+        ...(Array.isArray(e.failed) ? { failed: strings(e.failed) } : {}),
       };
     } else if (e.event === 'stats') {
       state.paused = undefined;
@@ -304,9 +318,28 @@ export function stopsIn(pause: Pick<StepPause, 'since' | 'timeout'>, nowMs: numb
   return left >= 120 ? `${Math.round(left / 60)} min` : `${left} s`;
 }
 
-/** The Run panel's line for a paused run: "Paused before Ping · 3 hosts · stops by itself in 59 min". */
+/**
+ * A failure pause's count: "1 of 4 hosts failed (attempt 2)", "2 of 4 hosts unreachable"; every
+ * host waits at it, also after a Retry.
+ */
+export function failedCount(pause: Pick<StepPause, 'hosts' | 'failed' | 'attempt'>): string {
+  const failed = pause.failed ?? [];
+  const total = Math.max(pause.hosts.length, failed.length);
+  const of = total > 1 ? `${failed.length} of ${hostsOf(total)}` : hostsOf(failed.length);
+  const what = failed.length && failed.every((f) => f.unreachable) ? 'unreachable' : 'failed';
+  return `${of} ${what} (attempt ${pause.attempt ?? 1})`;
+}
+
+/**
+ * The Run panel's line for a paused run: "Paused before Ping · 3 hosts · stops by itself in 59 min";
+ * at a failure pause "Paused after Ping · 1 of 3 hosts failed (attempt 1) · …".
+ */
 export function pausedLine(pause: StepPause, title: string, nowMs: number): string {
-  return `Paused before ${title} · ${hostsOf(pause.hosts.length)} · stops by itself in ${stopsIn(pause, nowMs)}`;
+  const what =
+    pause.kind === 'failure'
+      ? `Paused after ${title} · ${failedCount(pause)}`
+      : `Paused before ${title} · ${hostsOf(pause.hosts.length)}`;
+  return `${what} · stops by itself in ${stopsIn(pause, nowMs)}`;
 }
 
 /** Why a step-by-step run stopped, in words: by its driver, or because nobody answered. */
@@ -318,9 +351,9 @@ export function stoppedLine(
   if (stopped.reason === 'timeout') {
     const min = Math.round(timeoutS / 60);
     const span = timeoutS >= 120 ? `${min} minutes` : `${Math.round(timeoutS)} s`;
-    return `Stopped before ${title}: nobody answered for ${span}`;
+    return `Stopped ${stopped.after ? 'after' : 'before'} ${title}: nobody answered for ${span}`;
   }
-  return `Stopped before ${title}`;
+  return `Stopped ${stopped.after ? 'after' : 'before'} ${title}`;
 }
 
 /**

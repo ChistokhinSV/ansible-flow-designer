@@ -248,6 +248,12 @@ class Masker:
         """Why `value` under `name` is masked whole, or None."""
         if is_vaulted(value) or self.from_vault_file(value):
             return "vault"
+        # A known value (external, credential, vault) says what it truly is, also under a
+        # secret-looking name: a provider's ansible_password reads "external", not "name".
+        if isinstance(value, str):
+            known = self.known.find(str.__str__(value))
+            if known:
+                return known
         if name and SECRET_NAME.search(str(name)):
             return "name"
         if isinstance(value, Mapping) and not _is_hostvars(value):
@@ -256,8 +262,6 @@ class Masker:
                     return "no_log"
             except Exception:  # noqa: BLE001
                 return None
-        if isinstance(value, str):
-            return self.known.find(str.__str__(value))
         return None
 
     def mask(self, name: str, value: object, depth: int = 0) -> object:

@@ -15,7 +15,8 @@ from collections.abc import Mapping
 
 from . import capture, render
 from .capture import HostView, entry, plain, to_json
-from .mask import TAGS, Masker
+from .mask import REDACTED, TAGS, Masker
+from .taint import MAX_HOSTS, Taint, TooMany, mask_blocks
 
 VERSION = 1
 # A gate's conditions and log messages, for every host: one child, at most this long.
@@ -73,6 +74,8 @@ class Gate:
         self._views: dict[str, HostView] = {}
         self._secret: set[str] | None = None
         self._templar = None
+        self._raw: dict[str, Mapping | None] = {}
+        self._taints: dict[str, Taint] = {}
 
     # ---- what a host has -------------------------------------------------------------------
     def variables(self, host) -> Mapping:
@@ -83,6 +86,44 @@ class Gate:
             _hosts=getattr(s, "_hosts_cache", None),
             _hosts_all=getattr(s, "_hosts_cache_all", None),
         )
+
+    def raw(self, name: str) -> Mapping | None:
+        """Any inventory host's variables (raw, nothing rendered), once per pause."""
+        if name not in self._raw:
+            host = self.hosts.get(name)
+            if host is None:
+                host = self.strategy._inventory.get_host(name)  # noqa: SLF001
+            self._raw[name] = self.variables(host) if host is not None else None
+        return self._raw[name]
+
+    def inventory_hosts(self) -> list[str]:
+        return [h.get_name() for h in self.strategy._inventory.get_hosts("all")]  # noqa: SLF001
+
+    def secret(self) -> set[str]:
+        if self._secret is None:
+            self._secret = capture.secret_inputs(self.play)
+        return self._secret
+
+    def taint(self, name: str) -> Taint:
+        """What `name`'s expressions read, checked against the masking (AFD-373)."""
+        if name not in self._taints:
+            self.view(name)  # learns the plain texts of the host's vaulted values first
+            self._taints[name] = Taint(
+                self.session.masker,
+                self.environment(),
+                self.raw,
+                self.inventory_hosts,
+                name,
+                nolog=self.session.nolog,
+                secret=self.secret(),
+            )
+        return self._taints[name]
+
+    def masked_by(self, name: str, text: str, template: bool = False) -> str | None:
+        """Why what `text` renders for host `name` is masked whole; None when nothing it reads is
+        masked. Raises TooMany for hostvars by a host chosen at run time in a large inventory."""
+        t = self.taint(name)
+        return t.template(text) if template else t.expression(text)
 
     def view(self, name: str) -> HostView:
         if name not in self._views:
@@ -197,18 +238,33 @@ class Gate:
                 e["value"] = value
         return e
 
-    def _nolog_in(self, expr: str) -> bool:
-        """The expression reads a no_log task's register: its result is masked whole."""
-        return bool(render.names_in(expr, self.environment()) & self.session.nolog)
+    def _masked_row(self, host: str, expr: str) -> dict | None:
+        """The answer for an expression that reads a masked value: masked whole, with the kind
+        of what it reads (a filter's result keeps it: reverse, list, length, hash, ==)."""
+        try:
+            why = self.masked_by(host, expr)
+        except TooMany:
+            return {
+                "host": host,
+                "expr": expr,
+                "error": (
+                    f"hostvars with a host chosen at run time is not evaluated in an inventory "
+                    f"of more than {MAX_HOSTS} hosts: name the host"
+                ),
+                "refused": True,
+            }
+        if why:
+            return {"host": host, "expr": expr, "type": "masked", "masked": why}
+        return None
 
     def evaluate(self, host: str, expr: str, timeout: object = None) -> dict:
         refused = render.precheck(expr, self.environment())
         if refused:
             return {"host": host, "expr": expr, "error": refused, "refused": True}
-        if self._nolog_in(expr):
-            return {"host": host, "expr": expr, "type": "masked", "masked": "no_log"}
         # The plain texts of this host's vaulted values are learned here, before the child.
-        self.view(host)
+        masked = self._masked_row(host, expr)
+        if masked:
+            return masked
         target = self.hosts[host]
 
         def work() -> object:
@@ -227,9 +283,7 @@ class Gate:
         hosts = [str(h) for h in (req.get("hosts") or list(self.hosts)) if str(h) in self.hosts]
         env = self.environment()
         refused = {e: render.precheck(e, env) for e in exprs}
-        nolog = {e: not refused[e] and self._nolog_in(e) for e in exprs}
-        for h in hosts:
-            self.view(h)
+        masked = {(h, e): self._masked_row(h, e) for h in hosts for e in exprs if not refused[e]}
         targets = {h: self.hosts[h] for h in hosts}
 
         def work() -> object:
@@ -240,8 +294,8 @@ class Gate:
                     if refused[e]:
                         rows.append({"host": h, "expr": e, "error": refused[e], "refused": True})
                         continue
-                    if nolog[e]:
-                        rows.append({"host": h, "expr": e, "type": "masked", "masked": "no_log"})
+                    if masked.get((h, e)):
+                        rows.append(masked[(h, e)])
                         continue
                     try:
                         value = templar.evaluate_expression(render.trusted(e))
@@ -272,6 +326,13 @@ def point_settings(point: Mapping) -> dict:
     return out
 
 
+def _masked_by(gate: Gate, host: str, text: str, template: bool = False) -> str | None:
+    try:
+        return gate.masked_by(host, text, template=template)
+    except TooMany:
+        return "name"  # hostvars by a host chosen at run time in a large inventory: not shown
+
+
 def at_point(session: Session, strategy, play, hosts: list, node: str, point: Mapping) -> dict:
     """A pause point's settings at its gate, for every host:
     - condition: Jinja per host; all hosts pause if any matches (the matched hosts are named);
@@ -290,8 +351,29 @@ def at_point(session: Session, strategy, play, hosts: list, node: str, point: Ma
         env = gate.environment()
         bad_cond = render.precheck(cond, env) if cond else None
         bad_log = render.check_template(log, env) if log else None
-        for h in names:  # learn the vaulted plain texts before the child masks
+        # Before the child: the vaulted plain texts are learned, and what each host's condition
+        # and message read is checked (AFD-373). A condition that reads a masked value is not
+        # checked (true or false would tell its value); in a message, each {{ }} that reads one
+        # is masked (a {% %} that reads one masks the whole message).
+        taint: dict[str, dict] = {}
+        for h in names:
             gate.view(h)
+            row: dict = {}
+            if cond and not bad_cond:
+                why = _masked_by(gate, h, cond)
+                if why:
+                    row["cond"] = why
+            if log and not bad_log:
+                whole = _masked_by(gate, h, log, template=True)
+                if whole:
+                    text, kinds = mask_blocks(
+                        env,
+                        log,
+                        lambda e, h=h, whole=whole: _masked_by(gate, h, e) if e else whole,
+                    )
+                    row["log"] = text
+                    row["kinds"] = sorted(kinds or {whole})
+            taint[h] = row
         masker = session.masker
 
         def work() -> object:
@@ -299,15 +381,27 @@ def at_point(session: Session, strategy, play, hosts: list, node: str, point: Ma
             for h in hosts:
                 templar = gate._templar_for(h)
                 row: dict = {}
-                if cond and not bad_cond:
+                masked = taint.get(h.get_name(), {})
+                if cond and not bad_cond and masked.get("cond"):
+                    row["cond"] = (
+                        f"The condition reads a masked value ({masked['cond']}): it is not checked"
+                    )
+                elif cond and not bad_cond:
                     try:
                         row["cond"] = bool(templar.evaluate_conditional(render.trusted(cond)))
                     except Exception as ex:  # noqa: BLE001
                         row["cond"] = render.error_text(ex)
                 if log and not bad_log and row.get("cond", True) is True:
                     try:
-                        value = templar.template(render.trusted(log))
+                        # A message that reads masked values renders with those parts masked
+                        # (None: masked whole).
+                        source = masked.get("log", log)
+                        if source is None:
+                            value: object = REDACTED
+                        else:
+                            value = templar.template(render.trusted(source))
                         text, kinds = masker.scrub(str(value), value)
+                        kinds |= set(masked.get("kinds") or [])
                         row["log"] = text
                         if kinds:
                             row["masked"] = sorted(kinds)

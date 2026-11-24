@@ -172,6 +172,30 @@ describe('step words', () => {
       'Stopped before Ping: nobody answered for 60 minutes',
     );
     expect(stoppedLine({ ...stopped, reason: 'driver' }, 'Ping', 3600)).toBe('Stopped before Ping');
+    // Stop at a failure pause: after the step, its failed hosts stay failed there.
+    const at = stepState([
+      { event: 'pause', id: 'x-1', node: 'n', hosts: ['a', 'b'], kind: 'failure', ts: 1 },
+      { event: 'stopped', id: 'x-1', node: 'n', hosts: ['a'], failed: ['b'], after: true },
+    ]).stopped;
+    expect(at).toEqual({ node: 'n', hosts: ['a'], failed: ['b'], after: true, reason: 'driver' });
+    expect(stoppedLine(at as NonNullable<typeof at>, 'Ping', 3600)).toBe('Stopped after Ping');
+  });
+
+  it('a failure pause counts its failed hosts among all that wait', () => {
+    const f = {
+      ...p,
+      kind: 'failure' as const,
+      attempt: 2,
+      failed: [{ host: 'b', task: 't', msg: 'm' }],
+    };
+    expect(pausedLine(f, 'Ping', 1000_000 + 60_000)).toBe(
+      'Paused after Ping · 1 of 3 hosts failed (attempt 2) · stops by itself in 59 min',
+    );
+    expect(
+      stepState([
+        { event: 'pause', id: 'h-1', node: 'n', hosts: ['a'], kind: 'condition', reached: 3 },
+      ]).paused?.reached,
+    ).toBe(3);
   });
 
   it('AWX cannot run step by step; here and the server can', () => {

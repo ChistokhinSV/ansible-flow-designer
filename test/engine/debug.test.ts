@@ -146,18 +146,47 @@ const maskRequests: Record<string, [InspectOp, InspectArgs]> = {
   evalSetFact: ['eval', { host: 'h01', expr: 'via_cred' }],
   evalNoLog: ['eval', { host: 'h01', expr: 'reg_nolog.stdout' }],
   watch: ['watch', { exprs: ['site_tier', 'via_b64', 'inventory_hostname'] }],
+  // AFD-373: a filter that changes a masked value's text still reads it (taint by reference).
+  leakReverse: ['eval', { host: 'h01', expr: 'vault_secret | reverse | join' }],
+  leakRegex: ['eval', { host: 'h01', expr: "vault_secret | regex_replace('-', '_')" }],
+  leakList: ['eval', { host: 'h01', expr: 'vault_secret | list' }],
+  leakLength: ['eval', { host: 'h01', expr: 'vault_secret | length' }],
+  leakCompare: ['eval', { host: 'h01', expr: "vault_secret == 'a-guess'" }],
+  leakCopy: ['eval', { host: 'h01', expr: 'via_set_fact | reverse | join' }],
+  leakSlice: ['eval', { host: 'h01', expr: 'db_password[0:4]' }],
+  leakStarts: ['eval', { host: 'h01', expr: "db_password.startswith('D')" }],
+  leakHash: ['eval', { host: 'h01', expr: "db_password | hash('sha1')" }],
+  leakCred: ['eval', { host: 'h01', expr: 'cred_password[:-1]' }],
+  leakExternal: ['eval', { host: 'h01', expr: "ext_value | list | join(' ')" }],
+  leakB64Part: ['eval', { host: 'h01', expr: 'api_cred[2:] | b64encode' }],
+  leakNoLog: ['eval', { host: 'h01', expr: 'reg_nolog.stdout | length' }],
+  leakHostvars: ['eval', { host: 'h01', expr: "hostvars['h02'].vault_secret | reverse | join" }],
+  leakHostvarsDyn: [
+    'eval',
+    { host: 'h01', expr: 'hostvars[inventory_hostname].db_password | list' },
+  ],
+  leakVarsDyn: ['eval', { host: 'h01', expr: "vars['db' ~ '_password'] | list" }],
+  leakNested: ['eval', { host: 'h01', expr: 'nested_vault | dict2items' }],
+  okPlainPart: ['eval', { host: 'h01', expr: 'via_dict.lst[1] + 1' }],
+  okHostvars: ['eval', { host: 'h01', expr: "hostvars['h02'].ntp_servers | length" }],
+  okHostname: ['eval', { host: 'h01', expr: 'inventory_hostname | upper' }],
+  okPlainFilter: ['eval', { host: 'h02', expr: 'site_tier | reverse | join' }],
+  refusedUnderscore: ['eval', { host: 'h01', expr: '_x | default(1)' }],
+  leakWatch: ['watch', { exprs: ['vault_secret | reverse | join', 'db_password | length'] }],
   nobody: ['scopes', { host: 'h99' }],
 };
 
 const CONDITIONS: PointSpec[] = [
   { node: idOf(EDGE, 'backup-config'), condition: "inventory_hostname == 'sw-edge-02'" },
   { node: idOf(EDGE, 'push-baseline'), condition: "inventory_hostname == 'nobody'" },
+  // AFD-373: a condition that reads a masked value is not checked (it would tell its value).
+  { node: idOf(EDGE, 'precheck'), condition: 'cred_password | length > 3' },
   { node: idOf(EDGE, 'validate'), condition: 'undefined_thing.x > 1' },
 ];
 const HITS: PointSpec[] = [
   {
     node: idOf(EDGE, 'precheck'),
-    log: '{{ inventory_hostname }} of {{ devices | length }} cred={{ cred_password }}',
+    log: '{{ inventory_hostname }} of {{ devices | length }} cred={{ cred_password }} n={{ cred_password | length }}',
   },
   { node: idOf(EDGE, 'push-baseline'), log: "{{ lookup('pipe', 'id') }}" },
   { node: idOf(EDGE, 'backup-config'), hits: 2 },
@@ -529,7 +558,8 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(lst?.children?.[1]).toMatchObject({ name: 1, type: 'int', value: 1 });
     const flow = a('flow');
     expect(child(flow, 'ext_value')?.masked).toBe('external');
-    expect(child(flow, 'cred_password')?.masked).toBe('name');
+    // A credential's value under a secret-looking name reads credential (AFS-252).
+    expect(child(flow, 'cred_password')?.masked).toBe('credential');
     expect(child(flow, 'want_facts')?.value).toBe(true);
     const inputs = a('inputs');
     expect(child(inputs, 'step_input_vlan')?.value).toBe(120);
@@ -554,12 +584,8 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(a('evalSetFact')).toMatchObject({ masked: 'credential' });
     expect(a('evalName')).toMatchObject({ masked: 'name' });
     expect(a('evalNoLog')).toMatchObject({ type: 'masked', masked: 'no_log' });
-    const dict = a('evalDict')?.value as Record<string, unknown>;
-    expect(dict.a).toBe(1);
-    expect((dict.nested as Record<string, unknown>).key).toEqual({
-      __afd__: 'masked',
-      masked: 'vault',
-    });
+    // A result built from a value with a masked part is masked whole (AFD-373).
+    expect(a('evalDict')).toMatchObject({ type: 'masked', masked: 'vault' });
     expect(a('evalPlain')).toMatchObject({ type: 'str', value: 'gold/2' });
     for (const k of ['evalLookup', 'evalQuery', 'evalUnvault'])
       expect(a(k)).toMatchObject({ refused: true });
@@ -572,6 +598,43 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     const tier = rows.filter((r) => r.expr === 'site_tier').map((r) => `${r.host}=${r.value}`);
     expect(tier.sort()).toEqual(['h01=silver', 'h02=gold', 'h03=silver']);
     expect(rows.filter((r) => r.expr === 'via_b64').every((r) => r.masked === 'vault')).toBe(true);
+  });
+
+  it('masks what reads a masked value, whatever filter changes it (taint by reference)', () => {
+    const kinds: Record<string, string> = {
+      leakReverse: 'vault',
+      leakRegex: 'vault',
+      leakList: 'vault',
+      leakLength: 'vault',
+      leakCompare: 'vault',
+      leakCopy: 'vault',
+      leakSlice: 'name',
+      leakStarts: 'name',
+      leakHash: 'name',
+      leakCred: 'credential',
+      leakExternal: 'external',
+      leakB64Part: 'credential',
+      leakNoLog: 'no_log',
+      leakHostvars: 'vault',
+      leakHostvarsDyn: 'name',
+      leakNested: 'vault',
+    };
+    for (const [k, kind] of Object.entries(kinds))
+      expect({ k, ...a(k) }).toMatchObject({ k, type: 'masked', masked: kind });
+    // vars[<a name chosen at run time>]: every variable is read; the first masked one names it.
+    expect(a('leakVarsDyn')).toMatchObject({ type: 'masked' });
+    // A plain part of a value with a masked part is shown.
+    expect(a('okPlainPart')).toMatchObject({ type: 'int', value: 2 });
+    expect(a('okHostvars')).toMatchObject({ type: 'int', value: 2 });
+    // After a no_log step, a host's name is not taken for a secret (AFD-376).
+    expect(a('okHostname')).toMatchObject({ type: 'str', value: 'H01' });
+    expect(a('okPlainFilter')).toMatchObject({ type: 'str', value: 'dlog' });
+    expect(a('refusedUnderscore')).toMatchObject({ refused: true });
+    expect(a('refusedUnderscore')?.error).toMatch(/Names starting with _/);
+    const rows = a('leakWatch')?.results ?? [];
+    expect(rows).toHaveLength(6);
+    expect(rows.every((r) => r.type === 'masked')).toBe(true);
+    expect(leaks(JSON.stringify([...answers.values()]))).toEqual([]);
   });
 
   it('answers a request for another pause as gone; a plain run pauses as in 1.1', () => {
@@ -591,8 +654,16 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     expect(o.pauses[0]).toMatchObject({ kind: 'condition', matched: ['sw-edge-02'] });
     expect(o.pauses[0]?.hosts.sort()).toEqual(['sw-edge-01', 'sw-edge-02', 'sw-edge-03']);
     const errors = (stepState(o.events).logs ?? []).filter((l) => l.source === 'condition');
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors.every((l) => key(l.node) === 'validate' && l.error)).toBe(true);
+    expect(errors.filter((l) => key(l.node) === 'validate').length).toBeGreaterThan(0);
+    // A condition that reads a masked value: not checked, said so per host, no pause.
+    const masked = errors.filter((l) => key(l.node) === 'precheck');
+    expect(masked.map((l) => l.host).sort()).toEqual(EDGE_HOSTS);
+    expect(masked.every((l) => /reads a masked value \(credential\)/.test(l.error ?? ''))).toBe(
+      true,
+    );
+    expect(errors.every((l) => ['validate', 'precheck'].includes(key(l.node)) && l.error)).toBe(
+      true,
+    );
     expect(a('conditionEval')?.value).toBe('sw-edge-02');
   });
 
@@ -607,7 +678,13 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     const lines = (state.logs ?? []).filter((l) => key(l.node) === 'precheck');
     expect(lines.map((l) => l.host).sort()).toEqual(EDGE_HOSTS);
     const one = lines.find((l) => l.host === 'sw-edge-01');
-    expect(one).toMatchObject({ message: 'sw-edge-01 of 4 cred=********', masked: ['credential'] });
+    expect(one).toMatchObject({
+      message: 'sw-edge-01 of 4 cred=******** n=********',
+      masked: ['credential'],
+    });
+    // AFD-374: the lines are in the run's output too, masked the same way.
+    expect(o.out).toContain('sw-edge-01: sw-edge-01 of 4 cred=******** n=********');
+    expect(leaks(o.out)).toEqual([]);
     // A log template that holds a lookup: refused, and said so.
     const refused = (state.logs ?? []).filter((l) => key(l.node) === 'push-baseline');
     expect(refused.some((l) => l.source === 'log' && /lookup/.test(l.error ?? ''))).toBe(true);
@@ -635,7 +712,13 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
   it('stop at a failure pause ends the run there', () => {
     const o = get('failure: stop at the first failure pause');
     expect(o.pauses).toHaveLength(1);
-    expect(stepState(o.events).stopped?.reason).toBe('driver');
+    // AFD-375: stopped after the step; the failed host stays failed there, the others stop after.
+    expect(stepState(o.events).stopped).toMatchObject({
+      reason: 'driver',
+      after: true,
+      failed: ['sw-edge-04'],
+    });
+    expect(stepState(o.events).stopped?.hosts.sort()).toEqual(EDGE_HOSTS.slice(0, 3));
     expect(o.events.some((e) => String(e.task ?? '').startsWith('[backup-config]'))).toBe(false);
     expect(o.rc).not.toBe(0);
   });
@@ -651,6 +734,9 @@ describe.each(IMAGES)('debugger engine on %s', (image) => {
     ]);
     const retry = o.events.find((e) => e.event === 'retry');
     expect(retry).toMatchObject({ hosts: ['sw-edge-04'], attempt: 2 });
+    // AFD-375: after a Retry that fails again, every host still waits at the pause.
+    expect(fails[1]?.hosts.sort()).toEqual(EDGE_HOSTS);
+    expect(fails[1]?.failed?.map((f) => f.host)).toEqual(['sw-edge-04']);
     // The summary forgets the first attempt: the same routes as a run without Retry.
     const plain = get('failure: continue at each failure pause routes as without');
     const s = summarizeRun(o.text, o.code?.routes ?? {});

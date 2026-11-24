@@ -82,6 +82,11 @@ export interface DebugHost {
   stop(): Promise<void>;
   /** Two file paths name the same file (case-insensitive on Windows). */
   samePath(a: string, b: string): boolean;
+  /**
+   * The flow's pause points as the designer keeps them. DAP's function breakpoints carry no log
+   * message: a log point mirrored there gets its message back from here.
+   */
+  savedPoints?(): PointSpec[];
 }
 
 type Json = Record<string, unknown>;
@@ -255,13 +260,16 @@ export class FlowDebugAdapter {
         return this.command(req, 'pause');
       case 'retry':
         return this.command(req, 'retry');
+      // DAP cannot hide Step Into: in a flow it is Step, which also pauses before the first step
+      // inside a subflow.
       case 'stepIn':
+        return this.command(req, 'step');
       case 'stepOut':
       case 'stepBack':
       case 'reverseContinue':
         return this.refuse(
           req,
-          'Step Into and Step Out are not in this version: Step (F10) runs the step and pauses before the next one',
+          'Step Out is not in this version: Step (F10) runs the step and pauses before the next one; Continue (F5) runs on to the next pause point',
         );
       case 'afd/frame': {
         const frame = this.frames.get(Number(a.frameId));
@@ -590,6 +598,14 @@ export class FlowDebugAdapter {
         break;
       }
       const children = answer.children ?? [];
+      if (p.scope === 'facts' && p.path.length === 0 && start === 0 && children.length === 0) {
+        out.push({
+          name: '(none)',
+          value: 'No facts for this host yet: a step that gathers facts has not run on it',
+          variablesReference: 0,
+        });
+        break;
+      }
       for (const e of children)
         out.push(
           this.variable(e, {
@@ -724,11 +740,24 @@ export class FlowDebugAdapter {
       );
       if ('error' in made) return { verified: false, line, message: made.error };
       const id = this.nextBp++;
-      this.srcPoints.set(node, { spec: made.point, id });
+      this.srcPoints.set(node, { spec: this.withSavedLog(made.point), id });
       return { id, verified: true, line, source };
     });
     this.respond(req, { breakpoints: out });
     return this.pushPoints();
+  }
+
+  /**
+   * A breakpoint with no log message keeps the log message of the designer's point at its step:
+   * VS Code sends none for a function breakpoint, and a log point read as a plain one paused the
+   * run and wrote nothing.
+   */
+  private withSavedLog(spec: PointSpec): PointSpec {
+    if (typeof spec !== 'string' && spec.log?.trim()) return spec;
+    const node = pointNode(spec);
+    const saved = this.host.savedPoints?.().find((p) => pointNode(p) === node);
+    if (!saved || typeof saved === 'string' || !saved.log?.trim()) return spec;
+    return { ...(typeof spec === 'string' ? { node } : spec), log: saved.log };
   }
 
   private setFunctionBreakpoints(req: Request, a: Json): Promise<void> {
@@ -756,7 +785,7 @@ export class FlowDebugAdapter {
       );
       if ('error' in made) return { verified: false, message: made.error };
       const id = this.nextBp++;
-      this.fnPoints.set(node, { spec: made.point, id });
+      this.fnPoints.set(node, { spec: this.withSavedLog(made.point), id });
       return {
         id,
         verified: true,

@@ -54,10 +54,23 @@ def _paused_line(play: str, hosts: int) -> str:
     return f"Paused before {title}: {waits} for Step, Continue or Stop"
 
 
-def _failed_line(play: str, failed: int) -> str:
+def _failed_line(play: str, failed: int, hosts: int, attempt: int) -> str:
     title = re.sub(r"^\[[^\]]*\]\s*", "", play) or play
-    who = "1 host" if failed == 1 else f"{failed} hosts"
-    return f"{who} failed {title}: Retry, Continue or Stop"
+    of = f"{failed} of {hosts} hosts" if hosts > 1 else "1 host"
+    return f"Paused after {title}: {of} failed (attempt {attempt}): Retry, Continue or Stop"
+
+
+def _log_line(play: str, event: dict) -> str | None:
+    """A log point's line in the run's output (ADR-0040 §6): masked as the event is."""
+    title = re.sub(r"^\[[^\]]*\]\s*", "", play) or play
+    host = event.get("host")
+    where = f"{title} · {host}" if host else title
+    if "message" in event:
+        return f"Log point {where}: {event['message']}"[:2000]
+    if event.get("error"):
+        what = {"condition": "condition", "log": "log message"}.get(event.get("source"), "point")
+        return f"Log point {where}: the {what} failed: {event['error']}"[:2000]
+    return None
 
 
 VERSION = 1
@@ -264,10 +277,16 @@ class StrategyModule(LinearStrategy):
             found = state.lib.at_point(state.debug, self, play, hosts, node, point)
             for e in found["events"]:
                 state.emit(**e)
+                if e.get("event") == "log":
+                    line = _log_line(name, e)
+                    if line:
+                        display.display(line)
             if found["pause"]:
                 kind = "condition" if point.get("condition") or point.get("hits") else "point"
                 if found["matched"]:
                     extra["matched"] = found["matched"]
+                if point.get("hits"):
+                    extra["reached"] = point.get("hits")
         elif point is not None:
             kind = "point"
         if kind is None:
@@ -302,7 +321,7 @@ class StrategyModule(LinearStrategy):
         state.emit(**event)
         if kind == "failure":
             failed = extra.get("failed") or []
-            display.display(_failed_line(name, len(failed)))
+            display.display(_failed_line(name, len(failed), len(names), extra.get("attempt", 1)))
             for f in failed:
                 display.display(f"  {f['host']}: {f.get('task') or ''}: {f.get('msg') or ''}"[:300])
         else:
@@ -345,9 +364,17 @@ class StrategyModule(LinearStrategy):
                 return "stop"
             time.sleep(POLL_S)
         if command == "stop":
-            state.emit(
-                event="stopped", id=pause, node=node, play=name, hosts=names, reason="driver"
-            )
+            stopped: dict = {"hosts": names}
+            if kind == "failure":
+                # Stopped after the step: its failed hosts stay failed there, the others ran it
+                # and stop after it (not before it).
+                gone = {f["host"] for f in extra.get("failed") or []}
+                stopped = {
+                    "hosts": [n for n in names if n not in gone],
+                    "failed": [n for n in names if n in gone],
+                    "after": True,
+                }
+            state.emit(event="stopped", id=pause, node=node, play=name, reason="driver", **stopped)
             return "stop"
         state.emit(event="resume", id=pause, node=node, command=command)
         return command
@@ -478,6 +505,8 @@ class StrategyModule(LinearStrategy):
         ):
             return super().run(iterator, play_context)
         before = self._afd_snapshot(play)
+        # Every pause holds all hosts: after a Retry, those that passed still wait at it.
+        everyone = [s["host"] for s in before.values()]
         result = super().run(iterator, play_context)
         attempt = 1
         while not state.stopped:
@@ -490,12 +519,11 @@ class StrategyModule(LinearStrategy):
                 refused = NO_RETRY_ROLLING
             elif any(f.get("hard") for f in failed):
                 refused = NO_RETRY_HARD
-            hosts = [s["host"] for s in before.values()]
             command = self._afd_pause(
                 state,
                 node,
                 play,
-                hosts,
+                everyone,
                 "failure",
                 failed=failed,
                 attempt=attempt,
