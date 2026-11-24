@@ -297,6 +297,21 @@
   cursor: pointer;
 }
 
+/* AFD-378: the 10 px dot is hard to hit; the button takes clicks in a 24 px circle round it (32 px
+   on a touch screen), drawn as nothing. */
+.afd-pause-point::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+
+@media (pointer: coarse) {
+  .afd-pause-point::before {
+    inset: -12px;
+  }
+}
+
 /* AFS-205: where no pause point is, the dot shows faint while the pointer is on the step. */
 .afd-pause-point.off {
   opacity: 0;

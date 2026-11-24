@@ -388,6 +388,16 @@ export function RunPanel() {
   const st = statusOf(run, words);
   const s = run.summary;
   const outcome = Object.entries(s?.outcome ?? {});
+  // AFD-378: the summary learns its hosts at the end of a play; a run paused before its first
+  // step's play ended said "0 hosts" while hosts waited. The hosts held at the pause count too.
+  const paused = run.state === 'running' ? run.step?.paused : undefined;
+  const hostList = [
+    ...new Set([
+      ...(s?.hosts ?? []),
+      ...(paused?.hosts ?? []),
+      ...(paused?.failed ?? []).map((f) => f.host),
+    ]),
+  ];
   return (
     <div className="afd-panel-body" data-run-panel={run.state}>
       <h2 className="afd-panel-title">
@@ -465,14 +475,14 @@ export function RunPanel() {
       {s ? (
         <section className="afd-section">
           <h3>Hosts</h3>
-          <p>
-            {hostsWord(s.hosts.length)}
+          <p data-run-hosts-count={hostList.length}>
+            {hostsWord(hostList.length)}
             {s.stoppedEarly ? ' · stopped early' : ''}
             {/* AFD-353: which hosts, not only how many (a short list in full). */}
-            {s.hosts.length > 0 && s.hosts.length <= 20 ? (
-              <span className="muted mono" data-run-host-names={s.hosts.length}>
+            {hostList.length > 0 && hostList.length <= 20 ? (
+              <span className="muted mono" data-run-host-names={hostList.length}>
                 {': '}
-                {s.hosts.join(', ')}
+                {hostList.join(', ')}
               </span>
             ) : null}
           </p>

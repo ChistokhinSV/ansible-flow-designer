@@ -44,6 +44,8 @@ All notable changes to Ansible Flow Designer.
 - Host names in a step's Run tab stay on one line; "edge-rtr-01" broke at each dash.
 - The import notice counts the subflows as Readiness does ("28 nodes (20 steps in 8 subflows)"), so the two no longer disagree.
 - A wire's label is drawn over all the wires, so another wire running through it no longer strikes it through.
+- While a run is paused, the Run panel's **Hosts** counts and names the hosts waiting; before the first step had ended it said "0 hosts".
+- The pause point dot on a step takes clicks in a larger circle round it, so it is easy to hit.
 - The debugger's Debug Console and Watch no longer give out a masked value through a filter: an expression that reads a masked value (vaulted, a credential's, a secret provider's, under a secret-looking name, or a no_log result) is masked whole, whatever it does with it (`reverse`, `list`, slices, `length`, `hash`, `==`), also through `hostvars[...]` and `vars[...]`. A pause point's condition that reads one is not checked, and a log message shows `********` for each part that reads one. Names starting with `_` are refused.
 - A secret provider's or a credential's value under a secret-looking name (`ansible_password`) reads "masked: external secret" or "masked: credential", not "secret-looking name".
 - After a `no_log` step, a host's name and values that hold it are no longer masked as "secret-looking name" for the rest of the debug run.

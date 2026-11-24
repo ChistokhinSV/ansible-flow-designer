@@ -250,6 +250,14 @@ describe('Run panel and top bar', () => {
     );
   });
 
+  it('AFD-378: paused before any play ended, Hosts counts the hosts waiting, not 0', () => {
+    act(() => useUi.getState().setRun(paused));
+    render(<RunPanel />);
+    const hosts = document.querySelector('[data-run-hosts-count]') as HTMLElement;
+    expect(hosts.dataset.runHostsCount).toBe('2');
+    expect(hosts.textContent).toContain('2 hosts: web-01, web-02');
+  });
+
   it('the top bar says where the run waits and has the step buttons beside Stop', () => {
     act(() => useUi.getState().setRun(paused));
     render(<TopBar />);
