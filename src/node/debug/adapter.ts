@@ -512,7 +512,7 @@ export class FlowDebugAdapter {
     const host = this.hostOf(Number(a.threadId));
     if (!pause || !host || !this.model || !this.flow) return { stackFrames: [], totalFrames: 0 };
     const source = { name: basename(this.flow.path), path: this.flow.path };
-    const failed = pause.failed?.some((f) => f.host === host);
+    const failed = pause.failed?.find((f) => f.host === host);
     const chain: Ulid[] = [];
     for (let id: Ulid | undefined = pause.node; id; ) {
       chain.push(id);
@@ -524,7 +524,8 @@ export class FlowDebugAdapter {
       this.frames.set(frameId, { host, node });
       return {
         id: frameId,
-        name: `${this.title(node)}${i === 0 && failed ? '  (failed)' : ''}`,
+        // An unreachable host's frame says so, as its thread does.
+        name: `${this.title(node)}${i === 0 && failed ? (failed.unreachable ? '  (unreachable)' : '  (failed)') : ''}`,
         source,
         line: this.lines.get(node) ?? 1,
         column: 1,

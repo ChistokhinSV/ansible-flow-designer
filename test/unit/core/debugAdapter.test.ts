@@ -273,6 +273,18 @@ describe('AFD-369: the debug adapter', () => {
     t.driver.pause = undefined;
     t.hooks().report(view());
     expect(t.events('continued')).toHaveLength(1);
+    // AFD-379: an unreachable host's frame says unreachable, as its thread does.
+    const gone: StepPause = {
+      ...failure,
+      id: 'p-2',
+      failed: [{ host: 'h02', task: '', msg: 'Unreachable', unreachable: true }],
+    };
+    t.driver.pause = gone;
+    t.hooks().report(view(gone));
+    const far = await t.req('stackTrace', { threadId: threads[0]?.id, startFrame: 0, levels: 1 });
+    expect((far.body.stackFrames as { name: string }[])[0]?.name).toBe(
+      'Check marker  (unreachable)',
+    );
   });
 
   it('Retry refused says why; Step Into is Step, Step Out said in the console; Continue and Step go to the driver', async () => {

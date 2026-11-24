@@ -62,6 +62,7 @@ All notable changes to Ansible Flow Designer.
 - Debug and step-by-step runs no longer print ansible-core's deprecation warnings about third-party strategy plugins and the templar's `environment` attribute.
 - **Edit Pause Point…** shows **Pause when a host is unreachable** as the Breakpoints view's **Host unreachable** filter has it, once a debug session has started.
 - **Step Out** says in the Debug Console that it is not there yet, and the run stays paused; it was a pop-up.
+- In Call Stack, the frame of an unreachable host says "(unreachable)", not "(failed)".
 - At a debug pause, **Host variables** no longer lists the values the generated code keeps for itself (`afd_failed_task`, `afd_inputs` and the like).
 - In the Debug Console, an expression that is not finished ("A quote (') is not closed") is an error, not "Refused".
 - `vars['db' ~ '_password']` is masked with that variable's own reason (`masked: vault` for a vaulted one), not "secret-looking name".
