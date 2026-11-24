@@ -7,7 +7,7 @@ All notable changes to Ansible Flow Designer.
 ### Added
 
 - **Debug a flow:** **Run ▾ › Debug…** (or a launch configuration of type `ansible-flow`, or F5 on a flow) runs the flow in VS Code's debugger. At each pause Call Stack has a thread per host, host name first; Variables shows the step's inputs, the host's variables, the flow data and the facts of the host picked, with secrets masked and the reason said; the Debug Console and Watch evaluate Jinja for that host (lookups are refused). Picking a frame shows its step on the canvas. Needs ansible-core 2.19 or later; local, container, WSL and SSH runs.
-- **Pause where a host fails:** a debug run pauses where a host fails a step (the **Host failed** filter, on by default) or, if asked, where a host is unreachable. The canvas shows "1 host failed Apply config (attempt 1)" with each host's task and message, and **Retry**, **Continue** and **Stop**. Retry runs the step again on the failed hosts and says that changes on hosts are not undone; where it is not offered, the bar says why.
+- **Pause where a host fails:** a debug run pauses where a host fails a step (the **Host failed** filter, on by default) or, if asked, where a host is unreachable. The canvas shows "Paused after Apply config: 1 of 4 hosts failed (attempt 1)" with each host's task and message, and **Retry**, **Continue** and **Stop**. Retry runs the step again on the failed hosts and says that changes on hosts are not undone; where it is not offered, the bar says why.
 - **Edit Pause Point…** in a step's menu: always pause, pause when a condition holds (all hosts wait when any host matches), only after the step is reached N times, or log only (a message per host, in the Debug Console and the Run panel). Such points have a dot of their own. Pause points are also VS Code breakpoints, named `<flow>:<step>`, both ways; a breakpoint on a step's `key:` line in the flow file works too.
 - On Ansible Flow Server's pages, an approval whose **Approvers** is empty says who will be asked ("Asks: change-board, Sam Reyes"), under the field and as its tooltip.
 
@@ -32,6 +32,13 @@ All notable changes to Ansible Flow Designer.
 - **More actions** closes with Escape while the focus is still on its button.
 - The minimap stays in its corner while that corner is clear, instead of jumping between the corners as the view moves.
 - In Run mode, a step without code says **TODO** on a run that ended or stopped before it too, as it does on a paused run.
+- The debugger's Debug Console and Watch no longer give out a masked value through a filter: an expression that reads a masked value (vaulted, a credential's, a secret provider's, under a secret-looking name, or a no_log result) is masked whole, whatever it does with it (`reverse`, `list`, slices, `length`, `hash`, `==`), also through `hostvars[...]` and `vars[...]`. A pause point's condition that reads one is not checked, and a log message shows `********` for each part that reads one. Names starting with `_` are refused.
+- A secret provider's or a credential's value under a secret-looking name (`ansible_password`) reads "masked: external secret" or "masked: credential", not "secret-looking name".
+- After a `no_log` step, a host's name and values that hold it are no longer masked as "secret-looking name" for the rest of the debug run.
+- A log-only pause point set on the canvas no longer pauses a debug run in VS Code: it writes its message per host, also into the run's output.
+- After a Retry that fails again, every host still waits at the failure pause (in Call Stack, and "1 of 4 hosts failed (attempt 2)"), not only the retried one.
+- Stop at a failure pause says "Stopped after" the step: its failed hosts stay failed there, and the others stopped after it, not before it.
+- **Step Into** in a debug session steps as **Step Over** does, instead of a refusal; a pause after a hit count says "reached N times"; a value cut at 64 KB says so at the start of its line; an empty **Facts** says why; `[1 item]`, `{1 key}`.
 
 ## 1.1.0 — Run step by step, with pause points
 

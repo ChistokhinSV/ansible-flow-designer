@@ -84,6 +84,7 @@ function setup() {
   let hooks: DebugRunHooks | undefined;
   let finish: (v: RunView) => void = () => undefined;
   let stopped = 0;
+  const saved: PointSpec[] = [];
   const host: DebugHost = {
     load: async () => ({ path: FLOW, text, doc }),
     start: (_args, h) => {
@@ -98,6 +99,7 @@ function setup() {
       finish({ ...view(), state: 'error', error: 'Stopped', rc: 2 });
     },
     samePath: (a, b) => a.toLowerCase() === b.toLowerCase(),
+    savedPoints: () => saved,
   };
   const adapter = new FlowDebugAdapter(host, (m) => out.push(m as Msg));
   let seq = 1;
@@ -116,6 +118,7 @@ function setup() {
     hooks: () => hooks as DebugRunHooks,
     finish: (v: RunView) => finish(v),
     stopped: () => stopped,
+    saved,
   };
 }
 
@@ -252,7 +255,9 @@ describe('AFD-369: the debug adapter', () => {
     });
     const info = await t.req('exceptionInfo', { threadId: threads[0]?.id });
     expect(info.body.exceptionId).toBe('failed');
-    expect(info.body.description).toBe('1 host failed Check marker (attempt 1)');
+    expect(info.body.description).toBe(
+      'Paused after Check marker: 1 of 3 hosts failed (attempt 1)',
+    );
     expect(JSON.stringify(info.body.details)).toMatch(/Changes on hosts are not undone/);
     // Retry (a custom request: DAP has none), then the run goes on: continued.
     expect((await t.req('retry')).success).toBe(true);
@@ -262,7 +267,7 @@ describe('AFD-369: the debug adapter', () => {
     expect(t.events('continued')).toHaveLength(1);
   });
 
-  it('Retry refused says why; Step Into is refused; Continue and Step go to the driver', async () => {
+  it('Retry refused says why; Step Into is Step, Step Out refused; Continue and Step go to the driver', async () => {
     await t.req('configurationDone');
     const refused = {
       ...failure,
@@ -273,10 +278,13 @@ describe('AFD-369: the debug adapter', () => {
     const r = await t.req('retry');
     expect(r.success).toBe(false);
     expect(r.message).toMatch(/rolling subflow/);
-    expect((await t.req('stepIn', { threadId: 2 })).success).toBe(false);
+    expect((await t.req('stepIn', { threadId: 2 })).success).toBe(true);
+    const out = await t.req('stepOut', { threadId: 2 });
+    expect(out.success).toBe(false);
+    expect(out.message).toMatch(/Step Out is not in this version/);
     expect((await t.req('next', { threadId: 2 })).success).toBe(true);
     expect((await t.req('continue', { threadId: 2 })).body).toEqual({ allThreadsContinued: true });
-    expect(t.driver.sent).toEqual(['retry', 'step', 'continue']);
+    expect(t.driver.sent).toEqual(['retry', 'step', 'step', 'continue']);
   });
 
   it('scopes and paged variables from inspect; masked values say why', async () => {
@@ -429,6 +437,39 @@ describe('AFD-369: the debug adapter', () => {
     expect(u.stopped()).toBe(1);
   });
 
+  it('a log point mirrored as a function breakpoint keeps its message (DAP sends none)', async () => {
+    t.saved.push({ node: id('apply'), log: 'LP {{ inventory_hostname }}' }, id('fix'));
+    await t.req('setFunctionBreakpoints', {
+      breakpoints: [{ name: 'debug-retry:apply' }, { name: 'debug-retry:fix' }],
+    });
+    await t.req('configurationDone');
+    expect(t.hooks().points).toEqual([
+      { node: id('apply'), log: 'LP {{ inventory_hostname }}' },
+      id('fix'),
+    ]);
+  });
+
+  it('an empty Facts scope says why', async () => {
+    await t.req('configurationDone');
+    t.driver.pause = failure;
+    t.hooks().report(view(failure));
+    t.driver.answers = (op, args) =>
+      op === 'scopes'
+        ? { host: args.host, scopes: [{ id: 'facts', name: 'Facts', expensive: true }] }
+        : { total: 0, start: 0, children: [] };
+    const thread = ((await t.req('threads')).body.threads as { id: number }[])[0]?.id;
+    const frame = (
+      (await t.req('stackTrace', { threadId: thread })).body.stackFrames as { id: number }[]
+    )[0]?.id;
+    const scopes = (await t.req('scopes', { frameId: frame })).body.scopes as {
+      variablesReference: number;
+    }[];
+    const vars = (await t.req('variables', { variablesReference: scopes[0]?.variablesReference }))
+      .body.variables as { name: string; value: string }[];
+    expect(vars).toHaveLength(1);
+    expect(vars[0]?.value).toMatch(/No facts for this host yet/);
+  });
+
   it('stopOnEntry: the first pause is an entry', async () => {
     const u = await launched(true);
     await u.req('configurationDone');
@@ -441,7 +482,16 @@ describe('AFD-369: the debug adapter', () => {
 
 describe('ADR-0040: the debugger words and mappings', () => {
   it('reason lines name the step, the hosts and why', () => {
-    expect(reasonLine(failure, 'Apply config')).toBe('1 host failed Apply config (attempt 1)');
+    expect(reasonLine(failure, 'Apply config')).toBe(
+      'Paused after Apply config: 1 of 3 hosts failed (attempt 1)',
+    );
+    // After a Retry every host still waits: the failed one is counted among all of them.
+    expect(reasonLine({ ...failure, attempt: 2 }, 'Apply config')).toBe(
+      'Paused after Apply config: 1 of 3 hosts failed (attempt 2)',
+    );
+    expect(reasonLine({ ...failure, kind: 'condition', reached: 2 }, 'X')).toBe(
+      'Paused before X: reached 2 times · 3 hosts wait',
+    );
     expect(
       shortReason(
         { ...failure, failed: [{ host: 'h7', task: '', msg: '', unreachable: true }] },
@@ -472,8 +522,10 @@ describe('ADR-0040: the debugger words and mappings', () => {
     expect(pointDot({ node: 'N', hits: 2 })).toBe('condition');
     expect(pointDot('N')).toBe('on');
     expect(entryText({ type: 'str', value: 'abc', cut: 70000 })).toBe(
-      '"abc" … (cut: 70000 characters in all)',
+      '(cut at 64 KB: 70000 characters in all) "abc" …',
     );
+    expect(entryText({ type: 'list', count: 1 })).toBe('[1 item]');
+    expect(entryText({ type: 'dict', count: 1 })).toBe('{1 key}');
     expect(entryText({ type: 'template', value: { __afd__: 'template', text: '{{ x }}' } })).toBe(
       '{{ x }}  (template, not rendered)',
     );

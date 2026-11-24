@@ -77,6 +77,7 @@ export async function debugFlow(
 /** The adapter's host: reads the flow, runs it as a debug run, stops it. */
 function adapterHost(host: Host, session: vscode.DebugSession): DebugHost {
   let flowUri: vscode.Uri | undefined;
+  let loaded: FlowDocument | undefined;
   return {
     async load(args: DebugLaunchArgs): Promise<DebugFlow | { error: string }> {
       const given = args.flow ? vscode.Uri.file(args.flow) : undefined;
@@ -88,6 +89,7 @@ function adapterHost(host: Host, session: vscode.DebugSession): DebugHost {
       if (!flow?.flow)
         return { error: `${doc.uri.fsPath} does not read as a flow: fix its YAML first` };
       flowUri = doc.uri;
+      loaded = flow;
       return { path: doc.uri.fsPath, text, doc: flow };
     },
     async start(args, hooks) {
@@ -108,6 +110,10 @@ function adapterHost(host: Host, session: vscode.DebugSession): DebugHost {
       if (flowUri) await stopRun(flowUri);
     },
     samePath,
+    savedPoints() {
+      const id = loaded?.flow.id;
+      return id ? pointSpecs(host.context.workspaceState, id) : [];
+    },
   };
 }
 

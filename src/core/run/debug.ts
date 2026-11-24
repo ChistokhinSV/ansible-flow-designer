@@ -10,7 +10,14 @@ import { pausableNode } from '../flow/canvasMenu';
 import type { FlowModel } from '../flow/model';
 import type { Ulid } from '../flow/types';
 import { locate, parseYaml } from '../yaml/parse';
-import type { FailureFilters, PausePoint, PointSpec, StepPause, VarEntry } from './step';
+import {
+  type FailureFilters,
+  failedCount,
+  type PausePoint,
+  type PointSpec,
+  type StepPause,
+  type VarEntry,
+} from './step';
 import { hostsWord } from './words';
 
 /** A debug run pauses when a host fails, unless turned off; never when unreachable, unless on. */
@@ -76,17 +83,19 @@ export function shortReason(pause: StepPause, title: string): string {
 
 /**
  * The reason line of a pause: the step, the count of hosts and why (a step, a pause point, a
- * condition, a failure or unreachable hosts): "1 host failed Apply config (attempt 1)".
+ * condition, a hit count, a failure or unreachable hosts): "Paused after Apply config: 1 of 4
+ * hosts failed (attempt 1)".
  */
 export function reasonLine(pause: StepPause, title: string, pointHere = false): string {
   switch (pause.kind) {
-    case 'failure': {
-      const attempt = ` (attempt ${pause.attempt ?? 1})`;
-      return `${shortReason(pause, title)}${attempt}`;
-    }
+    case 'failure':
+      return `Paused after ${title}: ${failedCount(pause)}`;
     case 'condition': {
       const m = pause.matched ?? [];
-      return `Paused before ${title}: the condition matched ${m.length ? list(m) : 'a host'} · ${hostsWord(pause.hosts.length)} wait`;
+      const wait = `${hostsWord(pause.hosts.length)} wait`;
+      if (!m.length && pause.reached)
+        return `Paused before ${title}: reached ${pause.reached} time${pause.reached === 1 ? '' : 's'} · ${wait}`;
+      return `Paused before ${title}: the condition matched ${m.length ? list(m) : 'a host'} · ${wait}`;
     }
     case 'point':
       return `Paused before ${title} at a pause point · ${hostsWord(pause.hosts.length)}`;
@@ -214,6 +223,9 @@ const MASK_WORDS: Record<string, string> = {
 export const maskedText = (kind: string | undefined): string =>
   `masked: ${MASK_WORDS[kind ?? ''] ?? kind ?? 'secret'}`;
 
+const keysText = (n: number): string => `{${n} key${n === 1 ? '' : 's'}}`;
+const itemsText = (n: number): string => `[${n} item${n === 1 ? '' : 's'}]`;
+
 /** A value inside a container (a marker or plain JSON) as text. */
 export function valueText(value: unknown): string {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -227,9 +239,9 @@ export function valueText(value: unknown): string {
       if (marker === 'deep') return '(too deep to show)';
       return String(v.repr ?? marker);
     }
-    return `{${Object.keys(value).length} keys}`;
+    return keysText(Object.keys(value).length);
   }
-  if (Array.isArray(value)) return `[${value.length} items]`;
+  if (Array.isArray(value)) return itemsText(value.length);
   if (typeof value === 'string') return JSON.stringify(value);
   return value === undefined ? '' : String(value);
 }
@@ -239,8 +251,9 @@ export function entryText(
   e: Pick<VarEntry, 'type' | 'value' | 'cut' | 'masked' | 'count'>,
 ): string {
   if (e.type === 'masked') return maskedText(e.masked);
-  if (e.type === 'dict') return `{${e.count ?? 0} keys}`;
-  if (e.type === 'list') return `[${e.count ?? 0} items]`;
+  if (e.type === 'dict') return keysText(e.count ?? 0);
+  if (e.type === 'list') return itemsText(e.count ?? 0);
   const text = valueText(e.value);
-  return e.cut ? `${text} … (cut: ${e.cut} characters in all)` : text;
+  // The note goes first: VS Code shortens a long value's line, which hid a note at its end.
+  return e.cut ? `(cut at 64 KB: ${e.cut} characters in all) ${text} …` : text;
 }

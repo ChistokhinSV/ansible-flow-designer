@@ -183,7 +183,9 @@ describe('AFD-372: a failure pause', () => {
     act(() => useUi.getState().setRun(failed()));
     render(<FailureBar />);
     const bar = document.querySelector('[data-failure-bar]') as HTMLElement;
-    expect(bar.textContent).toContain(`1 host failed ${first.title} (attempt 1)`);
+    expect(bar.textContent).toContain(
+      `Paused after ${first.title}: 1 of 3 hosts failed (attempt 1)`,
+    );
     expect(bar.textContent).toContain('web-02: ping: host answered nothing');
     expect(bar.textContent).toContain(
       `Retry runs ${first.title} again on web-02. Changes on hosts are not undone.`,
@@ -208,7 +210,7 @@ describe('AFD-372: a failure pause', () => {
     render(<RunPanel />);
     const panel = document.querySelector('.afd-step-section') as HTMLElement;
     expect(panel.querySelector('[data-step-paused]')?.textContent).toContain(
-      `1 host failed ${first.title} (attempt 1)`,
+      `Paused after ${first.title}: 1 of 3 hosts failed (attempt 1)`,
     );
     expect(panel.querySelector('[data-retry-note]')?.textContent).toContain(
       'Retry is not offered here: a rolling subflow runs as one play',
@@ -225,7 +227,9 @@ describe('AFD-372: a failure pause', () => {
       useUi.getState().setRun(failed());
     });
     render(<FailureBar />);
-    expect(document.querySelector('[data-failure-bar]')?.textContent).toContain('1 host failed');
+    expect(document.querySelector('[data-failure-bar]')?.textContent).toContain(
+      '1 of 3 hosts failed',
+    );
     expect(document.querySelector('[data-step-command]')).toBeNull();
     cleanup();
     act(() =>

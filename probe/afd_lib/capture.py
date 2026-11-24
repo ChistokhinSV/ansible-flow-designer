@@ -18,7 +18,7 @@ import math
 import re
 from collections.abc import Mapping
 
-from .mask import Masked, Masker
+from .mask import SECRET_NAME, Masked, Masker
 
 try:
     from ansible._internal._datatag._tags import TrustedAsTemplate
@@ -212,8 +212,14 @@ class HostView:
         self._nolog = nolog or set()
         self._masker = masker
         self._scopes: dict[str, dict[str, object]] = {}
-        for v in all_vars.values():
-            masker.learn(v)
+        # A value under a secret-looking name is learned, so its copies are caught. Magic variables
+        # are not: they hold host and group names (groups: flow_<step>_ok_hosts, where a step key
+        # may look secret), and `vars` holds every variable again. Nor is a no_log register: it is
+        # masked whole by its name. Learning them masked a host's name for the rest of the run.
+        for name, v in all_vars.items():
+            if str(name) in MAGIC or str(name) in self._nolog:
+                continue
+            masker.learn(v, secret=bool(SECRET_NAME.search(str(name))))
 
     def scope_of(self, name: str) -> str | None:
         if name in MAGIC or name in OWN_PLAY_VARS or name.startswith("ansible_facts"):
