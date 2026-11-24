@@ -303,15 +303,15 @@ describe('AFS-224: an empty Approvers says who will be asked', () => {
   it('names the people and groups the host says, as a tooltip and a line', () => {
     act(() => useUi.setState({ impliedApprovers: ['change-board', 'Sam Reyes'] }));
     const input = field();
-    expect(input.title).toBe('Asks: change-board, Sam Reyes');
+    expect(input.title).toBe('Empty, so it asks: change-board, Sam Reyes');
     expect(document.querySelector('[data-field-note]')?.textContent).toBe(
-      'Asks: change-board, Sam Reyes',
+      'Empty, so it asks: change-board, Sam Reyes',
     );
   });
 
   it('none: an administrator; a host that does not know (VS Code): nothing', () => {
     act(() => useUi.setState({ impliedApprovers: [] }));
-    expect(field().title).toBe('Asks: an administrator');
+    expect(field().title).toBe('Empty, so it asks: an administrator');
     cleanup();
     act(() => useUi.setState({ impliedApprovers: null }));
     expect(field().title).toBe('');

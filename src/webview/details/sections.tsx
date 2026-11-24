@@ -544,23 +544,28 @@ function ApprovalFields({
   const implied = useUi((s) => s.impliedApprovers);
   const asks =
     implied && !(fields.approvers ?? []).length
-      ? `Asks: ${implied.length ? implied.join(', ') : 'an administrator'}`
+      ? `Empty, so it asks: ${implied.length ? implied.join(', ') : 'an administrator'}`
       : undefined;
   return (
     <>
       <CommitField
         label="Approvers"
-        help="Users or groups who may decide, commas between. Empty: whoever the runner lets approve."
+        // AFS-254: where the host says who an empty field asks, the help does not guess.
+        help={
+          asks
+            ? 'Users or groups who may decide, commas between.'
+            : 'Users or groups who may decide, commas between. Empty: whoever the runner lets approve.'
+        }
         {...(asks ? { title: asks, note: asks } : {})}
         value={(fields.approvers ?? []).join(', ')}
-        placeholder="change-board, dana"
+        placeholder="e.g. change-board, dana"
         onCommit={(v) => set({ approvers: namesOf(v) })}
       />
       <CommitField
         label="Notify"
         help="Users or groups told that it waits, besides the approvers."
         value={(fields.notify ?? []).join(', ')}
-        placeholder="netops-oncall"
+        placeholder="e.g. netops-oncall"
         onCommit={(v) => set({ notify: namesOf(v) })}
       />
       <CommitField
@@ -568,7 +573,7 @@ function ApprovalFields({
         help="What the approvers check before deciding."
         value={fields.message ?? ''}
         multiline
-        placeholder="Check the change ticket and the maintenance window"
+        placeholder="e.g. Check the change ticket and the maintenance window"
         onCommit={(v) => set({ message: v })}
       />
       <p className="muted" data-approval-note>

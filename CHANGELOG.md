@@ -55,6 +55,7 @@ All notable changes to Ansible Flow Designer.
 - **Step Into** in a debug session steps as **Step Over** does, instead of a refusal; a pause after a hit count says "reached N times"; a value cut at 64 KB says so at the start of its line; an empty **Facts** says why; `[1 item]`, `{1 key}`.
 - At a debug pause, **Step inputs** lists the step's own inputs, also those the flow data gives (`devices`), and no longer an internal value of the generator (`afd_repo_root`).
 - Evaluate says what is wrong in plain words: "lookups are not allowed in Evaluate", "A bracket (() is not closed", "A quote (') is not closed", instead of Jinja's parser messages.
+- An approval step's **Approvers** help no longer says "whoever the runner lets approve" where the server names who an empty field asks; that line reads "Empty, so it asks: …", and the example names in the fields start with "e.g." so they do not read as values.
 
 ## 1.1.0 — Run step by step, with pause points
 
