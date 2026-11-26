@@ -200,8 +200,17 @@ interface UiState {
   impliedApprovers: string[] | null;
   /** AFD-371: the step whose Edit Pause Point… popover is open. */
   pointEdit: Ulid | null;
+  /**
+   * AFD-381: the host page has its own debug toolbar: the canvas shows no Step, Continue, Pause,
+   * Retry or Stop buttons, and tells the host which node is selected.
+   */
+  hostToolbar: boolean;
+  /** AFD-381: the host picked on the host page; the canvas marks the steps it ran or waits at. */
+  hostMark: string | null;
   setStepRuns(on: boolean): void;
   setDebugRuns(on: boolean): void;
+  setHostToolbar(on: boolean): void;
+  setHostMark(host: string | null): void;
   setPausePoints(points: Ulid[], settings?: PausePoint[], failures?: FailureFilters): void;
   setPointEdit(node: Ulid | null): void;
   /** AFD-314: what the page around a viewer shows and allows. */
@@ -462,6 +471,8 @@ export const useUi = create<UiState>((set, get) => ({
   stepRuns: false,
   pausePoints: [],
   debugRuns: false,
+  hostToolbar: false,
+  hostMark: null,
   pointSettings: {},
   failureFilters: {},
   pointEdit: null,
@@ -598,6 +609,8 @@ export const useUi = create<UiState>((set, get) => ({
   setRunner: (runner) => set({ runner }),
   setStepRuns: (stepRuns) => set({ stepRuns }),
   setDebugRuns: (debugRuns) => set({ debugRuns }),
+  setHostToolbar: (hostToolbar) => set({ hostToolbar }),
+  setHostMark: (hostMark) => set({ hostMark }),
   setPausePoints: (pausePoints, settings, failures) =>
     set((s) => ({
       pausePoints,

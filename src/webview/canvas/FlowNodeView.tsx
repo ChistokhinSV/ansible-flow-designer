@@ -44,6 +44,7 @@ import { type ProblemBadge, problemBadges } from '../../core/view/problemBadges'
 import { gapWords, hasGap, type StatusGap, shownStatus } from '../../core/view/statusGap';
 import { run } from '../actions';
 import { STATE_LABEL } from '../constants';
+import { hostMarkOf } from '../hostHooks';
 import { stepKeysLine } from '../panels/StepBar';
 import { useStatusGap } from '../paramGaps';
 import { addNextNode } from '../portActions';
@@ -760,6 +761,8 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     if (shown.length === 0) return '';
     return shown.includes(node.id) ? 'lens-hit' : 'lens-dim';
   });
+  // AFD-381: the host the page picked: the steps it went through, the one it waits at.
+  const hostMark = useUi((s) => hostMarkOf(s, node.id));
   // D-14: the node stays active while its port menu is open, so its ports do not vanish.
   const active = useUi((s) => s.portMenu?.ref.node === node.id);
   // The node a keyboard pick would choose (AFD-47).
@@ -833,6 +836,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
     role === 'frame' ? 'expanded' : '',
     role === 'inner' ? 'inner' : '',
     lit,
+    hostMark ? `host-${hostMark}` : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -845,6 +849,7 @@ export const FlowNodeView = memo(function FlowNodeView({ data, selected }: NodeP
       data-run-state={runState}
       data-step-paused={pausedHosts}
       data-pause-point={pausePoint ? 'true' : undefined}
+      data-host-mark={hostMark}
       data-lens={lensChips}
       data-outside={outside || undefined}
       title={outsideLine}

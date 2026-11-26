@@ -25,6 +25,8 @@ export const VIEWER_MESSAGES: ReadonlySet<MessageType> = new Set<MessageType>([
   // (config.debugRuns).
   'setPausePoint',
   'setFailureFilters',
+  // AFD-381: the node selected, for a page with its own debug toolbar (config.hostToolbar).
+  'nodeSelected',
   'runOutput',
   'showRunOutput',
   // AFD-273: deciding an approval of the run shown, where the host lets this person decide.

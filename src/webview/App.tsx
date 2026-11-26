@@ -7,6 +7,7 @@ import { copySelection, installClipboard, pasteText } from './clipboard';
 import { Details } from './details/Details';
 import { deleteSelection } from './editActions';
 import { onTabListKeys } from './focus';
+import { reportSelection } from './hostHooks';
 import { domSummary } from './inspect';
 import { installKeyboard } from './keyboard';
 import { CanvasContextMenu } from './menu/CanvasContextMenu';
@@ -94,6 +95,7 @@ function useHost() {
         ui.setRunner(m.runner === true);
         ui.setStepRuns(m.stepRuns === true);
         ui.setDebugRuns(m.debugRuns === true);
+        ui.setHostToolbar(m.hostToolbar === true);
         useUi.setState({
           impliedApprovers: Array.isArray(m.impliedApprovers)
             ? m.impliedApprovers.map(String)
@@ -108,8 +110,10 @@ function useHost() {
         ui.setWireStyle(m.style);
       } else if (m.type === 'firstFlow') {
         ui.setFirstFlow({ hidden: m.hidden, done: m.done });
-      } else if (m.type === 'reveal') {
+      } else if (m.type === 'reveal' || m.type === 'revealNode') {
         ui.reveal(m.node);
+      } else if (m.type === 'highlightHost') {
+        ui.setHostMark(typeof m.host === 'string' && m.host ? m.host : null);
       } else if (m.type === 'setMode') {
         ui.setMode(m.mode);
       } else if (m.type === 'openLevel') {
@@ -153,12 +157,14 @@ function useHost() {
     const offClipboard = installClipboard((nodes) => void deleteSelection(nodes));
     const offKeyboard = installKeyboard();
     const offInFlight = onInFlight((n) => useUi.setState({ saving: n > 0 }));
+    const offSelected = reportSelection();
     send({ type: 'ready' });
     return () => {
       off();
       offClipboard();
       offKeyboard();
       offInFlight();
+      offSelected();
       document.removeEventListener('securitypolicyviolation', onCsp);
     };
   }, []);
