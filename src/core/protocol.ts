@@ -363,9 +363,10 @@ export type HostMessage =
       impliedApprovers?: string[];
       /**
        * AFD-381: the page around the canvas has its own debug toolbar (Ansible Flow Server's debug
-       * workbench): the failure bar and the step bar keep their reason and host lines, without
-       * their Step, Continue, Pause, Retry and Stop buttons; the canvas says which node is selected
-       * (`nodeSelected`). Off by default (VS Code).
+       * workbench): no Step, Continue, Pause, Retry and Stop buttons, and (AFD-382) no failure
+       * bar, pause pill or Run panel step bar while the run goes; a pause opens nothing by itself;
+       * node badges stay. The canvas says which node is selected (`nodeSelected`). Off by default
+       * (VS Code).
        */
       hostToolbar?: boolean;
     }

@@ -260,8 +260,13 @@ A page that holds the viewer says what it shows itself and what the person may d
 A page with a debug toolbar of its own (Step, Continue, Pause, Retry, Stop) sets
 `hostToolbar: true` in `config`. Off by default, as in VS Code.
 
-- The canvas's failure bar and the Run panel's step bar keep their reason and host lines, without
-  their buttons. F10 and F8 still drive the run while the canvas has the focus.
+- The canvas shows no run text the page shows itself: no failure bar, no "Paused after …" or
+  "Paused before …" in the bar, and the Run panel has no step bar (where the run waits, the hosts
+  waiting there, its buttons) while the run goes. A step paused before shows no table of waiting
+  hosts; the hosts and results of steps that ran stay, and so does an ended run's step summary.
+- A pause does not switch the canvas to Run mode or open a panel by itself; the page decides.
+- The node badges stay: paused here, failed, waiting. F10 and F8 still drive the run while the
+  canvas has the focus.
 - The designer sends `nodeSelected` (`node`: an id, or null for none or several) when the selection
   changes. A viewer may send it.
 - The host may send `revealNode` (`node`): the canvas opens the level that holds it, selects it and

@@ -727,8 +727,13 @@ export const useUi = create<UiState>((set, get) => ({
     // launch.json debug, or a run started outside it) shows it in Run mode, with the ring on the
     // paused step; Design mode showed nothing of the pause.
     const before = get().run;
+    // AFD-382: a page with its own debug toolbar decides what opens at a pause.
     const pausedNew =
-      run?.state === 'running' && !run.past && !!run.step?.paused && before?.id !== run.id;
+      !get().hostToolbar &&
+      run?.state === 'running' &&
+      !run.past &&
+      !!run.step?.paused &&
+      before?.id !== run.id;
     // A run from the host replaces a scenario on the canvas.
     if (get().scenarioShown || get().scenarioEditing)
       set({ scenarioShown: null, scenarioEditing: null, runBeforeScenario: null });

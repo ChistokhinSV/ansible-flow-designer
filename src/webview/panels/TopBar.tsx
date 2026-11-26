@@ -556,6 +556,9 @@ function LiveRun({ run }: { run: RunView }) {
   const paused = run.step?.paused;
   // AFS-205: a step inside a subflow by its path ("Pre-checks › Read device status").
   const pausedAt = paused && doc ? stepPath(modelOf(doc), paused.node) : undefined;
+  // AFD-382: a page with its own debug toolbar says why the run waits in its status line.
+  const hostToolbar = useUi((s) => s.hostToolbar);
+  if (paused && hostToolbar) return null;
   if (paused)
     return (
       <button

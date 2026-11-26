@@ -558,6 +558,7 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
   const doc = useUi((s) => s.snapshot?.doc);
   const run = useUi((s) => s.run);
   const r = useUi((s) => s.runNodes?.[id]);
+  const hostToolbar = useUi((s) => s.hostToolbar);
   const approval = approvalOf(run, id);
   const model = doc ? modelOf(doc) : undefined;
   const node = model?.nodes.get(id)?.node;
@@ -597,6 +598,9 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
       : played.length === 0 && pausedHere
         ? pausedHere.hosts.map((host) => ({ host, ports: [] as string[], waits: true }))
         : played;
+  // AFD-382: the hosts waiting at a pause are the page's to show when it has its own debug
+  // toolbar; results of steps that ran stay.
+  const waitsLeftToHost = hostToolbar && !!pausedHere && played.length === 0;
   // AFD-329: a decided approval sends its hosts on by the decision, not by failing.
   const decided =
     node.type === 'approval' && approval && approval.status !== 'waiting' ? approval : undefined;
@@ -637,6 +641,10 @@ export function NodeRunPanel({ id }: { id: Ulid }) {
     <div className="afd-panel-body" data-node-run={id}>
       {!s ? (
         <p className="muted">No run yet.</p>
+      ) : waitsLeftToHost ? (
+        <p className="muted" data-waits-left-to-host>
+          No results here yet.
+        </p>
       ) : r?.state === 'idle' && !pausedHere ? (
         // AFD-358: the run shown, which on the server's run pages may be an older one.
         <p className="muted">This run did not reach this node.</p>

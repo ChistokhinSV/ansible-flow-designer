@@ -262,7 +262,8 @@ function FailureNote({ pause, title }: { pause: StepPause; title: string }) {
 
 /**
  * AFD-372: a failure pause over the canvas: the reason line, the failed hosts, Retry (with its
- * warning), Continue and Stop where this host drives the run; the reason alone for a reader.
+ * warning), Continue and Stop where this host drives the run; the reason alone for a reader. None
+ * on a page with its own debug toolbar (AFD-382).
  */
 export function FailureBar() {
   const run = useUi((s) => s.run);
@@ -271,9 +272,12 @@ export function FailureBar() {
     run?.state === 'running' && !run.past && run.step?.paused?.kind === 'failure'
       ? run.step.paused
       : undefined;
+  // AFD-382: a page with its own debug toolbar says the reason in its status line, and the failed
+  // hosts' messages in its own views.
+  const hostToolbar = useUi((s) => s.hostToolbar);
   const title = useTitle(pause?.node);
-  const now = useNow(!!pause);
-  if (!pause) return null;
+  const now = useNow(!!pause && !hostToolbar);
+  if (!pause || hostToolbar) return null;
   return (
     <section className="afd-failure-bar" role="status" data-failure-bar={pause.id}>
       <span className="codicon codicon-error" aria-hidden="true" />
@@ -305,7 +309,9 @@ export function StepSection({ run }: { run: RunView }) {
   const pausedTitle = useTitle(step?.paused?.node);
   const runningTitle = useTitle(step?.running?.node ?? run.summary?.running);
   const stoppedTitle = useTitle(step?.stopped?.node);
-  if (!step) return null;
+  // AFD-382: while the run goes, a page with its own debug toolbar shows where it waits and who.
+  const hostToolbar = useUi((s) => s.hostToolbar);
+  if (!step || (hostToolbar && going)) return null;
   const reveal = (id: Ulid) => useUi.getState().reveal(id);
   const pausePoint = !!step.paused && step.points.includes(step.paused.node);
   return (

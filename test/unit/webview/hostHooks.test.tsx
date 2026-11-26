@@ -1,6 +1,7 @@
 // AFD-381: the canvas inside a page with its own debug toolbar (Ansible Flow Server's debug
 // workbench): config.hostToolbar hides the canvas's Step, Continue, Retry and Stop buttons and
-// keeps the reason and host lines; nodeSelected goes to the host; revealNode opens the level and
+// (AFD-382) the run text the page shows itself: the failure bar, the top bar's pause pill, the Run
+// panel's step bar and the paused step's waiting hosts; node badges stay. nodeSelected goes to the host; revealNode opens the level and
 // selects the node; highlightHost marks the steps a host ran and the one it waits at. Without the
 // flag (VS Code) nothing changes. Fictional hosts.
 import { readFileSync } from 'node:fs';
@@ -17,7 +18,7 @@ import type { StepPause } from '../../../src/core/run/step';
 import { viewerAllows } from '../../../src/core/viewer';
 import { App } from '../../../src/webview/App';
 import { reportSelection } from '../../../src/webview/hostHooks';
-import { RunPanel } from '../../../src/webview/panels/RunPanel';
+import { NodeRunPanel, RunPanel } from '../../../src/webview/panels/RunPanel';
 import { FailureBar } from '../../../src/webview/panels/StepBar';
 import { useUi } from '../../../src/webview/store';
 import { posted } from './setup';
@@ -98,29 +99,93 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('AFD-381: config.hostToolbar', () => {
-  it('the failure bar keeps its reason and hosts, without the step buttons', () => {
+  it('the failure bar keeps its buttons in VS Code, and is not shown at all for the host', () => {
     act(() => useUi.getState().setRun(run()));
     const { unmount } = render(<FailureBar />);
-    expect(document.querySelectorAll('[data-failure-bar] [data-step-command]').length).toBe(4);
+    const bar = document.querySelector('[data-failure-bar]') as HTMLElement;
+    expect(bar.querySelectorAll('[data-step-command]').length).toBe(4);
+    expect(bar.textContent).toContain('Paused after');
     unmount();
     act(() => useUi.getState().setHostToolbar(true));
     render(<FailureBar />);
-    const bar = document.querySelector('[data-failure-bar]') as HTMLElement;
-    expect(bar.textContent).toContain('Paused after');
-    expect(bar.textContent).toContain('fw-02: parse: no version in the answer');
-    expect(bar.querySelector('[data-step-command]')).toBeNull();
+    // AFD-382: the reason is the host's status line; the failed hosts its own views.
+    expect(document.querySelector('[data-failure-bar]')).toBeNull();
   });
 
-  it("the Run panel's step bar keeps where it waits and who, without the step buttons", () => {
+  it("the Run panel's step bar is left to the host while the run goes", () => {
+    act(() => useUi.getState().setRun(run(pause({ kind: undefined, failed: undefined }))));
+    const { unmount } = render(<RunPanel />);
+    expect(document.querySelector('[data-step-run="going"] [data-step-paused]')).not.toBeNull();
+    expect(document.body.textContent).toContain('Waiting there: fw-01, fw-02');
+    unmount();
+    act(() => useUi.getState().setHostToolbar(true));
+    render(<RunPanel />);
+    expect(document.querySelector('[data-step-run]')).toBeNull();
+    expect(document.body.textContent).not.toContain('Waiting there');
+    expect(document.querySelector('[data-step-command]')).toBeNull();
+  });
+
+  it("an ended run's step section stays for the host", () => {
     act(() => {
       useUi.getState().setHostToolbar(true);
-      useUi.getState().setRun(run(pause({ kind: undefined, failed: undefined })));
+      useUi.getState().setRun({
+        ...run(),
+        state: 'done',
+        step: { every: false, points: [], pauses: 2, debug: true },
+      } as RunView);
     });
     render(<RunPanel />);
-    const bar = document.querySelector('[data-step-run]') as HTMLElement;
-    expect(bar.querySelector('[data-step-paused]')).not.toBeNull();
-    expect(bar.textContent).toContain('Waiting there: fw-01, fw-02');
-    expect(document.querySelector('[data-step-command]')).toBeNull();
+    expect(document.querySelector('[data-step-run="ended"]')?.textContent).toContain(
+      'paused 2 times',
+    );
+  });
+
+  it("the paused step's waiting hosts are left to the host; results of steps that ran stay", () => {
+    // Paused before backup: nobody ran it yet, both wait there.
+    const before = pause({ kind: undefined, failed: undefined, node: id('backup') });
+    act(() => useUi.getState().setRun(run(before)));
+    const { unmount } = render(<NodeRunPanel id={id('backup')} />);
+    expect(document.body.textContent).toContain('waiting for Step or Continue');
+    unmount();
+    act(() => useUi.getState().setHostToolbar(true));
+    const { unmount: off } = render(<NodeRunPanel id={id('backup')} />);
+    expect(document.body.textContent).not.toContain('waiting for Step or Continue');
+    expect(document.body.textContent).not.toContain('paused before');
+    expect(document.querySelector('[data-waits-left-to-host]')).not.toBeNull();
+    off();
+    // A step that ran keeps its hosts and results.
+    render(<NodeRunPanel id={id('read-status')} />);
+    expect(document.querySelector('[data-run-hosts]')?.getAttribute('data-run-hosts')).toBe('2');
+  });
+
+  it('a pause does not switch the canvas to Run mode by itself for the host', () => {
+    act(() => useUi.getState().setMode('design'));
+    act(() => useUi.getState().setRun(run()));
+    expect(useUi.getState().mode).toBe('run');
+    act(() => {
+      useUi.getState().setRun(null);
+      useUi.getState().setMode('design');
+      useUi.getState().setHostToolbar(true);
+      useUi.getState().setRun(run());
+    });
+    expect(useUi.getState().mode).toBe('design');
+  });
+
+  it('the top bar shows no "Paused after" pill for the host; node badges stay', async () => {
+    render(<App />);
+    fromHost({ type: 'config', testMode: false, stepRuns: true });
+    act(() => useUi.getState().setRun(run()));
+    await settle();
+    const pill = () => document.querySelector('.afd-run-status[data-run-state="paused"]');
+    expect(pill()?.textContent).toContain('Paused after');
+    fromHost({ type: 'config', testMode: false, stepRuns: true, hostToolbar: true });
+    await settle();
+    expect(pill()).toBeNull();
+    expect(document.querySelector('[data-failure-bar]')).toBeNull();
+    // The badge on the subflow that holds the failure pause stays: the in-context mark.
+    expect(
+      document.querySelector(`[data-node-id="${id('precheck')}"][data-step-paused]`),
+    ).not.toBeNull();
   });
 
   it("the top bar's Stop is left to the host during a step-by-step run", async () => {
