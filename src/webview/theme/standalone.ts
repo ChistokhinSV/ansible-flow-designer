@@ -1,7 +1,7 @@
 // The theme outside VS Code (AFD-269). In a webview VS Code sets a class on <body> and its
 // --vscode-* variables; a web page has neither, so mount() and the harness set these. The values
 // approximate VS Code's default themes; variables not listed fall back in the stylesheets.
-import type { ThemeKind } from '../../core/theme';
+import type { Palette, ThemeKind } from '../../core/theme';
 
 /** The class VS Code puts on <body> for each kind of theme (read by `themeKindOf`). */
 export const THEME_CLASS: Record<ThemeKind, string> = {
@@ -66,16 +66,43 @@ export const STANDALONE_THEMES: Record<ThemeKind, Record<string, string>> = {
   },
 };
 
+// AFD-383: a host page's colours (`Palette`) are laid over the theme's variables.
+const PALETTE_NAME = /^--vscode-[A-Za-z0-9-]+$/;
+// Colours only: a palette is not a way to change the canvas's fonts or to load a url().
+const COLOUR =
+  /^(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgba?|hsla?)\([0-9.,%\s/+-]+\)|transparent)$/;
+
+/** The entries of a palette the canvas takes: `--vscode-*` names with colour values. */
+export function paletteEntries(palette: Palette | undefined): [string, string][] {
+  const taken: [string, string][] = [];
+  for (const [name, value] of Object.entries(palette ?? {}))
+    if (typeof value === 'string' && PALETTE_NAME.test(name) && COLOUR.test(value.trim()))
+      taken.push([name, value.trim()]);
+  return taken;
+}
+
+/** The palette names set on each page, so the next palette (or none) can take them back. */
+const fromPalette = new WeakMap<Document, string[]>();
+
 /**
  * Makes the page look like a webview of this theme kind: the class on <body> (the designer's own
  * tokens follow it, App.tsx) and the variables on <html>. Variables of the other kinds are removed.
+ * A host's palette is laid over them, except in the high contrast kinds: those exist for people
+ * who need that contrast, and a page's own colours would take it away.
  */
-export function applyStandaloneTheme(doc: Document, kind: ThemeKind): void {
+export function applyStandaloneTheme(doc: Document, kind: ThemeKind, palette?: Palette): void {
   const vars = STANDALONE_THEMES[kind];
+  const style = doc.documentElement.style;
   for (const cls of Object.values(THEME_CLASS)) doc.body.classList.remove(cls);
   doc.body.classList.add(THEME_CLASS[kind]);
-  for (const [k, v] of Object.entries(vars)) doc.documentElement.style.setProperty(k, v);
+  for (const k of fromPalette.get(doc) ?? []) if (!(k in vars)) style.removeProperty(k);
+  for (const [k, v] of Object.entries(vars)) style.setProperty(k, v);
   for (const other of Object.values(STANDALONE_THEMES))
-    for (const k of Object.keys(other))
-      if (!(k in vars)) doc.documentElement.style.removeProperty(k);
+    for (const k of Object.keys(other)) if (!(k in vars)) style.removeProperty(k);
+  const taken = kind === 'light' || kind === 'dark' ? paletteEntries(palette) : [];
+  for (const [k, v] of taken) style.setProperty(k, v);
+  fromPalette.set(
+    doc,
+    taken.map(([k]) => k),
+  );
 }
