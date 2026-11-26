@@ -257,6 +257,19 @@ A page that holds the viewer says what it shows itself and what the person may d
 - `mayRun: false`: no Run as Skeleton or Run for Real. `mayStop: false`: no Stop while a run goes.
   The host still refuses what the person may not do; this only keeps the buttons away.
 
+A page with a debug toolbar of its own (Step, Continue, Pause, Retry, Stop) sets
+`hostToolbar: true` in `config`. Off by default, as in VS Code.
+
+- The canvas's failure bar and the Run panel's step bar keep their reason and host lines, without
+  their buttons. F10 and F8 still drive the run while the canvas has the focus.
+- The designer sends `nodeSelected` (`node`: an id, or null for none or several) when the selection
+  changes. A viewer may send it.
+- The host may send `revealNode` (`node`): the canvas opens the level that holds it, selects it and
+  scrolls it into view.
+- The host may send `highlightHost` (`host`, or null to clear): in Run mode the canvas marks the
+  steps that host went through and the step it is paused at (a subflow holding them is marked on
+  its parent's level), and dims the rest.
+
 A run's `approvals` (`RunApproval` per approval node) show on the canvas and in a step's Run tab;
 one with `mayDecide: true` gets Approve and Reject with a comment, which send `approve`. Set it
 only where the person looking may decide.

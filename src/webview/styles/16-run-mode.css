@@ -357,6 +357,20 @@
   outline-color: var(--afd-failed);
 }
 
+/* AFD-381: the host picked on the page around the canvas: the steps it went through stand out,
+   the one it waits at most, the rest recede. */
+.afd-node.host-ran {
+  box-shadow: 0 0 0 2px var(--afd-accent);
+}
+
+.afd-node.host-at {
+  box-shadow: 0 0 0 3px var(--afd-accent);
+}
+
+.afd-node.host-off {
+  opacity: 0.45;
+}
+
 .afd-failure-bar {
   display: flex;
   flex-wrap: wrap;

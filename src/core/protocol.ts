@@ -313,6 +313,16 @@ export type HostMessage =
       pasted?: Ulid[];
     }
   | { type: 'reveal'; node: Ulid }
+  /**
+   * AFD-381: a page that holds the canvas (config.hostToolbar) shows a node: selects it and scrolls
+   * it into view, opening the level that holds it.
+   */
+  | { type: 'revealNode'; node: Ulid }
+  /**
+   * AFD-381: a page that holds the canvas picked a host of the run shown (null: none): the canvas
+   * marks the steps that host ran and the one it is paused at.
+   */
+  | { type: 'highlightHost'; host: string | null }
   /** Opens a level on the canvas: `root` or a subflow node id (M4; tests and commands). */
   | { type: 'openLevel'; level: string }
   /** Switches the canvas mode (tests and commands, M7). */
@@ -351,6 +361,13 @@ export type HostMessage =
        * administrator. Absent: not known (VS Code), and the Approvers field says nothing more.
        */
       impliedApprovers?: string[];
+      /**
+       * AFD-381: the page around the canvas has its own debug toolbar (Ansible Flow Server's debug
+       * workbench): the failure bar and the step bar keep their reason and host lines, without
+       * their Step, Continue, Pause, Retry and Stop buttons; the canvas says which node is selected
+       * (`nodeSelected`). Off by default (VS Code).
+       */
+      hostToolbar?: boolean;
     }
   /**
    * AFD-346: the flow's pause points (kept by the host, not in the flow file). ADR-0040: `settings`
@@ -447,6 +464,11 @@ export type WebviewMessage =
    * failure pause of a debug run (the host answers a refusal with its words).
    */
   | { type: 'stepRun'; command: StepCommand }
+  /**
+   * AFD-381: the node selected on the canvas (null: none, or not one node), sent where the host has
+   * its own toolbar (config.hostToolbar).
+   */
+  | { type: 'nodeSelected'; node: Ulid | null }
   /** AFD-346: a pause point on a step, set or taken away. */
   | { type: 'togglePausePoint'; node: Ulid }
   /**

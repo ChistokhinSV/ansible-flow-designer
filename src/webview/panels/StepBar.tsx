@@ -110,7 +110,9 @@ function useNow(on: boolean): number {
 /** Step, Continue, Pause and Stop, with their keys. */
 export function StepButtons({ compact, stop = true }: { compact?: boolean; stop?: boolean }) {
   const run = useStepping();
-  if (!run?.step) return null;
+  // AFD-381: the host page's toolbar is the only one.
+  const hostToolbar = useUi((s) => s.hostToolbar);
+  if (!run?.step || hostToolbar) return null;
   const paused = !!run.step.paused;
   const keys = stepKeys();
   const button = (
