@@ -123,6 +123,19 @@ describe('AFD-381: config.hostToolbar', () => {
     expect(document.querySelector('[data-step-command]')).toBeNull();
   });
 
+  it("the top bar's Stop is left to the host during a step-by-step run", async () => {
+    render(<App />);
+    fromHost({ type: 'config', testMode: false, stepRuns: true });
+    act(() => useUi.getState().setRun(run()));
+    await settle();
+    const stops = () =>
+      [...document.querySelectorAll('button')].filter((b) => b.textContent?.trim() === 'Stop');
+    expect(stops().length).toBeGreaterThan(0);
+    fromHost({ type: 'config', testMode: false, stepRuns: true, hostToolbar: true });
+    await settle();
+    expect(stops().length).toBe(0);
+  });
+
   it('comes from config and is off by default', async () => {
     render(<App />);
     fromHost({ type: 'config', testMode: false, stepRuns: true });

@@ -23,7 +23,7 @@ import { waitsForApproval } from '../runApproval';
 import { IS_MAC, keysOf } from '../shortcuts';
 import { type Mode, useUi } from '../store';
 import { inheritedContext, levelTrail } from '../viewModel';
-import { StepButtons, stepKeysLine } from './StepBar';
+import { StepButtons, stepKeysLine, useStepping } from './StepBar';
 
 export function TopBar() {
   const doc = useUi((s) => s.snapshot?.doc);
@@ -433,6 +433,10 @@ function RunActions({ running, viewer }: { running: boolean; viewer: boolean }) 
   const stepRuns = useUi((s) => s.stepRuns);
   const debugRuns = useUi((s) => s.debugRuns);
   const busy = running ? 'A run is going: stop it first' : undefined;
+  // AFD-381: while a step-by-step run goes, the host page's toolbar has Stop; no second one here.
+  const hostToolbar = useUi((s) => s.hostToolbar);
+  const stepping = useStepping();
+  if (hostToolbar && running && stepping) return null;
   return (
     <>
       <StepButtons compact stop={false} />
