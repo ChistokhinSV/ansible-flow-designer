@@ -3,6 +3,13 @@
 
 export type ThemeKind = 'light' | 'dark' | 'hc-dark' | 'hc-light';
 
+/**
+ * AFD-383: colours a host page gives the canvas, so the canvas matches the page around it instead
+ * of VS Code's defaults: values for the `--vscode-*` variables the canvas reads. Here, not beside
+ * the standalone theme, because the designer package's types ship this file.
+ */
+export type Palette = Readonly<Record<string, string>>;
+
 export type ToneToken =
   | 'ok'
   | 'failed'

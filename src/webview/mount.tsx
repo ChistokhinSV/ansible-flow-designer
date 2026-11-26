@@ -4,15 +4,14 @@ import '@xyflow/react/dist/style.css';
 import '@vscode/codicons/dist/codicon.css';
 import './styles/index.css';
 import { createRoot } from 'react-dom/client';
-import type { ThemeKind } from '../core/theme';
+import type { Palette, ThemeKind } from '../core/theme';
 import { App } from './App';
 import { setTransport } from './bus';
-import { applyStandaloneTheme, type Palette } from './theme/standalone';
+import { applyStandaloneTheme } from './theme/standalone';
 import type { DesignerTransport } from './transport';
 import { enterViewer } from './viewer';
 
-export type { ThemeKind } from '../core/theme';
-export type { Palette } from './theme/standalone';
+export type { Palette, ThemeKind } from '../core/theme';
 export type { DesignerTransport } from './transport';
 
 /** A theme kind, or `auto`: light or dark as the browser prefers, and it follows a change. */

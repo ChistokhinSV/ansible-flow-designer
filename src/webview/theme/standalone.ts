@@ -1,7 +1,7 @@
 // The theme outside VS Code (AFD-269). In a webview VS Code sets a class on <body> and its
 // --vscode-* variables; a web page has neither, so mount() and the harness set these. The values
 // approximate VS Code's default themes; variables not listed fall back in the stylesheets.
-import type { ThemeKind } from '../../core/theme';
+import type { Palette, ThemeKind } from '../../core/theme';
 
 /** The class VS Code puts on <body> for each kind of theme (read by `themeKindOf`). */
 export const THEME_CLASS: Record<ThemeKind, string> = {
@@ -66,13 +66,7 @@ export const STANDALONE_THEMES: Record<ThemeKind, Record<string, string>> = {
   },
 };
 
-/**
- * AFD-383: colours a host page gives the canvas, so the canvas matches the page around it instead
- * of VS Code's defaults: values for the `--vscode-*` variables the canvas reads, laid over the
- * standalone theme's.
- */
-export type Palette = Readonly<Record<string, string>>;
-
+// AFD-383: a host page's colours (`Palette`) are laid over the theme's variables.
 const PALETTE_NAME = /^--vscode-[A-Za-z0-9-]+$/;
 // Colours only: a palette is not a way to change the canvas's fonts or to load a url().
 const COLOUR =
