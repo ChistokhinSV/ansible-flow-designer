@@ -254,7 +254,7 @@ function usePanelState() {
     if (saved.paletteCollapsed) ui.setPaletteCollapsed(true);
     if (saved.panelCollapsed) ui.setPanelCollapsed(true);
     if (saved.annotationsHidden) ui.setAnnotationsHidden(true);
-    const narrow = window.innerWidth > 0 && window.innerWidth < NARROW_PX;
+    const isNarrow = () => window.innerWidth > 0 && window.innerWidth < NARROW_PX;
     const paletteNarrow = window.innerWidth > 0 && window.innerWidth < PALETTE_NARROW_PX;
     // Folded for the width, not by the user: stored as it was, until the user changes it.
     let paletteFolded = false;
@@ -265,7 +265,7 @@ function usePanelState() {
     }
     const foldForRun = (s: ReturnType<typeof useUi.getState>) => {
       if (
-        !narrow ||
+        !isNarrow() ||
         panelFolded ||
         s.panelCollapsed ||
         (!s.embed.runShown && inVsCode()) ||
@@ -277,7 +277,13 @@ function usePanelState() {
     };
     foldForRun(useUi.getState());
     let wasNarrow = paletteNarrow;
+    // AFS-266: a page that narrows the frame later (the server's debug workbench opening beside
+    // it) folds the run's side panel too, as if the frame had opened that narrow.
+    let wasPanelNarrow = isNarrow();
     const onResize = () => {
+      const panelNarrow = isNarrow();
+      if (panelNarrow && !wasPanelNarrow) foldForRun(useUi.getState());
+      wasPanelNarrow = panelNarrow;
       const now = window.innerWidth > 0 && window.innerWidth < PALETTE_NARROW_PX;
       if (now && !wasNarrow && !useUi.getState().paletteCollapsed) {
         paletteFolded = true;

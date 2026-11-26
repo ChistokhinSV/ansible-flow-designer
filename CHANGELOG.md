@@ -24,6 +24,7 @@ All notable changes to Ansible Flow Designer.
 
 ### Fixed
 
+- In a web page, a canvas that the page makes narrower later (a debugger opening beside it) folds the run's side panel, as it does when it opens narrow. The panel had taken half the canvas's room.
 - A step added between the last step and **Done** (or on any wire going down) is placed between them, and **Done** and the steps below move down to make room. It was put under **Done**, with its wires looping round it, and kept there when saved.
 - A wire label no longer sits on the edge of a step, cut by it ("iled_hosts").
 - A step bound to a network module (`cli_command`, `ios_config` and the like) on hosts the repository's inventory connects to with `ansible_connection: local` shows a warning, and reads specified, not implemented: the run would fail on every host with "Connection type local is not valid for this module".

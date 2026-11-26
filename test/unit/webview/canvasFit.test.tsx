@@ -306,3 +306,44 @@ describe('a narrow designer in a web page (AFS-148 a9.n1, a2.n1)', () => {
     }
   });
 });
+
+describe('a web page that narrows the designer later (AFS-266)', () => {
+  it('folds the side panel when the frame gets narrow, as if it had opened narrow', async () => {
+    const width = window.innerWidth;
+    const g = globalThis as { acquireVsCodeApi?: unknown };
+    const vscode = g.acquireVsCodeApi;
+    delete g.acquireVsCodeApi;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1400 });
+    const kept: unknown[] = [];
+    const listeners = new Set<(m: HostMessage) => void>();
+    setTransport({
+      post: () => undefined,
+      subscribe(l) {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      },
+      getState: () => undefined,
+      setState: (s) => kept.push(s),
+    });
+    useUi.setState({ paletteCollapsed: false, panelCollapsed: false, panelWidth: 340 });
+    try {
+      render(<App />);
+      await act(async () => {
+        for (const l of listeners) l({ type: 'config', testMode: false });
+        for (const l of listeners)
+          l({ type: 'snapshot', snapshot: snapshotOf(example('edge-baseline.flow.yaml')) });
+      });
+      expect(useUi.getState().panelCollapsed).toBe(false);
+      // The server's debug workbench opens beside the canvas: the frame becomes 760 wide.
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 760 });
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(useUi.getState().panelCollapsed).toBe(true);
+      expect(kept.every((k) => !(k as { panelCollapsed?: boolean }).panelCollapsed)).toBe(true);
+    } finally {
+      g.acquireVsCodeApi = vscode;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    }
+  });
+});
