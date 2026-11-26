@@ -7,11 +7,12 @@ import { createRoot } from 'react-dom/client';
 import type { ThemeKind } from '../core/theme';
 import { App } from './App';
 import { setTransport } from './bus';
-import { applyStandaloneTheme } from './theme/standalone';
+import { applyStandaloneTheme, type Palette } from './theme/standalone';
 import type { DesignerTransport } from './transport';
 import { enterViewer } from './viewer';
 
 export type { ThemeKind } from '../core/theme';
+export type { Palette } from './theme/standalone';
 export type { DesignerTransport } from './transport';
 
 /** A theme kind, or `auto`: light or dark as the browser prefers, and it follows a change. */
@@ -23,6 +24,12 @@ export interface MountOptions {
   /** Default `auto`. */
   theme?: ThemeChoice;
   /**
+   * AFD-383: the page's own colours for the canvas, as values of the `--vscode-*` variables it
+   * reads (`{'--vscode-editor-background': '#12171e'}`), laid over the theme's in light and dark.
+   * Only colours are taken. Give the colours of the theme in use; `setPalette` changes them.
+   */
+  palette?: Palette;
+  /**
    * The designer only shows and runs the flow (AFD-270), whatever the host's `config` says. The
    * host must still refuse what a viewer may not send (`@ansible-flow/core/viewer`).
    */
@@ -31,6 +38,8 @@ export interface MountOptions {
 
 export interface MountedDesigner {
   setTheme(theme: ThemeChoice): void;
+  /** AFD-383: new colours for the canvas, as `palette`; `undefined` goes back to the theme's. */
+  setPalette(palette: Palette | undefined): void;
   /** Removes the designer from the element. The page's theme class and variables stay. */
   unmount(): void;
 }
@@ -46,8 +55,13 @@ export function mount(el: HTMLElement, options: MountOptions): MountedDesigner {
   const doc = el.ownerDocument;
   const dark = doc.defaultView?.matchMedia?.('(prefers-color-scheme: dark)');
   let choice: ThemeChoice = options.theme ?? 'auto';
+  let palette = options.palette;
   const apply = () =>
-    applyStandaloneTheme(doc, choice === 'auto' ? (dark?.matches ? 'dark' : 'light') : choice);
+    applyStandaloneTheme(
+      doc,
+      choice === 'auto' ? (dark?.matches ? 'dark' : 'light') : choice,
+      palette,
+    );
   apply();
   dark?.addEventListener('change', apply);
   el.style.height = '100%';
@@ -56,6 +70,10 @@ export function mount(el: HTMLElement, options: MountOptions): MountedDesigner {
   return {
     setTheme(theme) {
       choice = theme;
+      apply();
+    },
+    setPalette(next) {
+      palette = next;
       apply();
     },
     unmount() {

@@ -226,7 +226,29 @@ With a bundler: `import { mount } from '@ansible-flow/designer'` and
   keys are handled on the window and its menus open on `<body>`. Give it a page or an iframe of its
   own.
 - **Theme:** `light`, `dark`, `hc-dark`, `hc-light` or `auto` (light or dark as the browser
-  prefers). `mount` returns `{ setTheme, unmount }`.
+  prefers). `mount` returns `{ setTheme, setPalette, unmount }`.
+- **The page's own colours:** `palette` gives the canvas the page's colours as values of the
+  `--vscode-*` variables it reads, laid over the theme's in light and dark (high contrast keeps
+  its own). Only colours are taken (`#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()`,
+  `hsla()`, `transparent`); other names and values are ignored. Give the colours of the theme in
+  use, and call `setPalette` with new ones when the page's theme changes; `setPalette(undefined)`
+  goes back to the theme's.
+
+  ```js
+  const designer = mount(root, {
+    transport,
+    theme: 'dark',
+    palette: {
+      '--vscode-editor-background': '#12171e',
+      '--vscode-sideBar-background': '#0f141a',
+      '--vscode-button-background': '#3ccfb8',
+      '--vscode-button-foreground': '#06231f',
+    },
+  });
+  ```
+
+  A designer older than this ignores `palette` and has no `setPalette`, so call it as
+  `designer.setPalette?.(...)`.
 - **Open the socket first or queue:** the designer posts `ready` as soon as it is mounted.
 - The bundle carries its own copy of the core's code. Messages are plain data, so that copy never
   meets the one a server runs.
