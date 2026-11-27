@@ -4,6 +4,7 @@ import { userInfo } from 'node:os';
 import { isAbsolute, relative, sep } from 'node:path';
 import * as vscode from 'vscode';
 import type { GitState } from '../core/drift/types';
+import { repositoryWhenReady } from '../core/flow/repoReady';
 
 // The subset of vscode.git's API (extensions/git/src/api/git.d.ts) used here.
 interface GitChange {
@@ -37,7 +38,13 @@ interface GitCommit {
 }
 interface GitApi {
   getRepository(uri: vscode.Uri): GitRepository | null;
+  readonly state?: 'uninitialized' | 'initialized';
+  onDidChangeState?: vscode.Event<'uninitialized' | 'initialized'>;
+  onDidOpenRepository?: vscode.Event<GitRepository>;
 }
+
+/** AFD-384: how long HEAD's text waits for the Git extension's first scan of the folders. */
+const SCAN_WAIT_MS = 10_000;
 interface GitExtension {
   getAPI(version: 1): GitApi;
 }
@@ -77,12 +84,24 @@ export async function onHeadMoved(
 }
 
 /**
+ * AFD-384: calls `opened` when the Git extension opens a repository after the start (found by a
+ * later scan, a folder added, `git init`): what was read of open flows before may be wrong.
+ */
+export async function onRepositoryOpened(
+  opened: () => void,
+): Promise<vscode.Disposable | undefined> {
+  return (await gitApi())?.onDidOpenRepository?.(() => opened());
+}
+
+/**
  * HEAD's text of the file; null when it is in a repository that has not committed it yet (AFD-377:
  * a new flow or a copy), undefined outside a repository or without the Git extension.
  */
 export async function headText(uri: vscode.Uri): Promise<string | null | undefined> {
   const git = await gitApi();
-  const repo = git?.getRepository(uri);
+  // AFD-384: asked before the Git extension has scanned the folders, "no repository" is not yet
+  // an answer: a flow Git does not hold would be taken for one outside Git, and bumped.
+  const repo = git ? await repositoryWhenReady(git, uri, SCAN_WAIT_MS) : undefined;
   if (!repo) return undefined;
   try {
     return await repo.show('HEAD', uri.fsPath);

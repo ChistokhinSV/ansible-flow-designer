@@ -45,7 +45,24 @@ export function baseOf(head: string | null | undefined, lastSaved: string | unde
 
 /** As last read, for a designer edit that carries its bump (AFD-377); refreshed for the next. */
 export function knownBase(uri: vscode.Uri, lastSaved: string | undefined): string | undefined {
-  const head = heads.get(uri.toString());
+  const key = uri.toString();
+  const answered = heads.has(key);
+  const head = heads.get(key);
   void prefetchHead(uri);
-  return baseOf(head, lastSaved);
+  // AFD-384: before Git has answered, nothing is known: the edit carries no bump, and the save,
+  // which asks Git itself, adds one if it is due.
+  return answered ? baseOf(head, lastSaved) : undefined;
+}
+
+/** AFD-384: whether Git has answered for the flow yet (in a repository or not). */
+export function headAnswered(uri: vscode.Uri): boolean {
+  return heads.has(uri.toString());
+}
+
+/** AFD-384: forgets what was read of every open flow and reads it again (a repository opened). */
+export function refreshHeads(uris: readonly vscode.Uri[]): void {
+  for (const uri of uris) {
+    heads.delete(uri.toString());
+    void prefetchHead(uri);
+  }
 }
