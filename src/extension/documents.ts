@@ -8,16 +8,29 @@ import type { Notice } from '../core/protocol';
 import { applyEdits } from '../core/yaml/edits';
 import { type CodegenOutcome, generateFlow } from './codegen';
 import { announceImplementedAgain, type SessionDeps } from './flowSession';
-
+import { onRepositoryOpened } from './gitHead';
 import { type Host, isFlow } from './host';
 import { logChannel } from './log';
 import { saveFollowed } from './run/scenarioFollow';
-import { baseOf, forgetHead, headWithin, prefetchHead } from './versionBase';
+import {
+  baseOf,
+  forgetHead,
+  headAnswered,
+  headWithin,
+  prefetchHead,
+  refreshHeads,
+} from './versionBase';
 
 export function registerDocuments(host: Host): vscode.Disposable[] {
   const { sessions, lastSaved, savedCode, deps } = host;
   for (const doc of vscode.workspace.textDocuments) if (isFlow(doc)) void prefetchHead(doc.uri);
+  // AFD-384: a repository the Git extension opens later changes what open flows' HEAD is.
+  const watching = onRepositoryOpened(() =>
+    refreshHeads(vscode.workspace.textDocuments.filter(isFlow).map((d) => d.uri)),
+  );
+  const repoWatch = new vscode.Disposable(() => void watching.then((d) => d?.dispose()));
   return [
+    repoWatch,
     vscode.workspace.onDidOpenTextDocument((doc) => {
       if (!isFlow(doc)) return;
       void host.sessionFor(doc).refresh();
@@ -163,7 +176,10 @@ async function saveEdits(
   // AFD-164: VS Code gives a save participant about 1.5 s and drops one that keeps running over,
   // which would end the version bump and the tested drop-back for good. HEAD's text is read again
   // each save but waited for briefly; past that, the copy read before (on open or the last save).
-  const base = baseOf(await headWithin(document.uri, HEAD_BUDGET_MS), lastSaved);
+  const head = await headWithin(document.uri, HEAD_BUDGET_MS);
+  // AFD-384: Git not answered yet (still scanning the folders): no bump now; a later save, with
+  // Git's answer, moves the version if it is due.
+  const base = headAnswered(document.uri) ? baseOf(head, lastSaved) : undefined;
   let plan: ReturnType<typeof planSave>;
   try {
     plan = planSave(text, saved, base);
